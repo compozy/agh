@@ -1277,6 +1277,50 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("permission-prompt")).toHaveTextContent("pending.txt");
   }, 10_000);
 
+  it("routes a clarify data event to the clarification receipt, not the activity notice", async () => {
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_clarify_001",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-agh-event",
+            data: {
+              type: "clarify",
+              session_id: primarySessionFixture.id,
+              turn_id: "clarify:req-1",
+              raw: {
+                status: "resolved",
+                request: {
+                  request_id: "req-1",
+                  workspace_id: primarySessionFixture.workspace_id,
+                  session_id: primarySessionFixture.id,
+                  agent_name: primarySessionFixture.agent_name,
+                  question: "Which environment should deploy?",
+                  choices: ["staging", "production"],
+                  asked_at: "2026-07-16T00:00:00Z",
+                  deadline: "2026-07-16T00:05:00Z",
+                },
+                answer: { choice: 1, text: "", fallback: false },
+                at: "2026-07-16T00:00:10Z",
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("clarification-receipt")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("clarification-receipt")).toHaveAttribute("data-status", "resolved");
+    expect(screen.getByTestId("clarification-receipt-answer")).toHaveTextContent("production");
+    expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
+  }, 10_000);
+
   it("renders mixed text, reasoning, and unregistered tool parts inline in order", async () => {
     transcriptMessages = [
       ...sessionTranscriptFixture.slice(0, 1),

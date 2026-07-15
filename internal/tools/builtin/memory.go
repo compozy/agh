@@ -53,7 +53,7 @@ var memoryTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDMemoryPropose,
 		"memory_propose",
 		"Memory Propose",
-		"Submit a Memory v2 write, update, or delete proposal through the write controller.",
+		"Submit one Memory v2 write/delete or an atomic document-body operations batch through the write controller.",
 		memoryProposeInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -130,6 +130,21 @@ const memoryProposeInputSchema = `{
 	"type":"object",
 	"properties":{
 		"operation":{"type":"string","enum":["add","update","delete"]},
+		"operations":{
+			"type":"array",
+			"minItems":1,
+			"description":"Atomic document-body operations validated against the final byte and line budget.",
+			"items":{
+				"type":"object",
+				"required":["action"],
+				"properties":{
+					"action":{"type":"string","enum":["add","replace","remove"]},
+					"content":{"type":"string"},
+					"old_text":{"type":"string","description":"A substring that must occur exactly once for replace or remove."}
+				},
+				"additionalProperties":false
+			}
+		},
 		"filename":{"type":"string"},
 		"target_filename":{"type":"string"},
 		"content":{"type":"string"},

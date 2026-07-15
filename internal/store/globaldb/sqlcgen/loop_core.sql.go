@@ -26,7 +26,7 @@ func (q *Queries) DeleteLoopUIAnnotations(ctx context.Context, arg DeleteLoopUIA
 }
 
 const findActiveLoopRun = `-- name: FindActiveLoopRun :one
-SELECT id, workspace_id, loop_name, status, generation, reattempt_strategy, last_progress_at, consecutive_failures, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source FROM loop_runs
+SELECT id, workspace_id, loop_name, status, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source FROM loop_runs
 WHERE workspace_id = ?1
   AND loop_name = ?2
   AND status IN ('queued', 'running', 'watching', 'needs-approval', 'paused')
@@ -50,7 +50,6 @@ func (q *Queries) FindActiveLoopRun(ctx context.Context, arg FindActiveLoopRunPa
 		&i.Generation,
 		&i.ReattemptStrategy,
 		&i.LastProgressAt,
-		&i.ConsecutiveFailures,
 		&i.BudgetTokens,
 		&i.BudgetWallSec,
 		&i.BudgetOnExceeded,
@@ -91,7 +90,7 @@ func (q *Queries) FindActiveLoopRun(ctx context.Context, arg FindActiveLoopRunPa
 }
 
 const findLiveSessionGoal = `-- name: FindLiveSessionGoal :one
-SELECT id, workspace_id, loop_name, status, generation, reattempt_strategy, last_progress_at, consecutive_failures, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source FROM loop_runs
+SELECT id, workspace_id, loop_name, status, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source FROM loop_runs
 WHERE workspace_id = ?1
   AND origin_kind = 'session'
   AND origin_session_id = ?2
@@ -116,7 +115,6 @@ func (q *Queries) FindLiveSessionGoal(ctx context.Context, arg FindLiveSessionGo
 		&i.Generation,
 		&i.ReattemptStrategy,
 		&i.LastProgressAt,
-		&i.ConsecutiveFailures,
 		&i.BudgetTokens,
 		&i.BudgetWallSec,
 		&i.BudgetOnExceeded,
@@ -258,7 +256,7 @@ func (q *Queries) GetLoopConfig(ctx context.Context, arg GetLoopConfigParams) (G
 }
 
 const getLoopRun = `-- name: GetLoopRun :one
-SELECT id, workspace_id, loop_name, status, generation, reattempt_strategy, last_progress_at, consecutive_failures, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source FROM loop_runs WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, loop_name, status, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source FROM loop_runs WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetLoopRunParams struct {
@@ -277,7 +275,6 @@ func (q *Queries) GetLoopRun(ctx context.Context, arg GetLoopRunParams) (LoopRun
 		&i.Generation,
 		&i.ReattemptStrategy,
 		&i.LastProgressAt,
-		&i.ConsecutiveFailures,
 		&i.BudgetTokens,
 		&i.BudgetWallSec,
 		&i.BudgetOnExceeded,
@@ -318,7 +315,7 @@ func (q *Queries) GetLoopRun(ctx context.Context, arg GetLoopRunParams) (LoopRun
 }
 
 const getLoopRunByID = `-- name: GetLoopRunByID :one
-SELECT id, workspace_id, loop_name, status, generation, reattempt_strategy, last_progress_at, consecutive_failures, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source FROM loop_runs WHERE id = ?1
+SELECT id, workspace_id, loop_name, status, generation, reattempt_strategy, last_progress_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, network_spec_json, network_mode, network_channel, network_source FROM loop_runs WHERE id = ?1
 `
 
 func (q *Queries) GetLoopRunByID(ctx context.Context, id string) (LoopRun, error) {
@@ -332,7 +329,6 @@ func (q *Queries) GetLoopRunByID(ctx context.Context, id string) (LoopRun, error
 		&i.Generation,
 		&i.ReattemptStrategy,
 		&i.LastProgressAt,
-		&i.ConsecutiveFailures,
 		&i.BudgetTokens,
 		&i.BudgetWallSec,
 		&i.BudgetOnExceeded,
@@ -428,7 +424,7 @@ INSERT INTO loop_runs (
   id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at, started_at,
   last_progress_at, definition_version, definition_digest, active_gate_id,
   active_human_criteria_json, budget_approval_seq, start_metadata_json,
-  consecutive_failures, iteration_cap, budget_tokens, budget_wall_sec,
+  iteration_cap, budget_tokens, budget_wall_sec,
   budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json,
   started_by_kind, started_by_ref, started_origin_kind, started_origin_ref,
   goal_context_nudge_ratio, origin_kind, origin_session_id,
@@ -439,15 +435,15 @@ INSERT INTO loop_runs (
   ?5, ?6, ?7, ?8,
   ?9, ?10, ?11,
   ?12, ?13, ?14,
-  ?15, ?16, ?17,
-  ?18, ?19, ?20,
-  ?21, ?22, ?23,
-  ?24, ?25, ?26,
-  ?27, ?28, ?29,
-  ?30, ?31, ?32,
-  ?33, ?34,
-  ?35, ?36, ?37,
-  ?38
+  ?15, ?16,
+  ?17, ?18, ?19,
+  ?20, ?21, ?22,
+  ?23, ?24, ?25,
+  ?26, ?27, ?28,
+  ?29, ?30, ?31,
+  ?32, ?33,
+  ?34, ?35, ?36,
+  ?37
 )
 `
 
@@ -467,7 +463,6 @@ type InsertLoopRunParams struct {
 	ActiveHumanCriteriaJson  string         `json:"active_human_criteria_json"`
 	BudgetApprovalSeq        int64          `json:"budget_approval_seq"`
 	StartMetadataJson        string         `json:"start_metadata_json"`
-	ConsecutiveFailures      int64          `json:"consecutive_failures"`
 	IterationCap             int64          `json:"iteration_cap"`
 	BudgetTokens             int64          `json:"budget_tokens"`
 	BudgetWallSec            int64          `json:"budget_wall_sec"`
@@ -509,7 +504,6 @@ func (q *Queries) InsertLoopRun(ctx context.Context, arg InsertLoopRunParams) er
 		arg.ActiveHumanCriteriaJson,
 		arg.BudgetApprovalSeq,
 		arg.StartMetadataJson,
-		arg.ConsecutiveFailures,
 		arg.IterationCap,
 		arg.BudgetTokens,
 		arg.BudgetWallSec,

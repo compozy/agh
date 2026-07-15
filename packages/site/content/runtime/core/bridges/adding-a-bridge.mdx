@@ -472,7 +472,8 @@ Handle each platform capability explicitly:
 - split terminal content with the platform's real unit and limit;
 - send continuations in order and acknowledge the last materialized remote ID;
 - keep progress message IDs separate from final-text delivery state;
-- classify auth, rate-limit, transient, and permanent errors with typed bridgesdk errors.
+- preserve HTTP status for provider overload and server failures, and classify auth, rate-limit,
+  timeout, transient, and permanent failures with bridgesdk.
 
 Classify completion from the remote observation, not from the local error alone:
 
@@ -515,9 +516,20 @@ reference over stale local state and put the replaced anchor in `replaceRemoteMe
 platform returns a new message. For progress with no side effect, use
 `session.AckDelivery(request, "", "")`.
 
-Map provider failures to bridgesdk auth, rate-limit, timeout, transient, or permanent errors. Report
-classified failures through the lifecycle-aware session path so runtime state and retry decisions
-stay consistent.
+Map provider failures to bridgesdk auth, rate-limit, overload, server-error, timeout, transient, or
+permanent classes. Report classified failures through the lifecycle-aware session path so runtime
+state and retry decisions stay consistent.
+
+First-party in-tree providers retry outbound calls through `bridgesdk.RetryDo`. Keep the original
+HTTP status in `HTTPError`: status 529 is an `overloaded` failure with the slower overload profile,
+while 500, 502, and 503 are `server_error`; transport failures such as connection reset remain
+`transient`. The shared runner uses bounded decorrelated jitter so concurrent deliveries do not
+advance in a fixed lockstep sequence. A positive provider `Retry-After` is authoritative and is not
+jittered or shortened.
+
+Do not add a provider-local attempt loop or backoff helper. This retry path is for first-party
+outbound provider calls only; it does not apply to delegated ACP agents or durable automation
+schedules. `CommittedMutationError` remains terminal regardless of class or retry configuration.
 
 Send every credential-bearing API, OAuth, and service request through a client created with
 `bridgesdk.CredentialedHTTPClient(baseClient)`. The helper clones the configured base client and

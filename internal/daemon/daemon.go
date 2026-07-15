@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/admission"
 	core "github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/httpapi"
 	"github.com/compozy/agh/internal/api/udsapi"
@@ -61,72 +62,6 @@ type ConfigLoader func() (aghconfig.Config, error)
 
 // SessionManager is the shared transport-facing session surface consumed by daemon/.
 type SessionManager = core.SessionManager
-
-type sandboxExecSessionManager interface {
-	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
-}
-
-type hostAPIExtensionSessionManager interface {
-	SessionManager
-	ExecSandbox(context.Context, session.SandboxExecRequest) (session.SandboxExecResult, error)
-}
-
-type hostAPIBridgePromptSessionManager interface {
-	PromptNetwork(
-		ctx context.Context,
-		sessionID string,
-		message string,
-		meta ...acp.PromptNetworkMeta,
-	) (<-chan acp.AgentEvent, error)
-	IsPrompting(sessionID string) bool
-}
-
-type hostAPISessionManagerAdapter struct {
-	core.SessionManager
-	exec sandboxExecSessionManager
-}
-
-type hostAPINetworkSessionManagerAdapter struct {
-	hostAPISessionManagerAdapter
-	bridgePrompts hostAPIBridgePromptSessionManager
-}
-
-func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSessionManager {
-	adapter := hostAPISessionManagerAdapter{SessionManager: sessions}
-	if exec, ok := sessions.(sandboxExecSessionManager); ok {
-		adapter.exec = exec
-	}
-	if bridgePrompts, ok := sessions.(hostAPIBridgePromptSessionManager); ok {
-		return hostAPINetworkSessionManagerAdapter{
-			hostAPISessionManagerAdapter: adapter,
-			bridgePrompts:                bridgePrompts,
-		}
-	}
-	return adapter
-}
-
-func (a hostAPISessionManagerAdapter) ExecSandbox(
-	ctx context.Context,
-	req session.SandboxExecRequest,
-) (session.SandboxExecResult, error) {
-	if a.exec == nil {
-		return session.SandboxExecResult{}, session.ErrSessionNotActive
-	}
-	return a.exec.ExecSandbox(ctx, req)
-}
-
-func (a hostAPINetworkSessionManagerAdapter) PromptNetwork(
-	ctx context.Context,
-	sessionID string,
-	message string,
-	meta ...acp.PromptNetworkMeta,
-) (<-chan acp.AgentEvent, error) {
-	return a.bridgePrompts.PromptNetwork(ctx, sessionID, message, meta...)
-}
-
-func (a hostAPINetworkSessionManagerAdapter) IsPrompting(sessionID string) bool {
-	return a.bridgePrompts.IsPrompting(sessionID)
-}
 
 // Observer is the daemon observer surface used for transport wiring and reconciliation.
 type Observer interface {
@@ -239,6 +174,7 @@ type extensionManagerDeps struct {
 	Registry               *extensionpkg.Registry
 	Extensions             aghconfig.ExtensionsConfig
 	Sessions               SessionManager
+	Clarify                toolspkg.ClarifyBroker
 	Automation             func() extensionpkg.HostAPIAutomationManager
 	Tasks                  taskpkg.Manager
 	Network                core.NetworkService
@@ -309,12 +245,14 @@ type Daemon struct {
 	config                       aghconfig.Config
 	startedAt                    time.Time
 	info                         Info
+	admission                    admission.Gate
 	lock                         *Lock
 	harnessResolver              *HarnessContextResolver
 	registry                     Registry
 	memoryStore                  *memory.Store
 	memoryProviderRegistry       *extensionpkg.MemoryProviderRegistry
 	memoryExtractor              *daemonMemoryExtractor
+	runtimeWorkers               daemonRuntimeWorkers
 	localMemoryProvider          memoryProviderShutdowner
 	situationContext             *situation.Service
 	sessions                     SessionManager
@@ -325,6 +263,7 @@ type Daemon struct {
 	network                      networkRuntime
 	networkWakeRunner            *networkWakeRunner
 	toolRegistry                 toolspkg.Registry
+	clarify                      *clarifyBridge
 	hooks                        hookRuntime
 	extensions                   extensionRuntime
 	observer                     Observer
@@ -493,90 +432,6 @@ func (d *Daemon) applyRuntimeFactoryDefaults() {
 	d.applyExtensionManagerFactoryDefault()
 	d.applyAutomationManagerFactoryDefault()
 	d.applyResourceReconcileDriverFactoryDefault()
-}
-
-func (d *Daemon) applyObserverFactoryDefault() {
-	if d.newObserver != nil {
-		return
-	}
-	d.newObserver = func(ctx context.Context, deps RuntimeDeps) (Observer, error) {
-		source, ok := deps.Sessions.(observe.SessionSource)
-		if !ok {
-			return nil, errors.New("daemon: session manager does not implement observe session source")
-		}
-		opts := []observe.Option{
-			observe.WithRegistry(deps.Registry),
-			observe.WithHomePaths(deps.HomePaths),
-			observe.WithSessionSource(source),
-			observe.WithWorkspaceResolver(deps.WorkspaceResolver),
-			observe.WithLogger(deps.Logger),
-			observe.WithStartTime(deps.StartedAt),
-			observe.WithBridgeSource(bridgeObserveSource(deps.Bridges)),
-			observe.WithObservabilityConfig(deps.Config.Observability),
-			observe.WithAgentProbeSource(
-				agentProbeTargetSource(&deps.Config, deps.AgentCatalog, deps.Logger),
-				deps.Config.Observability.AgentProbeTimeoutOrDefault(),
-			),
-		}
-		if deps.MemoryStore != nil {
-			opts = append(opts, observe.WithMemoryEventSource(deps.MemoryStore))
-		}
-		return observe.New(ctx, opts...)
-	}
-}
-
-func (d *Daemon) applyExtensionManagerFactoryDefault() {
-	if d.newExtensionManager != nil {
-		return
-	}
-	d.newExtensionManager = func(deps extensionManagerDeps) extensionRuntime {
-		if deps.Registry == nil || deps.ResourceStore == nil || deps.SourceSessions == nil {
-			return nil
-		}
-
-		capChecker := &extensionpkg.CapabilityChecker{}
-		capChecker.SetResourcePolicy(deps.Extensions.Resources)
-		hostAPI := extensionpkg.NewHostAPIHandler(
-			newHostAPISessionManagerAdapter(deps.Sessions),
-			deps.MemoryStore,
-			deps.Observer,
-			deps.SkillsRegistry,
-			buildHostAPIOptions(&deps, capChecker, deps.ResourceStore)...,
-		)
-
-		return extensionpkg.NewManager(
-			deps.Registry,
-			buildExtensionManagerOptions(&deps, capChecker, hostAPI, deps.SourceSessions)...,
-		)
-	}
-}
-
-func buildExtensionManagerOptions(
-	deps *extensionManagerDeps,
-	capChecker *extensionpkg.CapabilityChecker,
-	hostAPI *extensionpkg.HostAPIHandler,
-	sourceSessions resources.SourceSessionManager,
-) []extensionpkg.Option {
-	opts := []extensionpkg.Option{
-		extensionpkg.WithCapabilityChecker(capChecker),
-		extensionpkg.WithLogger(deps.Logger),
-		extensionpkg.WithSourceSessionManager(sourceSessions),
-		extensionpkg.WithProcessRegistry(deps.ProcessRegistry),
-		extensionpkg.WithAGHExecutableResolver(deps.AGHExecutable),
-	}
-	if sink, ok := deps.Observer.(extensionpkg.BridgeTelemetrySink); ok {
-		opts = append(opts, extensionpkg.WithBridgeTelemetrySink(sink))
-	}
-	if deps.BridgeRuntime != nil {
-		opts = append(opts, extensionpkg.WithBridgeRuntimeResolver(deps.BridgeRuntime))
-	}
-	if deps.SecretResolver != nil {
-		opts = append(opts, extensionpkg.WithSecretResolver(deps.SecretResolver))
-	}
-	for method, handler := range hostAPI.MethodHandlers() {
-		opts = append(opts, extensionpkg.WithHostMethodHandler(method, handler))
-	}
-	return opts
 }
 
 func (d *Daemon) applyAutomationManagerFactoryDefault() {
@@ -979,7 +834,8 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.TODO()
 	}
-	return d.shutdownDetached(ctx, d.detachShutdownTargets())
+	drainErr := d.Drain(context.WithoutCancel(ctx))
+	return errors.Join(drainErr, d.shutdownDetached(ctx, d.detachShutdownTargets()))
 }
 
 func daemonShutdownContext(parent context.Context) (context.Context, context.CancelFunc) {
@@ -987,93 +843,6 @@ func daemonShutdownContext(parent context.Context) (context.Context, context.Can
 		parent = context.TODO()
 	}
 	return context.WithTimeout(context.WithoutCancel(parent), defaultShutdownTimeout)
-}
-
-func (d *Daemon) detachShutdownTargets() shutdownTargets {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	targets := shutdownTargets{
-		scheduler:           d.scheduler,
-		coordinator:         d.coordinator,
-		spawnReaper:         d.spawnReaper,
-		tasks:               d.tasks,
-		sessions:            d.sessions,
-		network:             d.network,
-		networkWakeRunner:   d.networkWakeRunner,
-		hooks:               d.hooks,
-		extensions:          d.extensions,
-		automation:          d.automation,
-		resourceReconcile:   d.resourceReconcile,
-		bridges:             d.bridges,
-		httpServer:          d.httpServer,
-		udsServer:           d.udsServer,
-		registry:            d.registry,
-		lock:                d.lock,
-		closeLogger:         d.closeLogger,
-		infoPath:            d.homePaths.DaemonInfo,
-		dreamRuntime:        d.dreamRuntime,
-		memoryExtractor:     d.memoryExtractor,
-		memoryStore:         d.memoryStore,
-		localMemoryProvider: d.localMemoryProvider,
-		modelCatalog:        d.modelCatalog,
-		marketplace:         d.marketplace,
-		skillsCancel:        d.skillsCancel,
-		skillsDone:          d.skillsDone,
-		loopsCancel:         d.loopsCancel,
-		loopsDone:           d.loopsDone,
-		goalOutboxCancel:    d.goalOutboxCancel,
-		goalOutboxDone:      d.goalOutboxDone,
-	}
-	if stopper, ok := d.observer.(observerRetentionStopper); ok {
-		targets.retention = stopper
-	}
-
-	d.resetRuntimeStateLocked()
-	return targets
-}
-
-func (d *Daemon) resetRuntimeStateLocked() {
-	d.sessions = nil
-	d.tasks = nil
-	d.coordinator = nil
-	d.spawnReaper = nil
-	d.scheduler = nil
-	d.hooks = nil
-	d.extensions = nil
-	d.automation = nil
-	d.resourceReconcile = nil
-	d.httpServer = nil
-	d.udsServer = nil
-	d.observer = nil
-	d.registry = nil
-	d.harnessResolver = nil
-	d.memoryStore = nil
-	d.memoryProviderRegistry = nil
-	d.memoryExtractor = nil
-	d.localMemoryProvider = nil
-	d.modelCatalog = nil
-	d.marketplace = nil
-	d.skillsRegistry = nil
-	d.loopCatalog = nil
-	d.lock = nil
-	d.booting = false
-	d.info = Info{}
-	d.startedAt = time.Time{}
-	d.closeLogger = func() error { return nil }
-	d.dreamRuntime = nil
-	d.workspaceResolver = nil
-	d.sandboxRegistry = nil
-	d.skillsCancel = nil
-	d.skillsDone = nil
-	d.loopsCancel = nil
-	d.loopsDone = nil
-	d.goalOutboxCancel = nil
-	d.goalOutboxDone = nil
-	d.bridges = nil
-	d.network = nil
-	d.networkWakeRunner = nil
-	d.toolRegistry = nil
 }
 
 func (d *Daemon) shutdownDetached(ctx context.Context, targets shutdownTargets) error {

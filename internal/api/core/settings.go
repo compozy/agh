@@ -680,7 +680,7 @@ func parseDeleteSettingsCollectionRequest(
 
 func parseUpdateSettingsGeneralRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
 	var body struct {
-		Config *contract.SettingsGeneralConfigPayload `json:"config"`
+		Config *settingsGeneralUpdateConfigPayload `json:"config"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
@@ -694,7 +694,11 @@ func parseUpdateSettingsGeneralRequest(c *gin.Context) (settingspkg.SectionUpdat
 	if err != nil {
 		return settingspkg.SectionUpdateRequest{}, err
 	}
-	config, err := generalSettingsFromPayload(*body.Config)
+	payload, err := body.Config.validatedPayload()
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, err
+	}
+	config, err := generalSettingsFromPayload(payload)
 	if err != nil {
 		return settingspkg.SectionUpdateRequest{}, err
 	}
@@ -1174,91 +1178,6 @@ func requiredSettingsPathValue(raw string, field string) (string, error) {
 	return value, nil
 }
 
-func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (settingspkg.GeneralSettings, error) {
-	sessionTimeout, err := time.ParseDuration(strings.TrimSpace(payload.SessionTimeout))
-	if err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(
-			fmt.Errorf("general.config.session_timeout: %w", err),
-		)
-	}
-	reloadTimeouts, err := daemonReloadTimeoutsFromPayload(payload.Daemon.ReloadTimeouts)
-	if err != nil {
-		return settingspkg.GeneralSettings{}, err
-	}
-
-	value := settingspkg.GeneralSettings{
-		Defaults: aghconfig.DefaultsConfig{
-			Agent:    strings.TrimSpace(payload.Defaults.Agent),
-			Provider: strings.TrimSpace(payload.Defaults.Provider),
-			Sandbox:  strings.TrimSpace(payload.Defaults.Sandbox),
-		},
-		Limits: aghconfig.LimitsConfig{
-			MaxConcurrentAgents: payload.Limits.MaxConcurrentAgents,
-		},
-		Permissions: aghconfig.PermissionsConfig{
-			Mode: aghconfig.PermissionMode(payload.Permissions.Mode),
-		},
-		SessionTimeout: sessionTimeout,
-		HTTP: aghconfig.HTTPConfig{
-			Host: strings.TrimSpace(payload.HTTP.Host),
-			Port: payload.HTTP.Port,
-		},
-		Daemon: aghconfig.DaemonConfig{
-			Socket:         strings.TrimSpace(payload.Daemon.Socket),
-			ReloadTimeouts: reloadTimeouts,
-		},
-	}
-
-	if err := value.Defaults.Validate(); err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
-	}
-	if err := value.Limits.Validate(); err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
-	}
-	if err := value.Permissions.Validate(); err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
-	}
-	if err := (aghconfig.SessionConfig{
-		Limits:      aghconfig.SessionLimitsConfig{Timeout: value.SessionTimeout},
-		Supervision: aghconfig.DefaultSessionSupervisionConfig(),
-	}).Validate(); err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
-	}
-	if err := value.HTTP.Validate(); err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
-	}
-	if err := value.Daemon.Validate(); err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
-	}
-
-	return value, nil
-}
-
-func daemonReloadTimeoutsFromPayload(
-	payload contract.SettingsDaemonReloadTimeoutsPayload,
-) (aghconfig.DaemonReloadTimeoutsConfig, error) {
-	defaults := aghconfig.DefaultDaemonReloadTimeoutsConfig()
-	providers, err := parseSettingsDurationOrDefault(payload.Providers, defaults.Providers)
-	if err != nil {
-		return aghconfig.DaemonReloadTimeoutsConfig{}, NewSettingsValidationError(
-			fmt.Errorf("general.config.daemon.reload_timeouts.providers: %w", err),
-		)
-	}
-	mcp, err := parseSettingsDurationOrDefault(payload.MCP, defaults.MCP)
-	if err != nil {
-		return aghconfig.DaemonReloadTimeoutsConfig{}, NewSettingsValidationError(
-			fmt.Errorf("general.config.daemon.reload_timeouts.mcp: %w", err),
-		)
-	}
-	bridges, err := parseSettingsDurationOrDefault(payload.Bridges, defaults.Bridges)
-	if err != nil {
-		return aghconfig.DaemonReloadTimeoutsConfig{}, NewSettingsValidationError(
-			fmt.Errorf("general.config.daemon.reload_timeouts.bridges: %w", err),
-		)
-	}
-	return aghconfig.DaemonReloadTimeoutsConfig{Providers: providers, MCP: mcp, Bridges: bridges}, nil
-}
-
 func parseSettingsDurationOrDefault(raw string, defaultValue time.Duration) (time.Duration, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -1529,26 +1448,6 @@ func skillsConfigFromPayload(payload contract.SettingsSkillsConfigPayload) (aghc
 		return aghconfig.SkillsConfig{}, NewSettingsValidationError(err)
 	}
 	return value, nil
-}
-
-func automationSettingsFromPayload(
-	payload contract.SettingsAutomationConfigPayload,
-) (settingspkg.AutomationSettings, error) {
-	config := aghconfig.AutomationConfig{
-		Enabled:           payload.Enabled,
-		Timezone:          strings.TrimSpace(payload.Timezone),
-		MaxConcurrentJobs: payload.MaxConcurrentJobs,
-		DefaultFireLimit:  payload.DefaultFireLimit,
-	}
-	if err := config.Validate(); err != nil {
-		return settingspkg.AutomationSettings{}, NewSettingsValidationError(err)
-	}
-	return settingspkg.AutomationSettings{
-		Enabled:           config.Enabled,
-		Timezone:          config.Timezone,
-		MaxConcurrentJobs: config.MaxConcurrentJobs,
-		DefaultFireLimit:  config.DefaultFireLimit,
-	}, nil
 }
 
 func observabilityConfigFromPayload(

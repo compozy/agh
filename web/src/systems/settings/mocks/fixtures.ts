@@ -32,6 +32,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
   },
   config: {
     daemon: {
+      memory_report_interval: "5m",
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
       socket: "/tmp/agh.sock",
     },
@@ -39,6 +40,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" },
+    redact: { enabled: true },
     session_timeout: "0s",
   },
   config_paths: {

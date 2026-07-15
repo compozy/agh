@@ -17,6 +17,7 @@ type SessionEvent struct {
 	Type      string
 	AgentName string
 	Content   string
+	Archived  bool
 	Timestamp time.Time
 }
 
@@ -109,6 +110,7 @@ type EventQuery struct {
 	Limit          int
 	AfterSequence  int64
 	BeforeSequence int64
+	Archive        EventArchiveFilter
 }
 
 // Validate ensures the query is internally consistent.
@@ -129,7 +131,61 @@ func (q EventQuery) Validate() error {
 			q.BeforeSequence,
 		)
 	}
+	if err := q.Archive.Validate(); err != nil {
+		return err
+	}
 	return nil
+}
+
+// EventArchiveFilter selects rows by their non-destructive archive state.
+type EventArchiveFilter string
+
+const (
+	// EventArchiveAll keeps archived and unarchived rows visible for history queries.
+	EventArchiveAll EventArchiveFilter = ""
+	// EventArchiveUnarchived selects rows eligible for transcript replay.
+	EventArchiveUnarchived EventArchiveFilter = "unarchived"
+	// EventArchiveArchived selects rows retained only for forensic history.
+	EventArchiveArchived EventArchiveFilter = "archived"
+)
+
+// Validate rejects unsupported archive filters.
+func (f EventArchiveFilter) Validate() error {
+	switch f {
+	case EventArchiveAll, EventArchiveUnarchived, EventArchiveArchived:
+		return nil
+	default:
+		return fmt.Errorf("store: invalid event archive filter %q", f)
+	}
+}
+
+// EventArchiveRequest identifies one closed event sequence range to archive.
+type EventArchiveRequest struct {
+	FromSequence int64
+	ToSequence   int64
+}
+
+// Validate ensures an archive request names one positive ordered range.
+func (r EventArchiveRequest) Validate() error {
+	switch {
+	case r.FromSequence <= 0:
+		return fmt.Errorf("store: event archive from sequence must be positive: %d", r.FromSequence)
+	case r.ToSequence < r.FromSequence:
+		return fmt.Errorf(
+			"store: event archive to sequence %d precedes from sequence %d",
+			r.ToSequence,
+			r.FromSequence,
+		)
+	default:
+		return nil
+	}
+}
+
+// EventArchiveResult reports the idempotent mutation applied to one range.
+type EventArchiveResult struct {
+	FromSequence  int64
+	ToSequence    int64
+	ArchivedCount int64
 }
 
 // TurnHistory groups ordered events by their turn identifier.

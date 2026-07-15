@@ -230,6 +230,7 @@ type whatsappVerifyChallenge string
 
 type whatsappAPI interface {
 	GetPhoneNumber(context.Context, string) (*whatsappPhoneNumber, error)
+	ReportRetry(context.Context, bridgesdk.RetryAttempt)
 	SendTextMessage(
 		context.Context,
 		string,
@@ -253,19 +254,7 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 		deliveries:     bridgesdk.NewDeliveryStateStore[deliveryState](),
 		instanceErrors: make(map[string]string),
 	}
-	provider.apiFactory = func(cfg resolvedInstanceConfig) whatsappAPI {
-		return &whatsappGraphClient{
-			baseURL:     cfg.apiBaseURL,
-			apiVersion:  cfg.apiVersion,
-			accessToken: cfg.accessToken,
-			reportResponseCleanup: func(err error) {
-				provider.markers.ReportError("clean up WhatsApp Graph API response", err)
-			},
-			httpClient: &http.Client{
-				Timeout: 10 * time.Second,
-			},
-		}
-	}
+	provider.apiFactory = provider.newGraphAPI
 	lifecycle, err := bridgesdk.NewProviderLifecycle(bridgesdk.ProviderLifecycleConfig{
 		ProviderName: providerWhatsappKey,
 		Markers:      provider.markers,
@@ -1353,12 +1342,10 @@ func classifyWhatsAppHTTPError(statusCode int, retryAfterHeader string, raw []by
 			RetryAfter: retryAfter,
 		}
 	case statusCode >= http.StatusInternalServerError:
-		return &bridgesdk.TransientError{
-			Err: &bridgesdk.HTTPError{
-				StatusCode: statusCode,
-				Message:    message,
-				RetryAfter: retryAfter,
-			},
+		return &bridgesdk.HTTPError{
+			StatusCode: statusCode,
+			Message:    message,
+			RetryAfter: retryAfter,
 		}
 	default:
 		return &bridgesdk.HTTPError{

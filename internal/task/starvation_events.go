@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -27,9 +28,11 @@ type runStarvedPayload struct {
 	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
 }
 
-type runNeedsAttentionPayload struct {
+// RunNeedsAttentionEventPayload is the canonical audit payload for a run that requires intervention.
+type RunNeedsAttentionEventPayload struct {
 	PreviousStatus               RunStatus           `json:"previous_status"`
 	Status                       RunStatus           `json:"status"`
+	SessionID                    string              `json:"session_id,omitempty"`
 	Diagnostic                   string              `json:"diagnostic,omitempty"`
 	QueuedAt                     time.Time           `json:"queued_at,omitzero"`
 	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
@@ -55,7 +58,7 @@ func (m *Service) RecordRunStarved(
 	})
 }
 
-// MarkRunNeedsAttention transitions a queued run to needs_attention via a CAS store mutation
+// MarkRunNeedsAttention transitions a nonterminal run to needs_attention via a CAS store mutation
 // and records the canonical event. It is idempotent: a run already in needs_attention is
 // returned unchanged. The diagnostic must never embed a raw claim token.
 func (m *Service) MarkRunNeedsAttention(
@@ -71,12 +74,13 @@ func (m *Service) MarkRunNeedsAttention(
 	if run.Status.Normalize() == TaskRunStatusNeedsAttention {
 		return run, nil
 	}
-	if run.Status.Normalize() != TaskRunStatusQueued {
+	previousStatus := run.Status.Normalize()
+	if !runStatusAllowsNeedsAttention(previousStatus) {
 		return Run{}, fmt.Errorf(
-			"%w: run %q is %s; only queued runs can be marked needs_attention",
+			"%w: run %q is %s; only nonterminal runs can be marked needs_attention",
 			ErrInvalidStatusTransition,
 			run.ID,
-			run.Status.Normalize(),
+			previousStatus,
 		)
 	}
 	diagnostic = strings.TrimSpace(diagnostic)
@@ -85,6 +89,15 @@ func (m *Service) MarkRunNeedsAttention(
 	}
 	updated, err := m.store.MarkTaskRunNeedsAttention(ctx, run.ID, diagnostic)
 	if err != nil {
+		if errors.Is(err, ErrInvalidStatusTransition) {
+			current, getErr := m.store.GetTaskRun(ctx, run.ID)
+			if getErr != nil {
+				return Run{}, errors.Join(err, getErr)
+			}
+			if current.Status.Normalize() == TaskRunStatusNeedsAttention {
+				return current, nil
+			}
+		}
 		return Run{}, err
 	}
 	if err := m.recordTaskEvent(
@@ -93,9 +106,10 @@ func (m *Service) MarkRunNeedsAttention(
 		updated.ID,
 		taskEventRunNeedsAttention,
 		actor,
-		runNeedsAttentionPayload{
-			PreviousStatus:               TaskRunStatusQueued,
+		RunNeedsAttentionEventPayload{
+			PreviousStatus:               previousStatus,
 			Status:                       updated.Status.Normalize(),
+			SessionID:                    updated.SessionID,
 			Diagnostic:                   diagnostic,
 			QueuedAt:                     updated.QueuedAt,
 			ResolvedNetworkParticipation: participation.CloneSpec(updated.NetworkSpecSnapshot()),
@@ -104,4 +118,16 @@ func (m *Service) MarkRunNeedsAttention(
 		return Run{}, err
 	}
 	return updated, nil
+}
+
+func runStatusAllowsNeedsAttention(status RunStatus) bool {
+	switch status.Normalize() {
+	case TaskRunStatusQueued,
+		TaskRunStatusClaimed,
+		TaskRunStatusStarting,
+		TaskRunStatusRunning:
+		return true
+	default:
+		return false
+	}
 }

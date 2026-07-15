@@ -23,6 +23,9 @@ func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err 
 	if ctx == nil {
 		return nil, errors.New("session: create context is required")
 	}
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return nil, err
+	}
 
 	spec, err := m.prepareCreateStart(ctx, opts)
 	if err != nil {
@@ -51,6 +54,9 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	if session, ok := m.Get(target); ok {
 		return session, nil
 	}
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return nil, err
+	}
 
 	meta, err := m.readMetaWithContext(ctx, target)
 	if err != nil {
@@ -69,6 +75,9 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(spec.acpSessionID) == "" {
+		spec.resumeReplay = true
+	}
 
 	session, err := m.startSession(ctx, &spec)
 	if err == nil {
@@ -76,7 +85,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	}
 
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
-	clearACP := acp.IsLoadSessionResourceMissing(err)
+	clearACP := acp.IsLoadSessionResourceMissing(err) || errors.Is(err, acp.ErrAgentDoesNotSupportSession)
 	restoredMeta, restoreErr := m.restoreFailedResumeStart(metaPath, meta, clearACP)
 	if restoreErr != nil {
 		return nil, errors.Join(err, restoreErr)
@@ -88,9 +97,14 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 		return nil, err
 	}
 
+	fallbackReason := "load_session_resource_missing"
+	if errors.Is(err, acp.ErrAgentDoesNotSupportSession) {
+		fallbackReason = "load_session_unsupported"
+	}
 	m.resumeLogger(meta).Info(
-		"session.resume.load_session_missing_fallback",
+		"session.resume.context_replay_fallback",
 		"phase", "resume",
+		"fallback_reason", fallbackReason,
 		"error", err,
 	)
 
@@ -98,6 +112,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	if fallbackSpecErr != nil {
 		return nil, errors.Join(err, fallbackSpecErr)
 	}
+	fallbackSpec.resumeReplay = true
 
 	fallbackSession, fallbackErr := m.startSession(ctx, &fallbackSpec)
 	if fallbackErr != nil {

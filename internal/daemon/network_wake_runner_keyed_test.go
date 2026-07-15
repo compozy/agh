@@ -23,6 +23,29 @@ type keyedNetworkWakeRunnerFixture struct {
 	prompter *keyedNetworkWakePrompterStub
 }
 
+func TestNetworkWakeDispatchHonorsCoalesceDeadline(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should hold a committed wake until its durable coalescing deadline", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 19, 13, 15, 0, 0, time.UTC)
+		readyAt := now.Add(5 * time.Second)
+		pending := makeNetworkWakePending([]store.CommittedNetworkNotification{{
+			WorkspaceID:        "ws-coalesce",
+			RecipientSessionID: "sess-coalesce",
+			TaskRunID:          "run-coalesce",
+			ReadyAt:            readyAt,
+		}}, now)
+		if got := nextRunnableNetworkWake(pending, map[string]struct{}{}, now); got != -1 {
+			t.Fatalf("nextRunnableNetworkWake(before deadline) = %d, want -1", got)
+		}
+		if got := nextRunnableNetworkWake(pending, map[string]struct{}{}, readyAt); got != 0 {
+			t.Fatalf("nextRunnableNetworkWake(at deadline) = %d, want 0", got)
+		}
+	})
+}
+
 func newKeyedNetworkWakeRunnerFixture(t *testing.T) keyedNetworkWakeRunnerFixture {
 	t.Helper()
 

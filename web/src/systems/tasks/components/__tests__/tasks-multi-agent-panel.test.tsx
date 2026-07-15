@@ -38,6 +38,7 @@ function buildNode(overrides: TaskTreeNodeFixtureOverrides = {}): TaskTreeNode {
     active_run: {
       id: "run_a1b2",
       attempt: 1,
+      recovery_count: 0,
       max_attempts: 3,
       queued_at: "2026-04-17T10:00:00Z",
       status: "running",
@@ -73,6 +74,7 @@ function buildTimelineItem(overrides: TaskTimelineItemFixtureOverrides = {}): Ta
     run: {
       id: "run_a1b2",
       attempt: 1,
+      recovery_count: 0,
       status: "running",
     },
     ...itemOverrides,
@@ -290,6 +292,7 @@ describe("TasksMultiAgentPanel", () => {
         active_run: {
           id: "run_c3d4",
           attempt: 1,
+          recovery_count: 0,
           max_attempts: 2,
           queued_at: "2026-04-17T10:00:10Z",
           status: "running",
@@ -366,6 +369,7 @@ describe("TasksMultiAgentPanel", () => {
         active_run: {
           id: "run_failed",
           attempt: 2,
+          recovery_count: 0,
           max_attempts: 3,
           queued_at: "2026-04-17T10:00:00Z",
           started_at: "2026-04-17T10:00:10Z",

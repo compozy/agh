@@ -7,11 +7,12 @@ const (
 )
 
 const (
-	automationAutomationKey = "automation"
-	automationHistoryKey    = "history"
-	automationMutationKey   = "mutation"
-	automationRunsKey       = "runs"
-	automationTriggersKey   = "triggers"
+	automationAutomationKey  = "automation"
+	automationHistoryKey     = "history"
+	automationMutationKey    = "mutation"
+	automationRunsKey        = "runs"
+	automationSuggestionsKey = "suggestions"
+	automationTriggersKey    = "triggers"
 )
 
 var automationTools = []toolspkg.Descriptor{
@@ -246,7 +247,7 @@ var automationTools = []toolspkg.Descriptor{
 }
 
 func automationDescriptors() []toolspkg.Descriptor {
-	return automationTools
+	return append(automationTools, automationSuggestionDescriptors()...)
 }
 
 func nativeAutomationDescriptor(
@@ -389,7 +390,7 @@ const automationJobProperties = `{
 	"agent_name":{"type":"string"},
 	"workspace_id":{"type":"string"},
 	"prompt":{"type":"string"},
-	"schedule":{"type":"object"},
+	"schedule":` + automationScheduleInputSchema + `,
 	"task":{"type":"object"},
 	"enabled":{"type":"boolean"},
 	"retry":{"type":"object"},
@@ -400,7 +401,7 @@ const automationJobPatchProperties = `{
 	"job_id":{"type":"string"},
 	"name":{"type":"string"},
 	"prompt":{"type":"string"},
-	"schedule":{"type":"object"},
+	"schedule":` + automationScheduleInputSchema + `,
 	"task":{"type":"object"},
 	"enabled":{"type":"boolean"},
 	"retry":{"type":"object"},

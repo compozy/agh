@@ -7,6 +7,7 @@ import {
   automationMatchesActiveWorkspace,
   automationTriggerDetailOptions,
   automationTriggerRunsOptions,
+  automationSuggestionsListOptions,
   automationTriggersListOptions,
   type AutomationJobStableFilter,
   type AutomationTriggerStableFilter,
@@ -28,7 +29,12 @@ export async function preloadAutomationJobsRoute(
   queryClient: QueryClient,
   search: AutomationRouteSearch
 ): Promise<void> {
-  const scope = await resolveListScope(queryClient, search);
+  const activeWorkspaceID =
+    search.scope === "global" ? null : await resolveActiveWorkspaceId(queryClient);
+  const scope =
+    search.scope === "workspace"
+      ? { scope: "workspace" as const, workspace_id: activeWorkspaceID ?? undefined }
+      : { scope: search.scope === "all" ? undefined : search.scope };
   const filters: AutomationJobStableFilter = {
     ...scope,
     enabled: search.enabled,
@@ -40,6 +46,13 @@ export async function preloadAutomationJobsRoute(
   if (scope.scope === "workspace" && !scope.workspace_id) return;
   await settleRouteQueries([
     queryClient.ensureInfiniteQueryData(automationJobsListOptions(filters)),
+    ...(activeWorkspaceID && search.scope !== "global"
+      ? [
+          queryClient.ensureQueryData(
+            automationSuggestionsListOptions(activeWorkspaceID, "pending")
+          ),
+        ]
+      : []),
   ]);
 }
 

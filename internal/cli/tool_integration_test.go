@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/agh/internal/api/udsapi"
 	aghconfig "github.com/compozy/agh/internal/config"
 	toolspkg "github.com/compozy/agh/internal/tools"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
@@ -26,6 +27,20 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 	cfg := testutil.ConfigWithDisabledNetwork(homePaths)
 	cfg.Daemon.Socket = shortSocketPath(t)
 	registry := newCLIToolIntegrationRegistry()
+	artifactStore, err := toolspkg.OpenFilesystemToolArtifactStore(
+		t.Context(),
+		homePaths.ToolArtifactsDir,
+		toolspkg.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour},
+	)
+	if err != nil {
+		t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
+	}
+	artifactContent := []byte(`{"version":"agh.tool-result/v1","tail":"D6-TAIL"}`)
+	artifactRef, err := artifactStore.Put(t.Context(), "ws-1", artifactContent)
+	if err != nil {
+		t.Fatalf("artifactStore.Put() error = %v", err)
+	}
+	workspaceRoot := t.TempDir()
 	server, err := udsapi.New(
 		udsapi.WithHomePaths(homePaths),
 		udsapi.WithConfig(&cfg),
@@ -34,8 +49,20 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		udsapi.WithSessionManager(testutil.StubSessionManager{}),
 		udsapi.WithTaskService(&testutil.StubTaskManager{}),
 		udsapi.WithObserver(testutil.StubObserver{}),
-		udsapi.WithWorkspaceResolver(testutil.StubWorkspaceService{}),
+		udsapi.WithWorkspaceResolver(testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      ref,
+						RootDir: workspaceRoot,
+						Name:    ref,
+					},
+					WorkspaceID: ref,
+				}, nil
+			},
+		}),
 		udsapi.WithToolRegistry(registry),
+		udsapi.WithToolArtifactStore(artifactStore),
 		udsapi.WithToolsetRegistry(registry),
 	)
 	if err != nil {
@@ -136,6 +163,65 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 		var cliPayload ToolInvokeResponseRecord
 		decodeJSONOutput(t, stdout, &cliPayload)
 		assertContractJSONEqual(t, cliPayload, expectedPayload)
+	})
+
+	t.Run("Should match artifact paging and decoded human output", func(t *testing.T) {
+		expected, err := artifactStore.ReadPage(t.Context(), "ws-1", artifactRef.URI, 2, 7)
+		if err != nil {
+			t.Fatalf("artifactStore.ReadPage() error = %v", err)
+		}
+		expectedPayload := ToolArtifactPageRecord{
+			Artifact:   expected.Artifact,
+			Offset:     expected.Offset,
+			Bytes:      expected.Bytes,
+			TotalBytes: expected.TotalBytes,
+			DataBase64: expected.DataBase64,
+			NextOffset: expected.NextOffset,
+			EOF:        expected.EOF,
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"tool",
+			"artifact",
+			"read",
+			artifactRef.URI,
+			"--workspace",
+			"ws-1",
+			"--offset",
+			"2",
+			"--limit",
+			"7",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("tool artifact JSON read error = %v", err)
+		}
+		var page ToolArtifactPageRecord
+		decodeJSONOutput(t, stdout, &page)
+		assertContractJSONEqual(t, page, expectedPayload)
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"tool",
+			"artifact",
+			"read",
+			artifactRef.URI,
+			"--workspace",
+			"ws-1",
+			"--offset",
+			"2",
+			"--limit",
+			"7",
+		)
+		if err != nil {
+			t.Fatalf("tool artifact human read error = %v", err)
+		}
+		if got, want := stdout, string(artifactContent[2:9]); got != want {
+			t.Fatalf("tool artifact human output = %q, want %q", got, want)
+		}
 	})
 
 	t.Run("Should match toolset info payload", func(t *testing.T) {

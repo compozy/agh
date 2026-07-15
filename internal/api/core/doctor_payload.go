@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/doctor"
+	"github.com/compozy/agh/internal/store"
 )
 
 func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions) (contract.DoctorPayload, error) {
@@ -39,6 +40,31 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 	if h.Bridges != nil {
 		if err := registry.Register(&doctor.BridgeProbe{Source: h.Bridges}); err != nil {
 			return contract.DoctorPayload{}, err
+		}
+	}
+	if h.RuntimeMemory != nil {
+		if err := registry.Register(&doctor.RuntimeMemoryProbe{Source: h.RuntimeMemory}); err != nil {
+			return contract.DoctorPayload{}, err
+		}
+	}
+	if source, ok := h.Sessions.(doctor.SubprocessHealthSnapshotSource); ok {
+		if err := registry.Register(&doctor.SubprocessHealthProbe{Source: source}); err != nil {
+			return contract.DoctorPayload{}, err
+		}
+	}
+	if h.DeadEntities != nil && h.Workspaces != nil {
+		for _, kind := range []store.DeadEntityKind{
+			store.DeadEntityKindMCPSidecar,
+			store.DeadEntityKindBridge,
+			store.DeadEntityKindExtension,
+		} {
+			if err := registry.Register(&doctor.DeadEntityProbe{
+				Source:     h.DeadEntities,
+				Workspaces: h.Workspaces,
+				Kind:       kind,
+			}); err != nil {
+				return contract.DoctorPayload{}, err
+			}
 		}
 	}
 

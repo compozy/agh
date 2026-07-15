@@ -41,18 +41,25 @@ INSERT INTO hook_runs (
 SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM events;
 
 -- name: GetEventByID :one
-SELECT id, sequence, turn_id, type, agent_name, content, timestamp
+SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
 FROM events
 WHERE id = sqlc.arg(id);
 
 -- name: InsertEvent :exec
 INSERT INTO events (
-    id, sequence, turn_id, type, agent_name, content, timestamp, transcript_entry_key
+    id, sequence, turn_id, type, agent_name, content, archived, timestamp, transcript_entry_key
 ) VALUES (
     sqlc.arg(id), sqlc.arg(sequence), sqlc.arg(turn_id), sqlc.arg(type),
-    sqlc.arg(agent_name), sqlc.arg(content), sqlc.arg(timestamp),
+    sqlc.arg(agent_name), sqlc.arg(content), sqlc.arg(archived), sqlc.arg(timestamp),
     sqlc.arg(transcript_entry_key)
 );
+
+-- name: ArchiveEventRange :execrows
+UPDATE events
+SET archived = 1
+WHERE archived = 0
+  AND sequence >= sqlc.arg(from_sequence)
+  AND sequence <= sqlc.arg(to_sequence);
 
 -- name: ClearHookRuns :exec
 DELETE FROM hook_runs;

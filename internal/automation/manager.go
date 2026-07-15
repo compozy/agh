@@ -125,6 +125,9 @@ func defaultManagerOptions() managerOptions {
 			Timezone:          DefaultTimezone,
 			MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 			DefaultFireLimit:  DefaultFireLimitConfig(),
+			Suggestions: aghconfig.AutomationSuggestionsConfig{
+				PendingCap: DefaultSuggestionPendingCap,
+			},
 		},
 	}
 }
@@ -163,6 +166,9 @@ func finalizeManagerOptions(options *managerOptions) error {
 	}
 	if options.config.DefaultFireLimit.Max == 0 || strings.TrimSpace(options.config.DefaultFireLimit.Window) == "" {
 		options.config.DefaultFireLimit = DefaultFireLimitConfig()
+	}
+	if options.config.Suggestions.PendingCap <= 0 {
+		options.config.Suggestions.PendingCap = DefaultSuggestionPendingCap
 	}
 	if options.jobResources != nil || options.triggerResources != nil {
 		if options.jobResources == nil {
@@ -414,6 +420,9 @@ func (m *Manager) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("automation: sync config definitions: %w", err)
 	}
+	if err := m.recoverAcceptedSuggestionsLocked(ctx); err != nil {
+		return err
+	}
 
 	jobs, triggers, err := m.loadStartupDefinitionsLocked(ctx)
 	if err != nil {
@@ -469,43 +478,6 @@ func (m *Manager) Start(ctx context.Context) error {
 		"triggers_loaded", len(triggers),
 	)
 	return nil
-}
-
-func (m *Manager) loadStartupDefinitionsLocked(ctx context.Context) ([]Job, []Trigger, error) {
-	if m.resourceDefinitionsEnabled() {
-		projectedJobs, jobRevision, err := m.loadProjectedJobDefinitionsFromStore(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("automation: load projected job resources: %w", err)
-		}
-		projectedTriggers, triggerRevision, err := m.loadProjectedTriggerDefinitionsFromStore(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("automation: load projected trigger resources: %w", err)
-		}
-		m.projectedJobs = jobMapFromSlice(projectedJobs)
-		m.jobRevision = jobRevision
-		m.projectedTriggers = triggerMapFromSlice(projectedTriggers)
-		m.triggerRevision = triggerRevision
-
-		jobs, err := m.applyJobOverlays(ctx, m.projectedJobDefinitionsLocked())
-		if err != nil {
-			return nil, nil, fmt.Errorf("automation: load effective jobs: %w", err)
-		}
-		triggers, err := m.applyTriggerOverlays(ctx, m.projectedTriggerDefinitionsLocked())
-		if err != nil {
-			return nil, nil, fmt.Errorf("automation: load effective triggers: %w", err)
-		}
-		return jobs, triggers, nil
-	}
-
-	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("automation: load effective jobs: %w", err)
-	}
-	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("automation: load effective triggers: %w", err)
-	}
-	return jobs, triggers, nil
 }
 
 // Shutdown stops trigger ingestion, cancels in-flight work, and shuts down the
@@ -572,43 +544,6 @@ func (m *Manager) GetJob(ctx context.Context, id string) (Job, error) {
 	return m.effectiveJob(ctx, strings.TrimSpace(id))
 }
 
-// CreateJob stores a new dynamic automation job and registers it into the
-// runtime when the scheduler is active.
-func (m *Manager) CreateJob(ctx context.Context, job Job) (Job, error) {
-	if ctx == nil {
-		return Job{}, errors.New("automation: create job context is required")
-	}
-	if m.resourceDefinitionsEnabled() {
-		return m.createJobResource(ctx, job)
-	}
-
-	next := cloneJob(job)
-	if next.Source == "" {
-		next.Source = JobSourceDynamic
-	}
-	if next.Source != JobSourceDynamic {
-		return Job{}, ErrDefinitionReadOnly
-	}
-	if err := m.validateJobLoopTarget(ctx, next); err != nil {
-		return Job{}, err
-	}
-
-	created, err := m.store.CreateJob(ctx, next)
-	if err != nil {
-		return Job{}, err
-	}
-
-	current, err := m.effectiveJobFromStored(ctx, created)
-	if err != nil {
-		return Job{}, errors.Join(err, m.cleanupCreatedJob(ctx, created.ID))
-	}
-	if err := m.applyJobToRuntime(ctx, current); err != nil {
-		return Job{}, errors.Join(err, m.cleanupCreatedJob(ctx, created.ID))
-	}
-
-	return current, nil
-}
-
 // UpdateJob replaces one existing dynamic automation job definition.
 func (m *Manager) UpdateJob(ctx context.Context, job Job) (Job, error) {
 	if ctx == nil {
@@ -638,7 +573,7 @@ func (m *Manager) UpdateJob(ctx context.Context, job Job) (Job, error) {
 	if err := ValidateImmutableJobTarget(currentStored, next); err != nil {
 		return Job{}, err
 	}
-	if err := m.validateJobLoopTarget(ctx, next); err != nil {
+	if err := m.validateJobDefinition(ctx, next); err != nil {
 		return Job{}, err
 	}
 

@@ -3624,7 +3624,7 @@ func taskInspectRunRows(items []contract.TaskInspectRunPayload) [][]string {
 	for _, item := range items {
 		rows = append(rows, []string{
 			stringOrDash(item.RunID),
-			stringOrDash(string(item.Status)),
+			stringOrDash(item.Status.String()),
 			intOrDash(item.Attempt),
 			stringOrDash(item.BoundSessionID),
 			stringOrDash(item.ClaimTokenHashTruncated),
@@ -3640,7 +3640,7 @@ func taskInspectRunToonRows(items []contract.TaskInspectRunPayload) [][]string {
 	for _, item := range items {
 		rows = append(rows, []string{
 			item.RunID,
-			string(item.Status),
+			item.Status.String(),
 			strconv.Itoa(item.Attempt),
 			item.BoundSessionID,
 			item.ClaimTokenHashTruncated,
@@ -3800,7 +3800,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 			return renderHumanSection("Task Run", []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
 				{Label: taskTaskValue, Value: stringOrDash(item.TaskID)},
-				{Label: taskStatusValue, Value: stringOrDash(string(item.Status))},
+				{Label: taskStatusValue, Value: stringOrDash(item.Status.String())},
 				{Label: taskAttemptValue, Value: intOrDash(item.Attempt)},
 				{Label: "Previous Run", Value: stringOrDash(item.PreviousRunID)},
 				{Label: "Failure Kind", Value: stringOrDash(item.FailureKind)},
@@ -3845,7 +3845,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 			}, []string{
 				item.ID,
 				item.TaskID,
-				string(item.Status),
+				item.Status.String(),
 				strconv.Itoa(item.Attempt),
 				item.PreviousRunID,
 				item.FailureKind,
@@ -3863,41 +3863,6 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 			}), nil
 		},
 	}
-}
-
-func taskRunOperationalSummaryRows(summary contract.TaskRunOperationalSummaryPayload) []keyValue {
-	return []keyValue{
-		{Label: "Last Activity", Value: stringOrDash(formatTime(summary.LastActivityAt))},
-		{Label: "Last Event", Value: stringOrDash(summary.LastEventType)},
-		{Label: "Tool Calls", Value: stringOrDash(formatInt64Ptr(summary.ToolCallCount))},
-		{Label: "Turns", Value: stringOrDash(formatInt64Ptr(summary.TurnCount))},
-		{Label: "Input Tokens", Value: stringOrDash(formatInt64Ptr(summary.InputTokens))},
-		{Label: "Output Tokens", Value: stringOrDash(formatInt64Ptr(summary.OutputTokens))},
-		{Label: "Total Tokens", Value: stringOrDash(formatInt64Ptr(summary.TotalTokens))},
-		{Label: "Total Cost", Value: stringOrDash(formatFloat64Ptr(summary.TotalCost))},
-		{Label: "Currency", Value: stringOrDash(formatStringPtr(summary.CostCurrency))},
-	}
-}
-
-func formatInt64Ptr(value *int64) string {
-	if value == nil {
-		return ""
-	}
-	return int64OrDash(*value)
-}
-
-func formatFloat64Ptr(value *float64) string {
-	if value == nil {
-		return ""
-	}
-	return strconv.FormatFloat(*value, 'f', -1, 64)
-}
-
-func formatStringPtr(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }
 
 func retryTaskRunBundle(record *RetryTaskRunRecord) outputBundle {
@@ -4046,7 +4011,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		func(item TaskRunRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
-				stringOrDash(string(item.Status)),
+				stringOrDash(item.Status.String()),
 				intOrDash(item.Attempt),
 				stringOrDash(item.SessionID),
 				stringOrDash(formatTaskActorPtr(item.ClaimedBy)),
@@ -4060,7 +4025,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		func(item TaskRunRecord) []string {
 			return []string{
 				item.ID,
-				string(item.Status),
+				item.Status.String(),
 				strconv.Itoa(item.Attempt),
 				item.SessionID,
 				formatTaskActorPtr(item.ClaimedBy),
@@ -4139,7 +4104,7 @@ func taskRunRows(items []TaskRunRecord) [][]string {
 	for _, item := range items {
 		rows = append(rows, []string{
 			stringOrDash(item.ID),
-			stringOrDash(string(item.Status)),
+			stringOrDash(item.Status.String()),
 			intOrDash(item.Attempt),
 			stringOrDash(item.SessionID),
 			stringOrDash(formatTaskActorPtr(item.ClaimedBy)),
@@ -4158,7 +4123,7 @@ func taskRunToonRows(items []TaskRunRecord) [][]string {
 	for _, item := range items {
 		rows = append(rows, []string{
 			item.ID,
-			string(item.Status),
+			item.Status.String(),
 			strconv.Itoa(item.Attempt),
 			item.SessionID,
 			formatTaskActorPtr(item.ClaimedBy),

@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/session"
+	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -278,6 +279,17 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 				RootSessionID:   "sess-1",
 				SpawnDepth:      1,
 				SpawnRole:       session.SpawnRoleMemoryExtractor,
+			},
+		},
+		{
+			ID:          "sess-5",
+			WorkspaceID: "ws_alpha",
+			Type:        session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: "sess-1",
+				RootSessionID:   "sess-1",
+				SpawnDepth:      1,
+				SpawnRole:       session.SpawnRoleAutoTitle,
 			},
 		},
 	}, "ws_alpha")
@@ -912,6 +924,72 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 			t.Fatalf("daemon network = %#v, want unavailable status", payload.Daemon.Network)
 		}
 	})
+}
+
+func TestBaseHandlersStatusProjectsWorkspaceMCPDeadState(t *testing.T) {
+	t.Parallel()
+
+	settingsService := &stubSettingsService{
+		ListCollectionFn: func(
+			_ context.Context,
+			req settingspkg.CollectionRequest,
+		) (settingspkg.CollectionEnvelope, error) {
+			return settingspkg.CollectionEnvelope{
+				Collection:  req.Collection,
+				Scope:       req.Scope,
+				WorkspaceID: req.WorkspaceID,
+				MCPServers: []settingspkg.MCPServerItem{{
+					Name:        "dead-docs",
+					Transport:   aghconfig.MCPServerTransportStdio,
+					Scope:       settingspkg.ScopeWorkspace,
+					WorkspaceID: req.WorkspaceID,
+					RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{
+						Configured: true,
+						State:      settingspkg.MCPServerRuntimeStateDead,
+						Probe:      settingspkg.MCPServerProbeSkipped,
+						Reason:     "backend_dead",
+						Diagnostic: "sidecar terminated",
+					},
+				}},
+			}, nil
+		},
+	}
+	fixture := newHandlerFixture(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{
+			HealthFn: func(context.Context) (observe.Health, error) {
+				return observe.Health{Status: "ok", Version: "dev"}, nil
+			},
+		},
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+	fixture.Handlers.Settings = settingsService
+
+	response := performRequest(t, fixture.Engine, http.MethodGet, "/status?workspace_id=ws-dead", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if settingsService.LastListCollectionRequest.Scope != settingspkg.ScopeWorkspace ||
+		settingsService.LastListCollectionRequest.WorkspaceID != "ws-dead" {
+		t.Fatalf(
+			"MCP collection request = %#v, want workspace ws-dead",
+			settingsService.LastListCollectionRequest,
+		)
+	}
+	var payload contract.StatusPayload
+	decodeJSON(t, response.Body.Bytes(), &payload)
+	if len(payload.MCPServers) != 1 {
+		t.Fatalf("status.mcp_servers = %#v, want one dead server", payload.MCPServers)
+	}
+	server := payload.MCPServers[0]
+	if server.Name != "dead-docs" || server.WorkspaceID != "ws-dead" ||
+		server.State != "dead" || server.RuntimeStatus != "unavailable" ||
+		server.Reason != "backend_dead" || server.Diagnostic != "sidecar terminated" {
+		t.Fatalf("status.mcp_servers[0] = %#v, want dead unavailable server with reason", server)
+	}
 }
 
 func TestBaseHandlersListSessionsPageContract(t *testing.T) {

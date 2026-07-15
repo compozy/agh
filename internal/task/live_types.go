@@ -114,6 +114,8 @@ type RunOperationalSummary struct {
 	TotalTokens    *int64    `json:"total_tokens,omitempty"`
 	TotalCost      *float64  `json:"total_cost,omitempty"`
 	CostCurrency   *string   `json:"cost_currency,omitempty"`
+	CostStatus     string    `json:"cost_status,omitempty"`
+	CostSource     string    `json:"cost_source,omitempty"`
 }
 
 // InspectTarget identifies whether an inspect response was requested by task or run id.
@@ -165,6 +167,7 @@ type InspectRunSummary struct {
 	PreviousRunID           string    `json:"previous_run_id,omitempty"`
 	QueuedAt                time.Time `json:"queued_at"`
 	Attempt                 int       `json:"attempt"`
+	RecoveryCount           int       `json:"recovery_count"`
 }
 
 // InspectSessionSummary is the session projection used by task inspect.

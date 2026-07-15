@@ -53,7 +53,10 @@ func (p *AgentProcess) handleSessionUpdateWithContext(ctx context.Context, param
 		p.setConfigOptionCurrent("mode", string(notification.Update.CurrentModeUpdate.CurrentModeId))
 	}
 
-	event := translateSessionUpdate(notification, raw.Update, p.activeTurnID())
+	event, err := translateSessionUpdate(notification, raw.Update, p.activeTurnID())
+	if err != nil {
+		return err
+	}
 	event = p.markToolEventPrechecked(event)
 	p.emitPromptEvent(event)
 	p.injectSteerAfterToolResult(ctx, event)

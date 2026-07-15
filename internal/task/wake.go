@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -300,38 +299,7 @@ func (m *Service) rememberWakeEventKeyLocked(key string) {
 }
 
 func (m *Service) hasWakeAuditEvent(ctx context.Context, taskID string, wakeEventID string) (bool, error) {
-	events, err := m.store.ListTaskEvents(ctx, EventQuery{TaskID: taskID})
-	if err != nil {
-		return false, err
-	}
-	for _, event := range events {
-		switch strings.TrimSpace(event.EventType) {
-		case taskEventWakeDelivered, taskEventWakeSuppressed:
-		default:
-			continue
-		}
-		matches, matchErr := wakeAuditPayloadMatches(event, wakeEventID)
-		if matchErr != nil {
-			return false, matchErr
-		}
-		if matches {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func wakeAuditPayloadMatches(event Event, wakeEventID string) (bool, error) {
-	if len(event.Payload) == 0 {
-		return false, nil
-	}
-	var payload struct {
-		WakeEventID string `json:"wake_event_id"`
-	}
-	if err := json.Unmarshal(event.Payload, &payload); err != nil {
-		return false, fmt.Errorf("task: decode wake audit payload %q: %w", event.ID, err)
-	}
-	return strings.TrimSpace(payload.WakeEventID) == strings.TrimSpace(wakeEventID), nil
+	return m.store.TaskWakeEventExists(ctx, taskID, wakeEventID)
 }
 
 func (m *Service) recordWakeDelivered(

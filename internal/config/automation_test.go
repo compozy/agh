@@ -14,6 +14,9 @@ timezone = "UTC"
 max_concurrent_jobs = 7
 default_fire_limit = { max = 9, window = "30m" }
 
+[automation.suggestions]
+pending_cap = 4
+
 [[automation.jobs]]
 scope = "workspace"
 name = "health-check"
@@ -45,6 +48,9 @@ prompt = "Summarize {{ index .Data \"session_id\" }}"
 	}
 	if got, want := cfg.Automation.DefaultFireLimit.Max, 9; got != want {
 		t.Fatalf("Automation.DefaultFireLimit.Max = %d, want %d", got, want)
+	}
+	if got, want := cfg.Automation.Suggestions.PendingCap, 4; got != want {
+		t.Fatalf("Automation.Suggestions.PendingCap = %d, want %d", got, want)
 	}
 	if got, want := len(cfg.Automation.Jobs), 1; got != want {
 		t.Fatalf("len(Automation.Jobs) = %d, want %d", got, want)
@@ -260,6 +266,14 @@ func TestLoadRejectsInvalidAutomationPolicies(t *testing.T) {
 		contents string
 		wantErr  string
 	}{
+		{
+			name: "non-positive suggestion pending cap",
+			contents: `
+[automation.suggestions]
+pending_cap = 0
+`,
+			wantErr: "automation.suggestions.pending_cap must be positive",
+		},
 		{
 			name: "unsupported schedule mode",
 			contents: `

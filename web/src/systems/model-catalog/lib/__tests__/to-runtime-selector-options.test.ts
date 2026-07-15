@@ -133,7 +133,13 @@ describe("toRuntimeModelOptions", () => {
         model_id: "gpt",
         display_name: "  GPT Five  ",
         context_window: 200000,
-        cost: { input_per_million: 3, output_per_million: 12 },
+        cost: {
+          input_per_million: 3,
+          output_per_million: 12,
+          cache_read_per_million: 0.3,
+          cache_write_per_million: 4,
+          reasoning_per_million: 15,
+        },
         supports_tools: true,
         supports_reasoning: true,
         featured: true,
@@ -144,6 +150,9 @@ describe("toRuntimeModelOptions", () => {
     expect(option.context_window).toBe(200000);
     expect(option.cost_input).toBe(3);
     expect(option.cost_output).toBe(12);
+    expect(option.cost_cache_read).toBe(0.3);
+    expect(option.cost_cache_write).toBe(4);
+    expect(option.cost_reasoning).toBe(15);
     expect(option.supports_tools).toBe(true);
     expect(option.supports_reasoning).toBe(true);
     expect(option.featured).toBe(true);

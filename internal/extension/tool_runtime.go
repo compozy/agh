@@ -71,6 +71,18 @@ func (m *Manager) CallTool(
 
 	req.Handler = strings.TrimSpace(req.Handler)
 	req.Input = cloneRawMessage(req.Input)
+	finishTracking := func() {}
+	if m.toolCallTracker != nil {
+		invocationID, finish, trackErr := m.toolCallTracker.BeginExtensionToolCall(ctx, name, req.SessionID)
+		if trackErr != nil {
+			return toolspkg.ToolResult{}, fmt.Errorf("extension: begin tool call tracking for %q: %w", name, trackErr)
+		}
+		req.InvocationID = invocationID
+		if finish != nil {
+			finishTracking = finish
+		}
+	}
+	defer finishTracking()
 	var response toolspkg.ExtensionToolCallResponse
 	if err := process.Call(ctx, string(extensionprotocol.ExtensionServiceMethodToolsCall), req, &response); err != nil {
 		return toolspkg.ToolResult{}, fmt.Errorf(

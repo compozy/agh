@@ -24,30 +24,48 @@ const (
 	loopActionRuntimeReasonKey      = "reason"
 )
 
-type loopActionRuntime struct {
-	manager *taskpkg.Service
-	store   taskStore
-	runner  *looppkg.CoordinatorRunner
-	logger  *slog.Logger
-	now     func() time.Time
+type loopActionTaskManager interface {
+	ClaimNextRun(context.Context, taskpkg.ClaimCriteria, taskpkg.ActorContext) (*taskpkg.ClaimResult, error)
+	HeartbeatRunLease(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
+	CompleteRunLease(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
+	FailRunLease(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
+}
 
-	root              context.Context
-	cancel            context.CancelFunc
-	sem               chan struct{}
-	spawnMu           sync.Mutex
-	wg                sync.WaitGroup
-	stopping          atomic.Bool
-	heartbeatInterval func(time.Duration) time.Duration
+type loopActionRunner interface {
+	ExecuteActionRun(context.Context, taskpkg.Run, taskpkg.ActorContext) (taskpkg.RunResult, error)
+	ActionRunTimeout(context.Context, taskpkg.Run) (time.Duration, bool, error)
+}
+
+type loopActionRuntime struct {
+	manager          loopActionTaskManager
+	store            taskStore
+	runner           loopActionRunner
+	sessions         loopActionSessionStatus
+	logger           *slog.Logger
+	now              func() time.Time
+	actionRunTimeout time.Duration
+
+	root                 context.Context
+	cancel               context.CancelFunc
+	sem                  chan struct{}
+	spawnMu              sync.Mutex
+	wg                   sync.WaitGroup
+	stopping             atomic.Bool
+	heartbeatInterval    func(time.Duration) time.Duration
+	livenessPollInterval func(time.Duration) time.Duration
+	claimRetryInterval   time.Duration
 }
 
 var _ taskRunEnqueuedObserver = (*loopActionRuntime)(nil)
 
 func newLoopActionRuntime(
-	manager *taskpkg.Service,
+	manager loopActionTaskManager,
 	store taskStore,
-	runner *looppkg.CoordinatorRunner,
+	runner loopActionRunner,
+	sessions loopActionSessionStatus,
 	logger *slog.Logger,
 	now func() time.Time,
+	actionRunTimeout time.Duration,
 ) (*loopActionRuntime, error) {
 	if manager == nil {
 		return nil, errors.New("daemon: loop action runtime requires task manager")
@@ -58,6 +76,9 @@ func newLoopActionRuntime(
 	if runner == nil {
 		return nil, errors.New("daemon: loop action runtime requires coordinator runner")
 	}
+	if actionRunTimeout <= 0 || actionRunTimeout > taskpkg.MaxRunLeaseDuration {
+		return nil, fmt.Errorf("daemon: loop action timeout must be between 1ns and %s", taskpkg.MaxRunLeaseDuration)
+	}
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -66,15 +87,19 @@ func newLoopActionRuntime(
 	}
 	root, cancel := context.WithCancel(context.Background())
 	return &loopActionRuntime{
-		manager:           manager,
-		store:             store,
-		runner:            runner,
-		logger:            logger,
-		now:               now,
-		root:              root,
-		cancel:            cancel,
-		sem:               make(chan struct{}, looppkg.LoopMaxFanoutWidth),
-		heartbeatInterval: loopActionHeartbeatInterval,
+		manager:              manager,
+		store:                store,
+		runner:               runner,
+		sessions:             sessions,
+		logger:               logger,
+		now:                  now,
+		actionRunTimeout:     actionRunTimeout,
+		root:                 root,
+		cancel:               cancel,
+		sem:                  make(chan struct{}, looppkg.LoopMaxFanoutWidth),
+		heartbeatInterval:    loopActionHeartbeatInterval,
+		livenessPollInterval: loopActionLivenessPollInterval,
+		claimRetryInterval:   loopActionClaimRetryInterval,
 	}, nil
 }
 
@@ -152,32 +177,6 @@ func (r *loopActionRuntime) startQueuedRun(
 	})
 }
 
-func (r *loopActionRuntime) executeStartedRun(
-	ctx context.Context,
-	taskRecord taskpkg.Task,
-	run taskpkg.Run,
-	reason string,
-) error {
-	if err := r.acquireSlot(ctx); err != nil {
-		return err
-	}
-	defer r.releaseSlot()
-	return r.executeQueuedRun(ctx, taskRecord, run, reason)
-}
-
-func (r *loopActionRuntime) acquireSlot(ctx context.Context) error {
-	select {
-	case r.sem <- struct{}{}:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (r *loopActionRuntime) releaseSlot() {
-	<-r.sem
-}
-
 func (r *loopActionRuntime) executeQueuedRun(
 	ctx context.Context,
 	taskRecord taskpkg.Task,
@@ -194,10 +193,11 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if err != nil {
 		return err
 	}
-	leaseDuration, err := r.leaseDurationForRun(ctx, run)
+	actionTimeout, err := r.actionTimeoutForRun(ctx, run)
 	if err != nil {
 		return err
 	}
+	leaseDuration := leaseDurationForActionTimeout(actionTimeout)
 	claim, err := r.manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 		RunID:            strings.TrimSpace(run.ID),
 		Scope:            taskRecord.Scope.Normalize(),
@@ -217,7 +217,7 @@ func (r *loopActionRuntime) executeQueuedRun(
 		}
 		return err
 	}
-	result, err := r.executeClaimedRun(ctx, claim, actor, leaseDuration)
+	result, err := r.executeClaimedRun(ctx, claim, actor, leaseDuration, actionTimeout)
 	if err != nil {
 		if ctx.Err() != nil {
 			return err
@@ -232,111 +232,6 @@ func (r *loopActionRuntime) executeQueuedRun(
 		Now:        r.now().UTC(),
 	}, actor)
 	return err
-}
-
-func (r *loopActionRuntime) executeClaimedRun(
-	ctx context.Context,
-	claim *taskpkg.ClaimResult,
-	actor taskpkg.ActorContext,
-	leaseDuration time.Duration,
-) (taskpkg.RunResult, error) {
-	runCtx, cancelRun := context.WithCancel(ctx)
-	usage := &loopActionUsageState{}
-	runCtx = looppkg.ContextWithActionUsageReporter(runCtx, usage)
-	heartbeatErrC := r.startHeartbeat(runCtx, cancelRun, claim, actor, leaseDuration, usage)
-	result, runErr := r.runner.ExecuteActionRun(runCtx, claim.Run, actor)
-	cancelRun()
-	heartbeatErr := <-heartbeatErrC
-	if ctx.Err() != nil {
-		return taskpkg.RunResult{}, ctx.Err()
-	}
-	if tokensUsed := usage.TokensUsed(); tokensUsed > result.TokensUsed {
-		result.TokensUsed = tokensUsed
-	}
-	return result, errors.Join(runErr, heartbeatErr)
-}
-
-func (r *loopActionRuntime) startHeartbeat(
-	ctx context.Context,
-	cancelRun context.CancelFunc,
-	claim *taskpkg.ClaimResult,
-	actor taskpkg.ActorContext,
-	leaseDuration time.Duration,
-	usage *loopActionUsageState,
-) <-chan error {
-	errC := make(chan error, 1)
-	go func() {
-		err := r.heartbeatClaim(ctx, claim, actor, leaseDuration, usage)
-		if err != nil {
-			cancelRun()
-		}
-		errC <- err
-	}()
-	return errC
-}
-
-func (r *loopActionRuntime) heartbeatClaim(
-	ctx context.Context,
-	claim *taskpkg.ClaimResult,
-	actor taskpkg.ActorContext,
-	leaseDuration time.Duration,
-	usage *loopActionUsageState,
-) error {
-	interval := r.heartbeatInterval(leaseDuration)
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			_, err := r.manager.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
-				RunID:         claim.Run.ID,
-				ClaimToken:    claim.ClaimToken,
-				LeaseDuration: leaseDuration,
-				Now:           r.now().UTC(),
-				TokensUsed:    usage.TokensUsed(),
-			}, actor)
-			if err != nil {
-				if ctx.Err() != nil {
-					return nil
-				}
-				return err
-			}
-		}
-	}
-}
-
-func (r *loopActionRuntime) leaseDurationForRun(
-	ctx context.Context,
-	run taskpkg.Run,
-) (time.Duration, error) {
-	leaseDuration := taskpkg.DefaultRunLeaseDuration
-	timeout, ok, err := r.runner.ActionRunTimeout(ctx, run)
-	if err != nil {
-		if errors.Is(err, looppkg.ErrValidation) {
-			return leaseDuration, nil
-		}
-		return 0, err
-	}
-	if ok && timeout > leaseDuration {
-		leaseDuration = timeout
-	}
-	if leaseDuration > taskpkg.MaxRunLeaseDuration {
-		return taskpkg.MaxRunLeaseDuration, nil
-	}
-	return leaseDuration, nil
-}
-
-func loopActionHeartbeatInterval(leaseDuration time.Duration) time.Duration {
-	interval := leaseDuration / 3
-	if interval <= 0 {
-		return time.Second
-	}
-	if interval > loopActionHeartbeatMaxInterval {
-		return loopActionHeartbeatMaxInterval
-	}
-	return interval
 }
 
 func (r *loopActionRuntime) failClaimedRun(
@@ -365,32 +260,6 @@ func (r *loopActionRuntime) failClaimedRun(
 		Now:        r.now().UTC(),
 	}, actor)
 	return errors.Join(cause, failErr)
-}
-
-type loopActionUsageState struct {
-	tokensUsed atomic.Int64
-}
-
-func (s *loopActionUsageState) ReportActionTokensUsed(tokensUsed int64) {
-	if s == nil || tokensUsed <= 0 {
-		return
-	}
-	for {
-		current := s.tokensUsed.Load()
-		if tokensUsed <= current {
-			return
-		}
-		if s.tokensUsed.CompareAndSwap(current, tokensUsed) {
-			return
-		}
-	}
-}
-
-func (s *loopActionUsageState) TokensUsed() int64 {
-	if s == nil {
-		return 0
-	}
-	return s.tokensUsed.Load()
 }
 
 func (r *loopActionRuntime) shutdown(ctx context.Context) error {

@@ -192,6 +192,10 @@ CREATE INDEX idx_task_events_type ON task_events(event_type, timestamp DESC, id 
 CREATE INDEX idx_task_events_type_seq
 ON task_events(event_type, event_seq);
 
+CREATE INDEX idx_task_events_wake_event
+ON task_events(task_id, event_type, json_extract(payload_json, '$.wake_event_id'))
+WHERE event_type IN ('task.wake.delivered', 'task.wake.suppressed');
+
 CREATE INDEX idx_task_triage_actor ON task_triage_state(actor_kind, actor_id, updated_at DESC, task_id);
 
 CREATE INDEX idx_task_triage_task ON task_triage_state(task_id, updated_at DESC);

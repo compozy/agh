@@ -24,7 +24,7 @@ persona:
 
 - **Who:** the developer who replaced `compozy tasks run` with the `software-delivery` Loop. Runs Loops many times a day, keeps the run page and CLI open side by side, knows the overrides and the ceilings.
 - **What they reveal:** false `done` on an exhausted/stalled run (the trust-killer), meter drift, speed regressions in the run form, pause/resume/stop that lies about state, configure/fork friction, override clamps that don't hold, and partial task/automation catalogs presented as complete.
-- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, and J-24 triage-work-at-scale. **Goal:** J-26 controls, J-27 editor, and J-28 context/budgets.
+- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, J-24 triage-work-at-scale, and J-diagnose-task-session-health. **Goal:** J-26 controls, J-27 editor, and J-28 context/budgets.
 
 ## Lea — First-time Adopter
 
@@ -78,7 +78,7 @@ persona:
 
 - **Who:** an ACP agent (PRD primary persona "Autonomous agent") driving Loops via `agh__loop_*` native tools over CLI/HTTP/UDS. **Ada is a non-human actor** — QA role-plays her to verify AGH's agent-manageability premise: every web action has a structured equivalent, output is deterministic, and the capability gates hold. Zero patience for ambiguous or non-parseable output.
 - **What they reveal:** CLI↔HTTP↔UDS↔native-tool parity gaps, status values that don't map 1:1 to the 11-state enum, coercion in structured output, the approve capability gate (an agent must not approve its own gate), `Unavailable(ReasonDependencyMissing)` contracts before the service is ready, non-deterministic `ReasonCode`s`. **On the session surface** (session-improvements program): bounded REST tail/older pages, stable pagination cursors, cold bounded snapshots, fenced reconnect via `after_sequence` + `epoch`/`generation`, explicit reset reasons, empty-delta cursor advancement, keep-alive cadence, byte-identical `frames=raw` follow, and list/detail/status lifecycle parity through spawn→background→stop→restart. **On bridges:** strict JSON setup, HTTP/UDS parity, explicit skipped checks, deterministic exit codes, and a complete setup with no TTY or browser.
-- **Owns journeys:** J-07 agent-operated-run (Loops); **J-15 operate-session-via-cli-api** (session experience — the Automation Agent role in `_qa.md` §2 maps to Ada; not a new persona); **J-connect-bridge-provider** and **J-diagnose-repair-bridge** (structured bridge operation). **Goal:** J-29 structured operation and recovery.
+- **Owns journeys:** J-07 agent-operated-run (Loops); **J-15 operate-session-via-cli-api** and **J-diagnose-task-session-health** (session experience — the Automation Agent role in `_qa.md` §2 maps to Ada; not a new persona); **J-connect-bridge-provider** and **J-diagnose-repair-bridge** (structured bridge operation). **Goal:** J-29 structured operation and recovery.
 
 ## Sol — Accessibility-Reliant Operator
 
@@ -267,3 +267,27 @@ persona:
 - **Who:** the reviewer/auditor who reads the longest finished sessions in the corpus for review or compliance. Cares about the transcript *UI language* rewrite (tasks 25–33, 36–37): grouping, inline inspection, copy affordances, truthful usage. Related to Marina's reviewer archetype but desktop and transcript-deep, not mobile approval.
 - **What they reveal:** ungrouped 44px tool-call cards, output hidden behind default-closed chips, missing `+N previous tool calls`/turn folds, lossy or missing inline Input/Output, no copy affordance, a permanently-empty Usage tab presented as real data, false success/danger glyphs, gaps/duplicates when paging older history, and knowledge catalogs that hide old entries or retain ghost headers after interrupted derived synchronization.
 - **Owns journeys:** J-14 read-a-finished-transcript (primary) and J-25 browse-and-recover-knowledge.
+
+---
+
+# Runtime Administration persona
+
+Added for the hermes-comparison program (2026-07-19), which introduced a real installation-administrator audience: daemon lifecycle (drain/undrain), doctor and memory observability, the default-on redaction posture, and spend provenance. Vera owns acquisition *policy*; Dora owns the *runtime installation*. The hermes user-story persona "Administrator" maps to Dora; "Operator" maps to Théo (session surface) or Bruno (delivery/automation surface); "Autonomy operator" maps to Bruno; "Managed agent" and "External integrator" map to Ada (structured, non-human lane — the external MCP client is Ada driving through a third-party client instead of native tools).
+
+## Dora — Runtime Administrator
+
+```yaml
+persona:
+  name: Dora
+  base: Power User
+  goal: "Keep one AGH installation trustworthy: drain before deploys without killing in-flight work, read truthful doctor/status/memory evidence, keep secrets out of every log and stream, and see real spend — never a fake dollar amount."
+  device: desktop
+  network: wifi-fast
+  modality: mouse-keyboard
+  locale: en-US
+  patience_seconds: 25
+```
+
+- **Who:** the person who owns the daemon: restarts and deploys it, reads `agh status`/`agh doctor`, sets config keys, and answers for the security posture and the bill. Operates mostly through CLI/HTTP/UDS with the Web settings pages as secondary surface.
+- **What they reveal:** drains that kill in-flight work or lie about state, doctor items that disagree across HTTP/UDS/CLI, memory reports presented as something they are not, secrets surviving in logs/SSE/event stores, redaction toggles that silently no-op, estimated cost rendered as actual spend, and dead sidecars hammered forever or requiring a restart to recover.
+- **Owns journeys:** J-drain-daemon-safely, J-keep-secrets-contained; co-owns J-offer-runnable-capabilities (dead-entity half, with Ada).

@@ -299,6 +299,9 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 				UpdatedAt:       fixedTestNow,
 			}, nil
 		},
+		getSessionUsageFn: func(context.Context, string) (SessionUsageRecord, error) {
+			return SessionUsageRecord{CostStatus: "included", CostSource: "none"}, nil
+		},
 		inspectSessionFn: func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error) {
 			return SessionInspectRecord{SessionID: "sess-1", Health: statusSessionHealth}, nil
 		},
@@ -478,6 +481,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		{"session", "soul", "refresh", "sess-1", "--expected-digest", "sha256:old", "-o", "json"},
 		{"session", "health", "sess-1", "-o", "json"},
 		{"session", "status", "sess-1", "-o", "json"},
+		{"session", "usage", "sess-1", "-o", "json"},
 		{"session", "inspect", "sess-1", "-o", "json"},
 		{"session", "resume", "sess-1", "-o", "json"},
 		{"session", "wait", "sess-1", "-o", "json"},

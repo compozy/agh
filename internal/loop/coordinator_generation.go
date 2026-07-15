@@ -371,6 +371,7 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 		run,
 		generation,
 		effective.NoProgressWindow,
+		def.Graph,
 		normalized,
 		failed,
 	)

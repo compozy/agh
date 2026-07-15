@@ -35,6 +35,8 @@ func StatusForToolError(err error) int {
 	case errors.Is(err, toolspkg.ErrToolUnavailable),
 		errors.Is(err, toolspkg.ErrToolResultTooLarge):
 		return http.StatusUnprocessableEntity
+	case errors.Is(err, toolspkg.ErrToolResultPersistence):
+		return http.StatusInsufficientStorage
 	case errors.Is(err, toolspkg.ErrToolBackendFailed),
 		errors.Is(err, toolspkg.ErrToolCanceled),
 		errors.Is(err, toolspkg.ErrToolTimedOut):
@@ -65,6 +67,8 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		toolspkg.ErrorCodeModelNotFound,
 		toolspkg.ErrorCodeReasoningEffortUnsupported:
 		return http.StatusUnprocessableEntity
+	case toolspkg.ErrorCodeResultPersistenceFailed:
+		return http.StatusInsufficientStorage
 	case toolspkg.ErrorCodeBackendFailed, toolspkg.ErrorCodeCanceled, toolspkg.ErrorCodeTimedOut:
 		return http.StatusBadGateway
 	default:
@@ -107,6 +111,10 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.ToolID = toolErr.ToolID
 		payload.ReasonCodes = append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...)
 		payload.Layer = toolErrorLayer(toolErr.ReasonCodes)
+		if toolErr.PartialResult != nil {
+			partial := *toolErr.PartialResult
+			payload.PartialResult = &partial
+		}
 	case err != nil:
 		payload.Code = toolErrorCodeForStatus(status)
 		payload.Message = safeToolErrorMessage(status, payload.Code)
@@ -118,7 +126,8 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.Code = toolErrorCodeForStatus(status)
 		payload.Message = http.StatusText(status)
 	}
-	if maskInternal && status >= http.StatusInternalServerError {
+	if maskInternal && status >= http.StatusInternalServerError &&
+		payload.Code != toolspkg.ErrorCodeResultPersistenceFailed {
 		payload.Message = http.StatusText(status)
 	}
 	if strings.TrimSpace(payload.Message) == "" {
@@ -147,6 +156,8 @@ func safeToolErrorMessage(status int, code toolspkg.ErrorCode) string {
 		return "reasoning effort unsupported"
 	case toolspkg.ErrorCodeResultTooLarge:
 		return "tool result too large"
+	case toolspkg.ErrorCodeResultPersistenceFailed:
+		return "tool result could not be retained"
 	case toolspkg.ErrorCodeCanceled:
 		return "tool call canceled"
 	case toolspkg.ErrorCodeTimedOut:
@@ -176,6 +187,8 @@ func toolErrorCodeForStatus(status int) toolspkg.ErrorCode {
 		return toolspkg.ErrorCodeConflict
 	case http.StatusUnprocessableEntity:
 		return toolspkg.ErrorCodeUnavailable
+	case http.StatusInsufficientStorage:
+		return toolspkg.ErrorCodeResultPersistenceFailed
 	default:
 		return toolspkg.ErrorCodeBackendFailed
 	}

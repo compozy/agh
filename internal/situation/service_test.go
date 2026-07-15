@@ -1718,6 +1718,10 @@ func (s taskStoreStub) ListTaskEvents(_ context.Context, query taskpkg.EventQuer
 	return events, nil
 }
 
+func (s taskStoreStub) TaskWakeEventExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
 func (s taskStoreStub) ListTaskEventRecords(
 	_ context.Context,
 	query taskpkg.EventRecordQuery,

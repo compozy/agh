@@ -4,7 +4,7 @@ import "time"
 
 const (
 	// StatusSchemaVersion identifies the public status/doctor payload contract.
-	StatusSchemaVersion = "2026-05-20"
+	StatusSchemaVersion = "2026-07-16"
 )
 
 // SchemaStreamStatus reports one daemon-global migration stream's applied state.
@@ -33,20 +33,21 @@ type DaemonStatusPayload struct {
 
 // StatusPayload is the hard-cut runtime status surface shared by HTTP, UDS, and CLI JSON.
 type StatusPayload struct {
-	SchemaVersion string                       `json:"schema_version"`
-	GeneratedAt   time.Time                    `json:"generated_at"`
-	Daemon        DaemonStatusPayload          `json:"daemon"`
-	Sessions      SessionAggregatePayload      `json:"sessions"`
-	Health        ObserveHealthPayload         `json:"health"`
-	Memory        MemoryHealthPayload          `json:"memory"`
-	Automation    AutomationHealthPayload      `json:"automation"`
-	Tasks         TaskHealthPayload            `json:"tasks"`
-	Bridges       BridgeAggregateHealthPayload `json:"bridges"`
-	Providers     []ProviderStatusPayload      `json:"providers,omitempty"`
-	MCPServers    []MCPServerStatusPayload     `json:"mcp_servers,omitempty"`
-	Skills        SkillRuntimeStatusPayload    `json:"skills"`
-	Config        ConfigRuntimeStatusPayload   `json:"config"`
-	LogTail       LogTailStatusPayload         `json:"log_tail"`
+	SchemaVersion    string                           `json:"schema_version"`
+	GeneratedAt      time.Time                        `json:"generated_at"`
+	Daemon           DaemonStatusPayload              `json:"daemon"`
+	Sessions         SessionAggregatePayload          `json:"sessions"`
+	SubprocessHealth SubprocessHealthAggregatePayload `json:"subprocess_health"`
+	Health           ObserveHealthPayload             `json:"health"`
+	Memory           MemoryHealthPayload              `json:"memory"`
+	Automation       AutomationHealthPayload          `json:"automation"`
+	Tasks            TaskHealthPayload                `json:"tasks"`
+	Bridges          BridgeAggregateHealthPayload     `json:"bridges"`
+	Providers        []ProviderStatusPayload          `json:"providers,omitempty"`
+	MCPServers       []MCPServerStatusPayload         `json:"mcp_servers,omitempty"`
+	Skills           SkillRuntimeStatusPayload        `json:"skills"`
+	Config           ConfigRuntimeStatusPayload       `json:"config"`
+	LogTail          LogTailStatusPayload             `json:"log_tail"`
 }
 
 // DoctorPayload is the diagnostic probe result shared by HTTP, UDS, and CLI JSON.
@@ -130,6 +131,25 @@ type SessionAggregatePayload struct {
 	Total    int            `json:"total"`
 	ByStatus map[string]int `json:"by_status,omitempty"`
 	ByBadge  map[string]int `json:"by_badge,omitempty"`
+}
+
+// SubprocessHealthAggregatePayload summarizes active ACP subprocess health.
+type SubprocessHealthAggregatePayload struct {
+	Status    string                           `json:"status"`
+	Monitored int                              `json:"monitored"`
+	Healthy   int                              `json:"healthy"`
+	Unhealthy int                              `json:"unhealthy"`
+	Sessions  []SubprocessHealthSessionPayload `json:"sessions,omitempty"`
+}
+
+// SubprocessHealthSessionPayload identifies one active session with a failed verdict.
+type SubprocessHealthSessionPayload struct {
+	SessionID           string     `json:"session_id"`
+	WorkspaceID         string     `json:"workspace_id"`
+	AgentName           string     `json:"agent_name"`
+	ConsecutiveFailures int        `json:"consecutive_failures"`
+	LastCheckedAt       *time.Time `json:"last_checked_at,omitempty"`
+	Reason              string     `json:"reason,omitempty"`
 }
 
 // TaskHealthPayload exposes observer-owned task health in the status surface.

@@ -304,7 +304,15 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 					t.Fatalf("last delivery event = %q, want final", got)
 				}
 				if got, want := last.Seq, int64(5); got != want {
-					t.Fatalf("last delivery seq = %d, want %d", got, want)
+					sequence := make([]string, 0, len(markers))
+					for _, marker := range markers {
+						event := marker.Request.Event
+						sequence = append(sequence, fmt.Sprintf("%d:%s:%q", event.Seq, event.EventType, event.Content.Text))
+					}
+					t.Fatalf("last delivery seq = %d, want %d; projected sequence = %v", got, want, sequence)
+				}
+				if got, want := last.Content.Text, "hello!"; got != want {
+					t.Fatalf("last delivery content = %q, want %q", got, want)
 				}
 			},
 		},
@@ -571,11 +579,20 @@ func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *tes
 		}
 		select {
 		case checkpoint := <-checkpointed:
-			if checkpoint.RemoteMessageID != "remote-durable-restart" || checkpoint.LastAckedSeq != 1 {
-				t.Fatalf("start checkpoint = %#v, want durable remote anchor at seq 1", checkpoint)
+			if checkpoint.LastSentSeq != 1 || checkpoint.LastAckedSeq != 0 || checkpoint.RemoteMessageID != "" {
+				t.Fatalf("start intent checkpoint = %#v, want write-ahead seq 1 before transport ack", checkpoint)
 			}
 		case <-ctx.Done():
-			t.Fatalf("start checkpoint did not persist: %v", ctx.Err())
+			t.Fatalf("start intent checkpoint did not persist: %v", ctx.Err())
+		}
+		select {
+		case checkpoint := <-checkpointed:
+			if checkpoint.LastSentSeq != 1 || checkpoint.LastAckedSeq != 1 ||
+				checkpoint.RemoteMessageID != "remote-durable-restart" {
+				t.Fatalf("start ack checkpoint = %#v, want durable remote anchor at seq 1", checkpoint)
+			}
+		case <-ctx.Done():
+			t.Fatalf("start ack checkpoint did not persist: %v", ctx.Err())
 		}
 		firstBroker.Close()
 

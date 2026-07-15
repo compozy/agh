@@ -2,6 +2,8 @@ package daemon_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/httpapi"
 	"github.com/compozy/agh/internal/api/testutil"
@@ -24,6 +27,7 @@ import (
 func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 	t.Parallel()
 
+	artifactID := fmt.Sprintf("art_%x", sha256.Sum256([]byte(toolParityArtifactContent)))
 	requests := []struct {
 		name   string
 		method string
@@ -73,6 +77,11 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 		},
 		{name: "ShouldListToolsets", method: http.MethodGet, path: "/api/toolsets"},
 		{name: "ShouldGetToolset", method: http.MethodGet, path: "/api/toolsets/agh__catalog"},
+		{
+			name:   "ShouldReadToolArtifact",
+			method: http.MethodGet,
+			path:   "/api/workspaces/ws-1/tool-artifacts/" + artifactID + "?offset=2&limit=7",
+		},
 	}
 
 	for _, request := range requests {
@@ -88,6 +97,25 @@ func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {
 			}
 			if !jsonBodiesEqual(t, httpResp.Body.Bytes(), udsResp.Body.Bytes()) {
 				t.Fatalf("body mismatch\nhttp=%s\nuds=%s", httpResp.Body.String(), udsResp.Body.String())
+			}
+			if request.name == "ShouldReadToolArtifact" {
+				if httpResp.Code != http.StatusOK {
+					t.Fatalf("artifact status = %d, want %d; body=%s", httpResp.Code, http.StatusOK, httpResp.Body)
+				}
+				var page contract.ToolArtifactPageResponse
+				if err := json.Unmarshal(httpResp.Body.Bytes(), &page); err != nil {
+					t.Fatalf("decode artifact page: %v", err)
+				}
+				decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+				if err != nil {
+					t.Fatalf("decode artifact data: %v", err)
+				}
+				if got, want := string(decoded), toolParityArtifactContent[2:9]; got != want {
+					t.Fatalf("artifact page = %q, want %q", got, want)
+				}
+				if page.Offset != 2 || page.Bytes != 7 || page.NextOffset != 9 || page.EOF {
+					t.Fatalf("artifact page metadata = %#v, want exact non-terminal page", page)
+				}
 			}
 		})
 	}
@@ -112,6 +140,7 @@ func newToolParityHTTPEngine(t *testing.T) *gin.Engine {
 		httpapi.WithTaskService(&testutil.StubTaskManager{}),
 		httpapi.WithWorkspaceResolver(toolParityWorkspaceService(t)),
 		httpapi.WithToolRegistry(registry),
+		httpapi.WithToolArtifactStore(newToolParityArtifactStore(t)),
 		httpapi.WithToolsetRegistry(registry),
 		httpapi.WithLogger(testutil.DiscardLogger()),
 		httpapi.WithStartedAt(time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)),
@@ -140,6 +169,7 @@ func newToolParityBaseHandlers(t *testing.T) *core.BaseHandlers {
 		Tasks:         &testutil.StubTaskManager{},
 		Workspaces:    toolParityWorkspaceService(t),
 		Tools:         registry,
+		ToolArtifacts: newToolParityArtifactStore(t),
 		Toolsets:      registry,
 		HomePaths:     homePaths,
 		Config:        testutil.ConfigWithDisabledNetwork(homePaths),
@@ -148,6 +178,24 @@ func newToolParityBaseHandlers(t *testing.T) *core.BaseHandlers {
 		Now:           func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
 		StreamDone:    make(chan struct{}),
 	})
+}
+
+const toolParityArtifactContent = `{"version":"agh.tool-result/v1","tail":"D6-TAIL"}`
+
+func newToolParityArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtifactStore {
+	t.Helper()
+	store, err := toolspkg.OpenFilesystemToolArtifactStore(
+		t.Context(),
+		t.TempDir(),
+		toolspkg.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour},
+	)
+	if err != nil {
+		t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
+	}
+	if _, err := store.Put(t.Context(), "ws-1", []byte(toolParityArtifactContent)); err != nil {
+		t.Fatalf("Put() error = %v", err)
+	}
+	return store
 }
 
 func toolParitySessionManager() testutil.StubSessionManager {

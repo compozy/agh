@@ -8,6 +8,7 @@ export const sessionLifecycleTestIds = {
   composerSendButton: "composer-send-button",
   composerTextarea: "composer-textarea",
   deleteButton: "delete-button",
+  permissionAllowAlways: "permission-allow-always",
   permissionAllowOnce: "permission-allow-once",
   permissionPrompt: "permission-prompt",
   processingIndicator: "processing-indicator",
@@ -30,6 +31,7 @@ export interface SessionLifecycleSelectors {
   composerSendButton: Locator;
   composerTextarea: Locator;
   deleteButton: Locator;
+  permissionAllowAlways: Locator;
   permissionAllowOnce: Locator;
   permissionPrompt: Locator;
   processingIndicator: Locator;
@@ -90,6 +92,7 @@ export const automationOperatorTestIds = {
   automationJobScheduler: "automation-job-scheduler",
   automationJobForm: "automation-job-form",
   automationRunHistory: "automation-run-history",
+  automationSuggestionsCard: "automation-suggestions-card",
   automationDeleteDialog: "automation-delete-dialog",
   automationDeleteConfirmTyping: "automation-delete-confirm-typing",
   confirmDeleteAutomationButton: "confirm-delete-automation-btn",
@@ -315,6 +318,7 @@ export interface NetworkOperatorSelectors {
 
 export interface AutomationOperatorSelectors {
   appSidebar: Locator;
+  automationSuggestionsCard: Locator;
   automationDeleteConfirmTyping: Locator;
   automationDeleteDialog: Locator;
   confirmDeleteAutomationButton: Locator;
@@ -325,6 +329,7 @@ export interface AutomationOperatorSelectors {
   detailPanel: Locator;
   editAutomationButton: Locator;
   item(id: string): Locator;
+  suggestion(id: string): Locator;
   editorDialog: Locator;
   jobForm: Locator;
   jobAgentInput: Locator;
@@ -907,6 +912,7 @@ export function sessionLifecycleSelectors(
     composerSendButton: page.getByRole("button", { name: "Send message" }),
     composerTextarea: page.getByRole("textbox", { name: "Session prompt" }),
     deleteButton: page.getByTestId(sessionLifecycleTestIds.deleteButton),
+    permissionAllowAlways: page.getByTestId(sessionLifecycleTestIds.permissionAllowAlways),
     permissionAllowOnce: page.getByTestId(sessionLifecycleTestIds.permissionAllowOnce),
     permissionPrompt: page.getByTestId(sessionLifecycleTestIds.permissionPrompt),
     processingIndicator: page.getByTestId(sessionLifecycleTestIds.processingIndicator),
@@ -917,6 +923,109 @@ export function sessionLifecycleSelectors(
     workspaceOnboarding: page.getByTestId(sessionLifecycleTestIds.workspaceOnboarding),
     workspaceRegisterManual: page.getByTestId(sessionLifecycleTestIds.workspaceRegisterManual),
     workspaceUseGlobal: page.getByTestId(sessionLifecycleTestIds.workspaceUseGlobal),
+  };
+}
+
+export const toolApprovalGrantsTestIds = {
+  section: "settings-page-general-tool-approvals-section",
+  list: "settings-page-general-tool-approvals-list",
+  empty: "settings-page-general-tool-approvals-empty",
+  revokeDialog: "settings-page-general-tool-approvals-revoke",
+  revokeConfirm: "settings-page-general-tool-approvals-revoke-confirm",
+  revokeCancel: "settings-page-general-tool-approvals-revoke-cancel",
+  setOpen: "settings-page-general-tool-approvals-set-open",
+  setDialog: "tool-approval-grant-set-dialog",
+  setScopeAgent: "tool-approval-grant-scope-agent",
+  setScopeTool: "tool-approval-grant-scope-tool",
+  setToolID: "tool-approval-grant-tool-id",
+  setAgentName: "tool-approval-grant-agent-name",
+  setDecisionAllow: "tool-approval-grant-decision-allow",
+  setDecisionReject: "tool-approval-grant-decision-reject",
+  setConfirm: "tool-approval-grant-set-confirm",
+} as const;
+
+export interface ToolApprovalGrantsSelectors {
+  section: Locator;
+  list: Locator;
+  empty: Locator;
+  revokeDialog: Locator;
+  revokeConfirm: Locator;
+  revokeCancel: Locator;
+  setOpen: Locator;
+  setDialog: Locator;
+  setScopeAgent: Locator;
+  setScopeTool: Locator;
+  setToolID: Locator;
+  setAgentName: Locator;
+  setDecisionAllow: Locator;
+  setDecisionReject: Locator;
+  setConfirm: Locator;
+  row(grantId: string): Locator;
+  decision(grantId: string): Locator;
+  revoke(grantId: string): Locator;
+}
+
+export function toolApprovalGrantsSelectors(
+  page: Pick<Page, "getByTestId" | "locator">
+): ToolApprovalGrantsSelectors {
+  return {
+    section: page.getByTestId(toolApprovalGrantsTestIds.section),
+    list: page.getByTestId(toolApprovalGrantsTestIds.list),
+    empty: page.getByTestId(toolApprovalGrantsTestIds.empty),
+    revokeDialog: page.getByTestId(toolApprovalGrantsTestIds.revokeDialog),
+    revokeConfirm: page.getByTestId(toolApprovalGrantsTestIds.revokeConfirm),
+    revokeCancel: page.getByTestId(toolApprovalGrantsTestIds.revokeCancel),
+    setOpen: page.getByTestId(toolApprovalGrantsTestIds.setOpen),
+    setDialog: page.getByTestId(toolApprovalGrantsTestIds.setDialog),
+    setScopeAgent: page.getByTestId(toolApprovalGrantsTestIds.setScopeAgent),
+    setScopeTool: page.getByTestId(toolApprovalGrantsTestIds.setScopeTool),
+    setToolID: page.getByTestId(toolApprovalGrantsTestIds.setToolID),
+    setAgentName: page.getByTestId(toolApprovalGrantsTestIds.setAgentName),
+    setDecisionAllow: page.getByTestId(toolApprovalGrantsTestIds.setDecisionAllow),
+    setDecisionReject: page.getByTestId(toolApprovalGrantsTestIds.setDecisionReject),
+    setConfirm: page.getByTestId(toolApprovalGrantsTestIds.setConfirm),
+    row: (grantId: string) =>
+      page.locator(`[data-testid="tool-approval-grant-row"][data-grant-id="${grantId}"]`),
+    decision: (grantId: string) => page.getByTestId(`tool-approval-grant-decision-${grantId}`),
+    revoke: (grantId: string) => page.getByTestId(`tool-approval-grant-revoke-${grantId}`),
+  };
+}
+
+export const sessionClarifyTestIds = {
+  card: "clarification-card",
+  question: "clarification-question",
+  choice: "clarification-choice",
+  textInput: "clarification-text-input",
+  submit: "clarification-submit",
+  receipt: "clarification-receipt",
+  receiptAnswer: "clarification-receipt-answer",
+  error: "clarification-error",
+} as const;
+
+export interface SessionClarifySelectors {
+  card: Locator;
+  question: Locator;
+  textInput: Locator;
+  submit: Locator;
+  receipt: Locator;
+  receiptAnswer: Locator;
+  error: Locator;
+  choice(index: number): Locator;
+}
+
+export function sessionClarifySelectors(
+  page: Pick<Page, "getByTestId" | "locator">
+): SessionClarifySelectors {
+  return {
+    card: page.getByTestId(sessionClarifyTestIds.card),
+    question: page.getByTestId(sessionClarifyTestIds.question),
+    textInput: page.getByTestId(sessionClarifyTestIds.textInput),
+    submit: page.getByTestId(sessionClarifyTestIds.submit),
+    receipt: page.getByTestId(sessionClarifyTestIds.receipt),
+    receiptAnswer: page.getByTestId(sessionClarifyTestIds.receiptAnswer),
+    error: page.getByTestId(sessionClarifyTestIds.error),
+    choice: (index: number) =>
+      page.locator(`[data-testid="clarification-choice"][data-choice-index="${index}"]`),
   };
 }
 
@@ -1084,6 +1193,9 @@ export function automationOperatorSelectors(
 
   return {
     appSidebar: page.getByTestId(automationOperatorTestIds.appSidebar),
+    automationSuggestionsCard: page.getByTestId(
+      automationOperatorTestIds.automationSuggestionsCard
+    ),
     automationDeleteConfirmTyping: page.getByTestId(
       automationOperatorTestIds.automationDeleteConfirmTyping
     ),
@@ -1127,6 +1239,7 @@ export function automationOperatorSelectors(
     runSessionLink: (runId: string) => page.getByTestId(`automation-run-${runId}`),
     submitJobForm: page.getByTestId(automationOperatorTestIds.submitJobForm),
     submitTriggerForm: page.getByTestId(automationOperatorTestIds.submitTriggerForm),
+    suggestion: (id: string) => page.getByTestId(`automation-suggestion-${id}`),
     triggerAgentInput: page.getByTestId(automationOperatorTestIds.triggerAgentInput),
     triggerEnabledToggle: page.getByTestId(automationOperatorTestIds.triggerEnabledToggle),
     triggerEndpointSlugInput: page.getByTestId(automationOperatorTestIds.triggerEndpointSlugInput),

@@ -945,6 +945,158 @@ func TestManagerBusyInputInterrupt(t *testing.T) {
 			t.Fatalf("prompt messages = %#v, want first then replacement without stale queue", messages)
 		}
 	})
+
+	t.Run(
+		"Should compose one generation-fenced salvage prompt after explicit interrupt then steer",
+		func(t *testing.T) {
+			t.Parallel()
+
+			queueStore := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionInputQueueStore(queueStore))
+			registerManagerInputQueueWorkspace(t, queueStore, h)
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, queueStore, h, sess)
+			t.Cleanup(func() {
+				if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+					t.Errorf("Stop() error = %v", err)
+				}
+			})
+
+			entered := make(chan struct{})
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+			h.driver.cancelHook = func(*fakeProcess) error {
+				releaseOnce.Do(func() { close(release) })
+				return nil
+			}
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent)
+				go func() {
+					defer close(events)
+					if req.Message == "Implement checkout retry fencing" {
+						close(entered)
+						<-release
+					}
+					emitDonePromptEvents(events, sess.ID, req.TurnID)
+				}()
+				return events, nil
+			}
+
+			first, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+				Message: "Implement checkout retry fencing",
+			})
+			if err != nil {
+				t.Fatalf("SendPrompt(first) error = %v", err)
+			}
+			<-entered
+			interrupted, err := h.manager.InterruptPrompt(testutil.Context(t), sess.ID)
+			if err != nil {
+				t.Fatalf("InterruptPrompt() error = %v", err)
+			}
+			if interrupted.QueueGeneration != 1 || !interrupted.Interrupted {
+				t.Fatalf("InterruptPrompt() result = %#v", interrupted)
+			}
+			salvaged, err := h.manager.SteerPrompt(testutil.Context(t), sess.ID, "Preserve the retry budget")
+			if err != nil {
+				t.Fatalf("SteerPrompt() error = %v", err)
+			}
+			if salvaged.Mode != BusyInputModeSteer || salvaged.Status != promptStatusAccepted ||
+				salvaged.QueueGeneration != interrupted.QueueGeneration || salvaged.Events == nil {
+				t.Fatalf("SteerPrompt() result = %#v", salvaged)
+			}
+			collectEvents(t, first.Events)
+			collectEvents(t, salvaged.Events)
+
+			wantSalvage := composeInterruptedPromptSalvage(
+				"Implement checkout retry fencing",
+				"Preserve the retry budget",
+			)
+			calls := managerPromptCalls(h)
+			if len(calls) != 2 || calls[1].Message != wantSalvage {
+				t.Fatalf("prompt calls = %#v, want one composed salvage", calls)
+			}
+			inputs := managerUserPromptEvents(t, h, sess.ID)
+			if len(inputs) != 2 || inputs[1].Text != wantSalvage {
+				t.Fatalf("persisted user inputs = %#v, want one composed salvage", inputs)
+			}
+			_, err = h.manager.SteerPrompt(
+				testutil.Context(t),
+				sess.ID,
+				"duplicate correction",
+			)
+			if !errors.Is(err, ErrPromptNotInProgress) {
+				t.Fatalf("SteerPrompt(duplicate) error = %v, want ErrPromptNotInProgress", err)
+			}
+		},
+	)
+
+	t.Run("Should discard salvage when ordinary replacement input follows explicit interrupt", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		var releaseOnce sync.Once
+		t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+		h.driver.cancelHook = func(*fakeProcess) error {
+			releaseOnce.Do(func() { close(release) })
+			return nil
+		}
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() {
+				defer close(events)
+				if req.Message == "Original interrupted task" {
+					close(entered)
+					<-release
+				}
+				emitDonePromptEvents(events, sess.ID, req.TurnID)
+			}()
+			return events, nil
+		}
+
+		first, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "Original interrupted task",
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(first) error = %v", err)
+		}
+		<-entered
+		if _, err := h.manager.InterruptPrompt(testutil.Context(t), sess.ID); err != nil {
+			t.Fatalf("InterruptPrompt() error = %v", err)
+		}
+		collectEvents(t, first.Events)
+		replacement, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "Plain replacement task",
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(replacement) error = %v", err)
+		}
+		collectEvents(t, replacement.Events)
+		calls := managerPromptCalls(h)
+		if len(calls) != 2 || calls[1].Message != "Plain replacement task" {
+			t.Fatalf("prompt calls = %#v, want unsalvaged replacement", calls)
+		}
+		_, err = h.manager.SteerPrompt(
+			testutil.Context(t),
+			sess.ID,
+			"late correction",
+		)
+		if !errors.Is(err, ErrPromptNotInProgress) {
+			t.Fatalf("SteerPrompt(after replacement) error = %v, want ErrPromptNotInProgress", err)
+		}
+	})
 }
 
 func managerPromptCalls(h *harness) []acp.PromptRequest {

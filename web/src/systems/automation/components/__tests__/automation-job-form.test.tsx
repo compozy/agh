@@ -430,6 +430,74 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("job-schedule-mode-at")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("Should preserve recurring catch-up and grace across schedule-mode switches but omit them for one-shot at", () => {
+    renderJobForm();
+    fireEvent.click(screen.getByTestId("job-governance-toggle"));
+
+    // Recurring (cron) exposes catch-up + grace; entering values serializes them.
+    expect(screen.getByTestId("job-catch-up-field")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("job-catch-up-replay"));
+    fireEvent.change(screen.getByTestId("job-misfire-grace"), { target: { value: "45" } });
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"catch_up_policy": "replay"'
+    );
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"misfire_grace_seconds": 45'
+    );
+
+    // One-shot `at` hides the controls and drops both fields from the request.
+    fireEvent.click(screen.getByTestId("job-schedule-mode-at"));
+    expect(screen.queryByTestId("job-catch-up-field")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("job-misfire-grace")).not.toBeInTheDocument();
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
+      "catch_up_policy"
+    );
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
+      "misfire_grace_seconds"
+    );
+
+    // Returning to cron restores the entered recurring values.
+    fireEvent.click(screen.getByTestId("job-schedule-mode-cron"));
+    expect(screen.getByTestId("job-catch-up-replay")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("job-misfire-grace")).toHaveValue(45);
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"catch_up_policy": "replay"'
+    );
+  });
+
+  it("Should omit catch_up_policy when the target-aware Default is selected", () => {
+    renderJobForm();
+    fireEvent.click(screen.getByTestId("job-governance-toggle"));
+
+    fireEvent.click(screen.getByTestId("job-catch-up-coalesce"));
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"catch_up_policy": "coalesce"'
+    );
+
+    fireEvent.click(screen.getByTestId("job-catch-up-default"));
+    expect(screen.getByTestId("job-catch-up-default")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
+      "catch_up_policy"
+    );
+  });
+
+  it("Should treat zero or empty grace as the scheduler default by omitting misfire_grace_seconds", () => {
+    renderJobForm();
+    fireEvent.click(screen.getByTestId("job-governance-toggle"));
+
+    const grace = screen.getByTestId("job-misfire-grace");
+    fireEvent.change(grace, { target: { value: "30" } });
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"misfire_grace_seconds": 30'
+    );
+
+    fireEvent.change(grace, { target: { value: "0" } });
+    expect(grace).toHaveValue(0);
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
+      "misfire_grace_seconds"
+    );
+  });
+
   it("Should keep a decodable cron expression editable after selecting Custom", () => {
     const { onChange } = renderJobForm();
     const cronInput = screen.getByLabelText("Cron expression");

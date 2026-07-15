@@ -89,6 +89,24 @@ func (cp *CatalogProvider) PromptAgentSection(
 	return BuildCatalog(skills), nil
 }
 
+// PromptAgentSessionSection resolves activation gates against the concrete startup session.
+func (cp *CatalogProvider) PromptAgentSessionSection(
+	ctx context.Context,
+	sessionID string,
+	agent aghconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	if cp == nil || cp.registry == nil {
+		return "", nil
+	}
+
+	skills, err := cp.registry.ForAgentSession(ctx, workspace, strings.TrimSpace(agent.Name), sessionID)
+	if err != nil {
+		return "", fmt.Errorf("skills: build catalog for agent %q session %q: %w", agent.Name, sessionID, err)
+	}
+	return BuildCatalog(skills), nil
+}
+
 // BuildCatalog renders the XML-like available-skills block injected into agent
 // system prompts.
 func BuildCatalog(skills []*Skill) string {
@@ -126,7 +144,7 @@ func buildCatalog(skills []*Skill, openTag string, closeTag string, instructions
 
 	entries := make([]catalogEntry, 0, len(skills))
 	for _, skill := range skills {
-		if skill == nil || !skill.Enabled {
+		if skill == nil || !skill.Enabled || !skillIsActive(skill) {
 			continue
 		}
 

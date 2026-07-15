@@ -15,6 +15,7 @@ type configOverlay struct {
 	Sandboxes     map[string]sandboxOverlay  `toml:"sandboxes"`
 	Observability observabilityOverlay       `toml:"observability"`
 	Log           logOverlay                 `toml:"log"`
+	Redact        redactOverlay              `toml:"redact"`
 	Memory        memoryOverlay              `toml:"memory"`
 	Skills        skillsOverlay              `toml:"skills"`
 	Extensions    extensionsOverlay          `toml:"extensions"`
@@ -47,6 +48,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	applySandboxOverlays(dst, o.Sandboxes)
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)
+	o.Redact.Apply(&dst.Redact)
 	o.Memory.Apply(&dst.Memory)
 	o.Skills.Apply(&dst.Skills)
 	o.Extensions.Apply(&dst.Extensions)

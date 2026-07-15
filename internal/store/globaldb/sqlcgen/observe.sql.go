@@ -141,11 +141,12 @@ func (q *Queries) InsertEventSummary(ctx context.Context, arg InsertEventSummary
 const upsertTokenStats = `-- name: UpsertTokenStats :exec
 INSERT INTO token_stats (
   id, session_id, agent_name, input_tokens, output_tokens, total_tokens,
-  total_cost, cost_currency, turn_count, updated_at
+  total_cost, cost_currency, cost_status, cost_source, turn_count, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
-  ?8, ?9, ?10
+  ?8, ?9, ?10,
+  ?11, ?12
 )
 ON CONFLICT(session_id, agent_name) DO UPDATE SET
   input_tokens = CASE
@@ -164,11 +165,43 @@ ON CONFLICT(session_id, agent_name) DO UPDATE SET
     ELSE token_stats.total_tokens + excluded.total_tokens
   END,
   total_cost = CASE
+    WHEN token_stats.cost_status != excluded.cost_status
+      OR token_stats.cost_source != excluded.cost_source
+      OR COALESCE(token_stats.cost_currency, '') != COALESCE(excluded.cost_currency, '')
+      OR (token_stats.total_cost IS NOT NULL AND excluded.total_cost IS NOT NULL
+        AND token_stats.total_cost + excluded.total_cost > 1.7976931348623157e308)
+      THEN NULL
     WHEN excluded.total_cost IS NULL THEN token_stats.total_cost
     WHEN token_stats.total_cost IS NULL THEN excluded.total_cost
     ELSE token_stats.total_cost + excluded.total_cost
   END,
-  cost_currency = COALESCE(excluded.cost_currency, token_stats.cost_currency),
+  cost_currency = CASE
+    WHEN token_stats.cost_status != excluded.cost_status
+      OR token_stats.cost_source != excluded.cost_source
+      OR COALESCE(token_stats.cost_currency, '') != COALESCE(excluded.cost_currency, '')
+      OR (token_stats.total_cost IS NOT NULL AND excluded.total_cost IS NOT NULL
+        AND token_stats.total_cost + excluded.total_cost > 1.7976931348623157e308)
+      THEN NULL
+    ELSE COALESCE(excluded.cost_currency, token_stats.cost_currency)
+  END,
+  cost_status = CASE
+    WHEN token_stats.cost_status != excluded.cost_status
+      OR token_stats.cost_source != excluded.cost_source
+      OR COALESCE(token_stats.cost_currency, '') != COALESCE(excluded.cost_currency, '')
+      OR (token_stats.total_cost IS NOT NULL AND excluded.total_cost IS NOT NULL
+        AND token_stats.total_cost + excluded.total_cost > 1.7976931348623157e308)
+      THEN 'unknown'
+    ELSE token_stats.cost_status
+  END,
+  cost_source = CASE
+    WHEN token_stats.cost_status != excluded.cost_status
+      OR token_stats.cost_source != excluded.cost_source
+      OR COALESCE(token_stats.cost_currency, '') != COALESCE(excluded.cost_currency, '')
+      OR (token_stats.total_cost IS NOT NULL AND excluded.total_cost IS NOT NULL
+        AND token_stats.total_cost + excluded.total_cost > 1.7976931348623157e308)
+      THEN 'none'
+    ELSE token_stats.cost_source
+  END,
   turn_count = token_stats.turn_count + excluded.turn_count,
   updated_at = excluded.updated_at
 `
@@ -182,6 +215,8 @@ type UpsertTokenStatsParams struct {
 	TotalTokens  sql.NullInt64   `json:"total_tokens"`
 	TotalCost    sql.NullFloat64 `json:"total_cost"`
 	CostCurrency sql.NullString  `json:"cost_currency"`
+	CostStatus   string          `json:"cost_status"`
+	CostSource   string          `json:"cost_source"`
 	TurnCount    int64           `json:"turn_count"`
 	UpdatedAt    string          `json:"updated_at"`
 }
@@ -196,6 +231,8 @@ func (q *Queries) UpsertTokenStats(ctx context.Context, arg UpsertTokenStatsPara
 		arg.TotalTokens,
 		arg.TotalCost,
 		arg.CostCurrency,
+		arg.CostStatus,
+		arg.CostSource,
 		arg.TurnCount,
 		arg.UpdatedAt,
 	)

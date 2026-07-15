@@ -79,7 +79,6 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.activeHumanRaw,
 		&v.run.BudgetApprovalSeq,
 		&v.startMetadataRaw,
-		&v.run.ConsecutiveFailures,
 		&v.run.BudgetTokens,
 		&v.run.BudgetWallSec,
 		&v.budgetOnExceeded,

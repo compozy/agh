@@ -2,11 +2,9 @@ package daemon
 
 import (
 	"fmt"
-
 	"strings"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
-
 	"github.com/compozy/agh/internal/toolruntime"
 )
 
@@ -14,9 +12,10 @@ func daemonNativeHooks(
 	observer sessionLifecycleObserver,
 	dreamRuntime dreamCheckEnqueuer,
 	memoryExtractor sessionMessagePersistedObserver,
+	autoTitle sessionMessagePersistedObserver,
 ) ([]hookspkg.HookDecl, map[string]hookspkg.Executor) {
-	decls := make([]hookspkg.HookDecl, 0, 4)
-	executors := make(map[string]hookspkg.Executor, 4)
+	decls := make([]hookspkg.HookDecl, 0, 5)
+	executors := make(map[string]hookspkg.Executor, 5)
 
 	if observer != nil {
 		const (
@@ -71,7 +70,21 @@ func daemonNativeHooks(
 			PrioritySet:  true,
 			ExecutorKind: hookspkg.HookExecutorNative,
 		})
-		executors[extractorName] = memoryExtractorMessagePersistedExecutor(memoryExtractor)
+		executors[extractorName] = sessionMessagePersistedExecutor(memoryExtractor)
+	}
+
+	if autoTitle != nil {
+		const titleName = "daemon.session.auto_title.session_message_persisted"
+
+		decls = append(decls, hookspkg.HookDecl{
+			Name:         titleName,
+			Event:        hookspkg.HookSessionMessagePersisted,
+			Mode:         hookspkg.HookModeAsync,
+			Priority:     950,
+			PrioritySet:  true,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		})
+		executors[titleName] = sessionMessagePersistedExecutor(autoTitle)
 	}
 
 	return decls, executors

@@ -105,7 +105,7 @@ func TestRuntimeHarnessMockAgentProviderConfig(t *testing.T) {
 		}
 
 		homePaths := NewHomePaths(t)
-		layout := prepareRuntimeLayout(t, RuntimeHarnessOptions{
+		layout := prepareRuntimeLayout(t, &RuntimeHarnessOptions{
 			HomePaths: homePaths,
 			MockAgents: []MockAgentSpec{{
 				FixturePath:  fixturePath,

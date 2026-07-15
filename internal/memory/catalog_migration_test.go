@@ -51,10 +51,7 @@ func TestCatalogMigrationStreams(t *testing.T) {
 			t.Fatalf("global status changed after memory apply: before=%#v after=%#v", globalBefore, globalAfter)
 		}
 		if memoryStatus.Version != 1 || memoryStatus.AppliedCount != 1 {
-			t.Fatalf(
-				"shared memory status = %#v, want version/count 1",
-				memoryStatus,
-			)
+			t.Fatalf("shared memory status = %#v, want version/count 1", memoryStatus)
 		}
 		for _, table := range []string{globaldb.MigrationStream().VersionTable, MigrationStream().VersionTable} {
 			if !catalogMigrationTableExists(t, catalog.catalog.db, table) {

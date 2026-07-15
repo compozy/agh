@@ -54,6 +54,11 @@ type EventRecorder interface {
 	Close(ctx context.Context) error
 }
 
+// EventArchiver marks closed replay spans without deleting their forensic rows.
+type EventArchiver interface {
+	ArchiveEvents(ctx context.Context, request EventArchiveRequest) (EventArchiveResult, error)
+}
+
 // SessionCatalog manages global session index records.
 type SessionCatalog interface {
 	RegisterSession(ctx context.Context, session SessionInfo) error
@@ -74,6 +79,19 @@ type SessionTranscriptEpochStore interface {
 type EventSummaryStore interface {
 	WriteEventSummary(ctx context.Context, summary EventSummary) error
 	ListEventSummaries(ctx context.Context, query EventSummaryQuery) ([]EventSummary, error)
+}
+
+// DeadEntityStore manages workspace-scoped confirmed-dead external runtimes.
+type DeadEntityStore interface {
+	MarkDeadEntity(ctx context.Context, entity DeadEntity) error
+	ClearDeadEntity(ctx context.Context, workspaceID string, kind DeadEntityKind, entityID string) error
+	FindDeadEntity(
+		ctx context.Context,
+		workspaceID string,
+		kind DeadEntityKind,
+		entityID string,
+	) (DeadEntity, bool, error)
+	ListDeadEntities(ctx context.Context, workspaceID string) ([]DeadEntity, error)
 }
 
 // TokenStatsStore manages aggregated token usage rows.

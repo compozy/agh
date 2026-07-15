@@ -112,8 +112,7 @@ const (
 	TaskRunStatusFailed
 	// TaskRunStatusCanceled reports a run that was canceled.
 	TaskRunStatusCanceled
-	// TaskRunStatusNeedsAttention reports a queued run the scheduler could not converge
-	// (no worker claimed it within the starvation budget); it awaits operator/agent recovery.
+	// TaskRunStatusNeedsAttention reports a nonterminal run that requires operator or agent recovery.
 	TaskRunStatusNeedsAttention
 )
 
@@ -484,6 +483,7 @@ type Run struct {
 	TaskID         string         `json:"task_id"`
 	WorkspaceID    string         `json:"workspace_id,omitempty"`
 	Attempt        int32          `json:"attempt"`
+	RecoveryCount  int32          `json:"recovery_count"`
 	RunKind        RunKind        `json:"run_kind,omitempty"`
 	Status         RunStatus      `json:"status"`
 	LoopRunID      string         `json:"loop_run_id,omitempty"`
@@ -521,14 +521,6 @@ type Event struct {
 	Origin    Origin          `json:"origin"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 	Timestamp time.Time       `json:"timestamp"`
-}
-
-// RunIdempotency is the durable deduplication record for non-human run ingress.
-type RunIdempotency struct {
-	IdempotencyKey string    `json:"idempotency_key"`
-	RunID          string    `json:"run_id"`
-	Origin         Origin    `json:"origin"`
-	CreatedAt      time.Time `json:"created_at"`
 }
 
 // TriageState is the durable actor-scoped inbox and triage state for one task.
@@ -629,6 +621,7 @@ type RunSummary struct {
 	LoopRunID                    string                 `json:"loop_run_id,omitempty"`
 	Status                       RunStatus              `json:"status"`
 	Attempt                      int                    `json:"attempt"`
+	RecoveryCount                int                    `json:"recovery_count"`
 	PreviousRunID                string                 `json:"previous_run_id,omitempty"`
 	FailureKind                  string                 `json:"failure_kind,omitempty"`
 	MaxAttempts                  int                    `json:"max_attempts"`

@@ -41,6 +41,16 @@ The discovery loop and denial-handling rules live in the preceding tools-and-ski
 
 Session tools: `agh__session_list`, `agh__session_status`, `agh__session_history`, `agh__session_events`, `agh__session_describe`, `agh__session_health`.
 
+Remembered approvals: `agh__tool_approvals_set`, `agh__tool_approvals_list`, and
+`agh__tool_approvals_revoke`. `allow-always` or `reject-always` creates an exact workspace + agent +
+tool + input-digest decision. Explicit set accepts only `agent` or `tool` scope and no input digest;
+an agent-wide set requires `agent_name`. Wider allows remain below the configured tool-policy
+ceiling. CLI: `agh tool approvals set|list|revoke --workspace <workspace>`.
+
+Clarification: `agh__clarify` asks one active-session question with at most four choices and returns
+zero-based `{choice,text,fallback}`. It is not approval. CLI: `agh session clarify pending|answer`
+(choice presentation is one-based).
+
 `agh__session_list` returns one counted catalog page and accepts workspace, exact state, exact session `type`, exact agent, search, resumability, health, sort, cursor, and limit inputs. Use `type: "user"` when a workflow needs operator-created sessions without daemon-managed dream, system, coordinator, or spawned sessions.
 
 Authored context tools: `agh__agent_heartbeat_status`, `agh__agent_heartbeat_wake`.
@@ -59,6 +69,7 @@ Provider model tools: `agh__provider_models_list`, `agh__provider_models_curate`
 
 `agh__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `agh provider models list` and `agh provider models list --all`. `agh__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and `default_effort`. Its CLI fallback is `agh provider models set`. Treat `model_not_found` and `reasoning_effort_unsupported` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
+Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.
 
 ## Skills And Memory Tools
 
@@ -112,11 +123,15 @@ Config tools live under `agh__config_*` for show/list/get/set/unset/diff/path. H
 Automation job/trigger catalogs are available through CLI, HTTP/UDS, and `agh__automation_jobs_list` / `agh__automation_triggers_list`. They return counted cursor pages and support scope/workspace, source, enabled, Loop-target, search, and trigger-event filters. Run/history reads remain separate uncounted `runs` collections; bound them explicitly. Other automation tools under `agh__automation_*` cover detail, mutation, enable/disable, and manual trigger.
 Config- and package-backed definitions accept enabled-only updates and reject deletion; dynamic definitions accept full mutation.
 
+`agh__automation_suggestions_{list,accept,dismiss}` requires `workspace_id`: list pending; accept
+creates, dismiss latches. Relist on CAS conflict.
+
 `agh__marketplace_search` returns MCP, extension, skill, and bundle rows. Single-kind calls accept
 `next_cursor` as `cursor`; keep kind, query, and workspace unchanged. Curated and bundle cursors
 fence their projection; remote skill cursors validate the prior page boundary with bounded
 look-behind. Restart from the first page when AGH rejects a continuation. Grouped searches omit it.
-Extension lifecycle tools remain under `agh__extensions_*` for
+Its installed-state projection uses the caller's exact workspace; never reuse a result across
+workspace scopes. Extension lifecycle tools remain under `agh__extensions_*` for
 list/info/install/update/remove/enable/disable; there is no extension-specific native search tool.
 When `agh__extensions_update` with `all=true` stops on a later target, its error identifies the failed
 extension and completed count, and every earlier committed update retains an `extension.updated`
@@ -126,9 +141,20 @@ not an activation failure, and the active version remains the reported latest ve
 Successful `agh__extensions_remove` results may similarly contain `extension_remove_cleanup_failed`.
 The removal remains committed; use the warning's residual path for operator cleanup.
 
+The `agh__automation_jobs_create` and `agh__automation_jobs_update` descriptors expose the complete recurring schedule shape, including `catch_up_policy` and `misfire_grace_seconds`. Resolve the live descriptor instead of guessing the enum or sending catch-up fields to a one-time `at` schedule.
+
+`agh__automation_jobs_create` and `agh__automation_jobs_update` reject Agent prompts and Task descriptions containing command-shaped AGH daemon restart, stop, or kill instructions before persistence, including resource-applied definitions. The tool error names `agh_daemon`, `process_signal`, or `service_manager`; remove the lifecycle command before retrying. There is no bypass.
+
 Bundle tools live under `agh__bundles_*` for list/info/activate/deactivate/status. Resource tools live under `agh__resources_*` for list/info/snapshot of desired-state resources.
 
-MCP tools expose `agh__mcp_status` and `agh__mcp_auth_status` for redacted diagnostics. Browser/OAuth login and raw auth material remain management-surface operations unless AGH exposes a scoped tool for them.
+MCP tools expose `agh__mcp_status` and `agh__mcp_auth_status` for redacted diagnostics. A
+workspace-scoped server with five consecutive confirmed permanent failures reports `state: "dead"`
+from `agh__mcp_status`; its nested runtime reason is `backend_dead`. During the same daemon lifetime,
+resolve its last-known tools through `agh__tool_info`, which retains their unavailable descriptors
+and diagnostic instead of hiding them. Do not retry a dead tool blindly or invent a revive call: AGH
+admits at most one automatic recovery probe after the 60-second window and clears the mark when that
+probe succeeds. Browser/OAuth login, raw auth material, and any required credential repair remain
+management-surface operations.
 Curated MCP installation is likewise a management-surface mutation through `agh mcp install` or
 `POST /api/settings/mcp-servers/install`; do not invent `agh__mcp_install`.
 

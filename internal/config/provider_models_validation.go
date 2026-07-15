@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/compozy/agh/internal/reasoning"
@@ -57,9 +58,33 @@ func (m ProviderModelsConfig) Validate(path string) error {
 		if err := validateProviderModelReleaseDate(modelPath, model.ReleaseDate); err != nil {
 			return err
 		}
+		if err := validateProviderModelCosts(modelPath, model); err != nil {
+			return err
+		}
 	}
 	if err := m.Discovery.Validate(path + ".discovery"); err != nil {
 		return err
 	}
 	return m.Reasoning.Validate(path + ".reasoning")
+}
+
+func validateProviderModelCosts(path string, model ProviderModelConfig) error {
+	for _, cost := range []struct {
+		name  string
+		value *float64
+	}{
+		{name: "cost_input_per_million", value: model.CostInputPerMillion},
+		{name: "cost_output_per_million", value: model.CostOutputPerMillion},
+		{name: "cost_cache_read_per_million", value: model.CostCacheReadPerMillion},
+		{name: "cost_cache_write_per_million", value: model.CostCacheWritePerMillion},
+		{name: "cost_reasoning_per_million", value: model.CostReasoningPerMillion},
+	} {
+		if cost.value == nil {
+			continue
+		}
+		if math.IsNaN(*cost.value) || math.IsInf(*cost.value, 0) || *cost.value < 0 {
+			return fmt.Errorf("%s.%s must be finite and non-negative", path, cost.name)
+		}
+	}
+	return nil
 }

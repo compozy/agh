@@ -32,6 +32,9 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	if ctx == nil {
 		return nil, errors.New("session: clear conversation context is required")
 	}
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return nil, err
+	}
 
 	target := strings.TrimSpace(id)
 	if target == "" {

@@ -104,6 +104,11 @@ If `for_agent` is omitted, AGH returns the base effective set for the selected g
 resolution context. If `for_agent` is present, AGH overlays the winning agent's `skills/` tree and
 applies that agent's logical `skills.disabled` tombstones before returning the result.
 
+Management responses retain enabled skills that are currently ineligible for prompt catalogs.
+Their `activation.active` field is `false`, and `activation.reasons` reports the unmet
+`metadata.agh.when` gates. The CLI and Skills UI present this runtime activation state separately
+from the administrative enabled switch.
+
 Enabled extensions can also register runtime-owned skills into the live registry. Those overlays
 are not filesystem-backed, so they are documented as runtime registry behavior rather than as one
 more scan root.
@@ -165,8 +170,11 @@ The session start path is workspace-aware:
 3. Overlay workspace-visible skills over the global registry.
 4. Resolve the winning `AGENT.md` and, if it has a `skills/` directory, overlay those skills last.
 5. Apply agent-scoped logical tombstones from `AGENT.md` `skills.disabled`.
-6. Build the prompt catalog from enabled skills.
-7. Resolve MCP servers declared by active skills.
+6. Evaluate `metadata.agh.when` against the current platform, authored agent capabilities, and
+   session-callable tools.
+7. Build the prompt catalog from skills that are both enabled and active.
+8. Resolve MCP servers declared by enabled resolved skills; offer-time activation does not gate MCP
+   startup.
 
 ## Prompt Injection
 
@@ -203,13 +211,16 @@ Important details:
 | Full body in prompt | Not injected by the catalog. The body is read on demand.                                                   |
 | Description length  | Descriptions are truncated to 200 runes in the prompt catalog.                                             |
 | Disabled skills     | Omitted from the catalog.                                                                                  |
+| Inactive skills     | Retained by management surfaces with reasons, but omitted from startup and current-turn catalogs.          |
 | Catalog order       | Sorted by skill name after resolution.                                                                     |
 | Prompt position     | Memory context is prepended, the `AGENT.md` prompt stays in the middle, and the skill catalog is appended. |
 | Network sessions    | Sessions with a network channel also receive `agh` `references/network.md`.                                |
 
-Disabled skills are hidden from the prompt catalog. Current MCP and hook resolution still iterates
-the resolved skill list, so do not treat disabling a skill as a complete runtime kill switch for
-MCP or hooks.
+Disabled and activation-gated skills are hidden from the prompt catalog. Activation is an
+offer-time filter: explicit skill reads still work, and management surfaces retain inactive skills
+with structured reasons. Current MCP and hook resolution still iterates the resolved skill list,
+so do not treat disabling or activation-gating a skill as a complete runtime kill switch for MCP
+or hooks.
 
 ## MCP Relationship
 

@@ -571,17 +571,19 @@ func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testi
 		)
 		activeExecution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Active serial work")
 		queuedExecution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Queued serial work")
-		actor, err := taskpkg.DeriveAgentSessionActorContext("sess-serial")
+		activeChannel := activeExecution.Run.NetworkSpecSnapshot().ChannelID
+		queuedChannel := queuedExecution.Run.NetworkSpecSnapshot().ChannelID
+		actor, err := taskpkg.DeriveAgentSessionActorContext("sess-serial", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
 		activeClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-serial",
-			CoordinationChannelID: activeExecution.Run.CoordinationChannelID,
-			LeaseDuration:         time.Hour,
-			Now:                   base.Add(time.Second),
+			Scope:                taskpkg.ScopeWorkspace,
+			WorkspaceID:          workspaceID,
+			ClaimerSessionID:     "sess-serial",
+			ParticipationChannel: activeChannel,
+			LeaseDuration:        time.Hour,
+			Now:                  base.Add(time.Second),
 		}, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(active) error = %v", err)
@@ -594,7 +596,7 @@ func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testi
 			integrationSessionSnapshot(
 				"sess-serial",
 				workspaceID,
-				queuedExecution.Run.CoordinationChannelID,
+				queuedChannel,
 				"active",
 				false,
 				nil,
@@ -658,12 +660,12 @@ func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testi
 			t.Fatalf("after-release wake run = %q, want %q", got, want)
 		}
 		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-serial",
-			CoordinationChannelID: queuedExecution.Run.CoordinationChannelID,
-			LeaseDuration:         time.Hour,
-			Now:                   base.Add(11 * time.Minute),
+			Scope:                taskpkg.ScopeWorkspace,
+			WorkspaceID:          workspaceID,
+			ClaimerSessionID:     "sess-serial",
+			ParticipationChannel: queuedChannel,
+			LeaseDuration:        time.Hour,
+			Now:                  base.Add(11 * time.Minute),
 		}, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(queued) error = %v", err)

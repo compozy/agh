@@ -36,6 +36,7 @@ func (d *Daemon) composeBridgeRuntime(state *bootState, cleanup *bootCleanup) *b
 	if runtime == nil {
 		return nil
 	}
+	runtime.deadEntities = state.deadEntities
 	if cleanup != nil {
 		cleanup.add(func(context.Context) error {
 			runtime.Close()

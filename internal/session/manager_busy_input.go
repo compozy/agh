@@ -19,6 +19,7 @@ const (
 	BusyInputModeQueue     BusyInputMode = "queue"
 	BusyInputModeInterrupt BusyInputMode = "interrupt"
 	BusyInputModeSteer     BusyInputMode = "steer"
+	promptStatusAccepted                 = "accepted"
 )
 
 const promptEvidenceQueueGenerationKey = "queue_generation"
@@ -72,7 +73,11 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return SendPromptResult{}, err
+	}
 	req.clientMessageID = strings.TrimSpace(opts.ClientMessageID)
+	m.discardInterruptedPromptSalvage(req.target)
 	rejectIfBusy := false
 	if opts.AllowGoalCommands {
 		decision, handled, dispatchErr := m.dispatchGoalCommand(ctx, &req, opts)
@@ -117,7 +122,7 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 		return SendPromptResult{}, err
 	}
 	return SendPromptResult{
-		Status:    "accepted",
+		Status:    promptStatusAccepted,
 		Mode:      mode,
 		Events:    events,
 		NewTurnID: req.turnID,
@@ -141,6 +146,10 @@ func (m *Manager) InterruptPrompt(ctx context.Context, id string) (SendPromptRes
 		return SendPromptResult{}, err
 	}
 	previousTurnID := session.CurrentTurnID()
+	interruptedMessage := ""
+	if session.CurrentTurnSource() == TurnSourceUser {
+		interruptedMessage = session.CurrentPromptMessage()
+	}
 	generation, canceled, err := m.advanceInputGeneration(ctx, session.ID)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -148,6 +157,7 @@ func (m *Manager) InterruptPrompt(ctx context.Context, id string) (SendPromptRes
 	if err := m.CancelPrompt(ctx, session.ID); err != nil {
 		return SendPromptResult{}, err
 	}
+	m.stageInterruptedPromptSalvage(session.ID, generation, interruptedMessage)
 	m.emitTranscriptMarker(
 		ctx,
 		session,
@@ -184,6 +194,9 @@ func (m *Manager) SteerPrompt(ctx context.Context, id string, msg string) (SendP
 	session, err := m.lookupPromptSession(ctx, req.target)
 	if err != nil {
 		return SendPromptResult{}, err
+	}
+	if salvage, ok := m.pendingInterruptedPromptSalvage(session.ID); ok {
+		return m.submitInterruptedPromptSalvage(ctx, session, req, salvage)
 	}
 	if !session.IsPrompting() {
 		return SendPromptResult{}, fmt.Errorf("%w: %s", ErrPromptNotInProgress, session.ID)
@@ -309,6 +322,7 @@ func (m *Manager) interruptAndSubmitPrompt(
 	session *Session,
 	req promptRequest,
 ) (SendPromptResult, error) {
+	m.discardInterruptedPromptSalvage(session.ID)
 	previousTurnID := session.CurrentTurnID()
 	generation, canceled, err := m.advanceInputGeneration(ctx, session.ID)
 	if err != nil {
@@ -339,7 +353,7 @@ func (m *Manager) interruptAndSubmitPrompt(
 		},
 	)
 	return SendPromptResult{
-		Status:                "accepted",
+		Status:                promptStatusAccepted,
 		Mode:                  BusyInputModeInterrupt,
 		Events:                events,
 		PreviousTurnID:        previousTurnID,

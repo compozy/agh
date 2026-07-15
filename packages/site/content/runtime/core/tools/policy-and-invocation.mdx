@@ -93,6 +93,52 @@ agh tool invoke <tool-id> \
 Do not persist approval tokens in memory, docs, logs, bridge messages, or task descriptions. Treat
 them as short-lived credentials.
 
+### Remembered native-tool decisions
+
+When a managed session answers a native-tool approval prompt with `allow-always` or
+`reject-always`, AGH remembers the decision in the workspace database. The remembered key is exact:
+workspace, agent, tool ID, and the SHA-256 digest of the authored input must all match. A different
+agent or input prompts again.
+
+Operators and managed agents can also set an explicit wider decision. Agent scope matches one
+agent and tool across every input; tool scope matches the tool across every agent and input in the
+workspace. This management path never accepts an input digest, so it cannot fabricate an exact
+prompt-origin decision.
+
+AGH checks a supplied single-use approval token first. Without one, it checks the remembered
+decision before opening another prompt. A remembered allow continues to dispatch; a remembered
+reject blocks the invocation. These decisions survive daemon restarts and remain workspace-scoped.
+They do not broaden sandbox, ACP, or workspace policy.
+
+Set, list, or revoke remembered decisions from any management surface:
+
+```bash
+agh tool approvals set agh__workspace_list \
+  --workspace <workspace> \
+  --decision allow \
+  --scope agent \
+  --agent claude-code \
+  -o json
+agh tool approvals set agh__workspace_list \
+  --workspace <workspace> \
+  --decision reject \
+  --scope tool \
+  -o json
+agh tool approvals list --workspace <workspace> -o json
+agh tool approvals revoke <grant-id> --workspace <workspace> -o json
+```
+
+The matching HTTP and UDS routes are `PUT /api/tool-approval-grants`,
+`GET /api/tool-approval-grants`, and `DELETE /api/tool-approval-grants/:grant_id`, all with
+`workspace_id`. The PUT body is `{tool_id, decision, scope, agent_name?}`; `agent_name` is required
+for agent scope and forbidden for tool scope. Managed agents can use `agh__tool_approvals_set`,
+`agh__tool_approvals_list`, and `agh__tool_approvals_revoke`. Web Settings → General exposes the
+same wider set, workspace list, and revoke actions.
+
+An explicit wider allow only skips the prompt when the workspace tool policy already permits the
+invocation. It does not change the configured tool mode or broaden sandbox, ACP, capability, or
+workspace boundaries.
+
 ## Sensitive input fields
 
 If input contains sensitive values, mark the field path so invocation evidence can redact it:

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/deadentity"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/notifications"
@@ -44,6 +45,7 @@ type bridgeRuntime struct {
 	broker          *bridgepkg.Broker
 	logger          *slog.Logger
 	now             func() time.Time
+	deadEntities    *deadentity.Service
 	resourceStore   resources.Store[bridgepkg.BridgeInstanceSpec]
 	resourceActor   resources.MutationActor
 	resourceTrigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
@@ -1460,54 +1462,4 @@ func (r *bridgeRuntime) prepareManagedBridgeRuntime(
 	}
 
 	return updated, nil
-}
-
-func (r *bridgeRuntime) rollbackManagedInstanceStates(
-	ctx context.Context,
-	instances []bridgepkg.BridgeInstance,
-	action string,
-) error {
-	if len(instances) == 0 {
-		return nil
-	}
-
-	var rollbackErr error
-	for _, instance := range instances {
-		if err := r.persistCompensatingInstance(ctx, instance, action); err != nil {
-			rollbackErr = errors.Join(rollbackErr, err)
-		}
-	}
-	return rollbackErr
-}
-
-func bridgeInstanceIDs(instances []bridgepkg.BridgeInstance) []string {
-	if len(instances) == 0 {
-		return nil
-	}
-
-	ids := make([]string, 0, len(instances))
-	for _, instance := range instances {
-		ids = append(ids, strings.TrimSpace(instance.ID))
-	}
-	return ids
-}
-
-func (r *bridgeRuntime) persistCompensatingInstance(
-	ctx context.Context,
-	instance bridgepkg.BridgeInstance,
-	action string,
-) error {
-	if r == nil {
-		return errors.New("daemon: bridge runtime is required")
-	}
-	instance.UpdatedAt = r.now().UTC()
-	if err := instance.Validate(); err != nil {
-		return fmt.Errorf("daemon: %s %q: validate compensated state: %w", action, strings.TrimSpace(instance.ID), err)
-	}
-
-	rollbackCtx := context.WithoutCancel(ctx)
-	if err := r.store.UpdateBridgeInstance(rollbackCtx, instance); err != nil {
-		return fmt.Errorf("daemon: %s %q: persist compensated state: %w", action, strings.TrimSpace(instance.ID), err)
-	}
-	return nil
 }

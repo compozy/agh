@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	automationpkg "github.com/compozy/agh/internal/automation/model"
 	"github.com/compozy/agh/internal/extension/surfaces"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/sandbox"
@@ -29,10 +28,6 @@ const (
 	configHybridKey                          = "hybrid"
 	configJsonlKey                           = "jsonl"
 	configExtractorQueueCoalesceMaxPath      = "memory.extractor.queue.coalesce_max"
-	configLogLevelDebug                      = "debug"
-	configLogLevelError                      = "error"
-	configLogLevelInfo                       = "info"
-	configLogLevelWarn                       = "warn"
 	configMemoryRecallWeightsBm25UnicodePath = "memory.recall.weights.bm25_unicode"
 	configProviderKey                        = "provider"
 	configToolKey                            = "tool"
@@ -57,36 +52,8 @@ const (
 	defaultMemoryWorkspaceTOMLPath = "<workspace>/.agh/workspace.toml"
 )
 
-const (
-	defaultDaemonProviderReloadTimeout = 5 * time.Second
-	defaultDaemonMCPReloadTimeout      = 10 * time.Second
-	defaultDaemonBridgeReloadTimeout   = 30 * time.Second
-
-	minDaemonReloadTimeout       = time.Second
-	maxDaemonProviderReloadLimit = 60 * time.Second
-	maxDaemonMCPReloadLimit      = 60 * time.Second
-	maxDaemonBridgeReloadLimit   = 300 * time.Second
-
-	daemonReloadTimeoutProvidersPath = "daemon.reload_timeouts.providers"
-	daemonReloadTimeoutMCPPath       = "daemon.reload_timeouts.mcp"
-	daemonReloadTimeoutBridgesPath   = "daemon.reload_timeouts.bridges"
-)
-
 // ErrSandboxProfileNotFound reports a sandbox profile reference that is not configured.
 var ErrSandboxProfileNotFound = errors.New("sandbox profile not found")
-
-// DaemonConfig controls daemon-local socket and hot-reload settings.
-type DaemonConfig struct {
-	Socket         string                     `toml:"socket"`
-	ReloadTimeouts DaemonReloadTimeoutsConfig `toml:"reload_timeouts"`
-}
-
-// DaemonReloadTimeoutsConfig bounds subsystem reload attempts during config apply.
-type DaemonReloadTimeoutsConfig struct {
-	Providers time.Duration `toml:"providers"`
-	MCP       time.Duration `toml:"mcp"`
-	Bridges   time.Duration `toml:"bridges"`
-}
 
 // HTTPConfig controls the HTTP server bind address.
 type HTTPConfig struct {
@@ -155,9 +122,11 @@ type LimitsConfig struct {
 
 // SessionConfig defines session-scoped runtime controls.
 type SessionConfig struct {
-	Limits      SessionLimitsConfig      `toml:"limits"`
-	Supervision SessionSupervisionConfig `toml:"supervision"`
-	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
+	AutoTitleEnabled bool                     `toml:"auto_title_enabled"`
+	Limits           SessionLimitsConfig      `toml:"limits"`
+	Supervision      SessionSupervisionConfig `toml:"supervision"`
+	BusyInput        SessionBusyInputConfig   `toml:"busy_input"`
+	Compaction       SessionCompactionConfig  `toml:"compaction"`
 }
 
 // SessionLimitsConfig defines runtime limits applied to every session.
@@ -180,6 +149,14 @@ type SessionBusyInputConfig struct {
 	DefaultMode  string `toml:"default_mode,omitempty"`
 	QueueCap     int    `toml:"queue_cap,omitempty"`
 	MaxTextBytes int    `toml:"max_text_bytes,omitempty"`
+}
+
+// SessionCompactionConfig controls pressure-triggered persisted-context compaction.
+type SessionCompactionConfig struct {
+	Enabled            bool          `toml:"enabled"`
+	PressureThreshold  float64       `toml:"pressure_threshold"`
+	MaxAttemptsPerTurn int           `toml:"max_attempts_per_turn"`
+	FailureCooldown    time.Duration `toml:"failure_cooldown"`
 }
 
 const (
@@ -221,15 +198,6 @@ type ObservabilityTranscriptConfig struct {
 	Enabled            bool  `toml:"enabled"`
 	SegmentBytes       int   `toml:"segment_bytes"`
 	MaxBytesPerSession int64 `toml:"max_bytes_per_session"`
-}
-
-// LogConfig controls structured logging.
-type LogConfig struct {
-	Level           string `toml:"level"`
-	MaxSizeMB       int    `toml:"max_size_mb"`
-	MaxBackups      int    `toml:"max_backups"`
-	MaxAgeDays      int    `toml:"max_age_days"`
-	CompressBackups bool   `toml:"compress_backups"`
 }
 
 // MemoryConfig controls persistent memory features.
@@ -495,6 +463,7 @@ type Config struct {
 	Sandboxes     map[string]SandboxProfile `toml:"sandboxes"`
 	Observability ObservabilityConfig       `toml:"observability"`
 	Log           LogConfig                 `toml:"log"`
+	Redact        RedactConfig              `toml:"redact"`
 	Memory        MemoryConfig              `toml:"memory"`
 	Skills        SkillsConfig              `toml:"skills"`
 	Extensions    ExtensionsConfig          `toml:"extensions"`
@@ -643,82 +612,6 @@ func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool, 
 	}
 
 	return cfg, nil
-}
-
-// DefaultWithHome returns the built-in default configuration for the supplied AGH home.
-func DefaultWithHome(homePaths HomePaths) Config {
-	return Config{
-		Daemon: DaemonConfig{
-			Socket:         homePaths.DaemonSocket,
-			ReloadTimeouts: DefaultDaemonReloadTimeoutsConfig(),
-		},
-		HTTP: HTTPConfig{
-			Host: "localhost",
-			Port: 2123,
-		},
-		Defaults: DefaultsConfig{
-			Agent: DefaultAgentName,
-		},
-		Agents: AgentsConfig{
-			Soul:      DefaultSoulConfig(),
-			Heartbeat: DefaultHeartbeatConfig(),
-		},
-		Limits: LimitsConfig{
-			MaxConcurrentAgents: 20,
-		},
-		Session: SessionConfig{
-			Limits:      SessionLimitsConfig{},
-			Supervision: DefaultSessionSupervisionConfig(),
-			BusyInput:   DefaultSessionBusyInputConfig(),
-		},
-		Permissions: PermissionsConfig{
-			Mode: PermissionModeApproveAll,
-		},
-		Providers:    map[string]ProviderConfig{},
-		ModelCatalog: DefaultModelCatalogConfig(),
-		Marketplace:  DefaultMarketplaceRuntimeConfig(),
-		Sandboxes:    map[string]SandboxProfile{},
-		Observability: ObservabilityConfig{
-			Enabled:           true,
-			RetentionDays:     7,
-			MaxGlobalBytes:    1 << 30,
-			AgentProbeTimeout: DefaultObservabilityAgentProbeTimeout,
-			Transcripts: ObservabilityTranscriptConfig{
-				Enabled:            true,
-				SegmentBytes:       1 << 20,
-				MaxBytesPerSession: 256 << 20,
-			},
-		},
-		Log: LogConfig{
-			Level:           configLogLevelInfo,
-			MaxSizeMB:       10,
-			MaxBackups:      5,
-			MaxAgeDays:      30,
-			CompressBackups: false,
-		},
-		Memory: DefaultMemoryConfig(homePaths),
-		Skills: SkillsConfig{
-			Enabled:      true,
-			PollInterval: 3 * time.Second,
-		},
-		Extensions: ExtensionsConfig{},
-		Tools:      DefaultToolsConfig(),
-		Automation: AutomationConfig{
-			Enabled:           true,
-			Timezone:          automationpkg.DefaultTimezone,
-			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
-			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
-		},
-		Loops:   DefaultLoopsConfig(),
-		Goals:   DefaultGoalsConfig(),
-		Task:    DefaultTaskConfig(),
-		Network: DefaultNetworkConfig(),
-		Autonomy: AutonomyConfig{
-			BlockRecurrenceLimit: DefaultBlockRecurrenceLimit,
-			Coordinator:          DefaultCoordinatorConfig(),
-			Scheduler:            DefaultSchedulerConfig(),
-		},
-	}
 }
 
 // DefaultMemoryConfig returns the approved Memory v2 Slice 1 defaults.
@@ -1097,50 +990,6 @@ func (p DaytonaProfile) Resolve() sandbox.DaytonaConfig {
 	return resolved
 }
 
-// DefaultDaemonReloadTimeoutsConfig returns daemon hot-reload timeout defaults.
-func DefaultDaemonReloadTimeoutsConfig() DaemonReloadTimeoutsConfig {
-	return DaemonReloadTimeoutsConfig{
-		Providers: defaultDaemonProviderReloadTimeout,
-		MCP:       defaultDaemonMCPReloadTimeout,
-		Bridges:   defaultDaemonBridgeReloadTimeout,
-	}
-}
-
-// Validate ensures the daemon config contains a socket path and reload timeouts.
-func (c DaemonConfig) Validate() error {
-	if strings.TrimSpace(c.Socket) == "" {
-		return errors.New("daemon.socket is required")
-	}
-	if err := c.ReloadTimeouts.Validate(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Validate ensures daemon reload timeout values stay within bounded retry budgets.
-func (c DaemonReloadTimeoutsConfig) Validate() error {
-	err := validateDaemonReloadTimeout(daemonReloadTimeoutProvidersPath, c.Providers, maxDaemonProviderReloadLimit)
-	if err != nil {
-		return err
-	}
-	if err := validateDaemonReloadTimeout(daemonReloadTimeoutMCPPath, c.MCP, maxDaemonMCPReloadLimit); err != nil {
-		return err
-	}
-	err = validateDaemonReloadTimeout(daemonReloadTimeoutBridgesPath, c.Bridges, maxDaemonBridgeReloadLimit)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateDaemonReloadTimeout(path string, value time.Duration, maxDuration time.Duration) error {
-	if value < minDaemonReloadTimeout || value > maxDuration {
-		return fmt.Errorf("%s must be between %s and %s: %s", path, minDaemonReloadTimeout, maxDuration, value)
-	}
-	return nil
-}
-
 // Validate ensures the HTTP bind settings are valid.
 func (c HTTPConfig) Validate() error {
 	if strings.TrimSpace(c.Host) == "" {
@@ -1306,7 +1155,10 @@ func (c SessionConfig) Validate() error {
 	if err := c.Supervision.Validate(); err != nil {
 		return err
 	}
-	return c.BusyInput.Validate()
+	if err := c.BusyInput.Validate(); err != nil {
+		return err
+	}
+	return c.Compaction.Validate()
 }
 
 // Validate ensures session timeout settings are internally consistent.
@@ -1335,6 +1187,30 @@ func DefaultSessionBusyInputConfig() SessionBusyInputConfig {
 		DefaultMode:  "queue",
 		QueueCap:     10,
 		MaxTextBytes: 64 << 10,
+	}
+}
+
+// Validate ensures compaction pressure and retry guards are internally consistent.
+func (c SessionCompactionConfig) Validate() error {
+	switch {
+	case math.IsNaN(c.PressureThreshold) || math.IsInf(c.PressureThreshold, 0) ||
+		c.PressureThreshold < 0 || c.PressureThreshold > 1:
+		return fmt.Errorf(
+			"session.compaction.pressure_threshold must be between 0 and 1: %v",
+			c.PressureThreshold,
+		)
+	case c.MaxAttemptsPerTurn <= 0:
+		return fmt.Errorf(
+			"session.compaction.max_attempts_per_turn must be positive: %d",
+			c.MaxAttemptsPerTurn,
+		)
+	case c.FailureCooldown < 0:
+		return fmt.Errorf(
+			"session.compaction.failure_cooldown must be zero or positive: %s",
+			c.FailureCooldown,
+		)
+	default:
+		return nil
 	}
 }
 
@@ -1484,32 +1360,6 @@ func (c ObservabilityTranscriptConfig) Validate() error {
 		return fmt.Errorf("observability.transcripts.max_bytes_per_session must be positive: %d", c.MaxBytesPerSession)
 	}
 
-	return nil
-}
-
-// Validate ensures the log level is supported.
-func (c LogConfig) Validate() error {
-	switch strings.ToLower(strings.TrimSpace(c.Level)) {
-	case configLogLevelDebug, configLogLevelInfo, configLogLevelWarn, configLogLevelError:
-	default:
-		return fmt.Errorf(
-			"log.level must be one of %q, %q, %q, %q: %q",
-			configLogLevelDebug,
-			configLogLevelInfo,
-			configLogLevelWarn,
-			configLogLevelError,
-			c.Level,
-		)
-	}
-	if c.MaxSizeMB <= 0 {
-		return fmt.Errorf("log.max_size_mb must be positive: %d", c.MaxSizeMB)
-	}
-	if c.MaxBackups < 0 {
-		return fmt.Errorf("log.max_backups must be zero or positive: %d", c.MaxBackups)
-	}
-	if c.MaxAgeDays < 0 {
-		return fmt.Errorf("log.max_age_days must be zero or positive: %d", c.MaxAgeDays)
-	}
 	return nil
 }
 

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/memory/controller"
 	"github.com/compozy/agh/internal/testutil"
@@ -707,6 +708,321 @@ func TestMemoryCatalogUtilityHelpers(t *testing.T) {
 		known := time.Date(2026, 5, 5, 12, 0, 0, int(123*time.Millisecond), time.UTC)
 		if got, want := timeToUnixMillis(known), int64(1777982400123); got != want {
 			t.Fatalf("timeToUnixMillis(known) = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestStoreMemoryBatch(t *testing.T) {
+	t.Run("Should apply add replace and remove through one atomic decision", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		store := newOpenTestStore(
+			t,
+			filepath.Join(baseDir, "agh-home", memoryDirName),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		const filename = "user_preferences.md"
+		initial := mustMemoryContent(t, testMemoryMeta{
+			Name:        "User Preferences",
+			Description: "Atomic batch fixture",
+			Type:        memcontract.TypeUser,
+		}, "Keep the old summary.\n\nRemove this stale note.\n")
+		if err := store.Write(memcontract.ScopeGlobal, filename, initial); err != nil {
+			t.Fatalf("Store.Write(seed) error = %v", err)
+		}
+
+		result, err := store.ProposeBatch(ctx, BatchProposal{
+			Scope:    memcontract.ScopeGlobal,
+			Filename: filename,
+			Operations: []BatchOperation{
+				{Action: BatchActionAdd, Content: "Remember the cobalt release decision."},
+				{Action: BatchActionReplace, OldText: "old summary", Content: "updated summary"},
+				{Action: BatchActionRemove, OldText: "Remove this stale note."},
+			},
+			Origin: memcontract.OriginTool,
+		})
+		if err != nil {
+			t.Fatalf("Store.ProposeBatch() error = %v", err)
+		}
+		if !result.Applied || result.Decision.Op != memcontract.OpUpdate {
+			t.Fatalf("Store.ProposeBatch() = %#v, want one applied update", result)
+		}
+		if len(result.Operations) != 3 {
+			t.Fatalf("len(batch operations) = %d, want 3", len(result.Operations))
+		}
+		for index, outcome := range result.Operations {
+			if !outcome.Changed || outcome.Status != batchOutcomeApplied {
+				t.Fatalf("batch operation %d = %#v, want changed applied", index, outcome)
+			}
+		}
+		got, err := store.Read(memcontract.ScopeGlobal, filename)
+		if err != nil {
+			t.Fatalf("Store.Read(batch result) error = %v", err)
+		}
+		for _, want := range []string{"updated summary", "cobalt release decision"} {
+			if !bytes.Contains(got, []byte(want)) {
+				t.Fatalf("batch result = %q, want %q", got, want)
+			}
+		}
+		for _, unwanted := range []string{"old summary", "stale note"} {
+			if bytes.Contains(got, []byte(unwanted)) {
+				t.Fatalf("batch result = %q, want no %q", got, unwanted)
+			}
+		}
+
+		db := ensureReplayTestDB(ctx, t, store)
+		var decisionCount int
+		if err := db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM memory_decisions WHERE id = ?`,
+			result.Decision.ID,
+		).Scan(&decisionCount); err != nil {
+			t.Fatalf("count memory batch decisions error = %v", err)
+		}
+		if decisionCount != 1 {
+			t.Fatalf("memory batch decision count = %d, want 1", decisionCount)
+		}
+		assertDecisionApplied(ctx, t, db, result.Decision.ID)
+	})
+
+	t.Run("Should leave bytes and WAL unchanged when a later operation fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		store := newOpenTestStore(
+			t,
+			filepath.Join(baseDir, "agh-home", memoryDirName),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		const filename = "project_release.md"
+		initial := mustMemoryContent(t, testMemoryMeta{
+			Name: "Release",
+			Type: memcontract.TypeProject,
+		}, "Keep the stable release fact.\n")
+		if err := store.Write(memcontract.ScopeGlobal, filename, initial); err != nil {
+			t.Fatalf("Store.Write(seed) error = %v", err)
+		}
+		db := ensureReplayTestDB(ctx, t, store)
+		var beforeCount int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_decisions`).Scan(&beforeCount); err != nil {
+			t.Fatalf("count decisions before batch error = %v", err)
+		}
+
+		_, err := store.ProposeBatch(ctx, BatchProposal{
+			Scope:    memcontract.ScopeGlobal,
+			Filename: filename,
+			Operations: []BatchOperation{
+				{Action: BatchActionAdd, Content: "This staged addition must not land."},
+				{Action: BatchActionReplace, OldText: "missing fact", Content: "replacement"},
+			},
+			Origin: memcontract.OriginTool,
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "operation 2 (replace)") ||
+			!strings.Contains(err.Error(), "matched 0 occurrences") {
+			t.Fatalf("Store.ProposeBatch(mid-batch failure) error = %v, want deterministic validation", err)
+		}
+		got, readErr := store.Read(memcontract.ScopeGlobal, filename)
+		if readErr != nil {
+			t.Fatalf("Store.Read(after failed batch) error = %v", readErr)
+		}
+		if !bytes.Equal(got, initial) {
+			t.Fatalf("bytes after failed batch = %q, want original %q", got, initial)
+		}
+		var afterCount int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_decisions`).Scan(&afterCount); err != nil {
+			t.Fatalf("count decisions after batch error = %v", err)
+		}
+		if afterCount != beforeCount {
+			t.Fatalf("decision count after failed batch = %d, want %d", afterCount, beforeCount)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name      string
+		body      string
+		oldText   string
+		wantCount int
+	}{
+		{name: "Should reject a missing old text substring", body: "Only one stable fact.", oldText: "absent", wantCount: 0},
+		{
+			name:      "Should reject an ambiguous old text substring",
+			body:      "Shared marker appears here.\n\nShared marker appears again.",
+			oldText:   "Shared marker",
+			wantCount: 2,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			baseDir := t.TempDir()
+			store := newOpenTestStore(
+				t,
+				filepath.Join(baseDir, "agh-home", memoryDirName),
+				WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			)
+			if err := store.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+			const filename = "reference_markers.md"
+			initial := mustMemoryContent(t, testMemoryMeta{
+				Name: "Markers",
+				Type: memcontract.TypeReference,
+			}, testCase.body+"\n")
+			if err := store.Write(memcontract.ScopeGlobal, filename, initial); err != nil {
+				t.Fatalf("Store.Write(seed) error = %v", err)
+			}
+
+			_, err := store.ProposeBatch(ctx, BatchProposal{
+				Scope:    memcontract.ScopeGlobal,
+				Filename: filename,
+				Operations: []BatchOperation{{
+					Action:  BatchActionReplace,
+					OldText: testCase.oldText,
+					Content: "replacement",
+				}},
+				Origin: memcontract.OriginTool,
+			})
+			want := fmt.Sprintf("old_text matched %d occurrences; expected exactly 1", testCase.wantCount)
+			if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), want) {
+				t.Fatalf("Store.ProposeBatch(ambiguous) error = %v, want %q", err, want)
+			}
+			got, readErr := store.Read(memcontract.ScopeGlobal, filename)
+			if readErr != nil {
+				t.Fatalf("Store.Read(after rejection) error = %v", readErr)
+			}
+			if !bytes.Equal(got, initial) {
+				t.Fatalf("bytes after rejection = %q, want original %q", got, initial)
+			}
+		})
+	}
+
+	t.Run("Should validate only the consolidated final state against file limits", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		store := newOpenTestStore(
+			t,
+			filepath.Join(baseDir, "agh-home", memoryDirName),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+			WithFileLimits(aghconfig.MemoryFileConfig{MaxLines: 4, MaxBytes: 64}),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		const filename = "project_capacity.md"
+		initialBody := "Keep the stable fact.\n\n" + strings.Repeat("obsolete detail ", 5)
+		initial := mustMemoryContent(t, testMemoryMeta{
+			Name: "Capacity",
+			Type: memcontract.TypeProject,
+		}, initialBody+"\n")
+		if err := store.Write(memcontract.ScopeGlobal, filename, initial); err != nil {
+			t.Fatalf("Store.Write(over-capacity seed) error = %v", err)
+		}
+
+		_, err := store.ProposeBatch(ctx, BatchProposal{
+			Scope:      memcontract.ScopeGlobal,
+			Filename:   filename,
+			Operations: []BatchOperation{{Action: BatchActionAdd, Content: "New release fact."}},
+			Origin:     memcontract.OriginTool,
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "maximum is 64 bytes") {
+			t.Fatalf("Store.ProposeBatch(add only) error = %v, want final capacity rejection", err)
+		}
+
+		result, err := store.ProposeBatch(ctx, BatchProposal{
+			Scope:    memcontract.ScopeGlobal,
+			Filename: filename,
+			Operations: []BatchOperation{
+				{Action: BatchActionRemove, OldText: strings.Repeat("obsolete detail ", 5)},
+				{Action: BatchActionAdd, Content: "New release fact."},
+			},
+			Origin: memcontract.OriginTool,
+		})
+		if err != nil {
+			t.Fatalf("Store.ProposeBatch(consolidate and add) error = %v", err)
+		}
+		if !result.Applied {
+			t.Fatalf("Store.ProposeBatch(consolidate and add) = %#v, want applied", result)
+		}
+		got, err := store.Read(memcontract.ScopeGlobal, filename)
+		if err != nil {
+			t.Fatalf("Store.Read(consolidated) error = %v", err)
+		}
+		body, _, err := store.parseControlledWriteDocument(memcontract.ScopeGlobal, filename, got, false)
+		if err != nil {
+			t.Fatalf("parseControlledWriteDocument(consolidated) error = %v", err)
+		}
+		if len(body) > 64 || controlledBodyLineCount(body) > 4 {
+			t.Fatalf(
+				"consolidated body uses %d bytes/%d lines, want within 64/4",
+				len(body),
+				controlledBodyLineCount(body),
+			)
+		}
+		if !strings.Contains(body, "stable fact") || !strings.Contains(body, "New release fact") {
+			t.Fatalf("consolidated body = %q, want retained and added facts", body)
+		}
+	})
+
+	t.Run("Should replay an identical batch without a second mutation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		store := newOpenTestStore(
+			t,
+			filepath.Join(baseDir, "agh-home", memoryDirName),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		proposal := BatchProposal{
+			Scope:    memcontract.ScopeGlobal,
+			Filename: "user_retry.md",
+			Header: memcontract.Header{
+				Name:        "Retry",
+				Description: "Idempotent batch retry",
+				Type:        memcontract.TypeUser,
+			},
+			Operations: []BatchOperation{{Action: BatchActionAdd, Content: "Keep the first committed fact."}},
+			Origin:     memcontract.OriginTool,
+		}
+		first, err := store.ProposeBatch(ctx, proposal)
+		if err != nil {
+			t.Fatalf("Store.ProposeBatch(first) error = %v", err)
+		}
+		before, err := store.Read(memcontract.ScopeGlobal, proposal.Filename)
+		if err != nil {
+			t.Fatalf("Store.Read(first) error = %v", err)
+		}
+		second, err := store.ProposeBatch(ctx, proposal)
+		if err != nil {
+			t.Fatalf("Store.ProposeBatch(retry) error = %v", err)
+		}
+		after, err := store.Read(memcontract.ScopeGlobal, proposal.Filename)
+		if err != nil {
+			t.Fatalf("Store.Read(retry) error = %v", err)
+		}
+		if !first.Applied || second.Applied || first.Decision.ID != second.Decision.ID {
+			t.Fatalf("batch first/retry = %#v / %#v, want one shared applied decision", first, second)
+		}
+		if !bytes.Equal(before, after) {
+			t.Fatalf("bytes after retry = %q, want unchanged %q", after, before)
+		}
+		if len(second.Operations) != 1 || second.Operations[0].Status != batchOutcomeAlreadyApplied {
+			t.Fatalf("retry operation outcomes = %#v, want already_applied", second.Operations)
 		}
 	})
 }

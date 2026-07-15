@@ -3,6 +3,7 @@ package automation
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -29,6 +30,8 @@ func scheduleHash(schedule *ScheduleSpec) string {
 		strings.TrimSpace(schedule.Expr),
 		strings.TrimSpace(schedule.Interval),
 		strings.TrimSpace(schedule.Time),
+		string(schedule.CatchUpPolicy),
+		fmt.Sprintf("%d", schedule.MisfireGraceSeconds),
 	}, "|")))
 	return hex.EncodeToString(hash[:])
 }

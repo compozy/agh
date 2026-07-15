@@ -163,6 +163,49 @@ function textMessage(id: string, text: string): SessionMessage {
   return { id, role: "assistant", parts: [{ type: "text", text }] };
 }
 
+function clarifyMessage(id: string): SessionMessage {
+  return {
+    id,
+    role: "assistant",
+    parts: [
+      {
+        type: "data-agh-event",
+        data: {
+          type: "clarify",
+          session_id: SESSION_ID,
+          turn_id: "clarify:req-1",
+          raw: {
+            status: "pending",
+            request: {
+              request_id: "req-1",
+              workspace_id: WORKSPACE_ID,
+              session_id: SESSION_ID,
+              agent_name: primarySessionFixture.agent_name,
+              question: "Which path?",
+              choices: ["Fast", "Safe"],
+              asked_at: "2026-07-16T00:00:00Z",
+              deadline: "2026-07-16T00:05:00Z",
+            },
+            at: "2026-07-16T00:00:00Z",
+          },
+        },
+      },
+    ] as unknown as SessionMessage["parts"],
+  };
+}
+
+function clarifyDeltaFrame(message: SessionMessage) {
+  return {
+    cursor: 2,
+    entries: [{ message, sequence: 2, start_sequence: 2 }],
+    epoch: 1,
+    generation: 1,
+    has_more: false,
+    max_sequence: 2,
+    session_id: SESSION_ID,
+  };
+}
+
 function renderLiveTail(
   options: {
     queryClient?: QueryClient;
@@ -643,6 +686,46 @@ describe("useSessionLiveTail", () => {
     await act(async () => vi.advanceTimersByTimeAsync(250));
 
     expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=4&epoch=1&generation=1`);
+  });
+
+  it("Should wake the exact clarifications projection on a clarify transcript delta", async () => {
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([textMessage("m1", "hi")])
+    );
+    const { result, sources, queryClient } = renderLiveTail();
+    await waitFor(() => expect(result.current.messages).toHaveLength(1));
+
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    act(() => {
+      sources[0]?.emit("transcript_delta", clarifyDeltaFrame(clarifyMessage("clarify-1")), "2");
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: sessionKeys.clarifications(WORKSPACE_ID, SESSION_ID),
+      exact: true,
+    });
+  });
+
+  it("Should not wake the clarifications projection on an ordinary transcript delta", async () => {
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([textMessage("m1", "hi")])
+    );
+    const { result, sources, queryClient } = renderLiveTail();
+    await waitFor(() => expect(result.current.messages).toHaveLength(1));
+
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    act(() => {
+      sources[0]?.emit(
+        "transcript_delta",
+        clarifyDeltaFrame(textMessage("m2", "plain answer")),
+        "2"
+      );
+    });
+
+    expect(invalidateQueries).not.toHaveBeenCalledWith({
+      queryKey: sessionKeys.clarifications(WORKSPACE_ID, SESSION_ID),
+      exact: true,
+    });
   });
 
   it("Should reject a mismatched delta and reconnect without replacing history", async () => {

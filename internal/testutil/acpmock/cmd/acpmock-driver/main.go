@@ -132,7 +132,7 @@ func (a *mockAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsd
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
-			LoadSession: true,
+			LoadSession: a.agent.SupportsLoadSession(),
 		},
 		AuthMethods: []acpsdk.AuthMethod{},
 	}, nil

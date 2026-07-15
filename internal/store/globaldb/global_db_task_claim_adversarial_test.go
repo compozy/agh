@@ -91,6 +91,82 @@ func TestGlobalDBTaskRunLeaseAdversarialFencing(t *testing.T) {
 		}
 	})
 
+	t.Run("Should give one owner to concurrent exact-run claims", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 18, 21, 45, 0, 0, time.UTC)
+		run := seedAdversarialClaimRunsAcrossTasks(ctx, t, globalDB, "exact-run", 1, now)[0]
+
+		type claimAttempt struct {
+			result taskpkg.ClaimResult
+			err    error
+		}
+		attempts := make([]claimAttempt, 2)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(len(attempts))
+		for idx := range attempts {
+			go func(idx int) {
+				defer wg.Done()
+				<-start
+				attempts[idx].result, attempts[idx].err = globalDB.ClaimNextRun(
+					ctx,
+					taskpkg.ClaimCriteria{
+						RunID:            run.ID,
+						Scope:            taskpkg.ScopeGlobal,
+						ClaimerSessionID: fmt.Sprintf("sess-exact-run-%d", idx),
+						LeaseDuration:    time.Minute,
+						Now:              now,
+					},
+				)
+			}(idx)
+		}
+		close(start)
+		wg.Wait()
+
+		var winner *taskpkg.ClaimResult
+		losers := 0
+		for idx := range attempts {
+			switch {
+			case attempts[idx].err == nil:
+				winner = &attempts[idx].result
+			case errors.Is(attempts[idx].err, taskpkg.ErrNoClaimableRun):
+				losers++
+			default:
+				t.Fatalf("attempt %d error = %v, want success or ErrNoClaimableRun", idx, attempts[idx].err)
+			}
+		}
+		if winner == nil || losers != 1 {
+			t.Fatalf("exact-run outcomes = %#v, want one winner and one ErrNoClaimableRun", attempts)
+		}
+
+		stored, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(%q) error = %v", run.ID, err)
+		}
+		if stored.SessionID != winner.Run.SessionID || stored.ClaimTokenHash != winner.Run.ClaimTokenHash {
+			t.Fatalf("stored ownership = %#v, want winner %#v", stored, winner.Run)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-exact-run-late",
+			LeaseDuration:    time.Minute,
+			Now:              now.Add(time.Second),
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(already claimed exact run) error = %v, want ErrNoClaimableRun", err)
+		}
+		afterLateClaim, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(%q, after late claim) error = %v", run.ID, err)
+		}
+		if afterLateClaim.SessionID != stored.SessionID || afterLateClaim.ClaimTokenHash != stored.ClaimTokenHash {
+			t.Fatalf("ownership after late claim = %#v, want unchanged %#v", afterLateClaim, stored)
+		}
+	})
+
 	t.Run("Should allow only one release complete or fail transition for one active lease", func(t *testing.T) {
 		t.Parallel()
 
@@ -195,6 +271,192 @@ func TestGlobalDBTaskRunLeaseAdversarialFencing(t *testing.T) {
 	})
 }
 
+func TestGlobalDBClaimNextRunWorkspaceActiveRunCap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should admit only one workspace run when concurrent claims reach the cap", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 18, 22, 0, 0, 0, time.UTC)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "claim-cap", t.TempDir())
+		runs := seedWorkspaceClaimRunsAcrossTasks(ctx, t, globalDB, "cap", workspaceID, 2, now)
+
+		type claimAttempt struct {
+			result taskpkg.ClaimResult
+			err    error
+		}
+		attempts := make([]claimAttempt, len(runs))
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(len(attempts))
+		for idx := range attempts {
+			go func(idx int) {
+				defer wg.Done()
+				<-start
+				attempts[idx].result, attempts[idx].err = globalDB.ClaimNextRun(
+					ctx,
+					taskpkg.ClaimCriteria{
+						Scope:                 taskpkg.ScopeWorkspace,
+						WorkspaceID:           workspaceID,
+						ClaimerSessionID:      fmt.Sprintf("sess-cap-%d", idx),
+						LeaseDuration:         time.Minute,
+						Now:                   now,
+						WorkspaceActiveRunCap: 1,
+					},
+				)
+			}(idx)
+		}
+		close(start)
+		wg.Wait()
+
+		successes := 0
+		deferred := 0
+		for idx, attempt := range attempts {
+			switch {
+			case attempt.err == nil:
+				successes++
+			case errors.Is(attempt.err, taskpkg.ErrWorkspaceActiveRunCapReached):
+				deferred++
+			default:
+				t.Fatalf("attempt %d error = %v, want success or workspace cap deferral", idx, attempt.err)
+			}
+		}
+		if successes != 1 || deferred != 1 {
+			t.Fatalf("claim outcomes = successes:%d deferred:%d, want 1/1", successes, deferred)
+		}
+
+		queued := 0
+		for _, run := range runs {
+			stored, err := globalDB.GetTaskRun(ctx, run.ID)
+			if err != nil {
+				t.Fatalf("GetTaskRun(%q) error = %v", run.ID, err)
+			}
+			if stored.Status.Normalize() == taskpkg.TaskRunStatusQueued {
+				queued++
+			}
+		}
+		if queued != 1 {
+			t.Fatalf("queued runs after cap deferral = %d, want 1", queued)
+		}
+	})
+
+	t.Run("Should isolate workspace capacity and reopen after completion or lease expiry", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 18, 22, 30, 0, 0, time.UTC)
+		workspaceA := registerWorkspaceForGlobalTests(t, globalDB, "claim-cap-a", t.TempDir())
+		workspaceB := registerWorkspaceForGlobalTests(t, globalDB, "claim-cap-b", t.TempDir())
+		runsA := seedWorkspaceClaimRunsAcrossTasks(ctx, t, globalDB, "cap-a", workspaceA, 2, now)
+		runsB := seedWorkspaceClaimRunsAcrossTasks(ctx, t, globalDB, "cap-b", workspaceB, 1, now)
+
+		first, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: runsA[0].ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceA,
+			ClaimerSessionID: "sess-cap-a-first", LeaseDuration: time.Minute, Now: now,
+			WorkspaceActiveRunCap: 1,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(workspace A first) error = %v", err)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: runsA[1].ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceA,
+			ClaimerSessionID: "sess-cap-a-deferred", LeaseDuration: time.Minute, Now: now.Add(30 * time.Second),
+			WorkspaceActiveRunCap: 1,
+		}); !errors.Is(err, taskpkg.ErrWorkspaceActiveRunCapReached) {
+			t.Fatalf("ClaimNextRun(workspace A capped) error = %v, want ErrWorkspaceActiveRunCapReached", err)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: runsB[0].ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceB,
+			ClaimerSessionID: "sess-cap-b", LeaseDuration: time.Minute, Now: now.Add(30 * time.Second),
+			WorkspaceActiveRunCap: 1,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(workspace B isolated) error = %v", err)
+		}
+		if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor:      coordinatorActorContextForTest(),
+			RunID:      first.Run.ID,
+			ClaimToken: first.ClaimToken,
+			Result:     taskpkg.RunResult{Value: json.RawMessage(`{"completed":true}`)},
+			Now:        now.Add(40 * time.Second),
+		}); err != nil {
+			t.Fatalf("CompleteRunLease(workspace A first) error = %v", err)
+		}
+		second, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: runsA[1].ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceA,
+			ClaimerSessionID: "sess-cap-a-after-completion", LeaseDuration: time.Minute,
+			Now: now.Add(40 * time.Second), WorkspaceActiveRunCap: 1,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(workspace A after completion) error = %v", err)
+		}
+
+		afterExpiry := seedWorkspaceClaimRunsAcrossTasks(
+			ctx,
+			t,
+			globalDB,
+			"cap-a-after-expiry",
+			workspaceA,
+			1,
+			now,
+		)[0]
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: afterExpiry.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceA,
+			ClaimerSessionID: "sess-cap-a-still-full", LeaseDuration: time.Minute,
+			Now: now.Add(50 * time.Second), WorkspaceActiveRunCap: 1,
+		}); !errors.Is(err, taskpkg.ErrWorkspaceActiveRunCapReached) {
+			t.Fatalf("ClaimNextRun(workspace A before expiry) error = %v, want ErrWorkspaceActiveRunCapReached", err)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: afterExpiry.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceA,
+			ClaimerSessionID: "sess-cap-a-after-expiry", LeaseDuration: time.Minute,
+			Now: second.LeaseUntil.Add(time.Nanosecond), WorkspaceActiveRunCap: 1,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(workspace A after expiry) error = %v", err)
+		}
+	})
+
+	t.Run("Should exempt global work selected by a workspace caller", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 18, 23, 0, 0, 0, time.UTC)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "claim-cap-global", t.TempDir())
+		workspaceRun := seedWorkspaceClaimRunsAcrossTasks(
+			ctx,
+			t,
+			globalDB,
+			"cap-global-active",
+			workspaceID,
+			1,
+			now,
+		)[0]
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: workspaceRun.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			ClaimerSessionID: "sess-cap-global-active", LeaseDuration: time.Minute, Now: now,
+			WorkspaceActiveRunCap: 1,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(workspace active) error = %v", err)
+		}
+		globalRun := seedAdversarialClaimRunsAcrossTasks(ctx, t, globalDB, "cap-global", 1, now)[0]
+
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: globalRun.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			ClaimerSessionID: "sess-cap-global", LeaseDuration: time.Minute, Now: now,
+			WorkspaceActiveRunCap: 1,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(global at workspace cap) error = %v", err)
+		}
+		if claim.Run.ID != globalRun.ID {
+			t.Fatalf("ClaimNextRun(global at workspace cap).Run.ID = %q, want %q", claim.Run.ID, globalRun.ID)
+		}
+	})
+}
+
 func seedAdversarialClaimRuns(
 	ctx context.Context,
 	t *testing.T,
@@ -240,6 +502,36 @@ func seedAdversarialClaimRunsAcrossTasks(
 			t.Fatalf("CreateTask(%q) error = %v", taskRecord.ID, err)
 		}
 		run := taskRunForTest(fmt.Sprintf("run-adversarial-%s-%02d", suffix, idx), taskRecord.ID)
+		run.QueuedAt = now.Add(time.Duration(idx) * time.Second)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+		}
+		runs = append(runs, run)
+	}
+	return runs
+}
+
+func seedWorkspaceClaimRunsAcrossTasks(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	suffix string,
+	workspaceID string,
+	runCount int,
+	now time.Time,
+) []taskpkg.Run {
+	t.Helper()
+
+	runs := make([]taskpkg.Run, 0, runCount)
+	for idx := range runCount {
+		taskRecord := taskRecordForTest(fmt.Sprintf("task-workspace-%s-%02d", suffix, idx))
+		taskRecord.Scope = taskpkg.ScopeWorkspace
+		taskRecord.WorkspaceID = workspaceID
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask(%q) error = %v", taskRecord.ID, err)
+		}
+		run := taskRunForTest(fmt.Sprintf("run-workspace-%s-%02d", suffix, idx), taskRecord.ID)
 		run.QueuedAt = now.Add(time.Duration(idx) * time.Second)
 		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
 			t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)

@@ -179,6 +179,7 @@ describe("TasksKanbanBoard", () => {
           task_id: "fail",
           attempt: 3,
           max_attempts: 3,
+          recovery_count: 0,
           status: "failed",
           queued_at: "2026-04-11T09:00:00Z",
           error: "boom",

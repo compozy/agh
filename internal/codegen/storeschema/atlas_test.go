@@ -109,6 +109,9 @@ func TestSequentialGooseFormatter(t *testing.T) {
 		if strings.Contains(contents, "-- +goose Down") || strings.Contains(contents, "DROP TABLE records") {
 			t.Fatalf("formatted append-only migration contains a reverse plan:\n%s", contents)
 		}
+		if !strings.HasSuffix(contents, "\n") || strings.HasSuffix(contents, "\n\n") {
+			t.Fatalf("formatted append-only migration must end with exactly one newline:\n%q", contents)
+		}
 	})
 }
 

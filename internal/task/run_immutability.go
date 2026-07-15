@@ -9,6 +9,7 @@ const (
 	runFieldTaskID             = "task_id"
 	runFieldWorkspaceID        = "workspace_id"
 	runFieldAttempt            = "attempt"
+	runFieldRecoveryCount      = "recovery_count"
 	runFieldRunKind            = "run_kind"
 	runFieldLoopRunID          = "loop_run_id"
 	runFieldPreviousRunID      = "previous_run_id"
@@ -31,6 +32,7 @@ func ValidateImmutableRunFields(current Run, next Run) error {
 			same:  strings.TrimSpace(current.WorkspaceID) == strings.TrimSpace(next.WorkspaceID),
 		},
 		{field: runFieldAttempt, same: current.Attempt == next.Attempt},
+		{field: runFieldRecoveryCount, same: current.RecoveryCount == next.RecoveryCount},
 		{field: runFieldRunKind, same: current.RunKind.Normalize() == next.RunKind.Normalize()},
 		{field: runFieldLoopRunID, same: strings.TrimSpace(current.LoopRunID) == strings.TrimSpace(next.LoopRunID)},
 		{

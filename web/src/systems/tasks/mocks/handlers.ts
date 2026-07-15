@@ -72,6 +72,7 @@ function runRecordFromActiveRun(task: TaskListItem): TaskRun | null {
     id: task.active_run.id,
     task_id: task.active_run.task_id,
     attempt: task.active_run.attempt,
+    recovery_count: task.active_run.recovery_count,
     status: task.active_run.status,
     queued_at: task.active_run.queued_at,
     started_at: task.active_run.started_at,

@@ -359,7 +359,7 @@ func (b *uiMessageBuilder) applyToolResult(decoded *decodedStoredEvent) {
 		part.ErrorText = ""
 	}
 	part.Input = input
-	part.Output = decoded.dataPayload()
+	part.Output = decoded.toolResultDataPayload()
 
 	if !existed {
 		part.RawInput = nil

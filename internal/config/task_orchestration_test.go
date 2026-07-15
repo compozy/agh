@@ -50,6 +50,12 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 		if got, want := orchestration.DesignatedRunMax, DefaultTaskDesignatedRunMax; got != want {
 			t.Fatalf("DefaultWithHome() Task.Orchestration.DesignatedRunMax = %d, want %d", got, want)
 		}
+		if got, want := orchestration.MaxActiveRunsPerWorkspace, DefaultTaskMaxActiveRunsPerWorkspace; got != want {
+			t.Fatalf("DefaultWithHome() Task.Orchestration.MaxActiveRunsPerWorkspace = %d, want %d", got, want)
+		}
+		if got, want := orchestration.ActionRunTimeout, DefaultTaskActionRunTimeout; got != want {
+			t.Fatalf("DefaultWithHome() Task.Orchestration.ActionRunTimeout = %s, want %s", got, want)
+		}
 		if got, want := orchestration.NetworkStatusQueueSize, DefaultTaskNetworkStatusQueueSize; got != want {
 			t.Fatalf("DefaultWithHome() Task.Orchestration.NetworkStatusQueueSize = %d, want %d", got, want)
 		}
@@ -172,6 +178,26 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 			name:    "Should reject designated run max above the configured cap",
 			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.DesignatedRunMax = MaxTaskDesignatedRunMax + 1 },
 			wantErr: "task.orchestration.designated_run_max",
+		},
+		{
+			name:    "Should reject negative workspace active run cap",
+			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.MaxActiveRunsPerWorkspace = -1 },
+			wantErr: "task.orchestration.max_active_runs_per_workspace",
+		},
+		{
+			name:    "Should reject zero action run timeout",
+			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.ActionRunTimeout = 0 },
+			wantErr: "task.orchestration.action_run_timeout",
+		},
+		{
+			name:    "Should reject fractional action run timeout",
+			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.ActionRunTimeout = 1500 * time.Millisecond },
+			wantErr: "task.orchestration.action_run_timeout",
+		},
+		{
+			name:    "Should reject action run timeout above watchdog maximum",
+			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.ActionRunTimeout = 25 * time.Hour },
+			wantErr: "task.orchestration.action_run_timeout",
 		},
 		{
 			name:    "Should reject zero network status queue size",
@@ -348,6 +374,8 @@ spawn_failure_limit = 4
 scheduler_bad_tick_threshold = 5
 scheduler_bad_tick_cooldown = "4m"
 default_max_runtime = "1h"
+max_active_runs_per_workspace = 24
+action_run_timeout = "20m"
 network_status_queue_size = 17
 network_status_timeout = "7s"
 
@@ -379,6 +407,8 @@ failure_policy = "fail_task"
 [task.orchestration]
 summary_max_bytes = 3000
 default_max_runtime = "0s"
+max_active_runs_per_workspace = 0
+action_run_timeout = "45m"
 network_status_timeout = "3s"
 
 [task.recovery]
@@ -403,6 +433,12 @@ timeout = "10m"
 		}
 		if got := orchestration.DefaultMaxRuntime; got != 0 {
 			t.Fatalf("LoadForHome() DefaultMaxRuntime = %s, want workspace disabled runtime", got)
+		}
+		if got := orchestration.MaxActiveRunsPerWorkspace; got != 0 {
+			t.Fatalf("LoadForHome() MaxActiveRunsPerWorkspace = %d, want workspace-disabled cap", got)
+		}
+		if got, want := orchestration.ActionRunTimeout, 45*time.Minute; got != want {
+			t.Fatalf("LoadForHome() ActionRunTimeout = %s, want workspace override %s", got, want)
 		}
 		if got, want := orchestration.NetworkStatusQueueSize, 17; got != want {
 			t.Fatalf("LoadForHome() NetworkStatusQueueSize = %d, want global value %d", got, want)

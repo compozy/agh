@@ -69,7 +69,8 @@ INSERT INTO model_catalog_rows (
   source_id, provider_id, model_id, source_kind, priority, available, stale,
   refreshed_at, expires_at, display_name, context_window, max_input_tokens,
   max_output_tokens, supports_tools, supports_reasoning, default_reasoning_effort,
-  cost_input_per_million, cost_output_per_million, explicitly_curated,
+  cost_input_per_million, cost_output_per_million, cost_cache_read_per_million,
+  cost_cache_write_per_million, cost_reasoning_per_million, explicitly_curated,
   deprecated, hidden, featured, deprecated_set, hidden_set, featured_set,
   release_date, last_error
 ) VALUES (
@@ -79,40 +80,45 @@ INSERT INTO model_catalog_rows (
   ?12, ?13, ?14,
   ?15, ?16,
   ?17, ?18,
-  ?19, ?20, ?21, ?22,
-  ?23, ?24, ?25,
-  ?26, ?27
+  ?19, ?20,
+  ?21,
+  ?22, ?23, ?24, ?25,
+  ?26, ?27, ?28,
+  ?29, ?30
 )
 `
 
 type InsertModelCatalogRowParams struct {
-	SourceID               string          `json:"source_id"`
-	ProviderID             string          `json:"provider_id"`
-	ModelID                string          `json:"model_id"`
-	SourceKind             string          `json:"source_kind"`
-	Priority               int64           `json:"priority"`
-	Available              sql.NullInt64   `json:"available"`
-	Stale                  int64           `json:"stale"`
-	RefreshedAt            string          `json:"refreshed_at"`
-	ExpiresAt              string          `json:"expires_at"`
-	DisplayName            string          `json:"display_name"`
-	ContextWindow          sql.NullInt64   `json:"context_window"`
-	MaxInputTokens         sql.NullInt64   `json:"max_input_tokens"`
-	MaxOutputTokens        sql.NullInt64   `json:"max_output_tokens"`
-	SupportsTools          sql.NullInt64   `json:"supports_tools"`
-	SupportsReasoning      sql.NullInt64   `json:"supports_reasoning"`
-	DefaultReasoningEffort sql.NullString  `json:"default_reasoning_effort"`
-	CostInputPerMillion    sql.NullFloat64 `json:"cost_input_per_million"`
-	CostOutputPerMillion   sql.NullFloat64 `json:"cost_output_per_million"`
-	ExplicitlyCurated      int64           `json:"explicitly_curated"`
-	Deprecated             int64           `json:"deprecated"`
-	Hidden                 int64           `json:"hidden"`
-	Featured               int64           `json:"featured"`
-	DeprecatedSet          int64           `json:"deprecated_set"`
-	HiddenSet              int64           `json:"hidden_set"`
-	FeaturedSet            int64           `json:"featured_set"`
-	ReleaseDate            sql.NullString  `json:"release_date"`
-	LastError              string          `json:"last_error"`
+	SourceID                 string          `json:"source_id"`
+	ProviderID               string          `json:"provider_id"`
+	ModelID                  string          `json:"model_id"`
+	SourceKind               string          `json:"source_kind"`
+	Priority                 int64           `json:"priority"`
+	Available                sql.NullInt64   `json:"available"`
+	Stale                    int64           `json:"stale"`
+	RefreshedAt              string          `json:"refreshed_at"`
+	ExpiresAt                string          `json:"expires_at"`
+	DisplayName              string          `json:"display_name"`
+	ContextWindow            sql.NullInt64   `json:"context_window"`
+	MaxInputTokens           sql.NullInt64   `json:"max_input_tokens"`
+	MaxOutputTokens          sql.NullInt64   `json:"max_output_tokens"`
+	SupportsTools            sql.NullInt64   `json:"supports_tools"`
+	SupportsReasoning        sql.NullInt64   `json:"supports_reasoning"`
+	DefaultReasoningEffort   sql.NullString  `json:"default_reasoning_effort"`
+	CostInputPerMillion      sql.NullFloat64 `json:"cost_input_per_million"`
+	CostOutputPerMillion     sql.NullFloat64 `json:"cost_output_per_million"`
+	CostCacheReadPerMillion  sql.NullFloat64 `json:"cost_cache_read_per_million"`
+	CostCacheWritePerMillion sql.NullFloat64 `json:"cost_cache_write_per_million"`
+	CostReasoningPerMillion  sql.NullFloat64 `json:"cost_reasoning_per_million"`
+	ExplicitlyCurated        int64           `json:"explicitly_curated"`
+	Deprecated               int64           `json:"deprecated"`
+	Hidden                   int64           `json:"hidden"`
+	Featured                 int64           `json:"featured"`
+	DeprecatedSet            int64           `json:"deprecated_set"`
+	HiddenSet                int64           `json:"hidden_set"`
+	FeaturedSet              int64           `json:"featured_set"`
+	ReleaseDate              sql.NullString  `json:"release_date"`
+	LastError                string          `json:"last_error"`
 }
 
 func (q *Queries) InsertModelCatalogRow(ctx context.Context, arg InsertModelCatalogRowParams) error {
@@ -135,6 +141,9 @@ func (q *Queries) InsertModelCatalogRow(ctx context.Context, arg InsertModelCata
 		arg.DefaultReasoningEffort,
 		arg.CostInputPerMillion,
 		arg.CostOutputPerMillion,
+		arg.CostCacheReadPerMillion,
+		arg.CostCacheWritePerMillion,
+		arg.CostReasoningPerMillion,
 		arg.ExplicitlyCurated,
 		arg.Deprecated,
 		arg.Hidden,

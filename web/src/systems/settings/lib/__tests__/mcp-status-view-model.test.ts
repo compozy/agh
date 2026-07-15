@@ -108,6 +108,7 @@ describe("mcp status tone mapping", () => {
       "auth_refresh_failed",
       "permission_denied",
       "runtime_unavailable",
+      "dead",
     ]) {
       expect(runtimeTone(state)).toBe("danger");
     }
@@ -326,6 +327,40 @@ describe("composeMCPRowStatus", () => {
     expect(status.runtime.tone).toBe("success");
     expect(status.probe).toEqual({ label: "Succeeded", tone: "success", code: "18 tools" });
     expect(status.repairable).toBe(false);
+  });
+
+  it("renders a dead workspace runtime as unavailable with its redacted diagnostic", () => {
+    const status = composeMCPRowStatus(
+      makeEntry({
+        transport: "stdio",
+        authStatus: null,
+        runtimeStatus: {
+          state: "dead",
+          probe: "skipped",
+          reason: "backend_dead",
+          diagnostic: "process exited during initialize",
+        },
+      })
+    );
+    expect(status.runtime).toEqual({
+      label: "Unavailable",
+      tone: "danger",
+      code: "process exited during initialize",
+    });
+    expect(status.probe).toEqual({
+      label: "Skipped",
+      tone: "neutral",
+      code: "no probe attempted",
+    });
+
+    const withoutDiagnostic = composeMCPRowStatus(
+      makeEntry({
+        transport: "stdio",
+        authStatus: null,
+        runtimeStatus: { state: "dead", probe: "skipped", reason: "backend_dead" },
+      })
+    );
+    expect(withoutDiagnostic.runtime.code).toBe("backend_dead");
   });
 
   it("renders a stdio server with an unconfigured auth cell and hides tool count when absent", () => {

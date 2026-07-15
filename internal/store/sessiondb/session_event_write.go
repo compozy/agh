@@ -117,6 +117,7 @@ func (s *SessionDB) normalizeSessionEvent(event store.SessionEvent) (store.Sessi
 		)
 	}
 	event.SessionID = s.sessionID
+	event.Content = redactSessionEventContent(event.Content)
 	return event, nil
 }
 
@@ -205,6 +206,7 @@ func (s *SessionDB) writeEventIfAbsent(
 				row.Type,
 				row.AgentName,
 				row.Content,
+				row.Archived,
 				row.Timestamp,
 				s.sessionID,
 			)
@@ -334,6 +336,7 @@ func insertSessionEvent(
 		Type:               event.Type,
 		AgentName:          event.AgentName,
 		Content:            event.Content,
+		Archived:           boolToSQLite(event.Archived),
 		Timestamp:          store.FormatTimestamp(event.Timestamp),
 		TranscriptEntryKey: entryKey,
 	}); err != nil {

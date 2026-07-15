@@ -177,59 +177,6 @@ type TaskDependencyReferencePayload struct {
 	DependsOn       TaskReferencePayload   `json:"depends_on"`
 }
 
-// TaskRunPayload is the shared task-run response payload.
-type TaskRunPayload struct {
-	ID                           string                         `json:"id"`
-	TaskID                       string                         `json:"task_id"`
-	Status                       taskpkg.RunStatus              `json:"status"`
-	Attempt                      int                            `json:"attempt"`
-	PreviousRunID                string                         `json:"previous_run_id,omitempty"`
-	FailureKind                  string                         `json:"failure_kind,omitempty"`
-	ClaimedBy                    *taskpkg.ActorIdentity         `json:"claimed_by,omitempty"`
-	SessionID                    string                         `json:"session_id,omitempty"`
-	Origin                       taskpkg.Origin                 `json:"origin"`
-	IdempotencyKey               string                         `json:"idempotency_key,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec            `json:"resolved_network_participation,omitempty"`
-	DesignationGroupID           string                         `json:"designation_group_id,omitempty"`
-	ClaimTokenHash               string                         `json:"claim_token_hash,omitempty"`
-	LeaseUntil                   *time.Time                     `json:"lease_until,omitempty"`
-	HeartbeatAt                  *time.Time                     `json:"heartbeat_at,omitempty"`
-	CoordinationChannel          *CoordinationChannelPayload    `json:"coordination_channel,omitempty"`
-	Designation                  *taskpkg.RunDesignationSummary `json:"designation,omitempty"`
-	QueuedAt                     time.Time                      `json:"queued_at"`
-	ClaimedAt                    *time.Time                     `json:"claimed_at,omitempty"`
-	StartedAt                    *time.Time                     `json:"started_at,omitempty"`
-	EndedAt                      *time.Time                     `json:"ended_at,omitempty"`
-	Error                        string                         `json:"error,omitempty"`
-	Metadata                     json.RawMessage                `json:"metadata,omitempty"`
-	Result                       json.RawMessage                `json:"result,omitempty"`
-}
-
-// TaskRunSummaryPayload is the shared run-chip payload reused by enriched task reads.
-type TaskRunSummaryPayload struct {
-	ID                           string                         `json:"id"`
-	TaskID                       string                         `json:"task_id"`
-	Status                       taskpkg.RunStatus              `json:"status"`
-	Attempt                      int                            `json:"attempt"`
-	PreviousRunID                string                         `json:"previous_run_id,omitempty"`
-	FailureKind                  string                         `json:"failure_kind,omitempty"`
-	MaxAttempts                  int                            `json:"max_attempts"`
-	SessionID                    string                         `json:"session_id,omitempty"`
-	ClaimedBy                    *taskpkg.ActorIdentity         `json:"claimed_by,omitempty"`
-	ClaimTokenHash               string                         `json:"claim_token_hash,omitempty"`
-	LeaseUntil                   *time.Time                     `json:"lease_until,omitempty"`
-	HeartbeatAt                  *time.Time                     `json:"heartbeat_at,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec            `json:"resolved_network_participation,omitempty"`
-	CoordinationChannel          *CoordinationChannelPayload    `json:"coordination_channel,omitempty"`
-	DesignationGroupID           string                         `json:"designation_group_id,omitempty"`
-	Designation                  *taskpkg.RunDesignationSummary `json:"designation,omitempty"`
-	QueuedAt                     time.Time                      `json:"queued_at"`
-	ClaimedAt                    *time.Time                     `json:"claimed_at,omitempty"`
-	StartedAt                    *time.Time                     `json:"started_at,omitempty"`
-	EndedAt                      *time.Time                     `json:"ended_at,omitempty"`
-	Error                        string                         `json:"error,omitempty"`
-}
-
 // TaskEventPayload is the shared task audit-event response payload.
 type TaskEventPayload struct {
 	ID        string                `json:"id"`
@@ -307,19 +254,6 @@ type TaskRunSessionPayload struct {
 	State       string    `json:"state,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-// TaskRunOperationalSummaryPayload captures aggregated runtime metrics for run detail.
-type TaskRunOperationalSummaryPayload struct {
-	LastActivityAt time.Time `json:"last_activity_at"`
-	LastEventType  string    `json:"last_event_type,omitempty"`
-	ToolCallCount  *int64    `json:"tool_call_count,omitempty"`
-	TurnCount      *int64    `json:"turn_count,omitempty"`
-	InputTokens    *int64    `json:"input_tokens,omitempty"`
-	OutputTokens   *int64    `json:"output_tokens,omitempty"`
-	TotalTokens    *int64    `json:"total_tokens,omitempty"`
-	TotalCost      *float64  `json:"total_cost,omitempty"`
-	CostCurrency   *string   `json:"cost_currency,omitempty"`
 }
 
 // TaskRunDetailPayload is the shared run-detail response payload.

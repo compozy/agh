@@ -60,10 +60,10 @@ curl -X POST http://localhost:2123/api/sessions \
   }'
 ```
 
-`name` is optional for user sessions. When it is omitted, AGH derives a durable title from the
-first submitted prompt, persists that title in session metadata and the catalog, and keeps it across
-stop and resume. An explicit name always wins, and daemon-managed session types remain unnamed
-unless their creator supplies an identity.
+`name` is optional for user sessions. With `session.auto_title_enabled = true`, AGH starts one
+bounded title pass after the first assistant response is persisted, then stores a successful title
+in session metadata and the catalog. An explicit name always wins any race. If generation is
+disabled or fails, the session remains unnamed; daemon-managed session types are never eligible.
 
 The request must include exactly one of:
 
@@ -134,6 +134,11 @@ curl -X DELETE \
 operation when the caller wants to interrupt without supplying a replacement prompt. Every busy-input
 transition writes transcript marker evidence for recap, replay, and audit: queued, accepted,
 interrupted, steered, and dropped stale input are visible instead of being hidden client behavior.
+
+A dedicated interrupt followed by `steer` preserves the canceled authored prompt once and submits
+it with the explicit correction as the next generation-fenced input. A second steer cannot reuse
+that salvage. The `--interrupt` mode shown above supplies a plain replacement prompt, so it discards
+the canceled text instead of composing it into the replacement.
 
 ### Runtime activity supervision
 
@@ -294,6 +299,19 @@ During daemon boot, AGH also inspects stopped sessions whose stop reason is `age
 transcript: dangling tool calls receive interrupted tool results, then the turn receives a terminal
 error event. The repair is append-only; AGH does not truncate, delete, or resequence session events.
 
+### Provider context recovery
+
+When the runtime reactivates an existing AGH session, it first asks the provider to load the saved
+ACP session. If the provider does not support `session/load`, or the saved ACP session no longer
+exists, AGH starts a fresh provider session and stages a pruned projection of that AGH session's
+persisted transcript. The projection is prepended to the next prompt the provider accepts; resume
+does not issue an autonomous prompt or rewrite the original authored message.
+
+This fallback appends a durable `session_recovered` transcript marker with the summary `Context
+rebuilt from log.` Successful ACP loads do not add the marker or replay persisted messages. Replay
+uses only the current session's event store, including when different workspaces contain sessions
+with similar content.
+
 This repair happens before recap and replay. The repaired session keeps the same AGH session ID.
 Operators and agents can inspect or run the same transcript repair explicitly:
 
@@ -306,7 +324,7 @@ agh session repair <session-id>
 
 Every session owns a directory under `~/.agh/sessions/<session-id>/`:
 
-- `meta.json`: durable session metadata such as state, workspace, stop reason, failure diagnostics, and ACP session ID
+- `meta.json`: durable session metadata such as state, workspace, session CWD, stop reason, failure diagnostics, and ACP session ID
 - `events.db`: persisted event, token usage, and hook-run history
 
 That durable store is what makes [resume attach](/runtime/core/sessions/resume), [event replay](/runtime/core/sessions/events), deterministic recap, and [approval audit](/runtime/core/sessions/permissions) possible.

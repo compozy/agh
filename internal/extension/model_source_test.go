@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"context"
 	"errors"
+	"math"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -55,7 +56,11 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 		runtime := &fakeModelSourceRuntime{}
 		source := newTestModelSource(t, "ext-models", runtime)
 		available := true
-		cost := 1.25
+		inputCost := 1.25
+		outputCost := 10.5
+		cacheReadCost := 0.125
+		cacheWriteCost := 2.5
+		reasoningCost := 12.0
 		releaseDate := "2026-06-26"
 		runtime.rows = []extensioncontract.ModelSourceRow{
 			{
@@ -73,8 +78,11 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 				Featured:          new(true),
 				ReleaseDate:       &releaseDate,
 				Cost: &apicontract.ModelCatalogCostPayload{
-					InputPerMillion:  &cost,
-					OutputPerMillion: &cost,
+					InputPerMillion:      &inputCost,
+					OutputPerMillion:     &outputCost,
+					CacheReadPerMillion:  &cacheReadCost,
+					CacheWritePerMillion: &cacheWriteCost,
+					ReasoningPerMillion:  &reasoningCost,
 				},
 			},
 		}
@@ -111,6 +119,13 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 		if !models[0].Deprecated || !models[0].Hidden || !models[0].Featured ||
 			models[0].ReleaseDate == nil || *models[0].ReleaseDate != releaseDate {
 			t.Fatalf("ListModels()[0] curation = %#v, want all flags and release %q", models[0], releaseDate)
+		}
+		if models[0].CostInputPerMillion == nil || *models[0].CostInputPerMillion != inputCost ||
+			models[0].CostOutputPerMillion == nil || *models[0].CostOutputPerMillion != outputCost ||
+			models[0].CostCacheReadPerMillion == nil || *models[0].CostCacheReadPerMillion != cacheReadCost ||
+			models[0].CostCacheWritePerMillion == nil || *models[0].CostCacheWritePerMillion != cacheWriteCost ||
+			models[0].CostReasoningPerMillion == nil || *models[0].CostReasoningPerMillion != reasoningCost {
+			t.Fatalf("ListModels()[0] five-rate pricing = %#v, want extension rates", models[0])
 		}
 	})
 }
@@ -330,7 +345,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 					InputPerMillion: &negativeCost,
 				},
 			},
-			wantErr: "cost.input_per_million must be non-negative",
+			wantErr: "cost.input_per_million must be finite and non-negative",
 		},
 		{
 			name: "Should reject negative output cost metadata",
@@ -342,7 +357,19 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 					OutputPerMillion: &negativeCost,
 				},
 			},
-			wantErr: "cost.output_per_million must be non-negative",
+			wantErr: "cost.output_per_million must be finite and non-negative",
+		},
+		{
+			name: "Should reject non-finite reasoning cost metadata",
+			row: extensioncontract.ModelSourceRow{
+				SourceID:   sourceID,
+				ProviderID: "codex",
+				ModelID:    "model",
+				Cost: &apicontract.ModelCatalogCostPayload{
+					ReasoningPerMillion: new(math.NaN()),
+				},
+			},
+			wantErr: "cost.reasoning_per_million must be finite and non-negative",
 		},
 		{
 			name: "Should reject invalid release date metadata",

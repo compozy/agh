@@ -142,6 +142,7 @@ func taskManagerOptions(
 	recovery aghconfig.TaskRecoveryConfig,
 	scheduler aghconfig.SchedulerConfig,
 	blockRecurrenceLimit int,
+	workspaceActiveRunCap int,
 ) []taskpkg.Option {
 	options := []taskpkg.Option{
 		taskpkg.WithStore(store),
@@ -155,6 +156,7 @@ func taskManagerOptions(
 		}),
 		taskpkg.WithStarvationAge(scheduler.MinQueuedAge),
 		taskpkg.WithBlockRecurrenceLimit(blockRecurrenceLimit),
+		taskpkg.WithWorkspaceActiveRunCap(workspaceActiveRunCap),
 		taskpkg.WithCoordinatorTerminalStatusValidator(func(status string) bool {
 			return looppkg.Status(strings.TrimSpace(status)).Valid()
 		}),

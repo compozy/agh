@@ -9,10 +9,12 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/doctor"
 	"github.com/compozy/agh/internal/memory"
 	authproviders "github.com/compozy/agh/internal/providers"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -26,6 +28,7 @@ type BaseHandlerConfig struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
+	DrainController              DaemonDrainController
 	SessionCatalog               SessionCatalog
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
@@ -36,8 +39,11 @@ type BaseHandlerConfig struct {
 	Resources                    ResourceService
 	Extensions                   ExtensionService
 	Tools                        ToolRegistry
+	ToolArtifacts                toolspkg.ToolArtifactStore
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
+	ApprovalGrants               ToolApprovalGrantService
+	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
 	Tasks                        TaskService
@@ -77,6 +83,8 @@ type BaseHandlerConfig struct {
 	MemoryExtractor              MemoryExtractorService
 	MemoryProviders              MemoryProviderService
 	MemorySessionLedger          MemorySessionLedgerService
+	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
+	DeadEntities                 doctor.DeadEntitySource
 	HomePaths                    aghconfig.HomePaths
 	Config                       aghconfig.Config
 	Logger                       *slog.Logger
@@ -95,6 +103,7 @@ type BaseHandlers struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
+	DrainController              DaemonDrainController
 	SessionCatalog               SessionCatalog
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
@@ -105,8 +114,11 @@ type BaseHandlers struct {
 	Resources                    ResourceService
 	Extensions                   ExtensionService
 	Tools                        ToolRegistry
+	ToolArtifacts                toolspkg.ToolArtifactStore
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
+	ApprovalGrants               ToolApprovalGrantService
+	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
 	Tasks                        TaskService
@@ -146,6 +158,8 @@ type BaseHandlers struct {
 	MemoryExtractor              MemoryExtractorService
 	MemoryProviders              MemoryProviderService
 	MemorySessionLedger          MemorySessionLedgerService
+	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
+	DeadEntities                 doctor.DeadEntitySource
 	HomePaths                    aghconfig.HomePaths
 	Config                       aghconfig.Config
 	Logger                       *slog.Logger
@@ -173,6 +187,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
 		Sessions:                     cfg.Sessions,
+		DrainController:              cfg.DrainController,
 		SessionCatalog:               cfg.SessionCatalog,
 		Network:                      cfg.Network,
 		NetworkStore:                 cfg.NetworkStore,
@@ -183,8 +198,11 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Resources:                    cfg.Resources,
 		Extensions:                   cfg.Extensions,
 		Tools:                        cfg.Tools,
+		ToolArtifacts:                cfg.ToolArtifacts,
 		Toolsets:                     cfg.Toolsets,
 		ToolApprovals:                cfg.ToolApprovals,
+		ApprovalGrants:               cfg.ApprovalGrants,
+		Clarify:                      cfg.Clarify,
 		Automation:                   cfg.Automation,
 		Loops:                        cfg.Loops,
 		Tasks:                        cfg.Tasks,
@@ -217,6 +235,8 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		MemoryExtractor:              cfg.MemoryExtractor,
 		MemoryProviders:              cfg.MemoryProviders,
 		MemorySessionLedger:          cfg.MemorySessionLedger,
+		RuntimeMemory:                cfg.RuntimeMemory,
+		DeadEntities:                 cfg.DeadEntities,
 		HomePaths:                    cfg.HomePaths,
 		Config:                       cfg.Config,
 		Logger:                       defaults.logger,

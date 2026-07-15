@@ -2,6 +2,8 @@ import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract
 
 export type SkillsResponse = OperationResponse<"listSkills", 200>;
 export type SkillPayload = SkillsResponse["skills"][number];
+export type SkillActivationPayload = SkillPayload["activation"];
+export type SkillActivationReasonPayload = NonNullable<SkillActivationPayload["reasons"]>[number];
 export type SkillResponse = OperationResponse<"getSkill", 200>;
 export type SkillContentResponse = OperationResponse<"getSkillContent", 200>;
 export type SkillShadowsResponse = OperationResponse<"getSkillShadows", 200>;

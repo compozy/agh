@@ -238,6 +238,15 @@ describe("session event query identity", () => {
   });
 });
 
+describe("session clarification query identity", () => {
+  it("selects distinct pending caches per workspace and per session", () => {
+    const key = sessionKeys.clarifications("ws_alpha", "sess-001");
+    expect(key).not.toEqual(sessionKeys.clarifications("ws_beta", "sess-001"));
+    expect(key).not.toEqual(sessionKeys.clarifications("ws_alpha", "sess-002"));
+    expect(sessionKeys.clarifications("ws_alpha", "sess-001")).toEqual(key);
+  });
+});
+
 function createWrapperWithClient(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);

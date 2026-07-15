@@ -234,6 +234,62 @@ func (h *RuntimeHarness) CompleteTaskRun(
 	return h.updateTaskRun(ctx, runID, "/complete", request)
 }
 
+// CompleteClaimedTaskRunForSession completes a claimed run through the canonical
+// agent lease surface without exposing the raw claim token to the caller.
+func (h *RuntimeHarness) CompleteClaimedTaskRunForSession(
+	ctx context.Context,
+	runID string,
+	session aghcontract.SessionPayload,
+	request aghcontract.AgentTaskCompleteRequest,
+) (aghcontract.TaskRunLeaseSummaryPayload, error) {
+	path := "/api/agent/tasks/" + url.PathEscape(strings.TrimSpace(runID)) + "/complete"
+	response, err := doRequestWithHeaders(
+		ctx,
+		h.UDSClient,
+		h.UDSURL(path),
+		http.MethodPost,
+		request,
+		map[string]string{
+			agentidentity.HeaderSessionID:   session.ID,
+			agentidentity.HeaderAgent:       session.AgentName,
+			agentidentity.HeaderWorkspaceID: session.WorkspaceID,
+		},
+	)
+	if err != nil {
+		return aghcontract.TaskRunLeaseSummaryPayload{}, err
+	}
+	payload, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return aghcontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
+			"read claimed task-run completion response: %w",
+			readErr,
+		)
+	}
+	if closeErr != nil {
+		return aghcontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
+			"close claimed task-run completion response: %w",
+			closeErr,
+		)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return aghcontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
+			"POST %s status %d: %s",
+			h.UDSURL(path),
+			response.StatusCode,
+			strings.TrimSpace(string(payload)),
+		)
+	}
+	var completed aghcontract.AgentTaskLeaseResponse
+	if err := json.Unmarshal(payload, &completed); err != nil {
+		return aghcontract.TaskRunLeaseSummaryPayload{}, fmt.Errorf(
+			"decode claimed task-run completion response: %w",
+			err,
+		)
+	}
+	return completed.Lease, nil
+}
+
 // DeliverGlobalWebhook submits one signed global webhook through the public HTTP ingress.
 func (h *RuntimeHarness) DeliverGlobalWebhook(
 	ctx context.Context,

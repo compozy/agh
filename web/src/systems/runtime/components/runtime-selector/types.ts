@@ -76,6 +76,9 @@ export interface RuntimeModelOption {
   context_window?: number | null;
   cost_input?: number | null;
   cost_output?: number | null;
+  cost_cache_read?: number | null;
+  cost_cache_write?: number | null;
+  cost_reasoning?: number | null;
   supports_tools?: boolean | null;
   supports_reasoning?: boolean | null;
   /** Selectable effort subset the runtime can honor; empty = not selectable. */

@@ -103,6 +103,17 @@ vi.mock("@/systems/skill", async importOriginal => {
       data: mocks.skillError
         ? undefined
         : {
+            activation: {
+              active: false,
+              reasons: [
+                {
+                  gate: "requires_capabilities",
+                  code: "missing_capability",
+                  missing: ["browser.operate"],
+                  message: "gate requires_capabilities unmet: browser.operate",
+                },
+              ],
+            },
             enabled: true,
             metadata: {
               capabilities: ["git.inspect", "git.review"],
@@ -234,6 +245,11 @@ describe("Marketplace installed-detail management", () => {
     render(<MarketplaceDetailSkillManage name="bundled-skill" />);
 
     expect(screen.getByText("Enabled")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-detail-activation-status")).toHaveTextContent("Inactive");
+    expect(screen.getByTestId("skill-detail-activation-reasons")).toHaveTextContent(
+      "Missing capability: browser.operate"
+    );
+    expect(screen.getByTestId("skill-enabled-switch")).toHaveAttribute("aria-checked", "true");
     expect(screen.getByTestId("skill-capabilities-list")).toHaveTextContent("git.inspect");
     expect(screen.getByTestId("skill-recent-calls-table")).toHaveTextContent("Review pull request");
     expect(screen.getByTestId("skill-provenance-table")).toHaveTextContent("ops-extension");
@@ -300,7 +316,7 @@ describe("Marketplace installed-detail management", () => {
     expect(screen.getByRole("button", { name: "Retry management" })).toBeInTheDocument();
   });
 
-  it("Should prefer the workspace MCP definition over a same-name global definition", () => {
+  it("Should prefer the workspace MCP definition and surface its dead runtime diagnostic", () => {
     const base = {
       name: "shared-server",
       transport: "stdio",
@@ -342,9 +358,11 @@ describe("Marketplace installed-detail management", () => {
           runtime_status: {
             configured: true,
             initialized: false,
-            state: "config_error",
-            probe: "failed",
+            state: "dead",
+            probe: "skipped",
             tool_count: 0,
+            reason: "backend_dead",
+            diagnostic: "process exited during initialize",
           },
           source_metadata: {
             ...base.source_metadata,
@@ -369,7 +387,10 @@ describe("Marketplace installed-detail management", () => {
       />
     );
 
-    expect(screen.getByText("Config error")).toBeInTheDocument();
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-mcp-runtime-code")).toHaveTextContent(
+      "process exited during initialize"
+    );
     expect(screen.queryByText("Ready")).not.toBeInTheDocument();
   });
 

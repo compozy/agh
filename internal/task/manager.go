@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/agh/internal/admission"
 	configdefaults "github.com/compozy/agh/internal/config/defaults"
 	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/network/participation"
@@ -96,6 +97,8 @@ type managerOptions struct {
 	cancelGracePeriod     time.Duration
 	starvationAge         time.Duration
 	blockRecurrenceLimit  int
+	workspaceActiveRunCap int
+	workAdmission         admission.Checker
 }
 
 // Service centralizes canonical task-domain creation, mutation, read, and
@@ -123,6 +126,8 @@ type Service struct {
 	cancelGracePeriod     time.Duration
 	starvationAge         time.Duration
 	blockRecurrenceLimit  int
+	workspaceActiveRunCap int
+	workAdmission         admission.Checker
 	forceRateLimiter      *forceRunRateLimiter
 	wakeMu                sync.Mutex
 	wakeEventIDs          map[string]struct{}
@@ -294,6 +299,9 @@ func NewManager(opts ...Option) (*Service, error) {
 	}
 	if options.blockRecurrenceLimit < 0 {
 		return nil, fmt.Errorf("task: block recurrence limit must be zero or positive")
+	}
+	if options.workspaceActiveRunCap < 0 {
+		return nil, fmt.Errorf("task: workspace active run cap must be zero or positive")
 	}
 
 	return newService(options), nil

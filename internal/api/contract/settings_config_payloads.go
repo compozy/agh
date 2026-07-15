@@ -41,6 +41,7 @@ type SettingsGeneralConfigPayload struct {
 	SessionTimeout string                     `json:"session_timeout"`
 	HTTP           SettingsHTTPPayload        `json:"http"`
 	Daemon         SettingsDaemonPayload      `json:"daemon"`
+	Redact         SettingsRedactPayload      `json:"redact"`
 }
 
 type SettingsDefaultsPayload struct {
@@ -63,14 +64,19 @@ type SettingsHTTPPayload struct {
 }
 
 type SettingsDaemonPayload struct {
-	Socket         string                              `json:"socket"`
-	ReloadTimeouts SettingsDaemonReloadTimeoutsPayload `json:"reload_timeouts"`
+	Socket               string                              `json:"socket"`
+	MemoryReportInterval string                              `json:"memory_report_interval"`
+	ReloadTimeouts       SettingsDaemonReloadTimeoutsPayload `json:"reload_timeouts"`
 }
 
 type SettingsDaemonReloadTimeoutsPayload struct {
 	Providers string `json:"providers"`
 	MCP       string `json:"mcp"`
 	Bridges   string `json:"bridges"`
+}
+
+type SettingsRedactPayload struct {
+	Enabled bool `json:"enabled"`
 }
 
 type SettingsMemoryConfigPayload struct {

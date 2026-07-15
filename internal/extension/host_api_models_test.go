@@ -23,7 +23,11 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 
 		now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
 		available := true
-		cost := 2.5
+		inputCost := 1.0
+		outputCost := 2.0
+		cacheReadCost := 0.5
+		cacheWriteCost := 3.0
+		reasoningCost := 4.0
 		defaultEffort := modelcatalog.ReasoningEffortHigh
 		releaseDate := "2026-06-26"
 		service := &fakeHostAPIModelCatalogService{
@@ -44,17 +48,20 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 							LastError:   "source failed with OAUTH_TOKEN=oauth-host-secret-token",
 						},
 					},
-					ReasoningEfforts:       []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
-					DefaultReasoningEffort: &defaultEffort,
-					CostInputPerMillion:    &cost,
-					CostOutputPerMillion:   &cost,
-					Curated:                true,
-					Deprecated:             true,
-					Hidden:                 true,
-					Featured:               true,
-					ReleaseDate:            &releaseDate,
-					ReasoningSource:        modelcatalog.ReasoningSourceACP,
-					LastError:              "model failed with api_key=sk-host-secret-token",
+					ReasoningEfforts:         []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
+					DefaultReasoningEffort:   &defaultEffort,
+					CostInputPerMillion:      &inputCost,
+					CostOutputPerMillion:     &outputCost,
+					CostCacheReadPerMillion:  &cacheReadCost,
+					CostCacheWritePerMillion: &cacheWriteCost,
+					CostReasoningPerMillion:  &reasoningCost,
+					Curated:                  true,
+					Deprecated:               true,
+					Hidden:                   true,
+					Featured:                 true,
+					ReleaseDate:              &releaseDate,
+					ReasoningSource:          modelcatalog.ReasoningSourceACP,
+					LastError:                "model failed with api_key=sk-host-secret-token",
 				},
 			},
 		}
@@ -95,6 +102,13 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 		}
 		if model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != "high" {
 			t.Fatalf("models/list default reasoning effort = %#v, want high", model.DefaultReasoningEffort)
+		}
+		if model.Cost == nil || model.Cost.InputPerMillion == nil || *model.Cost.InputPerMillion != inputCost ||
+			model.Cost.OutputPerMillion == nil || *model.Cost.OutputPerMillion != outputCost ||
+			model.Cost.CacheReadPerMillion == nil || *model.Cost.CacheReadPerMillion != cacheReadCost ||
+			model.Cost.CacheWritePerMillion == nil || *model.Cost.CacheWritePerMillion != cacheWriteCost ||
+			model.Cost.ReasoningPerMillion == nil || *model.Cost.ReasoningPerMillion != reasoningCost {
+			t.Fatalf("models/list five-rate cost = %#v, want complete daemon projection", model.Cost)
 		}
 		if !model.Curated || !model.Deprecated || !model.Hidden || !model.Featured ||
 			model.ReleaseDate != releaseDate || model.ReasoningSource != modelcatalog.ReasoningSourceACP {

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -80,126 +79,6 @@ type FrozenSnapshot struct {
 type RecallPromptOptions struct {
 	MaxEntries    int
 	MaxCharacters int
-}
-
-// SnapshotService captures prompt-safe memory once per session boot.
-type SnapshotService struct {
-	store         *Store
-	provider      SnapshotProvider
-	now           func() time.Time
-	maxCharacters int
-	generation    atomic.Uint64
-}
-
-// SnapshotServiceOption customizes frozen snapshot capture.
-type SnapshotServiceOption func(*SnapshotService)
-
-// WithProviderSnapshotSource installs the active provider snapshot source.
-func WithProviderSnapshotSource(provider SnapshotProvider) SnapshotServiceOption {
-	return func(service *SnapshotService) {
-		if service != nil {
-			service.provider = provider
-		}
-	}
-}
-
-// WithSnapshotClock injects a deterministic capture clock.
-func WithSnapshotClock(now func() time.Time) SnapshotServiceOption {
-	return func(service *SnapshotService) {
-		if service != nil && now != nil {
-			service.now = now
-		}
-	}
-}
-
-// WithSnapshotMaxCharacters caps the rendered memory prompt section.
-func WithSnapshotMaxCharacters(maxCharacters int) SnapshotServiceOption {
-	return func(service *SnapshotService) {
-		if service != nil && maxCharacters > 0 {
-			service.maxCharacters = maxCharacters
-		}
-	}
-}
-
-// NewSnapshotService constructs a frozen memory snapshot service.
-func NewSnapshotService(store *Store, opts ...SnapshotServiceOption) *SnapshotService {
-	service := &SnapshotService{
-		store:         store,
-		now:           func() time.Time { return time.Now().UTC() },
-		maxCharacters: defaultSnapshotMaxCharacters,
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(service)
-		}
-	}
-	return service
-}
-
-// InvalidateNextBoot records that future session boots must recapture memory.
-func (s *SnapshotService) InvalidateNextBoot() uint64 {
-	if s == nil {
-		return 0
-	}
-	return s.generation.Add(1)
-}
-
-// Capture freezes prompt-safe memory for the supplied session boot request.
-func (s *SnapshotService) Capture(ctx context.Context, req PromptSnapshotRequest) (FrozenSnapshot, error) {
-	if s == nil {
-		return FrozenSnapshot{}, nil
-	}
-	if err := contextErr(ctx); err != nil {
-		return FrozenSnapshot{}, err
-	}
-	req = normalizeSnapshotRequest(req)
-	if req.ParentSnapshot != nil {
-		return s.InheritForSubAgent(*req.ParentSnapshot, req), nil
-	}
-
-	capturedAt := s.now().UTC()
-	blocks, err := s.captureBlocks(ctx, req, capturedAt)
-	if err != nil {
-		return FrozenSnapshot{}, err
-	}
-	header := snapshotHeader(blocks)
-	snapshot := FrozenSnapshot{
-		SessionID:      strings.TrimSpace(req.SessionID),
-		WorkspaceID:    strings.TrimSpace(req.WorkspaceID),
-		WorkspaceRoot:  strings.TrimSpace(req.WorkspaceRoot),
-		AgentName:      strings.TrimSpace(req.AgentName),
-		CapturedAt:     capturedAt,
-		Generation:     s.generation.Load(),
-		ControllerMode: controllerModeForSession(req.SessionType),
-		Blocks:         blocks,
-		Header:         header,
-	}
-	snapshot.ID = snapshotID(snapshot)
-	snapshot.Section = renderMemorySnapshot(snapshot, s.maxCharacters)
-	return snapshot, nil
-}
-
-// InheritForSubAgent clones a parent snapshot without re-resolving memory state.
-func (s *SnapshotService) InheritForSubAgent(parent FrozenSnapshot, req PromptSnapshotRequest) FrozenSnapshot {
-	clone := parent.Clone()
-	clone.SessionID = strings.TrimSpace(req.SessionID)
-	clone.AgentName = firstSnapshotValue(req.AgentName, parent.AgentName)
-	clone.WorkspaceID = firstSnapshotValue(req.WorkspaceID, parent.WorkspaceID)
-	clone.WorkspaceRoot = firstSnapshotValue(req.WorkspaceRoot, parent.WorkspaceRoot)
-	clone.ControllerMode = SnapshotControllerReadOnly
-	clone.InheritedFrom = parent.ID
-	if s != nil {
-		clone.Generation = s.generation.Load()
-	}
-	clone.ID = snapshotID(clone)
-	return clone
-}
-
-// Clone returns a deep copy of the frozen snapshot.
-func (s FrozenSnapshot) Clone() FrozenSnapshot {
-	clone := s
-	clone.Blocks = append([]SnapshotBlock(nil), s.Blocks...)
-	return clone
 }
 
 func (s *SnapshotService) captureBlocks(

@@ -638,17 +638,6 @@ func (s *service) collectionItemExistsBeforeMutation(
 	return false, nil
 }
 
-func generalSettingsFromConfig(cfg *aghconfig.Config) GeneralSettings {
-	return GeneralSettings{
-		Defaults:       cfg.Defaults,
-		Limits:         cfg.Limits,
-		Permissions:    cfg.Permissions,
-		SessionTimeout: cfg.Session.Limits.Timeout,
-		HTTP:           cfg.HTTP,
-		Daemon:         cfg.Daemon,
-	}
-}
-
 func automationSettingsFromConfig(cfg *aghconfig.Config) AutomationSettings {
 	return AutomationSettings{
 		Enabled:           cfg.Automation.Enabled,

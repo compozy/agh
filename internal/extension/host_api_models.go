@@ -251,12 +251,19 @@ func hostAPISourceStatusPayloadsFromStatuses(
 }
 
 func hostAPICostPayloadFromModel(model modelcatalog.Model) *apicontract.ModelCatalogCostPayload {
-	if model.CostInputPerMillion == nil && model.CostOutputPerMillion == nil {
+	if model.CostInputPerMillion == nil &&
+		model.CostOutputPerMillion == nil &&
+		model.CostCacheReadPerMillion == nil &&
+		model.CostCacheWritePerMillion == nil &&
+		model.CostReasoningPerMillion == nil {
 		return nil
 	}
 	return &apicontract.ModelCatalogCostPayload{
-		InputPerMillion:  model.CostInputPerMillion,
-		OutputPerMillion: model.CostOutputPerMillion,
+		InputPerMillion:      model.CostInputPerMillion,
+		OutputPerMillion:     model.CostOutputPerMillion,
+		CacheReadPerMillion:  model.CostCacheReadPerMillion,
+		CacheWritePerMillion: model.CostCacheWritePerMillion,
+		ReasoningPerMillion:  model.CostReasoningPerMillion,
 	}
 }
 

@@ -22,7 +22,7 @@ func coordinationOutputBundle(payload NetworkCoordinationRecord) outputBundle {
 		human: func() (string, error) {
 			rows := []keyValue{
 				{Label: configWorkspaceValue, Value: stringOrDash(payload.WorkspaceID)},
-				{Label: "Scope", Value: stringOrDash(payload.Scope)},
+				{Label: automationScopeValue, Value: stringOrDash(payload.Scope)},
 				{Label: "Task", Value: stringOrDash(payload.TaskID)},
 				{Label: networkEnabledValue, Value: formatBool(payload.Enabled)},
 				{Label: "Revision", Value: strconv.FormatInt(payload.Revision, 10)},
@@ -91,8 +91,8 @@ func networkUsageOutputBundle(payload NetworkUsageRecord) outputBundle {
 				{Label: "Actual Wakes", Value: strconv.Itoa(payload.Total.ActualWakeCount)},
 				{Label: "Unavailable Wakes", Value: strconv.Itoa(payload.Total.UnavailableWakeCount)},
 				{Label: "Charged Wall Time", Value: stringOrDash(payload.Total.ChargedWallTime)},
-				{Label: "Input Tokens", Value: strconv.FormatInt(payload.Total.InputTokens, 10)},
-				{Label: "Output Tokens", Value: strconv.FormatInt(payload.Total.OutputTokens, 10)},
+				{Label: cliInputTokensValue, Value: strconv.FormatInt(payload.Total.InputTokens, 10)},
+				{Label: cliOutputTokensValue, Value: strconv.FormatInt(payload.Total.OutputTokens, 10)},
 				{Label: "Next Cursor", Value: stringOrDash(payload.NextCursor)},
 			}
 			if payload.Budget != nil {
@@ -137,7 +137,7 @@ func networkUsageOutputBundle(payload NetworkUsageRecord) outputBundle {
 func networkUsageToon(payload NetworkUsageRecord) string {
 	fields := []string{
 		taskWorkspaceIDKey, "wake_count", "reserved_wake_count", "actual_wake_count",
-		"unavailable_wake_count", "charged_wall_time", "input_tokens", "output_tokens", "next_cursor",
+		"unavailable_wake_count", "charged_wall_time", cliInputTokensKey, cliOutputTokensKey, "next_cursor",
 		"budget_owner_workspace_id", "budget_owner_kind", "budget_owner_id", "budget_available",
 		"budget_participating", "budget_wakes_used", "budget_wall_time_used", "budget_input_tokens_used",
 		"budget_output_tokens_used", "budget_exhausted_reason", "budget_updated_at",
@@ -182,11 +182,11 @@ func networkUsageToon(payload NetworkUsageRecord) string {
 				"channel",
 				"root_id",
 				"depth",
-				networkStateKey,
+				stateKey,
 				"usage_state",
 				"charged_wall_time",
-				"input_tokens",
-				"output_tokens",
+				cliInputTokensKey,
+				cliOutputTokensKey,
 				"reserved_at",
 				"settled_at", "reason",
 			},

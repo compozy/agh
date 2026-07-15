@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/udsapi"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/doctor"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/situation"
@@ -21,12 +22,17 @@ type RuntimeDeps struct {
 	HomePaths           aghconfig.HomePaths
 	Logger              *slog.Logger
 	Sessions            SessionManager
+	DrainController     core.DaemonDrainController
 	Tasks               taskpkg.Manager
 	Network             core.NetworkService
 	ToolRegistry        toolspkg.Registry
 	Toolsets            core.ToolsetRegistry
+	ToolArtifacts       toolspkg.ToolArtifactStore
 	ToolApprovals       toolspkg.ApprovalTokenIssuer
+	ApprovalGrants      toolspkg.ApprovalGrantStore
+	Clarify             toolspkg.ClarifyBroker
 	HostedMCP           *mcppkg.HostedService
+	MCPHostAPI          mcppkg.HostAPIInvoker
 	Observer            Observer
 	SchemaStreams       core.SchemaStreamStatusReader
 	Automation          core.AutomationManager
@@ -38,6 +44,8 @@ type RuntimeDeps struct {
 	MemoryExtractor     core.MemoryExtractorService
 	MemoryProviders     core.MemoryProviderService
 	MemorySessionLedger core.MemorySessionLedgerService
+	RuntimeMemory       doctor.RuntimeMemorySnapshotSource
+	DeadEntities        doctor.DeadEntitySource
 	WorkspaceResolver   workspacepkg.RuntimeResolver
 	WorkspaceService    core.WorkspaceService
 	AgentCatalog        core.AgentCatalog

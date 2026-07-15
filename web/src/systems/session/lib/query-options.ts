@@ -3,6 +3,7 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import {
   fetchSession,
   fetchSessionById,
+  fetchSessionClarifications,
   fetchSessionEvents,
   fetchSessionHistory,
   fetchSessionGoal,
@@ -13,6 +14,7 @@ import {
   fetchSessions,
   SessionLedgerUnavailableError,
 } from "../adapters/session-api";
+import { fetchToolArtifactPage } from "../adapters/tool-artifact-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
 import type { SessionListFilters, SessionState } from "../types";
 import { sessionKeys } from "./query-keys";
@@ -29,6 +31,7 @@ const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
 const SESSION_TRANSCRIPT_STALE_TIME_MS = 10_000;
 const SESSION_WARM_CACHE_GC_TIME_MS = 30 * 60 * 1_000;
+const TOOL_ARTIFACT_PAGE_BYTES = 64 * 1_024;
 
 /**
  * Session detail + transcript are the hot return path for `/agents/:name/sessions/:id`.
@@ -113,6 +116,21 @@ export function sessionGoalOptions(workspace: string, id: string) {
   });
 }
 
+/**
+ * Live pending clarification for one session — the exact authority for pending truth. Never polls:
+ * the transcript `clarify` SSE event wakes it via explicit invalidation (see `use-session-live-tail`),
+ * and a successful answer reconciles the exact key. A short stale window lets focus/remount self-heal
+ * a dropped wake.
+ */
+export function sessionClarificationsOptions(workspace: string, id: string) {
+  return queryOptions({
+    queryKey: sessionKeys.clarifications(workspace, id),
+    queryFn: ({ signal }) => fetchSessionClarifications(workspace, id, signal),
+    staleTime: 5_000,
+    enabled: !!workspace && !!id,
+  });
+}
+
 export function sessionTranscriptOptions(workspace: string, id: string) {
   return infiniteQueryOptions({
     queryKey: sessionKeys.transcript(workspace, id),
@@ -133,6 +151,24 @@ export function sessionTranscriptOptions(workspace: string, id: string) {
     staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
+  });
+}
+
+export function sessionToolArtifactOptions(
+  workspace: string,
+  artifactURI: string,
+  enabled: boolean
+) {
+  return infiniteQueryOptions({
+    queryKey: sessionKeys.toolArtifact(workspace, artifactURI),
+    queryFn: ({ pageParam, signal }) =>
+      fetchToolArtifactPage(workspace, artifactURI, pageParam, TOOL_ARTIFACT_PAGE_BYTES, signal),
+    initialPageParam: 0,
+    getNextPageParam: lastPage => (lastPage.eof ? undefined : lastPage.next_offset),
+    staleTime: Number.POSITIVE_INFINITY,
+    ...SESSION_WARM_CACHE_POLICY,
+    enabled: enabled && !!workspace && !!artifactURI,
+    retry: false,
   });
 }
 

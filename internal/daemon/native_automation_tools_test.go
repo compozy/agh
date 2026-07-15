@@ -466,6 +466,115 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		requireNativeStructuredContains(t, runGetResult, []byte(`"run-1"`))
 	})
 
+	t.Run("Should preserve workspace identity across consent-first suggestion tools", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceID := "workspace-1"
+		suggestionID := "suggestion-1"
+		now := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+		job := nativeAutomationJobFixture("job-suggestion-1", automationpkg.JobSourceDynamic)
+		job.Scope = automationpkg.AutomationScopeWorkspace
+		job.WorkspaceID = workspaceID
+		suggestion := automationpkg.Suggestion{
+			ID:          suggestionID,
+			WorkspaceID: workspaceID,
+			Source:      automationpkg.SuggestionSourceCatalog,
+			DedupKey:    "catalog:v1:daily-workspace-briefing",
+			Status:      automationpkg.SuggestionStatusPending,
+			Payload:     job,
+			CreatedAt:   now,
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Automation: apitest.StubAutomationManager{
+				ListSuggestionsFn: func(
+					_ context.Context,
+					gotWorkspace string,
+					status automationpkg.SuggestionStatus,
+				) ([]automationpkg.Suggestion, error) {
+					if gotWorkspace != workspaceID || status != automationpkg.SuggestionStatusPending {
+						t.Fatalf("ListSuggestions(%q, %q), want workspace-1/pending", gotWorkspace, status)
+					}
+					return []automationpkg.Suggestion{suggestion}, nil
+				},
+				AcceptSuggestionFn: func(
+					_ context.Context,
+					gotWorkspace string,
+					gotSuggestion string,
+				) (automationpkg.SuggestionAcceptance, error) {
+					if gotWorkspace != workspaceID || gotSuggestion != suggestionID {
+						t.Fatalf(
+							"AcceptSuggestion(%q, %q), want workspace-1/suggestion-1",
+							gotWorkspace,
+							gotSuggestion,
+						)
+					}
+					accepted := suggestion
+					accepted.Status = automationpkg.SuggestionStatusAccepted
+					accepted.ResolvedAt = &now
+					return automationpkg.SuggestionAcceptance{Suggestion: accepted, Job: job}, nil
+				},
+				DismissSuggestionFn: func(
+					_ context.Context,
+					gotWorkspace string,
+					gotSuggestion string,
+				) (automationpkg.Suggestion, error) {
+					if gotWorkspace != workspaceID || gotSuggestion != suggestionID {
+						t.Fatalf(
+							"DismissSuggestion(%q, %q), want workspace-1/suggestion-1",
+							gotWorkspace,
+							gotSuggestion,
+						)
+					}
+					dismissed := suggestion
+					dismissed.Status = automationpkg.SuggestionStatusDismissed
+					dismissed.ResolvedAt = &now
+					return dismissed, nil
+				},
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		listResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationSuggestionsList,
+				Input:  json.RawMessage(`{"workspace_id":"workspace-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_suggestions_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, listResult, []byte(`"suggestion-1"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"pending"`))
+
+		acceptResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationSuggestionsAccept,
+				Input:  json.RawMessage(`{"workspace_id":"workspace-1","suggestion_id":"suggestion-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_suggestions_accept) error = %v", err)
+		}
+		requireNativeStructuredContains(t, acceptResult, []byte(`"accepted"`))
+		requireNativeStructuredContains(t, acceptResult, []byte(`"job-suggestion-1"`))
+
+		dismissResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationSuggestionsDismiss,
+				Input:  json.RawMessage(`{"workspace_id":"workspace-1","suggestion_id":"suggestion-1"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(automation_suggestions_dismiss) error = %v", err)
+		}
+		requireNativeStructuredContains(t, dismissResult, []byte(`"dismissed"`))
+	})
+
 	t.Run("Should deny automation mutations deterministically before manager writes when blocked", func(t *testing.T) {
 		t.Parallel()
 

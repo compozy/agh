@@ -42,18 +42,18 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 	return json.RawMessage(encoded)
 }
 
-func runtimeMarkerUIMessage(decoded *decodedStoredEvent, markerText string) UIMessage {
+// Markers use the assistant data-agh-event wire contract.
+func runtimeMarkerUIMessage(decoded *decodedStoredEvent) UIMessage {
 	return UIMessage{
 		ID: fallbackMessageID(
 			strings.TrimSpace(decoded.stored.ID),
 			strings.TrimSpace(decoded.parsed.ID),
 			"runtime-marker",
 		),
-		Role: UIRoleSystem,
+		Role: UIRoleAssistant,
 		Parts: []UIMessagePart{{
-			Type:  uiPartText,
-			Text:  markerText,
-			State: uiPartStateDone,
+			Type: uiPartDataEvent,
+			Data: decoded.dataPayload(),
 		}},
 	}
 }

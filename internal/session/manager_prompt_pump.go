@@ -142,6 +142,7 @@ func (m *Manager) finishPromptPump(
 	if session != nil {
 		session.clearCurrentTurnID()
 		session.clearCurrentTurnSource()
+		session.clearCurrentPromptMessage()
 		session.clearCurrentPromptMeta()
 		session.clearCurrentPromptCancel()
 	}

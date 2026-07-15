@@ -240,35 +240,29 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 	}
 }
 
-func readCLIHistoricalChannel(
+func assertCLIHistoricalChannelNotActive(
 	t *testing.T,
 	deps commandDeps,
 	workspace string,
 	channel string,
-) NetworkChannelRecord {
+) {
 	t.Helper()
 
-	channelsOut := mustExecuteRoot(
-		t,
-		deps,
-		"network",
-		"channels",
-		"--workspace",
-		workspace,
-		"-o",
-		"json",
-	)
+	args := []string{"network", "channels"}
+	if workspace != "" {
+		args = append(args, "--workspace", workspace)
+	}
+	args = append(args, "-o", "json")
+	channelsOut := mustExecuteRoot(t, deps, args...)
 	var channels []NetworkChannelRecord
 	if err := json.Unmarshal([]byte(channelsOut), &channels); err != nil {
 		t.Fatalf("json.Unmarshal(network channels) error = %v", err)
 	}
 	for _, item := range channels {
 		if item.Channel == channel {
-			return item
+			t.Fatalf("historical-only channel %q listed as active: %#v", channel, channels)
 		}
 	}
-	t.Fatalf("network channels missing %q: %#v", channel, channels)
-	return NetworkChannelRecord{}
 }
 
 func containsCLITaskEventType(events []TaskEventRecord, want string) bool {

@@ -92,6 +92,9 @@ type ModelCatalogSourceStatusPayload struct {
 
 // ModelCatalogCostPayload reports normalized model price hints.
 type ModelCatalogCostPayload struct {
-	InputPerMillion  *float64 `json:"input_per_million,omitempty"`
-	OutputPerMillion *float64 `json:"output_per_million,omitempty"`
+	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
+	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
+	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
+	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
+	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
 }

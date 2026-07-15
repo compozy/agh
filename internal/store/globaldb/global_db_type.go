@@ -29,6 +29,8 @@ type GlobalDB struct {
 	*ToolRuntimeRepo
 	*VaultRepo
 	*WatchEventsRepo
+	*DeadEntityRepo
+	*ApprovalGrantRepo
 
 	db     *sql.DB
 	path   string

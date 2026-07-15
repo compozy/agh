@@ -164,7 +164,7 @@ func channelMessageText(ctx context.Context, taskRunID string, raw json.RawMessa
 		)
 		return ""
 	}
-	for _, key := range []string{"message", "text", loopRunEventPayloadKeySummary} {
+	for _, key := range []string{"message", loopRunEventPayloadKeyText, loopRunEventPayloadKeySummary} {
 		if value, ok := envelope[key].(string); ok && strings.TrimSpace(value) != "" {
 			return strings.TrimSpace(value)
 		}

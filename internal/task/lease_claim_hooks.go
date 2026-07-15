@@ -14,6 +14,7 @@ func (m *Service) normalizeClaimCriteriaForActor(
 	actor ActorContext,
 ) (ClaimCriteria, error) {
 	normalized := criteria
+	normalized.WorkspaceActiveRunCap = m.workspaceActiveRunCap
 	if strings.TrimSpace(normalized.ClaimerSessionID) == "" && actor.Actor.Kind.Normalize() == ActorKindAgentSession {
 		normalized.ClaimerSessionID = strings.TrimSpace(actor.Actor.Ref)
 	}

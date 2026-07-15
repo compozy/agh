@@ -12,7 +12,7 @@ func sessionCatalogOperations() []OperationSpec {
 func sessionCatalogListOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
-		Path:        "/api/sessions",
+		Path:        specSessionsPath,
 		OperationID: "listSessions",
 		Summary:     "List sessions",
 		Tags:        []string{specSessionsKey},

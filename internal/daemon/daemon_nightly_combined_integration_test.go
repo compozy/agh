@@ -255,11 +255,15 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 		}},
 	}
 
-	completedRun, err := harness.CompleteTaskRun(ctx, run.TaskRunID, aghcontract.CompleteTaskRunRequest{
+	taskSession, err := harness.GetSession(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("GetSession(%q) before task completion error = %v", sessionID, err)
+	}
+	completedRun, err := harness.CompleteClaimedTaskRunForSession(ctx, run.TaskRunID, taskSession, aghcontract.AgentTaskCompleteRequest{
 		Result: json.RawMessage(`{"network_reply":"` + nightlyTaskResumeMessageID + `"}`),
 	})
 	if err != nil {
-		t.Fatalf("CompleteTaskRun(%q) error = %v", run.TaskRunID, err)
+		t.Fatalf("CompleteClaimedTaskRunForSession(%q) error = %v", run.TaskRunID, err)
 	}
 	if got, want := completedRun.Status, taskpkg.TaskRunStatusCompleted; got != want {
 		t.Fatalf("completedRun.Status = %q, want %q", got, want)
@@ -310,7 +314,7 @@ func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) 
 		nightlyCombinedBridgeScenario,
 	)
 	configSeed.Mutate = allowUnverifiedBridgeExtensionInstalls
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: configSeed,
 		Env:        env,
 	})
@@ -682,7 +686,7 @@ func nightlyCombinedPromptText(blocks []acpsdk.ContentBlock) string {
 func startNightlyCombinedTaskHarness(t testing.TB) *e2etest.RuntimeHarness {
 	t.Helper()
 
-	return e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		EnableNetwork: true,
 		ConfigSeed: nightlyCombinedConfigSeed(
 			t,
@@ -695,6 +699,7 @@ func startNightlyCombinedTaskHarness(t testing.TB) *e2etest.RuntimeHarness {
 			},
 		},
 	})
+
 }
 
 func nightlyCombinedConfigSeed(

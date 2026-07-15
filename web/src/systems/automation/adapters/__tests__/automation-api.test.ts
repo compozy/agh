@@ -18,6 +18,11 @@ import {
   updateAutomationJob,
   updateAutomationTrigger,
 } from "@/systems/automation/adapters/automation-api";
+import {
+  acceptAutomationSuggestion,
+  dismissAutomationSuggestion,
+  listAutomationSuggestions,
+} from "@/systems/automation/adapters/automation-suggestions-api";
 
 const jobFixture = {
   id: "job_daily_review",
@@ -62,6 +67,16 @@ const runFixture = {
   job_id: "job_daily_review",
   session_id: "sess_001",
   started_at: "2026-04-11T10:00:00Z",
+};
+
+const suggestionFixture = {
+  id: "suggestion_daily_review",
+  workspace_id: "ws_alpha",
+  source: "catalog",
+  dedup_key: "daily-review",
+  status: "pending",
+  payload: { ...jobFixture, target_kind: "prompt" },
+  created_at: "2026-04-11T09:00:00Z",
 };
 
 beforeEach(() => {
@@ -115,6 +130,61 @@ describe("listAutomationJobs", () => {
 
     await expect(listAutomationJobs()).rejects.toThrow(AutomationApiError);
     await expect(listAutomationJobs()).rejects.toThrow("Failed to fetch automation jobs: 500");
+  });
+});
+
+describe("automation suggestions", () => {
+  it("lists the complete status-filtered response envelope with an abort signal", async () => {
+    const response = { suggestions: [suggestionFixture] };
+    mockJsonResponse(response);
+    const controller = new AbortController();
+
+    const result = await listAutomationSuggestions("ws_alpha", "pending", controller.signal);
+
+    expect(result).toEqual(response);
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/automation/suggestions?status=pending",
+      signal: controller.signal,
+    });
+  });
+
+  it("accepts a suggestion and returns both the resolved suggestion and created job", async () => {
+    const response = {
+      suggestion: { ...suggestionFixture, status: "accepted" },
+      job: jobFixture,
+    };
+    mockJsonResponse(response);
+
+    await expect(
+      acceptAutomationSuggestion("ws_alpha", "suggestion_daily_review")
+    ).resolves.toEqual(response);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/automation/suggestions/suggestion_daily_review/accept",
+    });
+  });
+
+  it("dismisses a suggestion without creating a job", async () => {
+    const response = {
+      suggestion: { ...suggestionFixture, status: "dismissed" },
+    };
+    mockJsonResponse(response);
+
+    await expect(
+      dismissAutomationSuggestion("ws_alpha", "suggestion_daily_review")
+    ).resolves.toEqual(response);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/automation/suggestions/suggestion_daily_review/dismiss",
+    });
+  });
+
+  it("reports a specific list failure", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(listAutomationSuggestions("ws_alpha", "pending")).rejects.toThrow(
+      "Failed to fetch automation suggestions: 503"
+    );
   });
 });
 

@@ -548,6 +548,18 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should task run needs_attention retain claimed session correlation", func(t *testing.T) {
+		t.Parallel()
+		run := validRun()
+		run.Status = TaskRunStatusNeedsAttention
+		run.SessionID = "sess-1"
+		run.ClaimedBy = &ActorIdentity{Kind: ActorKindDaemon, Ref: "scheduler"}
+		run.ClaimedAt = run.QueuedAt.Add(time.Minute)
+		if err := run.Validate(); err != nil {
+			t.Fatalf("Run.Validate() error = %v", err)
+		}
+	})
+
 	t.Run("Should task run lease metadata and capabilities", func(t *testing.T) {
 		t.Parallel()
 

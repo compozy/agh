@@ -1,6 +1,9 @@
 package automation
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Store is the persistence surface consumed by the composed automation manager.
 type Store interface {
@@ -33,4 +36,25 @@ type Store interface {
 	GetTriggerEnabledOverlay(ctx context.Context, triggerID string) (TriggerEnabledOverlay, error)
 	ListTriggerEnabledOverlays(ctx context.Context) ([]TriggerEnabledOverlay, error)
 	DeleteTriggerEnabledOverlay(ctx context.Context, triggerID string) error
+	CreateSuggestion(ctx context.Context, suggestion Suggestion, pendingCap int) (Suggestion, error)
+	GetSuggestion(ctx context.Context, workspaceID string, id string) (Suggestion, error)
+	ListSuggestions(
+		ctx context.Context,
+		workspaceID string,
+		status SuggestionStatus,
+	) ([]Suggestion, error)
+	ListAcceptedSuggestions(ctx context.Context) ([]Suggestion, error)
+	ResolveSuggestion(
+		ctx context.Context,
+		workspaceID string,
+		id string,
+		to SuggestionStatus,
+	) (Suggestion, error)
+	RollbackSuggestionAcceptance(
+		ctx context.Context,
+		workspaceID string,
+		id string,
+		resolvedAt time.Time,
+	) error
+	RecordSuggestionTransition(ctx context.Context, suggestion Suggestion, jobID string) error
 }

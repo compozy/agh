@@ -72,22 +72,25 @@ Those IDs can diverge after a resume that falls back to a fresh ACP session.
 
 The persisted event `type` values currently emitted by AGH are:
 
-| Type               | When it is recorded                                                           | Key `content` fields                                                              |
-| ------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `user_message`     | Before AGH submits a prompt to ACP                                            | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`                    |
-| `agent_message`    | Agent text chunk                                                              | `text`, plus the shared canonical fields                                          |
-| `thought`          | Agent reasoning chunk                                                         | `text`, plus the shared canonical fields                                          |
-| `tool_call`        | Tool call started or updated before completion                                | `title`, `tool_name`, `tool_call_id`, optional `tool_input`, optional `raw`       |
-| `tool_result`      | Tool call completed or failed                                                 | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`          |
-| `plan`             | ACP plan update                                                               | optional `raw`; AGH stores the canonical envelope even when the payload is sparse |
-| `permission`       | ACP permission request or resolved decision                                   | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`    |
-| `usage`            | Token or context usage update                                                 | `usage` with token counts, context counts, cost fields, and `timestamp`           |
-| `runtime_progress` | Low-frequency long-running prompt progress update                             | `text`, `runtime` activity payload                                                |
-| `runtime_warning`  | Runtime supervision warning or inactivity timeout notice                      | `text`, `runtime` activity payload, optional `raw`                                |
-| `system`           | Available-command updates, mode updates, or other non-chat ACP system updates | `title`, optional `raw`                                                           |
-| `done`             | End of a prompt turn                                                          | `stop_reason`, optional `usage`, optional `raw`                                   |
-| `error`            | Prompt processing error                                                       | `error`, optional `raw`                                                           |
-| `session_stopped`  | Session finalization                                                          | `stop_reason`, optional `failure`, optional `error`, optional `text`              |
+| Type                         | When it is recorded                                                           | Key `content` fields                                                                     |
+| ---------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `user_message`               | Before AGH submits a prompt to ACP                                            | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`                           |
+| `agent_message`              | Agent text chunk                                                              | `text`, plus the shared canonical fields                                                 |
+| `thought`                    | Agent reasoning chunk                                                         | `text`, plus the shared canonical fields                                                 |
+| `tool_call`                  | Tool call started or updated before completion                                | `title`, `tool_name`, `tool_kind`, `tool_call_id`, optional `tool_input`, optional `raw` |
+| `tool_result`                | Tool call completed or failed                                                 | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                 |
+| `plan`                       | ACP plan update                                                               | optional `raw`; AGH stores the canonical envelope even when the payload is sparse        |
+| `permission`                 | ACP permission request or resolved decision                                   | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`           |
+| `usage`                      | Token or context usage update                                                 | `usage` with token counts, context counts, cost fields, and `timestamp`                  |
+| `runtime_progress`           | Low-frequency long-running prompt progress update                             | `text`, `runtime` activity payload                                                       |
+| `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                      | `text`, `runtime` activity payload, optional `raw`                                       |
+| `session.compaction_fired`   | Pressure compaction admitted for a complete prior-turn sequence span          | `raw` with workspace/session/turn IDs, sequence bounds, usage, pressure, strategy        |
+| `transcript_marker.created`  | Durable runtime evidence added to the transcript                              | marker kind, summary, occurrence time, and optional evidence                             |
+| `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                         | marker kind, summary, occurrence time, and redaction metadata                            |
+| `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates | `title`, optional `raw`                                                                  |
+| `done`                       | End of a prompt turn                                                          | `stop_reason`, optional `usage`, optional `raw`                                          |
+| `error`                      | Prompt processing error                                                       | `error`, optional `raw`                                                                  |
+| `session_stopped`            | Session finalization                                                          | `stop_reason`, optional `failure`, optional `error`, optional `text`                     |
 
 ### Runtime supervision events
 
@@ -141,6 +144,7 @@ The stored canonical envelope can include these fields when they apply:
 | `text`         | User text, assistant text, or thought text                                                                     |
 | `title`        | Tool or update title                                                                                           |
 | `tool_name`    | Derived tool name                                                                                              |
+| `tool_kind`    | Canonical ACP tool kind, including `edit` for file-mutation reduction                                          |
 | `tool_call_id` | Stable tool correlation ID                                                                                     |
 | `tool_input`   | Structured tool input when present                                                                             |
 | `tool_result`  | Structured tool output (`stdout`, `stderr`, `file_path`, `content`, `structured_patch`, `error`, `raw_output`) |
@@ -154,6 +158,37 @@ The stored canonical envelope can include these fields when they apply:
 | `usage`        | Token and cost payload                                                                                         |
 | `runtime`      | Long-running prompt activity payload with current tool, last activity, progress, idle, and elapsed fields      |
 | `raw`          | Raw ACP update payload AGH preserved                                                                           |
+
+## Usage cost and provenance
+
+Read a session's aggregate token usage from
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage`. Token counts and monetary status
+are independent: AGH keeps counting tokens when cost is included in a subscription or cannot be
+determined.
+
+For agent-managed inspection over UDS, run `agh session usage <session-id> -o json`. The command
+returns the same usage payload; omit `-o json` for the operator-readable panel.
+
+The response uses `cost_status` to say what `total_cost` means:
+
+| Status      | Meaning                                                                | Amount                       |
+| ----------- | ---------------------------------------------------------------------- | ---------------------------- |
+| `actual`    | The agent reported the cost.                                           | Present when reported        |
+| `estimated` | AGH multiplied reported token counts by merged model-catalog rates.    | Present with `cost_currency` |
+| `included`  | A `native_cli` provider owns subscription billing.                     | Omitted                      |
+| `unknown`   | A required rate is missing or aggregate provenance/currency conflicts. | Omitted                      |
+
+`cost_source` identifies `agent_reported`, `catalog_config`, `models_dev`, `builtin`, or `none`.
+AGH never adds an agent-reported amount to an estimate. Aggregates keep a monetary amount only when
+status, source, and currency agree; token totals continue even when the monetary aggregate becomes
+`unknown`.
+
+Estimates price input, output, cache-read, cache-write, and reasoning tokens independently. Every
+nonzero bucket requires its own finite, non-negative catalog rate; AGH never substitutes an input
+rate for cache tokens or an output rate for reasoning tokens.
+
+`included` is a billing classification, not a provider account-balance check. AGH does not read
+native CLI credential stores or expose provider subscription quotas.
 
 ## Querying stored events
 
@@ -301,6 +336,18 @@ If the session is already stopped and no new stored rows arrive, AGH emits a ter
 `session_stopped` SSE event and closes the stream. When the stopped session has failure
 diagnostics, that terminal payload includes the same `failure` object stored in session metadata.
 
+### File mutation verification marker
+
+AGH reduces persisted `edit` tool events within one turn. When a failed file mutation has no later
+successful mutation for the same path and the turn persisted assistant text, AGH appends one
+`transcript_marker.file_mutation_unverified` marker after the turn completes. Its evidence carries
+the bounded affected paths and total `failure_count`; `paths_truncated = true` reports that more
+than 32 unresolved paths existed.
+
+The marker is a verification prompt, not proof that the filesystem is wrong. A later successful
+mutation for the same path suppresses it; failed reads, commands, and non-file tools do not create
+it.
+
 Example terminal failure payload:
 
 ```json
@@ -343,6 +390,11 @@ The `events` table stores:
 - `agent_name`
 - `content`
 - `timestamp`
+- `archived`
+
+`archived` is a replay-projection flag, not deletion. Operator event and history reads include both
+archived and unarchived rows. Daemon degraded replay requests only unarchived rows after the
+workspace checkpoint has durably covered the archived sequence range.
 
 Queries are returned in ascending sequence order. If you request `limit`, AGH selects the newest
 matching rows first and then re-sorts them ascending before returning them.
@@ -355,7 +407,16 @@ The [resume attach and replay](/runtime/core/sessions/resume) path depends on th
 - `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` assembles canonical replay entries from these rows
 - `GET /api/workspaces/:workspace_id/sessions/:session_id/stream` emits transcript snapshots and deltas by default
 - `GET /api/workspaces/:workspace_id/sessions/:session_id/recap` returns a bounded, redacted reorientation snapshot
-- `transcript_marker.created` and `transcript_marker.redacted` rows preserve interrupts, timeouts, unhealthy state, and MCP auth prompts as durable marker evidence
+- `transcript_marker.created` and `transcript_marker.redacted` rows preserve interrupts, timeouts, unhealthy state, MCP auth prompts, and unresolved file-mutation verification as durable marker evidence
+
+### Pressure compaction ordering
+
+At context pressure, `context.pre_compact` runs before checkpoint coverage. If it allows the work,
+AGH writes idempotent checkpoint coverage before marking the selected event range archived, then
+runs `context.post_compact`. A summary, provider, archive, or pre-hook failure leaves the original
+rows available for replay and arms the configured failure cooldown. `session.compaction_fired`
+provides durable correlation for the admitted attempt and its exact sequence bounds; it does not
+mean the later archive transition succeeded.
 
 ## Next steps
 

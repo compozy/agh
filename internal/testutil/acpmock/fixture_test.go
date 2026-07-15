@@ -535,6 +535,35 @@ func TestParseFixtureAcceptsACPStopReasonVocabulary(t *testing.T) {
 	}
 }
 
+func TestParseFixtureAcceptsTurnUsage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should parse deterministic prompt-response token usage on a turn", func(t *testing.T) {
+		t.Parallel()
+
+		raw := `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{` +
+			`"match":{"turn_source":"user","user_text":"hi"},"stop_reason":"end_turn",` +
+			`"steps":[{"kind":"assistant","text":"hi"}],` +
+			`"usage":{"input_tokens":1200,"output_tokens":340,"total_tokens":1540}}]}]}`
+		fixture, err := ParseFixture([]byte(raw))
+		if err != nil {
+			t.Fatalf("ParseFixture(usage) error = %v", err)
+		}
+		alpha, err := fixture.Agent("alpha")
+		if err != nil {
+			t.Fatalf("fixture.Agent(alpha) error = %v", err)
+		}
+		usage := alpha.Turns[0].Usage
+		if usage == nil {
+			t.Fatalf("Turns[0].Usage = nil, want parsed prompt-response usage")
+		}
+		if usage.InputTokens != 1200 || usage.OutputTokens != 340 ||
+			usage.TotalTokens == nil || *usage.TotalTokens != 1540 {
+			t.Fatalf("Turns[0].Usage = %+v, want {InputTokens:1200 OutputTokens:340 TotalTokens:1540}", *usage)
+		}
+	})
+}
+
 func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	t.Parallel()
 

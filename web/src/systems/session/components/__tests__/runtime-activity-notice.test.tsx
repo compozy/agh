@@ -136,6 +136,34 @@ describe("RuntimeActivityNotice", () => {
     );
   });
 
+  it("renders the file-mutation verifier marker with warning semantics", () => {
+    const summary =
+      "1 file mutation failed and was not recovered in this turn. Verify the affected file before trusting completion claims.";
+    render(
+      <RuntimeActivityNotice
+        event={{
+          type: "transcript_marker.created",
+          text: summary,
+          title: "transcript_marker.file_mutation_unverified",
+          raw: {
+            kind: "transcript_marker.file_mutation_unverified",
+            occurred_at: "2026-04-20T12:05:00Z",
+            summary,
+            evidence: { failure_count: 1, paths: ["checkout/retry.go"] },
+          },
+        }}
+      />
+    );
+
+    const notice = screen.getByTestId("transcript-marker-notice");
+    expect(notice).toHaveAttribute("data-tone", "warning");
+    expect(screen.getByRole("alert")).toBe(notice);
+    expect(screen.getByTestId("transcript-marker-kind")).toHaveTextContent(
+      "transcript_marker.file_mutation_unverified"
+    );
+    expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(summary);
+  });
+
   it("does not render non-runtime events", () => {
     render(<RuntimeActivityNotice event={{ type: "agent_message", text: "hello" }} />);
 

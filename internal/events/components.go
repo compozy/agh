@@ -1,6 +1,7 @@
 package events
 
 const (
+	ComponentAutomation   = "automation"
 	ComponentBridge       = "bridge"
 	ComponentConfig       = "config"
 	ComponentExtension    = "extension"
@@ -12,6 +13,7 @@ const (
 	ComponentNetwork      = "network"
 	ComponentNotification = "notification"
 	ComponentProvider     = "provider"
+	ComponentReliability  = "reliability"
 	ComponentScheduler    = "scheduler"
 	ComponentSession      = "session"
 	ComponentSkill        = "skill"

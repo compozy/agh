@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -240,6 +241,9 @@ func (s *ModelSource) validateRow(
 	if row.Cost != nil {
 		modelRow.CostInputPerMillion = row.Cost.InputPerMillion
 		modelRow.CostOutputPerMillion = row.Cost.OutputPerMillion
+		modelRow.CostCacheReadPerMillion = row.Cost.CacheReadPerMillion
+		modelRow.CostCacheWritePerMillion = row.Cost.CacheWritePerMillion
+		modelRow.CostReasoningPerMillion = row.Cost.ReasoningPerMillion
 	}
 	return modelRow, true, nil
 }
@@ -325,9 +329,12 @@ func validateModelSourceCost(index int, cost apicontract.ModelCatalogCostPayload
 	}{
 		{field: "cost.input_per_million", value: cost.InputPerMillion},
 		{field: "cost.output_per_million", value: cost.OutputPerMillion},
+		{field: "cost.cache_read_per_million", value: cost.CacheReadPerMillion},
+		{field: "cost.cache_write_per_million", value: cost.CacheWritePerMillion},
+		{field: "cost.reasoning_per_million", value: cost.ReasoningPerMillion},
 	} {
-		if check.value != nil && *check.value < 0 {
-			return fmt.Errorf("extension: model source row %d %s must be non-negative", index, check.field)
+		if check.value != nil && (math.IsNaN(*check.value) || math.IsInf(*check.value, 0) || *check.value < 0) {
+			return fmt.Errorf("extension: model source row %d %s must be finite and non-negative", index, check.field)
 		}
 	}
 	return nil
@@ -406,8 +413,11 @@ func cloneModelSourceRows(src []extensioncontract.ModelSourceRow) []extensioncon
 		}
 		if src[index].Cost != nil {
 			cloned[index].Cost = &apicontract.ModelCatalogCostPayload{
-				InputPerMillion:  cloneModelSourceFloat64Pointer(src[index].Cost.InputPerMillion),
-				OutputPerMillion: cloneModelSourceFloat64Pointer(src[index].Cost.OutputPerMillion),
+				InputPerMillion:      cloneModelSourceFloat64Pointer(src[index].Cost.InputPerMillion),
+				OutputPerMillion:     cloneModelSourceFloat64Pointer(src[index].Cost.OutputPerMillion),
+				CacheReadPerMillion:  cloneModelSourceFloat64Pointer(src[index].Cost.CacheReadPerMillion),
+				CacheWritePerMillion: cloneModelSourceFloat64Pointer(src[index].Cost.CacheWritePerMillion),
+				ReasoningPerMillion:  cloneModelSourceFloat64Pointer(src[index].Cost.ReasoningPerMillion),
 			}
 		}
 	}

@@ -21,6 +21,8 @@ const (
 	DefaultSpawnRole = "worker"
 	// SpawnRoleMemoryExtractor marks daemon-owned extractor children.
 	SpawnRoleMemoryExtractor = "memory-extractor"
+	// SpawnRoleAutoTitle marks daemon-owned title generator children.
+	SpawnRoleAutoTitle = "auto-title"
 )
 
 var (
@@ -93,7 +95,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		Name:                 normalized.Name,
 		Workspace:            workspaceRef,
 		WorkspacePath:        workspacePath,
-		NetworkParticipation: normalized.NetworkParticipation,
+		NetworkParticipation: spawnNetworkParticipation(normalized),
 		NetworkAuthority: &participation.AuthorityScope{
 			Enforced:   true,
 			ChannelIDs: append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
@@ -510,10 +512,6 @@ func normalizeSpawnRole(role string) string {
 
 func isCoordinatorSpawnRole(role string) bool {
 	return strings.EqualFold(strings.TrimSpace(role), string(SessionTypeCoordinator))
-}
-
-func isMemoryExtractorSpawnRole(role string) bool {
-	return strings.EqualFold(strings.TrimSpace(role), SpawnRoleMemoryExtractor)
 }
 
 func isLiveSpawnState(state State) bool {

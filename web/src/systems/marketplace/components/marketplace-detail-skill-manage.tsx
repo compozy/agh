@@ -20,6 +20,7 @@ import {
 import {
   deriveSkillCapabilities,
   deriveSkillRecentCalls,
+  SkillActivationSection,
   skillSourceTone,
   type SkillPayload,
 } from "@/systems/skill";
@@ -75,6 +76,7 @@ function MarketplaceDetailSkillManage({ name }: MarketplaceDetailSkillManageProp
           </p>
         ) : null}
       </Section>
+      <SkillActivationSection skill={state.skill} />
       <SkillManageCapabilities skill={state.skill} />
       <SkillManageRecentCalls skill={state.skill} />
       <SkillManageProvenance skill={state.skill} />

@@ -274,7 +274,7 @@ func TestWriteSeedConfigFileRewritesOverlayWithPermissions(t *testing.T) {
 func TestPrepareRuntimeLayoutSandboxSeedDoesNotLeakBetweenRuns(t *testing.T) {
 	t.Parallel()
 
-	first := prepareRuntimeLayout(t, RuntimeHarnessOptions{
+	first := prepareRuntimeLayout(t, &RuntimeHarnessOptions{
 		ConfigSeed: ConfigSeedOptions{
 			DefaultSandbox: "local-sandbox",
 			Sandboxes: map[string]aghconfig.SandboxProfile{
@@ -285,7 +285,8 @@ func TestPrepareRuntimeLayoutSandboxSeedDoesNotLeakBetweenRuns(t *testing.T) {
 			},
 		},
 	})
-	second := prepareRuntimeLayout(t, RuntimeHarnessOptions{})
+
+	second := prepareRuntimeLayout(t, &RuntimeHarnessOptions{})
 
 	firstLoaded, err := aghconfig.LoadForHome(first.HomePaths)
 	if err != nil {

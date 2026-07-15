@@ -109,7 +109,6 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		ActiveGateID:                 string(run.ActiveGateID),
 		BudgetApprovalSeq:            run.BudgetApprovalSeq,
 		StartMetadata:                startMetadata,
-		ConsecutiveFailures:          run.ConsecutiveFailures,
 		IterationCap:                 run.IterationCap,
 		BudgetTokens:                 run.BudgetTokens,
 		BudgetWallSec:                run.BudgetWallSec,

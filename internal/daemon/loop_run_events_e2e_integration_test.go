@@ -36,7 +36,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		t.Parallel()
 		acpmock.RequireDriver(t)
 
-		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			MockAgents: []e2etest.MockAgentSpec{{
 				FixturePath:  mockFixturePath(t, "loop_events_fixture.json"),
 				FixtureAgent: "loop_events",
@@ -257,7 +257,7 @@ func startWatchEventsRuntimeHarness(
 	if opts.StartTimeout == 0 {
 		opts.StartTimeout = 30 * time.Second
 	}
-	return e2etest.StartRuntimeHarness(t, opts)
+	return e2etest.StartRuntimeHarness(t, &opts)
 }
 
 func seedWatchEventsLoopDefinition(t testing.TB, workspaceRoot string) {

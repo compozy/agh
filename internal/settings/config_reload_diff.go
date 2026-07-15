@@ -25,6 +25,9 @@ func reloadChangedPaths(current *aghconfig.Config, desired *aghconfig.Config) []
 	changed = append(changed, diffSkillsSettings(current.Skills, desired.Skills)...)
 	changed = append(changed, diffMemorySettings(&current.Memory, &desired.Memory)...)
 	changed = append(changed, diffAutomationSettings(current, automationSettingsFromConfig(desired))...)
+	if current.Automation.Suggestions.PendingCap != desired.Automation.Suggestions.PendingCap {
+		changed = append(changed, "automation.suggestions.pending_cap")
+	}
 	changed = append(changed, diffNetworkSettings(current.Network, desired.Network)...)
 	changed = append(changed, diffObservabilitySettings(current.Observability, desired.Observability)...)
 	changed = append(changed, diffExtensionsSettings(current.Extensions, desired.Extensions)...)

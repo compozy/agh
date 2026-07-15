@@ -41,10 +41,14 @@ export const sessionKeys = {
   transcript: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "transcript"] as const,
   goal: (workspace: string, id: string) => [...sessionKeys.detail(workspace, id), "goal"] as const,
+  clarifications: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "clarifications"] as const,
   recap: (workspace: string, id: string, limit?: number) =>
     [...sessionKeys.detail(workspace, id), "recap", limit ?? "default"] as const,
   ledger: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "ledger"] as const,
   usage: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "usage"] as const,
+  toolArtifact: (workspace: string, artifactURI: string) =>
+    [...sessionKeys.workspace(workspace), "tool-artifact", artifactURI] as const,
 };

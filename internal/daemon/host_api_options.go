@@ -30,6 +30,7 @@ func buildHostAPIOptions(
 		extensionpkg.WithHostAPISessionHealth(deps.SessionHealth),
 		extensionpkg.WithHostAPIHeartbeatWakeEvents(deps.WakeEvents),
 		extensionpkg.WithHostAPIMemoryProviderRegistry(deps.MemoryProviderRegistry),
+		extensionpkg.WithHostAPIClarify(deps.Clarify),
 	}
 	if usageStore, ok := deps.NetworkStore.(store.NetworkUsageStore); ok {
 		opts = append(opts, extensionpkg.WithHostAPINetworkUsageStore(usageStore))

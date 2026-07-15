@@ -8,6 +8,7 @@ import (
 type agentEventPayload struct {
 	clientMessageID string
 	toolName        string
+	toolKind        string
 	toolInput       json.RawMessage
 	toolErrorDetail string
 	toolFailed      bool
@@ -69,12 +70,29 @@ func (e AgentEvent) WithToolDetail(
 	return e
 }
 
+// WithToolKind returns an event carrying the normalized tool kind.
+func (e AgentEvent) WithToolKind(kind string) AgentEvent {
+	payload := e.clonePayload()
+	payload.toolKind = strings.TrimSpace(kind)
+	payload.hasTool = payload.hasTool || payload.toolKind != ""
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
 // ToolName returns the optional tool name.
 func (e AgentEvent) ToolName() string {
 	if e.payload == nil || !e.payload.hasTool {
 		return ""
 	}
 	return e.payload.toolName
+}
+
+// ToolKind returns the optional normalized tool kind.
+func (e AgentEvent) ToolKind() string {
+	if e.payload == nil || !e.payload.hasTool {
+		return ""
+	}
+	return e.payload.toolKind
 }
 
 // ToolInput returns an isolated copy of the optional tool input.

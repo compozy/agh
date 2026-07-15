@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -67,6 +68,19 @@ func TestSkillResourceCodecRejectsInvalidSpecs(t *testing.T) {
 				}},
 			},
 			wantErr: "skill.mcp_servers[0].command",
+		},
+		{
+			name: "blank activation gate value",
+			spec: SkillResourceSpec{
+				Name:        "review",
+				Description: "desc",
+				Source:      "user",
+				Enabled:     true,
+				ActivationGates: ActivationGates{
+					RequiresTools: []string{"agh__skill_view", "   "},
+				},
+			},
+			wantErr: "metadata.agh.when.requires_tools[1] is required",
 		},
 	}
 
@@ -136,6 +150,11 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 		"name: market-skill",
 		"description: Installed marketplace skill",
 		"version: 1.2.3",
+		"metadata:",
+		"  agh:",
+		"    when:",
+		"      platforms: [DARWIN, linux, darwin]",
+		"      requires_tools: [agh__skill_view]",
 		"---",
 		"Use this skill.",
 	}, "\n"))
@@ -204,6 +223,12 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 	}
 	if got, want := projected.MCPServers[0].SecretEnv["GITHUB_TOKEN"], "env:GITHUB_TOKEN"; got != want {
 		t.Fatalf("MCP secret env = %q, want %q", got, want)
+	}
+	if got, want := projected.ActivationGates.Platforms, []string{"darwin", "linux"}; !slices.Equal(got, want) {
+		t.Fatalf("ActivationGates.Platforms = %#v, want %#v", got, want)
+	}
+	if got, want := projected.ActivationGates.RequiresTools, []string{"agh__skill_view"}; !slices.Equal(got, want) {
+		t.Fatalf("ActivationGates.RequiresTools = %#v, want %#v", got, want)
 	}
 }
 

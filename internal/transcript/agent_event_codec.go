@@ -36,6 +36,7 @@ func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error
 		AuthoredText:      authoredText,
 		Title:             event.Title,
 		ToolName:          event.ToolName(),
+		ToolKind:          strings.TrimSpace(event.ToolKind()),
 		ToolCallID:        event.ToolCallID,
 		ToolInput:         event.ToolInput(),
 		ToolError:         event.ToolError(),
@@ -57,11 +58,14 @@ func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error
 		var rawPayload map[string]any
 		if err := json.Unmarshal(event.Raw, &rawPayload); err == nil {
 			if event.Type == acp.EventTypePermission ||
+				event.Type == acp.EventTypeClarify ||
+				event.Type == events.SessionCompactionFired ||
 				event.Type == events.TranscriptMarkerCreated ||
 				event.Type == events.TranscriptMarkerRedacted {
 				payload.Raw = acp.CloneRawMessage(event.Raw)
 			}
 			payload.ToolName = firstNonEmpty(payload.ToolName, legacyToolName(rawPayload))
+			payload.ToolKind = firstNonEmpty(payload.ToolKind, nestedString(rawPayload, "kind"))
 			payload.ToolInput = acp.CloneRawMessage(firstNonEmptyRaw(
 				payload.ToolInput,
 				rawMessageFromValue(rawPayload["rawInput"]),
@@ -146,7 +150,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		decoded.ToolInput,
 		decoded.ToolError,
 		toolErrorDetail,
-	)
+	).WithToolKind(decoded.ToolKind)
 	if decoded.AvailableCommands != nil || event.Type == acp.EventTypeAvailableCommands {
 		event.AvailableCommands = acp.NewAvailableCommandSet(decoded.AvailableCommands)
 	}

@@ -125,6 +125,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"workspace_id",
 		"status",
 		"attempt",
+		"recovery_count",
 		"previous_run_id",
 		"failure_kind",
 		"claimed_by_kind",

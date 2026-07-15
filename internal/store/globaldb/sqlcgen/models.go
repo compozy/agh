@@ -186,6 +186,17 @@ type AutomationSchedulerState struct {
 	UpdatedAt                 string         `json:"updated_at"`
 }
 
+type AutomationSuggestion struct {
+	ID          string         `json:"id"`
+	WorkspaceID string         `json:"workspace_id"`
+	Source      string         `json:"source"`
+	DedupKey    string         `json:"dedup_key"`
+	Status      string         `json:"status"`
+	Payload     string         `json:"payload"`
+	CreatedAt   string         `json:"created_at"`
+	ResolvedAt  sql.NullString `json:"resolved_at"`
+}
+
 type AutomationTrigger struct {
 	ID                       string         `json:"id"`
 	Scope                    string         `json:"scope"`
@@ -386,6 +397,14 @@ type ConfigApplyRecord struct {
 	CreatedAt         string         `json:"created_at"`
 	AppliedAt         sql.NullString `json:"applied_at"`
 	UpdatedAt         string         `json:"updated_at"`
+}
+
+type DeadEntity struct {
+	WorkspaceID string `json:"workspace_id"`
+	Kind        string `json:"kind"`
+	EntityID    string `json:"entity_id"`
+	Reason      string `json:"reason"`
+	MarkedAt    string `json:"marked_at"`
 }
 
 type EventSummary struct {
@@ -632,7 +651,6 @@ type LoopRun struct {
 	Generation               int64          `json:"generation"`
 	ReattemptStrategy        string         `json:"reattempt_strategy"`
 	LastProgressAt           time.Time      `json:"last_progress_at"`
-	ConsecutiveFailures      int64          `json:"consecutive_failures"`
 	BudgetTokens             int64          `json:"budget_tokens"`
 	BudgetWallSec            int64          `json:"budget_wall_sec"`
 	BudgetOnExceeded         string         `json:"budget_on_exceeded"`
@@ -758,33 +776,36 @@ type ModelCatalogReasoningEffort struct {
 }
 
 type ModelCatalogRow struct {
-	SourceID               string          `json:"source_id"`
-	ProviderID             string          `json:"provider_id"`
-	ModelID                string          `json:"model_id"`
-	SourceKind             string          `json:"source_kind"`
-	Priority               int64           `json:"priority"`
-	Available              sql.NullInt64   `json:"available"`
-	Stale                  int64           `json:"stale"`
-	RefreshedAt            string          `json:"refreshed_at"`
-	ExpiresAt              string          `json:"expires_at"`
-	DisplayName            string          `json:"display_name"`
-	ContextWindow          sql.NullInt64   `json:"context_window"`
-	MaxInputTokens         sql.NullInt64   `json:"max_input_tokens"`
-	MaxOutputTokens        sql.NullInt64   `json:"max_output_tokens"`
-	SupportsTools          sql.NullInt64   `json:"supports_tools"`
-	SupportsReasoning      sql.NullInt64   `json:"supports_reasoning"`
-	DefaultReasoningEffort sql.NullString  `json:"default_reasoning_effort"`
-	CostInputPerMillion    sql.NullFloat64 `json:"cost_input_per_million"`
-	CostOutputPerMillion   sql.NullFloat64 `json:"cost_output_per_million"`
-	LastError              string          `json:"last_error"`
-	Deprecated             int64           `json:"deprecated"`
-	Hidden                 int64           `json:"hidden"`
-	Featured               int64           `json:"featured"`
-	ReleaseDate            sql.NullString  `json:"release_date"`
-	ExplicitlyCurated      int64           `json:"explicitly_curated"`
-	DeprecatedSet          int64           `json:"deprecated_set"`
-	HiddenSet              int64           `json:"hidden_set"`
-	FeaturedSet            int64           `json:"featured_set"`
+	SourceID                 string          `json:"source_id"`
+	ProviderID               string          `json:"provider_id"`
+	ModelID                  string          `json:"model_id"`
+	SourceKind               string          `json:"source_kind"`
+	Priority                 int64           `json:"priority"`
+	Available                sql.NullInt64   `json:"available"`
+	Stale                    int64           `json:"stale"`
+	RefreshedAt              string          `json:"refreshed_at"`
+	ExpiresAt                string          `json:"expires_at"`
+	DisplayName              string          `json:"display_name"`
+	ContextWindow            sql.NullInt64   `json:"context_window"`
+	MaxInputTokens           sql.NullInt64   `json:"max_input_tokens"`
+	MaxOutputTokens          sql.NullInt64   `json:"max_output_tokens"`
+	SupportsTools            sql.NullInt64   `json:"supports_tools"`
+	SupportsReasoning        sql.NullInt64   `json:"supports_reasoning"`
+	DefaultReasoningEffort   sql.NullString  `json:"default_reasoning_effort"`
+	CostInputPerMillion      sql.NullFloat64 `json:"cost_input_per_million"`
+	CostOutputPerMillion     sql.NullFloat64 `json:"cost_output_per_million"`
+	CostCacheReadPerMillion  sql.NullFloat64 `json:"cost_cache_read_per_million"`
+	CostCacheWritePerMillion sql.NullFloat64 `json:"cost_cache_write_per_million"`
+	CostReasoningPerMillion  sql.NullFloat64 `json:"cost_reasoning_per_million"`
+	LastError                string          `json:"last_error"`
+	Deprecated               int64           `json:"deprecated"`
+	Hidden                   int64           `json:"hidden"`
+	Featured                 int64           `json:"featured"`
+	ReleaseDate              sql.NullString  `json:"release_date"`
+	ExplicitlyCurated        int64           `json:"explicitly_curated"`
+	DeprecatedSet            int64           `json:"deprecated_set"`
+	HiddenSet                int64           `json:"hidden_set"`
+	FeaturedSet              int64           `json:"featured_set"`
 }
 
 type ModelCatalogSource struct {
@@ -1431,6 +1452,7 @@ type TaskRun struct {
 	WorkspaceID             sql.NullString `json:"workspace_id"`
 	Status                  string         `json:"status"`
 	Attempt                 int64          `json:"attempt"`
+	RecoveryCount           int64          `json:"recovery_count"`
 	PreviousRunID           sql.NullString `json:"previous_run_id"`
 	FailureKind             string         `json:"failure_kind"`
 	ClaimedByKind           sql.NullString `json:"claimed_by_kind"`
@@ -1561,8 +1583,21 @@ type TokenStat struct {
 	TotalTokens  sql.NullInt64   `json:"total_tokens"`
 	TotalCost    sql.NullFloat64 `json:"total_cost"`
 	CostCurrency sql.NullString  `json:"cost_currency"`
+	CostStatus   string          `json:"cost_status"`
+	CostSource   string          `json:"cost_source"`
 	TurnCount    int64           `json:"turn_count"`
 	UpdatedAt    string          `json:"updated_at"`
+}
+
+type ToolApprovalGrant struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	AgentName   string `json:"agent_name"`
+	ToolID      string `json:"tool_id"`
+	InputDigest string `json:"input_digest"`
+	Decision    string `json:"decision"`
+	CreatedAt   string `json:"created_at"`
+	LastUsedAt  string `json:"last_used_at"`
 }
 
 type ToolProcess struct {

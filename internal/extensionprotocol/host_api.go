@@ -123,6 +123,7 @@ const (
 	HostAPIMethodBridgesMessagesIngest       HostAPIMethod = "bridges/messages/ingest"
 	HostAPIMethodBridgesInstancesGet         HostAPIMethod = "bridges/instances/get"
 	HostAPIMethodBridgesInstancesReportState HostAPIMethod = "bridges/instances/report_state"
+	HostAPIMethodClarifyAsk                  HostAPIMethod = "clarify/ask"
 )
 
 // AllHostAPIMethods returns the canonical Host API method registry in wire order.
@@ -137,6 +138,7 @@ func AllHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodBridgesMessagesIngest,
 		HostAPIMethodBridgesInstancesGet,
 		HostAPIMethodBridgesInstancesReportState,
+		HostAPIMethodClarifyAsk,
 	)
 	return methods
 }

@@ -12,6 +12,14 @@ const (
 	ToolIDToolSearch ToolID = "agh__tool_search"
 	// ToolIDToolInfo reads one tool descriptor and diagnostics view.
 	ToolIDToolInfo ToolID = "agh__tool_info"
+	// ToolIDToolApprovalsSet sets one explicit wider native-tool approval decision.
+	ToolIDToolApprovalsSet ToolID = "agh__tool_approvals_set"
+	// ToolIDToolApprovalsList lists durable native-tool approval decisions in one workspace.
+	ToolIDToolApprovalsList ToolID = "agh__tool_approvals_list"
+	// ToolIDToolApprovalsRevoke revokes one durable native-tool approval decision.
+	ToolIDToolApprovalsRevoke ToolID = "agh__tool_approvals_revoke"
+	// ToolIDClarify asks the user one bounded session-scoped question.
+	ToolIDClarify ToolID = "agh__clarify"
 	// ToolIDSkillList lists skills through the existing skill registry.
 	ToolIDSkillList ToolID = "agh__skill_list"
 	// ToolIDSkillSearch searches skills through the existing skill registry.
@@ -158,6 +166,8 @@ const (
 	ToolIDMemorySessionsRepair ToolID = "agh__memory_sessions_repair"
 	// ToolIDListLogs reads redacted runtime logs.
 	ToolIDListLogs ToolID = "agh__logs"
+	// ToolIDToolArtifactRead pages one retained oversized tool result.
+	ToolIDToolArtifactRead ToolID = "agh__tool_artifact_read"
 	// ToolIDObserveMetrics reads daemon observability health and metrics.
 	ToolIDObserveMetrics ToolID = "agh__observe_metrics"
 	// ToolIDObserveSearch searches redacted observability events.
@@ -326,6 +336,12 @@ const (
 	ToolIDAutomationRunsList ToolID = "agh__automation_runs_list"
 	// ToolIDAutomationRunsGet reads one automation run record through the automation manager.
 	ToolIDAutomationRunsGet ToolID = "agh__automation_runs_get"
+	// ToolIDAutomationSuggestionsList lists workspace-scoped automation suggestions.
+	ToolIDAutomationSuggestionsList ToolID = "agh__automation_suggestions_list"
+	// ToolIDAutomationSuggestionsAccept accepts one suggestion and creates its Job.
+	ToolIDAutomationSuggestionsAccept ToolID = "agh__automation_suggestions_accept"
+	// ToolIDAutomationSuggestionsDismiss durably dismisses one suggestion.
+	ToolIDAutomationSuggestionsDismiss ToolID = "agh__automation_suggestions_dismiss"
 	// ToolIDMarketplaceSearch searches the shared marketplace discovery plane.
 	ToolIDMarketplaceSearch ToolID = "agh__marketplace_search"
 	// ToolIDExtensionsList lists installed extensions through the extension registry.
@@ -369,6 +385,12 @@ const (
 	ToolsetIDBootstrap ToolsetID = "agh__bootstrap"
 	// ToolsetIDCatalog groups registry and skill catalog tools.
 	ToolsetIDCatalog ToolsetID = "agh__catalog"
+	// ToolsetIDToolArtifacts groups retained oversized result tools.
+	ToolsetIDToolArtifacts ToolsetID = "agh__tool_artifacts"
+	// ToolsetIDToolApprovals groups durable native-tool approval management tools.
+	ToolsetIDToolApprovals ToolsetID = "agh__tool_approvals"
+	// ToolsetIDClarify exposes the session-scoped human clarification tool.
+	ToolsetIDClarify ToolsetID = "agh__clarify"
 	// ToolsetIDCoordination groups network coordination tools.
 	ToolsetIDCoordination ToolsetID = "agh__coordination"
 	// ToolsetIDTasks groups bounded task tools.

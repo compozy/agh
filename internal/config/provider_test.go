@@ -1624,6 +1624,24 @@ default_reasoning_effort = " high "
 `,
 			wantErr: `providers.codex.models.curated[0].default_reasoning_effort`,
 		},
+		{
+			name: "Should reject a negative cache read rate",
+			config: `
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+cost_cache_read_per_million = -0.1
+`,
+			wantErr: `providers.codex.models.curated[0].cost_cache_read_per_million must be finite and non-negative`,
+		},
+		{
+			name: "Should reject a non-finite reasoning rate",
+			config: `
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+cost_reasoning_per_million = nan
+`,
+			wantErr: `providers.codex.models.curated[0].cost_reasoning_per_million must be finite and non-negative`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

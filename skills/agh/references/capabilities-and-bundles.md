@@ -128,7 +128,18 @@ These thresholds apply only to true convergence episodes. Compatible sessions th
 
 Loop observability is durable runtime state, not a transient UI stream. `loop_run_events` persists replayable workspace-scoped events for status changes, node running/terminal outcomes, gate verdicts, generation starts, channel messages, token ticks, and needs-approval pauses. Payloads are redacted and bounded before persistence; token ticks preserve only usage counters and terminal markers.
 
-Automation schedule catch-up policy is part of the public schedule contract. The accepted values are `skip`, `coalesce`, and `replay`. Loop targets with a `watch-source` default to `coalesce`; other scheduled Loop targets default to `skip`. Catch-up starts must carry structured automation-run metadata so agents can distinguish normal starts from replayed/coalesced starts and reason about `concurrency: forbid|queue` outcomes.
+Automation schedule catch-up policy is part of the public schedule contract. Recurring schedules accept `skip_missed`, `coalesce`, `replay`, and `run_once_on_catchup`; one-time `at` schedules reject catch-up fields. Omit the policy for the target-aware default: Loop targets with a `watch-source` use `coalesce`, while other scheduled targets use `skip_missed`. `misfire_grace_seconds=0` uses the daemon jitter grace. Durable canceled runs identify `misfire_grace_exceeded` and `self_overlap` under `metadata.reason`. Catch-up starts carry structured automation-run metadata so agents can distinguish normal starts from recovered starts and reason about `concurrency: forbid|queue` outcomes.
+
+`[session.compaction]` controls pressure-triggered checkpoint coverage and replay archiving. Defaults
+are `enabled = true`, `pressure_threshold = 0.85`, `max_attempts_per_turn = 1`, and
+`failure_cooldown = "10m"`; threshold zero disables admission. All paths are available through
+`agh config set` and the native config tools, are restart-required under the canonical `session.*`
+lifecycle rule, and do not mutate the policy bound to the running daemon.
+
+`session.auto_title_enabled` defaults to `true` and gates the daemon-owned title pass for unnamed
+user sessions after their first persisted assistant response. It is agent-mutable through the same
+config surfaces and restart-required under the canonical `session.*` lifecycle rule. Explicit names
+win; disabled or failed generation leaves the session unnamed.
 
 ## Settings Apply Lifecycle
 

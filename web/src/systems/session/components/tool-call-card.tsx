@@ -9,6 +9,7 @@ import {
 } from "../lib/tool-labels";
 import type { UIMessage } from "../types";
 import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
+import { ToolResultArtifact } from "./tool-result-artifact";
 
 export interface SessionToolCallRowProps {
   message: UIMessage;
@@ -97,7 +98,8 @@ export function SessionToolCallRow({
     typeof message.toolResult?.error === "string" ? message.toolResult.error : undefined;
   const errorMessage = status === "failed" ? errorText : undefined;
   const showGenericInput = !isSpecialized && Boolean(inputJson);
-  const showExpandedBody = isSpecialized || hasOutput;
+  const showArtifactResult = message.toolResult?.truncated === true;
+  const showExpandedBody = showArtifactResult || isSpecialized || hasOutput;
   const copyAction = (
     <CopyIconButton
       value={copyPayload}
@@ -127,7 +129,11 @@ export function SessionToolCallRow({
         ) : null}
         {showExpandedBody ? (
           <ToolCallRow.Output>
-            <ExpandedToolContent message={message} />
+            {showArtifactResult && message.toolResult ? (
+              <ToolResultArtifact result={message.toolResult} />
+            ) : (
+              <ExpandedToolContent message={message} />
+            )}
           </ToolCallRow.Output>
         ) : null}
       </ToolCallRow>

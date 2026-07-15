@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 
 import { CenteredSurface } from "@/storybook/story-layout";
-import { automationRunFixtures } from "@/systems/automation/mocks";
+import { automationRunFixtures, automationRunSkipFixtures } from "@/systems/automation/mocks";
 
 import { AutomationRunHistory } from "../automation-run-history";
 
@@ -49,6 +49,18 @@ export const WholeRowLinkAffordance: Story = {
     await expect(chevron).not.toBeNull();
     await expect(chevron).toHaveAttribute("aria-hidden", "true");
   },
+};
+
+/** Canceled runs the scheduler recorded as durable skips, each explaining why the fire was dropped. */
+export const SkipReasons: Story = {
+  args: {},
+  render: () => (
+    <CenteredSurface>
+      <div className="w-full max-w-3xl">
+        <AutomationRunHistory error={null} isLoading={false} runs={automationRunSkipFixtures} />
+      </div>
+    </CenteredSurface>
+  ),
 };
 
 export const Empty: Story = {

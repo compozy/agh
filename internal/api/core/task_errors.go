@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/compozy/agh/internal/admission"
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -26,6 +27,8 @@ func StatusForTaskError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
+	case errors.Is(err, admission.ErrDraining):
+		return http.StatusServiceUnavailable
 	case errors.Is(err, taskpkg.ErrValidation),
 		errors.Is(err, taskpkg.ErrInvalidScopeBinding),
 		errors.Is(err, taskpkg.ErrImmutableField):
@@ -78,7 +81,8 @@ func StatusForTaskError(err error) int {
 		errors.Is(err, taskpkg.ErrNoClaimableRun),
 		errors.Is(err, taskpkg.ErrInvalidClaimToken),
 		errors.Is(err, taskpkg.ErrLeaseExpired),
-		errors.Is(err, taskpkg.ErrActiveRunLease):
+		errors.Is(err, taskpkg.ErrActiveRunLease),
+		errors.Is(err, taskpkg.ErrWorkspaceActiveRunCapReached):
 		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError

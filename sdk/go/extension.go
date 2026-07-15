@@ -30,31 +30,10 @@ type ExtensionContext struct {
 // ExtensionHandler handles one custom AGH -> extension service request.
 type ExtensionHandler func(context.Context, ExtensionContext, json.RawMessage) (any, error)
 
-// ToolRequest is passed to a typed tool handler.
-type ToolRequest[TInput any] struct {
-	Input    TInput
-	RawInput json.RawMessage
-	Context  ExtensionContext
-	Host     *HostAPI
-	Session  ExtensionSession
-	ToolID   ToolID
-	Handler  string
-}
-
-// ToolHandlerFunc handles one typed tool request.
-type ToolHandlerFunc[TInput any] func(context.Context, ToolRequest[TInput]) (ToolResult, error)
-
 type registeredTool struct {
 	descriptor           ExtensionToolRuntimeDescriptor
 	handler              func(context.Context, rawToolRequest) (ToolResult, error)
 	sensitiveInputFields []string
-}
-
-type rawToolRequest struct {
-	input   json.RawMessage
-	context ExtensionContext
-	toolID  ToolID
-	handler string
 }
 
 // Extension is a subprocess-hosted AGH extension runtime.
@@ -199,13 +178,14 @@ func Tool[TInput any](
 			})
 		}
 		return fn(ctx, ToolRequest[TInput]{
-			Input:    input,
-			RawInput: cloneRawMessage(rawInput),
-			Context:  req.context,
-			Host:     req.context.Host,
-			Session:  req.context.Session,
-			ToolID:   req.toolID,
-			Handler:  req.handler,
+			Input:        input,
+			RawInput:     cloneRawMessage(rawInput),
+			Context:      req.context,
+			Host:         req.context.Host,
+			Session:      req.context.Session,
+			ToolID:       req.toolID,
+			Handler:      req.handler,
+			invocationID: req.invocationID,
 		})
 	})
 }
@@ -598,10 +578,11 @@ func (e *Extension) handleToolCall(
 	}
 	contextValue := e.makeContext(request)
 	result, err := registered.handler(ctx, rawToolRequest{
-		input:   cloneRawMessage(call.Input),
-		context: contextValue,
-		toolID:  call.ToolID,
-		handler: call.Handler,
+		input:        cloneRawMessage(call.Input),
+		context:      contextValue,
+		toolID:       call.ToolID,
+		handler:      call.Handler,
+		invocationID: strings.TrimSpace(call.InvocationID),
 	})
 	if err != nil {
 		if rpcErr := ensureRPCErrorIfTyped(err); rpcErr != nil {

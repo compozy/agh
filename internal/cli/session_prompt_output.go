@@ -57,7 +57,7 @@ func goalCommandRows(result contract.GoalCommandResult) []keyValue {
 			keyValue{Label: sessionStatusValue, Value: string(result.Snapshot.Status)},
 			keyValue{Label: "Objective", Value: result.Snapshot.Objective},
 			keyValue{
-				Label: "Turns",
+				Label: cliTurnsValue,
 				Value: fmt.Sprintf("%d/%d", result.Snapshot.TurnsUsed, result.Snapshot.TurnLimit),
 			},
 		)

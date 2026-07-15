@@ -1,5 +1,36 @@
 import type { SessionEventPayload, SessionMessage } from "../types";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * True when any applied transcript entry carries a `clarify` `data-agh-event` part. Used as the wake
+ * signal to invalidate the live clarifications projection — the transcript event is evidence only;
+ * pending truth is always reread from the exact-authority GET.
+ */
+export function entriesContainClarifyEvent(entries: readonly unknown[] | undefined): boolean {
+  if (!entries) {
+    return false;
+  }
+  for (const entry of entries) {
+    if (!isRecord(entry) || !isRecord(entry.message) || !Array.isArray(entry.message.parts)) {
+      continue;
+    }
+    for (const part of entry.message.parts) {
+      if (
+        isRecord(part) &&
+        part.type === "data-agh-event" &&
+        isRecord(part.data) &&
+        part.data.type === "clarify"
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function numberFromEventID(value: unknown): number | null {
   if (typeof value !== "string") {
     return null;

@@ -46,6 +46,19 @@ function buildRun(overrides: Partial<TaskRunDetailView["run"]> = {}): TaskRunDet
   } as unknown as TaskRunDetailView;
 }
 
+function runWithCost(cost: {
+  cost_status?: "actual" | "estimated" | "included" | "unknown";
+  cost_source?: "agent_reported" | "catalog_config" | "models_dev" | "builtin" | "none";
+  total_cost?: number | null;
+  cost_currency?: string;
+}): TaskRunDetailView {
+  const base = buildRun();
+  return {
+    ...base,
+    summary: { ...base.summary, ...cost },
+  } as unknown as TaskRunDetailView;
+}
+
 describe("TaskRunDetailHeader", () => {
   it("renders title and run meta", () => {
     renderWithTopbar(<TaskRunDetailHeader run={buildRun()} />);
@@ -216,5 +229,66 @@ describe("TaskRunDetailHeader", () => {
     );
 
     expect(screen.queryByTestId("task-run-detail-recover")).not.toBeInTheDocument();
+  });
+});
+
+describe("TaskRunDetailHeader — cost provenance (W4)", () => {
+  it("renders actual cost as measured spend with source and no estimate glyph", () => {
+    renderWithTopbar(
+      <TaskRunDetailHeader
+        run={runWithCost({
+          cost_status: "actual",
+          cost_source: "agent_reported",
+          total_cost: 0.18,
+          cost_currency: "USD",
+        })}
+      />
+    );
+    const cost = screen.getByTestId("task-run-detail-cost");
+    expect(cost).toHaveTextContent("$0.18");
+    expect(cost).not.toHaveTextContent("≈");
+    expect(cost).toHaveTextContent("Reported by agent");
+  });
+
+  it("marks estimated cost with the ≈ cue and source, never as measured spend", () => {
+    renderWithTopbar(
+      <TaskRunDetailHeader
+        run={runWithCost({
+          cost_status: "estimated",
+          cost_source: "catalog_config",
+          total_cost: 0.18,
+          cost_currency: "USD",
+        })}
+      />
+    );
+    const cost = screen.getByTestId("task-run-detail-cost");
+    expect(cost).toHaveTextContent("≈");
+    expect(cost).toHaveTextContent("Est. cost");
+    expect(cost).toHaveTextContent("Catalog rate");
+  });
+
+  it("renders included usage with no monetary amount", () => {
+    renderWithTopbar(
+      <TaskRunDetailHeader
+        run={runWithCost({ cost_status: "included", cost_source: "none", total_cost: null })}
+      />
+    );
+    const cost = screen.getByTestId("task-run-detail-cost");
+    expect(cost).toHaveTextContent("Included");
+    expect(cost).not.toHaveTextContent("$");
+  });
+
+  it("renders unknown cost with no monetary amount", () => {
+    renderWithTopbar(
+      <TaskRunDetailHeader run={runWithCost({ cost_status: "unknown", total_cost: null })} />
+    );
+    const cost = screen.getByTestId("task-run-detail-cost");
+    expect(cost).toHaveTextContent("Unavailable");
+    expect(cost).not.toHaveTextContent("$");
+  });
+
+  it("omits the cost entry when the summary reports no cost provenance", () => {
+    renderWithTopbar(<TaskRunDetailHeader run={buildRun()} />);
+    expect(screen.queryByTestId("task-run-detail-cost")).not.toBeInTheDocument();
   });
 });

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/admission"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/diagnosticcontract"
 	"github.com/compozy/agh/internal/diagnostics"
@@ -161,6 +162,8 @@ func statusForSessionError(err error) int {
 	switch {
 	case errors.Is(err, context.Canceled):
 		return statusClientClosedRequest
+	case errors.Is(err, admission.ErrDraining):
+		return http.StatusServiceUnavailable
 	case errors.Is(err, session.ErrSessionNotFound),
 		errors.Is(err, store.ErrSessionNotFound),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotFound),

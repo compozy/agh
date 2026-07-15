@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/compozy/agh/internal/modelcatalog"
@@ -122,6 +123,9 @@ func listModelCatalogRows(
 			default_reasoning_effort,
 			cost_input_per_million,
 			cost_output_per_million,
+			cost_cache_read_per_million,
+			cost_cache_write_per_million,
+			cost_reasoning_per_million,
 			explicitly_curated,
 			deprecated,
 			hidden,
@@ -357,6 +361,9 @@ func normalizeModelCatalogRow(
 	}
 	normalized.DisplayName = strings.TrimSpace(normalized.DisplayName)
 	normalized.LastError = strings.TrimSpace(normalized.LastError)
+	if err := validateModelCatalogRates(normalized); err != nil {
+		return modelcatalog.ModelRow{}, err
+	}
 	if normalized.ReleaseDate != nil {
 		releaseDate, err := modelcatalog.NormalizeReleaseDate(*normalized.ReleaseDate)
 		if err != nil {
@@ -386,6 +393,24 @@ func normalizeModelCatalogRow(
 		normalized.ReasoningEfforts[index] = trimmed
 	}
 	return normalized, nil
+}
+
+func validateModelCatalogRates(row modelcatalog.ModelRow) error {
+	for _, rate := range []struct {
+		name  string
+		value *float64
+	}{
+		{name: "cost input per million", value: row.CostInputPerMillion},
+		{name: "cost output per million", value: row.CostOutputPerMillion},
+		{name: "cost cache read per million", value: row.CostCacheReadPerMillion},
+		{name: "cost cache write per million", value: row.CostCacheWritePerMillion},
+		{name: "cost reasoning per million", value: row.CostReasoningPerMillion},
+	} {
+		if rate.value != nil && (math.IsNaN(*rate.value) || math.IsInf(*rate.value, 0) || *rate.value < 0) {
+			return fmt.Errorf("%s must be finite and non-negative", rate.name)
+		}
+	}
+	return nil
 }
 
 func requireModelCatalogValue(value string, field string) (string, error) {

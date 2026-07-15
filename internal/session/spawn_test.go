@@ -169,7 +169,6 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			t.Fatalf("child prompt overlay was not appended to start prompt: %#v", h.driver.startCalls)
 		}
 	})
-
 	t.Run("Should keep children local by default and enforce their delegated channel scope", func(t *testing.T) {
 		t.Parallel()
 
@@ -253,6 +252,57 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		}
 		if got := len(h.manager.List()); got != activeBefore {
 			t.Fatalf("active sessions after denial = %d, want %d", got, activeBefore)
+		}
+	})
+
+	t.Run("Should keep an automatic-title child off collaboration channels", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithParticipationResolver(newTestSessionParticipationResolver(t, true)))
+		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:                    "coder",
+			Workspace:                    h.workspaceID,
+			ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
+			Lineage: &store.SessionLineage{
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 1, MaxDepth: 1},
+				PermissionPolicy: store.SessionPermissionPolicy{
+					NetworkChannels: []string{"builders"},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, parent.ID)
+
+		live := participation.ModeLive
+		named := participation.StrategyNamed
+		builders := "builders"
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			NetworkParticipation: &participation.Request{
+				Mode:            &live,
+				ChannelStrategy: &named,
+				ChannelID:       &builders,
+			},
+			SpawnRole:        SpawnRoleAutoTitle,
+			TTL:              time.Minute,
+			AutoStopOnParent: true,
+			PermissionPolicy: store.SessionPermissionPolicy{
+				NetworkChannels: []string{"builders"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+
+		if got, want := child.Info().NetworkParticipation, participation.LocalSpec(); got != want {
+			t.Fatalf("child participation = %#v, want %#v", got, want)
+		}
+		if got, want := readMeta(t, child.MetaPath()).NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
+			t.Fatalf("persisted child participation = %#v, want %#v", got, want)
 		}
 	})
 }

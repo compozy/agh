@@ -6,14 +6,17 @@ import (
 
 	"github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/doctor"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/store"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type handlerConfig struct {
 	sessions           core.SessionManager
+	drainController    core.DaemonDrainController
 	sessionCatalog     core.SessionCatalog
 	tasks              core.TaskService
 	network            core.NetworkService
@@ -30,8 +33,11 @@ type handlerConfig struct {
 	bundles            core.BundleService
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
+	toolArtifacts      toolspkg.ToolArtifactStore
 	toolsets           core.ToolsetRegistry
 	toolApprovals      core.ToolApprovalIssuer
+	approvalGrants     core.ToolApprovalGrantService
+	clarify            toolspkg.ClarifyBroker
 	settings           core.SettingsService
 	settingsRestart    core.SettingsRestartController
 	settingsUpdate     core.SettingsUpdateController
@@ -60,6 +66,8 @@ type handlerConfig struct {
 	memoryExtractor    core.MemoryExtractorService
 	memoryProviders    core.MemoryProviderService
 	memoryLedger       core.MemorySessionLedgerService
+	runtimeMemory      doctor.RuntimeMemorySnapshotSource
+	deadEntities       doctor.DeadEntitySource
 	homePaths          aghconfig.HomePaths
 	config             aghconfig.Config
 	logger             *slog.Logger
@@ -69,4 +77,5 @@ type handlerConfig struct {
 	agentLoader        core.AgentLoader
 	extensions         ExtensionService
 	hostedMCP          *mcppkg.HostedService
+	mcpHostAPI         mcppkg.HostAPIInvoker
 }

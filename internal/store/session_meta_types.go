@@ -34,6 +34,7 @@ type SessionMeta struct {
 	ReasoningEffort      string                     `json:"reasoning_effort,omitempty"`
 	EffectivePermissions string                     `json:"effective_permissions,omitempty"`
 	WorkspaceID          string                     `json:"workspace_id,omitempty"`
+	CWD                  string                     `json:"cwd,omitempty"`
 	NetworkParticipation *participation.Spec        `json:"network_participation"`
 	SessionType          string                     `json:"session_type,omitempty"`
 	Lineage              *SessionLineage            `json:"lineage,omitempty"`

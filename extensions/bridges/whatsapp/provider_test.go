@@ -1372,14 +1372,15 @@ func TestClassifyWhatsAppHTTPError(t *testing.T) {
 		t.Fatalf("classifyWhatsAppHTTPError(auth) = %T, want *AuthError", auth)
 	}
 
-	transient := classifyWhatsAppHTTPError(
+	serverErr := classifyWhatsAppHTTPError(
 		http.StatusBadGateway,
 		"",
 		[]byte(`{"error":{"message":"upstream failed","code":2}}`),
 	)
-	var transientErr *bridgesdk.TransientError
-	if !errors.As(transient, &transientErr) {
-		t.Fatalf("classifyWhatsAppHTTPError(transient) = %T, want *TransientError", transient)
+	var serverHTTPError *bridgesdk.HTTPError
+	if !errors.As(serverErr, &serverHTTPError) ||
+		bridgesdk.ClassifyError(serverErr).Class != bridgesdk.ErrorClassServerError {
+		t.Fatalf("classifyWhatsAppHTTPError(502) = %#v, want server_error HTTPError", serverErr)
 	}
 
 	permanent := classifyWhatsAppHTTPError(
@@ -2400,6 +2401,59 @@ func TestWhatsAppGraphClientMethods(t *testing.T) {
 		}
 	})
 
+	t.Run("Should continue a recoverable send when retry-state reporting fails", func(t *testing.T) {
+		t.Parallel()
+
+		var attempts atomic.Int32
+		var reportFailures atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if attempts.Add(1) == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				if _, err := w.Write([]byte(`{"error":{"message":"temporary outage","code":2}}`)); err != nil {
+					t.Errorf("write transient WhatsApp response: %v", err)
+				}
+				return
+			}
+			if _, err := w.Write([]byte(`{"messages":[{"id":"wamid.recovered"}]}`)); err != nil {
+				t.Errorf("write recovered WhatsApp response: %v", err)
+			}
+		}))
+		defer server.Close()
+
+		client := &whatsappGraphClient{
+			baseURL:     server.URL,
+			apiVersion:  "v99.0",
+			accessToken: "access-token",
+			httpClient:  server.Client(),
+			reportRetry: func(context.Context, bridgesdk.RetryAttempt) error {
+				return errors.New("host api temporarily unavailable")
+			},
+			reportRetryFailure: func(error) {
+				reportFailures.Add(1)
+			},
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		defer cancel()
+		response, err := sendWhatsAppDeliveryMessage(
+			ctx,
+			client,
+			"123456789",
+			whatsappSendMessageRequest{MessagingProduct: "whatsapp", To: "15551234567", Type: "text"},
+		)
+		if err != nil {
+			t.Fatalf("sendWhatsAppDeliveryMessage() error = %v", err)
+		}
+		if got, want := response.Messages[0].ID, "wamid.recovered"; got != want {
+			t.Fatalf("message id = %q, want %q", got, want)
+		}
+		if got, want := attempts.Load(), int32(2); got != want {
+			t.Fatalf("send attempts = %d, want %d", got, want)
+		}
+		if got, want := reportFailures.Load(), int32(1); got != want {
+			t.Fatalf("retry report failures = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should preserve auth classification when the error body read fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -2598,6 +2652,12 @@ func (f *whatsappDeliveryResponseAPI) GetPhoneNumber(
 	return &whatsappPhoneNumber{ID: "123456789"}, nil
 }
 
+func (f *whatsappDeliveryResponseAPI) ReportRetry(
+	context.Context,
+	bridgesdk.RetryAttempt,
+) {
+}
+
 func (f *whatsappDeliveryResponseAPI) SendTextMessage(
 	_ context.Context,
 	_ string,
@@ -2610,6 +2670,8 @@ func (f *whatsappDeliveryResponseAPI) SendTextMessage(
 func (f *fakeWhatsAppAPI) GetPhoneNumber(context.Context, string) (*whatsappPhoneNumber, error) {
 	return &whatsappPhoneNumber{ID: "123456789"}, nil
 }
+
+func (f *fakeWhatsAppAPI) ReportRetry(context.Context, bridgesdk.RetryAttempt) {}
 
 func (f *fakeWhatsAppAPI) SendTextMessage(
 	_ context.Context,
@@ -2673,6 +2735,8 @@ func (f fakeWhatsAppAPIError) GetPhoneNumber(
 ) (*whatsappPhoneNumber, error) {
 	return nil, f.err
 }
+
+func (fakeWhatsAppAPIError) ReportRetry(context.Context, bridgesdk.RetryAttempt) {}
 
 func (f fakeWhatsAppAPIError) SendTextMessage(
 	context.Context,

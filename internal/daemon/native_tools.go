@@ -18,8 +18,6 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/heartbeat"
-	mcppkg "github.com/compozy/agh/internal/mcp"
-	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	memorypkg "github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/network"
@@ -31,7 +29,6 @@ import (
 	toolspkg "github.com/compozy/agh/internal/tools"
 	builtintools "github.com/compozy/agh/internal/tools/builtin"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
-	"github.com/goccy/go-yaml"
 )
 
 const (
@@ -107,86 +104,6 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 	return toolspkg.NewNativeProvider(builtintools.Source(), nativeTools...)
 }
 
-func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
-	if state == nil {
-		return errors.New("daemon: tool registry state is required")
-	}
-	if state.mcpServerCatalog == nil {
-		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
-	}
-	var registry *toolspkg.RuntimeRegistry
-	var mcpAuth toolspkg.MCPAuthStatusProvider
-	deps := d.nativeToolsDeps(state, func() toolspkg.Registry {
-		return registry
-	})
-	deps.MCPAuth = func() toolspkg.MCPAuthStatusProvider {
-		return mcpAuth
-	}
-	provider, err := newDaemonNativeProvider(&deps)
-	if err != nil {
-		return fmt.Errorf("daemon: create native tool provider: %w", err)
-	}
-	approvalTokens := toolspkg.NewApprovalTokenStore(state.cfg.Tools.Policy.ApprovalTimeout())
-	var approvalBridge *toolApprovalBridge
-	if _, ok := state.sessions.(sessionPermissionRequester); ok {
-		approvalBridge = newToolApprovalBridge(
-			func() sessionPermissionRequester {
-				requester, ok := state.sessions.(sessionPermissionRequester)
-				if !ok {
-					return nil
-				}
-				return requester
-			},
-			state.cfg.Tools.Policy.ApprovalTimeout(),
-			approvalTokens,
-		)
-	} else {
-		approvalBridge = newToolApprovalBridge(nil, state.cfg.Tools.Policy.ApprovalTimeout(), approvalTokens)
-	}
-	toolsets, err := builtintools.ToolsetCatalog()
-	if err != nil {
-		return fmt.Errorf("daemon: build native toolset catalog: %w", err)
-	}
-	policyResolver, err := newNativeToolPolicyResolverForBoot(state)
-	if err != nil {
-		return fmt.Errorf("daemon: build native tool policy resolver: %w", err)
-	}
-	providers := []toolspkg.Provider{provider}
-	extensionProvider, err := newDaemonExtensionToolProvider(state)
-	if err != nil {
-		return fmt.Errorf("daemon: create extension tool provider: %w", err)
-	}
-	if extensionProvider != nil {
-		providers = append(providers, extensionProvider)
-	}
-	mcpProvider, mcpAuthProvider, err := d.newDaemonMCPToolProvider(state)
-	if err != nil {
-		return fmt.Errorf("daemon: create mcp tool provider: %w", err)
-	}
-	mcpAuth = mcpAuthProvider
-	if mcpProvider != nil {
-		providers = append(providers, mcpProvider)
-	}
-	registryOptions := []toolspkg.RegistryOption{
-		toolspkg.WithProviders(providers...),
-		toolspkg.WithPolicyInputResolver(policyResolver, toolsets),
-		toolspkg.WithApprovalBridge(approvalBridge),
-		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
-	}
-	registryOptions = appendToolEventSinkOption(registryOptions, state.registry, d.now)
-	registry, err = toolspkg.NewRegistry(registryOptions...)
-	if err != nil {
-		return fmt.Errorf("daemon: create tool registry: %w", err)
-	}
-	state.toolRegistry = registry
-	state.toolsets = registry
-	state.toolApprovals = approvalTokens
-	state.deps.ToolRegistry = registry
-	state.deps.Toolsets = registry
-	state.deps.ToolApprovals = approvalTokens
-	return nil
-}
-
 func appendToolEventSinkOption(
 	options []toolspkg.RegistryOption,
 	registry Registry,
@@ -200,44 +117,6 @@ func appendToolEventSinkOption(
 		writer: writer,
 		now:    now,
 	}))
-}
-
-func (d *Daemon) newDaemonMCPToolProvider(
-	state *bootState,
-) (toolspkg.Provider, toolspkg.MCPAuthStatusProvider, error) {
-	if state == nil {
-		return nil, nil, nil
-	}
-	resolver := newDaemonMCPServerResolver(state)
-	options := []mcppkg.CallExecutorOption{}
-	if d != nil && d.getenv != nil {
-		options = append(options, mcppkg.WithSecretLookup(d.getenv))
-	}
-	if state.providerVault != nil {
-		options = append(options, mcppkg.WithSecretResolver(state.providerVault))
-	}
-	if store, ok := state.registry.(mcpauth.TokenStore); ok {
-		options = append(
-			options,
-			mcppkg.WithTokenStore(store),
-			mcppkg.WithAuthMutationGeneration(state.mcpAuthGeneration),
-		)
-	}
-	executor, err := mcppkg.NewMCPCallExecutor(resolver, options...)
-	if err != nil {
-		return nil, nil, err
-	}
-	provider, err := toolspkg.NewMCPProvider(
-		toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) {
-			return daemonMCPSources(state), nil
-		}),
-		executor,
-		executor,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	return provider, executor, nil
 }
 
 func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error) {
@@ -266,161 +145,6 @@ func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error)
 		return nil, err
 	}
 	return newDaemonScopedExtensionToolProvider(provider, state.workspaceResolver), nil
-}
-
-type nativeToolAvailabilitySet struct {
-	registry            toolspkg.NativeAvailabilityFunc
-	skills              toolspkg.NativeAvailabilityFunc
-	network             toolspkg.NativeAvailabilityFunc
-	networkRead         toolspkg.NativeAvailabilityFunc
-	networkUsage        toolspkg.NativeAvailabilityFunc
-	sessions            toolspkg.NativeAvailabilityFunc
-	sessionCatalog      toolspkg.NativeAvailabilityFunc
-	sessionHealth       toolspkg.NativeAvailabilityFunc
-	heartbeatStatus     toolspkg.NativeAvailabilityFunc
-	heartbeatWake       toolspkg.NativeAvailabilityFunc
-	workspaces          toolspkg.NativeAvailabilityFunc
-	workspaceDetails    toolspkg.NativeAvailabilityFunc
-	agentCreate         toolspkg.NativeAvailabilityFunc
-	tasks               toolspkg.NativeAvailabilityFunc
-	taskNotifications   toolspkg.NativeAvailabilityFunc
-	memory              toolspkg.NativeAvailabilityFunc
-	memoryAdminStore    toolspkg.NativeAvailabilityFunc
-	memoryExtractor     toolspkg.NativeAvailabilityFunc
-	memoryProviders     toolspkg.NativeAvailabilityFunc
-	memorySessionLedger toolspkg.NativeAvailabilityFunc
-	observe             toolspkg.NativeAvailabilityFunc
-	bridges             toolspkg.NativeAvailabilityFunc
-	config              toolspkg.NativeAvailabilityFunc
-	hookRead            toolspkg.NativeAvailabilityFunc
-	hookMutation        toolspkg.NativeAvailabilityFunc
-	automation          toolspkg.NativeAvailabilityFunc
-	loops               toolspkg.NativeAvailabilityFunc
-	extensions          toolspkg.NativeAvailabilityFunc
-	marketplace         toolspkg.NativeAvailabilityFunc
-	bundles             toolspkg.NativeAvailabilityFunc
-	resources           toolspkg.NativeAvailabilityFunc
-	mcpAuth             toolspkg.NativeAvailabilityFunc
-}
-
-func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
-	availability := n.nativeToolAvailability()
-	bindings := make(map[toolspkg.ToolID]nativeToolBinding, 32)
-	addNativeToolBindings(bindings, n.registryToolBindings(availability.registry))
-	addNativeToolBindings(bindings, n.skillToolBindings(availability.skills))
-	addNativeToolBindings(
-		bindings,
-		n.networkToolBindings(availability.network, availability.networkRead, availability.networkUsage),
-	)
-	addNativeToolBindings(bindings, n.sessionToolBindings(availability.sessions, availability.sessionCatalog))
-	addNativeToolBindings(
-		bindings,
-		n.authoredContextToolBindings(
-			availability.sessionHealth,
-			availability.heartbeatStatus,
-			availability.heartbeatWake,
-		),
-	)
-	addNativeToolBindings(
-		bindings,
-		n.workspaceToolBindings(availability.workspaces, availability.workspaceDetails, availability.agentCreate),
-	)
-	addNativeToolBindings(bindings, n.providerModelToolBindings(
-		n.providerModelReadAvailability(),
-		n.providerModelMutationAvailability(),
-	))
-	addNativeToolBindings(bindings, n.memoryToolBindings(availability.memory))
-	addNativeToolBindings(bindings, n.memoryAdminToolBindings(memoryAdminAvailabilitySet{
-		store:         availability.memoryAdminStore,
-		extractor:     availability.memoryExtractor,
-		providers:     availability.memoryProviders,
-		sessionLedger: availability.memorySessionLedger,
-	}))
-	addNativeToolBindings(bindings, n.observeToolBindings(availability.observe))
-	addNativeToolBindings(bindings, n.bridgeToolBindings(availability.bridges))
-	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks, availability.taskNotifications))
-	addNativeToolBindings(bindings, n.autonomyToolBindings(availability.tasks))
-	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
-	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
-	addNativeToolBindings(bindings, n.loopToolBindings(availability.loops))
-	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
-	addNativeToolBindings(bindings, n.marketplaceToolBindings(availability.marketplace))
-	addNativeToolBindings(bindings, n.extensionToolBindings(availability.extensions))
-	addNativeToolBindings(bindings, n.bundleToolBindings(availability.bundles))
-	addNativeToolBindings(bindings, n.resourceToolBindings(availability.resources))
-	addNativeToolBindings(bindings, n.mcpAuthToolBindings(availability.mcpAuth))
-	return bindings
-}
-
-func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
-	configReady := func() bool {
-		return strings.TrimSpace(n.deps.HomePaths.ConfigFile) != ""
-	}
-	return nativeToolAvailabilitySet{
-		registry: n.registryAvailability(),
-		skills:   n.dependencyAvailability(func() bool { return n.deps.Skills != nil }),
-		network:  n.networkParticipationAvailability(func() bool { return n.deps.Network != nil }),
-		networkRead: n.networkParticipationAvailability(func() bool {
-			return n.deps.Network != nil && n.deps.NetworkStore != nil
-		}),
-		networkUsage: n.networkParticipationAvailability(func() bool {
-			return n.deps.Network != nil && n.deps.NetworkUsage != nil
-		}),
-		sessions: n.dependencyAvailability(func() bool { return n.deps.Sessions != nil }),
-		sessionCatalog: n.dependencyAvailability(func() bool {
-			_, ok := n.deps.Sessions.(core.SessionPageManager)
-			return ok
-		}),
-		sessionHealth: n.dependencyAvailability(func() bool {
-			return n.deps.SessionHealth != nil
-		}),
-		heartbeatStatus: n.dependencyAvailability(func() bool {
-			return n.deps.HeartbeatStatus != nil && n.deps.WorkspaceResolver != nil
-		}),
-		heartbeatWake: n.dependencyAvailability(func() bool {
-			return n.deps.HeartbeatWake != nil && n.deps.WorkspaceResolver != nil
-		}),
-		workspaces: n.dependencyAvailability(func() bool {
-			return n.deps.Workspaces != nil
-		}),
-		workspaceDetails: n.dependencyAvailability(func() bool {
-			return n.deps.Workspaces != nil && n.deps.Sessions != nil
-		}),
-		agentCreate: n.dependencyAvailability(func() bool {
-			return n.deps.Workspaces != nil && strings.TrimSpace(n.deps.HomePaths.AgentsDir) != ""
-		}),
-		taskNotifications: n.dependencyAvailability(func() bool {
-			return n.deps.Tasks != nil && n.deps.Bridges != nil
-		}),
-		memory:           n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil }),
-		memoryAdminStore: n.dependencyAvailability(func() bool { return n.deps.MemoryStore != nil }),
-		memoryExtractor:  n.dependencyAvailability(func() bool { return n.deps.MemoryExtractor != nil }),
-		memoryProviders:  n.dependencyAvailability(func() bool { return n.deps.MemoryProviders != nil }),
-		memorySessionLedger: n.dependencyAvailability(func() bool {
-			return n.deps.MemorySessionLedger != nil
-		}),
-		observe: n.dependencyAvailability(func() bool {
-			return n.deps.Observer != nil
-		}),
-		bridges:  n.dependencyAvailability(n.bridgeCatalogReady),
-		tasks:    n.dependencyAvailability(func() bool { return n.deps.Tasks != nil }),
-		config:   n.dependencyAvailability(configReady),
-		hookRead: n.dependencyAvailability(func() bool { return n.deps.Observer != nil }),
-		hookMutation: n.dependencyAvailability(func() bool {
-			return configReady() && n.deps.Observer != nil
-		}),
-		automation: n.dependencyAvailability(func() bool { return n.automationManager() != nil }),
-		loops:      n.dependencyAvailability(func() bool { return n.loopService() != nil }),
-		extensions: n.dependencyAvailability(func() bool {
-			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
-		}),
-		marketplace: n.dependencyAvailability(func() bool {
-			return n.deps.MarketplaceCatalog != nil || n.bundleService() != nil || n.deps.MarketplaceSkills != nil
-		}),
-		bundles:   n.dependencyAvailability(func() bool { return n.bundleService() != nil }),
-		resources: n.dependencyAvailability(func() bool { return n.deps.Resources != nil }),
-		mcpAuth:   n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil }),
-	}
 }
 
 func (n *daemonNativeTools) bundleService() core.BundleService {
@@ -1827,88 +1551,6 @@ func (n *daemonNativeTools) memorySearch(
 	}, fmt.Sprintf("%d memory results", len(results)))
 }
 
-func (n *daemonNativeTools) memoryPropose(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input memoryProposeInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	op, err := nativeMemoryProposalOperation(req.ToolID, input.Operation)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	location, err := n.memoryWriteStore(ctx, scope, req.ToolID, memoryToolSelector{
-		Scope:     input.Scope,
-		Workspace: input.Workspace,
-		AgentName: input.AgentName,
-		AgentTier: input.AgentTier,
-	}, input.Type)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
-	}
-	actorKind, err := n.memoryCallerActorKind(ctx, scope, req)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
-	}
-	if err := n.denySubagentMemoryWrite(
-		ctx,
-		req,
-		location,
-		actorKind,
-		firstNonEmpty(input.TargetFilename, input.Filename),
-	); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-
-	if op == memcontract.OpDelete {
-		filename, err := requiredNativeString(
-			req.ToolID,
-			"target_filename",
-			firstNonEmpty(input.TargetFilename, input.Filename),
-		)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		result, err := location.Store.ProposeDelete(ctx, location.Scope, filename, memcontract.OriginTool)
-		if err != nil {
-			return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
-		}
-		n.recordMemoryToolWrite(scope, req, actorKind)
-		return nativeMemoryDecisionResult(result)
-	}
-
-	content, err := requiredNativeString(req.ToolID, "content", input.Content)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	filename := firstNonEmpty(input.Filename, input.TargetFilename)
-	if strings.TrimSpace(filename) == "" {
-		filename = nativeMemoryFilename(input.Type, firstNonEmpty(input.Name, input.Entity, content))
-	}
-	document, err := renderNativeMemoryDocument(nativeMemoryWriteDocument{
-		Filename:    filename,
-		Scope:       location.Scope,
-		AgentName:   location.AgentName,
-		AgentTier:   location.AgentTier,
-		Name:        input.Name,
-		Description: input.Description,
-		Type:        input.Type,
-		Content:     content,
-	})
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
-	}
-	result, err := location.Store.ProposeWrite(ctx, location.Scope, filename, document, memcontract.OriginTool)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeMemoryToolError(req.ToolID, err)
-	}
-	n.recordMemoryToolWrite(scope, req, actorKind)
-	return nativeMemoryDecisionResult(result)
-}
-
 func (n *daemonNativeTools) memoryNote(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -2827,9 +2469,9 @@ func (n *daemonNativeTools) skillsFor(
 	}
 	if workspaceID == "" {
 		if agentName != "" {
-			return n.deps.Skills.ForAgent(ctx, nil, agentName)
+			return n.deps.Skills.ForAgentSession(ctx, nil, agentName, scope.SessionID)
 		}
-		return n.deps.Skills.List(), nil
+		return n.deps.Skills.ForWorkspace(ctx, nil)
 	}
 	if n.deps.WorkspaceResolver == nil {
 		return nil, errors.New("daemon: workspace resolver is required for workspace skills")
@@ -2839,7 +2481,7 @@ func (n *daemonNativeTools) skillsFor(
 		return nil, err
 	}
 	if agentName != "" {
-		return n.deps.Skills.ForAgent(ctx, &resolved, agentName)
+		return n.deps.Skills.ForAgentSession(ctx, &resolved, agentName, scope.SessionID)
 	}
 	return n.deps.Skills.ForWorkspace(ctx, &resolved)
 }
@@ -2855,13 +2497,6 @@ func (n *daemonNativeTools) resolveSkill(
 	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace_id", workspaceID, scope)
 	if err != nil {
 		return nil, err
-	}
-	if workspaceID == "" {
-		skill, ok := n.deps.Skills.Get(trimmedName)
-		if !ok {
-			return nil, fmt.Errorf("daemon: skill %q not found", trimmedName)
-		}
-		return skill, nil
 	}
 	skillList, err := n.skillsFor(ctx, scope, id, workspaceID)
 	if err != nil {
@@ -3201,22 +2836,6 @@ type memorySearchInput struct {
 	Limit     int    `json:"limit,omitempty"`
 }
 
-type memoryProposeInput struct {
-	Operation      string `json:"operation,omitempty"`
-	Filename       string `json:"filename,omitempty"`
-	TargetFilename string `json:"target_filename,omitempty"`
-	Content        string `json:"content,omitempty"`
-	Name           string `json:"name,omitempty"`
-	Description    string `json:"description,omitempty"`
-	Type           string `json:"type,omitempty"`
-	Scope          string `json:"scope,omitempty"`
-	Workspace      string `json:"workspace,omitempty"`
-	AgentName      string `json:"agent_name,omitempty"`
-	AgentTier      string `json:"agent_tier,omitempty"`
-	Entity         string `json:"entity,omitempty"`
-	Attribute      string `json:"attribute,omitempty"`
-}
-
 type memoryNoteInput struct {
 	Content   string   `json:"content"`
 	Slug      string   `json:"slug,omitempty"`
@@ -3242,17 +2861,6 @@ type memoryToolSelector struct {
 	Workspace string
 	AgentName string
 	AgentTier string
-}
-
-type nativeMemoryWriteDocument struct {
-	Filename    string
-	Scope       memcontract.Scope
-	AgentName   string
-	AgentTier   memcontract.AgentTier
-	Name        string
-	Description string
-	Type        string
-	Content     string
 }
 
 type nativeMemoryRecallEntry struct {
@@ -3744,70 +3352,6 @@ func autonomyLeaseDuration(seconds int64) (time.Duration, error) {
 	}
 }
 
-func nativeAutonomyToolError(id toolspkg.ToolID, err error) error {
-	if err == nil {
-		return nil
-	}
-	if reason, ok := taskpkg.AutonomyReasonOf(err); ok {
-		code, toolReason, cause := autonomyToolErrorCodeAndReason(reason)
-		return toolspkg.NewToolError(
-			code,
-			id,
-			taskpkg.RedactClaimTokens(err.Error()),
-			fmt.Errorf("%w: %w", cause, err),
-			toolReason,
-		)
-	}
-	switch {
-	case errors.Is(err, taskpkg.ErrValidation),
-		errors.Is(err, taskpkg.ErrInvalidScopeBinding),
-		errors.Is(err, taskpkg.ErrImmutableField):
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			id,
-			taskpkg.RedactClaimTokens(err.Error()),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonSchemaInvalid,
-		)
-	case errors.Is(err, taskpkg.ErrActiveRunLease):
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeConflict,
-			id,
-			taskpkg.RedactClaimTokens(err.Error()),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
-			toolspkg.ReasonAutonomyLeaseAlreadyHeld,
-		)
-	case errors.Is(err, taskpkg.ErrPermissionDenied):
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeDenied,
-			id,
-			taskpkg.RedactClaimTokens(err.Error()),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
-			toolspkg.ReasonSessionDenied,
-		)
-	case errors.Is(err, taskpkg.ErrInvalidClaimToken),
-		errors.Is(err, taskpkg.ErrLeaseExpired):
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeConflict,
-			id,
-			taskpkg.RedactClaimTokens(err.Error()),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
-			toolspkg.ReasonAutonomyLeaseExpired,
-		)
-	case errors.Is(err, taskpkg.ErrInvalidStatusTransition),
-		errors.Is(err, taskpkg.ErrConflict),
-		errors.Is(err, taskpkg.ErrHallucinatedTaskRefs):
-		return toolspkg.NewToolError(
-			toolspkg.ErrorCodeConflict,
-			id,
-			taskpkg.RedactClaimTokens(err.Error()),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
-		)
-	default:
-		return err
-	}
-}
-
 func nativeNetworkSendToolError(id toolspkg.ToolID, err error) error {
 	if err == nil {
 		return nil
@@ -4092,27 +3636,6 @@ func nativeNetworkChannel(id toolspkg.ToolID, value string) (string, error) {
 		return "", nativeNetworkInputError(id, err)
 	}
 	return channel, nil
-}
-
-func autonomyToolErrorCodeAndReason(reason taskpkg.AutonomyReasonCode) (
-	toolspkg.ErrorCode,
-	toolspkg.ReasonCode,
-	error,
-) {
-	switch reason {
-	case taskpkg.AutonomySessionRequired:
-		return toolspkg.ErrorCodeDenied, toolspkg.ReasonAutonomySessionRequired, toolspkg.ErrToolDenied
-	case taskpkg.AutonomyForeignRun:
-		return toolspkg.ErrorCodeDenied, toolspkg.ReasonAutonomyForeignRun, toolspkg.ErrToolDenied
-	case taskpkg.AutonomyNoActiveLease:
-		return toolspkg.ErrorCodeConflict, toolspkg.ReasonAutonomyNoActiveLease, toolspkg.ErrToolConflict
-	case taskpkg.AutonomyLeaseExpired:
-		return toolspkg.ErrorCodeConflict, toolspkg.ReasonAutonomyLeaseExpired, toolspkg.ErrToolConflict
-	case taskpkg.AutonomyLeaseAlreadyHeld:
-		return toolspkg.ErrorCodeConflict, toolspkg.ReasonAutonomyLeaseAlreadyHeld, toolspkg.ErrToolConflict
-	default:
-		return toolspkg.ErrorCodeConflict, toolspkg.ReasonAutonomyLeaseExpired, toolspkg.ErrToolConflict
-	}
 }
 
 func trimNativeStrings(values []string) []string {
@@ -4475,88 +3998,6 @@ func (n *daemonNativeTools) memoryWorkspaceIdentity(ctx context.Context, ref str
 		return "", "", fmt.Errorf("daemon: resolve memory workspace identity: %w", err)
 	}
 	return identity.WorkspaceID, workspaceRoot, nil
-}
-
-func nativeMemoryProposalOperation(id toolspkg.ToolID, raw string) (memcontract.Op, error) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "", memcontract.OpAdd.String(), memcontract.OpUpdate.String():
-		return memcontract.OpAdd, nil
-	case memcontract.OpDelete.String():
-		return memcontract.OpDelete, nil
-	default:
-		return 0, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			id,
-			"operation must be add, update, or delete",
-			toolspkg.ErrToolInvalidInput,
-			toolspkg.ReasonSchemaInvalid,
-		)
-	}
-}
-
-func renderNativeMemoryDocument(doc nativeMemoryWriteDocument) ([]byte, error) {
-	memoryType := nativeMemoryTypeForScope(doc.Type, doc.Scope)
-	header := memcontract.Header{
-		Name:        firstNonEmpty(doc.Name, nativeMemoryNameFromFilename(doc.Filename)),
-		Description: firstNonEmpty(doc.Description, nativeMemoryDescription(doc.Content)),
-		Type:        memoryType,
-		Scope:       doc.Scope.Normalize(),
-	}
-	if header.Scope == memcontract.ScopeAgent {
-		header.AgentName = strings.TrimSpace(doc.AgentName)
-		header.AgentTier = doc.AgentTier.Normalize()
-	}
-	if err := header.Validate(); err != nil {
-		return nil, core.NewMemoryValidationError(err)
-	}
-
-	metadata, err := yaml.Marshal(header)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: marshal memory frontmatter: %w", err)
-	}
-	var builder strings.Builder
-	builder.WriteString("---\n")
-	builder.Write(metadata)
-	builder.WriteString("---\n\n")
-	builder.WriteString(strings.TrimSpace(doc.Content))
-	return []byte(builder.String()), nil
-}
-
-func nativeMemoryTypeForScope(raw string, scope memcontract.Scope) memcontract.Type {
-	memoryType := memcontract.Type(strings.TrimSpace(raw)).Normalize()
-	if memoryType != "" {
-		return memoryType
-	}
-	switch scope.Normalize() {
-	case memcontract.ScopeWorkspace:
-		return memcontract.TypeProject
-	default:
-		return memcontract.TypeUser
-	}
-}
-
-func nativeMemoryDecisionResult(result memorypkg.DecisionApplyResult) (toolspkg.ToolResult, error) {
-	decision := redactNativeMemoryDecision(result.Decision)
-	return structuredResult(map[string]any{
-		"decision": decision,
-		"applied":  result.Applied,
-	}, fmt.Sprintf("memory decision %s", decision.Op.String()))
-}
-
-func redactNativeMemoryDecision(decision memcontract.Decision) memcontract.Decision {
-	redacted := decision
-	redacted.Frontmatter.Name = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.Frontmatter.Name))
-	redacted.Frontmatter.Description = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.Frontmatter.Description))
-	redacted.PostContent = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.PostContent))
-	redacted.PriorContent = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.PriorContent))
-	redacted.Reason = taskpkg.RedactClaimTokens(strings.TrimSpace(redacted.Reason))
-	if redacted.LLMTrace != nil {
-		trace := *redacted.LLMTrace
-		trace.RawResponse = taskpkg.RedactClaimTokens(strings.TrimSpace(trace.RawResponse))
-		trace.Error = taskpkg.RedactClaimTokens(strings.TrimSpace(trace.Error))
-		redacted.LLMTrace = &trace
-	}
-	return redacted
 }
 
 func redactMemoryPackaged(packaged memcontract.Packaged) memcontract.Packaged {

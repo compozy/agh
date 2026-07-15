@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/agh/internal/automation"
 	automationmodel "github.com/compozy/agh/internal/automation/model"
+	"github.com/compozy/agh/internal/events"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/network/participation"
@@ -74,6 +76,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"automation_scheduler_state",
 		"automation_job_overlays",
 		"automation_trigger_overlays",
+		"automation_suggestions",
 	)
 	assertTableColumns(t, globalDB.db, "automation_jobs", []string{
 		"id",
@@ -188,7 +191,121 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"idx_automation_scheduler_next_run",
 		"idx_automation_scheduler_misfire",
 	)
-	assertTableSQLContains(t, globalDB.db, "automation_scheduler_state", "'skip', 'coalesce', 'replay'")
+	assertTableColumns(t, globalDB.db, "automation_suggestions", []string{
+		"id",
+		"workspace_id",
+		"source",
+		"dedup_key",
+		"status",
+		"payload",
+		"created_at",
+		"resolved_at",
+	})
+	assertIndexesPresent(
+		t,
+		globalDB.db,
+		"automation_suggestions",
+		"automation_suggestions_workspace_id_dedup_key",
+		"idx_automation_suggestions_workspace_status",
+	)
+	assertTableSQLContains(
+		t,
+		globalDB.db,
+		"automation_scheduler_state",
+		"'skip_missed', 'coalesce', 'replay', 'run_once_on_catchup'",
+	)
+}
+
+func TestGlobalDBSchedulerCatchUpPolicyMigration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	previousDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+		return store.Apply(ctx, db, previousAutomationMigrationStream(t))
+	})
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase(previous schema) error = %v", err)
+	}
+	updatedAt := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	if _, err := previousDB.ExecContext(
+		ctx,
+		`INSERT INTO automation_scheduler_state (
+			job_id, last_fire_id, schedule_hash, catch_up_policy,
+			misfire_grace_seconds, misfire_count, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"job-migration-cursor",
+		"fire-before-upgrade",
+		"hash-before-upgrade",
+		"skip",
+		45,
+		3,
+		store.FormatTimestamp(updatedAt),
+	); err != nil {
+		t.Fatalf("seed previous scheduler state error = %v", err)
+	}
+	if err := previousDB.Close(); err != nil {
+		t.Fatalf("previousDB.Close() error = %v", err)
+	}
+
+	globalDB, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := globalDB.Close(ctx); err != nil {
+			t.Errorf("GlobalDB.Close() error = %v", err)
+		}
+	})
+
+	state, err := globalDB.GetSchedulerState(ctx, "job-migration-cursor")
+	if err != nil {
+		t.Fatalf("GetSchedulerState() after upgrade error = %v", err)
+	}
+	if got, want := state.CatchUpPolicy, automation.SchedulerCatchUpPolicySkipMissed; got != want {
+		t.Fatalf("GetSchedulerState().CatchUpPolicy = %q, want %q", got, want)
+	}
+	if got, want := state.LastFireID, "fire-before-upgrade"; got != want {
+		t.Fatalf("GetSchedulerState().LastFireID = %q, want %q", got, want)
+	}
+	if got, want := state.MisfireGraceSeconds, 45; got != want {
+		t.Fatalf("GetSchedulerState().MisfireGraceSeconds = %d, want %d", got, want)
+	}
+	if got, want := state.MisfireCount, 3; got != want {
+		t.Fatalf("GetSchedulerState().MisfireCount = %d, want %d", got, want)
+	}
+
+	state.CatchUpPolicy = automation.SchedulerCatchUpPolicyRunOnce
+	state.UpdatedAt = updatedAt.Add(time.Minute)
+	if _, err := globalDB.SaveSchedulerState(ctx, state); err != nil {
+		t.Fatalf("SaveSchedulerState(run once policy) error = %v", err)
+	}
+	status, err := store.Status(ctx, globalDB.db, MigrationStream())
+	if err != nil {
+		t.Fatalf("Status(global) error = %v", err)
+	}
+	assertCompleteMigrationStream(t, status, MigrationStream())
+}
+
+func previousAutomationMigrationStream(t *testing.T) store.MigrationStream {
+	t.Helper()
+
+	return globalMigrationPrefix(t,
+		"00001_baseline.sql",
+		"00002_schema.sql",
+		"00003_schema.sql",
+		"00004_schema.sql",
+		"00005_schema.sql",
+		"00006_schema.sql",
+		"00007_schema.sql",
+		"00008_network_participation.sql",
+		"00009_automation_network_participation.sql",
+		"00010_network_participation_hardening.sql",
+		"00011_schema.sql",
+		"00012_schema.sql",
+		"00013_network_subscription_hard_cut.sql",
+		"00014_network_task_status_projections.sql",
+	)
 }
 
 func TestGlobalDBCreateJobScopeAwareUniqueness(t *testing.T) {
@@ -1061,6 +1178,463 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should append the v20 schema and preserve suggestions across reopen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+			return store.Apply(ctx, db, automationSuggestionMigrationPrefix(t))
+		})
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v19 prefix) error = %v", err)
+		}
+		prefixClosed := false
+		t.Cleanup(func() {
+			if prefixClosed {
+				return
+			}
+			if err := prefixDB.Close(); err != nil {
+				t.Errorf("prefixDB.Close(cleanup) error = %v", err)
+			}
+		})
+		exists, err := tableExists(ctx, prefixDB, "automation_suggestions")
+		if err != nil {
+			t.Fatalf("tableExists(automation_suggestions) error = %v", err)
+		}
+		if exists {
+			t.Fatal("automation_suggestions exists at v19, want append-only v20 ownership")
+		}
+		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: time.Now}
+		prefixGlobalDB.initializeRepositories()
+		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-upgrade", t.TempDir())
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+		prefixClosed = true
+
+		upgraded, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v20 upgrade) error = %v", err)
+		}
+		upgradedClosed := false
+		t.Cleanup(func() {
+			if upgradedClosed {
+				return
+			}
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Errorf("upgraded.Close(cleanup) error = %v", err)
+			}
+		})
+		created, err := upgraded.CreateSuggestion(ctx, automationSuggestionForTest(
+			"suggestion-upgrade",
+			workspaceID,
+			"catalog:v1:upgrade",
+		), automation.DefaultSuggestionPendingCap)
+		if err != nil {
+			t.Fatalf("CreateSuggestion(after upgrade) error = %v", err)
+		}
+		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(v20) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("upgraded.Close() error = %v", err)
+		}
+		upgradedClosed = true
+
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("reopened.Close() error = %v", err)
+			}
+		})
+		stored, err := reopened.GetSuggestion(ctx, workspaceID, created.ID)
+		if err != nil {
+			t.Fatalf("GetSuggestion(reopen) error = %v", err)
+		}
+		if stored.ID != created.ID || stored.DedupKey != created.DedupKey ||
+			stored.Status != automation.SuggestionStatusPending {
+			t.Fatalf("GetSuggestion(reopen) = %#v, want durable pending suggestion %#v", stored, created)
+		}
+	})
+
+	t.Run("Should preserve v20 payload rows through the hard column rename", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+			return store.Apply(ctx, db, automationSuggestionMigrationPrefix(t, "00020_schema.sql"))
+		})
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v20 prefix) error = %v", err)
+		}
+		prefixClosed := false
+		t.Cleanup(func() {
+			if prefixClosed {
+				return
+			}
+			if err := prefixDB.Close(); err != nil {
+				t.Errorf("prefixDB.Close(cleanup) error = %v", err)
+			}
+		})
+		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: time.Now}
+		prefixGlobalDB.initializeRepositories()
+		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-payload-rename", t.TempDir())
+		created := automationSuggestionForTest(
+			"suggestion-payload-rename",
+			workspaceID,
+			"catalog:v1:payload-rename",
+		)
+		created.CreatedAt = time.Date(2026, 7, 18, 13, 30, 0, 0, time.UTC)
+		payload, err := json.Marshal(created.Payload)
+		if err != nil {
+			t.Fatalf("json.Marshal(payload) error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(
+			ctx,
+			`INSERT INTO automation_suggestions (
+				id, workspace_id, source, dedup_key, status, payload_json, created_at, resolved_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+			created.ID,
+			created.WorkspaceID,
+			created.Source,
+			created.DedupKey,
+			created.Status,
+			string(payload),
+			store.FormatTimestamp(created.CreatedAt),
+		); err != nil {
+			t.Fatalf("insert v20 suggestion error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+		prefixClosed = true
+
+		upgraded, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(payload rename) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Errorf("upgraded.Close() error = %v", err)
+			}
+		})
+		stored, err := upgraded.GetSuggestion(ctx, workspaceID, created.ID)
+		if err != nil {
+			t.Fatalf("GetSuggestion(payload rename) error = %v", err)
+		}
+		if stored.ID != created.ID || stored.Payload.Prompt != created.Payload.Prompt ||
+			stored.DedupKey != created.DedupKey {
+			t.Fatalf("GetSuggestion(payload rename) = %#v, want preserved %#v", stored, created)
+		}
+		assertTableColumns(t, upgraded.db, "automation_suggestions", []string{
+			"id", "workspace_id", "source", "dedup_key", "status", "payload", "created_at", "resolved_at",
+		})
+	})
+
+	t.Run("Should reject a payload bound to another workspace before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		workspaceA := registerWorkspaceForGlobalTests(t, globalDB, "suggestions-boundary-a", t.TempDir())
+		workspaceB := registerWorkspaceForGlobalTests(t, globalDB, "suggestions-boundary-b", t.TempDir())
+		suggestion := automationSuggestionForTest(
+			"suggestion-cross-workspace",
+			workspaceA,
+			"catalog:v1:cross-workspace",
+		)
+		suggestion.Payload.WorkspaceID = workspaceB
+		if _, err := globalDB.CreateSuggestion(
+			testutil.Context(t),
+			suggestion,
+			automation.DefaultSuggestionPendingCap,
+		); err == nil ||
+			!strings.Contains(err.Error(), "payload.workspace_id") {
+			t.Fatalf("CreateSuggestion(cross workspace) error = %v, want payload.workspace_id validation", err)
+		}
+		listed, err := globalDB.ListSuggestions(
+			testutil.Context(t),
+			workspaceA,
+			automation.SuggestionStatusPending,
+		)
+		if err != nil {
+			t.Fatalf("ListSuggestions(after rejection) error = %v", err)
+		}
+		if len(listed) != 0 {
+			t.Fatalf("ListSuggestions(after rejection) = %#v, want empty", listed)
+		}
+	})
+
+	t.Run("Should latch a dismissed dedup key and isolate workspace reads", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		workspaceA := registerWorkspaceForGlobalTests(t, globalDB, "suggestions-latch-a", t.TempDir())
+		workspaceB := registerWorkspaceForGlobalTests(t, globalDB, "suggestions-latch-b", t.TempDir())
+		created, err := globalDB.CreateSuggestion(testutil.Context(t), automationSuggestionForTest(
+			"suggestion-latched",
+			workspaceA,
+			"catalog:v1:latched",
+		), automation.DefaultSuggestionPendingCap)
+		if err != nil {
+			t.Fatalf("CreateSuggestion() error = %v", err)
+		}
+		dismissed, err := globalDB.ResolveSuggestion(
+			testutil.Context(t),
+			workspaceA,
+			created.ID,
+			automation.SuggestionStatusDismissed,
+		)
+		if err != nil {
+			t.Fatalf("ResolveSuggestion(dismissed) error = %v", err)
+		}
+		replayed, err := globalDB.CreateSuggestion(testutil.Context(t), automationSuggestionForTest(
+			"suggestion-replayed",
+			workspaceA,
+			created.DedupKey,
+		), automation.DefaultSuggestionPendingCap)
+		if err != nil {
+			t.Fatalf("CreateSuggestion(replay) error = %v", err)
+		}
+		if replayed.ID != dismissed.ID || replayed.Status != automation.SuggestionStatusDismissed {
+			t.Fatalf("CreateSuggestion(replay) = %#v, want latched dismissed suggestion %#v", replayed, dismissed)
+		}
+		if _, err := globalDB.GetSuggestion(
+			testutil.Context(t),
+			workspaceB,
+			created.ID,
+		); !errors.Is(err, automation.ErrSuggestionNotFound) {
+			t.Fatalf("GetSuggestion(foreign workspace) error = %v, want ErrSuggestionNotFound", err)
+		}
+		pending, err := globalDB.ListSuggestions(
+			testutil.Context(t),
+			workspaceA,
+			automation.SuggestionStatusPending,
+		)
+		if err != nil {
+			t.Fatalf("ListSuggestions(pending) error = %v", err)
+		}
+		if len(pending) != 0 {
+			t.Fatalf("ListSuggestions(pending) = %#v, want empty after dismissal", pending)
+		}
+	})
+
+	t.Run("Should record idempotent transition summaries with exact workspace content", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "suggestions-events", t.TempDir())
+		cases := []struct {
+			name    string
+			status  automation.SuggestionStatus
+			event   string
+			jobID   string
+			outcome string
+		}{
+			{
+				name: "accepted", status: automation.SuggestionStatusAccepted,
+				event: events.AutomationSuggestionAccepted, jobID: "job-suggestion-event",
+				outcome: string(events.OutcomeFor(events.AutomationSuggestionAccepted)),
+			},
+			{
+				name:    string(automation.SuggestionStatusDismissed),
+				status:  automation.SuggestionStatusDismissed,
+				event:   events.AutomationSuggestionDismissed,
+				outcome: string(events.OutcomeFor(events.AutomationSuggestionDismissed)),
+			},
+		}
+		for _, tc := range cases {
+			t.Run("Should record "+tc.name, func(t *testing.T) {
+				created, err := globalDB.CreateSuggestion(testutil.Context(t), automationSuggestionForTest(
+					"suggestion-event-"+tc.name,
+					workspaceID,
+					"catalog:v1:event-"+tc.name,
+				), automation.DefaultSuggestionPendingCap)
+				if err != nil {
+					t.Fatalf("CreateSuggestion() error = %v", err)
+				}
+				resolved, err := globalDB.ResolveSuggestion(
+					testutil.Context(t),
+					workspaceID,
+					created.ID,
+					tc.status,
+				)
+				if err != nil {
+					t.Fatalf("ResolveSuggestion() error = %v", err)
+				}
+				for attempt := range 2 {
+					if err := globalDB.RecordSuggestionTransition(
+						testutil.Context(t),
+						resolved,
+						tc.jobID,
+					); err != nil {
+						t.Fatalf("RecordSuggestionTransition(attempt %d) error = %v", attempt, err)
+					}
+				}
+				summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
+					WorkspaceID: workspaceID,
+					Type:        tc.event,
+					Limit:       10,
+				})
+				if err != nil {
+					t.Fatalf("ListEventSummaries() error = %v", err)
+				}
+				if got, want := len(summaries), 1; got != want {
+					t.Fatalf("len(ListEventSummaries()) = %d, want %d", got, want)
+				}
+				summary := summaries[0]
+				if summary.WorkspaceID != workspaceID || summary.ActorKind != "automation_suggestion" ||
+					summary.ActorID != resolved.ID || summary.Outcome != tc.outcome {
+					t.Fatalf("transition summary = %#v, want exact workspace/actor/outcome", summary)
+				}
+				var content suggestionTransitionContent
+				if err := json.Unmarshal(summary.Content, &content); err != nil {
+					t.Fatalf("json.Unmarshal(summary.Content) error = %v", err)
+				}
+				if content.WorkspaceID != workspaceID || content.SuggestionID != resolved.ID ||
+					content.Source != resolved.Source || content.DedupKey != resolved.DedupKey ||
+					content.JobID != tc.jobID {
+					t.Fatalf("transition content = %#v, want resolved suggestion and job %q", content, tc.jobID)
+				}
+			})
+		}
+	})
+
+	t.Run("Should serialize the pending cap at five", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "suggestions-cap", t.TempDir())
+		errs := make(chan error, automation.DefaultSuggestionPendingCap+1)
+		var workers sync.WaitGroup
+		for index := range automation.DefaultSuggestionPendingCap + 1 {
+			workers.Go(func() {
+				_, err := globalDB.CreateSuggestion(
+					testutil.Context(t),
+					automationSuggestionForTest(
+						fmt.Sprintf("suggestion-cap-%d", index),
+						workspaceID,
+						fmt.Sprintf("catalog:v1:cap-%d", index),
+					),
+					automation.DefaultSuggestionPendingCap,
+				)
+				errs <- err
+			})
+		}
+		workers.Wait()
+		close(errs)
+
+		created := 0
+		capped := 0
+		for err := range errs {
+			switch {
+			case err == nil:
+				created++
+			case errors.Is(err, automation.ErrSuggestionPendingCap):
+				capped++
+			default:
+				t.Fatalf("CreateSuggestion(concurrent) unexpected error = %v", err)
+			}
+		}
+		if created != automation.DefaultSuggestionPendingCap || capped != 1 {
+			t.Fatalf(
+				"concurrent results created/capped = %d/%d, want %d/1",
+				created,
+				capped,
+				automation.DefaultSuggestionPendingCap,
+			)
+		}
+	})
+
+	t.Run("Should allow exactly one pending resolution", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "suggestions-cas", t.TempDir())
+		created, err := globalDB.CreateSuggestion(testutil.Context(t), automationSuggestionForTest(
+			"suggestion-cas",
+			workspaceID,
+			"catalog:v1:cas",
+		), automation.DefaultSuggestionPendingCap)
+		if err != nil {
+			t.Fatalf("CreateSuggestion() error = %v", err)
+		}
+
+		statuses := []automation.SuggestionStatus{
+			automation.SuggestionStatusAccepted,
+			automation.SuggestionStatusDismissed,
+		}
+		errs := make(chan error, len(statuses))
+		var workers sync.WaitGroup
+		for _, status := range statuses {
+			workers.Go(func() {
+				_, resolveErr := globalDB.ResolveSuggestion(
+					testutil.Context(t),
+					workspaceID,
+					created.ID,
+					status,
+				)
+				errs <- resolveErr
+			})
+		}
+		workers.Wait()
+		close(errs)
+
+		resolved := 0
+		losers := 0
+		for err := range errs {
+			switch {
+			case err == nil:
+				resolved++
+			case errors.Is(err, automation.ErrSuggestionResolved):
+				losers++
+			default:
+				t.Fatalf("ResolveSuggestion(concurrent) unexpected error = %v", err)
+			}
+		}
+		if resolved != 1 || losers != 1 {
+			t.Fatalf("concurrent resolutions winner/loser = %d/%d, want 1/1", resolved, losers)
+		}
+	})
+}
+
+func automationSuggestionMigrationPrefix(t *testing.T, tail ...string) store.MigrationStream {
+	t.Helper()
+
+	files := []string{
+		"00001_baseline.sql",
+		"00002_schema.sql",
+		"00003_schema.sql",
+		"00004_schema.sql",
+		"00005_schema.sql",
+		"00006_schema.sql",
+		"00007_schema.sql",
+		"00008_network_participation.sql",
+		"00009_automation_network_participation.sql",
+		"00010_network_participation_hardening.sql",
+		"00011_schema.sql",
+		"00012_schema.sql",
+		"00013_network_subscription_hard_cut.sql",
+		"00014_network_task_status_projections.sql",
+		"00015_schema.sql",
+		"00016_schema.sql",
+		"00017_schema.sql",
+		"00018_schema.sql",
+		"00019_schema.sql",
+	}
+	files = append(files, tail...)
+	return globalMigrationPrefix(t, files...)
 }
 
 func TestGlobalDBAutomationCatalogUsesWorkspaceOrderIndexes(t *testing.T) {
@@ -1977,7 +2551,7 @@ func TestGlobalDBSchedulerStateSaveClaimAndDeliveryError(t *testing.T) {
 		JobID:               job.ID,
 		NextRunAt:           &nextRun,
 		ScheduleHash:        "hash-v1",
-		CatchUpPolicy:       automation.SchedulerCatchUpPolicySkip,
+		CatchUpPolicy:       automation.SchedulerCatchUpPolicySkipMissed,
 		MisfireGraceSeconds: 30,
 		UpdatedAt:           updatedAt,
 	})
@@ -2050,6 +2624,101 @@ func TestGlobalDBSchedulerStateSaveClaimAndDeliveryError(t *testing.T) {
 	}
 }
 
+func TestGlobalDBSchedulerClaimSuppressesSelfOverlapForOneFire(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	job, err := globalDB.CreateJob(
+		ctx,
+		automationJobForTest(automation.AutomationScopeGlobal, "overlap-guard", "", automation.JobSourceDynamic),
+	)
+	if err != nil {
+		t.Fatalf("CreateJob() error = %v", err)
+	}
+
+	base := time.Date(2026, 4, 11, 9, 0, 0, 0, time.UTC)
+	active, err := globalDB.CreateRun(
+		ctx,
+		automationRunForJob(job.ID, automation.RunRunning, 1, base.Add(-time.Minute)),
+	)
+	if err != nil {
+		t.Fatalf("CreateRun(active) error = %v", err)
+	}
+	if _, err := globalDB.SaveSchedulerState(ctx, SchedulerState{
+		JobID:         job.ID,
+		NextRunAt:     &base,
+		ScheduleHash:  "hash-overlap",
+		CatchUpPolicy: automation.SchedulerCatchUpPolicyRunOnce,
+		UpdatedAt:     base.Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("SaveSchedulerState() error = %v", err)
+	}
+
+	next := base.Add(time.Minute)
+	skipped, err := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		JobID:        job.ID,
+		RunID:        "run-overlap-skip",
+		FireID:       "fire-overlap-skip",
+		ScheduledAt:  base,
+		NextRunAt:    &next,
+		ClaimedAt:    base.Add(time.Second),
+		ScheduleHash: "hash-overlap",
+	})
+	if err != nil {
+		t.Fatalf("ClaimScheduledRun(overlap) error = %v", err)
+	}
+	if !skipped.Skipped || skipped.SkipReason != automation.SchedulerSkipReasonSelfOverlap {
+		t.Fatalf("ClaimScheduledRun(overlap) = %#v, want self-overlap skip", skipped)
+	}
+	if got, want := skipped.Run.Status, automation.RunCancelled; got != want {
+		t.Fatalf("overlap run status = %q, want %q", got, want)
+	}
+	if got, want := skipped.Run.Metadata[automation.SchedulerSkipReasonMetadataKey], string(
+		automation.SchedulerSkipReasonSelfOverlap,
+	); got != want {
+		t.Fatalf("overlap metadata reason = %#v, want %q", got, want)
+	}
+
+	active.Status = automation.RunCompleted
+	active.EndedAt = &next
+	if _, err := globalDB.UpdateRun(ctx, active); err != nil {
+		t.Fatalf("UpdateRun(active completed) error = %v", err)
+	}
+	nextAfterNormal := next.Add(time.Minute)
+	normal, err := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		JobID:        job.ID,
+		RunID:        "run-after-overlap",
+		FireID:       "fire-after-overlap",
+		ScheduledAt:  next,
+		NextRunAt:    &nextAfterNormal,
+		ClaimedAt:    next.Add(time.Second),
+		ScheduleHash: "hash-overlap",
+	})
+	if err != nil {
+		t.Fatalf("ClaimScheduledRun(after overlap) error = %v", err)
+	}
+	if normal.Skipped {
+		t.Fatalf("ClaimScheduledRun(after overlap).Skipped = true, want false: %#v", normal)
+	}
+	if got, want := normal.Run.Status, automation.RunScheduled; got != want {
+		t.Fatalf("normal run status = %q, want %q", got, want)
+	}
+
+	_, duplicateErr := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
+		JobID:        job.ID,
+		RunID:        "run-after-overlap-duplicate",
+		FireID:       normal.Run.FireID,
+		ScheduledAt:  next,
+		NextRunAt:    &nextAfterNormal,
+		ClaimedAt:    next.Add(2 * time.Second),
+		ScheduleHash: "hash-overlap",
+	})
+	if !errors.Is(duplicateErr, automation.ErrScheduledFireAlreadyClaimed) {
+		t.Fatalf("ClaimScheduledRun(duplicate) error = %v, want ErrScheduledFireAlreadyClaimed", duplicateErr)
+	}
+}
+
 func TestGlobalDBSchedulerClaimPreventsDuplicateAfterReopen(t *testing.T) {
 	t.Parallel()
 
@@ -2074,7 +2743,7 @@ func TestGlobalDBSchedulerClaimPreventsDuplicateAfterReopen(t *testing.T) {
 		JobID:         job.ID,
 		NextRunAt:     &scheduledAt,
 		ScheduleHash:  "hash-reopen",
-		CatchUpPolicy: automation.SchedulerCatchUpPolicySkip,
+		CatchUpPolicy: automation.SchedulerCatchUpPolicySkipMissed,
 		UpdatedAt:     scheduledAt.Add(-time.Hour),
 	})
 	if err != nil {
@@ -2306,6 +2975,34 @@ func automationRunForTrigger(triggerID string, status automation.RunStatus, atte
 		Attempt:   attempt,
 		StartedAt: timePointer(startedAt),
 		EndedAt:   timePointer(endedAt),
+	}
+}
+
+func automationSuggestionForTest(id string, workspaceID string, dedupKey string) automation.Suggestion {
+	return automation.Suggestion{
+		ID:          id,
+		WorkspaceID: workspaceID,
+		Source:      automation.SuggestionSourceCatalog,
+		DedupKey:    dedupKey,
+		Status:      automation.SuggestionStatusPending,
+		Payload: Job{
+			ID:          "job-" + id,
+			Scope:       automation.AutomationScopeWorkspace,
+			Name:        "Suggested job",
+			TargetKind:  automation.TargetKindAgent,
+			AgentName:   "general",
+			WorkspaceID: workspaceID,
+			Prompt:      "Review the workspace.",
+			Schedule: &automation.ScheduleSpec{
+				Mode:          automation.ScheduleModeCron,
+				Expr:          "0 8 * * *",
+				CatchUpPolicy: automation.SchedulerCatchUpPolicyRunOnce,
+			},
+			Enabled:   true,
+			Retry:     automation.DefaultRetryConfig(),
+			FireLimit: automation.DefaultFireLimitConfig(),
+			Source:    automation.JobSourceDynamic,
+		},
 	}
 }
 

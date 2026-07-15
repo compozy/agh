@@ -37,6 +37,7 @@ import {
 import { buildJobPreview } from "../lib/job-preview";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type {
+  AutomationCatchUpPolicy,
   AutomationFireLimit,
   AutomationRetry,
   AutomationScheduleMode,
@@ -251,18 +252,23 @@ export function useAutomationJobForm({
 
   const handleScheduleMode = (next: AutomationScheduleMode) => {
     setCronFrequencyOverride(null);
+    // Carry the recurring-reliability fields across every switch so a
+    // cron → at → cron round-trip preserves what the operator entered; the
+    // request normalizer drops them for one-shot `at`.
+    const { catch_up_policy, misfire_grace_seconds } = draft.schedule;
+    const recurringReliability = { catch_up_policy, misfire_grace_seconds };
     if (next === "cron") {
       const expr = scheduleExpr(draft) || DEFAULT_CRON_EXPR;
-      patch({ schedule: { mode: "cron", expr } });
+      patch({ schedule: { mode: "cron", expr, ...recurringReliability } });
       return;
     }
     if (next === "every") {
       const interval = draft.schedule.interval ?? DEFAULT_EVERY_INTERVAL;
-      patch({ schedule: { mode: "every", interval } });
+      patch({ schedule: { mode: "every", interval, ...recurringReliability } });
       return;
     }
     const time = draft.schedule.time ?? defaultAtLocal();
-    patch({ schedule: { mode: "at", time } });
+    patch({ schedule: { mode: "at", time, ...recurringReliability } });
   };
 
   const handleCronFrequency = (frequency: CronFrequency) => {
@@ -371,6 +377,15 @@ export function useAutomationJobForm({
     onEveryInterval: (interval: string) => patchSchedule({ mode: "every", interval }),
     onEveryPreset: (interval: string) => patchSchedule({ mode: "every", interval }),
     onAtTime: (time: string) => patchSchedule({ mode: "at", time }),
+
+    // schedule reliability (recurring-only: catch-up policy + misfire grace)
+    recurring: draft.schedule.mode !== "at",
+    catchUpPolicy: draft.schedule.catch_up_policy,
+    misfireGraceSeconds: draft.schedule.misfire_grace_seconds,
+    onCatchUpPolicyChange: (policy: AutomationCatchUpPolicy | undefined) =>
+      patchSchedule({ catch_up_policy: policy }),
+    onMisfireGraceChange: (seconds: number | undefined) =>
+      patchSchedule({ misfire_grace_seconds: seconds }),
 
     // reliability
     onRetryChange: handleRetryChange,

@@ -5,6 +5,7 @@ CREATE TABLE events (
 		type       TEXT NOT NULL,
 		agent_name TEXT NOT NULL,
 		content    TEXT NOT NULL,
+		archived   INTEGER NOT NULL DEFAULT 0,
 		timestamp  TEXT NOT NULL
 	, transcript_entry_key TEXT NOT NULL DEFAULT '');
 

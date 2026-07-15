@@ -1,12 +1,19 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
-import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
+import {
+  cleanupBrowserSettingsFixtures,
+  seedBrowserSettingsFixtures,
+  type BrowserRuntime,
+  type WorkspacePayload,
+} from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
@@ -23,8 +30,17 @@ const fixtureRoot = path.resolve(
 );
 const browserHardeningFixture = path.join(fixtureRoot, "browser_session_hardening_fixture.json");
 const driverFaultFixture = path.join(fixtureRoot, "driver_fault_fixture.json");
+const autoTitleFixture = path.join(fixtureRoot, "auto_title_fixture.json");
+const costProvenanceFixture = path.join(fixtureRoot, "cost_provenance_fixture.json");
+const toolArtifactFixture = path.join(fixtureRoot, "browser_tool_artifact_fixture.json");
 const permissionAgent = "permission-hardening-agent";
 const faultAgent = "faulty";
+const autoTitleAgent = "auto-title-agent";
+const costProvenanceAgent = "cost-provenance-agent";
+const toolArtifactAgent = "tool-artifact-agent";
+const costProvenancePrompt = "Summarize the cost provenance run";
+const toolArtifactDigest = "c82d7447711d610d6c0d8fd52b8c8ee99f051a81e62f51bf052eaad467fca444";
+const toolArtifactTail = "E2E-009 tool artifact tail";
 const sensitivePattern =
   /agh_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
 
@@ -34,6 +50,7 @@ interface SessionPayload {
   provider: string;
   state: string;
   workspace_id: string;
+  name?: string | null;
 }
 
 interface SessionEnvelope {
@@ -42,6 +59,15 @@ interface SessionEnvelope {
 
 interface SessionListEnvelope {
   sessions: SessionPayload[];
+}
+
+interface UsageEnvelope {
+  usage?: {
+    cost_status?: string;
+    cost_source?: string;
+    total_cost?: number;
+    cost_currency?: string;
+  };
 }
 
 interface SessionEventEnvelope {
@@ -71,6 +97,14 @@ test.use({
         {
           fixturePath: driverFaultFixture,
           fixtureAgent: faultAgent,
+        },
+        {
+          fixturePath: autoTitleFixture,
+          fixtureAgent: autoTitleAgent,
+        },
+        {
+          fixturePath: toolArtifactFixture,
+          fixtureAgent: toolArtifactAgent,
         },
       ],
     },
@@ -126,6 +160,46 @@ test("first document navigation to a canonical session route loads the app shell
       chatViewVisible: true,
       sessionRequestObserved: true,
     });
+});
+
+test("E2E-009: operator pages an oversized tool result to its retained tail", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareSessionRuntime(runtime, appPage);
+  await seedToolArtifact(runtime, workspace.root_dir);
+  const session = await createSession(runtime, toolArtifactAgent, workspace.id);
+  const artifactOffsets: string[] = [];
+  appPage.on("response", response => {
+    const url = new URL(response.url());
+    if (url.pathname.includes("/tool-artifacts/")) {
+      artifactOffsets.push(url.searchParams.get("offset") ?? "0");
+    }
+  });
+
+  await appPage.goto(runtime.url(sessionPath(toolArtifactAgent, session.id)), {
+    waitUntil: "domcontentloaded",
+  });
+  const ui = sessionLifecycleSelectors(appPage);
+  await expect(ui.chatHeader).toBeVisible();
+  await ui.composerTextarea.fill("exercise tool artifact recovery");
+  await ui.composerTextarea.press("Enter");
+
+  await expect(ui.chatView).toContainText("Retained result is ready for page-back.");
+  await appPage.getByTestId("turn-fold-row").click();
+  await appPage.getByRole("button", { name: "Toggle tool call (success)" }).click();
+  await expect(ui.chatView).toContainText("E2E-009 bounded retained-result preview");
+  await appPage.getByRole("button", { name: "Open full result" }).click();
+  const loadMore = appPage.getByRole("button", { name: "Load more" });
+  await expect(loadMore).toBeVisible();
+  await loadMore.click();
+  await expect(loadMore).toBeEnabled();
+  await loadMore.click();
+
+  await expect(loadMore).toBeHidden();
+  await expect(appPage.getByTestId("full-tool-result")).toContainText(toolArtifactTail);
+  await expect(appPage.getByText("140,084 of 140,084 bytes")).toBeVisible();
+  expect(artifactOffsets).toEqual(["0", "65536", "131072"]);
 });
 
 test("operator rejects a permission request, records tool output, and keeps session artifacts private", async ({
@@ -382,6 +456,233 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
   await assertNoSensitiveLeak(appPage, runtime, { afterRepair, beforeRepair, cliRepair });
 });
 
+test("operator sees the daemon-generated session title and the file-mutation verifier marker", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const workspace = await prepareSessionRuntime(runtime, appPage);
+  const session = await createSession(runtime, autoTitleAgent, workspace.id);
+  expect(session.name ?? "").toBe("");
+
+  await appPage.goto(runtime.url(sessionPath(autoTitleAgent, session.id)), {
+    waitUntil: "domcontentloaded",
+  });
+
+  const ui = sessionLifecycleSelectors(appPage);
+  await expect(ui.chatHeader).toBeVisible();
+  await ui.composerTextarea.fill("Implement checkout retry fencing");
+  await ui.composerTextarea.press("Enter");
+
+  await expect(ui.chatView).toContainText("Implemented checkout retry fencing.");
+
+  const markerNotice = appPage.getByTestId("transcript-marker-notice");
+  await expect(markerNotice).toBeVisible();
+  await expect(markerNotice).toHaveAttribute("data-tone", "warning");
+  await expect(appPage.getByTestId("transcript-marker-kind")).toContainText(
+    "transcript_marker.file_mutation_unverified"
+  );
+  await expect(appPage.getByTestId("transcript-marker-summary")).toContainText(
+    "file mutation failed and was not recovered"
+  );
+  await browserArtifacts.captureScreenshot("session-auto-title-verifier-marker", appPage);
+
+  await expect
+    .poll(
+      async () => {
+        const detail = await runtime.requestJSON<SessionEnvelope>(
+          sessionAPIPath(workspace.id, session.id)
+        );
+        return detail.session.name ?? "";
+      },
+      { timeout: 30_000 }
+    )
+    .toBe("Checkout Retry Fencing");
+
+  await appPage.goto(runtime.url(`/agents/${autoTitleAgent}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await appPage.getByTestId("agent-tab-sessions").click();
+  const sessionLink = appPage.getByTestId(`agent-session-link-${session.id}`);
+  await expect(sessionLink).toContainText("Checkout Retry Fencing");
+  await expect(sessionLink).not.toContainText("New session");
+  await browserArtifacts.captureScreenshot("session-auto-title-list", appPage);
+
+  const snapshot = await captureSessionSnapshot(runtime, workspace.id, session.id);
+  await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
+  await browserArtifacts.persist(appPage);
+  await assertNoSensitiveLeak(appPage, runtime, snapshot);
+});
+
+test.describe("E2E-010 truthful session cost provenance by auth mode", () => {
+  test.use({
+    runtimeOptions: {
+      env: { PATH: ["/usr/bin", "/bin"].join(path.delimiter) },
+      modelsDevEnabled: false,
+      seed: {
+        mockAgents: [{ fixturePath: costProvenanceFixture, fixtureAgent: costProvenanceAgent }],
+      },
+    },
+  });
+
+  test("operator sees an estimated cue for a metered provider and included for a subscription provider", async ({
+    appPage,
+    runtime,
+  }) => {
+    if (!runtime.paths?.homeDir) {
+      throw new Error("cost provenance E2E requires launch-mode runtime paths.");
+    }
+    const ui = sessionLifecycleSelectors(appPage);
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "agh-cost-provenance-workspace-"));
+    const driverCommand = await readSeededAgentCommand(runtime.paths.homeDir, costProvenanceAgent);
+
+    // The model catalog is daemon-global: workspace config never reconciles it, so cost
+    // provenance is seeded through the public Settings PUT, which applies active config and
+    // reconciles the catalog. auth_mode="none" defaults to none_security="local_transport", and
+    // the metered curated rates land in the global catalog before any turn runs.
+    const seeded = await seedBrowserSettingsFixtures(runtime, {
+      providers: [
+        {
+          name: "cost-metered",
+          settings: {
+            command: driverCommand,
+            display_name: "Cost Metered",
+            harness: "acp",
+            auth_mode: "none",
+            models: {
+              default: "cost-metered-model",
+              curated: [
+                {
+                  id: "cost-metered-model",
+                  display_name: "Cost Metered Model",
+                  cost_input_per_million: 3,
+                  cost_output_per_million: 15,
+                },
+              ],
+            },
+          },
+        },
+        {
+          name: "cost-included",
+          settings: {
+            command: driverCommand,
+            display_name: "Cost Included",
+            harness: "acp",
+            auth_mode: "native_cli",
+            models: {
+              default: "cost-included-model",
+              curated: [{ id: "cost-included-model", display_name: "Cost Included Model" }],
+            },
+          },
+        },
+      ],
+    });
+
+    try {
+      const workspace = await runtime.resolveWorkspace(workspaceRoot);
+
+      await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+      await useGlobalWorkspaceIfPrompted(ui);
+      await expect(ui.appSidebar).toBeVisible();
+      await appPage.getByTestId(`workspace-avatar-${workspace.id}`).click();
+      await expect(appPage.getByTestId(`workspace-avatar-${workspace.id}`)).toHaveAttribute(
+        "data-active",
+        "true"
+      );
+      await appPage.setViewportSize({ width: 1440, height: 900 });
+
+      const estimated = await openUsageCostForProvider(appPage, runtime, workspace.id, {
+        provider: "cost-metered",
+        model: "cost-metered-model",
+        status: "estimated",
+      });
+      await expect(estimated).toContainText("≈");
+      await expect(estimated).toContainText("Estimated");
+      await expect(estimated).toContainText("Catalog rate");
+      await expect(estimated).toContainText("$");
+
+      const included = await openUsageCostForProvider(appPage, runtime, workspace.id, {
+        provider: "cost-included",
+        model: "cost-included-model",
+        status: "included",
+      });
+      await expect(included).toContainText("Included");
+      await expect(included).not.toContainText("$");
+      await expect(included).not.toContainText("≈");
+    } finally {
+      await cleanupBrowserSettingsFixtures(runtime, seeded);
+    }
+  });
+});
+
+async function openUsageCostForProvider(
+  page: import("@playwright/test").Page,
+  runtime: BrowserRuntime,
+  workspaceID: string,
+  opts: { provider: string; model: string; status: string }
+): Promise<import("@playwright/test").Locator> {
+  const ui = sessionLifecycleSelectors(page);
+  const session = await createProviderSession(runtime, workspaceID, opts.provider, opts.model);
+
+  await page.goto(runtime.url(sessionPath(costProvenanceAgent, session.id)), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(ui.chatHeader).toBeVisible();
+  await expect(ui.composerTextarea).toBeEnabled();
+  await ui.composerTextarea.fill(costProvenancePrompt);
+  await ui.composerTextarea.press("Enter");
+  await expect(ui.chatView).toContainText("Cost provenance run recorded.");
+
+  await expect
+    .poll(
+      async () => {
+        const usage = await runtime.requestJSON<UsageEnvelope>(
+          sessionAPIPath(workspaceID, session.id, "/usage")
+        );
+        return usage.usage?.cost_status ?? "";
+      },
+      { timeout: 30_000 }
+    )
+    .toBe(opts.status);
+
+  // The page-level usage query stops refetching once the session goes idle, so
+  // reload to mount the inspector against the now-populated usage summary.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(ui.chatHeader).toBeVisible();
+  await page.getByTestId("session-inspector-tab-usage").click();
+  return page.getByTestId("session-inspector-usage-cost");
+}
+
+async function createProviderSession(
+  runtime: BrowserRuntime,
+  workspaceID: string,
+  provider: string,
+  model: string
+): Promise<SessionPayload> {
+  const payload = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
+    method: "POST",
+    body: JSON.stringify({
+      agent_name: costProvenanceAgent,
+      provider,
+      model,
+      workspace: workspaceID,
+    }),
+  });
+  expect(payload.session.id).not.toBe("");
+  expect(payload.session.provider).toBe(provider);
+  return payload.session;
+}
+
+async function readSeededAgentCommand(homeDir: string, agentName: string): Promise<string> {
+  const agentDefPath = path.join(homeDir, "agents", agentName, "AGENT.md");
+  const agentDef = await readFile(agentDefPath, "utf8");
+  const match = agentDef.match(/^command:\s+(.+)$/m);
+  if (!match) {
+    throw new Error(`agent definition ${agentDefPath} is missing a command line`);
+  }
+  return match[1].trim();
+}
+
 async function prepareSessionRuntime(
   runtime: BrowserRuntime,
   page: import("@playwright/test").Page
@@ -394,6 +695,30 @@ async function prepareSessionRuntime(
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
   return workspace;
+}
+
+async function seedToolArtifact(runtime: BrowserRuntime, workspaceRoot: string): Promise<void> {
+  if (!runtime.paths?.homeDir) {
+    throw new Error("tool artifact E2E requires launch-mode runtime paths.");
+  }
+  const content = Buffer.from(
+    JSON.stringify({
+      content: [{ type: "text", text: `${"x".repeat(140_000)} ${toolArtifactTail}` }],
+      truncated: false,
+    }),
+    "utf8"
+  );
+  const digest = createHash("sha256").update(content).digest("hex");
+  expect(digest).toBe(toolArtifactDigest);
+  const identity = await readFile(path.join(workspaceRoot, ".agh", "workspace.toml"), "utf8");
+  const workspaceID = /^workspace_id\s*=\s*"([^"]+)"$/m.exec(identity)?.[1];
+  if (!workspaceID) {
+    throw new Error(`workspace identity is missing from ${workspaceRoot}`);
+  }
+  const workspaceDigest = createHash("sha256").update(workspaceID).digest("hex");
+  const workspaceDir = path.join(runtime.paths.homeDir, "tool-artifacts", workspaceDigest);
+  await mkdir(workspaceDir, { recursive: true, mode: 0o700 });
+  await writeFile(path.join(workspaceDir, `art_${digest}.json`), content, { mode: 0o600 });
 }
 
 async function createSession(

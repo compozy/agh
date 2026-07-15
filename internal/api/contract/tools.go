@@ -132,6 +132,17 @@ type ToolInvokeResponse struct {
 	Events     []ToolCallEventPayload `json:"events"`
 }
 
+// ToolArtifactPageResponse is one exact byte page from a retained oversized result.
+type ToolArtifactPageResponse struct {
+	Artifact   tools.ArtifactRef `json:"artifact"`
+	Offset     int64             `json:"offset"`
+	Bytes      int64             `json:"bytes"`
+	TotalBytes int64             `json:"total_bytes"`
+	DataBase64 string            `json:"data_base64"`
+	NextOffset int64             `json:"next_offset"`
+	EOF        bool              `json:"eof"`
+}
+
 // ToolCallEventPayload is a redacted dispatch event surfaced when a handler can collect events.
 type ToolCallEventPayload struct {
 	Kind                 tools.ToolCallEventKind `json:"kind"`
@@ -204,12 +215,13 @@ type ToolsetResponse struct {
 
 // ToolErrorPayload is the structured error envelope for tool registry routes.
 type ToolErrorPayload struct {
-	Code        tools.ErrorCode            `json:"code"`
-	Message     string                     `json:"message"`
-	ToolID      tools.ToolID               `json:"tool_id,omitempty"`
-	ReasonCodes []tools.ReasonCode         `json:"reason_codes,omitempty"`
-	Layer       string                     `json:"layer,omitempty"`
-	Details     map[string]json.RawMessage `json:"details,omitempty"`
+	Code          tools.ErrorCode            `json:"code"`
+	Message       string                     `json:"message"`
+	ToolID        tools.ToolID               `json:"tool_id,omitempty"`
+	ReasonCodes   []tools.ReasonCode         `json:"reason_codes,omitempty"`
+	Layer         string                     `json:"layer,omitempty"`
+	Details       map[string]json.RawMessage `json:"details,omitempty"`
+	PartialResult *tools.ToolResult          `json:"partial_result,omitempty"`
 }
 
 // ToolErrorResponse returns one structured tool error.

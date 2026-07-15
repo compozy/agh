@@ -23,6 +23,8 @@ import {
   useTopbarSlot,
 } from "@agh/ui";
 
+import { describeCost } from "@/lib/cost-provenance";
+
 import { useForceFailDialog } from "../hooks/use-force-fail-dialog";
 import { taskRunStatusLabel, taskRunStatusTone, taskStatusSignal } from "../lib/task-formatters";
 import { taskRunCanRecover } from "../lib/task-run-recovery";
@@ -50,6 +52,40 @@ function computeElapsedLabel(startedAt?: string | null, endedAt?: string | null)
 
 function normalizeText(value?: string | null): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+/** Cost-provenance entry for the run meta row; renders nothing when the summary carries no cost. */
+function TaskRunCostMeta({ summary }: { summary: TaskRunDetailView["summary"] }) {
+  const cost = describeCost({
+    status: summary?.cost_status,
+    source: summary?.cost_source,
+    amount: summary?.total_cost,
+    currency: summary?.cost_currency,
+  });
+  if (!cost.hasCost) return null;
+  return (
+    <>
+      <span aria-hidden="true" className="text-faint">
+        ·
+      </span>
+      <span
+        data-testid="task-run-detail-cost"
+        data-cost-status={cost.status}
+        className="inline-flex items-center gap-1.5"
+      >
+        <span>{cost.isEstimated ? "Est. cost" : "Cost"}</span>
+        <span className="text-fg">{cost.value}</span>
+        {cost.sourceLabel ? (
+          <>
+            <span aria-hidden="true" className="text-faint">
+              ·
+            </span>
+            <span>{cost.sourceLabel}</span>
+          </>
+        ) : null}
+      </span>
+    </>
+  );
 }
 
 export function TaskRunDetailHeader({
@@ -260,6 +296,7 @@ export function TaskRunDetailHeader({
                   </span>
                 </>
               ) : null}
+              <TaskRunCostMeta summary={run.summary} />
             </div>
           }
         />

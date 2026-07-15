@@ -30,7 +30,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 	homePaths := e2etest.NewHomePaths(t)
 	workspaceRoot := t.TempDir()
 	options := goalCommandRuntimeOptions(t, homePaths, workspaceRoot)
-	harness := e2etest.StartRuntimeHarness(t, options)
+	harness := e2etest.StartRuntimeHarness(t, &options)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
@@ -253,7 +253,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 		}
 		stopCancel()
 
-		restarted := e2etest.StartRuntimeHarness(t, options)
+		restarted := e2etest.StartRuntimeHarness(t, &options)
 		restartedSnapshot := waitForGoalSnapshot(
 			ctx,
 			t,

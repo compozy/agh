@@ -3,7 +3,12 @@ export type {
   ACPCaps,
   AgentEventPayload,
   AghPermissionData,
+  AnswerClarificationBody,
+  AnswerClarificationResult,
   ApproveSessionParams,
+  ClarificationPending,
+  ClarifyEventView,
+  ClarifyStatus,
   CreateSessionParams,
   FetchSessionEventsParams,
   PermissionDecision,
@@ -53,14 +58,18 @@ export type {
   TranscriptMessage,
   TranscriptMessageRole,
   TurnHistoryPayload,
+  UIMessage,
 } from "./types";
 
 // Adapters
 export {
+  answerSessionClarification,
   approveSession,
   cancelQueuedSessionPrompt,
   cancelSessionPrompt,
+  ClarificationNotAnswerableError,
   createSession,
+  fetchSessionClarifications,
   deleteSession,
   fetchSession,
   fetchSessionById,
@@ -85,6 +94,8 @@ export {
 
 // Query infrastructure
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
+export { isClarifyEventData } from "./lib/clarify-event";
+export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 export { sessionKeys } from "./lib/query-keys";
 export {
@@ -94,6 +105,7 @@ export {
 } from "./lib/session-return-navigation";
 export {
   sessionByIdOptions,
+  sessionClarificationsOptions,
   sessionDetailOptions,
   sessionEventsOptions,
   sessionHistoryOptions,
@@ -131,6 +143,12 @@ export {
   useSessionUsage,
   useSessions,
 } from "./hooks/use-sessions";
+export {
+  useAnswerSessionClarification,
+  useSessionClarifications,
+  type AnswerClarificationVariables,
+} from "./hooks/use-session-clarifications";
+export { useSessionRuntimeRenderContext } from "./hooks/use-session-runtime-render-context";
 export {
   useWorkspaceSessionActivity,
   workspaceSessionActivityFromResults,
@@ -197,7 +215,18 @@ export {
   type SessionChatRuntimeProviderProps,
 } from "./components/session-chat-runtime-provider";
 export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-block";
-export { PermissionPrompt, type PermissionPromptProps } from "./components/permission-prompt";
+export {
+  PermissionDataPart,
+  PermissionPrompt,
+  type PermissionPromptProps,
+} from "./components/permission-prompt";
+export { ClarificationCard, type ClarificationCardProps } from "./components/clarification-card";
+export { ClarificationReceipt } from "./components/clarification-receipt";
+export {
+  ClarificationDataPart,
+  type ClarificationDataPartProps,
+} from "./components/clarification-data-part";
+export { RuntimeActivityNotice } from "./components/runtime-activity-notice";
 export {
   SessionInspector,
   type InspectorMemoryState,

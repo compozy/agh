@@ -72,6 +72,13 @@ func validateRunIdentity(r Run) error {
 	if r.Attempt <= 0 {
 		return fmt.Errorf("%w: task_run.attempt must be positive: %d", ErrValidation, r.Attempt)
 	}
+	if r.RecoveryCount < 0 {
+		return fmt.Errorf(
+			"%w: task_run.recovery_count must be zero or positive: %d",
+			ErrValidation,
+			r.RecoveryCount,
+		)
+	}
 	return validateRunLineageFields(r)
 }
 
@@ -102,12 +109,19 @@ func validateRunActorOriginSession(r Run) error {
 		return err
 	}
 	status := r.Status.Normalize()
-	if (status == TaskRunStatusQueued || status == TaskRunStatusNeedsAttention) &&
-		strings.TrimSpace(r.SessionID) != "" {
+	sessionID := strings.TrimSpace(r.SessionID)
+	if status == TaskRunStatusQueued && sessionID != "" {
 		return fmt.Errorf(
 			"%w: task_run.session_id must be empty while status is %q",
 			ErrValidation,
 			status,
+		)
+	}
+	if status == TaskRunStatusNeedsAttention && sessionID != "" &&
+		(r.ClaimedBy == nil || r.ClaimedAt.IsZero()) {
+		return fmt.Errorf(
+			"%w: task_run claimed_by and claimed_at are required for session-bound needs_attention",
+			ErrValidation,
 		)
 	}
 	if err := validateRunLeaseMetadata(r); err != nil {

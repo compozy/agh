@@ -16,7 +16,9 @@
         "resume",
         "status",
         "stop",
+        "usage",
         "wait",
+        "clarify",
         "soul"
     ]
 }

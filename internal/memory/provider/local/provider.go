@@ -32,6 +32,19 @@ type Backend interface {
 	ForAgent(workspaceID string, agentName string, tier memcontract.AgentTier) Backend
 }
 
+// SessionEndHandler owns bundled local session-end memory lifecycle work.
+type SessionEndHandler interface {
+	OnSessionEnd(ctx context.Context, record memcontract.SessionEndRecord) error
+}
+
+// PreCompressHandler owns bundled local checkpoint coverage updates.
+type PreCompressHandler interface {
+	OnPreCompress(
+		ctx context.Context,
+		request memcontract.PreCompressRequest,
+	) (memcontract.PreCompressHint, error)
+}
+
 // Provider implements the bundled local MemoryProvider over Store seams.
 type Provider struct {
 	backend Backend
@@ -42,6 +55,8 @@ type Provider struct {
 	workspaceRoot string
 	config        map[string]any
 	logger        *slog.Logger
+	sessionEnd    SessionEndHandler
+	preCompress   PreCompressHandler
 	initialized   bool
 	shutdown      bool
 }
@@ -163,9 +178,41 @@ func (p *Provider) SyncTurn(ctx context.Context, _ memcontract.TurnRecord) error
 	return p.checkReady(ctx)
 }
 
-// OnSessionEnd is a no-op for the bundled local provider.
-func (p *Provider) OnSessionEnd(ctx context.Context, _ memcontract.SessionEndRecord) error {
-	return p.checkReady(ctx)
+// SetSessionEndHandler installs the checkpoint updater used by lifecycle calls.
+func (p *Provider) SetSessionEndHandler(handler SessionEndHandler) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.sessionEnd = handler
+}
+
+// SetPreCompressHandler installs the checkpoint updater used before event archiving.
+func (p *Provider) SetPreCompressHandler(handler PreCompressHandler) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.preCompress = handler
+}
+
+// OnSessionEnd delegates to the configured bundled lifecycle handler.
+func (p *Provider) OnSessionEnd(ctx context.Context, record memcontract.SessionEndRecord) error {
+	if err := p.checkReady(ctx); err != nil {
+		return err
+	}
+	p.mu.RLock()
+	handler := p.sessionEnd
+	p.mu.RUnlock()
+	if handler == nil {
+		return nil
+	}
+	if err := handler.OnSessionEnd(ctx, record); err != nil {
+		return fmt.Errorf("memory provider local: session end: %w", err)
+	}
+	return nil
 }
 
 // OnSessionSwitch is a no-op for the bundled local provider.
@@ -173,15 +220,25 @@ func (p *Provider) OnSessionSwitch(ctx context.Context, _ memcontract.SessionSwi
 	return p.checkReady(ctx)
 }
 
-// OnPreCompress returns no local pre-compression hint.
+// OnPreCompress delegates to the configured bundled checkpoint updater.
 func (p *Provider) OnPreCompress(
 	ctx context.Context,
-	_ memcontract.PreCompressRequest,
+	request memcontract.PreCompressRequest,
 ) (memcontract.PreCompressHint, error) {
 	if err := p.checkReady(ctx); err != nil {
 		return memcontract.PreCompressHint{}, err
 	}
-	return memcontract.PreCompressHint{}, nil
+	p.mu.RLock()
+	handler := p.preCompress
+	p.mu.RUnlock()
+	if handler == nil {
+		return memcontract.PreCompressHint{}, nil
+	}
+	hint, err := handler.OnPreCompress(ctx, request)
+	if err != nil {
+		return memcontract.PreCompressHint{}, fmt.Errorf("memory provider local: pre-compress: %w", err)
+	}
+	return hint, nil
 }
 
 // OnMemoryWrite applies a controller decision through the local store.

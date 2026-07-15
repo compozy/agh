@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/session"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store/sessiondb"
@@ -32,6 +34,23 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	workspaceRoot := homePaths.HomeDir + "/workspace"
 	resolvedWorkspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
 	writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
+	writeHarnessCheckpointSummary(t, workspaceRoot, "The prior session selected cobalt.")
+	const gatedSkillName = "integration-platform-gated"
+	writeDaemonFile(
+		t,
+		filepath.Join(homePaths.SkillsDir, gatedSkillName, "SKILL.md"),
+		strings.Join([]string{
+			"---",
+			"name: " + gatedSkillName,
+			"description: Must never be advertised by this integration fixture.",
+			"metadata:",
+			"  agh:",
+			"    when:",
+			"      platforms: [agh-integration-impossible]",
+			"---",
+			"body",
+		}, "\n"),
+	)
 
 	daemonInstance, capturedDeps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
 	t.Cleanup(func() {
@@ -161,6 +180,10 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, nativeToolsGuide); got != 1 {
 		t.Fatalf("native tools guide occurrences = %d, want 1", got)
 	}
+	gatedCatalogEntry := `name="` + gatedSkillName + `"`
+	if got := driver.startCalls[0].SystemPrompt; strings.Contains(got, gatedCatalogEntry) {
+		t.Fatalf("start system prompt advertised gated skill %q", gatedSkillName)
+	}
 	// The startup prompt embeds the bundled tools guide, which documents the
 	// "<agh-situation-context>" open tag in prose; count the closing tag so the
 	// assertion measures rendered sections, not documentation mentions.
@@ -175,6 +198,10 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		!strings.Contains(got, "- workspace_id: ws-harness") {
 		t.Fatalf("start system prompt = %q, want AGH runtime envelope with workspace facts", got)
 	}
+	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "<agh_checkpoint_summary>") ||
+		!strings.Contains(got, "The prior session selected cobalt.") {
+		t.Fatalf("start system prompt = %q, want prior-session checkpoint summary", got)
+	}
 	assertPromptContainsInOrder(
 		t,
 		driver.startCalls[0].SystemPrompt,
@@ -183,6 +210,8 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		"canonical registry IDs",
 		"<agh-situation-context>",
 		"# Persistent Memory",
+		"<agh_checkpoint_summary>",
+		"The prior session selected cobalt.",
 		"You are a coding assistant.",
 		"<available-skills>",
 		toolsGuide,
@@ -237,6 +266,9 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := strings.Count(driver.promptCalls[0].Message, "<agh-situation-context>"); got != 1 {
 		t.Fatalf("user prompt situation context occurrences = %d, want 1", got)
 	}
+	if got := driver.promptCalls[0].Message; strings.Contains(got, gatedCatalogEntry) {
+		t.Fatalf("user prompt advertised gated skill %q", gatedSkillName)
+	}
 
 	networkResolved, err := daemonInstance.harnessResolver.ResolvePrompt(
 		created.Info(),
@@ -275,6 +307,39 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := driver.promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceNetwork {
 		t.Fatalf("network prompt turn source = %q, want %q", got, acp.PromptTurnSourceNetwork)
 	}
+	if got := driver.promptCalls[1].Message; strings.Contains(got, gatedCatalogEntry) {
+		t.Fatalf("network prompt advertised gated skill %q", gatedSkillName)
+	}
+}
+
+func writeHarnessCheckpointSummary(t *testing.T, workspaceRoot string, fact string) {
+	t.Helper()
+
+	body := strings.Join([]string{
+		"## Historical Task Snapshot", "None.",
+		"## Goal", fact,
+		"## Constraints & Preferences", "None.",
+		"## Completed Actions", "1. Preserved the prior-session fact.",
+		"## Active State", "Idle.",
+		"## Historical In-Progress State", "None.",
+		"## Blocked", "None.",
+		"## Key Decisions", fact,
+		"## Resolved Questions", "None.",
+		"## Historical Pending User Asks", "None.",
+		"## Relevant Files", "None.",
+		"## Historical Remaining Work", "None.",
+		"## Critical Context", fact,
+	}, "\n\n")
+	writeDaemonFile(
+		t,
+		filepath.Join(workspaceRoot, aghconfig.DirName, "memory", memory.CheckpointSummaryFilename),
+		memoryDocument(
+			"Workspace Checkpoint Summary",
+			"Continuity checkpoint updated from completed workspace sessions.",
+			memcontract.TypeProject,
+			body,
+		),
+	)
 }
 
 func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
@@ -644,6 +709,7 @@ type harnessIntegrationDriver struct {
 	promptCalls []acp.PromptRequest
 	processes   map[*session.AgentProcess]*harnessIntegrationProcess
 	sequence    int
+	startHook   func(acp.StartOpts, int) error
 	promptHook  func(context.Context, *session.AgentProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error)
 	cancelHook  func(context.Context, *session.AgentProcess) error
 }
@@ -670,6 +736,11 @@ func (d *harnessIntegrationDriver) Start(_ context.Context, opts acp.StartOpts) 
 	copied.Env = append([]string(nil), opts.Env...)
 	copied.MCPServers = append([]aghconfig.MCPServer(nil), opts.MCPServers...)
 	d.startCalls = append(d.startCalls, copied)
+	if d.startHook != nil {
+		if err := d.startHook(copied, d.sequence); err != nil {
+			return nil, err
+		}
+	}
 
 	sessionID := fmt.Sprintf("acp-%d", d.sequence)
 	if copied.ResumeSessionID != "" {

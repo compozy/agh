@@ -664,6 +664,28 @@ func (q *Queries) TaskDependencyExists(ctx context.Context, arg TaskDependencyEx
 	return exists, err
 }
 
+const taskWakeEventExists = `-- name: TaskWakeEventExists :one
+SELECT EXISTS(
+  SELECT 1
+  FROM task_events
+  WHERE task_id = ?1
+    AND event_type IN ('task.wake.delivered', 'task.wake.suppressed')
+    AND json_extract(payload_json, '$.wake_event_id') = ?2
+)
+`
+
+type TaskWakeEventExistsParams struct {
+	TaskID      string         `json:"task_id"`
+	WakeEventID sql.NullString `json:"wake_event_id"`
+}
+
+func (q *Queries) TaskWakeEventExists(ctx context.Context, arg TaskWakeEventExistsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, taskWakeEventExists, arg.TaskID, arg.WakeEventID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const upsertTaskTriageState = `-- name: UpsertTaskTriageState :exec
 INSERT INTO task_triage_state (
   task_id, actor_kind, actor_id, is_read, archived, dismissed, last_seen_activity_at, updated_at

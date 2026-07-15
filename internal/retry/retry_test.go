@@ -3,6 +3,7 @@ package retry
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"strings"
 	"testing"
 	"time"
@@ -21,10 +22,11 @@ func TestDoValue(t *testing.T) {
 			context.Background(),
 			Policy{
 				MaxAttempts: 3,
-				BaseDelay:   10 * time.Millisecond,
-				MaxDelay:    50 * time.Millisecond,
-				JitterRatio: 0.5,
-				RandFloat64: sequenceRand(t, 1, 0),
+				Delay: DecorrelatedJitter(DecorrelatedJitterConfig{
+					BaseDelay:   10 * time.Millisecond,
+					MaxDelay:    50 * time.Millisecond,
+					RandFloat64: sequenceRand(t, 1, 0),
+				}),
 				Sleep: func(_ context.Context, delay time.Duration) error {
 					delays = append(delays, delay)
 					return nil
@@ -51,7 +53,7 @@ func TestDoValue(t *testing.T) {
 			t.Fatalf("attempts = %d, want 3", attempts)
 		}
 		if got, want := delays, []time.Duration{
-			15 * time.Millisecond,
+			30 * time.Millisecond,
 			10 * time.Millisecond,
 		}; !equalDurations(
 			t,
@@ -99,6 +101,45 @@ func TestDoValue(t *testing.T) {
 			t.Fatalf("DoValue(context error) error = %v, want context.DeadlineExceeded", err)
 		}
 	})
+
+	t.Run("Should stop before sleeping when retry observation fails", func(t *testing.T) {
+		t.Parallel()
+
+		providerErr := errors.New("provider unavailable")
+		observerErr := errors.New("report retry state")
+		attempts := 0
+		sleepCalls := 0
+		_, err := DoValue(
+			t.Context(),
+			Policy{
+				MaxAttempts: 2,
+				Sleep: func(context.Context, time.Duration) error {
+					sleepCalls++
+					return nil
+				},
+				OnRetry: func(_ context.Context, attempt Attempt) error {
+					if !errors.Is(attempt.Err, providerErr) {
+						t.Fatalf("retry attempt error = %v, want provider error", attempt.Err)
+					}
+					return observerErr
+				},
+			},
+			func(err error) bool { return errors.Is(err, providerErr) },
+			func(context.Context) (string, error) {
+				attempts++
+				return "", providerErr
+			},
+		)
+		if !errors.Is(err, providerErr) || !errors.Is(err, observerErr) {
+			t.Fatalf("DoValue(observer failure) error = %v, want provider and observer errors", err)
+		}
+		if attempts != 1 {
+			t.Fatalf("attempts = %d, want 1", attempts)
+		}
+		if sleepCalls != 0 {
+			t.Fatalf("sleep calls = %d, want 0", sleepCalls)
+		}
+	})
 }
 
 func TestDo(t *testing.T) {
@@ -114,7 +155,7 @@ func TestDo(t *testing.T) {
 			context.Background(),
 			Policy{
 				MaxAttempts: 2,
-				BaseDelay:   time.Millisecond,
+				Delay:       func(DelayInput) time.Duration { return time.Millisecond },
 				Sleep: func(context.Context, time.Duration) error {
 					sleepCalls++
 					return nil
@@ -194,47 +235,52 @@ func TestWait(t *testing.T) {
 	})
 }
 
-func TestDelay(t *testing.T) {
+func TestDecorrelatedJitterBoundaries(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name    string
-		policy  Policy
-		attempt int
-		want    time.Duration
+		name     string
+		config   DecorrelatedJitterConfig
+		previous time.Duration
+		want     time.Duration
 	}{
 		{
-			name: "ShouldApplyLowJitterBound",
-			policy: Policy{
+			name: "ShouldApplyBaseAtLowBound",
+			config: DecorrelatedJitterConfig{
 				BaseDelay:   100 * time.Millisecond,
 				MaxDelay:    time.Second,
-				JitterRatio: 0.2,
 				RandFloat64: func() float64 { return 0 },
 			},
-			attempt: 1,
-			want:    80 * time.Millisecond,
+			want: 100 * time.Millisecond,
 		},
 		{
-			name: "ShouldApplyHighJitterBound",
-			policy: Policy{
+			name: "ShouldApplyThreeTimesPreviousAtHighBound",
+			config: DecorrelatedJitterConfig{
 				BaseDelay:   100 * time.Millisecond,
 				MaxDelay:    time.Second,
-				JitterRatio: 0.2,
 				RandFloat64: func() float64 { return 1 },
 			},
-			attempt: 2,
-			want:    240 * time.Millisecond,
+			previous: 200 * time.Millisecond,
+			want:     600 * time.Millisecond,
 		},
 		{
 			name: "ShouldCapDelayAtMaxDelay",
-			policy: Policy{
-				BaseDelay:   750 * time.Millisecond,
+			config: DecorrelatedJitterConfig{
+				BaseDelay:   100 * time.Millisecond,
 				MaxDelay:    time.Second,
-				JitterRatio: 0.5,
 				RandFloat64: func() float64 { return 1 },
 			},
-			attempt: 3,
-			want:    time.Second,
+			previous: 750 * time.Millisecond,
+			want:     time.Second,
+		},
+		{
+			name: "ShouldClampMaximumToBaseDelay",
+			config: DecorrelatedJitterConfig{
+				BaseDelay:   2 * time.Second,
+				MaxDelay:    time.Second,
+				RandFloat64: func() float64 { return 1 },
+			},
+			want: 2 * time.Second,
 		},
 	}
 
@@ -242,10 +288,72 @@ func TestDelay(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := Delay(tc.policy, tc.attempt); got != tc.want {
-				t.Fatalf("Delay() = %s, want %s", got, tc.want)
+			delayFor := DecorrelatedJitter(tc.config)
+			if got := delayFor(DelayInput{Attempt: 1, Previous: tc.previous}); got != tc.want {
+				t.Fatalf("DecorrelatedJitter() = %s, want %s", got, tc.want)
 			}
 		})
+	}
+}
+
+// Invariant: decorrelated jitter stays bounded without collapsing into a fixed multiplier sequence.
+// Owning layer: shared transient retry infrastructure. Canonical suite: retry_test.go.
+func TestDecorrelatedJitterStaysBoundedAndVariesWithFixedSeed(t *testing.T) {
+	t.Parallel()
+
+	const samples = 128
+	baseDelay := 100 * time.Millisecond
+	maxDelay := 5 * time.Second
+	random := rand.New(rand.NewSource(42))
+	delayFor := DecorrelatedJitter(DecorrelatedJitterConfig{
+		BaseDelay:   baseDelay,
+		MaxDelay:    maxDelay,
+		RandFloat64: random.Float64,
+	})
+
+	var (
+		previous  time.Duration
+		increases int
+		decreases int
+		nonDouble int
+	)
+	for attempt := 1; attempt <= samples; attempt++ {
+		delay := delayFor(DelayInput{
+			Attempt:  attempt,
+			Previous: previous,
+			Err:      errors.New("provider unavailable"),
+		})
+		upperPrevious := max(previous, baseDelay)
+		upper := min(maxDelay, upperPrevious*3)
+		if delay < baseDelay || delay > upper {
+			t.Fatalf(
+				"attempt %d delay = %s, want within [%s, %s] after %s",
+				attempt,
+				delay,
+				baseDelay,
+				upper,
+				previous,
+			)
+		}
+		if previous > 0 {
+			switch {
+			case delay > previous:
+				increases++
+			case delay < previous:
+				decreases++
+			}
+			if delay != previous*2 {
+				nonDouble++
+			}
+		}
+		previous = delay
+	}
+
+	if increases == 0 || decreases == 0 {
+		t.Fatalf("delay movement = increases:%d decreases:%d, want both directions", increases, decreases)
+	}
+	if nonDouble < samples/2 {
+		t.Fatalf("non-double transitions = %d, want at least %d", nonDouble, samples/2)
 	}
 }
 

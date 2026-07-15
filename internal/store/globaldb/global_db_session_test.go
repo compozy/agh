@@ -851,10 +851,18 @@ func writeSessionDeleteDependents(t *testing.T, globalDB *GlobalDB, sessionID st
 		SessionID:   sessionID,
 		AgentName:   "coder",
 		InputTokens: &inputTokens,
+		CostStatus:  "unknown",
+		CostSource:  "none",
 		Turns:       1,
 	}); err != nil {
 		t.Fatalf("UpdateTokenStats() error = %v", err)
 	}
+	writeSessionDeletePermissionLog(t, globalDB, sessionID)
+}
+
+func writeSessionDeletePermissionLog(t *testing.T, globalDB *GlobalDB, sessionID string) {
+	t.Helper()
+
 	if err := globalDB.WritePermissionLog(testutil.Context(t), store.PermissionLogEntry{
 		ID:         "perm-" + sessionID,
 		SessionID:  sessionID,

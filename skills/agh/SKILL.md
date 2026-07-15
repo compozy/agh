@@ -20,6 +20,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Task                                                                                                                       | MUST read                                                               |
 | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Start, inspect, prompt, stop, resume, or debug AGH sessions and daemon state                                               | references/runtime-operations.md                                        |
+| Expose one AGH workspace to an external MCP client with `agh mcp serve`                                                    | references/runtime-operations.md                                        |
 | Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                              | references/runtime-operations.md                                        |
 | Create or review AGH agent definitions, provider defaults, permissions, or MCP sidecars                                    | references/agent-definitions.md + references/tools-and-skills.md        |
 | Discover or call AGH-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                            | references/tools-and-skills.md + references/native-tools.md             |
@@ -55,6 +56,12 @@ Match the task to the row. Read the listed files in full before producing output
 4. Keep authority with the daemon: task state, review verdicts, session lifecycle, memory, capabilities, bundles, hooks, and network sends must use AGH public surfaces.
 5. For repository contribution, follow the local repo instructions before editing, including the relevant AGENTS.md, CLAUDE.md, and skill dispatch rules.
 6. Finish with fresh verification evidence that matches the scope of the claim.
+
+## Error Handling
+
+If a required reference is missing or unreadable, stop the affected operation and report its exact
+path instead of guessing. For runtime failures, preserve the structured error, follow the diagnostic
+order in `references/runtime-operations.md`, and never bypass daemon-owned state.
 
 **STOP. Read references/tools-and-skills.md and references/native-tools.md in full before discovering, invoking, creating, or modifying any AGH tool or skill.** The catalog in this file is only a router.
 

@@ -171,7 +171,7 @@ func applyNativeConfigLifecycle(
 }
 
 func addNativeConfigApplyFields(payload map[string]any, apply contract.SettingsApplyResponse) {
-	payload[nativeConfigHookToolsAppliedKey] = apply.Applied
+	payload[nativeAppliedValue] = apply.Applied
 	payload[nativeConfigHookToolsLifecycleKey] = apply.Lifecycle
 	payload["apply_record_id"] = apply.ApplyRecordID
 	payload["active_generation"] = apply.ActiveGeneration

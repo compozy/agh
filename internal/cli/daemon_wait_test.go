@@ -324,6 +324,85 @@ func TestStatusCommandReturnsDaemonStatus(t *testing.T) {
 			t.Fatalf("decoded schema streams = %#v, want %#v", got, want)
 		}
 	})
+
+	t.Run("Should render degraded subprocess health and needs-attention runs", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			statusFn: func(context.Context) (StatusRecord, error) {
+				return StatusRecord{
+					Daemon: DaemonStatus{Status: "ready", PID: 42, StartedAt: fixedTestNow},
+					SubprocessHealth: contract.SubprocessHealthAggregatePayload{
+						Status:    "degraded",
+						Monitored: 1,
+						Unhealthy: 1,
+					},
+					Tasks: contract.TaskHealthPayload{RunTotals: []contract.TaskRunTotalPayload{{
+						Status: "needs_attention",
+						Count:  1,
+					}}},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "status")
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+		for _, expected := range []string{"Subprocess Health", "degraded", "Needs Attention", "1 task run"} {
+			if !strings.Contains(stdout, expected) {
+				t.Fatalf("status output = %q, want %q", stdout, expected)
+			}
+		}
+	})
+}
+
+func TestDrainCommandsUpdateDaemonAdmission(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		command   string
+		wantState contract.DrainState
+		client    *stubClient
+	}{
+		{
+			name:      "Should drain daemon admission",
+			command:   drainCommandKey,
+			wantState: contract.DrainStateDraining,
+			client: &stubClient{drainFn: func(context.Context) (DrainStatusRecord, error) {
+				return DrainStatusRecord{State: contract.DrainStateDraining}, nil
+			}},
+		},
+		{
+			name:      "Should resume daemon admission",
+			command:   undrainCommandKey,
+			wantState: contract.DrainStateActive,
+			client: &stubClient{undrainFn: func(context.Context) (DrainStatusRecord, error) {
+				return DrainStatusRecord{State: contract.DrainStateActive}, nil
+			}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t, tt.client)
+			stdout, _, err := executeRootCommand(t, deps, tt.command, "-o", "json")
+			if err != nil {
+				t.Fatalf("executeRootCommand() error = %v", err)
+			}
+
+			var decoded DrainStatusRecord
+			if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+			if decoded.State != tt.wantState {
+				t.Fatalf("state = %q, want %q", decoded.State, tt.wantState)
+			}
+		})
+	}
 }
 
 func TestRunDaemonForegroundRunsDaemonWhenNotAlreadyRunning(t *testing.T) {

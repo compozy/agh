@@ -193,6 +193,7 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 		TaskID:                       current.TaskID,
 		Status:                       current.Status,
 		Attempt:                      int(current.Attempt),
+		RecoveryCount:                int(current.RecoveryCount),
 		PreviousRunID:                current.PreviousRunID,
 		FailureKind:                  current.FailureKind,
 		MaxAttempts:                  maxAttempts,

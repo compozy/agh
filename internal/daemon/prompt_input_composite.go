@@ -362,7 +362,7 @@ func (c *promptInputComposite) applyAugmentedMessage(
 		return current, remainingBudget
 	}
 
-	outcome := "applied"
+	outcome := nativeAppliedValue
 	if bounded == current {
 		outcome = "unchanged"
 	} else if bounded != next {

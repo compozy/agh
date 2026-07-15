@@ -25,19 +25,21 @@ const (
 )
 
 type sessionWriteRequest struct {
-	ctx    context.Context
-	kind   sessionWriteKind
-	event  store.SessionEvent
-	events []store.SessionEvent
-	usage  store.TokenUsage
-	hook   hookspkg.HookRunRecord
-	result chan sessionWriteResult
+	ctx     context.Context
+	kind    sessionWriteKind
+	event   store.SessionEvent
+	events  []store.SessionEvent
+	usage   store.TokenUsage
+	hook    hookspkg.HookRunRecord
+	archive store.EventArchiveRequest
+	result  chan sessionWriteResult
 }
 
 type sessionWriteResult struct {
-	event  store.SessionEvent
-	events []store.SessionEvent
-	err    error
+	event   store.SessionEvent
+	events  []store.SessionEvent
+	archive store.EventArchiveResult
+	err     error
 }
 
 type sessionShutdownRequest struct {
@@ -64,6 +66,7 @@ type SessionDB struct {
 }
 
 var _ store.EventRecorder = (*SessionDB)(nil)
+var _ store.EventArchiver = (*SessionDB)(nil)
 
 // OpenSessionDB opens or creates the per-session events database at path.
 func OpenSessionDB(ctx context.Context, sessionID string, path string) (*SessionDB, error) {

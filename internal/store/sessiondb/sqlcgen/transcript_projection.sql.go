@@ -167,7 +167,7 @@ func (q *Queries) GetTranscriptToolEntryIdentity(ctx context.Context, toolKey st
 }
 
 const listEventsForTranscriptEntry = `-- name: ListEventsForTranscriptEntry :many
-SELECT id, sequence, turn_id, type, agent_name, content, timestamp
+SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
 FROM events
 WHERE transcript_entry_key = ?1
 ORDER BY sequence ASC
@@ -180,6 +180,7 @@ type ListEventsForTranscriptEntryRow struct {
 	Type      string `json:"type"`
 	AgentName string `json:"agent_name"`
 	Content   string `json:"content"`
+	Archived  int64  `json:"archived"`
 	Timestamp string `json:"timestamp"`
 }
 
@@ -199,6 +200,7 @@ func (q *Queries) ListEventsForTranscriptEntry(ctx context.Context, transcriptEn
 			&i.Type,
 			&i.AgentName,
 			&i.Content,
+			&i.Archived,
 			&i.Timestamp,
 		); err != nil {
 			return nil, err

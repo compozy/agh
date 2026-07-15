@@ -74,6 +74,7 @@ const (
 	CodeConfigValidated               = "config_validated"
 	CodeCursorConflict                = "cursor_conflict"
 	CodeDaemonHealthUnavailable       = "daemon_health_unavailable"
+	CodeDaemonDraining                = "daemon_draining"
 	CodeDaemonStateSuspect            = "daemon_state_suspect"
 	CodeDaemonStatusOK                = "daemon_status_ok"
 	CodeDaemonUnavailable             = "daemon_unavailable"
@@ -85,6 +86,7 @@ const (
 	CodeExtensionUpdateCleanupFailed  = "extension_update_cleanup_failed"
 	CodeExtensionInUse                = "extension_in_use"
 	CodeExtensionNotFound             = "extension_not_found"
+	CodeExtensionRuntimeUnavailable   = "extension_runtime_unavailable"
 	CodeFlagNotApplicable             = "flag_not_applicable"
 	CodeForbiddenOperatorAction       = "forbidden_operator_action"
 	CodeForceOpRateLimited            = "force_op_rate_limited"
@@ -193,6 +195,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeConfigValidated, Category: CategoryConfig},
 	{Code: CodeCursorConflict, Category: CategoryDaemon},
 	{Code: CodeDaemonHealthUnavailable, Category: CategoryDaemon},
+	{Code: CodeDaemonDraining, Category: CategoryDaemon},
 	{Code: CodeDaemonStateSuspect, Category: CategoryDaemon},
 	{Code: CodeDaemonStatusOK, Category: CategoryDaemon},
 	{Code: CodeDaemonUnavailable, Category: CategoryDaemon},
@@ -207,6 +210,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionUpdateCleanupFailed, Category: CategoryExtension},
 	{Code: CodeExtensionInUse, Category: CategoryExtension},
 	{Code: CodeExtensionNotFound, Category: CategoryExtension},
+	{Code: CodeExtensionRuntimeUnavailable, Category: CategoryExtension},
 	{Code: CodeFlagNotApplicable, Category: CategoryDaemon},
 	{Code: CodeForbiddenOperatorAction, Category: CategoryTask},
 	{Code: CodeForceOpRateLimited, Category: CategoryTask},

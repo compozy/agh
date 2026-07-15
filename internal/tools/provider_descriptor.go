@@ -47,10 +47,11 @@ func (d ExtensionToolRuntimeDescriptor) Validate() error {
 
 // ExtensionToolCallRequest is the extension host call request.
 type ExtensionToolCallRequest struct {
-	ToolID    ToolID          `json:"tool_id"`
-	Handler   string          `json:"handler"`
-	SessionID string          `json:"session_id,omitempty"`
-	Input     json.RawMessage `json:"input"`
+	ToolID       ToolID          `json:"tool_id"`
+	Handler      string          `json:"handler"`
+	SessionID    string          `json:"session_id,omitempty"`
+	InvocationID string          `json:"invocation_id,omitempty"`
+	Input        json.RawMessage `json:"input"`
 }
 
 // ExtensionProvideToolsResponse is the extension host runtime descriptor response.

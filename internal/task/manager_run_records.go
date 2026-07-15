@@ -341,20 +341,23 @@ func requireRunTransition(run Run, next RunStatus) error {
 func allowsRunTransition(current RunStatus, next RunStatus) bool {
 	switch current.Normalize() {
 	case TaskRunStatusQueued:
-		return next.Normalize() == TaskRunStatusClaimed || next.Normalize() == TaskRunStatusCanceled
+		switch next.Normalize() {
+		case TaskRunStatusClaimed, TaskRunStatusCanceled, TaskRunStatusNeedsAttention:
+			return true
+		}
 	case TaskRunStatusClaimed:
 		switch next.Normalize() {
-		case TaskRunStatusStarting, TaskRunStatusCanceled:
+		case TaskRunStatusStarting, TaskRunStatusCanceled, TaskRunStatusNeedsAttention:
 			return true
 		}
 	case TaskRunStatusStarting:
 		switch next.Normalize() {
-		case TaskRunStatusRunning, TaskRunStatusFailed, TaskRunStatusCanceled:
+		case TaskRunStatusRunning, TaskRunStatusFailed, TaskRunStatusCanceled, TaskRunStatusNeedsAttention:
 			return true
 		}
 	case TaskRunStatusRunning:
 		switch next.Normalize() {
-		case TaskRunStatusCompleted, TaskRunStatusFailed, TaskRunStatusCanceled:
+		case TaskRunStatusCompleted, TaskRunStatusFailed, TaskRunStatusCanceled, TaskRunStatusNeedsAttention:
 			return true
 		}
 	}

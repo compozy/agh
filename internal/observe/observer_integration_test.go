@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
@@ -15,6 +17,18 @@ import (
 func TestObserverIntegrationFullFlow(t *testing.T) {
 	h := newHarness(t)
 	sess := newSession("sess-integration", session.StateActive, h.workspace, h.now)
+	sess.Model = "claude-test"
+	inputRate := 1.0
+	outputRate := 4.0
+	h.observer.costCatalog = &stubCostCatalog{models: []modelcatalog.Model{{
+		ProviderID:           "claude",
+		ModelID:              sess.Model,
+		CostInputPerMillion:  &inputRate,
+		CostOutputPerMillion: &outputRate,
+		CostInputSource:      modelcatalog.SourceKindConfig,
+		CostOutputSource:     modelcatalog.SourceKindConfig,
+	}}}
+	h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeBoundSecret)
 
 	h.observeSessionCreated(t, sess)
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
@@ -24,15 +38,19 @@ func TestObserverIntegrationFullFlow(t *testing.T) {
 		Text:      "assistant reply",
 	})
 
-	totalTokens := int64(9)
+	inputTokens := int64(1_000_000)
+	outputTokens := int64(500_000)
+	totalTokens := inputTokens + outputTokens
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
 		Type:      "done",
 		TurnID:    "turn-int-1",
 		Timestamp: h.now.Add(2 * time.Minute),
 		Usage: &acp.TokenUsage{
-			TurnID:      "turn-int-1",
-			TotalTokens: &totalTokens,
-			Timestamp:   h.now.Add(2 * time.Minute),
+			TurnID:       "turn-int-1",
+			InputTokens:  &inputTokens,
+			OutputTokens: &outputTokens,
+			TotalTokens:  &totalTokens,
+			Timestamp:    h.now.Add(2 * time.Minute),
 		},
 	})
 
@@ -64,8 +82,13 @@ func TestObserverIntegrationFullFlow(t *testing.T) {
 	if got, want := len(stats), 1; got != want {
 		t.Fatalf("len(stats) = %d, want %d", got, want)
 	}
-	if stats[0].TotalTokens == nil || *stats[0].TotalTokens != 9 {
-		t.Fatalf("stats[0].TotalTokens = %#v, want 9", stats[0].TotalTokens)
+	if stats[0].TotalTokens == nil || *stats[0].TotalTokens != totalTokens {
+		t.Fatalf("stats[0].TotalTokens = %#v, want %d", stats[0].TotalTokens, totalTokens)
+	}
+	if stats[0].TotalCost == nil || *stats[0].TotalCost != 3 ||
+		stats[0].CostCurrency == nil || *stats[0].CostCurrency != "USD" ||
+		stats[0].CostStatus != "estimated" || stats[0].CostSource != "catalog_config" {
+		t.Fatalf("stats[0] cost = %#v, want estimated catalog_config USD 3", stats[0])
 	}
 
 	permissions, err := h.observer.QueryPermissionLog(testutil.Context(t), store.PermissionLogQuery{SessionID: sess.ID})

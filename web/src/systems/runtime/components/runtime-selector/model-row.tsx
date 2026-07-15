@@ -12,11 +12,20 @@ function formatContext(tokens: number | null | undefined): string | null {
   return String(tokens);
 }
 
-function formatCost(model: RuntimeModelOption): string | null {
-  if (model.cost_input == null) return null;
-  const out = model.cost_output ?? model.cost_input;
-  return `$${model.cost_input}/${out}`;
-}
+type CostRateKey =
+  | "cost_input"
+  | "cost_output"
+  | "cost_cache_read"
+  | "cost_cache_write"
+  | "cost_reasoning";
+
+const COST_RATES = [
+  { key: "cost_input", label: "input" },
+  { key: "cost_output", label: "output" },
+  { key: "cost_cache_read", label: "cache read" },
+  { key: "cost_cache_write", label: "cache write" },
+  { key: "cost_reasoning", label: "reasoning" },
+] as const satisfies ReadonlyArray<{ key: CostRateKey; label: string }>;
 
 function DotSep() {
   return <span aria-hidden="true" className="size-0.5 shrink-0 rounded-full bg-faint" />;
@@ -31,11 +40,12 @@ function buildChips(model: RuntimeModelOption): ReactElement[] {
         {ctx}
       </span>
     );
-  const cost = formatCost(model);
-  if (cost) {
+  for (const { key, label } of COST_RATES) {
+    const rate = model[key];
+    if (rate == null) continue;
     chips.push(
-      <span key="cost" className="font-mono text-badge text-subtle tabular-nums">
-        {cost}
+      <span key={key} className="font-mono text-badge text-subtle tabular-nums">
+        {label} ${rate}/M
       </span>
     );
   }

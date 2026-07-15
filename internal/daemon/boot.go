@@ -16,10 +16,10 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/deadentity"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/heartbeat"
 	hookspkg "github.com/compozy/agh/internal/hooks"
-	aghlogger "github.com/compozy/agh/internal/logger"
 	looppkg "github.com/compozy/agh/internal/loop"
 	marketplacepkg "github.com/compozy/agh/internal/marketplace"
 	mcppkg "github.com/compozy/agh/internal/mcp"
@@ -68,6 +68,8 @@ type bootState struct {
 	localMemoryProvider    *localprovider.Provider
 	memoryProviderRegistry *extensionpkg.MemoryProviderRegistry
 	memoryExtractor        *daemonMemoryExtractor
+	runtimeWorkers         daemonRuntimeWorkers
+	checkpointRuntime      *checkpointSummaryRuntime
 	ledgerMaterializer     session.LedgerMaterializer
 	skillsRegistry         *skills.Registry
 	mcpResolver            *skills.MCPResolver
@@ -80,6 +82,7 @@ type bootState struct {
 	promptAugmenter        session.PromptInputAugmenter
 	notifier               *hooksNotifier
 	registry               Registry
+	deadEntities           *deadentity.Service
 	processRegistry        *toolruntime.Registry
 	sandboxRegistry        *sandbox.Registry
 	workspaceResolver      *workspacepkg.Resolver
@@ -90,6 +93,7 @@ type bootState struct {
 	marketplace            *marketplaceRuntime
 	marketplaceNotifier    marketplacepkg.Notifier
 	tasks                  *taskRuntime
+	subprocessHealth       *subprocessHealthEscalator
 	reviewRequests         *runReviewRequestedForwarder
 	spawnReaper            *spawnReaper
 	scheduler              *schedulerRuntime
@@ -98,8 +102,10 @@ type bootState struct {
 	networkWakeRunner      *networkWakeRunner
 	participationResolver  participation.Resolver
 	toolRegistry           toolspkg.Registry
+	toolArtifacts          toolspkg.ToolArtifactStore
 	toolsets               core.ToolsetRegistry
 	toolApprovals          toolspkg.ApprovalTokenIssuer
+	clarify                *clarifyBridge
 	observer               Observer
 	lifecycleObservers     *sessionLifecycleFanout
 	hookTelemetrySinks     *hookTelemetryFanout
@@ -182,56 +188,8 @@ func (d *Daemon) beginBoot() error {
 		d.bridges != nil {
 		return errors.New("daemon: already booted")
 	}
+	d.admission.Undrain()
 	d.booting = true
-	return nil
-}
-
-func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
-	cfg, err := d.loadConfig()
-	if err != nil {
-		return err
-	}
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("daemon: validate config: %w", err)
-	}
-	if err := aghconfig.EnsureHomeLayout(d.homePaths); err != nil {
-		return fmt.Errorf("daemon: ensure home layout: %w", err)
-	}
-	if _, _, err := aghconfig.EnsureBootstrapAgent(d.homePaths); err != nil {
-		return fmt.Errorf("daemon: ensure bootstrap agent: %w", err)
-	}
-	if _, _, err := aghconfig.EnsureOnboardingAgent(d.homePaths); err != nil {
-		return fmt.Errorf("daemon: ensure onboarding agent: %w", err)
-	}
-
-	logger := d.logger
-	closeLogger := d.closeLogger
-	if logger == nil {
-		logger, closeLogger, err = aghlogger.New(
-			aghlogger.WithLevel(cfg.Log.Level),
-			aghlogger.WithFile(d.homePaths.LogFile),
-			aghlogger.WithFileRotation(aghlogger.FileRotationConfig{
-				MaxSizeMB:       cfg.Log.MaxSizeMB,
-				MaxBackups:      cfg.Log.MaxBackups,
-				MaxAgeDays:      cfg.Log.MaxAgeDays,
-				CompressBackups: cfg.Log.CompressBackups,
-			}),
-			aghlogger.WithMirrorToStderr(aghlogger.MirrorToStderrEnabled(os.Getenv)),
-		)
-		if err != nil {
-			return fmt.Errorf("daemon: create logger: %w", err)
-		}
-	}
-	if closeLogger == nil {
-		closeLogger = func() error { return nil }
-	}
-
-	state.cfg = cfg
-	state.logger = logger
-	state.closeLogger = closeLogger
-	cleanup.add(func(context.Context) error {
-		return closeLogger()
-	})
 	return nil
 }
 
@@ -249,7 +207,11 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 
 	if state.cfg.Skills.Enabled {
 		skillsCfg := d.skillsRegistryConfig(&state.cfg)
-		state.skillsRegistry = skills.NewRegistry(skillsCfg, skills.WithLogger(state.logger))
+		state.skillsRegistry = skills.NewRegistry(
+			skillsCfg,
+			skills.WithLogger(state.logger),
+			skills.WithActivationContextProvider(newSkillActivationContextProvider(state)),
+		)
 		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
 	}
@@ -304,17 +266,8 @@ func (d *Daemon) bootMemoryPromptProvider(
 	ctx context.Context,
 	state *bootState,
 ) (session.PromptProvider, error) {
-	state.globalMemoryDir = strings.TrimSpace(state.cfg.Memory.GlobalDir)
-	if state.globalMemoryDir == "" {
-		state.globalMemoryDir = d.homePaths.MemoryDir
-	}
-	state.memoryStore = memory.NewStore(
-		state.globalMemoryDir,
-		memory.WithCatalogDatabasePath(d.homePaths.DatabaseFile),
-		memory.WithRecallSignalRecorderConfig(state.cfg.Memory.Recall.Signals),
-	)
-	if err := state.memoryStore.EnsureDirs(); err != nil {
-		return nil, fmt.Errorf("daemon: ensure memory store directories: %w", err)
+	if err := d.configureMemoryStore(state); err != nil {
+		return nil, err
 	}
 	state.localMemoryProvider = localprovider.New(
 		memstore.New(state.memoryStore),
@@ -486,6 +439,9 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
 	state.registry = registry
+	if err := d.bootDeadEntityRegistry(state); err != nil {
+		return err
+	}
 	if err := reconcileBootNetworkAvailability(ctx, state); err != nil {
 		return err
 	}
@@ -544,59 +500,6 @@ func (d *Daemon) operatorHomeDir() (string, error) {
 	})
 }
 
-func (d *Daemon) bootRuntimeServices(
-	ctx context.Context,
-	state *bootState,
-	cleanup *bootCleanup,
-) error {
-	if state.cfg.Memory.Enabled && state.cfg.Memory.Dream.Enabled {
-		state.dreamSvc = d.newDreamService(
-			memory.WithMemoryStore(state.memoryStore),
-			memory.WithSessionsDir(d.homePaths.SessionsDir),
-			memory.WithMinHours(state.cfg.Memory.Dream.MinHours),
-			memory.WithMinSessions(state.cfg.Memory.Dream.MinSessions),
-			memory.WithLogger(state.logger),
-			memory.WithWorkspaceResolver(state.workspaceResolver),
-		)
-	}
-
-	state.startedAt = d.now().UTC()
-	state.notifier = newHooksNotifier(state.logger, d.now)
-	if err := d.bootProcessRegistry(ctx, state); err != nil {
-		return err
-	}
-	sandboxRegistry, err := d.buildSandboxRegistry(state)
-	if err != nil {
-		return err
-	}
-	state.sandboxRegistry = sandboxRegistry
-	providerVault, err := d.buildProviderVault(state)
-	if err != nil {
-		return err
-	}
-	state.providerVault = providerVault
-	if err := d.bootModelCatalog(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootMarketplace(ctx, state, cleanup); err != nil {
-		return err
-	}
-	state.bridges = d.composeBridgeRuntime(state, cleanup)
-	if err := d.bootNotificationPresets(ctx, state); err != nil {
-		return err
-	}
-	hostedMCP, err := d.buildHostedMCPService(state)
-	if err != nil {
-		return err
-	}
-	state.hostedMCP = hostedMCP
-
-	if err := d.bootRuntimeResourceGraph(state); err != nil {
-		return err
-	}
-	return d.bootMemorySessionRuntime(ctx, state)
-}
-
 func (d *Daemon) bootRuntimeResourceGraph(state *bootState) error {
 	resourceKernel, err := d.buildResourceKernel(state.registry)
 	if err != nil {
@@ -631,50 +534,6 @@ func (d *Daemon) bootRuntimeResourceGraph(state *bootState) error {
 	state.heartbeatCatalog = newResourceCatalog(cloneHeartbeatResourceSpec)
 	state.loopCatalog = newResourceCatalog(looppkg.CloneResourceSpec)
 	return nil
-}
-
-func (d *Daemon) bootMemorySessionRuntime(ctx context.Context, state *bootState) error {
-	ledgerMaterializer, err := d.newSessionLedgerMaterializer(state)
-	if err != nil {
-		return err
-	}
-	state.ledgerMaterializer = ledgerMaterializer
-	resolver, err := ensureDaemonParticipationResolver(state, state.registry)
-	if err != nil {
-		return err
-	}
-	state.participationResolver = resolver
-
-	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
-	if err != nil {
-		return fmt.Errorf("daemon: create session manager: %w", err)
-	}
-	state.sessions = sessions
-	preparer, ok := sessions.(workspaceRemovalPreparer)
-	if !ok {
-		return errMissingWorkspaceRemovalPreparation
-	}
-	state.workspaceResolver.SetUnregisterPreparer(
-		func(ctx context.Context, workspace workspacepkg.Workspace) (workspacepkg.UnregisterPreparation, error) {
-			return preparer.PrepareWorkspaceRemoval(ctx, workspace.ID)
-		},
-	)
-	memoryExtractor, err := newDaemonMemoryExtractor(ctx, state, sessions, d.now)
-	if err != nil {
-		return err
-	}
-	state.memoryExtractor = memoryExtractor
-	state.deps = d.runtimeDeps(ctx, state, sessions)
-	resourceService, err := d.buildResourceService(state)
-	if err != nil {
-		return err
-	}
-	state.deps.Resources = resourceService
-	return nil
-}
-
-type workspaceRemovalPreparer interface {
-	PrepareWorkspaceRemoval(context.Context, string) (workspacepkg.UnregisterPreparation, error)
 }
 
 func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error {
@@ -929,13 +788,6 @@ func mcpResolverDependency(resolver *skills.MCPResolver) session.MCPResolver {
 	return resolver
 }
 
-func skillsRegistryAPI(registry *skills.Registry) core.SkillsRegistry {
-	if registry == nil {
-		return nil
-	}
-	return registry
-}
-
 func dreamTriggerFromRuntime(runtime *consolidation.Runtime) DreamTrigger {
 	if runtime == nil {
 		return nil
@@ -1059,16 +911,6 @@ func (d *Daemon) buildResourceService(state *bootState) (core.ResourceService, e
 		return nil, fmt.Errorf("daemon: create resource service: %w", err)
 	}
 	return service, nil
-}
-
-func (d *Daemon) attachRuntimeObserver(ctx context.Context, state *bootState) error {
-	observer, err := d.newObserver(ctx, state.deps)
-	if err != nil {
-		return fmt.Errorf("daemon: create observer: %w", err)
-	}
-	state.observer = observer
-	state.deps.Observer = observer
-	return nil
 }
 
 func (d *Daemon) bootResourceReconcile(
@@ -1199,23 +1041,6 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	state.hookBindings = hookBindings
 	attachParticipationResolverHooks(state.participationResolver, hooks)
 	return nil
-}
-
-func (d *Daemon) initializeHookObservers(
-	state *bootState,
-) ([]hookspkg.HookDecl, map[string]hookspkg.Executor) {
-	state.lifecycleObservers = newSessionLifecycleFanout()
-	if state.observer != nil {
-		state.lifecycleObservers.Add(state.observer)
-	}
-	if state.harnessRecorder != nil {
-		state.lifecycleObservers.Add(state.harnessRecorder)
-	}
-	state.hookTelemetrySinks = newHookTelemetryFanout()
-	if sink, ok := state.observer.(hookspkg.TelemetrySink); ok {
-		state.hookTelemetrySinks.Add(sink)
-	}
-	return daemonNativeHooks(state.lifecycleObservers, state.dreamRuntime, state.memoryExtractor)
 }
 
 func (d *Daemon) hookBindingProviders(
@@ -1533,53 +1358,6 @@ func syncExtensionResourcePublishers(ctx context.Context, state *bootState) erro
 
 func syncWorkspaceDerivedResources(ctx context.Context, state *bootState) error {
 	return syncExtensionResourcePublishers(ctx, state)
-}
-
-func (d *Daemon) extensionManagerDeps(
-	state *bootState,
-	extRegistry *extensionpkg.Registry,
-) extensionManagerDeps {
-	return extensionManagerDeps{
-		Registry:   extRegistry,
-		Extensions: state.cfg.Extensions,
-		Sessions:   state.sessions,
-		Automation: func() extensionpkg.HostAPIAutomationManager {
-			return state.automation
-		},
-		Tasks:                  state.deps.Tasks,
-		Network:                state.deps.Network,
-		NetworkStore:           state.registry,
-		ModelCatalog:           state.modelCatalog,
-		MemoryStore:            state.memoryStore,
-		MemoryProviderRegistry: state.memoryProviderRegistry,
-		Observer:               state.observer,
-		SkillsRegistry:         state.skillsRegistry,
-		WorkspaceResolver:      state.workspaceResolver,
-		Logger:                 state.logger,
-		BridgeRegistry:         state.bridges,
-		BridgeDedupStore:       bridgeRuntimeDedupStore(state.bridges),
-		BridgeBroker:           bridgeRuntimeBroker(state.bridges),
-		BridgeRuntime:          state.bridges,
-		ResourceStore:          resourceRawStore(state.resourceKernel),
-		SourceSessions:         resourceSourceSessions(state.resourceKernel),
-		ResourceCodecs:         state.resourceCodecs,
-		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-			if state.resourceReconcile == nil {
-				return nil
-			}
-			return state.resourceReconcile.Trigger(ctx, kind, reason)
-		},
-		SoulAuthoring:   state.deps.SoulAuthoring,
-		SoulRefresher:   state.deps.SoulRefresher,
-		HeartbeatAuthor: state.deps.HeartbeatAuthor,
-		HeartbeatStatus: state.deps.HeartbeatStatus,
-		HeartbeatWake:   state.deps.HeartbeatWake,
-		SessionHealth:   state.deps.SessionHealth,
-		WakeEvents:      state.deps.WakeEvents,
-		ProcessRegistry: state.processRegistry,
-		SecretResolver:  state.providerVault,
-		AGHExecutable:   d.executable,
-	}
 }
 
 func resourceRawStore(kernel *resources.Kernel) resources.RawStore {
@@ -1935,25 +1713,4 @@ func bridgeRuntimeBroker(runtime *bridgeRuntime) *bridgepkg.Broker {
 		return nil
 	}
 	return runtime.Broker()
-}
-
-func loadConfigFromHome(homePaths aghconfig.HomePaths) (aghconfig.Config, error) {
-	cfg := aghconfig.DefaultWithHome(homePaths)
-	if err := aghconfig.ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
-		return aghconfig.Config{}, fmt.Errorf("daemon: load global config: %w", err)
-	}
-
-	socketPath, err := aghconfig.ResolvePath(cfg.Daemon.Socket)
-	if err != nil {
-		return aghconfig.Config{}, fmt.Errorf("daemon: normalize daemon socket path: %w", err)
-	}
-	if strings.TrimSpace(socketPath) != "" {
-		cfg.Daemon.Socket = socketPath
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return aghconfig.Config{}, fmt.Errorf("daemon: validate config: %w", err)
-	}
-
-	return cfg, nil
 }

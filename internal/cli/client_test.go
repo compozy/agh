@@ -1845,6 +1845,10 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"schema_version":"2026-05-20","generated_at":"2026-04-03T12:00:00Z","daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/agh.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"},"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
 					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/drain":
+					return newHTTPResponse(http.StatusOK, `{"state":"draining"}`), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/undrain":
+					return newHTTPResponse(http.StatusOK, `{"state":"active"}`), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/doctor":
 					if got := req.URL.Query()["only"]; len(got) != 1 || got[0] != "provider" {
 						t.Fatalf("doctor only query = %#v, want provider", got)
@@ -1976,6 +1980,14 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	status, err := client.DaemonStatus(ctx)
 	if err != nil || status.Status != "running" {
 		t.Fatalf("DaemonStatus() = %#v, %v", status, err)
+	}
+	drainStatus, err := client.Drain(ctx)
+	if err != nil || drainStatus.State != contract.DrainStateDraining {
+		t.Fatalf("Drain() = %#v, %v", drainStatus, err)
+	}
+	activeStatus, err := client.Undrain(ctx)
+	if err != nil || activeStatus.State != contract.DrainStateActive {
+		t.Fatalf("Undrain() = %#v, %v", activeStatus, err)
 	}
 
 	sessions, err := client.ListSessions(ctx, SessionListQuery{Workspace: "ws-1"})
@@ -2457,6 +2469,30 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
+				case req.Method == http.MethodGet &&
+					req.URL.Path == "/api/workspaces/ws-alpha/automation/suggestions":
+					if got := req.URL.Query().Get("status"); got != "pending" {
+						t.Fatalf("suggestion status query = %q, want pending", got)
+					}
+					body := mustJSON(t, contract.AutomationSuggestionsResponse{
+						Suggestions: []contract.AutomationSuggestionPayload{sampleAutomationSuggestionRecord()},
+					})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost &&
+					req.URL.Path == "/api/workspaces/ws-alpha/automation/suggestions/suggestion-1/accept":
+					accepted := sampleAutomationSuggestionRecord()
+					accepted.Status = automationpkg.SuggestionStatusAccepted
+					body := mustJSON(t, contract.AutomationSuggestionAcceptanceResponse{
+						Suggestion: accepted,
+						Job:        accepted.Payload,
+					})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodPost &&
+					req.URL.Path == "/api/workspaces/ws-alpha/automation/suggestions/suggestion-1/dismiss":
+					dismissed := sampleAutomationSuggestionRecord()
+					dismissed.Status = automationpkg.SuggestionStatusDismissed
+					body := mustJSON(t, contract.AutomationSuggestionResponse{Suggestion: dismissed})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/automation/jobs":
 					if got := req.URL.Query().Get("scope"); got != "workspace" {
 						t.Fatalf("job scope query = %q, want %q", got, "workspace")
@@ -2653,6 +2689,28 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 	}
 
 	ctx := context.Background()
+
+	t.Run("Should preserve workspace suggestion routes", func(t *testing.T) {
+		suggestions, err := client.ListAutomationSuggestions(
+			ctx,
+			"ws-alpha",
+			automationpkg.SuggestionStatusPending,
+		)
+		if err != nil || len(suggestions.Suggestions) != 1 || suggestions.Suggestions[0].ID != "suggestion-1" {
+			t.Fatalf("ListAutomationSuggestions() = %#v, %v", suggestions, err)
+		}
+
+		accepted, err := client.AcceptAutomationSuggestion(ctx, "ws-alpha", "suggestion-1")
+		if err != nil || accepted.Suggestion.Status != automationpkg.SuggestionStatusAccepted ||
+			accepted.Job.ID != "job-1" {
+			t.Fatalf("AcceptAutomationSuggestion() = %#v, %v", accepted, err)
+		}
+
+		dismissed, err := client.DismissAutomationSuggestion(ctx, "ws-alpha", "suggestion-1")
+		if err != nil || dismissed.Suggestion.Status != automationpkg.SuggestionStatusDismissed {
+			t.Fatalf("DismissAutomationSuggestion() = %#v, %v", dismissed, err)
+		}
+	})
 
 	t.Run("Should list automation jobs", func(t *testing.T) {
 		jobs, err := client.ListAutomationJobs(ctx, AutomationJobQuery{

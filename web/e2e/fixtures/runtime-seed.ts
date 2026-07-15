@@ -149,6 +149,7 @@ export interface BrowserMarketplaceMCPEntrySeed extends BrowserMarketplaceEntryS
 }
 
 export interface BrowserMarketplaceExtensionEntrySeed extends BrowserMarketplaceEntrySeed {
+  artifact_url: string;
   author?: string;
   digest_sha256: string;
   install_slug: string;

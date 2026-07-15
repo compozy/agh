@@ -7,55 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
-
-	"github.com/compozy/agh/internal/network/participation"
 )
-
-// ClaimNextRun atomically claims the next eligible run for one session and returns the raw claim token once.
-func (m *Service) ClaimNextRun(
-	ctx context.Context,
-	criteria ClaimCriteria,
-	actor ActorContext,
-) (*ClaimResult, error) {
-	if err := requireWriteAuthority(actor); err != nil {
-		return nil, err
-	}
-	normalized, err := m.normalizeClaimCriteriaForActor(criteria, actor)
-	if err != nil {
-		return nil, err
-	}
-	patched, err := m.dispatchTaskRunPreClaimCriteria(ctx, normalized, actor)
-	if err != nil {
-		return nil, err
-	}
-
-	result, err := m.store.ClaimNextRun(ctx, patched)
-	if err != nil {
-		return nil, err
-	}
-	claimResultWithoutRawTokenInMetadata(&result)
-	if result.Run.IsNetworkWake() {
-		m.dispatchTaskRunPostClaim(ctx, result.Run, Task{}, actor)
-		return &result, nil
-	}
-
-	reconciledTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(ctx, result.Run.TaskID, result.Run.ID, taskEventRunClaimed, actor, runClaimedPayload{
-		Status:         result.Run.Status,
-		TaskStatus:     reconciledTask.Status,
-		ClaimedBy:      ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref},
-		ClaimTokenHash: result.Run.ClaimTokenHash,
-		LeaseUntil:     result.Run.LeaseUntil,
-	}); err != nil {
-		return nil, err
-	}
-	m.dispatchTaskRunPostClaim(ctx, result.Run, reconciledTask, actor)
-	result.Task = &reconciledTask
-	return &result, nil
-}
 
 // HeartbeatRunLease extends one active task-run lease after token verification.
 func (m *Service) HeartbeatRunLease(
@@ -523,71 +475,6 @@ func (m *Service) FailRunLease(
 	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
 	m.dispatchTaskRunFailed(ctx, run, reconciledTask, actor)
 	return &run, nil
-}
-
-// RecoverExpiredRunLeases requeues stale task-run leases and emits lease-expiration hooks once.
-func (m *Service) RecoverExpiredRunLeases(
-	ctx context.Context,
-	recovery ExpiredLeaseRecovery,
-	actor ActorContext,
-) ([]ExpiredLeaseRecoveryResult, error) {
-	if err := requireWriteAuthority(actor); err != nil {
-		return nil, err
-	}
-	normalized, err := recovery.Normalize(m.now().UTC())
-	if err != nil {
-		return nil, err
-	}
-	results, err := m.store.RecoverExpiredRunLeases(ctx, normalized)
-	if err != nil {
-		return nil, err
-	}
-	for idx := range results {
-		result := &results[idx]
-		if result.Run.IsNetworkWake() {
-			m.dispatchTaskRunLeaseExpired(ctx, result.Run, Task{}, actor, result)
-			m.dispatchTaskRunLeaseRecoveredFromExpiration(ctx, result.Run, Task{}, actor, result)
-			continue
-		}
-		reconciledTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
-		if err != nil {
-			return nil, err
-		}
-		if err := m.recordTaskEvent(
-			ctx,
-			result.Run.TaskID,
-			result.Run.ID,
-			taskEventRunLeaseExpired,
-			actor,
-			expiredLeasePayload{
-				PreviousStatus:               result.PreviousRunStatus,
-				Status:                       result.Run.Status,
-				TaskStatus:                   reconciledTask.Status,
-				Reason:                       result.Reason,
-				SessionID:                    result.PreviousSessionID,
-				LeaseUntil:                   result.PreviousLeaseUntil,
-				PreviousTokenHash:            result.PreviousClaimTokenHash,
-				ResolvedNetworkParticipation: participation.CloneSpec(result.Run.NetworkSpecSnapshot()),
-			},
-		); err != nil {
-			return nil, err
-		}
-		m.dispatchTaskRunLeaseExpired(
-			ctx,
-			result.Run,
-			reconciledTask,
-			actor,
-			result,
-		)
-		m.dispatchTaskRunLeaseRecoveredFromExpiration(
-			ctx,
-			result.Run,
-			reconciledTask,
-			actor,
-			result,
-		)
-	}
-	return results, nil
 }
 
 type autoEnqueueTriggeredPayload struct {

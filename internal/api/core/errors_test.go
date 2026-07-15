@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/admission"
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
@@ -131,6 +132,7 @@ func TestTaskErrorHelpers(t *testing.T) {
 			want: http.StatusServiceUnavailable,
 		},
 		{name: "attach forbidden", err: taskpkg.ErrSessionAttachNotAllowed, want: http.StatusConflict},
+		{name: "workspace capacity full", err: taskpkg.ErrWorkspaceActiveRunCapReached, want: http.StatusConflict},
 		{name: "default", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}
 
@@ -304,6 +306,14 @@ func TestRespondErrorFallbackBranches(t *testing.T) {
 			mask:       true,
 			wantErr:    "internal server error",
 			wantStatus: 599,
+		},
+		{
+			name:       "known draining error remains actionable",
+			status:     http.StatusServiceUnavailable,
+			err:        admission.ErrDraining,
+			mask:       true,
+			wantErr:    admission.ErrDraining.Error(),
+			wantStatus: http.StatusServiceUnavailable,
 		},
 	}
 

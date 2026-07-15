@@ -37,6 +37,7 @@ export const MCP_RUNTIME_STATES = [
   "auth_refresh_failed",
   "permission_denied",
   "runtime_unavailable",
+  "dead",
 ] as const;
 export type MCPRuntimeState = (typeof MCP_RUNTIME_STATES)[number];
 
@@ -49,6 +50,7 @@ const DANGER_RUNTIME_STATES = new Set<string>([
   "auth_refresh_failed",
   "permission_denied",
   "runtime_unavailable",
+  "dead",
 ]);
 
 export interface MCPStatusCell {
@@ -175,7 +177,7 @@ function runtimeCell(server: SettingsMCPServerEntry): MCPStatusCell {
     return { label: "Unknown", tone: "neutral", code: "no runtime status reported" };
   }
   return {
-    label: formatStatusLabel(runtime.state),
+    label: runtime.state === "dead" ? "Unavailable" : formatStatusLabel(runtime.state),
     tone: runtimeTone(runtime.state),
     code: runtime.diagnostic?.trim() || runtime.reason?.trim() || runtime.state,
   };

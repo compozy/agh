@@ -5,6 +5,7 @@ import {
   automationJobRunsOptions,
   automationJobsListOptions,
   automationRunsListOptions,
+  automationSuggestionsListOptions,
   automationTriggerDetailOptions,
   automationTriggerRunsOptions,
   automationTriggersListOptions,
@@ -47,6 +48,15 @@ describe("automation list options", () => {
       "",
     ]);
     expect(options.initialPageParam).toBeUndefined();
+  });
+
+  it("caches the complete suggestion envelope by workspace and status", () => {
+    const options = automationSuggestionsListOptions("ws_alpha", "pending");
+
+    expect(options.queryKey).toEqual(["automation", "suggestions", "list", "ws_alpha", "pending"]);
+    expect(options.enabled).toBe(true);
+    expect("select" in options).toBe(false);
+    expect(automationSuggestionsListOptions("", "pending").enabled).toBe(false);
   });
 });
 

@@ -1,6 +1,7 @@
 import type { PillTone } from "@agh/ui";
 
 import type {
+  AutomationCatchUpPolicy,
   AutomationKind,
   AutomationFireLimit,
   AutomationJob,
@@ -186,6 +187,73 @@ const AUTOMATION_STATUS_TONE = {
 
 export function automationStatusTone(status: AutomationStatusKey): PillTone {
   return AUTOMATION_STATUS_TONE[status] ?? "neutral";
+}
+
+const CATCH_UP_POLICY_LABELS = {
+  skip_missed: "Skip missed",
+  coalesce: "Coalesce",
+  replay: "Replay",
+  run_once_on_catchup: "Run once",
+} as const satisfies Record<AutomationCatchUpPolicy, string>;
+
+/**
+ * Human label for a scheduler catch-up policy. An omitted policy is the
+ * target-aware default the daemon resolves per target type — never the removed
+ * legacy `skip` value.
+ */
+export function catchUpPolicyLabel(policy?: AutomationCatchUpPolicy): string {
+  return policy ? CATCH_UP_POLICY_LABELS[policy] : "Default";
+}
+
+interface AutomationSkipReasonInfo {
+  label: string;
+  tone: PillTone;
+  detail: string;
+}
+
+/** Durable skip reasons the daemon records on a canceled run's `metadata.reason`. */
+const AUTOMATION_SKIP_REASONS = {
+  self_overlap: {
+    label: "Overlap",
+    tone: "info",
+    detail: "A previous run was still active.",
+  },
+  misfire_grace_exceeded: {
+    label: "Grace window",
+    tone: "warning",
+    detail: "Missed its grace window.",
+  },
+} as const satisfies Record<string, AutomationSkipReasonInfo>;
+
+export type AutomationSkipReason = keyof typeof AUTOMATION_SKIP_REASONS;
+
+/**
+ * Narrow a run's durable skip evidence to a known scheduler skip reason. The
+ * daemon records these reasons only on canceled runs, so a non-canceled run is
+ * never treated as a skip. Run metadata is an open map, so `metadata.reason`
+ * arrives untyped and is matched defensively against the two reasons recorded.
+ */
+export function automationRunSkipReason(run: AutomationRun): AutomationSkipReason | null {
+  if (run.status !== "canceled") {
+    return null;
+  }
+  const reason = run.metadata?.reason;
+  if (reason === "self_overlap" || reason === "misfire_grace_exceeded") {
+    return reason;
+  }
+  return null;
+}
+
+export function automationSkipReasonLabel(reason: AutomationSkipReason): string {
+  return AUTOMATION_SKIP_REASONS[reason].label;
+}
+
+export function automationSkipReasonTone(reason: AutomationSkipReason): PillTone {
+  return AUTOMATION_SKIP_REASONS[reason].tone;
+}
+
+export function automationSkipReasonDetail(reason: AutomationSkipReason): string {
+  return AUTOMATION_SKIP_REASONS[reason].detail;
 }
 
 export function automationSourceLabel(source: AutomationJob["source"]): string {

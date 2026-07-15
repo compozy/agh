@@ -129,7 +129,7 @@ type SSEEvent struct {
 }
 
 // StartRuntimeHarness boots an isolated daemon through the real CLI startup path.
-func StartRuntimeHarness(t testing.TB, opts RuntimeHarnessOptions) *RuntimeHarness {
+func StartRuntimeHarness(t testing.TB, opts *RuntimeHarnessOptions) *RuntimeHarness {
 	t.Helper()
 
 	layout := prepareRuntimeLayout(t, opts)
@@ -175,7 +175,7 @@ func startRuntimeProcess(
 	t testing.TB,
 	harness *RuntimeHarness,
 	env []string,
-	opts RuntimeHarnessOptions,
+	opts *RuntimeHarnessOptions,
 ) {
 	t.Helper()
 
@@ -321,7 +321,7 @@ func cleanupStartedDaemonProcess(cmd *exec.Cmd, processLog io.Closer) error {
 	return errors.Join(killErr, waitErr, processLog.Close())
 }
 
-func prepareRuntimeLayout(t testing.TB, opts RuntimeHarnessOptions) runtimeLayout {
+func prepareRuntimeLayout(t testing.TB, opts *RuntimeHarnessOptions) runtimeLayout {
 	t.Helper()
 
 	homePaths := opts.HomePaths
@@ -2215,6 +2215,12 @@ func buildAGHBinary(t testing.TB) string {
 
 	builtBinaryPath = binaryPath
 	return builtBinaryPath
+}
+
+// BuildAGHBinary builds or reuses the current checkout's agh binary for integration fixtures.
+func BuildAGHBinary(t testing.TB) string {
+	t.Helper()
+	return buildAGHBinary(t)
 }
 
 func cloneMockAgentRegistrations(

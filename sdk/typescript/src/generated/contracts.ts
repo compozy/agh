@@ -35,6 +35,7 @@ export type HostAPIMethod =
   | "bridges/instances/list"
   | "bridges/instances/report_state"
   | "bridges/messages/ingest"
+  | "clarify/ask"
   | "logs/list"
   | "memory/forget"
   | "memory/recall"
@@ -675,6 +676,7 @@ export interface ArtifactRef {
   name?: string;
   mime_type?: string;
   bytes?: number;
+  sha256?: string;
 }
 
 export interface AuthoredContextObservationPatch {
@@ -712,11 +714,15 @@ export type TargetKind = string;
 
 export type ScheduleMode = string;
 
+export type SchedulerCatchUpPolicy = string;
+
 export interface ScheduleSpec {
   mode: ScheduleMode;
   expr?: string;
   interval?: string;
   time?: string;
+  catch_up_policy?: SchedulerCatchUpPolicy;
+  misfire_grace_seconds?: number;
 }
 
 export type OwnerKind = string;
@@ -1161,6 +1167,18 @@ export interface BridgesMessagesIngestResult {
   session_id: string;
   route_created: boolean;
   routing_key: RoutingKey;
+}
+
+export interface ClarifyAnswer {
+  choice?: number;
+  text: string;
+  fallback: boolean;
+}
+
+export interface ClarifyAskParams {
+  invocation_id: string;
+  question: string;
+  choices?: string[];
 }
 
 export interface CompactionMatcher {
@@ -1637,6 +1655,7 @@ export interface ExtensionToolCallRequest {
   tool_id: ToolID;
   handler: string;
   session_id?: string;
+  invocation_id?: string;
   input: JSONValue;
 }
 
@@ -2659,6 +2678,9 @@ export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "
 export interface ModelCatalogCostPayload {
   input_per_million?: number;
   output_per_million?: number;
+  cache_read_per_million?: number;
+  cache_write_per_million?: number;
+  reasoning_per_million?: number;
 }
 
 export interface ModelSourceRow {
@@ -4447,10 +4469,26 @@ export interface ShutdownResponse {
   acknowledged: boolean;
 }
 
+export type SkillActivationReasonCode = string;
+
+export interface SkillActivationReasonPayload {
+  gate: string;
+  code: SkillActivationReasonCode;
+  missing?: string[];
+  message: string;
+}
+
+export interface SkillActivationPayload {
+  active: boolean;
+  reasons?: SkillActivationReasonPayload[];
+}
+
 export interface SkillSummary {
   name: string;
   description?: string;
   source: string;
+  enabled: boolean;
+  activation: SkillActivationPayload;
 }
 
 export interface SkillsListParams {
@@ -4992,6 +5030,7 @@ export interface TaskRunSummaryPayload {
   task_id: string;
   status: RunStatus;
   attempt: number;
+  recovery_count: number;
   previous_run_id?: string;
   failure_kind?: string;
   max_attempts: number;
@@ -5065,6 +5104,7 @@ export interface TaskRun {
   task_id: string;
   status: RunStatus;
   attempt: number;
+  recovery_count: number;
   previous_run_id?: string;
   failure_kind?: string;
   claimed_by?: ActorIdentity;
@@ -5135,6 +5175,7 @@ export interface TaskCatalogRunPayload {
   task_id: string;
   status: RunStatus;
   attempt: number;
+  recovery_count: number;
   previous_run_id?: string;
   failure_kind?: string;
   max_attempts: number;
@@ -5363,6 +5404,10 @@ export interface TaskRunSessionPayload {
   updated_at: ISODateTime;
 }
 
+export type CostStatus = "actual" | "estimated" | "included" | "unknown";
+
+export type CostSource = "agent_reported" | "catalog_config" | "models_dev" | "builtin" | "none";
+
 export interface TaskRunOperationalSummaryPayload {
   last_activity_at: ISODateTime;
   last_event_type?: string;
@@ -5373,6 +5418,8 @@ export interface TaskRunOperationalSummaryPayload {
   total_tokens?: number;
   total_cost?: number;
   cost_currency?: string;
+  cost_status?: CostStatus;
+  cost_source?: CostSource;
 }
 
 export interface TaskRunConversationRefPayload {
@@ -6664,5 +6711,9 @@ export interface HostAPIMethodMap {
   "bridges/instances/report_state": {
     params: BridgesInstancesReportStateParams;
     result: BridgeInstance;
+  };
+  "clarify/ask": {
+    params: ClarifyAskParams;
+    result: ClarifyAnswer;
   };
 }

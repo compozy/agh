@@ -159,6 +159,27 @@ export const ReliabilityExpanded: Story = {
   ),
 };
 
+/** A recurring Job with a configured catch-up policy and misfire grace, reliability section open. */
+export const CatchUpPolicy: Story = {
+  args: {},
+  render: () => (
+    <JobFormHarness
+      initialDraft={baseDraft({
+        name: "hourly-reconcile",
+        agent_name: storyAgentNames.fraud,
+        prompt: "Reconcile balances every hour and catch up cleanly after any downtime.",
+        schedule: {
+          mode: "cron",
+          expr: "0 * * * *",
+          catch_up_policy: "replay",
+          misfire_grace_seconds: 45,
+        },
+      })}
+      mode="edit"
+    />
+  ),
+};
+
 export const WorkspaceLoopTarget: Story = {
   args: {},
   parameters: storybookMswParameters({

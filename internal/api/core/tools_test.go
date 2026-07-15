@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -160,6 +161,173 @@ func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {
 		decodeToolJSON(t, toolsetResp.Body.Bytes(), &toolset)
 		if toolset.Toolset.ID != toolspkg.ToolsetIDCatalog || registry.lastToolsetID() != toolspkg.ToolsetIDCatalog {
 			t.Fatalf("toolset get = %#v id=%q, want catalog", toolset.Toolset, registry.lastToolsetID())
+		}
+	})
+}
+
+func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should page exact bytes through the durable workspace identity", func(t *testing.T) {
+		t.Parallel()
+
+		store, err := toolspkg.OpenFilesystemToolArtifactStore(
+			t.Context(),
+			t.TempDir(),
+			toolspkg.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour},
+		)
+		if err != nil {
+			t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
+		}
+		content := []byte(`{"version":"agh.tool-result/v1","tail":"D6-TAIL"}`)
+		ref, err := store.Put(t.Context(), "workspace-durable", content)
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+		artifactID, err := toolspkg.ParseToolArtifactURI(ref.URI)
+		if err != nil {
+			t.Fatalf("ParseToolArtifactURI() error = %v", err)
+		}
+
+		workspaces := defaultCoreWorkspaceService(testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref == "workspace-alias" {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: "registry-workspace"},
+						WorkspaceID: "workspace-durable",
+					}, nil
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "registry-other"},
+					WorkspaceID: "workspace-other",
+				}, nil
+			},
+		})
+		homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:      "api-core-test",
+			Workspaces:         workspaces,
+			ToolArtifacts:      store,
+			HomePaths:          homePaths,
+			Config:             cfg,
+			Logger:             testutil.DiscardLogger(),
+			MaskInternalErrors: false,
+		})
+		engine := newToolCoreEngine(t, handlers)
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/workspace-alias/tool-artifacts/"+artifactID+"?offset=2&limit=7",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("artifact read status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body)
+		}
+		var page contract.ToolArtifactPageResponse
+		decodeToolJSON(t, response.Body.Bytes(), &page)
+		decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+		if err != nil {
+			t.Fatalf("DecodeString() error = %v", err)
+		}
+		if got, want := string(decoded), string(content[2:9]); got != want {
+			t.Fatalf("artifact page = %q, want %q", got, want)
+		}
+		if page.Artifact != ref || page.Offset != 2 || page.Bytes != 7 || page.NextOffset != 9 || page.EOF {
+			t.Fatalf("artifact page metadata = %#v, want exact non-terminal page", page)
+		}
+
+		foreign := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/workspace-other/tool-artifacts/"+artifactID,
+			nil,
+		)
+		if foreign.Code != http.StatusNotFound {
+			t.Fatalf("foreign artifact status = %d, want %d; body=%s", foreign.Code, http.StatusNotFound, foreign.Body)
+		}
+
+		invalid := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/workspace-alias/tool-artifacts/"+artifactID+"?limit=65537",
+			nil,
+		)
+		if invalid.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"invalid artifact status = %d, want %d; body=%s",
+				invalid.Code,
+				http.StatusBadRequest,
+				invalid.Body,
+			)
+		}
+		var invalidPayload contract.ToolErrorResponse
+		decodeToolJSON(t, invalid.Body.Bytes(), &invalidPayload)
+		if invalidPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
+			t.Fatalf("invalid artifact error = %#v, want invalid_input", invalidPayload.Error)
+		}
+
+		beyondEnd := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/workspace-alias/tool-artifacts/"+artifactID+"?offset=999",
+			nil,
+		)
+		if beyondEnd.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"beyond-end artifact status = %d, want %d; body=%s",
+				beyondEnd.Code,
+				http.StatusBadRequest,
+				beyondEnd.Body,
+			)
+		}
+		var beyondEndPayload contract.ToolErrorResponse
+		decodeToolJSON(t, beyondEnd.Body.Bytes(), &beyondEndPayload)
+		if beyondEndPayload.Error.Code != toolspkg.ErrorCodeInvalidInput {
+			t.Fatalf("beyond-end artifact error = %#v, want invalid_input", beyondEndPayload.Error)
+		}
+	})
+}
+
+func TestToolErrorsPreserveBoundedPartialResults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return HTTP 507 with the safe partial result", func(t *testing.T) {
+		t.Parallel()
+
+		partial := toolspkg.ToolResult{
+			Content: []toolspkg.ToolContent{{Type: "text", Text: "bounded preview"}},
+		}
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeResultPersistenceFailed,
+			toolspkg.ToolIDSkillView,
+			"internal persistence detail agh_claim_secret",
+			toolspkg.ErrToolResultPersistence,
+		).WithPartialResult(partial)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+
+		if status != http.StatusInsufficientStorage {
+			t.Fatalf("tool error status = %d, want %d", status, http.StatusInsufficientStorage)
+		}
+		if payload.Error.Code != toolspkg.ErrorCodeResultPersistenceFailed ||
+			payload.Error.Message != "tool result could not be retained" ||
+			payload.Error.PartialResult == nil ||
+			len(payload.Error.PartialResult.Content) != 1 ||
+			payload.Error.PartialResult.Content[0].Type != "text" ||
+			payload.Error.PartialResult.Content[0].Text != "bounded preview" {
+			t.Fatalf("tool partial error payload = %#v, want safe 507 partial result", payload.Error)
+		}
+		encoded, encodeErr := json.Marshal(payload)
+		if encodeErr != nil {
+			t.Fatalf("json.Marshal() error = %v", encodeErr)
+		}
+		if strings.Contains(string(encoded), "agh_claim_secret") {
+			t.Fatalf("tool partial error leaked internal detail: %s", encoded)
 		}
 	})
 }
@@ -612,6 +780,7 @@ func newToolCoreEngine(t *testing.T, handlers *core.BaseHandlers) *gin.Engine {
 	engine.POST("/tools/:id/invoke", handlers.InvokeTool)
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/tools", handlers.ListSessionTools)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/tools/search", handlers.SearchSessionTools)
+	engine.GET("/workspaces/:workspace_id/tool-artifacts/:artifact_id", handlers.ReadToolArtifact)
 	engine.GET("/toolsets", handlers.ListToolsets)
 	engine.GET("/toolsets/:id", handlers.GetToolset)
 	return engine

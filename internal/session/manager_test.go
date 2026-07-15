@@ -16,10 +16,13 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/admission"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/network/participation"
@@ -30,6 +33,8 @@ import (
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/toolruntime"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	skillbundled "github.com/compozy/agh/skills"
 )
@@ -182,6 +187,201 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if got := len(h.resolver.resolveOrRegisterCalls); got != 0 {
 		t.Fatalf("resolver ResolveOrRegister() calls = %d, want 0", got)
 	}
+}
+
+func TestManagerPublishClarifyEvent(t *testing.T) {
+	t.Run("Should preserve typed clarification evidence in the canonical transcript payload", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		sess := createSession(t, h)
+		askedAt := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+		choice := 1
+		clarifyEvent := toolspkg.ClarifyEvent{
+			Status: toolspkg.ClarifyStatusResolved,
+			Request: toolspkg.ClarifyPending{
+				RequestID:   "clarify-request-1",
+				WorkspaceID: h.workspaceID,
+				SessionID:   sess.ID,
+				AgentName:   sess.Info().AgentName,
+				Question:    "Which release channel?",
+				Choices:     []string{"Stable", "Preview"},
+				AskedAt:     askedAt,
+				Deadline:    askedAt.Add(5 * time.Minute),
+			},
+			Answer: &toolspkg.ClarifyAnswer{Choice: &choice},
+			At:     askedAt.Add(time.Minute),
+		}
+
+		if err := h.manager.PublishClarifyEvent(testutil.Context(t), clarifyEvent); err != nil {
+			t.Fatalf("PublishClarifyEvent() error = %v", err)
+		}
+		stored, err := sess.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		if got, want := len(stored), 1; got != want {
+			t.Fatalf("len(events) = %d, want %d", got, want)
+		}
+
+		decoded, err := transcript.UnmarshalAgentEvent(stored[0].Content)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if got, want := decoded.Type, EventTypeClarify; got != want {
+			t.Fatalf("event type = %q, want %q", got, want)
+		}
+		if got, want := decoded.RequestID, clarifyEvent.Request.RequestID; got != want {
+			t.Fatalf("request id = %q, want %q", got, want)
+		}
+		var persisted toolspkg.ClarifyEvent
+		if err := json.Unmarshal(decoded.Raw, &persisted); err != nil {
+			t.Fatalf("json.Unmarshal(raw clarify event) error = %v", err)
+		}
+		if got, want := persisted.Status, clarifyEvent.Status; got != want {
+			t.Fatalf("clarification status = %q, want %q", got, want)
+		}
+		if persisted.Answer == nil || persisted.Answer.Choice == nil || *persisted.Answer.Choice != 1 {
+			t.Fatalf("clarification answer = %#v, want choice 1", persisted.Answer)
+		}
+	})
+
+	t.Run(
+		"Should persist terminal clarification evidence before stop finalization closes the recorder",
+		func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			sess := createSession(t, h)
+			askedAt := time.Date(2026, 7, 15, 13, 0, 0, 0, time.UTC)
+			published := make(chan error, 1)
+			h.notifier.finalizingHook = func(ctx context.Context, stopping *Session) {
+				published <- h.manager.PublishClarifyEvent(ctx, toolspkg.ClarifyEvent{
+					Status: toolspkg.ClarifyStatusCanceled,
+					Request: toolspkg.ClarifyPending{
+						RequestID:   "clarify-request-stop",
+						WorkspaceID: h.workspaceID,
+						SessionID:   stopping.ID,
+						AgentName:   stopping.Info().AgentName,
+						Question:    "Continue after shutdown?",
+						AskedAt:     askedAt,
+						Deadline:    askedAt.Add(5 * time.Minute),
+					},
+					At: askedAt.Add(time.Minute),
+				})
+			}
+
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Fatalf("Stop() error = %v", err)
+			}
+			if err := <-published; err != nil {
+				t.Fatalf("PublishClarifyEvent(finalizing) error = %v", err)
+			}
+			events, err := h.manager.Events(testutil.Context(t), sess.ID, store.EventQuery{Type: EventTypeClarify})
+			if err != nil {
+				t.Fatalf("Events(clarify) error = %v", err)
+			}
+			if got, want := len(events), 1; got != want {
+				t.Fatalf("len(clarify events) = %d, want %d", got, want)
+			}
+			decoded, err := transcript.UnmarshalAgentEvent(events[0].Content)
+			if err != nil {
+				t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+			}
+			var persisted toolspkg.ClarifyEvent
+			if err := json.Unmarshal(decoded.Raw, &persisted); err != nil {
+				t.Fatalf("json.Unmarshal(raw clarify event) error = %v", err)
+			}
+			if got, want := persisted.Status, toolspkg.ClarifyStatusCanceled; got != want {
+				t.Fatalf("clarification status = %q, want %q", got, want)
+			}
+		})
+}
+
+func TestManagerWorkAdmission(t *testing.T) {
+	t.Run("Should preserve an admitted prompt while rejecting new work", func(t *testing.T) {
+		t.Parallel()
+
+		gate := &admission.Gate{}
+		h := newHarness(t, WithWorkAdmissionChecker(gate))
+		sess := createSession(t, h)
+		source := make(chan acp.AgentEvent, 1)
+		promptStarted := make(chan struct{})
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			close(promptStarted)
+			return source, nil
+		}
+
+		events, err := h.manager.Prompt(testutil.Context(t), sess.ID, "finish this turn")
+		if err != nil {
+			t.Fatalf("Prompt(first) error = %v", err)
+		}
+		select {
+		case <-promptStarted:
+		case <-time.After(time.Second):
+			t.Fatal("first prompt did not start")
+		}
+		if changed := gate.Drain(); !changed {
+			t.Fatal("Drain() changed = false, want true")
+		}
+
+		if _, err := h.manager.Prompt(
+			testutil.Context(t),
+			sess.ID,
+			"new turn",
+		); !errors.Is(err, admission.ErrDraining) {
+			t.Fatalf("Prompt(second) error = %v, want ErrDraining", err)
+		}
+		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		}); !errors.Is(err, admission.ErrDraining) {
+			t.Fatalf("Create() error = %v, want ErrDraining", err)
+		}
+
+		source <- acp.AgentEvent{
+			Type:             acp.EventTypeDone,
+			TurnID:           "turn-admitted",
+			Timestamp:        time.Now().UTC(),
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
+		}
+		close(source)
+		var terminal acp.AgentEvent
+		for event := range events {
+			terminal = event
+		}
+		if terminal.Type != acp.EventTypeDone {
+			t.Fatalf("admitted prompt terminal event = %q, want %q", terminal.Type, acp.EventTypeDone)
+		}
+	})
+
+	t.Run("Should restore new work after undrain", func(t *testing.T) {
+		t.Parallel()
+
+		gate := &admission.Gate{}
+		gate.Drain()
+		h := newHarness(t, WithWorkAdmissionChecker(gate))
+		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		}); !errors.Is(err, admission.ErrDraining) {
+			t.Fatalf("Create(draining) error = %v, want ErrDraining", err)
+		}
+		if changed := gate.Undrain(); !changed {
+			t.Fatal("Undrain() changed = false, want true")
+		}
+		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create(active) error = %v", err)
+		}
+		if stopErr := h.manager.Stop(testutil.Context(t), sess.ID); stopErr != nil {
+			t.Fatalf("Stop() error = %v", stopErr)
+		}
+	})
 }
 
 func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
@@ -1281,9 +1481,9 @@ func TestResumeMissingACPStateFallbackLogsAtInfoLevel(t *testing.T) {
 		t.Fatalf("first resume start ResumeSessionID = %q, want %q", got, originalACP)
 	}
 
-	record, ok := logs.FindByMessage("session.resume.load_session_missing_fallback")
+	record, ok := logs.FindByMessage("session.resume.context_replay_fallback")
 	if !ok {
-		t.Fatalf("missing load_session_missing_fallback log: %#v", logs.Records())
+		t.Fatalf("missing context_replay_fallback log: %#v", logs.Records())
 	}
 	if got, want := record.Level, slog.LevelInfo; got != want {
 		t.Fatalf("fallback log level = %v, want %v", got, want)
@@ -1292,6 +1492,7 @@ func TestResumeMissingACPStateFallbackLogsAtInfoLevel(t *testing.T) {
 	assertCapturedLogAttr(t, record, "agent_name", "coder")
 	assertCapturedLogAttr(t, record, "provider", "claude")
 	assertCapturedLogAttr(t, record, "phase", "resume")
+	assertCapturedLogAttr(t, record, "fallback_reason", "load_session_resource_missing")
 }
 
 func TestResumeFailureRestoresStoppedMetadata(t *testing.T) {
@@ -1325,6 +1526,377 @@ func TestResumeFailureRestoresStoppedMetadata(t *testing.T) {
 	if got := metaAfter.StopDetail; got != metaBefore.StopDetail {
 		t.Fatalf("meta stop detail after failed resume = %q, want %q", got, metaBefore.StopDetail)
 	}
+}
+
+func TestResumeReplayFallback(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inject the checkpoint summary before the persisted transcript", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		checkpoint := "<agh_checkpoint_summary>\n## Goal\nPreserve the cobalt decision.\n</agh_checkpoint_summary>"
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithPromptAssembler(&resumeContextPromptAssembler{checkpoint: checkpoint}),
+		)
+		session := createSession(t, h)
+		recordResumeReplayFixture(t, h.manager, session, "local-only-context")
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, fmt.Errorf("%w: unsupported", acp.ErrAgentDoesNotSupportSession)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+		})
+		events, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "continue")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		collectEvents(t, events)
+		got := h.driver.promptCalls[0].Message
+		checkpointIndex := strings.Index(got, "<agh_checkpoint_summary>")
+		replayIndex := strings.Index(got, resumeReplayOpenTag)
+		if checkpointIndex < 0 || replayIndex < 0 || checkpointIndex >= replayIndex {
+			t.Fatalf("resume prompt checkpoint/replay order invalid:\n%s", got)
+		}
+	})
+
+	t.Run("Should stage a pruned replay when session load is unsupported", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		recordResumeReplayFixture(t, h.manager, session, "local-only-context")
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		eventsBeforeResume := readStoredEvents(t, session)
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, fmt.Errorf(
+					"%w: agent %q does not support session/load",
+					acp.ErrAgentDoesNotSupportSession,
+					opts.AgentName,
+				)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume(load unsupported) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+		})
+
+		firstPrompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "continue after restart")
+		if err != nil {
+			t.Fatalf("Prompt(first resumed turn) error = %v", err)
+		}
+		collectEvents(t, firstPrompt)
+		assertResumeReplayEqualsPrunedEvents(t, h.driver.promptCalls[0].Message, eventsBeforeResume)
+
+		secondPrompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "continue again")
+		if err != nil {
+			t.Fatalf("Prompt(second resumed turn) error = %v", err)
+		}
+		collectEvents(t, secondPrompt)
+		if strings.Contains(h.driver.promptCalls[1].Message, "<agh_context_replay>") {
+			t.Fatalf("second resumed prompt contains replay block: %q", h.driver.promptCalls[1].Message)
+		}
+		assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 1)
+	})
+
+	t.Run("Should stage a pruned replay when the stored ACP session is stale", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		recordResumeReplayFixture(t, h.manager, session, "stale-session-context")
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		eventsBeforeResume := readStoredEvents(t, session)
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, fmt.Errorf(
+					"%w: load session %q for %q: %w",
+					acp.ErrLoadSessionFailed,
+					opts.ResumeSessionID,
+					opts.AgentName,
+					&acpsdk.RequestError{Code: -32002, Message: "Resource not found"},
+				)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume(stale ACP session) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+		})
+
+		prompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "continue after stale load")
+		if err != nil {
+			t.Fatalf("Prompt(resumed) error = %v", err)
+		}
+		collectEvents(t, prompt)
+		assertResumeReplayEqualsPrunedEvents(t, h.driver.promptCalls[0].Message, eventsBeforeResume)
+		assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 1)
+	})
+
+	t.Run("Should not stage replay when session load succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		recordResumeReplayFixture(t, h.manager, session, "loaded-context")
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume(load succeeds) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+		})
+
+		prompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "continue loaded session")
+		if err != nil {
+			t.Fatalf("Prompt(resumed) error = %v", err)
+		}
+		collectEvents(t, prompt)
+		if strings.Contains(h.driver.promptCalls[0].Message, "<agh_context_replay>") {
+			t.Fatalf("successful load prompt contains replay block: %q", h.driver.promptCalls[0].Message)
+		}
+		assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 0)
+	})
+
+	t.Run("Should retain replay until prompt delivery is fully prepared", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		recordResumeReplayFixture(t, h.manager, session, "retry-context")
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		eventsBeforeResume := readStoredEvents(t, session)
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, fmt.Errorf("%w: unsupported", acp.ErrAgentDoesNotSupportSession)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume(load unsupported) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+		})
+
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			return nil, errors.New("prompt dispatch rejected")
+		}
+		if _, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "first attempt"); err == nil ||
+			!strings.Contains(err.Error(), "prompt dispatch rejected") {
+			t.Fatalf("Prompt(rejected) error = %v, want dispatch rejection", err)
+		}
+		assertResumeReplayEqualsPrunedEvents(t, h.driver.promptCalls[0].Message, eventsBeforeResume)
+		if replay := h.manager.pendingResumeReplay(resumed.ID); replay == "" {
+			t.Fatal("pending resume replay = empty after rejected dispatch")
+		}
+
+		h.driver.promptHook = nil
+		prepareErr := errors.New("delivery preparation failed")
+		if _, err := h.manager.PromptWithOpts(testutil.Context(t), resumed.ID, PromptOpts{
+			Message: "delivery attempt",
+			PrepareDelivery: func(context.Context, PromptDelivery) error {
+				return prepareErr
+			},
+		}); !errors.Is(err, prepareErr) {
+			t.Fatalf("PromptWithOpts(delivery failure) error = %v, want %v", err, prepareErr)
+		}
+		assertResumeReplayEqualsPrunedEvents(t, h.driver.promptCalls[1].Message, eventsBeforeResume)
+		if replay := h.manager.pendingResumeReplay(resumed.ID); replay == "" {
+			t.Fatal("pending resume replay = empty after delivery preparation failure")
+		}
+
+		retry, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "retry accepted")
+		if err != nil {
+			t.Fatalf("Prompt(retry) error = %v", err)
+		}
+		collectEvents(t, retry)
+		assertResumeReplayEqualsPrunedEvents(t, h.driver.promptCalls[2].Message, eventsBeforeResume)
+		if replay := h.manager.pendingResumeReplay(resumed.ID); replay != "" {
+			t.Fatalf("pending resume replay = %q, want consumed after accepted dispatch", replay)
+		}
+	})
+
+	t.Run("Should isolate replay to the resumed session", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		localSession := createSession(t, h)
+		recordResumeReplayFixture(t, h.manager, localSession, "local-session-secret")
+		if err := h.manager.Stop(testutil.Context(t), localSession.ID); err != nil {
+			t.Fatalf("Stop(local) error = %v", err)
+		}
+
+		foreignRoot := filepath.Join(h.homePaths.HomeDir, "foreign-workspace")
+		if err := os.MkdirAll(foreignRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(foreign workspace) error = %v", err)
+		}
+		foreignWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(primary workspace) error = %v", err)
+		}
+		foreignWorkspace.ID = "ws-foreign"
+		foreignWorkspace.WorkspaceID = "ws-foreign"
+		foreignWorkspace.RootDir = foreignRoot
+		foreignWorkspace.Name = "foreign-workspace"
+		h.resolver.upsert(&foreignWorkspace)
+
+		foreignSession, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: "ws-foreign",
+		})
+		if err != nil {
+			t.Fatalf("Create(foreign session) error = %v", err)
+		}
+		recordResumeReplayFixture(t, h.manager, foreignSession, "foreign-session-secret")
+		if err := h.manager.Stop(testutil.Context(t), foreignSession.ID); err != nil {
+			t.Fatalf("Stop(foreign) error = %v", err)
+		}
+
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, fmt.Errorf("%w: unsupported", acp.ErrAgentDoesNotSupportSession)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), localSession.ID)
+		if err != nil {
+			t.Fatalf("Resume(local) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("Stop(resumed) error = %v", err)
+			}
+		})
+
+		prompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "continue isolated session")
+		if err != nil {
+			t.Fatalf("Prompt(resumed) error = %v", err)
+		}
+		collectEvents(t, prompt)
+		replay := resumeReplayMessagesFromPrompt(t, h.driver.promptCalls[0].Message)
+		encoded, err := json.Marshal(replay)
+		if err != nil {
+			t.Fatalf("json.Marshal(replay) error = %v", err)
+		}
+		if !strings.Contains(string(encoded), "local-session-secret") {
+			t.Fatalf("replay = %s, want local session context", encoded)
+		}
+		if strings.Contains(string(encoded), "foreign-session-secret") {
+			t.Fatalf("replay = %s, contains foreign session context", encoded)
+		}
+	})
+
+	t.Run("Should release fallback resources when marker persistence fails", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		stopCallsBeforeResume := h.driver.stopCalls
+
+		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, fmt.Errorf("%w: unsupported", acp.ErrAgentDoesNotSupportSession)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
+		}
+		openCalls := 0
+		var fallbackRecorder *markerFailingRecorder
+		h.manager = newManagerWithHarness(t, h, WithStore(func(
+			ctx context.Context,
+			sessionID string,
+			path string,
+		) (EventRecorder, error) {
+			openCalls++
+			recorder, err := sessiondb.OpenSessionDB(ctx, sessionID, path)
+			if err != nil {
+				return nil, err
+			}
+			if openCalls == 2 {
+				fallbackRecorder = &markerFailingRecorder{
+					EventRecorder: recorder,
+					failErr:       errors.New("marker write failed"),
+				}
+				return fallbackRecorder, nil
+			}
+			return recorder, nil
+		}))
+
+		if _, err := h.manager.Resume(testutil.Context(t), session.ID); err == nil ||
+			!strings.Contains(err.Error(), "marker write failed") {
+			t.Fatalf("Resume(marker failure) error = %v, want marker write failure", err)
+		}
+		if fallbackRecorder == nil {
+			t.Fatal("fallback recorder = nil, want opened fallback recorder")
+		}
+		if got, want := fallbackRecorder.closeCalls, 1; got != want {
+			t.Fatalf("fallback recorder close calls = %d, want %d", got, want)
+		}
+		if got, want := h.driver.stopCalls, stopCallsBeforeResume+1; got != want {
+			t.Fatalf("driver stop calls = %d, want %d", got, want)
+		}
+		if _, ok := h.manager.Get(session.ID); ok {
+			t.Fatalf("Get(%q) found failed fallback session", session.ID)
+		}
+		if replay := h.manager.pendingResumeReplay(session.ID); replay != "" {
+			t.Fatalf("pending resume replay = %q, want empty after failed start", replay)
+		}
+		if meta := readMeta(t, session.MetaPath()); meta.State != string(StateStopped) {
+			t.Fatalf("meta state after marker failure = %q, want %q", meta.State, StateStopped)
+		}
+	})
 }
 
 func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
@@ -2274,10 +2846,27 @@ func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	}
 }
 
-func TestPromptOwnsAutomaticUserSessionIdentity(t *testing.T) {
+func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should persist the first user task as the durable session title", func(t *testing.T) {
+	t.Run("Should include the ellipsis inside the eight-word and sixty-four-rune bounds", func(t *testing.T) {
+		t.Parallel()
+
+		got := normalizeAutomaticSessionTitle(
+			"aaaaaaa bbbbbbb ccccccc ddddddd eeeeeee fffffff ggggggg hhhhhhhh ninth",
+		)
+		if words := strings.Fields(got); len(words) != automaticSessionTitleMaxWords {
+			t.Fatalf("normalized title words = %d, want %d; title=%q", len(words), automaticSessionTitleMaxWords, got)
+		}
+		if runes := utf8.RuneCountInString(got); runes != automaticSessionTitleMaxRunes {
+			t.Fatalf("normalized title runes = %d, want %d; title=%q", runes, automaticSessionTitleMaxRunes, got)
+		}
+		if !strings.HasSuffix(got, "…") {
+			t.Fatalf("normalized title = %q, want ellipsis", got)
+		}
+	})
+
+	t.Run("Should persist the first generated title as durable session identity", func(t *testing.T) {
 		t.Parallel()
 
 		catalog := newRecordingSessionCatalog()
@@ -2304,17 +2893,25 @@ func TestPromptOwnsAutomaticUserSessionIdentity(t *testing.T) {
 		}
 		defer cancelCatalogEvents()
 
-		events, err := h.manager.Prompt(
+		const wantTitle = "Checkout webhook retries"
+		applied, err := h.manager.ApplyAutomaticSessionTitle(testutil.Context(t), session.ID, wantTitle)
+		if err != nil {
+			t.Fatalf("ApplyAutomaticSessionTitle() error = %v", err)
+		}
+		if !applied {
+			t.Fatal("ApplyAutomaticSessionTitle() applied = false, want true")
+		}
+		reapplied, err := h.manager.ApplyAutomaticSessionTitle(
 			testutil.Context(t),
 			session.ID,
-			"Fix checkout webhook retries",
+			"Later title must lose",
 		)
 		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
+			t.Fatalf("ApplyAutomaticSessionTitle(second) error = %v", err)
 		}
-		_ = collectEvents(t, events)
-
-		const wantTitle = "Fix checkout webhook retries"
+		if reapplied {
+			t.Fatal("ApplyAutomaticSessionTitle(second) applied = true, want false")
+		}
 		if got := session.Info().Name; got != wantTitle {
 			t.Fatalf("session title = %q, want %q", got, wantTitle)
 		}
@@ -2389,11 +2986,17 @@ func TestPromptOwnsAutomaticUserSessionIdentity(t *testing.T) {
 					}
 				})
 
-				events, err := h.manager.Prompt(testutil.Context(t), session.ID, "Ignore internal bookkeeping")
+				applied, err := h.manager.ApplyAutomaticSessionTitle(
+					testutil.Context(t),
+					session.ID,
+					"Ignore internal bookkeeping",
+				)
 				if err != nil {
-					t.Fatalf("Prompt() error = %v", err)
+					t.Fatalf("ApplyAutomaticSessionTitle() error = %v", err)
 				}
-				_ = collectEvents(t, events)
+				if applied {
+					t.Fatal("ApplyAutomaticSessionTitle() applied = true, want explicit/internal identity preserved")
+				}
 
 				if got := session.Info().Name; got != test.sessionName {
 					t.Fatalf("session title = %q, want preserved %q", got, test.sessionName)
@@ -4898,6 +5501,25 @@ func (fn promptAssemblerFunc) Assemble(
 	return fn(ctx, agent, workspace)
 }
 
+type resumeContextPromptAssembler struct {
+	checkpoint string
+}
+
+func (a *resumeContextPromptAssembler) Assemble(
+	_ context.Context,
+	agent aghconfig.AgentDef,
+	_ *workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	return agent.Prompt, nil
+}
+
+func (a *resumeContextPromptAssembler) ResumeContextSection(
+	_ context.Context,
+	_ StartupPromptContext,
+) (string, error) {
+	return a.checkpoint, nil
+}
+
 const (
 	testBundledAghSkillName     = "agh"
 	testBundledNetworkReference = "references/network.md"
@@ -4941,11 +5563,12 @@ func (fn startupPromptOverlayFunc) Apply(
 }
 
 type fakeNotifier struct {
-	mu      sync.Mutex
-	created []*Info
-	stopped []*Info
-	events  map[string][]acp.AgentEvent
-	order   []string
+	mu             sync.Mutex
+	created        []*Info
+	stopped        []*Info
+	events         map[string][]acp.AgentEvent
+	order          []string
+	finalizingHook func(context.Context, *Session)
 }
 
 func newFakeNotifier() *fakeNotifier {
@@ -4966,6 +5589,18 @@ func (n *fakeNotifier) OnSessionStopped(_ context.Context, session *Session) {
 	defer n.mu.Unlock()
 	n.stopped = append(n.stopped, session.Info())
 	n.order = append(n.order, "stopped:"+session.ID)
+}
+
+func (n *fakeNotifier) OnSessionFinalizing(ctx context.Context, session *Session) {
+	n.mu.Lock()
+	hook := n.finalizingHook
+	if hook != nil {
+		n.order = append(n.order, "finalizing:"+session.ID)
+	}
+	n.mu.Unlock()
+	if hook != nil {
+		hook(ctx, session)
+	}
 }
 
 func (n *fakeNotifier) OnAgentEvent(_ context.Context, sessionID string, event any) {
@@ -5073,6 +5708,24 @@ func (f *fakeNetworkPeerLifecycle) leaveCall(index int) string {
 
 type fakeEventRecorder struct {
 	closeCalls int
+}
+
+type markerFailingRecorder struct {
+	EventRecorder
+	failErr    error
+	closeCalls int
+}
+
+func (r *markerFailingRecorder) Record(ctx context.Context, event store.SessionEvent) error {
+	if event.Type == events.TranscriptMarkerCreated {
+		return r.failErr
+	}
+	return r.EventRecorder.Record(ctx, event)
+}
+
+func (r *markerFailingRecorder) Close(ctx context.Context) error {
+	r.closeCalls++
+	return r.EventRecorder.Close(ctx)
 }
 
 type failingSinglePromptRecorder struct {
@@ -5708,5 +6361,104 @@ func (p *fakeProcess) finish(err error, stderr string) {
 	if !p.closed {
 		p.closed = true
 		close(p.done)
+	}
+}
+
+func recordResumeReplayFixture(t *testing.T, manager *Manager, session *Session, contextText string) {
+	t.Helper()
+
+	turnID := "turn-resume-replay"
+	now := time.Now().UTC()
+	toolInput, err := json.Marshal(map[string]string{
+		"path": strings.Repeat("nested/path/", 80) + "fixture.txt",
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(tool input) error = %v", err)
+	}
+	events := []acp.AgentEvent{
+		{
+			Type:      acp.EventTypeUserMessage,
+			TurnID:    turnID,
+			Timestamp: now,
+			Text:      contextText,
+		},
+		{
+			Type:      acp.EventTypeAgentMessage,
+			TurnID:    turnID,
+			Timestamp: now.Add(time.Millisecond),
+			Text:      "Acknowledged " + contextText,
+		},
+		acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			TurnID:     turnID,
+			ToolCallID: "tool-resume-replay",
+			Timestamp:  now.Add(2 * time.Millisecond),
+		}.WithTool("read", toolInput, false),
+		acp.AgentEvent{
+			Type:       acp.EventTypeToolResult,
+			TurnID:     turnID,
+			ToolCallID: "tool-resume-replay",
+			Timestamp:  now.Add(3 * time.Millisecond),
+			Text:       strings.Repeat("tool-noise-line\n", 80),
+		}.WithTool("read", nil, false),
+	}
+	for _, event := range events {
+		if err := manager.recordEvent(testutil.Context(t), session, event); err != nil {
+			t.Fatalf("recordEvent(%q) error = %v", event.Type, err)
+		}
+	}
+}
+
+func assertResumeReplayEqualsPrunedEvents(
+	t *testing.T,
+	systemPrompt string,
+	events []store.SessionEvent,
+) {
+	t.Helper()
+
+	want, err := transcript.Assemble(events)
+	if err != nil {
+		t.Fatalf("transcript.Assemble(events) error = %v", err)
+	}
+	want = transcript.Prune(want, transcript.PruneOptions{Dedup: true})
+	got := resumeReplayMessagesFromPrompt(t, systemPrompt)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("resume replay = %#v, want pruned transcript %#v", got, want)
+	}
+}
+
+func resumeReplayMessagesFromPrompt(t *testing.T, systemPrompt string) []transcript.Message {
+	t.Helper()
+
+	_, replayAndSuffix, ok := strings.Cut(systemPrompt, "<agh_context_replay>\n")
+	if !ok {
+		t.Fatalf("system prompt is missing replay start marker: %q", systemPrompt)
+	}
+	replayJSON, _, ok := strings.Cut(replayAndSuffix, "\n</agh_context_replay>")
+	if !ok {
+		t.Fatalf("system prompt is missing replay end marker: %q", systemPrompt)
+	}
+	var messages []transcript.Message
+	if err := json.Unmarshal([]byte(replayJSON), &messages); err != nil {
+		t.Fatalf("json.Unmarshal(resume replay) error = %v", err)
+	}
+	return messages
+}
+
+func assertContextRebuiltMarkerCount(t *testing.T, events []store.SessionEvent, want int) {
+	t.Helper()
+
+	messages, err := transcript.Assemble(events)
+	if err != nil {
+		t.Fatalf("transcript.Assemble(events) error = %v", err)
+	}
+	count := 0
+	for _, message := range messages {
+		if message.Role == transcript.RoleSystem && message.Content == "Context rebuilt from log." {
+			count++
+		}
+	}
+	if count != want {
+		t.Fatalf("context rebuilt marker count = %d, want %d", count, want)
 	}
 }

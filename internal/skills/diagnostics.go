@@ -53,15 +53,20 @@ func skillActiveDiagnostic(skill *Skill) SkillDiagnostic {
 	}
 	source := skillSourceName(skill.Source)
 	path := strings.TrimSpace(skill.FilePath)
+	state := SkillDiagnosticStateValid
+	if !skillIsActive(skill) {
+		state = SkillDiagnosticStateInactive
+	}
 	return SkillDiagnostic{
 		Name:               strings.TrimSpace(skill.Meta.Name),
-		State:              SkillDiagnosticStateValid,
+		State:              state,
 		Source:             source,
 		Path:               path,
 		WinningSource:      source,
 		WinningPath:        path,
 		VerificationStatus: status,
 		Warnings:           cloneWarnings(skill.Diagnostics.Warnings),
+		ActivationReasons:  cloneSkillActivation(skill.Activation).Reasons,
 	}
 }
 
@@ -133,6 +138,7 @@ func cloneDiagnostics(src []SkillDiagnostic) []SkillDiagnostic {
 func cloneDiagnostic(src SkillDiagnostic) SkillDiagnostic {
 	clone := src
 	clone.Warnings = cloneWarnings(src.Warnings)
+	clone.ActivationReasons = cloneSkillActivation(SkillActivation{Reasons: src.ActivationReasons}).Reasons
 	if src.Failure != nil {
 		failure := *src.Failure
 		clone.Failure = &failure

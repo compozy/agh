@@ -35,7 +35,17 @@ type PromptOpts struct {
 	TurnSource      TurnSource
 	PromptMeta      acp.PromptMeta
 	DeliveryContext context.Context
+	PrepareDelivery PromptDeliveryPreparer
 }
+
+// PromptDelivery identifies a prompt whose agent-event stream is ready to start.
+type PromptDelivery struct {
+	SessionID string
+	TurnID    string
+}
+
+// PromptDeliveryPreparer runs after the provider accepts a prompt and before its first event is pumped.
+type PromptDeliveryPreparer func(context.Context, PromptDelivery) error
 
 // NetworkPeerCapability is the runtime-owned capability projection shared with
 // the network join lifecycle for brief and rich discovery.
@@ -366,6 +376,12 @@ type Notifier interface {
 	OnSessionCreated(ctx context.Context, session *Session)
 	OnSessionStopped(ctx context.Context, session *Session)
 	OnAgentEvent(ctx context.Context, sessionID string, event any)
+}
+
+// FinalizationNotifier is an optional lifecycle seam invoked after the process and sandbox
+// stop, but before the recorder closes and the durable ledger is materialized.
+type FinalizationNotifier interface {
+	OnSessionFinalizing(ctx context.Context, session *Session)
 }
 
 // AgentEventNotifier is an optional notifier extension that receives the

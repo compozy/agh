@@ -142,7 +142,7 @@ func (m *Manager) prepareSandboxForStart(
 		return acp.StartOpts{}, err
 	}
 
-	return sandboxStartOpts(opts, prepared, state)
+	return sandboxStartOpts(opts, prepared, state, spec.workspace.RootDir)
 }
 
 func (m *Manager) initializeSandboxMetaForStart(

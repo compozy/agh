@@ -26,7 +26,8 @@ INSERT INTO model_catalog_rows (
   source_id, provider_id, model_id, source_kind, priority, available, stale,
   refreshed_at, expires_at, display_name, context_window, max_input_tokens,
   max_output_tokens, supports_tools, supports_reasoning, default_reasoning_effort,
-  cost_input_per_million, cost_output_per_million, explicitly_curated,
+  cost_input_per_million, cost_output_per_million, cost_cache_read_per_million,
+  cost_cache_write_per_million, cost_reasoning_per_million, explicitly_curated,
   deprecated, hidden, featured, deprecated_set, hidden_set, featured_set,
   release_date, last_error
 ) VALUES (
@@ -36,6 +37,8 @@ INSERT INTO model_catalog_rows (
   sqlc.narg(max_input_tokens), sqlc.narg(max_output_tokens), sqlc.narg(supports_tools),
   sqlc.narg(supports_reasoning), sqlc.narg(default_reasoning_effort),
   sqlc.narg(cost_input_per_million), sqlc.narg(cost_output_per_million),
+  sqlc.narg(cost_cache_read_per_million), sqlc.narg(cost_cache_write_per_million),
+  sqlc.narg(cost_reasoning_per_million),
   sqlc.arg(explicitly_curated), sqlc.arg(deprecated), sqlc.arg(hidden), sqlc.arg(featured),
   sqlc.arg(deprecated_set), sqlc.arg(hidden_set), sqlc.arg(featured_set),
   sqlc.narg(release_date), sqlc.arg(last_error)

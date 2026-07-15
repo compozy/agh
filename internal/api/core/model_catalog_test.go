@@ -123,6 +123,35 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		}
 		assertRedactedModelCatalogPayload(t, statusPayloads[0].LastError, "ya29.api-secret-token")
 	})
+
+	t.Run("Should preserve five-rate cost payloads in native and OpenAI projections", func(t *testing.T) {
+		t.Parallel()
+
+		input := 1.0
+		output := 2.0
+		cacheRead := 0.5
+		cacheWrite := 3.0
+		reasoning := 4.0
+		model := seedModelCatalogModel("codex", "gpt-5.4")
+		model.CostInputPerMillion = &input
+		model.CostOutputPerMillion = &output
+		model.CostCacheReadPerMillion = &cacheRead
+		model.CostCacheWritePerMillion = &cacheWrite
+		model.CostReasoningPerMillion = &reasoning
+
+		nativeCost := ProviderModelPayloadFromModel(model).Cost
+		openAICost := OpenAIModelPayloadFromModel(model).AGH.Cost
+		for name, cost := range map[string]*contract.ModelCatalogCostPayload{
+			"native": nativeCost,
+			"openai": openAICost,
+		} {
+			if cost == nil || cost.InputPerMillion != &input || cost.OutputPerMillion != &output ||
+				cost.CacheReadPerMillion != &cacheRead || cost.CacheWritePerMillion != &cacheWrite ||
+				cost.ReasoningPerMillion != &reasoning {
+				t.Fatalf("%s five-rate cost = %#v, want complete payload", name, cost)
+			}
+		}
+	})
 }
 
 func TestProviderModelCatalogHandlers(t *testing.T) {

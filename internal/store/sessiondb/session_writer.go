@@ -74,6 +74,9 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 		return sessionWriteResult{err: s.writeTokenUsage(req.ctx, req.usage)}
 	case sessionWriteHookRun:
 		return sessionWriteResult{err: s.writeHookRun(req.ctx, req.hook)}
+	case sessionWriteArchive:
+		result, err := s.writeArchiveEvents(req.ctx, req.archive)
+		return sessionWriteResult{archive: result, err: err}
 	case sessionWriteClear:
 		err := clearSessionSQLite(req.ctx, s.db)
 		if err != nil {
@@ -91,7 +94,7 @@ func sessionWriteCheckpointWeight(req sessionWriteRequest, result sessionWriteRe
 		return 1
 	case sessionWriteEventBatch:
 		return len(result.events)
-	case sessionWriteUsage, sessionWriteHookRun:
+	case sessionWriteUsage, sessionWriteHookRun, sessionWriteArchive:
 		return 1
 	default:
 		return 0

@@ -1487,6 +1487,8 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 				"sessionUpdate": "tool_call",
 				"toolCallId":    "tool-1",
 				"title":         title,
+				"kind":          "edit",
+				"rawInput":      map[string]any{"path": "retry.go"},
 				"status":        "in_progress",
 			}),
 		})
@@ -1504,8 +1506,18 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 		if err := proc.handleSessionUpdate(modeUpdate); err != nil {
 			t.Fatalf("handleSessionUpdate(current_mode_update) error = %v", err)
 		}
+		failedToolResult := mustMarshalJSON(acpsdk.SessionNotification{
+			SessionId: "sess-direct",
+			Update: acpsdk.UpdateToolCall(
+				"tool-1",
+				acpsdk.WithUpdateStatus(acpsdk.ToolCallStatusFailed),
+			),
+		})
+		if err := proc.handleSessionUpdate(failedToolResult); err != nil {
+			t.Fatalf("handleSessionUpdate(failed tool result) error = %v", err)
+		}
 
-		events := collectEventsUntilCount(t, active.events, 4)
+		events := collectEventsUntilCount(t, active.events, 5)
 		if events[0].Type != EventTypeAgentMessage {
 			t.Fatalf("agent message event = %#v, want agent message", events[0])
 		}
@@ -1513,11 +1525,15 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 			*events[1].Usage.ContextUsed != 10 {
 			t.Fatalf("usage event = %#v, want usage metadata", events[1])
 		}
-		if events[2].Type != EventTypeToolCall {
+		if events[2].Type != EventTypeToolCall || events[2].ToolKind() != "edit" ||
+			string(events[2].ToolInput()) != `{"path":"retry.go"}` {
 			t.Fatalf("tool call event = %#v, want tool call", events[2])
 		}
 		if events[3].Type != EventTypeSystem {
 			t.Fatalf("system event = %#v, want system", events[3])
+		}
+		if events[4].Type != EventTypeToolResult || !events[4].ToolError() {
+			t.Fatalf("failed tool result event = %#v, want typed failure", events[4])
 		}
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "mode", "code", "agent", "plan", "ask")
 	})

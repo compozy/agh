@@ -382,9 +382,12 @@ type PrefetchRequest struct {
 
 // PreCompressRequest lets providers prepare before transcript compaction.
 type PreCompressRequest struct {
-	WorkspaceID string             `json:"workspace_id,omitempty"`
-	SessionID   string             `json:"session_id"`
-	Snapshot    TranscriptSnapshot `json:"snapshot"`
+	WorkspaceID  string             `json:"workspace_id,omitempty"`
+	SessionID    string             `json:"session_id"`
+	AgentName    string             `json:"agent_name,omitempty"`
+	FromSequence int64              `json:"from_sequence"`
+	ToSequence   int64              `json:"to_sequence"`
+	Snapshot     TranscriptSnapshot `json:"snapshot"`
 }
 
 // PreCompressHint lets providers return memory guidance before compaction.

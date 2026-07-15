@@ -161,6 +161,76 @@ func TestAgentTaskClaimNextNoWorkReturnsNoContent(t *testing.T) {
 	}
 }
 
+func TestAgentTaskClaimNextWorkspaceCapacityDeferral(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return conflict for a non-waiting caller when workspace capacity is full", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newAgentTaskHandlers(t, &stubTaskManager{
+			ClaimNextRunFn: func(
+				context.Context,
+				taskpkg.ClaimCriteria,
+				taskpkg.ActorContext,
+			) (*taskpkg.ClaimResult, error) {
+				return nil, taskpkg.ErrWorkspaceActiveRunCapReached
+			},
+		})
+		recorder := performAgentKernelRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodPost,
+			"/api/agent/tasks/claim-next",
+			[]byte(`{}`),
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusConflict, recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), taskpkg.ErrWorkspaceActiveRunCapReached.Error()) {
+			t.Fatalf("body = %q, want capacity deferral detail", recorder.Body.String())
+		}
+	})
+
+	t.Run("Should poll until workspace capacity becomes available for a waiting caller", func(t *testing.T) {
+		t.Parallel()
+
+		claimCalls := 0
+		taskRecord := agentTaskRecord()
+		handlers := newAgentTaskHandlers(t, &stubTaskManager{
+			ClaimNextRunFn: func(
+				context.Context,
+				taskpkg.ClaimCriteria,
+				taskpkg.ActorContext,
+			) (*taskpkg.ClaimResult, error) {
+				claimCalls++
+				if claimCalls == 1 {
+					return nil, taskpkg.ErrWorkspaceActiveRunCapReached
+				}
+				return &taskpkg.ClaimResult{Task: &taskRecord, Run: agentTaskRun(taskpkg.TaskRunStatusClaimed)}, nil
+			},
+		})
+		handlers.PollInterval = time.Millisecond
+		recorder := performAgentKernelRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodPost,
+			"/api/agent/tasks/claim-next",
+			[]byte(`{"wait":true}`),
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), `"run_id":"run-1"`) {
+			t.Fatalf("body = %q, want claimed run payload", recorder.Body.String())
+		}
+		if claimCalls != 2 {
+			t.Fatalf("ClaimNextRun() calls = %d, want 2", claimCalls)
+		}
+	})
+}
+
 func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testing.T) {
 	t.Parallel()
 

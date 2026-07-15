@@ -427,6 +427,7 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 			TaskID:             "task-lease",
 			Status:             taskpkg.TaskRunStatusRunning,
 			Attempt:            1,
+			RecoveryCount:      2,
 			ClaimedBy:          &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
 			SessionID:          "sess-lease",
 			Origin:             taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
@@ -455,6 +456,9 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 		}
 		if payload.HeartbeatAt == nil || !payload.HeartbeatAt.Equal(run.HeartbeatAt) {
 			t.Fatalf("HeartbeatAt = %v, want %v", payload.HeartbeatAt, run.HeartbeatAt)
+		}
+		if payload.RecoveryCount != int(run.RecoveryCount) {
+			t.Fatalf("RecoveryCount = %d, want %d", payload.RecoveryCount, run.RecoveryCount)
 		}
 		if payload.ResolvedNetworkParticipation == nil ||
 			payload.ResolvedNetworkParticipation.ChannelID != run.NetworkSpecSnapshot().ChannelID {

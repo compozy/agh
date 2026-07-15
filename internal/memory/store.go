@@ -26,7 +26,7 @@ const (
 	indexFilename     = "MEMORY.md"
 	maxScanEntries    = 200
 	defaultIndexLines = 200
-	defaultIndexBytes = 25_000
+	defaultIndexBytes = 25_600
 	dirPerm           = 0o755
 	filePerm          = 0o644
 	memoryDirName     = "memory"
@@ -47,9 +47,13 @@ type Store struct {
 	agentWorkspaceID string
 	maxIndexLines    int
 	maxIndexBytes    int
+	maxFileLines     int
+	maxFileBytes     int64
 	logger           *slog.Logger
 	catalog          *catalog
 	mu               *sync.Mutex
+	decisionMu       *sync.Mutex
+	mutationRevision *storeMutationRevision
 	recallSignals    recallSignalRecorderConfig
 	recallRecorders  *recallRecorderRegistry
 }
@@ -65,94 +69,6 @@ type recallSignalRecorderConfig struct {
 type recallRecorderRegistry struct {
 	mu        sync.Mutex
 	recorders map[string]*memoryrecall.SignalRecorder
-}
-
-// NewStore constructs a Store for the provided global memory directory.
-func NewStore(globalDir string, opts ...StoreOption) *Store {
-	store := &Store{
-		globalDir:     cleanDirPath(globalDir),
-		maxIndexLines: defaultIndexLines,
-		maxIndexBytes: defaultIndexBytes,
-		logger:        slog.Default(),
-		mu:            &sync.Mutex{},
-		recallSignals: recallSignalRecorderConfig{
-			queueCapacity:  256,
-			workerRetryMax: 3,
-			metricsEnabled: true,
-		},
-		recallRecorders: &recallRecorderRegistry{recorders: make(map[string]*memoryrecall.SignalRecorder)},
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(store)
-		}
-	}
-	return store
-}
-
-// StoreOption customizes a Store instance.
-type StoreOption func(*Store)
-
-// WithCatalogDatabasePath enables the derived SQLite-backed memory catalog in
-// the shared global database file.
-func WithCatalogDatabasePath(path string) StoreOption {
-	return func(store *Store) {
-		if store == nil {
-			return
-		}
-		store.catalog = newCatalog(path, func() time.Time {
-			return time.Now().UTC()
-		})
-	}
-}
-
-// WithRecallSignalRecorderConfig configures asynchronous recall-signal writes.
-func WithRecallSignalRecorderConfig(config aghconfig.MemoryRecallSignalsConfig) StoreOption {
-	return func(store *Store) {
-		if store == nil {
-			return
-		}
-		if config.QueueCapacity > 0 {
-			store.recallSignals.queueCapacity = config.QueueCapacity
-		}
-		if config.WorkerRetryMax >= 0 {
-			store.recallSignals.workerRetryMax = config.WorkerRetryMax
-		}
-		store.recallSignals.metricsEnabled = config.MetricsEnabled
-	}
-}
-
-// RecallSignalRecorderStats returns per-workspace async signal recorder counters.
-func (s *Store) RecallSignalRecorderStats(workspaceID string) memoryrecall.SignalRecorderStats {
-	if s == nil || s.recallRecorders == nil {
-		return memoryrecall.SignalRecorderStats{}
-	}
-	key := recallSignalRecorderKey(workspaceID)
-	s.recallRecorders.mu.Lock()
-	recorder := s.recallRecorders.recorders[key]
-	s.recallRecorders.mu.Unlock()
-	return recorder.Stats()
-}
-
-// CloseRecallSignalRecorders drains and stops every async recall-signal worker.
-func (s *Store) CloseRecallSignalRecorders(ctx context.Context) error {
-	if s == nil || s.recallRecorders == nil {
-		return nil
-	}
-	s.recallRecorders.mu.Lock()
-	recorders := make([]*memoryrecall.SignalRecorder, 0, len(s.recallRecorders.recorders))
-	for key, recorder := range s.recallRecorders.recorders {
-		recorders = append(recorders, recorder)
-		delete(s.recallRecorders.recorders, key)
-	}
-	s.recallRecorders.mu.Unlock()
-	var errs []error
-	for _, recorder := range recorders {
-		if err := recorder.Close(ctx); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
 }
 
 // ForWorkspace returns a clone of the store bound to the supplied workspace root.
@@ -243,11 +159,15 @@ func (s *Store) Exists(scope memcontract.Scope, filename string) (bool, error) {
 
 // Write validates the memory frontmatter and persists the raw file contents atomically.
 func (s *Store) Write(scope memcontract.Scope, filename string, content []byte) error {
+	unlock := s.lockControllerDecisions()
+	defer unlock()
 	return s.writeRaw(context.Background(), scope, filename, content, true)
 }
 
 // Delete removes a memory file and strips any matching entry from the local MEMORY.md index.
 func (s *Store) Delete(scope memcontract.Scope, filename string) error {
+	unlock := s.lockControllerDecisions()
+	defer unlock()
 	return s.deleteRaw(context.Background(), scope, filename, true)
 }
 
@@ -469,6 +389,7 @@ func (s *Store) Reindex(ctx context.Context, opts memcontract.ReindexOptions) (m
 	if err != nil {
 		return memcontract.ReindexResult{}, err
 	}
+	s.recordCommittedMutation()
 	completedAt := time.Now().UTC()
 	if err := s.logCatalogEvent(
 		ctx,

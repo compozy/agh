@@ -21,7 +21,6 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/fileutil"
-	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	extractorpkg "github.com/compozy/agh/internal/memory/extractor"
@@ -208,29 +207,6 @@ func (e *daemonMemoryExtractor) Close(ctx context.Context) error {
 	}
 	e.consumeOnce(ctx)
 	return nil
-}
-
-func (e *daemonMemoryExtractor) HandleSessionMessagePersisted(
-	ctx context.Context,
-	payload hookspkg.SessionMessagePersistedPayload,
-) error {
-	if e == nil || e.runtime == nil {
-		return nil
-	}
-	if workspaceRoot := strings.TrimSpace(payload.Workspace); workspaceRoot != "" {
-		sessionID := firstNonEmptyString(payload.SessionID, payload.RootSessionID)
-		if sessionID != "" {
-			e.workspaceRoots.Store(sessionID, workspaceRoot)
-		}
-	}
-	return e.runtime.HandleSessionMessagePersisted(ctx, payload)
-}
-
-func (e *daemonMemoryExtractor) RecordToolWrite(sessionID string, turnSeq int64) {
-	if e == nil || e.runtime == nil {
-		return
-	}
-	e.runtime.RecordToolWrite(sessionID, turnSeq)
 }
 
 func (e *daemonMemoryExtractor) Status(context.Context) (contract.MemoryExtractorStatusPayload, error) {

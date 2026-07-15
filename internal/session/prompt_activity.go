@@ -693,13 +693,16 @@ func (s *promptActivitySupervisor) handleUnhealthyProcess(now time.Time, emitWar
 		return false
 	}
 	health, ok := proc.HealthState()
-	if !ok || !processHealthFailureDetected(health) {
+	if !ok || !subprocess.HealthFailureDetected(health) {
 		s.mu.Lock()
 		s.unhealthy = false
 		s.unhealthyWarned = false
 		s.mu.Unlock()
 		return false
 	}
+	healthCtx, healthCancel := s.manager.detachedSessionHealthContext(s.ctx)
+	s.manager.notifySubprocessHealth(healthCtx, s.session, health)
+	healthCancel()
 
 	shouldPersist := false
 	shouldWarn := false
@@ -827,17 +830,6 @@ func unhealthyProcessText(health subprocess.HealthState) string {
 
 func unhealthyProcessDiagnostic(health subprocess.HealthState) string {
 	return diagnostics.RedactAndBound(unhealthyProcessText(health), maxSessionFailureSummaryBytes)
-}
-
-func processHealthFailureDetected(health subprocess.HealthState) bool {
-	if health.Healthy {
-		return false
-	}
-	return !health.LastCheckedAt.IsZero() ||
-		health.ConsecutiveFailures > 0 ||
-		strings.TrimSpace(health.LastError) != "" ||
-		strings.TrimSpace(health.Message) != "" ||
-		len(health.Details) > 0
 }
 
 func (s *promptActivitySupervisor) idleSecondsLocked(now time.Time) int64 {

@@ -115,6 +115,7 @@ const POPULATED: TaskInboxView = buildInboxFixture({
             id: "run_i3",
             max_attempts: 3,
             queued_at: "2026-04-17T09:22:00Z",
+            recovery_count: 0,
             status: "failed",
             error: "unexpected 502 from upstream",
             task_id: "task_i3",

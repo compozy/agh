@@ -44,7 +44,7 @@ func (e *RunAgentActionExecutor) Execute(
 		return ActionRawResult{}, err
 	}
 	defer cancelRun()
-	cancelOnDeadline := strings.TrimSpace(node.Timeout) != ""
+	_, cancelOnDeadline := runCtx.Deadline()
 	contract := dsl.Contract{}
 	if in.Contract != nil {
 		contract = *in.Contract
@@ -67,6 +67,7 @@ func (e *RunAgentActionExecutor) Execute(
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("bind run-agent session: %w", err)
 	}
+	reportActionSessionBound(runCtx, binding.SessionID)
 	first, err := e.promptActionSession(runCtx, binding, spec.Prompt, 0, cancelOnDeadline)
 	if err != nil {
 		return ActionRawResult{}, err
@@ -140,7 +141,7 @@ func (e *RunAgentActionExecutor) promptActionSession(
 	})
 	result, err := e.binder.PromptActionSession(ctx, binding, req)
 	if timer.Stop() {
-		if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if ctx.Err() == nil {
 			return result, err
 		}
 		timeoutCancel <- cancelSession()

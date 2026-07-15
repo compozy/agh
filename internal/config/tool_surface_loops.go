@@ -29,8 +29,13 @@ func loopAndGoalToolPathKinds() map[string]ValueKind {
 	}
 }
 
-func mergeAgentMutableConfigKinds(base map[string]ValueKind, overlay map[string]ValueKind) map[string]ValueKind {
+func mergeAgentMutableConfigKinds(
+	base map[string]ValueKind,
+	overlays ...map[string]ValueKind,
+) map[string]ValueKind {
 	merged := maps.Clone(base)
-	maps.Copy(merged, overlay)
+	for _, overlay := range overlays {
+		maps.Copy(merged, overlay)
+	}
 	return merged
 }

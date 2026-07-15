@@ -105,6 +105,17 @@ const models: RuntimeModelOption[] = [
   }),
 ];
 
+const fiveRateModels: RuntimeModelOption[] = models.map(model =>
+  model.provider === "codex" && model.id === "gpt-5.6-sol"
+    ? {
+        ...model,
+        cost_cache_read: 0.5,
+        cost_cache_write: 8,
+        cost_reasoning: 40,
+      }
+    : model
+);
+
 function ControlledRuntimeSelector({ value: initial, ...props }: RuntimeSelectorProps) {
   const [value, setValue] = useState<RuntimeSelectorValue>(initial);
   return (
@@ -245,17 +256,32 @@ export const Default: Story = {
 
 // --- Open popup states ------------------------------------------------------
 
-/** Open browse state with grouped curated rows and selectable reasoning levels. */
-export const PopupBrowse: Story = {
-  args: { value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" } },
+/** Open browse state exposing all five independent per-million pricing buckets. */
+export const PopupFiveRatePricing: Story = {
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
+    models: fiveRateModels,
+  },
   parameters: {
-    docs: { description: { story: "Open popup: provider rail + curated grouped list + footer." } },
+    docs: {
+      description: {
+        story:
+          "Open popup with one model carrying explicit input, output, cache-read, cache-write, and reasoning rates.",
+      },
+    },
   },
   play: async ({ canvasElement }) => {
     const body = await openPopup(canvasElement, "model");
-    // Await the curated grouped list + the levels footer before capture.
+    // Await the complete five-rate row + levels footer before capture.
     const list = within(await body.findByTestId("runtime-selector-list"));
-    await expect(await list.findByText("GPT-5.6 Sol")).toBeInTheDocument();
+    const modelName = await list.findByText("GPT-5.6 Sol");
+    const modelRow = modelName.closest<HTMLElement>('[role="option"]');
+    if (!modelRow) throw new Error("five-rate model row was not rendered as a listbox option");
+    await expect(modelRow).toHaveTextContent("input $5/M");
+    await expect(modelRow).toHaveTextContent("output $30/M");
+    await expect(modelRow).toHaveTextContent("cache read $0.5/M");
+    await expect(modelRow).toHaveTextContent("cache write $8/M");
+    await expect(modelRow).toHaveTextContent("reasoning $40/M");
     await expect(await body.findByTestId("runtime-selector-reasoning")).toHaveAttribute(
       "data-reasoning-mode",
       "levels"

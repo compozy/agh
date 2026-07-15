@@ -18,10 +18,11 @@ const promptSkillsCatalogCacheMaxSessions = 2048
 
 type promptSkillsRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
-	ForAgent(
+	ForAgentSession(
 		ctx context.Context,
 		resolved *workspacepkg.ResolvedWorkspace,
 		agentName string,
+		sessionID string,
 	) ([]*skillspkg.Skill, error)
 }
 
@@ -78,7 +79,7 @@ func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Sess
 	var skills []*skillspkg.Skill
 	agentName := strings.TrimSpace(info.AgentName)
 	if agentName != "" {
-		skills, err = a.registry.ForAgent(ctx, workspace, agentName)
+		skills, err = a.registry.ForAgentSession(ctx, workspace, agentName, info.ID)
 	} else {
 		skills, err = a.registry.ForWorkspace(ctx, workspace)
 	}

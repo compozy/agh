@@ -29,6 +29,7 @@ type SkillResourceSpec struct {
 	Dir                    string              `json:"dir,omitempty"`
 	FilePath               string              `json:"file_path,omitempty"`
 	Enabled                bool                `json:"enabled"`
+	ActivationGates        ActivationGates     `json:"activation_gates,omitzero"`
 	MCPServers             []MCPServerDecl     `json:"mcp_servers,omitempty"`
 	Hooks                  []hookspkg.HookDecl `json:"hooks,omitempty"`
 	Provenance             *Provenance         `json:"provenance,omitempty"`
@@ -56,6 +57,7 @@ func SkillToResourceSpec(skill *Skill) SkillResourceSpec {
 		Dir:                    strings.TrimSpace(skill.Dir),
 		FilePath:               strings.TrimSpace(skill.FilePath),
 		Enabled:                skill.Enabled,
+		ActivationGates:        cloneActivationGates(skill.ActivationGates),
 		MCPServers:             cloneMCPServerDecls(skill.MCPServers),
 		Hooks:                  cloneSkillHookDecls(skill.Hooks),
 		Provenance:             cloneProvenance(skill.Provenance),
@@ -82,6 +84,8 @@ func SkillFromResourceSpec(spec SkillResourceSpec) (*Skill, error) {
 		Dir:                    strings.TrimSpace(spec.Dir),
 		FilePath:               strings.TrimSpace(spec.FilePath),
 		Enabled:                spec.Enabled,
+		ActivationGates:        cloneActivationGates(spec.ActivationGates),
+		Activation:             SkillActivation{Active: true},
 		MCPServers:             cloneMCPServerDecls(spec.MCPServers),
 		Hooks:                  cloneSkillHookDecls(spec.Hooks),
 		Provenance:             cloneProvenance(spec.Provenance),
@@ -102,6 +106,10 @@ func validateSkillResourceSpec(
 	if err := normalizedScope.Validate("scope"); err != nil {
 		return SkillResourceSpec{}, err
 	}
+	activationGates, err := normalizeActivationGates(spec.ActivationGates)
+	if err != nil {
+		return SkillResourceSpec{}, fmt.Errorf("%w: %v", resources.ErrValidation, err)
+	}
 
 	normalized := SkillResourceSpec{
 		Name:                   strings.TrimSpace(spec.Name),
@@ -112,6 +120,7 @@ func validateSkillResourceSpec(
 		Dir:                    strings.TrimSpace(spec.Dir),
 		FilePath:               strings.TrimSpace(spec.FilePath),
 		Enabled:                spec.Enabled,
+		ActivationGates:        activationGates,
 		MCPServers:             cloneMCPServerDecls(spec.MCPServers),
 		Hooks:                  cloneSkillHookDecls(spec.Hooks),
 		Provenance:             cloneProvenance(spec.Provenance),
@@ -153,25 +162,33 @@ func validateSkillResourceSpec(
 			return SkillResourceSpec{}, fmt.Errorf("%w: skill.hooks[%d]: %v", resources.ErrValidation, idx, err)
 		}
 	}
-	if normalized.Provenance != nil {
-		if strings.TrimSpace(normalized.Provenance.Hash) == "" {
-			return SkillResourceSpec{}, fmt.Errorf("%w: skill.provenance.hash is required", resources.ErrValidation)
-		}
-		if strings.TrimSpace(normalized.Provenance.Registry) == "" {
-			return SkillResourceSpec{}, fmt.Errorf("%w: skill.provenance.registry is required", resources.ErrValidation)
-		}
-		if strings.TrimSpace(normalized.Provenance.Slug) == "" {
-			return SkillResourceSpec{}, fmt.Errorf("%w: skill.provenance.slug is required", resources.ErrValidation)
-		}
-		if strings.TrimSpace(normalized.Provenance.Version) == "" {
-			return SkillResourceSpec{}, fmt.Errorf("%w: skill.provenance.version is required", resources.ErrValidation)
-		}
-		if normalized.Provenance.InstalledAt.IsZero() {
-			normalized.Provenance.InstalledAt = time.Time{}
-		}
+	if err := validateSkillResourceProvenance(normalized.Provenance); err != nil {
+		return SkillResourceSpec{}, err
 	}
 
 	return normalized, nil
+}
+
+func validateSkillResourceProvenance(provenance *Provenance) error {
+	if provenance == nil {
+		return nil
+	}
+	if strings.TrimSpace(provenance.Hash) == "" {
+		return fmt.Errorf("%w: skill.provenance.hash is required", resources.ErrValidation)
+	}
+	if strings.TrimSpace(provenance.Registry) == "" {
+		return fmt.Errorf("%w: skill.provenance.registry is required", resources.ErrValidation)
+	}
+	if strings.TrimSpace(provenance.Slug) == "" {
+		return fmt.Errorf("%w: skill.provenance.slug is required", resources.ErrValidation)
+	}
+	if strings.TrimSpace(provenance.Version) == "" {
+		return fmt.Errorf("%w: skill.provenance.version is required", resources.ErrValidation)
+	}
+	if provenance.InstalledAt.IsZero() {
+		provenance.InstalledAt = time.Time{}
+	}
+	return nil
 }
 
 func normalizeMCPServerDecl(decl MCPServerDecl) MCPServerDecl {

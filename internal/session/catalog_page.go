@@ -101,7 +101,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		After:               after,
 		ExcludeIDs:          activeIDs,
 		ExcludeSessionTypes: []string{string(SessionTypeDream)},
-		ExcludeSpawnRoles:   []string{SpawnRoleMemoryExtractor},
+		ExcludeSpawnRoles:   []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle},
 	})
 	if err != nil {
 		return ListPage{}, fmt.Errorf("session: page durable catalog: %w", err)
@@ -203,7 +203,7 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if info == nil || info.Type == SessionTypeDream {
 		return false
 	}
-	if lineage := info.Lineage; lineage != nil && isMemoryExtractorSpawnRole(lineage.SpawnRole) {
+	if lineage := info.Lineage; lineage != nil && IsInternalSpawnRole(lineage.SpawnRole) {
 		return false
 	}
 	if query.WorkspaceID != "" && strings.TrimSpace(info.WorkspaceID) != query.WorkspaceID {

@@ -1,7 +1,13 @@
 -- name: MarkTaskRunNeedsAttention :execrows
 UPDATE task_runs
 SET status = sqlc.arg(needs_attention_status), error = sqlc.narg(error)
-WHERE id = sqlc.arg(id) AND status = sqlc.arg(queued_status);
+WHERE id = sqlc.arg(id)
+  AND status IN (
+    sqlc.arg(queued_status),
+    sqlc.arg(claimed_status),
+    sqlc.arg(starting_status),
+    sqlc.arg(running_status)
+  );
 
 -- name: ForceUpdateTaskRunSnapshot :execrows
 UPDATE task_runs

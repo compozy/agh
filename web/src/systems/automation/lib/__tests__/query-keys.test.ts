@@ -114,4 +114,21 @@ describe("automationKeys", () => {
       "2",
     ]);
   });
+
+  it("keys suggestion lists by exact workspace and status", () => {
+    expect(automationKeys.suggestionList("ws_alpha", "pending")).toEqual([
+      "automation",
+      "suggestions",
+      "list",
+      "ws_alpha",
+      "pending",
+    ]);
+    expect(automationKeys.suggestionList("ws_beta", "dismissed")).toEqual([
+      "automation",
+      "suggestions",
+      "list",
+      "ws_beta",
+      "dismissed",
+    ]);
+  });
 });

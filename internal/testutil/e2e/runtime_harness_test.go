@@ -12,8 +12,8 @@ import (
 func TestPrepareRuntimeLayoutCreatesIsolatedPaths(t *testing.T) {
 	t.Parallel()
 
-	first := prepareRuntimeLayout(t, RuntimeHarnessOptions{})
-	second := prepareRuntimeLayout(t, RuntimeHarnessOptions{})
+	first := prepareRuntimeLayout(t, &RuntimeHarnessOptions{})
+	second := prepareRuntimeLayout(t, &RuntimeHarnessOptions{})
 
 	if first.HomePaths.HomeDir == second.HomePaths.HomeDir {
 		t.Fatalf("first.HomePaths.HomeDir = %q, want different isolated home", first.HomePaths.HomeDir)
@@ -74,7 +74,7 @@ func TestPrepareRuntimeLayoutUsesEnabledNetworkByDefaultAndAllowsExplicitDisable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			layout := prepareRuntimeLayout(t, tt.opts)
+			layout := prepareRuntimeLayout(t, &tt.opts)
 			if got := layout.Config.Network.Enabled; got != tt.want {
 				t.Fatalf("layout.Config.Network.Enabled = %t, want %t", got, tt.want)
 			}
@@ -86,7 +86,7 @@ func TestPrepareRuntimeLayoutOverridesCallerHomeState(t *testing.T) {
 	t.Setenv("HOME", "/tmp/caller-home")
 	t.Setenv("AGH_HOME", "/tmp/caller-agh-home")
 
-	layout := prepareRuntimeLayout(t, RuntimeHarnessOptions{})
+	layout := prepareRuntimeLayout(t, &RuntimeHarnessOptions{})
 
 	if got, want := lookupEnvValue(layout.Env, "HOME"), layout.HomePaths.HomeDir; got != want {
 		t.Fatalf("lookupEnvValue(HOME) = %q, want %q", got, want)

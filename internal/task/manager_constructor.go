@@ -25,6 +25,8 @@ func newService(options managerOptions) *Service {
 		cancelGracePeriod:     options.cancelGracePeriod,
 		starvationAge:         options.starvationAge,
 		blockRecurrenceLimit:  options.blockRecurrenceLimit,
+		workspaceActiveRunCap: options.workspaceActiveRunCap,
+		workAdmission:         options.workAdmission,
 		forceRateLimiter:      newForceRunRateLimiter(),
 		wakeEventIDs:          make(map[string]struct{}),
 		wakeEventOrder:        make([]string, 0, wakeEventCacheMaxEntries),

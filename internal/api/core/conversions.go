@@ -35,9 +35,6 @@ import (
 
 const (
 	maxDiagnosticPayloadBytes = 2048
-	skillWarningSeverityInfo  = "info"
-	skillWarningSeverityWarn  = "warning"
-	skillWarningSeverityCrit  = "critical"
 )
 
 // SessionPayloadFromInfo converts a session info snapshot into the shared session payload.
@@ -124,7 +121,7 @@ func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload
 func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {
 	visible := make([]*session.Info, 0, len(infos))
 	for _, info := range infos {
-		if info == nil || isInternalMemorySessionInfo(info.Type, info.Lineage) {
+		if info == nil || isInternalSessionInfo(info.Type, info.Lineage) {
 			continue
 		}
 		visible = append(visible, info)
@@ -132,12 +129,12 @@ func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {
 	return visible
 }
 
-func isInternalMemorySessionInfo(sessionType session.Type, lineage *store.SessionLineage) bool {
+func isInternalSessionInfo(sessionType session.Type, lineage *store.SessionLineage) bool {
 	if sessionType == session.SessionTypeDream {
 		return true
 	}
 	normalized := store.NormalizeSessionLineage("", lineage)
-	return strings.EqualFold(strings.TrimSpace(normalized.SpawnRole), session.SpawnRoleMemoryExtractor)
+	return session.IsInternalSpawnRole(normalized.SpawnRole)
 }
 
 func stringPointerValue(value *string) string {
@@ -584,7 +581,7 @@ func StuckTaskRunPayloadsFromObserve(rows []observepkg.StuckTaskRun) []contract.
 		payloads = append(payloads, contract.StuckTaskRunPayload{
 			TaskID:     strings.TrimSpace(row.TaskID),
 			RunID:      strings.TrimSpace(row.RunID),
-			Status:     strings.TrimSpace(string(row.Status)),
+			Status:     strings.TrimSpace(row.Status.String()),
 			OriginKind: strings.TrimSpace(string(row.OriginKind)),
 			ChannelID:  strings.TrimSpace(row.ChannelID),
 			SessionID:  strings.TrimSpace(row.SessionID),
@@ -619,7 +616,7 @@ func TaskRunTotalPayloadsFromObserve(rows []observepkg.TaskRunTotal) []contract.
 	payloads := make([]contract.TaskRunTotalPayload, 0, len(rows))
 	for _, row := range rows {
 		payloads = append(payloads, contract.TaskRunTotalPayload{
-			Status:     strings.TrimSpace(string(row.Status)),
+			Status:     strings.TrimSpace(row.Status.String()),
 			OriginKind: strings.TrimSpace(string(row.OriginKind)),
 			ChannelID:  strings.TrimSpace(row.ChannelID),
 			Count:      row.Count,
@@ -971,6 +968,7 @@ func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
 		Version:     skill.Meta.Version,
 		Source:      skills.SkillSourceName(skill.Source),
 		Enabled:     skill.Enabled,
+		Activation:  skillActivationPayload(skill),
 		Dir:         skill.Dir,
 		Metadata:    skill.Meta.Metadata,
 		Diagnostics: SkillDiagnosticPayloadsFromDiagnostics(skills.DiagnosticsForSkill(skill)),
@@ -1052,82 +1050,6 @@ func skillShadowDetectedAt(value time.Time) time.Time {
 		return time.Time{}
 	}
 	return value.UTC()
-}
-
-// SkillDiagnosticPayloadsFromDiagnostics converts skill registry diagnostics for API payloads.
-func SkillDiagnosticPayloadsFromDiagnostics(
-	diagnostics []skills.SkillDiagnostic,
-) []contract.SkillDiagnosticPayload {
-	if len(diagnostics) == 0 {
-		return nil
-	}
-	payloads := make([]contract.SkillDiagnosticPayload, 0, len(diagnostics))
-	for _, diagnostic := range diagnostics {
-		payloads = append(payloads, skillDiagnosticPayloadFromDiagnostic(diagnostic))
-	}
-	return payloads
-}
-
-func skillDiagnosticPayloadFromDiagnostic(
-	diagnostic skills.SkillDiagnostic,
-) contract.SkillDiagnosticPayload {
-	verificationStatus := diagnostic.VerificationStatus
-	if verificationStatus == "" {
-		verificationStatus = skills.SkillVerificationStatusPassed
-	}
-	return contract.SkillDiagnosticPayload{
-		Name:               diagnostic.Name,
-		State:              contract.SkillDiagnosticState(diagnostic.State),
-		Source:             diagnostic.Source,
-		Path:               diagnostic.Path,
-		WinningSource:      diagnostic.WinningSource,
-		WinningPath:        diagnostic.WinningPath,
-		VerificationStatus: contract.SkillVerificationStatus(verificationStatus),
-		Warnings:           skillVerificationWarningPayloads(diagnostic.Warnings),
-		Failure:            skillVerificationFailurePayload(diagnostic.Failure),
-	}
-}
-
-func skillVerificationWarningPayloads(
-	warnings []skills.Warning,
-) []contract.SkillVerificationWarningPayload {
-	if len(warnings) == 0 {
-		return nil
-	}
-	payloads := make([]contract.SkillVerificationWarningPayload, 0, len(warnings))
-	for _, warning := range warnings {
-		payloads = append(payloads, contract.SkillVerificationWarningPayload{
-			Severity: skillWarningSeverityName(warning.Severity),
-			Pattern:  warning.Pattern,
-			Message:  warning.Message,
-		})
-	}
-	return payloads
-}
-
-func skillWarningSeverityName(severity skills.WarningSeverity) string {
-	switch severity {
-	case skills.SeverityCritical:
-		return skillWarningSeverityCrit
-	case skills.SeverityWarning:
-		return skillWarningSeverityWarn
-	default:
-		return skillWarningSeverityInfo
-	}
-}
-
-func skillVerificationFailurePayload(
-	failure *skills.SkillVerificationFailure,
-) *contract.SkillVerificationFailurePayload {
-	if failure == nil {
-		return nil
-	}
-	return &contract.SkillVerificationFailurePayload{
-		Code:         failure.Code,
-		Message:      failure.Message,
-		ExpectedHash: failure.ExpectedHash,
-		ActualHash:   failure.ActualHash,
-	}
 }
 
 // SkillPayloadsFromSkills converts a slice of skills into response payloads.
@@ -1626,35 +1548,6 @@ func settingsConfigPathsPayload(paths settingspkg.ConfigPaths) contract.Settings
 		GlobalMCPSidecar: strings.TrimSpace(paths.GlobalMCPSidecar),
 		LogFile:          strings.TrimSpace(paths.LogFile),
 		DaemonInfo:       strings.TrimSpace(paths.DaemonInfo),
-	}
-}
-
-func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.SettingsGeneralConfigPayload {
-	return contract.SettingsGeneralConfigPayload{
-		Defaults: contract.SettingsDefaultsPayload{
-			Agent:    strings.TrimSpace(value.Defaults.Agent),
-			Provider: strings.TrimSpace(value.Defaults.Provider),
-			Sandbox:  strings.TrimSpace(value.Defaults.Sandbox),
-		},
-		Limits: contract.SettingsLimitsPayload{
-			MaxConcurrentAgents: value.Limits.MaxConcurrentAgents,
-		},
-		Permissions: contract.SettingsPermissionsPayload{
-			Mode: contract.SettingsPermissionMode(value.Permissions.Mode),
-		},
-		SessionTimeout: value.SessionTimeout.String(),
-		HTTP: contract.SettingsHTTPPayload{
-			Host: strings.TrimSpace(value.HTTP.Host),
-			Port: value.HTTP.Port,
-		},
-		Daemon: contract.SettingsDaemonPayload{
-			Socket: strings.TrimSpace(value.Daemon.Socket),
-			ReloadTimeouts: contract.SettingsDaemonReloadTimeoutsPayload{
-				Providers: value.Daemon.ReloadTimeouts.Providers.String(),
-				MCP:       value.Daemon.ReloadTimeouts.MCP.String(),
-				Bridges:   value.Daemon.ReloadTimeouts.Bridges.String(),
-			},
-		},
 	}
 }
 
@@ -2409,23 +2302,6 @@ func TaskRunSessionPayloadFromSession(session *taskpkg.RunSessionRef) *contract.
 		State:       session.State,
 		CreatedAt:   session.CreatedAt,
 		UpdatedAt:   session.UpdatedAt,
-	}
-}
-
-// TaskRunOperationalSummaryPayloadFromSummary converts run-detail operational metrics into the shared payload.
-func TaskRunOperationalSummaryPayloadFromSummary(
-	summary taskpkg.RunOperationalSummary,
-) contract.TaskRunOperationalSummaryPayload {
-	return contract.TaskRunOperationalSummaryPayload{
-		LastActivityAt: summary.LastActivityAt,
-		LastEventType:  summary.LastEventType,
-		ToolCallCount:  summary.ToolCallCount,
-		TurnCount:      summary.TurnCount,
-		InputTokens:    summary.InputTokens,
-		OutputTokens:   summary.OutputTokens,
-		TotalTokens:    summary.TotalTokens,
-		TotalCost:      summary.TotalCost,
-		CostCurrency:   summary.CostCurrency,
 	}
 }
 

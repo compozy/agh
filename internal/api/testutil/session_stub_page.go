@@ -41,8 +41,7 @@ func stubSessionListMatch(info *session.Info, query session.ListQuery, now time.
 	if info == nil || info.Type == session.SessionTypeDream {
 		return false
 	}
-	if lineage := info.Lineage; lineage != nil &&
-		strings.EqualFold(strings.TrimSpace(lineage.SpawnRole), session.SpawnRoleMemoryExtractor) {
+	if lineage := info.Lineage; lineage != nil && session.IsInternalSpawnRole(lineage.SpawnRole) {
 		return false
 	}
 	if query.WorkspaceID != "" && strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(query.WorkspaceID) {

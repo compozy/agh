@@ -155,6 +155,76 @@ func (q *Queries) CountActiveTaskRunLeasesForSession(ctx context.Context, arg Co
 	return count, err
 }
 
+const countActiveTaskRunLeasesForWorkspace = `-- name: CountActiveTaskRunLeasesForWorkspace :one
+SELECT COUNT(1)
+FROM task_runs
+WHERE workspace_id = ?1
+  AND run_kind IN ('worker', 'coordinator')
+  AND status IN (?2, ?3, ?4)
+  AND (lease_until IS NULL OR lease_until > ?5)
+`
+
+type CountActiveTaskRunLeasesForWorkspaceParams struct {
+	WorkspaceID    sql.NullString `json:"workspace_id"`
+	ClaimedStatus  string         `json:"claimed_status"`
+	StartingStatus string         `json:"starting_status"`
+	RunningStatus  string         `json:"running_status"`
+	Now            sql.NullString `json:"now"`
+}
+
+func (q *Queries) CountActiveTaskRunLeasesForWorkspace(ctx context.Context, arg CountActiveTaskRunLeasesForWorkspaceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveTaskRunLeasesForWorkspace,
+		arg.WorkspaceID,
+		arg.ClaimedStatus,
+		arg.StartingStatus,
+		arg.RunningStatus,
+		arg.Now,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const exhaustExpiredTaskRunLease = `-- name: ExhaustExpiredTaskRunLease :execrows
+UPDATE task_runs
+SET status = ?1, claimed_by_kind = NULL, claimed_by_ref = NULL,
+    session_id = NULL, claim_token = NULL, claim_token_hash = NULL, lease_until = NULL,
+    heartbeat_at = NULL, ended_at = ?2, error = ?3, result_json = NULL
+WHERE id = ?4
+  AND status = ?5
+  AND COALESCE(session_id, '') = ?6
+  AND claim_token_hash = ?7
+  AND lease_until = ?8
+`
+
+type ExhaustExpiredTaskRunLeaseParams struct {
+	NeedsAttentionStatus string         `json:"needs_attention_status"`
+	EndedAt              sql.NullString `json:"ended_at"`
+	Error                sql.NullString `json:"error"`
+	ID                   string         `json:"id"`
+	PreviousStatus       string         `json:"previous_status"`
+	SessionID            sql.NullString `json:"session_id"`
+	ClaimTokenHash       sql.NullString `json:"claim_token_hash"`
+	LeaseUntil           sql.NullString `json:"lease_until"`
+}
+
+func (q *Queries) ExhaustExpiredTaskRunLease(ctx context.Context, arg ExhaustExpiredTaskRunLeaseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, exhaustExpiredTaskRunLease,
+		arg.NeedsAttentionStatus,
+		arg.EndedAt,
+		arg.Error,
+		arg.ID,
+		arg.PreviousStatus,
+		arg.SessionID,
+		arg.ClaimTokenHash,
+		arg.LeaseUntil,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const failTaskRunLease = `-- name: FailTaskRunLease :execrows
 UPDATE task_runs
 SET status = ?1, lease_until = NULL, heartbeat_at = NULL, claim_token = NULL,
@@ -380,26 +450,29 @@ const requeueExpiredTaskRunLease = `-- name: RequeueExpiredTaskRunLease :execrow
 UPDATE task_runs
 SET status = ?1, claimed_by_kind = NULL, claimed_by_ref = NULL, session_id = NULL,
     claim_token = NULL, claim_token_hash = NULL, lease_until = NULL, heartbeat_at = NULL,
-    claimed_at = NULL, started_at = NULL, ended_at = NULL, error = NULL, result_json = NULL
-WHERE id = ?2
-  AND status = ?3
-  AND COALESCE(session_id, '') = ?4
-  AND claim_token_hash = ?5
-  AND lease_until = ?6
+    claimed_at = NULL, started_at = NULL, ended_at = NULL, error = NULL, result_json = NULL,
+    recovery_count = recovery_count + ?2
+WHERE id = ?3
+  AND status = ?4
+  AND COALESCE(session_id, '') = ?5
+  AND claim_token_hash = ?6
+  AND lease_until = ?7
 `
 
 type RequeueExpiredTaskRunLeaseParams struct {
-	QueuedStatus   string         `json:"queued_status"`
-	ID             string         `json:"id"`
-	PreviousStatus string         `json:"previous_status"`
-	SessionID      sql.NullString `json:"session_id"`
-	ClaimTokenHash sql.NullString `json:"claim_token_hash"`
-	LeaseUntil     sql.NullString `json:"lease_until"`
+	QueuedStatus      string         `json:"queued_status"`
+	RecoveryIncrement int64          `json:"recovery_increment"`
+	ID                string         `json:"id"`
+	PreviousStatus    string         `json:"previous_status"`
+	SessionID         sql.NullString `json:"session_id"`
+	ClaimTokenHash    sql.NullString `json:"claim_token_hash"`
+	LeaseUntil        sql.NullString `json:"lease_until"`
 }
 
 func (q *Queries) RequeueExpiredTaskRunLease(ctx context.Context, arg RequeueExpiredTaskRunLeaseParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, requeueExpiredTaskRunLease,
 		arg.QueuedStatus,
+		arg.RecoveryIncrement,
 		arg.ID,
 		arg.PreviousStatus,
 		arg.SessionID,
@@ -469,22 +542,17 @@ UPDATE loop_runs
 SET last_progress_at = CASE
       WHEN last_progress_at < CAST(?1 AS TEXT) THEN CAST(?1 AS TEXT)
       ELSE last_progress_at
-    END,
-    consecutive_failures = CASE
-      WHEN CAST(?2 AS INTEGER) = 1 THEN consecutive_failures + 1
-      ELSE 0
     END
-WHERE id = ?3
+WHERE id = ?2
 `
 
 type UpdateLoopRunNodeTerminalParams struct {
-	TerminalAt   string `json:"terminal_at"`
-	FailureDelta int64  `json:"failure_delta"`
-	ID           string `json:"id"`
+	TerminalAt string `json:"terminal_at"`
+	ID         string `json:"id"`
 }
 
 func (q *Queries) UpdateLoopRunNodeTerminal(ctx context.Context, arg UpdateLoopRunNodeTerminalParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateLoopRunNodeTerminal, arg.TerminalAt, arg.FailureDelta, arg.ID)
+	result, err := q.db.ExecContext(ctx, updateLoopRunNodeTerminal, arg.TerminalAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}

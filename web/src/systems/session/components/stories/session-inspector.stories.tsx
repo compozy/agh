@@ -29,6 +29,8 @@ const baseArgs: SessionInspectorProps = {
     totalTokens: 153_300,
     costUsd: 18.42,
     costCurrency: "USD",
+    costStatus: "actual",
+    costSource: "agent_reported",
     turnCount: 12,
   },
   vaultSecrets,
@@ -99,6 +101,109 @@ export const Drawer: Story = {
  */
 export const UsageTab: Story = {
   args: baseArgs,
+  parameters: {
+    viewport: { defaultViewport: "responsive" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("session-inspector-tab-usage"));
+    await canvas.findByTestId("session-inspector-usage-grid");
+  },
+};
+
+/**
+ * Estimated cost: catalog projection rendered with the ≈ cue and an "Estimated"
+ * provenance line, so it never reads as measured spend.
+ */
+export const UsageEstimated: Story = {
+  args: {
+    ...baseArgs,
+    usage: {
+      tokensIn: 128_400,
+      tokensOut: 24_900,
+      totalTokens: 153_300,
+      costUsd: 0.42,
+      costCurrency: "USD",
+      costStatus: "estimated",
+      costSource: "catalog_config",
+      turnCount: 12,
+    },
+  },
+  parameters: {
+    viewport: { defaultViewport: "responsive" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("session-inspector-tab-usage"));
+    await canvas.findByTestId("session-inspector-usage-grid");
+  },
+};
+
+/**
+ * Subscription-included usage: token counts stay visible while the cost cell
+ * shows "Included" with no monetary amount.
+ */
+export const UsageIncluded: Story = {
+  args: {
+    ...baseArgs,
+    usage: {
+      tokensIn: 128_400,
+      tokensOut: 24_900,
+      totalTokens: 153_300,
+      costStatus: "included",
+      costSource: "none",
+      turnCount: 12,
+    },
+  },
+  parameters: {
+    viewport: { defaultViewport: "responsive" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("session-inspector-tab-usage"));
+    await canvas.findByTestId("session-inspector-usage-grid");
+  },
+};
+
+/**
+ * Unknown cost: the daemon reports usage but no cost, so the cell reads
+ * "Unavailable" with no monetary amount.
+ */
+export const UsageUnknown: Story = {
+  args: {
+    ...baseArgs,
+    usage: {
+      tokensIn: 128_400,
+      tokensOut: 24_900,
+      totalTokens: 153_300,
+      costStatus: "unknown",
+      turnCount: 12,
+    },
+  },
+  parameters: {
+    viewport: { defaultViewport: "responsive" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("session-inspector-tab-usage"));
+    await canvas.findByTestId("session-inspector-usage-grid");
+  },
+};
+
+/**
+ * Classification-only usage: the daemon reports a subscription cost status with no
+ * token counters. The panel still opens — cost reads "Included", every token metric
+ * shows "—" — proving presence follows authoritative status, not token counts.
+ */
+export const UsageClassificationOnly: Story = {
+  args: {
+    ...baseArgs,
+    usage: {
+      costStatus: "included",
+      costSource: "none",
+      turnCount: 0,
+    },
+  },
   parameters: {
     viewport: { defaultViewport: "responsive" },
   },

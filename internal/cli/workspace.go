@@ -505,7 +505,7 @@ func renderWorkspaceDetailToon(detail WorkspaceDetailRecord) (string, error) {
 				"id",
 				automationNameKey,
 				workspaceAgentNameKey,
-				networkStateKey,
+				stateKey,
 				workspaceSkillSource,
 				automationUpdatedAtKey,
 			},

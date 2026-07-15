@@ -253,10 +253,24 @@ type ExtensionProvideToolsResponse struct {
 
 // ExtensionToolCallRequest is sent by AGH for tools/call.
 type ExtensionToolCallRequest struct {
-	ToolID    ToolID          `json:"tool_id"`
-	Handler   string          `json:"handler"`
-	SessionID string          `json:"session_id,omitempty"`
-	Input     json.RawMessage `json:"input"`
+	ToolID       ToolID          `json:"tool_id"`
+	Handler      string          `json:"handler"`
+	SessionID    string          `json:"session_id,omitempty"`
+	InvocationID string          `json:"invocation_id,omitempty"`
+	Input        json.RawMessage `json:"input"`
+}
+
+// ClarifyQuestion is one bounded question authored by an extension-host tool.
+type ClarifyQuestion struct {
+	Question string   `json:"question"`
+	Choices  []string `json:"choices,omitempty"`
+}
+
+// ClarifyAnswer is the exact operator answer returned to the blocked tool call.
+type ClarifyAnswer struct {
+	Choice   *int   `json:"choice"`
+	Text     string `json:"text"`
+	Fallback bool   `json:"fallback"`
 }
 
 // ExtensionToolCallResponse wraps a tool result.

@@ -11,6 +11,7 @@ import (
 
 	core "github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/deadentity"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	memorypkg "github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
@@ -18,6 +19,7 @@ import (
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	aghupdate "github.com/compozy/agh/internal/update"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
 )
@@ -334,6 +336,65 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}
 		if status.Diagnostic == "" {
 			t.Fatal("MCPServerRuntimeStatus(config error).Diagnostic is empty")
+		}
+	})
+
+	t.Run("Should project a workspace MCP server as dead after five permanent failures", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		globalDB, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := globalDB.Close(ctx); err != nil {
+				t.Errorf("GlobalDB.Close() error = %v", err)
+			}
+		})
+		workspaceID := "ws-dead-settings"
+		now := time.Date(2026, 7, 15, 18, 30, 0, 0, time.UTC)
+		if err := globalDB.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID:        workspaceID,
+			Name:      "dead-settings",
+			RootDir:   t.TempDir(),
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		surface := &settingsRuntimeSurface{deadEntities: deadentity.New(globalDB)}
+		target := mcpauth.Target{
+			Scope:       mcpauth.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			ServerName:  "dead-docs",
+		}
+		invalidServer := aghconfig.MCPServer{Name: "dead-docs", Transport: "bogus"}
+
+		for attempt := 1; attempt < deadentity.DefaultPermanentFailureThreshold; attempt++ {
+			status, err := surface.MCPServerRuntimeStatus(ctx, target, invalidServer)
+			if err != nil {
+				t.Fatalf("MCPServerRuntimeStatus(attempt %d) error = %v", attempt, err)
+			}
+			if status.State != settingspkg.MCPServerRuntimeStateConfigError {
+				t.Fatalf("MCPServerRuntimeStatus(attempt %d).State = %q, want config_error", attempt, status.State)
+			}
+		}
+		status, err := surface.MCPServerRuntimeStatus(ctx, target, invalidServer)
+		if err != nil {
+			t.Fatalf("MCPServerRuntimeStatus(threshold) error = %v", err)
+		}
+		if status.State != settingspkg.MCPServerRuntimeStateDead ||
+			status.Probe != settingspkg.MCPServerProbeSkipped ||
+			status.Reason != "backend_dead" {
+			t.Fatalf("MCPServerRuntimeStatus(threshold) = %#v, want dead/skipped/backend_dead", status)
+		}
+		listed, err := globalDB.ListDeadEntities(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("ListDeadEntities() error = %v", err)
+		}
+		if len(listed) != 1 || listed[0].EntityID != "dead-docs" {
+			t.Fatalf("ListDeadEntities() = %#v, want one dead-docs mark", listed)
 		}
 	})
 }

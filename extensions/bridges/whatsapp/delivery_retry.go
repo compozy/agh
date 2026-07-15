@@ -12,9 +12,14 @@ func sendWhatsAppDeliveryMessage(
 	phoneNumberID string,
 	request whatsappSendMessageRequest,
 ) (*whatsappSendMessageResponse, error) {
+	retryConfig := bridgesdk.DefaultRetryConfig()
+	retryConfig.OnRetry = func(retryCtx context.Context, attempt bridgesdk.RetryAttempt) error {
+		api.ReportRetry(retryCtx, attempt)
+		return nil
+	}
 	return bridgesdk.RetryDo(
 		ctx,
-		bridgesdk.DefaultRetryConfig(),
+		retryConfig,
 		func(callCtx context.Context) (*whatsappSendMessageResponse, error) {
 			return api.SendTextMessage(callCtx, phoneNumberID, request)
 		},

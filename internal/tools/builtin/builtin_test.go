@@ -32,6 +32,11 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDToolList,
 			toolspkg.ToolIDToolSearch,
 			toolspkg.ToolIDToolInfo,
+			toolspkg.ToolIDToolArtifactRead,
+			toolspkg.ToolIDToolApprovalsSet,
+			toolspkg.ToolIDToolApprovalsList,
+			toolspkg.ToolIDToolApprovalsRevoke,
+			toolspkg.ToolIDClarify,
 			toolspkg.ToolIDSkillList,
 			toolspkg.ToolIDSkillSearch,
 			toolspkg.ToolIDSkillView,
@@ -163,6 +168,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDAutomationJobsDisable,
 			toolspkg.ToolIDAutomationJobsTrigger,
 			toolspkg.ToolIDAutomationJobsHistory,
+			toolspkg.ToolIDAutomationSuggestionsList,
+			toolspkg.ToolIDAutomationSuggestionsAccept,
+			toolspkg.ToolIDAutomationSuggestionsDismiss,
 			toolspkg.ToolIDAutomationTriggersList,
 			toolspkg.ToolIDAutomationTriggersGet,
 			toolspkg.ToolIDAutomationTriggersCreate,
@@ -337,6 +345,49 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose a closed atomic memory operations batch schema", func(t *testing.T) {
+		t.Parallel()
+
+		type schemaField struct {
+			Type                 string                 `json:"type"`
+			Enum                 []string               `json:"enum"`
+			MinItems             int                    `json:"minItems"`
+			Required             []string               `json:"required"`
+			Properties           map[string]schemaField `json:"properties"`
+			Items                *schemaField           `json:"items"`
+			AdditionalProperties *bool                  `json:"additionalProperties"`
+		}
+		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDMemoryPropose]
+		var schema schemaField
+		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+			t.Fatalf("memory_propose input schema unmarshal error = %v", err)
+		}
+		operations := schema.Properties["operations"]
+		if operations.Type != "array" || operations.MinItems != 1 || operations.Items == nil {
+			t.Fatalf("memory_propose operations schema = %#v, want non-empty array", operations)
+		}
+		items := operations.Items
+		if !slices.Equal(items.Required, []string{"action"}) {
+			t.Fatalf("memory_propose operation required = %#v, want [action]", items.Required)
+		}
+		if items.AdditionalProperties == nil || *items.AdditionalProperties {
+			t.Fatalf(
+				"memory_propose operation additionalProperties = %#v, want false",
+				items.AdditionalProperties,
+			)
+		}
+		gotActions := items.Properties["action"].Enum
+		wantActions := []string{"add", "replace", "remove"}
+		if !slices.Equal(gotActions, wantActions) {
+			t.Fatalf("memory_propose operation action enum = %#v, want %#v", gotActions, wantActions)
+		}
+		for _, field := range []string{"content", "old_text"} {
+			if got := items.Properties[field].Type; got != "string" {
+				t.Fatalf("memory_propose operation %s type = %q, want string", field, got)
+			}
+		}
+	})
+
 	t.Run("Should describe the first public thread send contract", func(t *testing.T) {
 		t.Parallel()
 
@@ -379,6 +430,41 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should describe recurring schedule catch up fields for automation mutations", func(t *testing.T) {
+		t.Parallel()
+
+		type schemaField struct {
+			Type                 string                 `json:"type"`
+			Enum                 []string               `json:"enum"`
+			Minimum              *int                   `json:"minimum"`
+			Properties           map[string]schemaField `json:"properties"`
+			AdditionalProperties *bool                  `json:"additionalProperties"`
+		}
+		descriptors := descriptorMap(NativeDescriptors())
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDAutomationJobsCreate,
+			toolspkg.ToolIDAutomationJobsUpdate,
+		} {
+			var schema schemaField
+			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
+				t.Fatalf("%s input schema unmarshal error = %v", id, err)
+			}
+			schedule := schema.Properties["schedule"]
+			policy := schedule.Properties["catch_up_policy"]
+			wantPolicy := []string{"skip_missed", "coalesce", "replay", "run_once_on_catchup"}
+			if !slices.Equal(policy.Enum, wantPolicy) {
+				t.Fatalf("%s catch_up_policy enum = %#v, want %#v", id, policy.Enum, wantPolicy)
+			}
+			grace := schedule.Properties["misfire_grace_seconds"]
+			if grace.Minimum == nil || *grace.Minimum != 0 {
+				t.Fatalf("%s misfire_grace_seconds minimum = %#v, want 0", id, grace.Minimum)
+			}
+			if schedule.AdditionalProperties == nil || *schedule.AdditionalProperties {
+				t.Fatalf("%s schedule additionalProperties = %#v, want false", id, schedule.AdditionalProperties)
+			}
+		}
+	})
+
 	t.Run("Should keep provider model refresh out of the read-only list schema", func(t *testing.T) {
 		t.Parallel()
 
@@ -417,6 +503,24 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		descriptors := descriptorMap(NativeDescriptors())
 
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDToolList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDClarify], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDToolApprovalsSet],
+			toolspkg.RiskDestructive,
+			false,
+			true,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDToolApprovalsList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDToolApprovalsRevoke],
+			toolspkg.RiskDestructive,
+			false,
+			true,
+			false,
+		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSkillView], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkStatus], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkUsage], toolspkg.RiskRead, true, false, false)
@@ -623,6 +727,11 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			requireDescriptorRisk(t, descriptors[id], toolspkg.RiskDestructive, false, true, false)
 		}
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDListLogs], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDToolArtifactRead], toolspkg.RiskRead, true, false, false)
+		if got, want := descriptors[toolspkg.ToolIDToolArtifactRead].MaxResultBytes,
+			toolArtifactReadMaxResultBytes; got != want {
+			t.Fatalf("tool artifact read max result bytes = %d, want %d", got, want)
+		}
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveMetrics], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveSearch], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBridgesList], toolspkg.RiskRead, true, false, false)
@@ -927,6 +1036,31 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 	})
 
+	t.Run("Should expose the closed clarification contract without approval recursion", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDClarify]
+		if descriptor.RequiresInteraction {
+			t.Fatal("clarify RequiresInteraction = true, want false")
+		}
+		var input struct {
+			Required             []string `json:"required"`
+			AdditionalProperties bool     `json:"additionalProperties"`
+			Properties           map[string]struct {
+				MaxItems int `json:"maxItems"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+			t.Fatalf("clarify input schema unmarshal error = %v", err)
+		}
+		if !slices.Equal(input.Required, []string{"question"}) || input.AdditionalProperties {
+			t.Fatalf("clarify input schema = %s, want closed question contract", descriptor.InputSchema)
+		}
+		if got, want := input.Properties["choices"].MaxItems, toolspkg.MaxClarifyChoices; got != want {
+			t.Fatalf("clarify choices maxItems = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should publish native schema digests and capability roster", func(t *testing.T) {
 		t.Parallel()
 
@@ -1220,6 +1354,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(bootstrap) error = %v", err)
 		}
 		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDToolArtifactRead,
 			toolspkg.ToolIDToolInfo,
 			toolspkg.ToolIDToolList,
 			toolspkg.ToolIDToolSearch,
@@ -1228,6 +1363,34 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			want,
 		) {
 			t.Fatalf("bootstrap expansion = %#v, want %#v", bootstrap, want)
+		}
+
+		artifacts, err := catalog.Expand(toolspkg.ToolsetIDToolArtifacts, universe)
+		if err != nil {
+			t.Fatalf("Expand(tool artifacts) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{toolspkg.ToolIDToolArtifactRead}; !slices.Equal(artifacts, want) {
+			t.Fatalf("tool artifact expansion = %#v, want %#v", artifacts, want)
+		}
+
+		approvals, err := catalog.Expand(toolspkg.ToolsetIDToolApprovals, universe)
+		if err != nil {
+			t.Fatalf("Expand(tool approvals) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDToolApprovalsList,
+			toolspkg.ToolIDToolApprovalsRevoke,
+			toolspkg.ToolIDToolApprovalsSet,
+		}; !slices.Equal(approvals, want) {
+			t.Fatalf("tool approval expansion = %#v, want %#v", approvals, want)
+		}
+
+		clarify, err := catalog.Expand(toolspkg.ToolsetIDClarify, universe)
+		if err != nil {
+			t.Fatalf("Expand(clarify) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{toolspkg.ToolIDClarify}; !slices.Equal(clarify, want) {
+			t.Fatalf("clarify expansion = %#v, want %#v", clarify, want)
 		}
 
 		tasks, err := catalog.Expand(toolspkg.ToolsetIDTasks, universe)

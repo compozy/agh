@@ -367,6 +367,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertEnumValues(
 			t,
 			propertySchema(t, diagnosticsSchema, "state"),
+			"inactive",
 			"shadowed",
 			"valid",
 			"verification_failed",

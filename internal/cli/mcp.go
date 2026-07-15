@@ -16,5 +16,6 @@ func newMCPCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newMCPInstallCommand(deps))
 	cmd.AddCommand(newMCPAuthorizeCommand(deps))
 	cmd.AddCommand(newMCPAuthCommand(deps))
+	cmd.AddCommand(newMCPServeCommand(deps))
 	return cmd
 }

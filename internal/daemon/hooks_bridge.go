@@ -179,7 +179,7 @@ func dreamSessionStopExecutor(dreamRuntime dreamCheckEnqueuer) hookspkg.Executor
 	)
 }
 
-func memoryExtractorMessagePersistedExecutor(
+func sessionMessagePersistedExecutor(
 	observer sessionMessagePersistedObserver,
 ) hookspkg.Executor {
 	return hookspkg.NewTypedNativeExecutor(

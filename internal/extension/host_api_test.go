@@ -1167,6 +1167,9 @@ func TestHostAPIHandlerSkillsListReturnsWorkspaceSkills(t *testing.T) {
 	if listed[0].Name != "workspace-review" {
 		t.Fatalf("skills/list[0].Name = %q, want workspace-review", listed[0].Name)
 	}
+	if !listed[0].Enabled || !listed[0].Activation.Active {
+		t.Fatalf("skills/list[0] = %#v, want enabled and active", listed[0])
+	}
 }
 
 func TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads(t *testing.T) {
@@ -1920,7 +1923,7 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 		t.Fatalf("BuildRoutingKey() error = %v", err)
 	}
 
-	if err := env.handler.registerPromptDelivery(
+	if err := env.handler.registerPromptDeliveryAfterSubmission(
 		testutil.Context(t),
 		*instance,
 		routingKey,
@@ -4782,6 +4785,30 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 	})
 
 	env := newHostAPITestEnv(t)
+
+	t.Run("Should keep registered and stable workspace identities domain-specific", func(t *testing.T) {
+		t.Parallel()
+
+		const stableWorkspaceID = "01JSTABLEWORKSPACEIDENTITY0"
+		resolved := env.workspace
+		resolved.WorkspaceID = stableWorkspaceID
+		env.workspaces.upsert(&resolved)
+
+		workspaceID, err := env.handler.resolveTaskWorkspaceID(testutil.Context(t), stableWorkspaceID)
+		if err != nil {
+			t.Fatalf("resolveTaskWorkspaceID() error = %v", err)
+		}
+		if got, want := workspaceID, resolved.ID; got != want {
+			t.Fatalf("resolveTaskWorkspaceID() = %q, want registered identity %q", got, want)
+		}
+		memoryWorkspaceID, err := env.handler.resolveStableWorkspaceID(testutil.Context(t), resolved.ID)
+		if err != nil {
+			t.Fatalf("resolveStableWorkspaceID() error = %v", err)
+		}
+		if got, want := memoryWorkspaceID, stableWorkspaceID; got != want {
+			t.Fatalf("resolveStableWorkspaceID() = %q, want durable identity %q", got, want)
+		}
+	})
 
 	raw, err := marshalParams(map[string]any{
 		"scope": taskpkg.ScopeGlobal,

@@ -840,6 +840,50 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		}
 	})
 
+	t.Run("Should roll back expired lease recovery when task.run_lease_expired append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-run-lease-expired-rollback")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		leased := storeLeasedTaskRunForBlockTest(
+			ctx,
+			t,
+			globalDB,
+			taskRecord.ID,
+			"run-lease-expired-rollback",
+			"sess-lease-expired-rollback",
+			"claim-token-lease-expired-rollback",
+			time.Date(2026, 4, 14, 15, 30, 0, 0, time.UTC),
+		)
+		installTaskEventInsertFailureTriggerForType(t, globalDB, eventspkg.TaskRunLeaseExpired)
+
+		_, err := globalDB.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
+			Now:    leased.LeaseUntil.Add(time.Second),
+			Reason: "orphaned_on_boot",
+		})
+		assertForcedTaskEventInsertError(t, err, "RecoverExpiredRunLeases()")
+		stored, err := globalDB.GetTaskRun(ctx, leased.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if got, want := stored.Status, taskpkg.TaskRunStatusClaimed; got != want {
+			t.Fatalf("stored.Status = %q, want rollback to %q", got, want)
+		}
+		if got, want := stored.SessionID, leased.SessionID; got != want {
+			t.Fatalf("stored.SessionID = %q, want rollback to %q", got, want)
+		}
+		if got, want := stored.ClaimTokenHash, leased.ClaimTokenHash; got != want {
+			t.Fatalf("stored.ClaimTokenHash = %q, want rollback to %q", got, want)
+		}
+		if got, want := stored.LeaseUntil, leased.LeaseUntil; !got.Equal(want) {
+			t.Fatalf("stored.LeaseUntil = %s, want rollback to %s", got, want)
+		}
+	})
+
 	t.Run("Should roll back lease failure when task.run.failed append fails", func(t *testing.T) {
 		t.Parallel()
 

@@ -4,25 +4,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
-	retrypkg "github.com/compozy/agh/internal/retry"
 )
 
 // ErrorClass is the shared bridge-sdk provider failure classification.
 type ErrorClass string
 
+// HTTPStatusOverloaded is the non-standard provider overload response status.
+const HTTPStatusOverloaded = 529
+
 const (
-	ErrorClassAuth      ErrorClass = "auth"
-	ErrorClassRateLimit ErrorClass = "rate_limit"
-	ErrorClassTimeout   ErrorClass = "timeout"
-	ErrorClassTransient ErrorClass = "transient"
-	ErrorClassPermanent ErrorClass = "permanent"
+	ErrorClassAuth        ErrorClass = "auth"
+	ErrorClassRateLimit   ErrorClass = "rate_limit"
+	ErrorClassTimeout     ErrorClass = "timeout"
+	ErrorClassOverloaded  ErrorClass = "overloaded"
+	ErrorClassServerError ErrorClass = "server_error"
+	ErrorClassTransient   ErrorClass = "transient"
+	ErrorClassPermanent   ErrorClass = "permanent"
 )
 
 // HTTPError captures provider HTTP failures with optional Retry-After guidance.
@@ -187,27 +190,6 @@ type RecoveryDecision struct {
 	Degradation *bridgepkg.BridgeDegradation
 }
 
-// RetryConfig configures the jittered backoff retry helper.
-type RetryConfig struct {
-	Attempts  int
-	MinDelay  time.Duration
-	MaxDelay  time.Duration
-	Jitter    float64
-	RandFloat func() float64
-	OnRetry   func(attempt int, maxAttempts int, classified ClassifiedError)
-}
-
-// DefaultRetryConfig returns the bridge-sdk default retry policy.
-func DefaultRetryConfig() RetryConfig {
-	return RetryConfig{
-		Attempts:  3,
-		MinDelay:  300 * time.Millisecond,
-		MaxDelay:  30 * time.Second,
-		Jitter:    0.1,
-		RandFloat: rand.Float64,
-	}
-}
-
 // ClassifyError maps one provider failure into the shared recovery classes.
 func ClassifyError(err error) ClassifiedError {
 	if err == nil {
@@ -260,10 +242,12 @@ func classifyHTTPProviderError(err error) (ClassifiedError, bool) {
 		return classifiedProviderError(err, ErrorClassAuth, 0), true
 	case http.StatusTooManyRequests:
 		return classifiedProviderError(err, ErrorClassRateLimit, httpErr.RetryAfter), true
+	case HTTPStatusOverloaded:
+		return classifiedProviderError(err, ErrorClassOverloaded, httpErr.RetryAfter), true
 	case http.StatusRequestTimeout, http.StatusGatewayTimeout:
 		return classifiedProviderError(err, ErrorClassTimeout, 0), true
 	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusInternalServerError:
-		return classifiedProviderError(err, ErrorClassTransient, 0), true
+		return classifiedProviderError(err, ErrorClassServerError, httpErr.RetryAfter), true
 	default:
 		return classifiedProviderError(err, ErrorClassPermanent, 0), true
 	}
@@ -346,6 +330,12 @@ func (c ClassifiedError) Recovery() RecoveryDecision {
 				Message: c.Message,
 			},
 		}
+	case ErrorClassOverloaded, ErrorClassServerError:
+		return RecoveryDecision{
+			Retry:      true,
+			RetryAfter: c.RetryAfter,
+			Status:     bridgepkg.BridgeStatusDegraded,
+		}
 	case ErrorClassTransient:
 		return RecoveryDecision{
 			Retry:  true,
@@ -358,69 +348,6 @@ func (c ClassifiedError) Recovery() RecoveryDecision {
 	default:
 		return RecoveryDecision{}
 	}
-}
-
-// RetryDo retries the operation according to the shared classification policy.
-func RetryDo[T any](ctx context.Context, config RetryConfig, fn func(context.Context) (T, error)) (T, error) {
-	var zero T
-	if ctx == nil {
-		return zero, errors.New("bridgesdk: retry context is required")
-	}
-	if fn == nil {
-		return zero, errors.New("bridgesdk: retry function is required")
-	}
-	if config.Attempts <= 0 {
-		config.Attempts = 1
-	}
-	if config.MinDelay <= 0 {
-		config.MinDelay = 300 * time.Millisecond
-	}
-	if config.MaxDelay <= 0 {
-		config.MaxDelay = 30 * time.Second
-	}
-	if config.RandFloat == nil {
-		config.RandFloat = rand.Float64
-	}
-	if err := ctx.Err(); err != nil {
-		return zero, err
-	}
-
-	for attempt := 1; attempt <= config.Attempts; attempt++ {
-		result, err := fn(ctx)
-		if err == nil {
-			return result, nil
-		}
-
-		classified := ClassifyError(err)
-		recovery := classified.Recovery()
-		if !recovery.Retry || attempt == config.Attempts {
-			return zero, err
-		}
-
-		delay := retryDelay(config, attempt, recovery)
-		if config.OnRetry != nil {
-			config.OnRetry(attempt, config.Attempts, classified)
-		}
-
-		if err := retrypkg.Wait(ctx, delay); err != nil {
-			return zero, fmt.Errorf("bridgesdk: wait before retry: %w", err)
-		}
-	}
-
-	panic("bridgesdk: retry loop exhausted without returning")
-}
-
-func retryDelay(config RetryConfig, attempt int, recovery RecoveryDecision) time.Duration {
-	if recovery.RetryAfter > 0 {
-		return recovery.RetryAfter
-	}
-
-	return retrypkg.Delay(retrypkg.Policy{
-		BaseDelay:   config.MinDelay,
-		MaxDelay:    config.MaxDelay,
-		JitterRatio: config.Jitter,
-		RandFloat64: config.RandFloat,
-	}, attempt)
 }
 
 func errorMessage(err error) string {

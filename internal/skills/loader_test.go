@@ -495,6 +495,73 @@ func TestParseSkillFileParsesAGHMetadataFixtures(t *testing.T) {
 	}
 }
 
+func TestParseSkillFileParsesActivationGatesStrictly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should parse every supported activation gate", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		skillPath := writeSkillFile(t, root, filepath.Join("gated", skillFileName), strings.Join([]string{
+			"---",
+			"name: gated",
+			"description: Gated skill",
+			"metadata:",
+			"  agh:",
+			"    when:",
+			"      platforms: [darwin, linux]",
+			"      environments: [container]",
+			"      requires_tools: [agh__skill_view]",
+			"      requires_capabilities: [review.code]",
+			"---",
+			"body",
+		}, "\n"))
+
+		skill, err := ParseSkillFile(skillPath)
+		if err != nil {
+			t.Fatalf("ParseSkillFile() error = %v", err)
+		}
+		want := ActivationGates{
+			Platforms:            []string{"darwin", "linux"},
+			Environments:         []string{"container"},
+			RequiresTools:        []string{"agh__skill_view"},
+			RequiresCapabilities: []string{"review.code"},
+		}
+		if !reflect.DeepEqual(skill.ActivationGates, want) {
+			t.Fatalf("ParseSkillFile() ActivationGates = %#v, want %#v", skill.ActivationGates, want)
+		}
+		if !skill.Activation.Active || len(skill.Activation.Reasons) != 0 {
+			t.Fatalf("ParseSkillFile() Activation = %#v, want unevaluated active state", skill.Activation)
+		}
+	})
+
+	t.Run("Should reject unknown when keys", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		skillPath := writeSkillFile(t, root, filepath.Join("unknown-gate", skillFileName), strings.Join([]string{
+			"---",
+			"name: unknown-gate",
+			"description: Invalid gated skill",
+			"metadata:",
+			"  agh:",
+			"    when:",
+			"      platforms: [linux]",
+			"      requires_toolsets: [terminal]",
+			"---",
+			"body",
+		}, "\n"))
+
+		_, err := ParseSkillFile(skillPath)
+		if err == nil {
+			t.Fatal("ParseSkillFile() error = nil, want unknown when key failure")
+		}
+		if !strings.Contains(err.Error(), `unknown key "requires_toolsets"`) {
+			t.Fatalf("ParseSkillFile() error = %v, want unknown key detail", err)
+		}
+	})
+}
+
 func TestParseBundledSkillParsesAGHMetadata(t *testing.T) {
 	t.Parallel()
 

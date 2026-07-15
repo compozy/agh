@@ -62,7 +62,6 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"generation",
 		"reattempt_strategy",
 		"last_progress_at",
-		"consecutive_failures",
 		"budget_tokens",
 		"budget_wall_sec",
 		"budget_on_exceeded",
@@ -94,7 +93,12 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"origin_creation_profile_ref",
 		"origin_policy_spec_digest",
 		"origin_creation_digest",
+		"network_spec_json",
+		"network_mode",
+		"network_channel",
+		"network_source",
 	})
+	assertTableExcludesColumns(t, globalDB.db, "loop_runs", []string{"consecutive_failures"})
 	assertTableColumns(t, globalDB.db, "loop_generation_outputs", []string{
 		"loop_run_id",
 		"generation",
@@ -187,18 +191,23 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		t,
 		globalDB.db,
 		"idx_loop_runs_queue_order",
-		"ON loop_runs(workspace_id, loop_name, status, created_at ASC, id ASC)",
+		"ON `loop_runs` (`workspace_id`, `loop_name`, `status`, `created_at`, `id`)",
 	)
 	assertIndexesPresent(t, globalDB.db, "loop_runs", "idx_loop_runs_catalog")
 	assertIndexSQLContains(
 		t,
 		globalDB.db,
 		"idx_loop_runs_catalog",
-		"ON loop_runs(workspace_id, loop_name, created_at DESC, id DESC, status)",
+		"ON `loop_runs` (`workspace_id`, `loop_name`, `created_at` DESC, `id` DESC, `status`)",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_runs", "uq_task_runs_active_loop_coordinator")
 	assertIndexesPresent(t, globalDB.db, "loop_generation_outputs", "idx_loop_generation_outputs_output_ref")
-	assertIndexSQLContains(t, globalDB.db, "uq_task_runs_active_loop_coordinator", "ON task_runs(loop_run_id)")
+	assertIndexSQLContains(
+		t,
+		globalDB.db,
+		"uq_task_runs_active_loop_coordinator",
+		"ON `task_runs` (`loop_run_id`)",
+	)
 	assertIndexSQLContains(t, globalDB.db, "uq_task_runs_active_loop_coordinator", "run_kind = 'coordinator'")
 	assertIndexSQLContains(
 		t,

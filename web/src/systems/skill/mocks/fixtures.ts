@@ -18,6 +18,7 @@ export const skillFixtures: SkillPayload[] = [
       "Turn cross-functional launch traffic into a concise executive brief with risks, owners, and next steps.",
     source: "workspace",
     enabled: true,
+    activation: { active: true },
     dir: storyWorkspaceSkillDir(storySkillNames.executiveBrief),
     version: "1.2.0",
     metadata: {
@@ -46,6 +47,7 @@ export const skillFixtures: SkillPayload[] = [
       "Polish launch headlines, CRM copy, pricing claims, and ad lines without violating the approved guardrails.",
     source: "workspace",
     enabled: true,
+    activation: { active: true },
     dir: storyWorkspaceSkillDir(storySkillNames.launchCopy, storyWorkspacePaths.growth),
     version: "1.0.3",
     metadata: {
@@ -62,6 +64,17 @@ export const skillFixtures: SkillPayload[] = [
       "Run launch-surface QA for hero states, pricing banners, mobile breakpoints, and fallback banners.",
     source: "workspace",
     enabled: true,
+    activation: {
+      active: false,
+      reasons: [
+        {
+          gate: "requires_tools",
+          code: "missing_tool",
+          missing: ["agh__browser_screenshot"],
+          message: "gate requires_tools unmet: agh__browser_screenshot",
+        },
+      ],
+    },
     dir: storyWorkspaceSkillDir(storySkillNames.frontendQa, storyWorkspacePaths.product),
     version: "1.1.0",
     metadata: {
@@ -79,6 +92,7 @@ export const skillFixtures: SkillPayload[] = [
       "Prepare launch GMV, burn, and reserve snapshots for finance reviews and launch-room decisions.",
     source: "workspace",
     enabled: true,
+    activation: { active: true },
     dir: storyWorkspaceSkillDir(storySkillNames.financePrep, storyWorkspacePaths.finance),
     version: "0.9.4",
     metadata: {
@@ -96,6 +110,7 @@ export const skillFixtures: SkillPayload[] = [
       "Guide support and risk through launch-day merchant escalations with clear customer-safe next steps.",
     source: "marketplace",
     enabled: false,
+    activation: { active: true },
     dir: "/opt/agh/skills/merchant-escalation-handoff",
     version: "0.8.2",
     metadata: {

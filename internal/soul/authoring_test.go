@@ -466,6 +466,7 @@ func TestManagedSoulAuthoringServiceDeleteRollbackAndHistory(t *testing.T) {
 		t.Parallel()
 
 		dbPath := filepath.Join(t.TempDir(), "agh.db")
+		cloneSoulTestStoreSeed(t, dbPath)
 		firstFixture := newAuthoringFixtureWithDBPath(t, dbPath)
 		first, err := firstFixture.service.Put(firstFixture.ctx, soul.PutRequest{
 			Target: firstFixture.target,
@@ -697,7 +698,19 @@ func (c *cancelAfterFirstErrContext) Err() error {
 func newAuthoringFixture(t *testing.T) authoringFixture {
 	t.Helper()
 
-	return newAuthoringFixtureWithDBPath(t, filepath.Join(t.TempDir(), "agh.db"))
+	dbPath := filepath.Join(t.TempDir(), "agh.db")
+	cloneSoulTestStoreSeed(t, dbPath)
+	return newAuthoringFixtureWithDBPath(t, dbPath)
+}
+
+func cloneSoulTestStoreSeed(t *testing.T, dbPath string) {
+	t.Helper()
+	if soulTestStoreSeed == nil {
+		t.Fatal("soul test store seed is not initialized")
+	}
+	if err := soulTestStoreSeed.Clone(dbPath); err != nil {
+		t.Fatalf("Clone(store seed) error = %v", err)
+	}
 }
 
 func newAuthoringFixtureWithDBPath(t *testing.T, dbPath string) authoringFixture {

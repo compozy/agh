@@ -49,11 +49,20 @@ func (m *Manager) finalizeStoppedOwned(
 	m.logSandboxTransport(session, sandboxEventTransportDisconnect, nil, 0)
 	errs = appendLifecycleErr(errs, m.finalizeSandbox(ctx, session, sandboxSyncReasonForStop(session)))
 
+	compactionErr := m.cancelAndWaitSessionCompaction(ctx, session.ID)
+	errs = appendLifecycleErr(errs, compactionErr)
+	if compactionErr != nil {
+		return errors.Join(errs...)
+	}
+	if notifier, ok := m.notifier.(FinalizationNotifier); ok {
+		notifier.OnSessionFinalizing(ctx, session)
+	}
 	errs = appendLifecycleErr(errs, m.closeSessionRecorder(session))
 	errs = appendLifecycleErr(errs, m.markSessionStopped(ctx, session))
 	errs = appendLifecycleErr(errs, m.materializeSessionLedger(ctx, session))
 	errs = appendLifecycleErr(errs, m.leaveSessionNetwork(ctx, session))
 	m.failQueuedSyntheticPrompts(session.ID, ErrSessionNotActive)
+	m.clearResumeReplay(session.ID)
 
 	m.removeActive(session.ID)
 	if m.hostedMCP != nil {

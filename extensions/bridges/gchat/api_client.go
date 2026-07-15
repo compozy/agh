@@ -301,10 +301,6 @@ func classifyGChatHTTPError(statusCode int, retryAfterHeader string, raw string)
 		return &bridgesdk.AuthError{Err: errors.New(message)}
 	case http.StatusTooManyRequests:
 		return &bridgesdk.RateLimitError{Err: errors.New(message), RetryAfter: parseRetryAfter(retryAfterHeader)}
-	case http.StatusRequestTimeout, http.StatusGatewayTimeout:
-		return &bridgesdk.TransientError{Err: errors.New(message)}
-	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusInternalServerError:
-		return &bridgesdk.TransientError{Err: errors.New(message)}
 	default:
 		return &bridgesdk.HTTPError{
 			StatusCode: statusCode,

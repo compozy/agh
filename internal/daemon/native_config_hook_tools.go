@@ -20,7 +20,7 @@ const (
 	nativeConfigHookToolsDeletedKey       = "deleted"
 	nativeConfigHookToolsDiffKey          = "diff"
 	nativeConfigHookToolsEventsKey        = "events"
-	nativeConfigHookToolsAppliedKey       = "applied"
+	nativeAppliedValue                    = "applied"
 	nativeConfigHookToolsHookKey          = "hook"
 	nativeConfigHookToolsLifecycleKey     = "lifecycle"
 	nativeConfigHookToolsHooksKey         = "hooks"
@@ -868,7 +868,7 @@ func addNativeConfigLifecycleFields(payload map[string]any, path string) error {
 	if !applied {
 		status = lifecycle.StatusBlocked
 	}
-	payload[nativeConfigHookToolsAppliedKey] = applied
+	payload[nativeAppliedValue] = applied
 	payload[nativeConfigHookToolsLifecycleKey] = string(rule.Lifecycle)
 	payload[nativeConfigHookToolsNextActionKey] = string(lifecycle.NextActionForLifecycle(rule.Lifecycle, status))
 	return nil

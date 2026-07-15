@@ -86,6 +86,9 @@ type Option func(*Observer)
 
 type observedSession struct {
 	agentName       string
+	provider        string
+	model           string
+	authMode        aghconfig.ProviderAuthMode
 	workspaceID     string
 	permissionMode  string
 	parentSessionID string
@@ -125,6 +128,8 @@ type Observer struct {
 	homePaths             aghconfig.HomePaths
 	sessionSource         SessionSource
 	resolvePermissionMode PermissionModeResolver
+	resolveProviderAuth   ProviderAuthModeResolver
+	costCatalog           CostCatalog
 	memoryEventSource     MemoryEventSource
 	workspaceResolver     workspacepkg.RuntimeResolver
 	now                   func() time.Time
@@ -355,6 +360,9 @@ func New(ctx context.Context, opts ...Option) (*Observer, error) {
 	if observer.resolvePermissionMode == nil {
 		observer.resolvePermissionMode = defaultPermissionModeResolver(observer.homePaths, observer.workspaceResolver)
 	}
+	if observer.resolveProviderAuth == nil {
+		observer.resolveProviderAuth = defaultProviderAuthModeResolver(observer.homePaths, observer.workspaceResolver)
+	}
 	if observer.openHookStore == nil {
 		observer.openHookStore = func(ctx context.Context, sessionID string, path string) (HookRunStore, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
@@ -439,7 +447,15 @@ func (o *Observer) Close(ctx context.Context) error {
 // OnSessionCreated tracks the live session snapshot used by observability reads.
 func (o *Observer) OnSessionCreated(ctx context.Context, sess *session.Session) {
 	info := sess.Info()
-	snapshot := o.observedSessionSnapshot(ctx, info.ID, info.AgentName, info.WorkspaceID, info.Lineage)
+	snapshot := o.observedSessionSnapshot(
+		ctx,
+		info.ID,
+		info.AgentName,
+		info.Provider,
+		info.Model,
+		info.WorkspaceID,
+		info.Lineage,
+	)
 
 	o.trackSession(info.ID, snapshot)
 }
@@ -568,7 +584,15 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 			if info == nil || strings.TrimSpace(info.ID) != id {
 				continue
 			}
-			snapshot := o.observedSessionSnapshot(ctx, id, info.AgentName, info.WorkspaceID, info.Lineage)
+			snapshot := o.observedSessionSnapshot(
+				ctx,
+				id,
+				info.AgentName,
+				info.Provider,
+				info.Model,
+				info.WorkspaceID,
+				info.Lineage,
+			)
 			o.trackSession(id, snapshot)
 			return snapshot, true
 		}
@@ -586,7 +610,15 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 		if strings.TrimSpace(info.ID) != id {
 			continue
 		}
-		snapshot := o.observedSessionSnapshot(ctx, id, info.AgentName, info.WorkspaceID, info.Lineage)
+		snapshot := o.observedSessionSnapshot(
+			ctx,
+			id,
+			info.AgentName,
+			info.Provider,
+			"",
+			info.WorkspaceID,
+			info.Lineage,
+		)
 		if strings.TrimSpace(info.State) != string(session.StateStopped) {
 			o.trackSession(id, snapshot)
 		}
@@ -599,6 +631,8 @@ func (o *Observer) observedSessionSnapshot(
 	ctx context.Context,
 	sessionID string,
 	agentName string,
+	provider string,
+	model string,
 	workspaceID string,
 	lineage *store.SessionLineage,
 ) observedSession {
@@ -607,30 +641,57 @@ func (o *Observer) observedSessionSnapshot(
 	normalizedLineage := store.NormalizeSessionLineage(sessionID, lineage)
 	snapshot := observedSession{
 		agentName:       strings.TrimSpace(agentName),
+		provider:        strings.TrimSpace(provider),
+		model:           strings.TrimSpace(model),
 		workspaceID:     strings.TrimSpace(workspaceID),
 		parentSessionID: normalizedLineage.ParentSessionID,
 		rootSessionID:   normalizedLineage.RootSessionID,
 		spawnDepth:      normalizedLineage.SpawnDepth,
 	}
-	if o.resolvePermissionMode == nil {
-		return snapshot
+	if o.resolvePermissionMode != nil {
+		permissionMode, err := o.resolvePermissionMode(ctx, snapshot.agentName, snapshot.workspaceID)
+		if err != nil {
+			o.logger.Warn(
+				"observe: resolve permission mode failed",
+				"session_id",
+				strings.TrimSpace(sessionID),
+				"agent_name",
+				snapshot.agentName,
+				"workspace_id",
+				snapshot.workspaceID,
+				"error",
+				err,
+			)
+		} else {
+			snapshot.permissionMode = strings.TrimSpace(permissionMode)
+		}
 	}
-	permissionMode, err := o.resolvePermissionMode(ctx, snapshot.agentName, snapshot.workspaceID)
-	if err != nil {
-		o.logger.Warn(
-			"observe: resolve permission mode failed",
-			"session_id",
-			strings.TrimSpace(sessionID),
-			"agent_name",
+	if o.resolveProviderAuth != nil {
+		authMode, err := o.resolveProviderAuth(
+			ctx,
 			snapshot.agentName,
-			"workspace_id",
+			snapshot.provider,
+			snapshot.model,
 			snapshot.workspaceID,
-			"error",
-			err,
 		)
-		return snapshot
+		if err != nil {
+			o.logger.Warn(
+				"observe: resolve provider auth mode failed",
+				"session_id",
+				strings.TrimSpace(sessionID),
+				"agent_name",
+				snapshot.agentName,
+				"provider",
+				snapshot.provider,
+				"workspace_id",
+				snapshot.workspaceID,
+				"error",
+				err,
+			)
+		} else {
+			snapshot.authMode = authMode
+		}
 	}
-	snapshot.permissionMode = strings.TrimSpace(permissionMode)
 	return snapshot
 }
 
@@ -667,35 +728,6 @@ func (o *Observer) writeObservedEventSummary(
 		SpawnDepth:       snapshot.spawnDepth,
 		Summary:          summarizeEvent(event),
 		Timestamp:        timestamp,
-	})
-}
-
-func (o *Observer) aggregateObservedUsage(
-	ctx context.Context,
-	sessionID string,
-	snapshot observedSession,
-	event acp.AgentEvent,
-	timestamp time.Time,
-) error {
-	if !shouldAggregateUsage(event) {
-		return nil
-	}
-
-	usageTimestamp := timestamp
-	if !event.Usage.Timestamp.IsZero() {
-		usageTimestamp = event.Usage.Timestamp
-	}
-
-	return o.registry.UpdateTokenStats(ctx, store.TokenStatsUpdate{
-		SessionID:    sessionID,
-		AgentName:    snapshot.agentName,
-		InputTokens:  event.Usage.InputTokens,
-		OutputTokens: event.Usage.OutputTokens,
-		TotalTokens:  event.Usage.TotalTokens,
-		CostAmount:   event.Usage.CostAmount,
-		CostCurrency: event.Usage.CostCurrency,
-		Turns:        1,
-		UpdatedAt:    usageTimestamp,
 	})
 }
 
@@ -791,69 +823,6 @@ func (o *Observer) sessionSnapshot(id string) (observedSession, bool) {
 	defer o.mu.RUnlock()
 	snapshot, ok := o.sessions[strings.TrimSpace(id)]
 	return snapshot, ok
-}
-
-func defaultPermissionModeResolver(
-	homePaths aghconfig.HomePaths,
-	resolver workspacepkg.RuntimeResolver,
-) PermissionModeResolver {
-	return func(ctx context.Context, agentName, workspaceID string) (string, error) {
-		if ctx == nil {
-			return "", errors.New("observe: permission resolver context is required")
-		}
-
-		var (
-			cfg      aghconfig.Config
-			agentDef aghconfig.AgentDef
-			err      error
-		)
-		if strings.TrimSpace(workspaceID) == "" {
-			cfg, err = aghconfig.LoadForHome(homePaths)
-			if err != nil {
-				return "", fmt.Errorf("load config: %w", err)
-			}
-			agentDef, err = aghconfig.LoadAgentDef(agentName, homePaths)
-		} else {
-			if resolver == nil {
-				return "", errors.New("observe: workspace resolver is required")
-			}
-
-			resolvedWorkspace, resolveErr := resolver.Resolve(ctx, workspaceID)
-			if resolveErr != nil {
-				return "", fmt.Errorf("resolve workspace %q: %w", workspaceID, resolveErr)
-			}
-			cfg, err = aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(resolvedWorkspace.RootDir))
-			if err != nil {
-				return "", fmt.Errorf("load config: %w", err)
-			}
-			agentDef, err = agentDefByName(resolvedWorkspace.Agents, agentName)
-		}
-		if err != nil {
-			return "", fmt.Errorf("load agent %q: %w", agentName, err)
-		}
-
-		resolved, err := cfg.ResolveAgent(agentDef)
-		if err != nil {
-			return "", fmt.Errorf("resolve agent %q: %w", agentName, err)
-		}
-
-		return strings.TrimSpace(resolved.Permissions), nil
-	}
-}
-
-func agentDefByName(agents []aghconfig.AgentDef, name string) (aghconfig.AgentDef, error) {
-	target := strings.TrimSpace(name)
-	if target == "" {
-		return aghconfig.AgentDef{}, errors.New("agent name is required")
-	}
-
-	for _, agent := range agents {
-		if strings.TrimSpace(agent.Name) == target {
-			return agent, nil
-		}
-	}
-
-	return aghconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
 }
 
 // OnSandboxLifecycleEvent receives optional sandbox lifecycle spans from session orchestration.

@@ -175,4 +175,70 @@ func TestRegistryMetadata(t *testing.T) {
 			t.Fatalf("SessionStreamOverflowFallback metadata = %#v", overflow)
 		}
 	})
+
+	t.Run("Should expose session compaction lifecycle metadata", func(t *testing.T) {
+		t.Parallel()
+
+		meta, ok := Lookup(SessionCompactionFired)
+		if !ok {
+			t.Fatal("Lookup(SessionCompactionFired) = false")
+		}
+		if meta.Family != "session" ||
+			meta.Component != ComponentSession ||
+			meta.Outcome != OutcomeInfo ||
+			!meta.EmitsToLogs ||
+			meta.NotificationEligible {
+			t.Fatalf("SessionCompactionFired metadata = %#v", meta)
+		}
+	})
+
+	t.Run("Should expose dead entity transition metadata", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name    string
+			outcome Outcome
+		}{
+			{name: DeadEntityMarked, outcome: OutcomeWarning},
+			{name: DeadEntityCleared, outcome: OutcomeSuccess},
+		}
+		for _, tc := range cases {
+			meta, ok := Lookup(tc.name)
+			if !ok {
+				t.Fatalf("Lookup(%q) = false", tc.name)
+			}
+			if meta.Family != "reliability.dead_entity" ||
+				meta.Component != ComponentReliability ||
+				meta.Outcome != tc.outcome ||
+				!meta.GlobalScope ||
+				!meta.EmitsToLogs {
+				t.Fatalf("Lookup(%q) metadata = %#v", tc.name, meta)
+			}
+		}
+	})
+
+	t.Run("Should expose durable tool approval transition metadata", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name    string
+			outcome Outcome
+		}{
+			{name: ToolApprovalGrantPut, outcome: OutcomeSuccess},
+			{name: ToolApprovalGrantRevoked, outcome: OutcomeWarning},
+		}
+		for _, tc := range cases {
+			meta, ok := Lookup(tc.name)
+			if !ok {
+				t.Fatalf("Lookup(%q) = false", tc.name)
+			}
+			if meta.Family != "tool.approval_grant" ||
+				meta.Component != ComponentTools ||
+				meta.Outcome != tc.outcome ||
+				!meta.GlobalScope ||
+				!meta.EmitsToLogs {
+				t.Fatalf("Lookup(%q) metadata = %#v", tc.name, meta)
+			}
+		}
+	})
 }

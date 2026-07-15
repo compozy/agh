@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -270,6 +271,25 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		t.Fatal("generalSettingsFromPayload(invalid timeout) error = nil, want non-nil")
 	}
 
+	t.Run("Should reject an invalid daemon memory report interval", func(t *testing.T) {
+		t.Parallel()
+
+		validGeneral := contract.SettingsGeneralConfigPayload{
+			Defaults:       contract.SettingsDefaultsPayload{Agent: "coder"},
+			Limits:         contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
+			Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
+			SessionTimeout: "30m",
+			HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
+			Daemon: contract.SettingsDaemonPayload{
+				Socket:               "/tmp/agh.sock",
+				MemoryReportInterval: "invalid",
+			},
+		}
+		if _, err := generalSettingsFromPayload(validGeneral); err == nil {
+			t.Fatal("generalSettingsFromPayload(invalid memory report interval) error = nil, want non-nil")
+		}
+	})
+
 	homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "memory-home"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -420,6 +440,36 @@ func TestExtensionsConfigFromPayload(t *testing.T) {
 			}
 			if config.Resources.AllowedKinds != nil {
 				t.Fatalf("AllowedKinds = %#v, want nil", config.Resources.AllowedKinds)
+			}
+		})
+	}
+}
+
+func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
+	t.Parallel()
+
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve enabled=%t", enabled), func(t *testing.T) {
+			t.Parallel()
+
+			payload := contract.SettingsGeneralConfigPayload{
+				Defaults:       contract.SettingsDefaultsPayload{Agent: "coder"},
+				Limits:         contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
+				Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
+				SessionTimeout: "30m",
+				HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
+				Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/agh.sock"},
+				Redact:         contract.SettingsRedactPayload{Enabled: enabled},
+			}
+			settings, err := generalSettingsFromPayload(payload)
+			if err != nil {
+				t.Fatalf("generalSettingsFromPayload() error = %v", err)
+			}
+			if settings.Redact.Enabled != enabled {
+				t.Fatalf("GeneralSettings.Redact.Enabled = %t, want %t", settings.Redact.Enabled, enabled)
+			}
+			if got := settingsGeneralConfigPayload(settings).Redact.Enabled; got != enabled {
+				t.Fatalf("settingsGeneralConfigPayload().Redact.Enabled = %t, want %t", got, enabled)
 			}
 		})
 	}

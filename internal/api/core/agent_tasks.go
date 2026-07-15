@@ -66,7 +66,8 @@ func (h *BaseHandlers) AgentTaskClaimNext(c *gin.Context) {
 				Claim: AgentTaskClaimPayloadFromResult(result),
 			})
 			return
-		case errors.Is(err, taskpkg.ErrNoClaimableRun) && req.Wait:
+		case (errors.Is(err, taskpkg.ErrNoClaimableRun) ||
+			errors.Is(err, taskpkg.ErrWorkspaceActiveRunCapReached)) && req.Wait:
 			if waitErr := h.waitForAgentTaskPoll(c.Request.Context()); waitErr != nil {
 				h.respondError(c, http.StatusRequestTimeout, waitErr)
 				return

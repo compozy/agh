@@ -8,7 +8,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AutomationJob, AutomationRun, AutomationTrigger } from "@/systems/automation";
 
-const { settingsAutomationQuery, toast } = vi.hoisted(() => ({
+const { routeSearch, settingsAutomationQuery, suggestionPanel, toast } = vi.hoisted(() => ({
+  routeSearch: { current: {} as Record<string, unknown> },
   settingsAutomationQuery: {
     current: {
       data: {
@@ -26,6 +27,7 @@ const { settingsAutomationQuery, toast } = vi.hoisted(() => ({
       isLoading: false,
     },
   },
+  suggestionPanel: vi.fn(),
   toast: {
     error: vi.fn(),
     success: vi.fn(),
@@ -96,7 +98,7 @@ vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (opts: { component: () => React.ReactNode }) => ({
     component: opts.component,
     useParams: () => routerState.params,
-    useSearch: () => ({}),
+    useSearch: () => routeSearch.current,
   }),
   Link: ({ children, params, to, ...props }: MockLinkProps & { to?: string }) => (
     <a href={to ?? `/${params?.jobId ?? params?.triggerId ?? ""}`} {...props}>
@@ -142,6 +144,14 @@ vi.mock("@/systems/workspace", async () => {
     }),
   };
 });
+
+vi.mock("@/systems/automation", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/automation")>()),
+  AutomationSuggestionsPanel: ({ workspaceID }: { workspaceID: string }) => {
+    suggestionPanel(workspaceID);
+    return <div data-testid="automation-suggestions-panel" />;
+  },
+}));
 
 vi.mock("@/systems/automation/hooks/use-automation", () => ({
   useAutomationJobs: () => ({
@@ -307,6 +317,8 @@ beforeEach(() => {
   routerState.navigateMock.mockReset();
   workspaceContext.activeWorkspaceId = "ws_test";
   workspaceContext.isLoading = false;
+  routeSearch.current = {};
+  suggestionPanel.mockReset();
   mockJobs = [makeJob()];
   mockJobsLoading = false;
   mockJobsError = null;
@@ -415,6 +427,18 @@ describe("Jobs catalog route", () => {
     // The list route publishes a null slot while a child is mounted so the
     // detail route's own topbar publish wins (single-publisher store).
     expect(screen.queryByTestId("create-job-btn")).not.toBeInTheDocument();
+  });
+
+  it("shows workspace suggestions only when the jobs list includes workspace jobs", () => {
+    const { rerender } = render(<JobsPage />);
+
+    expect(screen.getByTestId("automation-suggestions-panel")).toBeInTheDocument();
+    expect(suggestionPanel).toHaveBeenLastCalledWith("ws_test");
+
+    routeSearch.current = { scope: "global" };
+    rerender(<JobsPage />);
+
+    expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
   });
 
   it("shows a runtime-unavailable alert instead of treating cached jobs as healthy", () => {

@@ -84,13 +84,24 @@ const (
 type SchedulerCatchUpPolicy = modelpkg.SchedulerCatchUpPolicy
 
 const (
-	// SchedulerCatchUpPolicySkip advances missed cursors without dispatching stale fires.
-	SchedulerCatchUpPolicySkip = modelpkg.SchedulerCatchUpPolicySkip
+	// SchedulerCatchUpPolicySkipMissed dispatches within grace and skips older missed fires.
+	SchedulerCatchUpPolicySkipMissed = modelpkg.SchedulerCatchUpPolicySkipMissed
 	// SchedulerCatchUpPolicyCoalesce dispatches one fire for the most recent missed instant.
 	SchedulerCatchUpPolicyCoalesce = modelpkg.SchedulerCatchUpPolicyCoalesce
 	// SchedulerCatchUpPolicyReplay dispatches missed instants chronologically.
 	SchedulerCatchUpPolicyReplay = modelpkg.SchedulerCatchUpPolicyReplay
+	// SchedulerCatchUpPolicyRunOnce dispatches only the latest missed instant.
+	SchedulerCatchUpPolicyRunOnce = modelpkg.SchedulerCatchUpPolicyRunOnce
+	// SchedulerSkipReasonGraceExceeded reports a missed fire outside its grace window.
+	SchedulerSkipReasonGraceExceeded = modelpkg.SchedulerSkipReasonGraceExceeded
+	// SchedulerSkipReasonSelfOverlap reports an active prior run for the same job.
+	SchedulerSkipReasonSelfOverlap = modelpkg.SchedulerSkipReasonSelfOverlap
+	// SchedulerSkipReasonMetadataKey identifies durable skip reason metadata.
+	SchedulerSkipReasonMetadataKey = modelpkg.SchedulerSkipReasonMetadataKey
 )
+
+// SchedulerSkipReason identifies why a scheduled fire advanced without dispatch.
+type SchedulerSkipReason = modelpkg.SchedulerSkipReason
 
 // ActivationSource identifies which ingress path produced an activation envelope.
 type ActivationSource = modelpkg.ActivationSource
@@ -114,6 +125,39 @@ type LoopTarget = modelpkg.LoopTarget
 
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
 type Job = modelpkg.Job
+
+// DefaultSuggestionPendingCap bounds unresolved suggestions per workspace.
+const DefaultSuggestionPendingCap = modelpkg.DefaultSuggestionPendingCap
+
+// SuggestionSource identifies the emitter that proposed an automation Job.
+type SuggestionSource = modelpkg.SuggestionSource
+
+const (
+	SuggestionSourceCatalog     = modelpkg.SuggestionSourceCatalog
+	SuggestionSourceUsage       = modelpkg.SuggestionSourceUsage
+	SuggestionSourceIntegration = modelpkg.SuggestionSourceIntegration
+)
+
+// SuggestionStatus identifies the consent resolution state.
+type SuggestionStatus = modelpkg.SuggestionStatus
+
+const (
+	SuggestionStatusPending   = modelpkg.SuggestionStatusPending
+	SuggestionStatusAccepted  = modelpkg.SuggestionStatusAccepted
+	SuggestionStatusDismissed = modelpkg.SuggestionStatusDismissed
+)
+
+// Suggestion is a workspace-scoped proposal for a prefilled Job.
+type Suggestion = modelpkg.Suggestion
+
+var (
+	// ErrSuggestionNotFound reports an unknown workspace-owned suggestion.
+	ErrSuggestionNotFound = modelpkg.ErrSuggestionNotFound
+	// ErrSuggestionResolved reports a losing or repeated resolution CAS.
+	ErrSuggestionResolved = modelpkg.ErrSuggestionResolved
+	// ErrSuggestionPendingCap reports that a workspace already has five pending suggestions.
+	ErrSuggestionPendingCap = modelpkg.ErrSuggestionPendingCap
+)
 
 // ScheduleSpec describes how a job should be scheduled.
 type ScheduleSpec = modelpkg.ScheduleSpec

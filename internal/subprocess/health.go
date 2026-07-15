@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -23,6 +24,37 @@ type HealthState struct {
 	LastCheckedAt       time.Time
 	ConsecutiveFailures int
 	LastError           string
+}
+
+// CloneHealthState returns an immutable copy of a subprocess health snapshot.
+func CloneHealthState(state HealthState) HealthState {
+	state.Details = append(json.RawMessage(nil), state.Details...)
+	return state
+}
+
+// HealthFailureDetected reports whether a snapshot contains an observed failed verdict.
+// A zero-value snapshot is unsupported or not yet checked and does not degrade consumers.
+func HealthFailureDetected(state HealthState) bool {
+	if state.Healthy {
+		return false
+	}
+	return !state.LastCheckedAt.IsZero() ||
+		state.ConsecutiveFailures > 0 ||
+		strings.TrimSpace(state.LastError) != "" ||
+		strings.TrimSpace(state.Message) != "" ||
+		len(state.Details) > 0
+}
+
+// HealthFailureReason returns the human-readable reason carried by a failed snapshot.
+func HealthFailureReason(state HealthState) string {
+	parts := make([]string, 0, 2)
+	if message := strings.TrimSpace(state.Message); message != "" {
+		parts = append(parts, message)
+	}
+	if lastError := strings.TrimSpace(state.LastError); lastError != "" {
+		parts = append(parts, lastError)
+	}
+	return strings.Join(parts, ": ")
 }
 
 type healthMonitor struct {
@@ -67,11 +99,7 @@ func (p *Process) HealthState() HealthState {
 	}
 	p.health.mu.RLock()
 	defer p.health.mu.RUnlock()
-	state := p.health.state
-	if state.Details != nil {
-		state.Details = append(json.RawMessage(nil), state.Details...)
-	}
-	return state
+	return CloneHealthState(p.health.state)
 }
 
 func (p *Process) maybeStartHealthMonitor(runtime InitializeRuntime, supports InitializeSupports) {
@@ -163,12 +191,14 @@ func (p *Process) recordHealthFailure(err error) {
 func (p *Process) markUnhealthy(message string, details json.RawMessage, lastError string) {
 	p.health.mu.Lock()
 	defer p.health.mu.Unlock()
+
+	consecutiveFailures := p.health.state.ConsecutiveFailures + 1
 	p.health.state = HealthState{
 		Healthy:             false,
 		Message:             message,
 		Details:             append(json.RawMessage(nil), details...),
 		LastCheckedAt:       time.Now().UTC(),
-		ConsecutiveFailures: 1,
+		ConsecutiveFailures: consecutiveFailures,
 		LastError:           lastError,
 	}
 }

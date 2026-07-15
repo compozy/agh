@@ -290,7 +290,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 			"POST",
 		)
 		assertLoopResponseStatusesExactly(t, operation, []int{
-			200, 202, 400, 404, 409, 413, 422, 500,
+			200, 202, 400, 404, 409, 413, 422, 500, 503,
 		})
 		for _, status := range []int{200, 202, 404, 409, 422} {
 			schema := jsonResponseSchema(t, operation, status)

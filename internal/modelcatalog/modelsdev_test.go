@@ -33,7 +33,7 @@ func TestModelsDevSource(t *testing.T) {
 						"reasoning": true,
 						"tool_call": true,
 						"limit": {"context": 256000, "input": 200000, "output": 32000},
-						"cost": {"input": 1.25, "output": 10.5}
+						"cost": {"input": 1.25, "output": 10.5, "cache_read": 0.125, "cache_write": 2.5, "reasoning": 12}
 					}
 				}
 			}
@@ -56,6 +56,9 @@ func TestModelsDevSource(t *testing.T) {
 		*row.MaxOutputTokens = 1
 		*row.CostInputPerMillion = 0
 		*row.CostOutputPerMillion = 0
+		*row.CostCacheReadPerMillion = 0
+		*row.CostCacheWritePerMillion = 0
+		*row.CostReasoningPerMillion = 0
 		*row.ReleaseDate = "mutated"
 		*row.Deprecated = false
 
@@ -403,6 +406,15 @@ func assertModelsDevCurrentRow(t *testing.T, row ModelRow) {
 	}
 	if row.CostOutputPerMillion == nil || *row.CostOutputPerMillion != 10.5 {
 		t.Fatalf("CostOutputPerMillion = %v, want 10.5", row.CostOutputPerMillion)
+	}
+	if row.CostCacheReadPerMillion == nil || *row.CostCacheReadPerMillion != 0.125 {
+		t.Fatalf("CostCacheReadPerMillion = %v, want 0.125", row.CostCacheReadPerMillion)
+	}
+	if row.CostCacheWritePerMillion == nil || *row.CostCacheWritePerMillion != 2.5 {
+		t.Fatalf("CostCacheWritePerMillion = %v, want 2.5", row.CostCacheWritePerMillion)
+	}
+	if row.CostReasoningPerMillion == nil || *row.CostReasoningPerMillion != 12 {
+		t.Fatalf("CostReasoningPerMillion = %v, want 12", row.CostReasoningPerMillion)
 	}
 	if row.ReleaseDate == nil || *row.ReleaseDate != "2026-03-05" {
 		t.Fatalf("ReleaseDate = %v, want 2026-03-05", row.ReleaseDate)

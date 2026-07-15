@@ -26,8 +26,16 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 			Version:     "1.0.0",
 			Source:      " user ",
 			Enabled:     true,
-			Dir:         "/agh-home/extensions/review/skills/extension-review",
-			Metadata:    map[string]any{"area": "qa"},
+			Activation: contract.SkillActivationPayload{
+				Reasons: []contract.SkillActivationReasonPayload{{
+					Gate:    "requires_tools",
+					Code:    contract.SkillActivationReasonMissingTool,
+					Missing: []string{"agh__extension_call"},
+					Message: "gate requires_tools unmet: agh__extension_call",
+				}},
+			},
+			Dir:      "/agh-home/extensions/review/skills/extension-review",
+			Metadata: map[string]any{"area": "qa"},
 		}
 		deps := newTestDeps(t, &stubClient{
 			listSkillsFn: func(_ context.Context, query SkillQuery) ([]SkillRecord, error) {
@@ -101,6 +109,9 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 		if len(listed) != 1 || listed[0].Name != record.Name {
 			t.Fatalf("listed skills = %#v, want one %q record", listed, record.Name)
 		}
+		if !listed[0].Enabled || listed[0].Activation.Active || len(listed[0].Activation.Reasons) != 1 {
+			t.Fatalf("listed skill = %#v, want enabled and inactive with one reason", listed[0])
+		}
 
 		stdout, _, err = executeRootCommand(
 			t,
@@ -119,6 +130,9 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 		var info skillInfoItem
 		if err := json.Unmarshal([]byte(stdout), &info); err != nil {
 			t.Fatalf("json.Unmarshal(skill inspect) error = %v; stdout=%s", err, stdout)
+		}
+		if !info.Enabled || info.Activation.Active || len(info.Activation.Reasons) != 1 {
+			t.Fatalf("inspected skill = %#v, want enabled and inactive with one reason", info)
 		}
 		if info.Name != record.Name || info.Source != "user" || info.Path != record.Dir {
 			t.Fatalf("skill inspect = %#v, want daemon skill record", info)

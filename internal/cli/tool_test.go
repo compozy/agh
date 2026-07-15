@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -132,6 +133,140 @@ func TestToolCommandsRenderJSON(t *testing.T) {
 		if got, want := response.Tool.Descriptor.ToolID, toolspkg.ToolIDSkillView; got != want {
 			t.Fatalf("tool id = %q, want %q", got, want)
 		}
+	})
+}
+
+func TestToolArtifactReadCommand(t *testing.T) {
+	t.Parallel()
+
+	artifactURI := toolspkg.ToolArtifactURIPrefix + "art_" + strings.Repeat("a", 64)
+	content := []byte(`{"version":"agh.tool-result/v1","tail":"D6-TAIL"}`)
+	page := ToolArtifactPageRecord{
+		Artifact: toolspkg.ArtifactRef{
+			URI:      artifactURI,
+			Name:     toolspkg.ToolArtifactName,
+			MIMEType: toolspkg.ToolArtifactMIMEType,
+			Bytes:    int64(len(content)),
+			SHA256:   strings.Repeat("a", 64),
+		},
+		Offset:     2,
+		Bytes:      int64(len(content)),
+		TotalBytes: 100,
+		DataBase64: base64.StdEncoding.EncodeToString(content),
+		NextOffset: 2 + int64(len(content)),
+		EOF:        false,
+	}
+	newClient := func(t *testing.T) *stubClient {
+		t.Helper()
+		return &stubClient{
+			readToolArtifactFn: func(
+				_ context.Context,
+				workspaceID string,
+				gotURI string,
+				offset int64,
+				limit int64,
+			) (ToolArtifactPageRecord, error) {
+				if workspaceID != "ws-1" || gotURI != artifactURI || offset != 2 || limit != 64 {
+					t.Fatalf(
+						"ReadToolArtifact(%q, %q, %d, %d), want ws-1 URI offset=2 limit=64",
+						workspaceID,
+						gotURI,
+						offset,
+						limit,
+					)
+				}
+				return page, nil
+			},
+		}
+	}
+
+	t.Run("Should preserve the structured page contract", func(t *testing.T) {
+		t.Parallel()
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, newClient(t)),
+			"tool",
+			"artifact",
+			"read",
+			artifactURI,
+			"--workspace",
+			"ws-1",
+			"--offset",
+			"2",
+			"--limit",
+			"64",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("tool artifact read error = %v", err)
+		}
+		var got ToolArtifactPageRecord
+		decodeJSONOutput(t, stdout, &got)
+		if got != page {
+			t.Fatalf("tool artifact page = %#v, want %#v", got, page)
+		}
+	})
+
+	t.Run("Should decode exact page bytes in human mode", func(t *testing.T) {
+		t.Parallel()
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, newClient(t)),
+			"tool",
+			"artifact",
+			"read",
+			artifactURI,
+			"--workspace",
+			"ws-1",
+			"--offset",
+			"2",
+			"--limit",
+			"64",
+		)
+		if err != nil {
+			t.Fatalf("tool artifact read error = %v", err)
+		}
+		if stdout != string(content) {
+			t.Fatalf("tool artifact stdout = %q, want exact %q", stdout, content)
+		}
+	})
+
+	t.Run("Should reject unsupported ranges before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			readToolArtifactFn: func(
+				context.Context,
+				string,
+				string,
+				int64,
+				int64,
+			) (ToolArtifactPageRecord, error) {
+				t.Fatal("ReadToolArtifact should not be called for an invalid range")
+				return ToolArtifactPageRecord{}, nil
+			},
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"tool",
+			"artifact",
+			"read",
+			artifactURI,
+			"--workspace",
+			"ws-1",
+			"--limit",
+			"65537",
+			"-o",
+			"json",
+		)
+		if err == nil {
+			t.Fatal("tool artifact invalid range error = nil, want structured error")
+		}
+		assertToolError(t, stdout, toolspkg.ErrorCodeInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 }
 
@@ -617,6 +752,47 @@ func TestToolCommandsRenderStructuredErrors(t *testing.T) {
 			assertToolError(t, stdout, tc.wantCode, tc.wantReason)
 		})
 	}
+
+	t.Run("Should preserve a safe partial result when artifact persistence fails", func(t *testing.T) {
+		t.Parallel()
+
+		partial := toolspkg.ToolResult{
+			Content: []toolspkg.ToolContent{{Type: "text", Text: "bounded preview"}},
+			Preview: "token=super-secret",
+		}
+		payload := toolErrorResponse(
+			toolspkg.ErrorCodeResultPersistenceFailed,
+			toolspkg.ReasonBackendUnhealthy,
+			"tool result could not be retained",
+			"result",
+		)
+		payload.Error.PartialResult = &partial
+		client := &stubClient{
+			invokeToolFn: func(context.Context, string, ToolInvokeRequest) (ToolInvokeResponseRecord, error) {
+				return ToolInvokeResponseRecord{}, newToolAPIError(507, "Insufficient Storage", payload)
+			},
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"tool",
+			"invoke",
+			toolspkg.ToolIDSkillView.String(),
+			"-o",
+			"json",
+		)
+		if err == nil {
+			t.Fatal("tool invoke persistence error = nil, want structured error")
+		}
+		if strings.Contains(stdout, "super-secret") || !strings.Contains(stdout, "bounded preview") {
+			t.Fatalf("tool partial result output = %s, want safe bounded preview", stdout)
+		}
+		var got ToolErrorResponseRecord
+		decodeJSONOutput(t, stdout, &got)
+		if got.Error.Code != toolspkg.ErrorCodeResultPersistenceFailed || got.Error.PartialResult == nil {
+			t.Fatalf("tool partial error = %#v, want persistence code and partial result", got.Error)
+		}
+	})
 
 	t.Run("Should reject invalid canonical ids before client calls", func(t *testing.T) {
 		t.Parallel()

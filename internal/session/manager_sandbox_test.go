@@ -37,6 +37,7 @@ func TestSessionSandboxStartPrepareSyncAndLaunchSequence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("filepath.EvalSymlinks(runtime root) error = %v", err)
 	}
+	runtimeCWD := filepath.Join(canonicalRuntimeRoot, "nested-session-cwd")
 	runtimeAdditional := []string{filepath.Join(t.TempDir(), "runtime-extra")}
 	providerState := json.RawMessage(`{"prepared":true}`)
 	var (
@@ -80,15 +81,22 @@ func TestSessionSandboxStartPrepareSyncAndLaunchSequence(t *testing.T) {
 			if got, want := state.RuntimeRootDir, runtimeRoot; got != want {
 				t.Fatalf("SyncToRuntime runtime root = %q, want %q", got, want)
 			}
+			if err := os.MkdirAll(runtimeCWD, 0o755); err != nil {
+				return sandbox.SyncResult{}, fmt.Errorf("create fake runtime cwd: %w", err)
+			}
 			return sandbox.SyncResult{}, nil
 		},
 	}
 	registry := newRegistryForProvider(t, provider)
 	h = newHarness(t, WithSandboxRegistry(registry), WithSandboxIDGenerator(sequentialIDGenerator("env")))
+	sessionCWD := filepath.Join(h.workspace, "nested-session-cwd")
+	if err := os.MkdirAll(sessionCWD, 0o755); err != nil {
+		t.Fatalf("MkdirAll(session CWD) error = %v", err)
+	}
 	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
 		appendOrder("launch")
-		if got, want := opts.Cwd, canonicalRuntimeRoot; got != want {
-			t.Fatalf("StartOpts.Cwd = %q, want runtime root %q", got, want)
+		if got, want := opts.Cwd, runtimeCWD; got != want {
+			t.Fatalf("StartOpts.Cwd = %q, want mapped runtime cwd %q", got, want)
 		}
 		if !reflect.DeepEqual(opts.AdditionalDirs, runtimeAdditional) {
 			t.Fatalf("StartOpts.AdditionalDirs = %#v, want %#v", opts.AdditionalDirs, runtimeAdditional)
@@ -110,6 +118,7 @@ func TestSessionSandboxStartPrepareSyncAndLaunchSequence(t *testing.T) {
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
+		CWD:       sessionCWD,
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -259,6 +268,7 @@ func TestSessionSandboxRejectsSymlinkCWDOutsideWorkspace(t *testing.T) {
 		}
 
 		got, err := sandboxRuntimeCWD(
+			realRoot,
 			realChild,
 			sandbox.Prepared{RuntimeRootDir: linkedRoot},
 			sandbox.SessionState{Backend: sandbox.BackendLocal},

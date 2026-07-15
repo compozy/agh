@@ -17,6 +17,7 @@ type AutomationConfig struct {
 	Timezone          string                        `toml:"timezone,omitempty"`
 	MaxConcurrentJobs int                           `toml:"max_concurrent_jobs"`
 	DefaultFireLimit  automationpkg.FireLimitConfig `toml:"default_fire_limit"`
+	Suggestions       AutomationSuggestionsConfig   `toml:"suggestions"`
 	Jobs              []AutomationJob               `toml:"jobs,omitempty"`
 	Triggers          []AutomationTrigger           `toml:"triggers,omitempty"`
 }
@@ -62,6 +63,7 @@ type automationOverlay struct {
 	Timezone          *string                        `toml:"timezone"`
 	MaxConcurrentJobs *int                           `toml:"max_concurrent_jobs"`
 	DefaultFireLimit  *automationpkg.FireLimitConfig `toml:"default_fire_limit"`
+	Suggestions       *automationSuggestionsOverlay  `toml:"suggestions"`
 	Jobs              []parsedAutomationJob          `toml:"jobs"`
 	Triggers          []parsedAutomationTrigger      `toml:"triggers"`
 }
@@ -114,6 +116,9 @@ func (c AutomationConfig) validateWithEnv(lookup envLookup) error {
 		return fmt.Errorf("automation.max_concurrent_jobs must be positive: %d", c.MaxConcurrentJobs)
 	}
 	if err := c.DefaultFireLimit.Validate("automation.default_fire_limit"); err != nil {
+		return err
+	}
+	if err := c.Suggestions.validate("automation.suggestions"); err != nil {
 		return err
 	}
 
@@ -347,6 +352,7 @@ func (o automationOverlay) Apply(dst *AutomationConfig) error {
 	if o.DefaultFireLimit != nil {
 		dst.DefaultFireLimit = *o.DefaultFireLimit
 	}
+	o.Suggestions.apply(&dst.Suggestions)
 
 	for _, raw := range o.Jobs {
 		dst.Jobs = append(dst.Jobs, raw.toAutomationJob(dst.DefaultFireLimit))

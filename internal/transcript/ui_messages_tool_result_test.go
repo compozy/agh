@@ -164,6 +164,59 @@ func TestToUIMessagesToolResultContract(t *testing.T) {
 		}
 		assertUIToolInput(t, resultPart, "pwd")
 	})
+
+	t.Run("Should preserve canonical tool result output for UI replay", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 7, 19, 5, 0, 0, 0, time.UTC)
+		events := []store.SessionEvent{
+			mustUIAgentSessionEvent(t, "ev-tool-result-artifact", 1, timestamp, acp.AgentEvent{
+				Type:       acp.EventTypeToolResult,
+				SessionID:  "sess-tool-artifact",
+				TurnID:     "turn-tool-artifact",
+				Timestamp:  timestamp,
+				Title:      "agh__memory_recall",
+				ToolCallID: "tool-artifact",
+				Raw: json.RawMessage(
+					`{"sessionUpdate":"tool_call_update","status":"completed",` +
+						`"content":[{"type":"content","content":{"type":"text","text":"bounded preview"}}],` +
+						`"rawOutput":{"preview":"bounded preview","truncated":true,` +
+						`"artifacts":[{"uri":"agh://tool-artifacts/art_abc"}]}}`,
+				),
+			}),
+		}
+
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
+		}
+		part := findUIToolPart(messages[0].Parts, "tool-agh__memory_recall", "tool-artifact")
+		if part == nil {
+			t.Fatalf("tool artifact part not found; parts=%#v", messages[0].Parts)
+		}
+
+		var payload UIAgentEventPayload
+		if err := json.Unmarshal(part.Output, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(part.Output) error = %v; output=%s", err, string(part.Output))
+		}
+		var result ToolResult
+		if err := json.Unmarshal(payload.Raw, &result); err != nil {
+			t.Fatalf("json.Unmarshal(payload.Raw) error = %v; raw=%s", err, string(payload.Raw))
+		}
+		if got, want := result.Content, "bounded preview"; got != want {
+			t.Fatalf("result.Content = %q, want %q", got, want)
+		}
+		var rawOutput map[string]any
+		if err := json.Unmarshal(result.RawOutput, &rawOutput); err != nil {
+			t.Fatalf("json.Unmarshal(result.RawOutput) error = %v; raw_output=%s", err, string(result.RawOutput))
+		}
+		if got, want := rawOutput["truncated"], true; got != want {
+			t.Fatalf("raw_output.truncated = %#v, want %#v", got, want)
+		}
+	})
 }
 
 func findUIToolPart(parts []UIMessagePart, partType string, toolCallID string) *UIMessagePart {

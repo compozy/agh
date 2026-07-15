@@ -42,6 +42,7 @@ type taskCatalogScanFields struct {
 	activeRunWorkspaceID     sql.NullString
 	activeRunStatus          sql.NullString
 	activeRunAttempt         sql.NullInt64
+	activeRunRecoveryCount   sql.NullInt64
 	activeRunPreviousRunID   sql.NullString
 	activeRunFailureKind     sql.NullString
 	activeRunClaimedByKind   sql.NullString
@@ -100,6 +101,7 @@ func scanTaskCatalogSummary(scanner rowScanner) (taskpkg.Summary, error) {
 		&fields.activeRunWorkspaceID,
 		&fields.activeRunStatus,
 		&fields.activeRunAttempt,
+		&fields.activeRunRecoveryCount,
 		&fields.activeRunPreviousRunID,
 		&fields.activeRunFailureKind,
 		&fields.activeRunClaimedByKind,
@@ -225,6 +227,7 @@ func taskCatalogRunSummary(
 		TaskID:                       strings.TrimSpace(taskID),
 		Status:                       taskpkg.ParseRunStatus(fields.activeRunStatus.String).Normalize(),
 		Attempt:                      int(fields.activeRunAttempt.Int64),
+		RecoveryCount:                int(fields.activeRunRecoveryCount.Int64),
 		PreviousRunID:                strings.TrimSpace(fields.activeRunPreviousRunID.String),
 		FailureKind:                  strings.TrimSpace(fields.activeRunFailureKind.String),
 		MaxAttempts:                  maxAttempts,

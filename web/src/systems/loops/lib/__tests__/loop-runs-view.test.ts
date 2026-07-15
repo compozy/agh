@@ -22,7 +22,6 @@ function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): Loop
     generation: 1,
     iteration_cap: 50,
     tokens_used: 0,
-    consecutive_failures: 0,
     pause_requested: false,
     budget_tokens: 0,
     budget_wall_sec: 0,

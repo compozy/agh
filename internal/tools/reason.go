@@ -20,6 +20,8 @@ const (
 	ReasonDependencyMissing ReasonCode = "dependency_missing"
 	// ReasonBackendUnhealthy reports an unhealthy backend.
 	ReasonBackendUnhealthy ReasonCode = "backend_unhealthy"
+	// ReasonBackendDead reports a durably suppressed backend awaiting recovery.
+	ReasonBackendDead ReasonCode = "backend_dead"
 	// ReasonBackendNotExecutable reports a descriptor without an executable backend.
 	ReasonBackendNotExecutable ReasonCode = "backend_not_executable"
 	// ReasonExtensionInactive reports an inactive extension.
@@ -102,6 +104,12 @@ const (
 	ReasonConflictedSanitizedName ReasonCode = "conflicted_sanitized_name"
 	// ReasonResultBudgetExceeded reports a result budget violation.
 	ReasonResultBudgetExceeded ReasonCode = "result_budget_exceeded"
+	// ReasonResultPersistenceFailed reports inability to retain an oversized result.
+	ReasonResultPersistenceFailed ReasonCode = "result_persistence_failed"
+	// ReasonToolArtifactNotFound reports a missing, expired, or foreign-workspace artifact.
+	ReasonToolArtifactNotFound ReasonCode = "tool_artifact_not_found"
+	// ReasonToolArtifactCorrupt reports retained bytes that fail integrity verification.
+	ReasonToolArtifactCorrupt ReasonCode = "tool_artifact_corrupt"
 	// ReasonCallCanceled reports dispatch cancellation.
 	ReasonCallCanceled ReasonCode = "call_canceled"
 	// ReasonCallTimedOut reports dispatch deadline expiration.
@@ -146,6 +154,8 @@ const (
 	ReasonAutonomyLeaseExpired ReasonCode = "autonomy_lease_expired"
 	// ReasonAutonomyLeaseAlreadyHeld reports multiple active leases for one session.
 	ReasonAutonomyLeaseAlreadyHeld ReasonCode = "autonomy_lease_already_held"
+	// ReasonAutonomyWorkspaceCapacity reports a workspace whose active-run capacity is full.
+	ReasonAutonomyWorkspaceCapacity ReasonCode = "autonomy_workspace_capacity"
 )
 
 var validReasonCodes = map[ReasonCode]struct{}{
@@ -157,6 +167,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonIDTooLong:                      {},
 	ReasonDependencyMissing:              {},
 	ReasonBackendUnhealthy:               {},
+	ReasonBackendDead:                    {},
 	ReasonBackendNotExecutable:           {},
 	ReasonExtensionInactive:              {},
 	ReasonExtensionRuntimeMismatch:       {},
@@ -197,6 +208,9 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonConflictedID:                   {},
 	ReasonConflictedSanitizedName:        {},
 	ReasonResultBudgetExceeded:           {},
+	ReasonResultPersistenceFailed:        {},
+	ReasonToolArtifactNotFound:           {},
+	ReasonToolArtifactCorrupt:            {},
 	ReasonCallCanceled:                   {},
 	ReasonCallTimedOut:                   {},
 	ReasonSecretMetadata:                 {},
@@ -219,6 +233,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonAutonomyForeignRun:             {},
 	ReasonAutonomyLeaseExpired:           {},
 	ReasonAutonomyLeaseAlreadyHeld:       {},
+	ReasonAutonomyWorkspaceCapacity:      {},
 }
 
 // Validate ensures the reason code is documented.

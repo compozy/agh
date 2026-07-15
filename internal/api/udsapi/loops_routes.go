@@ -3,6 +3,13 @@ package udsapi
 import "github.com/gin-gonic/gin"
 
 func registerAutomationRoutes(api gin.IRouter, handlers *Handlers) {
+	suggestions := api.Group("/workspaces/:workspace_id/automation/suggestions")
+	{
+		suggestions.GET("", handlers.ListAutomationSuggestions)
+		suggestions.POST("/:suggestion_id/accept", handlers.AcceptAutomationSuggestion)
+		suggestions.POST("/:suggestion_id/dismiss", handlers.DismissAutomationSuggestion)
+	}
+
 	automationGroup := api.Group("/automation")
 	{
 		jobs := automationGroup.Group("/jobs")

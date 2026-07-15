@@ -140,8 +140,16 @@ func classifySlackAPIError(status int, errorText string, retryAfter time.Duratio
 			StatusCode: http.StatusGatewayTimeout,
 			Message:    fmt.Sprintf("slack api timeout: %s", firstNonEmpty(trimmed, "request_timeout")),
 		}
-	case status >= http.StatusInternalServerError,
-		lowered == "internal_error",
+	case status >= http.StatusInternalServerError:
+		return &bridgesdk.HTTPError{
+			StatusCode: status,
+			Message: fmt.Sprintf(
+				"slack api server failure: %s",
+				firstNonEmpty(trimmed, "service unavailable"),
+			),
+			RetryAfter: retryAfter,
+		}
+	case lowered == "internal_error",
 		lowered == "fatal_error",
 		lowered == "service_unavailable":
 		return &bridgesdk.TransientError{

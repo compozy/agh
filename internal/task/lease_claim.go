@@ -136,6 +136,14 @@ func (c ClaimCriteria) Validate(path string) error {
 			c.PriorityMin,
 		)
 	}
+	if c.WorkspaceActiveRunCap < 0 {
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "workspace_active_run_cap"),
+			c.WorkspaceActiveRunCap,
+		)
+	}
 	if err := validateLeaseDuration(c.LeaseDuration, nestedPath(path, "lease_duration")); err != nil {
 		return err
 	}

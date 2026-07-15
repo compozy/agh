@@ -6,6 +6,12 @@ AGH is a local-first daemon that starts ACP-compatible agents as managed subproc
 
 Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public AGH surfaces with structured output.
 
+## Daemon Drain
+
+Use `agh drain -o json` (or `POST /api/drain` over HTTP/UDS) to close daemon-global new-work admission while admitted prompts and claimed runs finish. The stable response is `{"state":"draining"}`; repeated calls are no-ops. New session/prompt, task-run enqueue, retry/recover, and run-claim attempts return 503 with `daemon is draining; new work admission is closed`, while cancellation, terminal transitions, and teardown remain available.
+
+Confirm drain through `.daemon.status == "draining"` in `agh status -o json` or the informational `daemon_draining` item in `agh doctor -o json`. Use `agh undrain -o json` or `POST /api/undrain` to restore `{"state":"active"}`. Drain is in-memory, applies across every workspace, and clears on daemon restart.
+
 ## Session Lifecycle
 
 AGH sessions are daemon-owned runtimes. Common states:
@@ -17,13 +23,25 @@ AGH sessions are daemon-owned runtimes. Common states:
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
-An unnamed user session receives a daemon-owned durable title from its first submitted prompt. An explicit session name is preserved, and daemon-managed session types are not retitled by ordinary prompt submission. Treat the persisted session name as catalog identity; do not synthesize a competing title from client cache or transcript state.
+With `session.auto_title_enabled = true`, an unnamed user session receives at most one daemon-owned durable title after its first assistant response is persisted. An explicit session name wins any race; daemon-managed session types are ineligible. Treat the persisted session name as catalog identity and leave the session unnamed when generation is disabled or fails.
 
 Attachability is explicit runtime state. Use `agh session list --resumable -o json` and `agh session resume` instead of assuming a stopped or idle session can be reused.
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `agh session stop`, prompt cancel, or interrupt controls when cancellation is required.
 
+A dedicated prompt interrupt followed by steer submits the canceled authored prompt plus the explicit correction once under the new input generation. A plain interrupt replacement discards the canceled text. Do not retry a consumed salvage or bypass generation fencing.
+
 The event store and materialized transcript are the durable source of truth for reattach. Transcript GET returns the newest bounded `entries` page plus `epoch`, `generation`, `max_sequence`, and `has_older`; request older entries with `before_sequence=next_before_sequence`. Each entry carries immutable `start_sequence` identity and its latest shaping `sequence`. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
+
+Treat `transcript_marker.file_mutation_unverified` as a required verification signal: one or more persisted `edit` mutations failed without a later successful mutation for the same path in that turn. Inspect the bounded paths and verify them before trusting completion claims; the marker is advisory and does not replace filesystem inspection.
+
+When the daemon reactivates a stopped runtime, it first tries the provider's ACP `session/load`. If that method is unsupported or the saved provider session is missing, AGH starts a fresh provider session and prepends a pruned projection of this session's persisted transcript to the next accepted prompt. The fallback appends a durable `session_recovered` marker summarized as `Context rebuilt from log.` It never issues an autonomous prompt, crosses a session or workspace boundary, or rewrites the authored message. A successful provider load adds no replay or recovery marker.
+
+Pressure compaction preserves complete prior turns in the workspace checkpoint before marking their
+event rows archived. Archived rows remain visible to `agh session events` and `agh session history`,
+but degraded replay excludes them to avoid duplicating checkpoint-covered context. Inspect
+`session.compaction_fired` for the admitted sequence span; the event is correlation evidence, not a
+success verdict for the later archive.
 
 The HTTP/UDS stream defaults to `transcript_snapshot`, batched `transcript_delta`, and terminal `session_stopped` frames. Reconnect with the last SSE cursor plus the snapshot's `epoch` and `generation`; a fence mismatch returns an explicit reset snapshot. The removed `replay` query is invalid. Use `frames=raw` for persisted `SessionEventPayload` rows; `agh session events --follow` already requests raw frames.
 
@@ -52,13 +70,59 @@ Use structured output when agents need to inspect or route results.
     agh session repair <session-id> --dry-run -o json
     agh session soul refresh <session-id> --expected-digest sha256:old -o json
     agh session approve <session-id> --request-id req_123 --turn-id turn_123 --decision allow-once
+    agh session clarify pending <session-id> -o json
+    agh session clarify answer <session-id> <request-id> --choice 1 -o json
+    agh session clarify answer <session-id> <request-id> --text "Use staging" -o json
     agh session wait <session-id>
 
 If an AGH-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
 
+### Usage cost truth
+
+The session usage endpoint
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage` returns token totals plus
+`cost_status` and `cost_source`. Interpret money by status: `actual` is agent-reported;
+`estimated` is a catalog-rate projection; `included` has no amount because a `native_cli` provider
+owns subscription billing; `unknown` has no amount because rates or aggregate provenance are
+incompatible. Never treat `included` as a confirmed account balance or add `actual` and `estimated`.
+Sources are `agent_reported`, `catalog_config`, `models_dev`, `builtin`, or `none`.
+Configured model input, output, cache-read, cache-write, and reasoning rates affect subsequent
+estimates only; AGH does not reprice stored token statistics after a catalog or config change. Every
+nonzero bucket requires its own finite, non-negative rate. Never infer a cache rate from input or a
+reasoning rate from output.
+
+Prefer `agh session usage <session-id> -o json` when an agent needs the same aggregate over UDS.
+
 `agh session stop` preserves durable history and resume state. `agh session remove` is destructive: it stops an active runtime when necessary, then removes the catalog row and persisted session directory. Use removal only when the operator intends to discard that history.
 
 The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
+
+## MCP Serve
+
+Use `agh mcp serve --workspace <id|name|path>` to expose the approved Host API subset to a trusted
+external MCP client over stdio. The command is a foreground relay to the running daemon; it does not
+start another daemon or open stores directly. Published names use `agh_host__<family>__<verb>`, not
+the native `agh__*` namespace. Sessions, workspace-safe task operations, Network, memory, and
+resources are included; target-only task mutations and unrelated Host API families are excluded.
+
+The workspace is mandatory and injected into every call. Conflicting caller workspace fields are
+rejected, so a relay bound to one workspace cannot read another workspace's data. Stdio has no
+separate authentication exchange: the spawning process receives operator authority for the
+published methods in that workspace.
+
+Each connected MCP client receives an independent principal and resource-source lifetime. Closing
+one client removes only that client's authority and resources; closing the relay removes all
+remaining client-scoped registrations.
+
+For a local client that cannot spawn stdio, use authenticated loopback HTTP:
+
+    export AGH_MCP_SERVE_TOKEN='replace-with-a-high-entropy-token'
+    agh mcp serve --workspace <workspace> --transport http --listen 127.0.0.1:3210
+
+Connect to `http://127.0.0.1:3210/mcp` with `Authorization: Bearer <token>`. HTTP refuses non-loopback
+listeners, an empty token environment variable, and unauthenticated requests. `--token-env` selects
+an alternate environment-variable name. There is no bearer-token CLI value or `config.toml` key.
+Stop the foreground relay when the client no longer needs authority.
 
 ## Onboarding State
 
@@ -70,7 +134,23 @@ First-run onboarding completion is a global instance flag (stored in the `app_me
 
 The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load. Fresh daemon boot registers the operator `$HOME` as the default workspace before the wizard starts, so the workspace step should not require manual project registration on a clean machine.
 
-Native session tools are read-oriented. Recap, repair, approval, session inspect, and Soul refresh are CLI/HTTP management flows unless the live registry exposes a scoped native tool.
+Native session tools are read-oriented. Clarification answers, recap, repair, approval, session
+inspect, and Soul refresh use CLI/HTTP/UDS management surfaces unless the live registry exposes a
+scoped native tool. `agh__clarify` asks from inside the active session; it does not answer another
+session's question.
+
+## Automation Suggestions
+
+List one workspace's pending Job proposals with
+`agh automation suggestions --workspace <workspace> -o json` or
+`agh__automation_suggestions_list`. A list first seeds the fixed starter catalog idempotently; no
+Job exists until acceptance. Use `agh automation suggestions accept <id> --workspace <workspace>
+-o json` to create the validated Job, or `dismiss` to durably latch that proposal away. Accept and
+dismiss are compare-and-swap resolutions. On a conflict, list again instead of retrying the stale
+action. Never move a suggestion id between workspaces; every read and mutation requires the exact
+owner `workspace_id`. The workspace pending queue defaults to five entries. Change the positive,
+restart-required limit with `agh config set automation.suggestions.pending_cap <value>`; the store
+applies that configured cap inside the serialized insert transaction.
 
 ## Messaging Bridge Delivery and Progress
 
@@ -121,11 +201,34 @@ Do not treat stale UI state, chat messages, or memory notes as runtime authority
 
 ## Status, Doctor, Logs, And Support
 
-`agh status -o json` is the consolidated runtime status surface for daemon health, providers, MCP servers, config apply status, schema migration streams, and log tail summary. Inspect `schema_streams` after startup to confirm that the global and memory streams report their expected version, applied migration count, and digest. An incompatible daemon-global `agh.db` is refused during boot, before readiness. By contrast, an incompatible per-session `events.db` can be discovered after the daemon is ready when a reader such as `agh session history <id> -o json` or `GET /api/workspaces/{workspace_id}/sessions/{session_id}/history` opens that session; that operation fails without making the healthy daemon-global store unavailable.
+`agh status -o json` is the consolidated daemon-wide status surface for daemon health, providers, MCP servers, config apply status, schema migration streams, and log tail summary. To resolve skill diagnostics for one workspace, call `GET /api/status?workspace_id=<id>` or `GET /api/status?workspace=<id|name|path>`; bare `agh status` does not select a workspace. Inspect `schema_streams` after startup to confirm that the global and memory streams report their expected version, applied migration count, and digest. An incompatible daemon-global `agh.db` is refused during boot, before readiness. By contrast, an incompatible per-session `events.db` can be discovered after the daemon is ready when a reader such as `agh session history <id> -o json` or `GET /api/workspaces/{workspace_id}/sessions/{session_id}/history` opens that session; that operation fails without making the healthy daemon-global store unavailable.
 
-For `legacy_database`, stop AGH, cold-move the complete containing `AGH_HOME` or workspace `.agh` family, and select a separate fresh home. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible AGH binary against the stopped, intact family—the state-preserving recovery. Use a fresh home only if discarding that state is acceptable. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `agh doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents.
+Inspect `.subprocess_health` in `agh status -o json` and run
+`agh doctor --only runtime.subprocess_health -o json` for active ACP subprocess verdicts. With the
+default `daemon.subprocess_health_escalation_threshold = 3`, three consecutive failed checks—or an
+unexpected ACP process exit—move the exact linked nonterminal task run to `needs_attention` once.
+Terminal runs stay terminal. After repairing the provider or command, use
+`agh task run recover <run-id> --reason <reason> -o json`; AGH never restarts the subprocess
+automatically. Set the threshold to `0` and restart to keep diagnostics without task mutation.
+
+For workspace-scoped MCP servers and bridges, `agh doctor -o json` also reports durable dead-runtime
+marks with the workspace, entity, redacted reason, and mark time. A mark follows five consecutive
+confirmed permanent failures. Ordinary attempts are suppressed until the 60-second recovery window
+opens; then a runtime probe may try once, and success clears the mark without a daemon restart.
+Doctor is read-only and never consumes that recovery attempt. There is no manual clear/revive
+surface: use the diagnostic to repair the underlying command, configuration, permission, or
+authentication problem, then let the next due runtime access recover automatically.
+
+For `legacy_database`, stop AGH, cold-move the complete containing `AGH_HOME` or workspace `.agh` family, and select a separate fresh home. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible AGH binary against the stopped, intact family—the state-preserving recovery. Use a fresh home only if discarding that state is acceptable. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `agh doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents. Its `runtime.memory` item reports the latest daemon-owned heap, goroutine, uptime, and resident-memory snapshot. Treat `resident_memory_kind=peak` as a high-water mark, not current use. When `enabled=false`, set `daemon.memory_report_interval` above zero and restart the daemon; there is no native doctor tool.
 
 `agh logs --follow -o jsonl` streams redacted runtime logs over SSE. Use filters such as `--session`, `--workspace`, `--run`, `--actor kind:id`, `--provider`, `--component`, `--outcome`, and `--error-only` before broad log reads.
+
+`redact.enabled` controls the additive heuristic for likely credentials in content and log
+messages. The daemon snapshots it at boot; `agh config set redact.enabled <true|false> -o json` or
+the live `agh__config_set` descriptor records restart-required desired state and does not change the
+running process. Exact claim-token, secret-reference, and registered-secret protections remain
+active when the heuristic is disabled. Correlation IDs, hashes, digests, and fingerprints stay
+structural rather than heuristic candidates.
 
 `agh support bundle --yes` creates and downloads a redacted support bundle. It may include status, doctor, provider, event-summary, log-tail, and config-apply snapshots unless `--no-status` is passed. Treat support bundles as operator artifacts, not native tool calls.
 

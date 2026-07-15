@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,17 +13,20 @@ import (
 	"testing"
 	"time"
 
+	sdkmcp "github.com/mark3labs/mcp-go/mcp"
+
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T) {
 	t.Parallel()
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -251,17 +255,136 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 	})
 }
 
+func TestDaemonE2EAgentMemoryBatchIsRecalledByNextSession(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{
+			{
+				FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+				FixtureAgent: "hosted-native",
+				AgentName:    "memory-batch-writer",
+			},
+			{
+				FixturePath:  mockFixturePath(t, "memory_recall_fixture.json"),
+				FixtureAgent: "memory-recall-agent",
+				AgentName:    "memory-batch-reader",
+			},
+		},
+	})
+
+	writerRegistration, ok := harness.MockAgentRegistration("memory-batch-writer")
+	if !ok {
+		t.Fatal("MockAgentRegistration(memory-batch-writer) = missing, want present")
+	}
+	readerRegistration, ok := harness.MockAgentRegistration("memory-batch-reader")
+	if !ok {
+		t.Fatal("MockAgentRegistration(memory-batch-reader) = missing, want present")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	createFixtureBackedSession(t, ctx, harness, "memory-batch-writer", "memory-batch-writer-session")
+	writerDiagnostics, err := acpmock.ReadDiagnostics(writerRegistration.DiagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(memory-batch-writer) error = %v", err)
+	}
+	hostedServer := requireHostedMCPStdioServer(t, writerDiagnostics)
+	client := startHostedMCPClient(t, hostedServer)
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			t.Fatalf("Close(memory batch hosted MCP client) error = %v", closeErr)
+		}
+	}()
+
+	var init sdkmcp.InitializeRequest
+	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
+	init.Params.ClientInfo = sdkmcp.Implementation{Name: "agh-memory-batch-e2e", Version: "1.0.0"}
+	if _, err := client.Initialize(ctx, init); err != nil {
+		t.Fatalf("Initialize(memory batch hosted MCP client) error = %v", err)
+	}
+	var call sdkmcp.CallToolRequest
+	call.Params.Name = toolspkg.ToolIDMemoryPropose.String()
+	call.Params.Arguments = map[string]any{
+		"scope":       "workspace",
+		"workspace":   harness.WorkspaceID,
+		"filename":    "project_atomic_batch.md",
+		"name":        "Atomic Batch Recall",
+		"description": "Fact committed through an agent-hosted native memory batch",
+		"type":        "project",
+		"operations": []map[string]any{
+			{
+				"action":  "add",
+				"content": "Remember me: the atomic batch release codename is cobalt.",
+			},
+			{
+				"action":   "replace",
+				"old_text": "codename is cobalt",
+				"content":  "codename is cobalt-blue",
+			},
+		},
+	}
+	result, err := client.CallTool(ctx, call)
+	if err != nil {
+		t.Fatalf("CallTool(%s) error = %v", call.Params.Name, err)
+	}
+	if result == nil || result.IsError {
+		t.Fatalf("CallTool(%s) result = %#v, want successful batch", call.Params.Name, result)
+	}
+	structured, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("Marshal(memory batch structuredContent) error = %v", err)
+	}
+	if !strings.Contains(string(structured), `"applied":true`) ||
+		!strings.Contains(string(structured), `"operations"`) {
+		t.Fatalf("memory batch structuredContent = %s, want applied operations", structured)
+	}
+
+	readerSession := createFixtureBackedSession(
+		t,
+		ctx,
+		harness,
+		"memory-batch-reader",
+		"memory-batch-reader-session",
+	)
+	if _, err := harness.PromptSession(ctx, readerSession.ID, "remember the cobalt-blue atomic batch"); err != nil {
+		t.Fatalf("PromptSession(memory batch reader) error = %v", err)
+	}
+	readerDiagnostics, err := acpmock.ReadDiagnostics(readerRegistration.DiagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(memory-batch-reader) error = %v", err)
+	}
+	prompts := acpmock.PromptDiagnostics(readerDiagnostics)
+	if len(prompts) != 1 {
+		t.Fatalf("len(memory batch reader prompts) = %d, want 1; diagnostics=%#v", len(prompts), readerDiagnostics)
+	}
+	if !strings.Contains(prompts[0].Prompt, "atomic batch release codename is cobalt-blue") ||
+		!strings.Contains(prompts[0].Prompt, "Relevant durable memory for this turn:") {
+		t.Fatalf("memory batch reader prompt = %q, want next-session recalled batch fact", prompts[0].Prompt)
+	}
+
+	if err := harness.CaptureMockAgentDiagnostics(writerRegistration); err != nil {
+		t.Fatalf("CaptureMockAgentDiagnostics(writer) error = %v", err)
+	}
+	if err := harness.CaptureMockAgentDiagnostics(readerRegistration); err != nil {
+		t.Fatalf("CaptureMockAgentDiagnostics(reader) error = %v", err)
+	}
+}
+
 func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessage(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "memory_recall_fixture.json"),
 			FixtureAgent: "memory-recall-agent",
 			AgentName:    "memory-recall-agent",
 		}},
 	})
+
 	registration, ok := harness.MockAgentRegistration("memory-recall-agent")
 	if !ok {
 		t.Fatal("MockAgentRegistration(memory-recall-agent) = missing, want present")

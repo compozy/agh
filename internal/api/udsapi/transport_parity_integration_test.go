@@ -25,6 +25,7 @@ import (
 	apispec "github.com/compozy/agh/internal/api/spec"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	transcriptpkg "github.com/compozy/agh/internal/transcript"
@@ -33,17 +34,154 @@ import (
 
 const (
 	transportUDSApprovalAgent    = "transport-uds-approver"
+	transportUDSAutoTitleAgent   = "transport-uds-auto-title"
 	transportUDSAutomationAgent  = "transport-uds-automation-runner"
 	transportUDSFaultyAgent      = "transport-uds-faulty-runner"
 	transportUDSObserveAgent     = "transport-uds-observe"
 	transportUDSOverrideProvider = "qa-transport-override"
 )
 
+func TestUDSTransportDaemonDrainMatchesHTTPAndCLI(t *testing.T) {
+	t.Parallel()
+	acpmock.RequireDriver(t)
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	var httpDraining aghcontract.DrainStatusResponse
+	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/drain", nil, &httpDraining); err != nil {
+		t.Fatalf("HTTP drain error = %v", err)
+	}
+	var udsDraining aghcontract.DrainStatusResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/drain", nil, &udsDraining); err != nil {
+		t.Fatalf("UDS drain error = %v", err)
+	}
+	var cliDraining aghcontract.DrainStatusResponse
+	if err := runtimeHarness.CLI.RunJSON(ctx, &cliDraining, "drain", "-o", "json"); err != nil {
+		t.Fatalf("CLI drain error = %v", err)
+	}
+	if httpDraining.State != aghcontract.DrainStateDraining ||
+		httpDraining != udsDraining || udsDraining != cliDraining {
+		t.Fatalf("drain parity mismatch: HTTP=%#v UDS=%#v CLI=%#v", httpDraining, udsDraining, cliDraining)
+	}
+
+	var cliActive aghcontract.DrainStatusResponse
+	if err := runtimeHarness.CLI.RunJSON(ctx, &cliActive, "undrain", "-o", "json"); err != nil {
+		t.Fatalf("CLI undrain error = %v", err)
+	}
+	var udsActive aghcontract.DrainStatusResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/undrain", nil, &udsActive); err != nil {
+		t.Fatalf("UDS undrain error = %v", err)
+	}
+	var httpActive aghcontract.DrainStatusResponse
+	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/undrain", nil, &httpActive); err != nil {
+		t.Fatalf("HTTP undrain error = %v", err)
+	}
+	if cliActive.State != aghcontract.DrainStateActive ||
+		cliActive != udsActive || udsActive != httpActive {
+		t.Fatalf("undrain parity mismatch: CLI=%#v UDS=%#v HTTP=%#v", cliActive, udsActive, httpActive)
+	}
+}
+
+func TestUDSTransportRuntimeMemoryDoctorMatchesHTTPAndCLI(t *testing.T) {
+	t.Run("Should return identical runtime memory data over HTTP UDS and CLI", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
+
+		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		var httpPayload aghcontract.DoctorPayload
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, "/api/doctor", nil, &httpPayload); err != nil {
+			t.Fatalf("HTTP doctor error = %v", err)
+		}
+		var udsPayload aghcontract.DoctorPayload
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/doctor", nil, &udsPayload); err != nil {
+			t.Fatalf("UDS doctor error = %v", err)
+		}
+		var cliPayload aghcontract.DoctorPayload
+		if err := runtimeHarness.CLI.RunJSON(ctx, &cliPayload, "doctor", "-o", "json"); err != nil {
+			t.Fatalf("CLI doctor error = %v", err)
+		}
+
+		httpItem := transportDoctorItem(t, httpPayload, "runtime.memory")
+		udsItem := transportDoctorItem(t, udsPayload, "runtime.memory")
+		cliItem := transportDoctorItem(t, cliPayload, "runtime.memory")
+		if !reflect.DeepEqual(httpItem, udsItem) || !reflect.DeepEqual(udsItem, cliItem) {
+			t.Fatalf("runtime.memory parity mismatch: HTTP=%#v UDS=%#v CLI=%#v", httpItem, udsItem, cliItem)
+		}
+		if httpItem.Evidence["enabled"] != true || httpItem.Evidence["active"] != true ||
+			httpItem.Evidence["resident_memory_available"] != true ||
+			!transportPositiveNumber(httpItem.Evidence["resident_memory_bytes"]) ||
+			!transportPositiveNumber(httpItem.Evidence["heap_alloc_bytes"]) ||
+			!transportPositiveNumber(httpItem.Evidence["goroutines"]) {
+			t.Fatalf("runtime.memory evidence = %#v, want populated daemon snapshot", httpItem.Evidence)
+		}
+	})
+}
+
+func TestUDSTransportAutomaticSessionTitlePersistsAndMatchesHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  transportMockFixturePath(t, "auto_title_fixture.json"),
+			FixtureAgent: "auto-title-agent",
+			AgentName:    transportUDSAutoTitleAgent,
+		}},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	sessionPayload, err := runtimeHarness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+		AgentName:     transportUDSAutoTitleAgent,
+		WorkspacePath: runtimeHarness.WorkspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if sessionPayload.Name != "" {
+		t.Fatalf("created session name = %q, want unnamed", sessionPayload.Name)
+	}
+
+	if _, err := runtimeHarness.PromptSessionHTTP(
+		ctx,
+		sessionPayload.ID,
+		"Implement checkout retry fencing",
+	); err != nil {
+		t.Fatalf("PromptSessionHTTP() error = %v", err)
+	}
+
+	const generatedTitle = "Checkout Retry Fencing"
+	httpCatalog, udsCatalog := waitForTransportSessionTitle(
+		t,
+		ctx,
+		runtimeHarness,
+		sessionPayload.ID,
+		generatedTitle,
+	)
+	assertTransportCatalogTitle(t, "HTTP", httpCatalog, sessionPayload.ID, generatedTitle)
+	assertTransportCatalogTitle(t, "UDS", udsCatalog, sessionPayload.ID, generatedTitle)
+
+	metaPath := store.SessionMetaFile(filepath.Join(runtimeHarness.HomePaths.SessionsDir, sessionPayload.ID))
+	meta, err := store.ReadSessionMeta(metaPath)
+	if err != nil {
+		t.Fatalf("ReadSessionMeta(%q) error = %v", metaPath, err)
+	}
+	if meta.Name != generatedTitle {
+		t.Fatalf("session meta name = %q, want %q", meta.Name, generatedTitle)
+	}
+}
+
 func TestUDSTransportApprovalFlowMatchesHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  transportMockFixturePath(t, "permission_env_fixture.json"),
 			FixtureAgent: "approver",
@@ -133,13 +271,14 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
 			FixtureAgent: "automation-runner",
 			AgentName:    transportUDSAutomationAgent,
 		}},
 	})
+
 	registration, ok := runtimeHarness.MockAgentRegistration(transportUDSAutomationAgent)
 	if !ok {
 		t.Fatalf("MockAgentRegistration(%q) not found", transportUDSAutomationAgent)
@@ -205,13 +344,14 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
 			FixtureAgent: "automation-runner",
 			AgentName:    transportUDSAutomationAgent,
 		}},
 	})
+
 	registration, ok := runtimeHarness.MockAgentRegistration(transportUDSAutomationAgent)
 	if !ok {
 		t.Fatalf("MockAgentRegistration(%q) not found", transportUDSAutomationAgent)
@@ -296,7 +436,7 @@ func TestUDSTransportProjectionParityMatchesHTTPAndCLI(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultAgent: transportUDSAutomationAgent,
 		},
@@ -348,15 +488,20 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 	t.Parallel()
 
 	catalogServer := newTransportMarketplaceCatalogServer(t)
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
-		ConfigSeed: e2etest.ConfigSeedOptions{
-			Mutate: func(cfg *aghconfig.Config) {
-				cfg.Marketplace.Catalog.BaseURL = catalogServer.URL
-				cfg.Marketplace.Catalog.TTL = time.Hour.String()
-				cfg.Marketplace.Catalog.Timeout = time.Second.String()
+	startMarketplaceHarness := func(t testing.TB) *e2etest.RuntimeHarness {
+		t.Helper()
+		return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			ConfigSeed: e2etest.ConfigSeedOptions{
+				Mutate: func(cfg *aghconfig.Config) {
+					cfg.Marketplace.Catalog.BaseURL = catalogServer.URL
+					cfg.Marketplace.Catalog.TTL = time.Hour.String()
+					cfg.Marketplace.Catalog.Timeout = time.Second.String()
+				},
 			},
-		},
-	})
+		})
+	}
+	runtimeHarness := startMarketplaceHarness(t)
+
 	clients, err := runtimeHarness.TransportClients()
 	if err != nil {
 		t.Fatalf("TransportClients() error = %v", err)
@@ -436,7 +581,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
 	})
 
-	t.Run("Should install the same catalog MCP payload over HTTP, UDS, and CLI", func(t *testing.T) {
+	t.Run("Should install the same catalog MCP semantics over HTTP, UDS, and CLI", func(t *testing.T) {
 		path := "/api/settings/mcp-servers/install"
 		request := aghcontract.InstallSettingsMCPServerRequest{
 			EntryID: "filesystem",
@@ -445,30 +590,45 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 			Values:  &aghcontract.SettingsMCPCatalogInstallValuesPayload{},
 		}
 		var httpValue aghcontract.InstallSettingsMCPServerResponse
-		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, path, request, &httpValue); err != nil {
-			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
-		}
 		var udsValue aghcontract.InstallSettingsMCPServerResponse
-		if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, path, request, &udsValue); err != nil {
-			t.Fatalf("UDSJSON(%s) error = %v", path, err)
-		}
 		var cliValue aghcontract.InstallSettingsMCPServerResponse
-		if err := clients.CLI.RunJSON(
-			ctx,
-			&cliValue,
-			"mcp",
-			"install",
-			"filesystem",
-			"--name",
-			"filesystem-parity",
-			"--scope",
-			"global",
-			"-o",
-			"json",
-		); err != nil {
-			t.Fatalf("CLI mcp install error = %v", err)
-		}
-		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
+		t.Run("Should install over HTTP from fresh state", func(t *testing.T) {
+			harness := startMarketplaceHarness(t)
+			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancelInstall()
+			if err := harness.HTTPJSON(installCtx, http.MethodPost, path, request, &httpValue); err != nil {
+				t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+			}
+		})
+		t.Run("Should install over UDS from fresh state", func(t *testing.T) {
+			harness := startMarketplaceHarness(t)
+			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancelInstall()
+			if err := harness.UDSJSON(installCtx, http.MethodPost, path, request, &udsValue); err != nil {
+				t.Fatalf("UDSJSON(%s) error = %v", path, err)
+			}
+		})
+		t.Run("Should install over CLI from fresh state", func(t *testing.T) {
+			harness := startMarketplaceHarness(t)
+			installCtx, cancelInstall := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancelInstall()
+			if err := harness.CLI.RunJSON(
+				installCtx,
+				&cliValue,
+				"mcp",
+				"install",
+				"filesystem",
+				"--name",
+				"filesystem-parity",
+				"--scope",
+				"global",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatalf("CLI mcp install error = %v", err)
+			}
+		})
+		assertTransportMCPInstallParity(t, path, httpValue, udsValue, cliValue)
 		if httpValue.MCPServer.CatalogEntry != "filesystem" ||
 			httpValue.MCPServer.CatalogVersion != "1.0.0" ||
 			httpValue.NextStep != aghcontract.SettingsMCPInstallNextStepNone {
@@ -582,11 +742,39 @@ func assertTransportMarketplaceParity(t testing.TB, path string, values ...any) 
 	}
 }
 
+func assertTransportMCPInstallParity(
+	t testing.TB,
+	path string,
+	values ...aghcontract.InstallSettingsMCPServerResponse,
+) {
+	t.Helper()
+
+	normalized := make([]any, 0, len(values))
+	for index, value := range values {
+		if !strings.HasPrefix(value.Apply.ApplyRecordID, "cfgapp-") {
+			t.Fatalf("%s transport %d apply_record_id = %q, want cfgapp-*", path, index, value.Apply.ApplyRecordID)
+		}
+		if len(value.Apply.ActiveConfigHash) != len("sha256:")+64 ||
+			!strings.HasPrefix(value.Apply.ActiveConfigHash, "sha256:") {
+			t.Fatalf(
+				"%s transport %d active_config_hash = %q, want sha256 digest",
+				path,
+				index,
+				value.Apply.ActiveConfigHash,
+			)
+		}
+		value.Apply.ApplyRecordID = ""
+		value.Apply.ActiveConfigHash = ""
+		normalized = append(normalized, value)
+	}
+	assertTransportMarketplaceParity(t, path, normalized...)
+}
+
 func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  transportMockFixturePath(t, "driver_fault_fixture.json"),
 			FixtureAgent: "faulty",
@@ -635,7 +823,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  transportMockFixturePath(t, "multi_agent_fixture.json"),
 			FixtureAgent: "alpha",
@@ -770,7 +958,7 @@ func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -837,7 +1025,7 @@ func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) 
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 
 	clients, err := runtimeHarness.TransportClients()
 	if err != nil {
@@ -915,7 +1103,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			Host: "0.0.0.0",
 		},
@@ -1268,6 +1456,85 @@ func waitForTransportAutomationRun(
 	}
 }
 
+func waitForTransportSessionTitle(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	wantTitle string,
+) (aghcontract.SessionsResponse, aghcontract.SessionsResponse) {
+	t.Helper()
+
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID)
+
+	var (
+		httpCatalog aghcontract.SessionsResponse
+		udsCatalog  aghcontract.SessionsResponse
+		httpErr     error
+		udsErr      error
+	)
+	for {
+		httpCatalog = aghcontract.SessionsResponse{}
+		httpErr = harness.HTTPJSON(waitCtx, http.MethodGet, path, nil, &httpCatalog)
+		udsCatalog = aghcontract.SessionsResponse{}
+		udsErr = harness.UDSJSON(waitCtx, http.MethodGet, path, nil, &udsCatalog)
+		if httpErr == nil && udsErr == nil &&
+			transportCatalogHasSingleTitle(httpCatalog, sessionID, wantTitle) &&
+			transportCatalogHasSingleTitle(udsCatalog, sessionID, wantTitle) {
+			return httpCatalog, udsCatalog
+		}
+
+		select {
+		case <-waitCtx.Done():
+			t.Fatalf(
+				"automatic title %q for session %q timed out: %v; HTTP error=%v catalog=%#v; UDS error=%v catalog=%#v",
+				wantTitle,
+				sessionID,
+				waitCtx.Err(),
+				httpErr,
+				httpCatalog,
+				udsErr,
+				udsCatalog,
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
+func transportCatalogHasSingleTitle(
+	catalog aghcontract.SessionsResponse,
+	sessionID string,
+	wantTitle string,
+) bool {
+	return len(catalog.Sessions) == 1 &&
+		catalog.Sessions[0].ID == sessionID &&
+		catalog.Sessions[0].Name == wantTitle
+}
+
+func assertTransportCatalogTitle(
+	t testing.TB,
+	transport string,
+	catalog aghcontract.SessionsResponse,
+	sessionID string,
+	wantTitle string,
+) {
+	t.Helper()
+
+	if !transportCatalogHasSingleTitle(catalog, sessionID, wantTitle) {
+		t.Fatalf(
+			"%s session catalog = %#v, want exactly one session id=%q name=%q",
+			transport,
+			catalog.Sessions,
+			sessionID,
+			wantTitle,
+		)
+	}
+}
+
 func waitForTransportListLogs(
 	t testing.TB,
 	ctx context.Context,
@@ -1415,4 +1682,24 @@ func writeTransportProviderOverrideConfig(
 func escapeTransportConfigString(value string) string {
 	replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	return replacer.Replace(strings.TrimSpace(value))
+}
+
+func transportDoctorItem(
+	t testing.TB,
+	payload aghcontract.DoctorPayload,
+	id string,
+) aghcontract.DiagnosticItem {
+	t.Helper()
+	for _, item := range payload.Items {
+		if item.ID == id {
+			return item
+		}
+	}
+	t.Fatalf("doctor items = %#v, want %q", payload.Items, id)
+	return aghcontract.DiagnosticItem{}
+}
+
+func transportPositiveNumber(value any) bool {
+	number, ok := value.(float64)
+	return ok && number > 0
 }

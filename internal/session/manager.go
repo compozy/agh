@@ -51,6 +51,8 @@ func NewManager(opts ...Option) (*Manager, error) {
 		finalizing:            make(map[string]*sessionFinalization),
 		promptDrains:          make(map[chan struct{}]struct{}),
 		managedInputLeases:    make(map[string]managedInputLease),
+		interruptSalvages:     make(map[string]interruptedPromptSalvage),
+		compactions:           make(map[string]*sessionCompactionState),
 		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),
 		syntheticDispatching:  make(map[string]bool),
 		soulLocks:             make(map[string]chan struct{}),
@@ -66,6 +68,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		},
 		supervision:                  aghconfig.DefaultSessionSupervisionConfig(),
 		busyInput:                    aghconfig.DefaultSessionBusyInputConfig(),
+		compaction:                   aghconfig.DefaultSessionCompactionConfig(),
 		sessionHealthStaleAfter:      aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
 		sessionHealthHookMinInterval: aghconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval,
 		now: func() time.Time {
@@ -378,6 +381,7 @@ func (m *Manager) remove(id string) {
 	delete(m.soulLocks, target)
 	m.soulLocksMu.Unlock()
 
+	m.discardInterruptedPromptSalvage(target)
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotFound)
 }
 
@@ -393,6 +397,7 @@ func (m *Manager) removeActive(id string) {
 	delete(m.soulLocks, target)
 	m.soulLocksMu.Unlock()
 
+	m.discardInterruptedPromptSalvage(target)
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotActive)
 }
 

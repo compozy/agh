@@ -711,8 +711,10 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 			WorkspaceID: "ws-alpha",
 			Prompt:      "review repo",
 			Schedule: &automationpkg.ScheduleSpec{
-				Mode:     automationpkg.ScheduleModeEvery,
-				Interval: "1h",
+				Mode:                automationpkg.ScheduleModeEvery,
+				Interval:            "1h",
+				CatchUpPolicy:       automationpkg.SchedulerCatchUpPolicyRunOnce,
+				MisfireGraceSeconds: 120,
 			},
 			Task: &automationpkg.JobTaskConfig{
 				Title: "Review findings",
@@ -753,6 +755,12 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 		}
 		if got["source"] != string(automationpkg.JobSourceDynamic) {
 			t.Fatalf("source = %#v, want %q", got["source"], automationpkg.JobSourceDynamic)
+		}
+		scheduleValue, ok := got["schedule"].(map[string]any)
+		if !ok ||
+			scheduleValue["catch_up_policy"] != string(automationpkg.SchedulerCatchUpPolicyRunOnce) ||
+			scheduleValue["misfire_grace_seconds"] != float64(120) {
+			t.Fatalf("schedule = %#v, want run once catch up with 120 second grace", got["schedule"])
 		}
 		taskValue, ok := got["task"].(map[string]any)
 		if !ok || taskValue["title"] != "Review findings" {

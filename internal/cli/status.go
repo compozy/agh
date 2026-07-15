@@ -6,16 +6,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
 const (
-	statusCommandKey     = "status"
-	doctorCommandKey     = "doctor"
-	statusDiagnosticsKey = "diagnostics"
-	statusLogTailKey     = "log_tail"
-	statusMCPServersKey  = "mcp_servers"
-	statusSectionKey     = "section"
+	statusCommandKey          = "status"
+	doctorCommandKey          = "doctor"
+	statusDiagnosticsKey      = "diagnostics"
+	statusLogTailKey          = "log_tail"
+	statusMCPServersKey       = "mcp_servers"
+	statusSubprocessHealthKey = "subprocess_health"
+	statusSectionKey          = "section"
 )
 
 func newStatusCommand(deps commandDeps) *cobra.Command {
@@ -87,6 +89,9 @@ func statusBundle(status *StatusRecord, now func() time.Time) outputBundle {
 				return err
 			}
 			if err := writeStatusSection(cmd, extensionHealthKey, status.Health); err != nil {
+				return err
+			}
+			if err := writeStatusSection(cmd, statusSubprocessHealthKey, status.SubprocessHealth); err != nil {
 				return err
 			}
 			if err := writeStatusSection(cmd, configProvidersKey, status.Providers); err != nil {
@@ -164,6 +169,8 @@ func renderStatusHuman(status *StatusRecord, now func() time.Time) string {
 		{Label: "HTTP", Value: statusHTTPAddress(status)},
 		{Label: "Sessions", Value: fmt.Sprintf("%d active / %d total", status.Sessions.Active, status.Sessions.Total)},
 		{Label: "Health", Value: stringOrDash(status.Health.Status)},
+		{Label: "Subprocess Health", Value: stringOrDash(status.SubprocessHealth.Status)},
+		{Label: "Needs Attention", Value: fmt.Sprintf("%d task runs", statusNeedsAttentionRuns(status.Tasks))},
 		{Label: "Config", Value: stringOrDash(status.Config.Status)},
 		{Label: "Log Tail", Value: stringOrDash(status.LogTail.Status)},
 	}
@@ -225,6 +232,8 @@ func renderStatusToon(status *StatusRecord, now func() time.Time) string {
 		"sessions_total",
 		configProvidersKey,
 		statusMCPServersKey,
+		statusSubprocessHealthKey,
+		"needs_attention_runs",
 		configConfigKey,
 	}, []string{
 		status.Daemon.Status,
@@ -235,8 +244,20 @@ func renderStatusToon(status *StatusRecord, now func() time.Time) string {
 		strconv.Itoa(status.Sessions.Total),
 		strconv.Itoa(len(status.Providers)),
 		strconv.Itoa(len(status.MCPServers)),
+		status.SubprocessHealth.Status,
+		strconv.Itoa(statusNeedsAttentionRuns(status.Tasks)),
 		status.Config.Status,
 	})
+}
+
+func statusNeedsAttentionRuns(tasks contract.TaskHealthPayload) int {
+	total := 0
+	for _, runTotal := range tasks.RunTotals {
+		if strings.TrimSpace(runTotal.Status) == "needs_attention" {
+			total += runTotal.Count
+		}
+	}
+	return total
 }
 
 func statusHTTPAddress(status *StatusRecord) string {

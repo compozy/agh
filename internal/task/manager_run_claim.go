@@ -14,6 +14,17 @@ func (m *Service) EnqueueRun(
 	spec EnqueueRun,
 	actor ActorContext,
 ) (*Run, error) {
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return nil, err
+	}
+	return m.enqueueRun(ctx, spec, actor)
+}
+
+func (m *Service) enqueueRun(
+	ctx context.Context,
+	spec EnqueueRun,
+	actor ActorContext,
+) (*Run, error) {
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}

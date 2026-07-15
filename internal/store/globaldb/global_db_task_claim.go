@@ -73,6 +73,9 @@ func (g *TaskRunRepo) claimNextRunWithExecutor(
 	if runID == "" {
 		return taskpkg.ClaimResult{}, taskpkg.ErrNoClaimableRun
 	}
+	if err := g.ensureWorkspaceActiveRunCapacity(ctx, exec, runID, criteria); err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
 	claimToken, err := taskpkg.NewClaimToken()
 	if err != nil {
 		return taskpkg.ClaimResult{}, err

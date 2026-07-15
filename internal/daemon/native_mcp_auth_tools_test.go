@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	core "github.com/compozy/agh/internal/api/core"
+	settingspkg "github.com/compozy/agh/internal/settings"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
@@ -39,7 +41,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-1"},
+			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-auth"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMCPAuthStatus,
 				Input:  json.RawMessage(`{"server_name":"linear"}`),
@@ -50,7 +52,8 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		}
 		if provider.source.RawServerName != "linear" ||
 			provider.source.Owner != "linear" ||
-			provider.source.Kind != toolspkg.SourceMCP {
+			provider.source.Kind != toolspkg.SourceMCP ||
+			provider.source.WorkspaceID != "ws-auth" {
 			t.Fatalf("provider source = %#v, want MCP source for linear", provider.source)
 		}
 
@@ -86,6 +89,62 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose workspace-scoped dead runtime state and reason", func(t *testing.T) {
+		t.Parallel()
+
+		settingsService := &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{{
+			Name:        "linear",
+			Scope:       settingspkg.ScopeWorkspace,
+			WorkspaceID: "ws-dead",
+			RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{
+				Configured: true,
+				State:      settingspkg.MCPServerRuntimeStateDead,
+				Probe:      settingspkg.MCPServerProbeSkipped,
+				Reason:     string(toolspkg.ReasonBackendDead),
+				Diagnostic: "sidecar terminated",
+			},
+		}}}
+		provider := &nativeMCPAuthStatusProvider{status: toolspkg.MCPAuthStatus{
+			ServerName: "linear",
+			Status:     "unconfigured",
+		}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
+				return provider
+			},
+			Settings: func() core.SettingsService { return settingsService },
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-dead"},
+			toolspkg.CallRequest{
+				ToolID:      toolspkg.ToolIDMCPStatus,
+				WorkspaceID: "ws-dead",
+				Input:       json.RawMessage(`{"server_name":"linear"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(mcp_status) error = %v", err)
+		}
+		var payload mcpStatusPayload
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(mcp status) error = %v", err)
+		}
+		if payload.State != "dead" || payload.Runtime == nil ||
+			payload.Runtime.Reason != string(toolspkg.ReasonBackendDead) ||
+			payload.Runtime.Diagnostic != "sidecar terminated" {
+			t.Fatalf("mcp status payload = %#v, want dead runtime with backend_dead", payload)
+		}
+		if settingsService.lastRequest.Scope != settingspkg.ScopeWorkspace ||
+			settingsService.lastRequest.WorkspaceID != "ws-dead" {
+			t.Fatalf("settings request = %#v, want workspace ws-dead", settingsService.lastRequest)
+		}
+		if provider.source.WorkspaceID != "ws-dead" {
+			t.Fatalf("MCP auth source = %#v, want workspace ws-dead", provider.source)
+		}
+	})
+
 	t.Run("Should expose only status tools for MCP auth diagnostics", func(t *testing.T) {
 		t.Parallel()
 
@@ -93,6 +152,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return &nativeMCPAuthStatusProvider{}
 			},
+			Settings: func() core.SettingsService { return &nativeMCPSettingsService{} },
 		}, nativeApproveAllPolicyInputs())
 
 		views, err := registry.SessionProjection(t.Context(), toolspkg.Scope{SessionID: "sess-1"})
@@ -117,6 +177,16 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
 				return provider
+			},
+			Settings: func() core.SettingsService {
+				return &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{{
+					Name: "linear",
+					RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{
+						Configured: true,
+						State:      settingspkg.MCPServerRuntimeStateAuthRequired,
+						Probe:      settingspkg.MCPServerProbeSkipped,
+					},
+				}}}
 			},
 		}, nativeApproveAllPolicyInputs())
 
@@ -222,6 +292,25 @@ type nativeMCPAuthStatusProvider struct {
 	source                  toolspkg.SourceRef
 	err                     error
 	preserveEmptyServerName bool
+}
+
+type nativeMCPSettingsService struct {
+	core.SettingsService
+	servers     []settingspkg.MCPServerItem
+	lastRequest settingspkg.CollectionRequest
+}
+
+func (s *nativeMCPSettingsService) ListCollection(
+	_ context.Context,
+	req settingspkg.CollectionRequest,
+) (settingspkg.CollectionEnvelope, error) {
+	s.lastRequest = req
+	return settingspkg.CollectionEnvelope{
+		Collection:  req.Collection,
+		Scope:       req.Scope,
+		WorkspaceID: req.WorkspaceID,
+		MCPServers:  append([]settingspkg.MCPServerItem(nil), s.servers...),
+	}, nil
 }
 
 func (p *nativeMCPAuthStatusProvider) Status(

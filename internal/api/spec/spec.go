@@ -139,6 +139,7 @@ const (
 	specSkillOrScopeNotFoundDescription                      = "Skill or scope not found"
 	specSkillsRegistryIsNotConfiguredDescription             = "Skills registry is not configured"
 	specTaskNotFoundDescription                              = "Task not found"
+	specTaskAdmissionUnavailableDescription                  = "Task service is unavailable or daemon is draining"
 	specTaskOrBridgeServiceIsNotConfiguredDescription        = "Task or bridge service is not configured"
 	specTaskRunNotFoundDescription                           = "Task run not found"
 	specTaskServiceIsNotConfiguredDescription                = "Task service is not configured"
@@ -1039,35 +1040,6 @@ var operationRegistry = append([]OperationSpec{
 			{Status: 401, Description: "Webhook authentication failed", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Webhook trigger not found", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specAutomationManagerIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
-		Method:      httpMethodGet,
-		Path:        "/api/doctor",
-		OperationID: "getDoctor",
-		Summary:     "Run runtime diagnostics",
-		Tags:        []string{specDiagnosticsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			queryParam("only", "Comma-separated probe ids or categories to include", false),
-			queryParam("exclude", "Comma-separated probe ids or categories to exclude", false),
-			boolQueryParam("quiet", "Omit OK diagnostics"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.DoctorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
-		Method:      httpMethodGet,
-		Path:        "/api/status",
-		OperationID: "getStatus",
-		Summary:     "Get the runtime status snapshot",
-		Tags:        []string{specDiagnosticsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.StatusPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -2027,7 +1999,7 @@ var operationRegistry = append([]OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/agent/tasks/claim-next",
+		Path:        specAgentTaskClaimNextPath,
 		OperationID: "claimNextAgentTask",
 		Summary:     "Atomically claim the next matching task run for the calling agent",
 		Tags:        []string{specAgentKey, specTasksKey},
@@ -2046,7 +2018,7 @@ var operationRegistry = append([]OperationSpec{
 			{Status: 422, Description: "Invalid claim criteria", Body: contract.ErrorPayload{}},
 			{
 				Status:      503,
-				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Description: specTaskAdmissionUnavailableDescription,
 				Body:        contract.ErrorPayload{},
 			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -2916,7 +2888,7 @@ var operationRegistry = append([]OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/sessions",
+		Path:        specSessionsPath,
 		OperationID: "createSession",
 		Summary:     "Create a session",
 		Tags:        []string{specSessionsKey},
@@ -2927,6 +2899,7 @@ var operationRegistry = append([]OperationSpec{
 			{Status: 400, Description: "Invalid create request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Session creation conflict", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specNewWorkAdmissionUnavailableDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -3039,6 +3012,7 @@ var operationRegistry = append([]OperationSpec{
 			promptGoalErrorResponse(409, specSessionPromptConflictDescription),
 			{Status: 413, Description: "Session input queue is full", Body: contract.ErrorPayload{}},
 			promptGoalErrorResponse(422, "Goal command is invalid or cannot transition"),
+			{Status: 503, Description: specNewWorkAdmissionUnavailableDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -3817,7 +3791,7 @@ var operationRegistry = append([]OperationSpec{
 			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task-run enqueue conflict", Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task-run enqueue request", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskAdmissionUnavailableDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -5278,7 +5252,7 @@ var operationRegistry = append([]OperationSpec{
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
-}, sessionCatalogOperations()...)
+}, supplementalOperationSpecs()...)
 
 // Operations returns the canonical REST operation registry in deterministic order.
 func notificationPresetOperations() []OperationSpec {
@@ -5650,22 +5624,6 @@ func settingsUpdateStatusValues() []string {
 	}
 }
 
-func skillDiagnosticStateValues() []string {
-	return []string{
-		string(contract.SkillDiagnosticStateValid),
-		string(contract.SkillDiagnosticStateShadowed),
-		string(contract.SkillDiagnosticStateVerificationFailed),
-	}
-}
-
-func skillVerificationStatusValues() []string {
-	return []string{
-		string(contract.SkillVerificationStatusPassed),
-		string(contract.SkillVerificationStatusWarning),
-		string(contract.SkillVerificationStatusFailed),
-	}
-}
-
 func schemaRefForValue(value any, schemas openapi3.Schemas) (*openapi3.SchemaRef, error) {
 	var rootType reflect.Type
 	if value != nil {
@@ -5967,9 +5925,10 @@ func automationScheduleModeValues() []string {
 
 func automationSchedulerCatchUpPolicyValues() []string {
 	return []string{
-		string(automationpkg.SchedulerCatchUpPolicySkip),
+		string(automationpkg.SchedulerCatchUpPolicySkipMissed),
 		string(automationpkg.SchedulerCatchUpPolicyCoalesce),
 		string(automationpkg.SchedulerCatchUpPolicyReplay),
+		string(automationpkg.SchedulerCatchUpPolicyRunOnce),
 	}
 }
 
@@ -6545,74 +6504,6 @@ func toolRiskClassValues() []string {
 		string(tools.RiskMutating),
 		string(tools.RiskOpenWorld),
 		string(tools.RiskDestructive),
-	}
-}
-
-func toolReasonCodeValues() []string {
-	values := []string{
-		string(tools.ReasonIDEmpty),
-		string(tools.ReasonIDEmptySegment),
-		string(tools.ReasonIDInvalidFormat),
-		string(tools.ReasonIDReservedConflict),
-		string(tools.ReasonReservedNamespace),
-		string(tools.ReasonIDTooLong),
-		string(tools.ReasonDependencyMissing),
-		string(tools.ReasonBackendUnhealthy),
-		string(tools.ReasonBackendNotExecutable),
-		string(tools.ReasonExtensionInactive),
-		string(tools.ReasonExtensionRuntimeMismatch),
-		string(tools.ReasonExtensionCapabilityMissing),
-		string(tools.ReasonRuntimeDescriptorMissing),
-		string(tools.ReasonRuntimeDescriptorMismatch),
-		string(tools.ReasonHandlerMissing),
-		string(tools.ReasonMCPUnreachable),
-		string(tools.ReasonMCPAuthUnconfigured),
-		string(tools.ReasonMCPAuthRequired),
-		string(tools.ReasonMCPAuthExpired),
-		string(tools.ReasonMCPAuthInvalid),
-		string(tools.ReasonMCPAuthRefreshFailed),
-		string(tools.ReasonSourceDisabled),
-		string(tools.ReasonPolicyDenied),
-		string(tools.ReasonVisibilityDenied),
-		string(tools.ReasonApprovalRequired),
-		string(tools.ReasonApprovalUnreachable),
-		string(tools.ReasonApprovalTimedOut),
-		string(tools.ReasonApprovalCanceled),
-		string(tools.ReasonApprovalTokenMissing),
-		string(tools.ReasonApprovalTokenExpired),
-		string(tools.ReasonApprovalTokenMismatch),
-		string(tools.ReasonApprovalTokenReplayed),
-		string(tools.ReasonSessionDenied),
-		string(tools.ReasonHookDenied),
-		string(tools.ReasonSchemaInvalid),
-		string(tools.ReasonConflictedID),
-		string(tools.ReasonConflictedSanitizedName),
-		string(tools.ReasonResultBudgetExceeded),
-		string(tools.ReasonCallCanceled),
-		string(tools.ReasonCallTimedOut),
-		string(tools.ReasonSecretMetadata),
-		string(tools.ReasonToolsetUnknown),
-		string(tools.ReasonToolsetCycle),
-		string(tools.ReasonToolUnknown),
-	}
-	sort.Strings(values)
-	return values
-}
-
-func toolErrorCodeValues() []string {
-	return []string{
-		string(tools.ErrorCodeNotFound),
-		string(tools.ErrorCodeConflict),
-		string(tools.ErrorCodeUnavailable),
-		string(tools.ErrorCodeDenied),
-		string(tools.ErrorCodeApprovalRequired),
-		string(tools.ErrorCodeInvalidInput),
-		string(tools.ErrorCodeModelNotFound),
-		string(tools.ErrorCodeReasoningEffortUnsupported),
-		string(tools.ErrorCodeResultTooLarge),
-		string(tools.ErrorCodeBackendFailed),
-		string(tools.ErrorCodeCanceled),
-		string(tools.ErrorCodeTimedOut),
 	}
 }
 

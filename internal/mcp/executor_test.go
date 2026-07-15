@@ -26,6 +26,7 @@ import (
 const (
 	stdioHelperEnv            = "AGH_MCP_STDIO_HELPER"
 	stdioEnvHelperEnv         = "AGH_MCP_STDIO_ENV_HELPER"
+	stdioFailedHelperEnv      = "AGH_MCP_STDIO_FAILED_HELPER"
 	stdioParentSecretEnv      = "AGH_PARENT_SECRET_TOKEN"
 	stdioExplicitSecretEnv    = "AGH_EXPLICIT_SECRET_TOKEN"
 	stdioExplicitSecretSource = "AGH_EXPLICIT_SECRET_SOURCE"
@@ -380,7 +381,7 @@ func TestMCPCallExecutor(t *testing.T) {
 				URL:       blockingServer.URL,
 			},
 			WithTimeout(20*time.Millisecond),
-			WithHTTPClient(&http.Client{Timeout: 30 * time.Millisecond}),
+			WithHTTPClient(&http.Client{Timeout: 2 * time.Second}),
 		)
 		_, err = timeoutExecutor.ListTools(testContext(t), toolspkg.SourceRef{
 			Kind:          toolspkg.SourceMCP,
@@ -388,6 +389,26 @@ func TestMCPCallExecutor(t *testing.T) {
 			RawServerName: "slow",
 		})
 		requireReason(t, err, toolspkg.ReasonCallTimedOut)
+	})
+
+	t.Run("Should Classify A Terminated Stdio Sidecar As Unreachable", func(t *testing.T) {
+		t.Parallel()
+
+		executor := newTestMCPExecutor(t, aghconfig.MCPServer{
+			Name:      "terminated",
+			Transport: aghconfig.MCPServerTransportStdio,
+			Command:   os.Args[0],
+			Args:      []string{"-test.run=TestMCPStdioHelperProcess"},
+			Env: map[string]string{
+				stdioFailedHelperEnv: "1",
+			},
+		})
+		_, err := executor.ListTools(testContext(t), toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "terminated",
+			RawServerName: "terminated",
+		})
+		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
 	})
 
 	t.Run("Should Use Explicit MCP Constructors And Avoid OAuth Helpers", func(t *testing.T) {
@@ -561,6 +582,9 @@ func setMCPTestEnv(t *testing.T, key string, value string) {
 
 func TestMCPStdioHelperProcess(t *testing.T) {
 	t.Run("Should Serve Stdio When Requested", func(_ *testing.T) {
+		if os.Getenv(stdioFailedHelperEnv) == "1" {
+			os.Exit(17)
+		}
 		if os.Getenv(stdioEnvHelperEnv) == "1" {
 			server := newFakeSDKServer(
 				func(_ context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {

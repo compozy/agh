@@ -44,7 +44,7 @@ func whoamiBundle(identity IdentityRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"identity",
-				[]string{automationSessionIDKey, whoamiAgentKey, "agent_name"},
+				[]string{automationSessionIDKey, whoamiAgentKey, installAgentNameKey},
 				[]string{
 					identity.SessionID,
 					identity.Agent,

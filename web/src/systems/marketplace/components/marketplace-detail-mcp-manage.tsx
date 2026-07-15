@@ -98,6 +98,11 @@ function MarketplaceDetailMCPManage({
               {status.probe.label}
             </Pill>
           </div>
+          {status.runtime.code ? (
+            <p className="font-mono text-xs text-muted" data-testid="marketplace-mcp-runtime-code">
+              {status.runtime.code}
+            </p>
+          ) : null}
           {label ? (
             <div>
               <Button

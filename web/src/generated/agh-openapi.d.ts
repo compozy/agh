@@ -1060,6 +1060,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/drain": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Stop admitting new work */
+    post: operations["drainDaemon"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions": {
     parameters: {
       query?: never;
@@ -3816,6 +3833,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tool-approval-grants": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List remembered native-tool approval decisions for one workspace */
+    get: operations["listToolApprovalGrants"];
+    /** Set an explicit agent-wide or tool-wide native-tool approval decision */
+    put: operations["setToolApprovalGrant"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tool-approval-grants/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Revoke one remembered native-tool approval decision in one workspace */
+    delete: operations["revokeToolApprovalGrant"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tools": {
     parameters: {
       query?: never;
@@ -3929,6 +3981,23 @@ export interface paths {
     get: operations["getToolset"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/undrain": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resume admission of new work */
+    post: operations["undrainDaemon"];
     delete?: never;
     options?: never;
     head?: never;
@@ -4057,6 +4126,57 @@ export interface paths {
     head?: never;
     /** Update a registered workspace */
     patch: operations["updateWorkspace"];
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/automation/suggestions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List consent-first automation suggestions for one workspace */
+    get: operations["listAutomationSuggestions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/accept": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Accept one automation suggestion and create its Job */
+    post: operations["acceptAutomationSuggestion"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Durably dismiss one automation suggestion */
+    post: operations["dismissAutomationSuggestion"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/workspaces/{workspace_id}/hooks/runs": {
@@ -4749,6 +4869,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the live pending clarification for a session */
+    get: operations["listSessionClarifications"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications/{request_id}/answer": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Answer a live session clarification */
+    post: operations["answerSessionClarification"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/clear": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Clear conversation history and restart the session context */
+    post: operations["clearSessionConversation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/events": {
     parameters: {
       query?: never;
@@ -5064,6 +5235,23 @@ export interface paths {
     };
     /** Get aggregated token usage for a session */
     get: operations["getSessionUsage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one retained oversized tool-result page */
+    get: operations["readToolArtifact"];
     put?: never;
     post?: never;
     delete?: never;
@@ -6278,6 +6466,7 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    recovery_count: number;
                     resolved_network_participation:
                       | (
                           | {
@@ -6505,6 +6694,7 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    recovery_count: number;
                     resolved_network_participation:
                       | (
                           | {
@@ -6634,6 +6824,7 @@ export interface operations {
                       previous_run_id?: string;
                       /** Format: date-time */
                       queued_at: string;
+                      recovery_count: number;
                       resolved_network_participation:
                         | (
                             | {
@@ -8712,6 +8903,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -8948,7 +9140,7 @@ export interface operations {
           };
         };
       };
-      /** @description Service unavailable - dependent service missing */
+      /** @description Task service is unavailable or daemon is draining */
       503: {
         headers: {
           [name: string]: unknown;
@@ -15637,15 +15829,18 @@ export interface operations {
                 strategy: "none" | "backoff";
               };
               schedule?: {
+                /** @enum {string} */
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
                 expr?: string;
                 interval?: string;
+                misfire_grace_seconds?: number;
                 /** @enum {string} */
                 mode: "cron" | "every" | "at";
                 time?: string;
               } | null;
               scheduler?: {
                 /** @enum {string} */
-                catch_up_policy?: "skip" | "coalesce" | "replay";
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -15929,8 +16124,11 @@ export interface operations {
             strategy: "none" | "backoff";
           } | null;
           schedule: {
+            /** @enum {string} */
+            catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
             expr?: string;
             interval?: string;
+            misfire_grace_seconds?: number;
             /** @enum {string} */
             mode: "cron" | "every" | "at";
             time?: string;
@@ -16116,15 +16314,18 @@ export interface operations {
                 strategy: "none" | "backoff";
               };
               schedule?: {
+                /** @enum {string} */
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
                 expr?: string;
                 interval?: string;
+                misfire_grace_seconds?: number;
                 /** @enum {string} */
                 mode: "cron" | "every" | "at";
                 time?: string;
               } | null;
               scheduler?: {
                 /** @enum {string} */
-                catch_up_policy?: "skip" | "coalesce" | "replay";
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -16466,15 +16667,18 @@ export interface operations {
                 strategy: "none" | "backoff";
               };
               schedule?: {
+                /** @enum {string} */
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
                 expr?: string;
                 interval?: string;
+                misfire_grace_seconds?: number;
                 /** @enum {string} */
                 mode: "cron" | "every" | "at";
                 time?: string;
               } | null;
               scheduler?: {
                 /** @enum {string} */
-                catch_up_policy?: "skip" | "coalesce" | "replay";
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -16875,8 +17079,11 @@ export interface operations {
             strategy: "none" | "backoff";
           } | null;
           schedule?: {
+            /** @enum {string} */
+            catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
             expr?: string;
             interval?: string;
+            misfire_grace_seconds?: number;
             /** @enum {string} */
             mode: "cron" | "every" | "at";
             time?: string;
@@ -17058,15 +17265,18 @@ export interface operations {
                 strategy: "none" | "backoff";
               };
               schedule?: {
+                /** @enum {string} */
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
                 expr?: string;
                 interval?: string;
+                misfire_grace_seconds?: number;
                 /** @enum {string} */
                 mode: "cron" | "every" | "at";
                 time?: string;
               } | null;
               scheduler?: {
                 /** @enum {string} */
-                catch_up_policy?: "skip" | "coalesce" | "replay";
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -24786,6 +24996,79 @@ export interface operations {
       };
     };
   };
+  drainDaemon: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            state: "active" | "draining";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Daemon drain controller is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listExtensions: {
     parameters: {
       query?: never;
@@ -31748,9 +32031,15 @@ export interface operations {
               context_window?: number | null;
               cost?: {
                 /** Format: double */
+                cache_read_per_million?: number | null;
+                /** Format: double */
+                cache_write_per_million?: number | null;
+                /** Format: double */
                 input_per_million?: number | null;
                 /** Format: double */
                 output_per_million?: number | null;
+                /** Format: double */
+                reasoning_per_million?: number | null;
               } | null;
               curated: boolean;
               /** @enum {string|null} */
@@ -32082,9 +32371,15 @@ export interface operations {
               context_window?: number | null;
               cost?: {
                 /** Format: double */
+                cache_read_per_million?: number | null;
+                /** Format: double */
+                cache_write_per_million?: number | null;
+                /** Format: double */
                 input_per_million?: number | null;
                 /** Format: double */
                 output_per_million?: number | null;
+                /** Format: double */
+                reasoning_per_million?: number | null;
               } | null;
               curated: boolean;
               /** @enum {string|null} */
@@ -32327,9 +32622,15 @@ export interface operations {
               context_window?: number | null;
               cost?: {
                 /** Format: double */
+                cache_read_per_million?: number | null;
+                /** Format: double */
+                cache_write_per_million?: number | null;
+                /** Format: double */
                 input_per_million?: number | null;
                 /** Format: double */
                 output_per_million?: number | null;
+                /** Format: double */
+                reasoning_per_million?: number | null;
               } | null;
               curated: boolean;
               /** @enum {string|null} */
@@ -34203,6 +34504,7 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    recovery_count: number;
                     resolved_network_participation?:
                       | (
                           | {
@@ -34690,9 +34992,15 @@ export interface operations {
                 context_window?: number | null;
                 cost?: {
                   /** Format: double */
+                  cache_read_per_million?: number | null;
+                  /** Format: double */
+                  cache_write_per_million?: number | null;
+                  /** Format: double */
                   input_per_million?: number | null;
                   /** Format: double */
                   output_per_million?: number | null;
+                  /** Format: double */
+                  reasoning_per_million?: number | null;
                 } | null;
                 /** @enum {string|null} */
                 default_reasoning_effort?:
@@ -36057,6 +36365,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -36365,6 +36674,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -36656,6 +36966,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -37091,6 +37402,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -37557,6 +37869,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -37689,6 +38002,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -38028,6 +38342,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -38366,6 +38681,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -38498,6 +38814,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -38947,6 +39264,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -39065,6 +39383,7 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    recovery_count: number;
                     resolved_network_participation?:
                       | (
                           | {
@@ -40637,6 +40956,31 @@ export interface operations {
           };
         };
       };
+      /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
     };
   };
   streamSessionCatalog: {
@@ -41576,6 +41920,7 @@ export interface operations {
             available_scopes: "global"[];
             config: {
               daemon: {
+                memory_report_interval: string;
                 reload_timeouts: {
                   bridges: string;
                   mcp: string;
@@ -41598,6 +41943,9 @@ export interface operations {
               permissions: {
                 /** @enum {string} */
                 mode: "deny-all" | "approve-reads" | "approve-all";
+              };
+              redact: {
+                enabled: boolean;
               };
               session_timeout: string;
             };
@@ -41678,6 +42026,7 @@ export interface operations {
         "application/json": {
           config: {
             daemon: {
+              memory_report_interval: string;
               reload_timeouts: {
                 bridges: string;
                 mcp: string;
@@ -41700,6 +42049,9 @@ export interface operations {
             permissions: {
               /** @enum {string} */
               mode: "deny-all" | "approve-reads" | "approve-all";
+            };
+            redact: {
+              enabled: boolean;
             };
             session_timeout: string;
           };
@@ -45868,9 +46220,15 @@ export interface operations {
                       /** Format: int64 */
                       context_window?: number | null;
                       /** Format: double */
+                      cost_cache_read_per_million?: number | null;
+                      /** Format: double */
+                      cost_cache_write_per_million?: number | null;
+                      /** Format: double */
                       cost_input_per_million?: number | null;
                       /** Format: double */
                       cost_output_per_million?: number | null;
+                      /** Format: double */
+                      cost_reasoning_per_million?: number | null;
                       /** @enum {string} */
                       default_reasoning_effort?:
                         | "none"
@@ -45955,9 +46313,15 @@ export interface operations {
                     /** Format: int64 */
                     context_window?: number | null;
                     /** Format: double */
+                    cost_cache_read_per_million?: number | null;
+                    /** Format: double */
+                    cost_cache_write_per_million?: number | null;
+                    /** Format: double */
                     cost_input_per_million?: number | null;
                     /** Format: double */
                     cost_output_per_million?: number | null;
+                    /** Format: double */
+                    cost_reasoning_per_million?: number | null;
                     /** @enum {string} */
                     default_reasoning_effort?:
                       | "none"
@@ -46148,9 +46512,15 @@ export interface operations {
                       /** Format: int64 */
                       context_window?: number | null;
                       /** Format: double */
+                      cost_cache_read_per_million?: number | null;
+                      /** Format: double */
+                      cost_cache_write_per_million?: number | null;
+                      /** Format: double */
                       cost_input_per_million?: number | null;
                       /** Format: double */
                       cost_output_per_million?: number | null;
+                      /** Format: double */
+                      cost_reasoning_per_million?: number | null;
                       /** @enum {string} */
                       default_reasoning_effort?:
                         | "none"
@@ -46235,9 +46605,15 @@ export interface operations {
                     /** Format: int64 */
                     context_window?: number | null;
                     /** Format: double */
+                    cost_cache_read_per_million?: number | null;
+                    /** Format: double */
+                    cost_cache_write_per_million?: number | null;
+                    /** Format: double */
                     cost_input_per_million?: number | null;
                     /** Format: double */
                     cost_output_per_million?: number | null;
+                    /** Format: double */
+                    cost_reasoning_per_million?: number | null;
                     /** @enum {string} */
                     default_reasoning_effort?:
                       | "none"
@@ -46437,9 +46813,15 @@ export interface operations {
                 /** Format: int64 */
                 context_window?: number | null;
                 /** Format: double */
+                cost_cache_read_per_million?: number | null;
+                /** Format: double */
+                cost_cache_write_per_million?: number | null;
+                /** Format: double */
                 cost_input_per_million?: number | null;
                 /** Format: double */
                 cost_output_per_million?: number | null;
+                /** Format: double */
+                cost_reasoning_per_million?: number | null;
                 /** @enum {string} */
                 default_reasoning_effort?:
                   | "none"
@@ -47604,6 +47986,20 @@ export interface operations {
               poll_interval: string;
             };
             diagnostics?: {
+              activation_reasons?: {
+                /** @enum {string} */
+                code:
+                  | "platform_mismatch"
+                  | "environment_context_unavailable"
+                  | "environment_mismatch"
+                  | "tool_context_unavailable"
+                  | "missing_tool"
+                  | "capability_context_unavailable"
+                  | "missing_capability";
+                gate: string;
+                message: string;
+                missing?: string[];
+              }[];
               failure?: {
                 actual_hash?: string;
                 code: string;
@@ -47614,7 +48010,7 @@ export interface operations {
               path?: string;
               source?: string;
               /** @enum {string} */
-              state: "valid" | "shadowed" | "verification_failed";
+              state: "valid" | "shadowed" | "verification_failed" | "inactive";
               /** @enum {string} */
               verification_status: "passed" | "warning" | "failed";
               warnings?: {
@@ -48099,8 +48495,39 @@ export interface operations {
         content: {
           "application/json": {
             skills: {
+              activation: {
+                active: boolean;
+                reasons?: {
+                  /** @enum {string} */
+                  code:
+                    | "platform_mismatch"
+                    | "environment_context_unavailable"
+                    | "environment_mismatch"
+                    | "tool_context_unavailable"
+                    | "missing_tool"
+                    | "capability_context_unavailable"
+                    | "missing_capability";
+                  gate: string;
+                  message: string;
+                  missing?: string[];
+                }[];
+              };
               description: string;
               diagnostics?: {
+                activation_reasons?: {
+                  /** @enum {string} */
+                  code:
+                    | "platform_mismatch"
+                    | "environment_context_unavailable"
+                    | "environment_mismatch"
+                    | "tool_context_unavailable"
+                    | "missing_tool"
+                    | "capability_context_unavailable"
+                    | "missing_capability";
+                  gate: string;
+                  message: string;
+                  missing?: string[];
+                }[];
                 failure?: {
                   actual_hash?: string;
                   code: string;
@@ -48111,7 +48538,7 @@ export interface operations {
                 path?: string;
                 source?: string;
                 /** @enum {string} */
-                state: "valid" | "shadowed" | "verification_failed";
+                state: "valid" | "shadowed" | "verification_failed" | "inactive";
                 /** @enum {string} */
                 verification_status: "passed" | "warning" | "failed";
                 warnings?: {
@@ -48759,8 +49186,39 @@ export interface operations {
         content: {
           "application/json": {
             skill: {
+              activation: {
+                active: boolean;
+                reasons?: {
+                  /** @enum {string} */
+                  code:
+                    | "platform_mismatch"
+                    | "environment_context_unavailable"
+                    | "environment_mismatch"
+                    | "tool_context_unavailable"
+                    | "missing_tool"
+                    | "capability_context_unavailable"
+                    | "missing_capability";
+                  gate: string;
+                  message: string;
+                  missing?: string[];
+                }[];
+              };
               description: string;
               diagnostics?: {
+                activation_reasons?: {
+                  /** @enum {string} */
+                  code:
+                    | "platform_mismatch"
+                    | "environment_context_unavailable"
+                    | "environment_mismatch"
+                    | "tool_context_unavailable"
+                    | "missing_tool"
+                    | "capability_context_unavailable"
+                    | "missing_capability";
+                  gate: string;
+                  message: string;
+                  missing?: string[];
+                }[];
                 failure?: {
                   actual_hash?: string;
                   code: string;
@@ -48771,7 +49229,7 @@ export interface operations {
                 path?: string;
                 source?: string;
                 /** @enum {string} */
-                state: "valid" | "shadowed" | "verification_failed";
+                state: "valid" | "shadowed" | "verification_failed" | "inactive";
                 /** @enum {string} */
                 verification_status: "passed" | "warning" | "failed";
                 warnings?: {
@@ -49598,7 +50056,7 @@ export interface operations {
               next_fire?: string | null;
               scheduled_jobs?: {
                 /** @enum {string} */
-                catch_up_policy?: "skip" | "coalesce" | "replay";
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -49905,6 +50363,20 @@ export interface operations {
             };
             skills: {
               diagnostics?: {
+                activation_reasons?: {
+                  /** @enum {string} */
+                  code:
+                    | "platform_mismatch"
+                    | "environment_context_unavailable"
+                    | "environment_mismatch"
+                    | "tool_context_unavailable"
+                    | "missing_tool"
+                    | "capability_context_unavailable"
+                    | "missing_capability";
+                  gate: string;
+                  message: string;
+                  missing?: string[];
+                }[];
                 failure?: {
                   actual_hash?: string;
                   code: string;
@@ -49915,7 +50387,7 @@ export interface operations {
                 path?: string;
                 source?: string;
                 /** @enum {string} */
-                state: "valid" | "shadowed" | "verification_failed";
+                state: "valid" | "shadowed" | "verification_failed" | "inactive";
                 /** @enum {string} */
                 verification_status: "passed" | "warning" | "failed";
                 warnings?: {
@@ -49929,6 +50401,21 @@ export interface operations {
               disabled_count: number;
               discovered_count: number;
               runtime_available: boolean;
+            };
+            subprocess_health: {
+              healthy: number;
+              monitored: number;
+              sessions?: {
+                agent_name: string;
+                consecutive_failures: number;
+                /** Format: date-time */
+                last_checked_at?: string | null;
+                reason?: string;
+                session_id: string;
+                workspace_id: string;
+              }[];
+              status: string;
+              unhealthy: number;
             };
             tasks: {
               active_orphan_runs: number;
@@ -50686,6 +51173,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -51107,6 +51595,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -51183,6 +51672,15 @@ export interface operations {
               } | null;
               summary: {
                 cost_currency?: string | null;
+                /** @enum {string} */
+                cost_source?:
+                  | "agent_reported"
+                  | "catalog_config"
+                  | "models_dev"
+                  | "builtin"
+                  | "none";
+                /** @enum {string} */
+                cost_status?: "actual" | "estimated" | "included" | "unknown";
                 /** Format: int64 */
                 input_tokens?: number | null;
                 /** Format: date-time */
@@ -51437,6 +51935,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -51726,6 +52225,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -52015,6 +52515,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -52552,6 +53053,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -53334,6 +53836,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -53652,6 +54155,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -54473,6 +54977,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -54900,6 +55405,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -55018,6 +55524,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -56207,6 +56714,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -57956,6 +58464,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -58383,6 +58892,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -58501,6 +59011,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -59129,6 +59640,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -59556,6 +60068,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -59674,6 +60187,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -61144,6 +61658,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -62628,6 +63143,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -64254,6 +64770,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -64578,6 +65095,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -64744,7 +65262,7 @@ export interface operations {
           };
         };
       };
-      /** @description Task service is not configured */
+      /** @description Task service is unavailable or daemon is draining */
       503: {
         headers: {
           [name: string]: unknown;
@@ -64932,6 +65450,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -65281,6 +65800,7 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              recovery_count: number;
               resolved_network_participation?:
                 | (
                     | {
@@ -65737,6 +66257,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -66054,6 +66575,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -66338,6 +66860,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -66498,6 +67021,7 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  recovery_count: number;
                   resolved_network_participation?:
                     | (
                         | {
@@ -67144,6 +67668,417 @@ export interface operations {
       };
     };
   };
+  listToolApprovalGrants: {
+    parameters: {
+      query: {
+        /** @description Workspace id or reference */
+        workspace_id: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            grants: {
+              agent_name?: string;
+              /** Format: date-time */
+              created_at: string;
+              /** @enum {string} */
+              decision: "allow" | "reject";
+              id: string;
+              input_digest?: string;
+              /** Format: date-time */
+              last_used_at: string;
+              tool_id: string;
+              workspace_id: string;
+            }[];
+            total: number;
+          };
+        };
+      };
+      /** @description Workspace is required */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Tool approval grant service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  setToolApprovalGrant: {
+    parameters: {
+      query: {
+        /** @description Workspace id or reference */
+        workspace_id: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent_name?: string;
+          /** @enum {string} */
+          decision: "allow" | "reject";
+          /** @enum {string} */
+          scope: "agent" | "tool";
+          tool_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Stored */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            grant: {
+              agent_name?: string;
+              /** Format: date-time */
+              created_at: string;
+              /** @enum {string} */
+              decision: "allow" | "reject";
+              id: string;
+              input_digest?: string;
+              /** Format: date-time */
+              last_used_at: string;
+              tool_id: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid wider approval decision */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Tool approval grant service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  revokeToolApprovalGrant: {
+    parameters: {
+      query: {
+        /** @description Workspace id or reference */
+        workspace_id: string;
+      };
+      header?: never;
+      path: {
+        /** @description Remembered approval grant id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Workspace and grant id are required */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace or approval grant not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal daemon error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Tool approval grant service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listTools: {
     parameters: {
       query?: {
@@ -67211,12 +68146,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -67265,12 +68203,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -67352,6 +68293,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -67360,6 +68302,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -67395,12 +68420,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -67507,12 +68535,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -67561,12 +68592,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -67648,6 +68682,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -67656,6 +68691,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -67691,12 +68809,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -67726,6 +68847,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -67734,6 +68856,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -67769,12 +68974,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -67882,12 +69090,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -67936,12 +69147,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -68023,6 +69237,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68031,6 +69246,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -68066,12 +69364,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -68101,6 +69402,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68109,6 +69411,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -68144,12 +69529,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -68179,6 +69567,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68187,6 +69576,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -68222,12 +69694,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -68324,6 +69799,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68332,6 +69808,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -68367,12 +69926,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -68402,6 +69964,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68410,6 +69973,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -68445,12 +70091,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -68480,6 +70129,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68488,6 +70138,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -68523,12 +70256,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -68558,6 +70294,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68566,6 +70303,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -68601,12 +70421,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -68700,6 +70523,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68748,12 +70572,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -68780,6 +70607,7 @@ export interface operations {
                 bytes?: number;
                 mime_type?: string;
                 name?: string;
+                sha256?: string;
                 uri: string;
               }[];
               /** Format: int64 */
@@ -68839,12 +70667,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -68878,6 +70709,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68886,6 +70718,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -68921,12 +70836,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -68956,6 +70874,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -68964,6 +70883,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -68999,12 +71001,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69034,6 +71039,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69042,6 +71048,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69077,12 +71166,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69112,6 +71204,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69120,6 +71213,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69155,12 +71331,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69190,6 +71369,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69198,6 +71378,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69233,12 +71496,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69268,6 +71534,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69276,6 +71543,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69311,12 +71661,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69346,6 +71699,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69354,6 +71708,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69389,12 +71826,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69424,6 +71864,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69432,6 +71873,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69467,12 +71991,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69505,6 +72032,171 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+      /** @description Oversized result persistence failed; a bounded partial result is preserved */
+      507: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
+                | "tool_result_too_large"
+                | "tool_result_persistence_failed"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "result_persistence_failed"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
           };
         };
       };
@@ -69573,12 +72265,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69610,6 +72305,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69618,6 +72314,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69653,12 +72432,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69762,12 +72544,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69799,6 +72584,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69807,6 +72593,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69842,12 +72711,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69877,6 +72749,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69885,6 +72758,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69920,12 +72876,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -69955,6 +72914,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -69963,6 +72923,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -69998,12 +73041,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -70015,6 +73061,79 @@ export interface operations {
         };
       };
       /** @description Toolset registry unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  undrainDaemon: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            state: "active" | "draining";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Daemon drain controller is unavailable */
       503: {
         headers: {
           [name: string]: unknown;
@@ -71958,6 +75077,1259 @@ export interface operations {
       };
     };
   };
+  listAutomationSuggestions: {
+    parameters: {
+      query?: {
+        /** @description Filter by suggestion status */
+        status?: "pending" | "accepted" | "dismissed";
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            suggestions: {
+              /** Format: date-time */
+              created_at: string;
+              dedup_key: string;
+              id: string;
+              payload: {
+                agent_name: string;
+                /** Format: date-time */
+                created_at: string;
+                enabled: boolean;
+                fire_limit: {
+                  max: number;
+                  window: string;
+                };
+                id: string;
+                loop_target?: {
+                  input_mapping?: {
+                    [key: string]: string;
+                  };
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  loop_name: string;
+                  network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode?: "local";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                      )
+                    | null;
+                  workspace_id: string;
+                } | null;
+                name: string;
+                /** Format: date-time */
+                next_run?: string | null;
+                prompt: string;
+                retry: {
+                  base_delay: string;
+                  max_retries: number;
+                  /** @enum {string} */
+                  strategy: "none" | "backoff";
+                };
+                schedule?: {
+                  /** @enum {string} */
+                  catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
+                  expr?: string;
+                  interval?: string;
+                  misfire_grace_seconds?: number;
+                  /** @enum {string} */
+                  mode: "cron" | "every" | "at";
+                  time?: string;
+                } | null;
+                scheduler?: {
+                  /** @enum {string} */
+                  catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
+                  consecutive_resume_failures?: number;
+                  job_id: string;
+                  last_fire_id?: string;
+                  /** Format: date-time */
+                  last_misfire_at?: string | null;
+                  /** Format: date-time */
+                  last_run_at?: string | null;
+                  /** Format: date-time */
+                  last_scheduled_at?: string | null;
+                  misfire_count?: number;
+                  misfire_grace_seconds?: number;
+                  /** Format: date-time */
+                  next_run_at?: string | null;
+                  registered: boolean;
+                  /** Format: date-time */
+                  updated_at?: string | null;
+                } | null;
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                source: "config" | "package" | "dynamic";
+                target_kind: string;
+                task?: {
+                  description?: string;
+                  network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode?: "local";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                      )
+                    | null;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  title?: string;
+                } | null;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
+              /** Format: date-time */
+              resolved_at?: string | null;
+              source: string;
+              status: string;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid suggestion status */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  acceptAutomationSuggestion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Automation suggestion id */
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            job: {
+              agent_name: string;
+              /** Format: date-time */
+              created_at: string;
+              enabled: boolean;
+              fire_limit: {
+                max: number;
+                window: string;
+              };
+              id: string;
+              loop_target?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                loop_name: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
+                workspace_id: string;
+              } | null;
+              name: string;
+              /** Format: date-time */
+              next_run?: string | null;
+              prompt: string;
+              retry: {
+                base_delay: string;
+                max_retries: number;
+                /** @enum {string} */
+                strategy: "none" | "backoff";
+              };
+              schedule?: {
+                /** @enum {string} */
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
+                expr?: string;
+                interval?: string;
+                misfire_grace_seconds?: number;
+                /** @enum {string} */
+                mode: "cron" | "every" | "at";
+                time?: string;
+              } | null;
+              scheduler?: {
+                /** @enum {string} */
+                catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              } | null;
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              source: "config" | "package" | "dynamic";
+              target_kind: string;
+              task?: {
+                description?: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                title?: string;
+              } | null;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+            suggestion: {
+              /** Format: date-time */
+              created_at: string;
+              dedup_key: string;
+              id: string;
+              payload: {
+                agent_name: string;
+                /** Format: date-time */
+                created_at: string;
+                enabled: boolean;
+                fire_limit: {
+                  max: number;
+                  window: string;
+                };
+                id: string;
+                loop_target?: {
+                  input_mapping?: {
+                    [key: string]: string;
+                  };
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  loop_name: string;
+                  network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode?: "local";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                      )
+                    | null;
+                  workspace_id: string;
+                } | null;
+                name: string;
+                /** Format: date-time */
+                next_run?: string | null;
+                prompt: string;
+                retry: {
+                  base_delay: string;
+                  max_retries: number;
+                  /** @enum {string} */
+                  strategy: "none" | "backoff";
+                };
+                schedule?: {
+                  /** @enum {string} */
+                  catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
+                  expr?: string;
+                  interval?: string;
+                  misfire_grace_seconds?: number;
+                  /** @enum {string} */
+                  mode: "cron" | "every" | "at";
+                  time?: string;
+                } | null;
+                scheduler?: {
+                  /** @enum {string} */
+                  catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
+                  consecutive_resume_failures?: number;
+                  job_id: string;
+                  last_fire_id?: string;
+                  /** Format: date-time */
+                  last_misfire_at?: string | null;
+                  /** Format: date-time */
+                  last_run_at?: string | null;
+                  /** Format: date-time */
+                  last_scheduled_at?: string | null;
+                  misfire_count?: number;
+                  misfire_grace_seconds?: number;
+                  /** Format: date-time */
+                  next_run_at?: string | null;
+                  registered: boolean;
+                  /** Format: date-time */
+                  updated_at?: string | null;
+                } | null;
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                source: "config" | "package" | "dynamic";
+                target_kind: string;
+                task?: {
+                  description?: string;
+                  network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode?: "local";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                      )
+                    | null;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  title?: string;
+                } | null;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
+              /** Format: date-time */
+              resolved_at?: string | null;
+              source: string;
+              status: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid suggested Job */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace or automation suggestion not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Automation suggestion is already resolved */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  dismissAutomationSuggestion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Automation suggestion id */
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            suggestion: {
+              /** Format: date-time */
+              created_at: string;
+              dedup_key: string;
+              id: string;
+              payload: {
+                agent_name: string;
+                /** Format: date-time */
+                created_at: string;
+                enabled: boolean;
+                fire_limit: {
+                  max: number;
+                  window: string;
+                };
+                id: string;
+                loop_target?: {
+                  input_mapping?: {
+                    [key: string]: string;
+                  };
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  loop_name: string;
+                  network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode?: "local";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                      )
+                    | null;
+                  workspace_id: string;
+                } | null;
+                name: string;
+                /** Format: date-time */
+                next_run?: string | null;
+                prompt: string;
+                retry: {
+                  base_delay: string;
+                  max_retries: number;
+                  /** @enum {string} */
+                  strategy: "none" | "backoff";
+                };
+                schedule?: {
+                  /** @enum {string} */
+                  catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
+                  expr?: string;
+                  interval?: string;
+                  misfire_grace_seconds?: number;
+                  /** @enum {string} */
+                  mode: "cron" | "every" | "at";
+                  time?: string;
+                } | null;
+                scheduler?: {
+                  /** @enum {string} */
+                  catch_up_policy?: "skip_missed" | "coalesce" | "replay" | "run_once_on_catchup";
+                  consecutive_resume_failures?: number;
+                  job_id: string;
+                  last_fire_id?: string;
+                  /** Format: date-time */
+                  last_misfire_at?: string | null;
+                  /** Format: date-time */
+                  last_run_at?: string | null;
+                  /** Format: date-time */
+                  last_scheduled_at?: string | null;
+                  misfire_count?: number;
+                  misfire_grace_seconds?: number;
+                  /** Format: date-time */
+                  next_run_at?: string | null;
+                  registered: boolean;
+                  /** Format: date-time */
+                  updated_at?: string | null;
+                } | null;
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                source: "config" | "package" | "dynamic";
+                target_kind: string;
+                task?: {
+                  description?: string;
+                  network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode?: "local";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                        | {
+                            bounds?: {
+                              coalesce_window?: string;
+                              /** Format: int64 */
+                              max_input_tokens?: number;
+                              /** Format: int64 */
+                              max_output_tokens?: number;
+                              max_total_wall_time?: string;
+                              max_wake_depth?: number;
+                              max_wake_wall_time?: string;
+                              max_wakes?: number;
+                            };
+                            /** @enum {string} */
+                            channel_strategy: "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                          }
+                      )
+                    | null;
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  title?: string;
+                } | null;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
+              /** Format: date-time */
+              resolved_at?: string | null;
+              source: string;
+              status: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Workspace or automation suggestion not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Automation suggestion is already resolved */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getHookRuns: {
     parameters: {
       query: {
@@ -72215,7 +76587,6 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
-              consecutive_failures: number;
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -72655,7 +77026,6 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
-              consecutive_failures: number;
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -77035,7 +81405,6 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
-              consecutive_failures: number;
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -77259,7 +81628,6 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
-              consecutive_failures: number;
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -83464,6 +87832,558 @@ export interface operations {
       };
     };
   };
+  listSessionClarifications: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clarifications: {
+              agent_name: string;
+              /** Format: date-time */
+              asked_at: string;
+              choices?: string[];
+              /** Format: date-time */
+              deadline: string;
+              question: string;
+              request_id: string;
+              session_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Clarification broker is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  answerSessionClarification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Clarification request id */
+        request_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          choice_index?: number | null;
+          text?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            choice: number | null;
+            fallback: boolean;
+            text: string;
+          };
+        };
+      };
+      /** @description Invalid clarification answer */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session or clarification not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Clarification is no longer answerable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Clarification broker is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  clearSessionConversation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            session: {
+              acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
+                supported_modes?: string[];
+                supports_load_session: boolean;
+              } | null;
+              acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
+                /** Format: int64 */
+                elapsed_seconds: number;
+                /** Format: int64 */
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
+              agent_name: string;
+              /** Format: date-time */
+              attach_expires_at?: string | null;
+              attachable: boolean;
+              attached_to?: string;
+              available_commands: {
+                description: string;
+                input?: {
+                  hint: string;
+                } | null;
+                name: string;
+              }[];
+              badge: string;
+              /** Format: date-time */
+              created_at: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
+              } | null;
+              id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  sandbox_profiles: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
+              model?: string;
+              name?: string;
+              provider: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
+              /** @enum {string} */
+              state: "starting" | "active" | "stopping" | "stopped";
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              /** Format: int64 */
+              transcript_epoch?: number;
+              /** @enum {string} */
+              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            };
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session conversation cannot be cleared */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listSessionEvents: {
     parameters: {
       query?: {
@@ -85908,6 +90828,31 @@ export interface operations {
           };
         };
       };
+      /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
     };
   };
   cancelQueuedSessionPrompt: {
@@ -86245,6 +91190,7 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                recovery_count: number;
                 resolved_network_participation?:
                   | (
                       | {
@@ -87949,12 +92895,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -88003,12 +92952,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -88090,6 +93042,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -88098,6 +93051,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -88133,12 +93169,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -88250,12 +93289,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -88304,12 +93346,15 @@ export interface operations {
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
+                  | "result_persistence_failed"
                   | "runtime_descriptor_mismatch"
                   | "runtime_descriptor_missing"
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
                   | "source_disabled"
+                  | "tool_artifact_corrupt"
+                  | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
@@ -88391,6 +93436,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -88399,6 +93445,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -88434,12 +93563,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -88469,6 +93601,7 @@ export interface operations {
                 | "model_not_found"
                 | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
+                | "tool_result_persistence_failed"
                 | "tool_backend_failed"
                 | "tool_canceled"
                 | "tool_timed_out";
@@ -88477,6 +93610,89 @@ export interface operations {
               };
               layer?: string;
               message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
               reason_codes?: (
                 | "approval_canceled"
                 | "approval_required"
@@ -88512,12 +93728,15 @@ export interface operations {
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
+                | "result_persistence_failed"
                 | "runtime_descriptor_mismatch"
                 | "runtime_descriptor_missing"
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
                 | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
@@ -88745,6 +93964,10 @@ export interface operations {
           "application/json": {
             usage: {
               cost_currency?: string;
+              /** @enum {string} */
+              cost_source?: "agent_reported" | "catalog_config" | "models_dev" | "builtin" | "none";
+              /** @enum {string} */
+              cost_status?: "actual" | "estimated" | "included" | "unknown";
               /** Format: int64 */
               input_tokens?: number | null;
               /** Format: int64 */
@@ -88786,6 +94009,575 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  readToolArtifact: {
+    parameters: {
+      query?: {
+        /** @description Zero-based byte offset */
+        offset?: number;
+        /** @description Page size in bytes; defaults to and is capped at 65536 */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Durable workspace id */
+        workspace_id: string;
+        /** @description Opaque content-addressed artifact id */
+        artifact_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            artifact: {
+              /** Format: int64 */
+              bytes?: number;
+              mime_type?: string;
+              name?: string;
+              sha256?: string;
+              uri: string;
+            };
+            /** Format: int64 */
+            bytes: number;
+            data_base64: string;
+            eof: boolean;
+            /** Format: int64 */
+            next_offset: number;
+            /** Format: int64 */
+            offset: number;
+            /** Format: int64 */
+            total_bytes: number;
+          };
+        };
+      };
+      /** @description Invalid artifact id or byte range */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
+                | "tool_result_too_large"
+                | "tool_result_persistence_failed"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "result_persistence_failed"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Artifact not found in the resolved workspace */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
+                | "tool_result_too_large"
+                | "tool_result_persistence_failed"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "result_persistence_failed"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Retained artifact is corrupt or unreadable */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              /** @enum {string} */
+              code:
+                | "tool_not_found"
+                | "tool_conflict"
+                | "tool_unavailable"
+                | "tool_denied"
+                | "tool_approval_required"
+                | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
+                | "tool_result_too_large"
+                | "tool_result_persistence_failed"
+                | "tool_backend_failed"
+                | "tool_canceled"
+                | "tool_timed_out";
+              details?: {
+                [key: string]: unknown;
+              };
+              layer?: string;
+              message: string;
+              partial_result?: {
+                artifacts?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  mime_type?: string;
+                  name?: string;
+                  sha256?: string;
+                  uri: string;
+                }[];
+                /** Format: int64 */
+                bytes: number;
+                content?: {
+                  data?: unknown;
+                  metadata?: {
+                    [key: string]: unknown;
+                  };
+                  mime_type?: string;
+                  text?: string;
+                  type: string;
+                }[];
+                /** Format: int64 */
+                duration_ms: number;
+                metadata?: {
+                  [key: string]: unknown;
+                };
+                preview?: string;
+                redactions?: {
+                  /** Format: int64 */
+                  bytes?: number;
+                  path: string;
+                  /** @enum {string} */
+                  reason:
+                    | "approval_canceled"
+                    | "approval_required"
+                    | "approval_timed_out"
+                    | "approval_token_expired"
+                    | "approval_token_mismatch"
+                    | "approval_token_missing"
+                    | "approval_token_replayed"
+                    | "approval_unreachable"
+                    | "backend_not_executable"
+                    | "backend_unhealthy"
+                    | "call_canceled"
+                    | "call_timed_out"
+                    | "conflicted_id"
+                    | "conflicted_sanitized_name"
+                    | "dependency_missing"
+                    | "extension_capability_missing"
+                    | "extension_inactive"
+                    | "extension_runtime_mismatch"
+                    | "handler_missing"
+                    | "hook_denied"
+                    | "id_empty"
+                    | "id_empty_segment"
+                    | "id_invalid_format"
+                    | "id_too_long"
+                    | "mcp_auth_expired"
+                    | "mcp_auth_invalid"
+                    | "mcp_auth_refresh_failed"
+                    | "mcp_auth_required"
+                    | "mcp_auth_unconfigured"
+                    | "mcp_unreachable"
+                    | "policy_denied"
+                    | "reserved_conflict"
+                    | "reserved_namespace"
+                    | "result_budget_exceeded"
+                    | "result_persistence_failed"
+                    | "runtime_descriptor_mismatch"
+                    | "runtime_descriptor_missing"
+                    | "schema_invalid"
+                    | "secret_metadata"
+                    | "session_denied"
+                    | "source_disabled"
+                    | "tool_artifact_corrupt"
+                    | "tool_artifact_not_found"
+                    | "tool_unknown"
+                    | "toolset_cycle"
+                    | "toolset_unknown"
+                    | "visibility_denied";
+                }[];
+                structured?: unknown;
+                truncated: boolean;
+              } | null;
+              reason_codes?: (
+                | "approval_canceled"
+                | "approval_required"
+                | "approval_timed_out"
+                | "approval_token_expired"
+                | "approval_token_mismatch"
+                | "approval_token_missing"
+                | "approval_token_replayed"
+                | "approval_unreachable"
+                | "backend_not_executable"
+                | "backend_unhealthy"
+                | "call_canceled"
+                | "call_timed_out"
+                | "conflicted_id"
+                | "conflicted_sanitized_name"
+                | "dependency_missing"
+                | "extension_capability_missing"
+                | "extension_inactive"
+                | "extension_runtime_mismatch"
+                | "handler_missing"
+                | "hook_denied"
+                | "id_empty"
+                | "id_empty_segment"
+                | "id_invalid_format"
+                | "id_too_long"
+                | "mcp_auth_expired"
+                | "mcp_auth_invalid"
+                | "mcp_auth_refresh_failed"
+                | "mcp_auth_required"
+                | "mcp_auth_unconfigured"
+                | "mcp_unreachable"
+                | "policy_denied"
+                | "reserved_conflict"
+                | "reserved_namespace"
+                | "result_budget_exceeded"
+                | "result_persistence_failed"
+                | "runtime_descriptor_mismatch"
+                | "runtime_descriptor_missing"
+                | "schema_invalid"
+                | "secret_metadata"
+                | "session_denied"
+                | "source_disabled"
+                | "tool_artifact_corrupt"
+                | "tool_artifact_not_found"
+                | "tool_unknown"
+                | "toolset_cycle"
+                | "toolset_unknown"
+                | "visibility_denied"
+              )[];
+              tool_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Tool artifact store unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };

@@ -85,7 +85,16 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 		t.Fatal("expected created session id")
 	}
 
-	promptOut, _, err := executeRootCommand(t, h.deps, "session", "prompt", created.ID, "hello", "-o", "json")
+	promptOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"prompt",
+		created.ID,
+		"hello __usage__",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("session prompt error = %v", err)
 	}
@@ -95,6 +104,16 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 	}
 	if len(promptEvents) < 2 {
 		t.Fatalf("prompt events = %d, want at least 2", len(promptEvents))
+	}
+
+	usageOut := mustExecuteRoot(t, h.deps, "session", "usage", created.ID, "-o", "json")
+	var usage SessionUsageRecord
+	if err := json.Unmarshal([]byte(usageOut), &usage); err != nil {
+		t.Fatalf("json.Unmarshal(session usage) error = %v", err)
+	}
+	if usage.TotalTokens == nil || *usage.TotalTokens != 15 ||
+		usage.CostStatus != "unknown" || usage.CostSource != "none" {
+		t.Fatalf("session usage = %#v, want 15 tokens with unknown/none provenance", usage)
 	}
 
 	eventsOut, _, err := executeRootCommand(t, h.deps, "session", "events", created.ID, "-o", "json")
@@ -201,7 +220,7 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	}
 	if !strings.Contains(
 		toonOut,
-		"sessions[1]{id,name,agent_name,provider,sandbox_backend,state,badge,failure_kind,workspace,channel,updated_at}:",
+		"sessions[1]{id,name,agent_name,provider,sandbox_backend,state,badge,failure_kind,workspace,channel,health_state,health,updated_at}:",
 	) || !strings.Contains(toonOut, "page{") || !strings.Contains(toonOut, "has_more") {
 		t.Fatalf("toon output = %q, want TOON table and page metadata", toonOut)
 	}
@@ -400,7 +419,21 @@ func assertPathMissing(t *testing.T, path string) {
 	t.Helper()
 
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("Stat(%q) error = %v, want os.ErrNotExist", path, err)
+		entries, readErr := os.ReadDir(path)
+		entryNames := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			entryNames = append(entryNames, entry.Name())
+		}
+		meta, metaErr := store.ReadSessionMeta(store.SessionMetaFile(path))
+		t.Fatalf(
+			"Stat(%q) error = %v, want os.ErrNotExist; entries=%v read_error=%v meta=%#v meta_error=%v",
+			path,
+			err,
+			entryNames,
+			readErr,
+			meta,
+			metaErr,
+		)
 	}
 }
 
@@ -736,8 +769,8 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
 		t.Fatalf("json.Unmarshal(network status) error = %v", err)
 	}
-	if !status.Enabled || status.Status != "running" {
-		t.Fatalf("network status = %#v, want enabled running", status)
+	if !status.Enabled || status.Status != network.StatusActive {
+		t.Fatalf("network status = %#v, want enabled active", status)
 	}
 
 	peersOut, _, err := executeRootCommand(t, h.deps, "network", "peers", "builders", "-o", "json")
@@ -1132,8 +1165,8 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		"list",
 		"--channel",
 		"builders",
-		"--peer",
-		receiverPeerID,
+		"--session",
+		receiver.ID,
 		"-o",
 		"json",
 	)
@@ -1221,9 +1254,10 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	}
 
 	h.runner.releaseBlocked(receiver.ID)
-	waitForCondition(t, 2*time.Second, func() bool {
-		return len(readInbox(receiver.ID)) == 0
-	})
+	inbox := readInbox(receiver.ID)
+	if len(inbox) != 1 || inbox[0].ID != "msg-direct-retry-1" {
+		t.Fatalf("network inbox after prompt completion = %#v, want immutable delivered message", inbox)
+	}
 
 	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", receiver.ID, "-o", "json")
 	if err != nil {
@@ -1288,15 +1322,17 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	}
 
 	h.runner.releaseBlocked(receiver.ID)
-	waitForCondition(t, 2*time.Second, func() bool {
-		return len(readInbox(receiver.ID)) == 0
-	})
+	inbox = readInbox(receiver.ID)
+	if len(inbox) != 1 || inbox[0].ID != "msg-direct-resume-1" {
+		t.Fatalf("network inbox after resumed prompt completion = %#v, want immutable delivered message", inbox)
+	}
 }
 
 func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
+	h.runner.cfg.Extensions.Marketplace.AllowUnverified = true
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 	defer func() {
 		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
@@ -2755,34 +2791,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		t.Fatalf("stopped = %#v, want stopped worker on %q", stopped, channel)
 	}
 
-	readChannel := func(t *testing.T) NetworkChannelRecord {
-		t.Helper()
-
-		channelsOut := mustExecuteRoot(t, h.deps, "network", "channels", "-o", "json")
-		var channels []NetworkChannelRecord
-		if err := json.Unmarshal([]byte(channelsOut), &channels); err != nil {
-			t.Fatalf("json.Unmarshal(network channels) error = %v", err)
-		}
-		for _, item := range channels {
-			if item.Channel == channel {
-				return item
-			}
-		}
-		t.Fatalf("network channels missing %q: %#v", channel, channels)
-		return NetworkChannelRecord{}
-	}
-
-	t.Run("Should keep the channel historical before restart", func(t *testing.T) {
-		record := readChannel(t)
-		if got, want := record.PeerCount, 0; got != want {
-			t.Fatalf("record.PeerCount = %d, want %d", got, want)
-		}
-		if record.PresenceCount < 1 {
-			t.Fatalf("record.PresenceCount = %d, want at least 1", record.PresenceCount)
-		}
-		if record.HistoricalParticipantCount < 1 {
-			t.Fatalf("record.HistoricalParticipantCount = %d, want at least 1", record.HistoricalParticipantCount)
-		}
+	t.Run("Should keep stopped participation historical without listing an active channel", func(t *testing.T) {
+		assertCLIHistoricalChannelNotActive(t, h.deps, "", channel)
 	})
 
 	createOut := mustExecuteRoot(
@@ -2974,13 +2984,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			t.Fatalf("stoppedAfterResume = %#v, want stopped resumed worker on %q", stoppedAfterResume, channel)
 		}
 
-		record := readChannel(t)
-		if got, want := record.PeerCount, 0; got != want {
-			t.Fatalf("record.PeerCount after cleanup = %d, want %d", got, want)
-		}
-		if record.PresenceCount < 2 {
-			t.Fatalf("record.PresenceCount after cleanup = %d, want at least 2", record.PresenceCount)
-		}
+		assertCLIHistoricalChannelNotActive(t, h.deps, "", channel)
 
 		assertNoActiveSessions(t, h.deps)
 	})
@@ -3550,6 +3554,13 @@ func (s *integrationExtensionService) Provenance(
 	return *status.Provenance, nil
 }
 
+func (s *integrationExtensionService) MarketplaceTrust(
+	_ context.Context,
+	evidence extensionpkg.MarketplaceTrustEvidence,
+) (contract.ExtensionTrustReportPayload, error) {
+	return extensionpkg.MarketplaceEntryTrustReport(evidence, s.marketplacePolicyAllowUnverified)
+}
+
 func (b *lockedBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -3685,13 +3696,20 @@ func (d *integrationDaemon) spawnDetached() (daemonProcess, error) {
 	return &integrationDaemonProcess{pid: d.pid, done: done, waitCh: waitCh}, nil
 }
 
-func (d *integrationDaemon) Run(ctx context.Context) error {
+func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
+	joinRunError := func(operation string, cleanupErr error) {
+		if cleanupErr == nil {
+			return
+		}
+		runErr = errors.Join(runErr, fmt.Errorf("%s: %w", operation, cleanupErr))
+	}
+
 	registry, err := globaldb.OpenGlobalDB(context.Background(), d.homePaths.DatabaseFile)
 	if err != nil {
 		return fmt.Errorf("open global db: %w", err)
 	}
 	defer func() {
-		_ = registry.Close(context.Background())
+		joinRunError("close global db", registry.Close(context.Background()))
 	}()
 
 	fanout := &integrationNotifierFanout{}
@@ -3735,6 +3753,14 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	d.mu.Lock()
 	d.manager = manager
 	d.mu.Unlock()
+	resolver.SetUnregisterPreparer(
+		func(
+			ctx context.Context,
+			workspace workspacepkg.Workspace,
+		) (workspacepkg.UnregisterPreparation, error) {
+			return manager.PrepareWorkspaceRemoval(ctx, workspace.ID)
+		},
+	)
 
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
@@ -3759,14 +3785,23 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		return fmt.Errorf("new observer: %w", err)
 	}
 	defer func() {
-		_ = observer.Close(context.Background())
+		joinRunError("close observer", observer.Close(context.Background()))
 	}()
 	fanout.notifiers = append(fanout.notifiers, observer)
 
-	memoryStore := memory.NewStore(d.homePaths.MemoryDir)
+	memoryStore := memory.NewStore(
+		d.homePaths.MemoryDir,
+		memory.WithCatalogDatabasePath(d.homePaths.DatabaseFile),
+	)
 	if err := memoryStore.EnsureDirs(); err != nil {
 		return fmt.Errorf("ensure memory dirs: %w", err)
 	}
+	if err := memoryStore.OpenCatalog(context.Background()); err != nil {
+		return fmt.Errorf("open memory catalog: %w", err)
+	}
+	defer func() {
+		joinRunError("close memory catalog", memoryStore.CloseCatalog(context.Background()))
+	}()
 	dreamTrigger := &integrationDreamTrigger{
 		enabled:   true,
 		triggered: true,
@@ -3783,7 +3818,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_ = extManager.Stop(shutdownCtx)
+		joinRunError("stop extension manager", extManager.Stop(shutdownCtx))
 	}()
 	extService := &integrationExtensionService{
 		homePaths:                        d.homePaths,
@@ -3811,7 +3846,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 		defer cancel()
-		_ = automationManager.Shutdown(shutdownCtx)
+		joinRunError("shutdown automation manager", automationManager.Shutdown(shutdownCtx))
 	}()
 	fanout.notifiers = append(fanout.notifiers, automationManager.SessionObserver())
 	networkManager, err := network.NewManager(
@@ -3886,11 +3921,14 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 			if info == nil || info.State == session.StateStopped {
 				continue
 			}
-			_ = manager.Stop(shutdownCtx, info.ID)
+			joinRunError(
+				fmt.Sprintf("stop active session %q", info.ID),
+				manager.Stop(shutdownCtx, info.ID),
+			)
 		}
-		_ = networkManager.Shutdown(shutdownCtx)
-		_ = server.Shutdown(shutdownCtx)
-		_ = aghdaemon.RemoveInfo(d.homePaths.DaemonInfo)
+		joinRunError("shutdown network manager", networkManager.Shutdown(shutdownCtx))
+		joinRunError("shutdown UDS server", server.Shutdown(shutdownCtx))
+		joinRunError("remove daemon info", aghdaemon.RemoveInfo(d.homePaths.DaemonInfo))
 		d.mu.Lock()
 		d.bridges = nil
 		d.manager = nil
@@ -4071,12 +4109,24 @@ func (d *integrationDriver) Prompt(
 		}()
 		return ch, nil
 	}
+	var usage *acp.TokenUsage
+	if strings.Contains(req.Message, "__usage__") {
+		input := int64(10)
+		output := int64(5)
+		total := input + output
+		usage = &acp.TokenUsage{
+			InputTokens:  &input,
+			OutputTokens: &output,
+			TotalTokens:  &total,
+		}
+	}
 	ch <- acp.AgentEvent{
 		Type:       "done",
 		SessionID:  proc.SessionID,
 		TurnID:     req.TurnID,
 		Timestamp:  time.Now().UTC(),
 		StopReason: "end_turn",
+		Usage:      usage,
 	}
 	close(ch)
 	return ch, nil

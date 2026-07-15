@@ -26,8 +26,10 @@ import (
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/soul"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -865,6 +867,8 @@ func TestSessionUsageEndpoint(t *testing.T) {
 						TotalTokens:  int64Ptr(140),
 						TotalCost:    float64Ptr(0.02),
 						CostCurrency: stringPtr("USD"),
+						CostStatus:   "estimated",
+						CostSource:   "catalog_config",
 						TurnCount:    2,
 					},
 					{
@@ -875,6 +879,8 @@ func TestSessionUsageEndpoint(t *testing.T) {
 						TotalTokens:  int64Ptr(15),
 						TotalCost:    float64Ptr(0.01),
 						CostCurrency: stringPtr("USD"),
+						CostStatus:   "estimated",
+						CostSource:   "catalog_config",
 						TurnCount:    1,
 					},
 				}, nil
@@ -912,6 +918,13 @@ func TestSessionUsageEndpoint(t *testing.T) {
 		if got, want := payload.Usage.CostCurrency, "USD"; got != want {
 			t.Fatalf("usage.cost_currency = %q, want %q", got, want)
 		}
+		if payload.Usage.CostStatus != "estimated" || payload.Usage.CostSource != "catalog_config" {
+			t.Fatalf(
+				"usage cost provenance = %q/%q, want estimated/catalog_config",
+				payload.Usage.CostStatus,
+				payload.Usage.CostSource,
+			)
+		}
 		if got, want := payload.Usage.TurnCount, int64(3); got != want {
 			t.Fatalf("usage.turn_count = %d, want %d", got, want)
 		}
@@ -941,6 +954,8 @@ func TestSessionUsageEndpoint(t *testing.T) {
 						TotalTokens:  int64Ptr(100),
 						TotalCost:    float64Ptr(0.02),
 						CostCurrency: stringPtr("USD"),
+						CostStatus:   "actual",
+						CostSource:   "agent_reported",
 						TurnCount:    2,
 					},
 					{
@@ -950,6 +965,8 @@ func TestSessionUsageEndpoint(t *testing.T) {
 						TotalTokens:  int64Ptr(25),
 						TotalCost:    float64Ptr(0.03),
 						CostCurrency: stringPtr("EUR"),
+						CostStatus:   "actual",
+						CostSource:   "agent_reported",
 						TurnCount:    1,
 					},
 				}, nil
@@ -981,8 +998,58 @@ func TestSessionUsageEndpoint(t *testing.T) {
 		if got := payload.Usage.CostCurrency; got != "" {
 			t.Fatalf("usage.cost_currency = %q, want empty for mixed currencies", got)
 		}
+		if payload.Usage.CostStatus != "unknown" || payload.Usage.CostSource != "none" {
+			t.Fatalf(
+				"usage cost provenance = %q/%q, want fail-closed unknown/none",
+				payload.Usage.CostStatus,
+				payload.Usage.CostSource,
+			)
+		}
 		if got, want := payload.Usage.TurnCount, int64(3); got != want {
 			t.Fatalf("usage.turn_count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should return included without fabricating an amount for native CLI usage", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return testutil.NewSessionInfo("sess-a"), nil
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryTokenStatsFn: func(context.Context, store.TokenStatsQuery) ([]store.TokenStats, error) {
+				return []store.TokenStats{{
+					SessionID:   "sess-a",
+					AgentName:   "coder",
+					TotalTokens: int64Ptr(25),
+					CostStatus:  "included",
+					CostSource:  "none",
+					TurnCount:   1,
+				}}, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/usage",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("usage status = %d body=%s, want %d", response.Code, response.Body.String(), http.StatusOK)
+		}
+
+		var payload contract.SessionUsageResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(usage response) error = %v", err)
+		}
+		if payload.Usage.TotalCost != nil || payload.Usage.CostCurrency != "" ||
+			payload.Usage.CostStatus != "included" || payload.Usage.CostSource != "none" {
+			t.Fatalf("included usage = %#v, want included/none without amount", payload.Usage)
 		}
 	})
 
@@ -3392,6 +3459,282 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 		}
 		t.Fatalf("doctor items = %#v, want disabled network info diagnostic", payload.Items)
 	})
+}
+
+func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
+	t.Run("Should project workspace-scoped redacted subprocess health", func(t *testing.T) {
+		t.Parallel()
+
+		manager := subprocessHealthSessionManager{
+			StubSessionManager: testutil.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return []*session.Info{
+						{ID: "sess-health-a", WorkspaceID: "ws-a", State: session.StateActive},
+						{ID: "sess-health-b", WorkspaceID: "ws-b", State: session.StateActive},
+					}, nil
+				},
+			},
+			snapshots: []session.SubprocessHealthSnapshot{
+				{
+					SessionID:   "sess-health-a",
+					WorkspaceID: "ws-a",
+					AgentName:   "coder-a",
+					Health: subprocess.HealthState{
+						Healthy:             false,
+						Message:             "api_key=super-secret probe failed",
+						LastCheckedAt:       time.Date(2026, 7, 16, 10, 30, 0, 0, time.UTC),
+						ConsecutiveFailures: 3,
+					},
+				},
+				{
+					SessionID:   "sess-health-b",
+					WorkspaceID: "ws-b",
+					AgentName:   "coder-b",
+					Health: subprocess.HealthState{
+						Healthy:       true,
+						LastCheckedAt: time.Date(2026, 7, 16, 10, 30, 0, 0, time.UTC),
+					},
+				},
+			},
+		}
+		observer := testutil.StubObserver{
+			HealthFn: func(context.Context) (observe.Health, error) {
+				return observe.Health{Status: "ok", ActiveSessions: 2, Version: "dev"}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager.StubSessionManager,
+			observer,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Sessions = manager
+
+		statusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status?workspace_id=ws-a", nil)
+		if statusResponse.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", statusResponse.Code, http.StatusOK, statusResponse.Body.String())
+		}
+		var statusPayload contract.StatusPayload
+		decodeJSON(t, statusResponse.Body.Bytes(), &statusPayload)
+		if statusPayload.SubprocessHealth.Status != "degraded" ||
+			statusPayload.SubprocessHealth.Monitored != 1 ||
+			statusPayload.SubprocessHealth.Unhealthy != 1 ||
+			len(statusPayload.SubprocessHealth.Sessions) != 1 ||
+			statusPayload.SubprocessHealth.Sessions[0].SessionID != "sess-health-a" {
+			t.Fatalf(
+				"subprocess health status = %#v, want workspace-scoped degradation",
+				statusPayload.SubprocessHealth,
+			)
+		}
+		if strings.Contains(statusPayload.SubprocessHealth.Sessions[0].Reason, "super-secret") {
+			t.Fatalf("subprocess health reason leaked secret: %q", statusPayload.SubprocessHealth.Sessions[0].Reason)
+		}
+
+		doctorResponse := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/doctor?only=runtime.subprocess_health",
+			nil,
+		)
+		if doctorResponse.Code != http.StatusOK {
+			t.Fatalf("doctor = %d, want %d; body=%s", doctorResponse.Code, http.StatusOK, doctorResponse.Body.String())
+		}
+		var doctorPayload contract.DoctorPayload
+		decodeJSON(t, doctorResponse.Body.Bytes(), &doctorPayload)
+		if got, want := len(doctorPayload.Items), 1; got != want {
+			t.Fatalf("doctor item count = %d, want %d", got, want)
+		}
+		if doctorPayload.Items[0].ID != "runtime.subprocess_health" ||
+			doctorPayload.Items[0].Severity != contract.SeverityWarn ||
+			strings.Contains(doctorPayload.Items[0].Message, "super-secret") {
+			t.Fatalf("doctor subprocess item = %#v, want redacted degradation", doctorPayload.Items[0])
+		}
+	})
+}
+
+func TestDaemonStatusProjectsWorkspaceSkills(t *testing.T) {
+	t.Run("Should project skills from the requested workspace", func(t *testing.T) {
+		t.Parallel()
+
+		var registryWorkspaceID string
+		registry := &testutil.StubSkillsRegistry{
+			ForWorkspaceFn: func(
+				_ context.Context,
+				resolved *workspacepkg.ResolvedWorkspace,
+			) ([]*skills.Skill, error) {
+				if resolved != nil {
+					registryWorkspaceID = resolved.WorkspaceID
+				}
+				return []*skills.Skill{testSkill()}, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(
+				_ context.Context,
+				ref string,
+			) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-a" {
+					t.Fatalf("Resolve() ref = %q, want ws-a", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      "ws-a",
+						RootDir: "/workspaces/ws-a",
+					},
+					WorkspaceID: "ws-a",
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			workspaces,
+			nil,
+			nil,
+		)
+		fixture.Handlers.SkillsRegistry = registry
+
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/status?workspace_id=ws-a",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusOK,
+				response.Body.String(),
+			)
+		}
+		if registryWorkspaceID != "ws-a" {
+			t.Fatalf("skill registry workspace = %q, want ws-a", registryWorkspaceID)
+		}
+
+		var payload contract.StatusPayload
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if payload.Skills.DiscoveredCount != 1 {
+			t.Fatalf("status.skills = %#v, want one workspace skill", payload.Skills)
+		}
+	})
+}
+
+type subprocessHealthSessionManager struct {
+	testutil.StubSessionManager
+	snapshots []session.SubprocessHealthSnapshot
+}
+
+func (m subprocessHealthSessionManager) SubprocessHealthSnapshots() []session.SubprocessHealthSnapshot {
+	return append([]session.SubprocessHealthSnapshot(nil), m.snapshots...)
+}
+
+func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
+	t.Parallel()
+
+	manager := testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{testutil.NewSessionInfo("sess-admitted")}, nil
+		},
+	}
+	observer := testutil.StubObserver{
+		HealthFn: func(context.Context) (observe.Health, error) {
+			return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
+		},
+	}
+	fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+	controller := &testDrainController{}
+	fixture.Handlers.DrainController = controller
+
+	for range 2 {
+		response := performRequest(t, fixture.Engine, http.MethodPost, "/drain", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("drain status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.DrainStatusResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if payload.State != contract.DrainStateDraining {
+			t.Fatalf("drain state = %q, want %q", payload.State, contract.DrainStateDraining)
+		}
+	}
+
+	statusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+	if statusResponse.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", statusResponse.Code, http.StatusOK, statusResponse.Body.String())
+	}
+	var statusPayload contract.StatusPayload
+	decodeJSON(t, statusResponse.Body.Bytes(), &statusPayload)
+	if statusPayload.Daemon.Status != string(contract.DrainStateDraining) {
+		t.Fatalf("daemon status = %q, want %q", statusPayload.Daemon.Status, contract.DrainStateDraining)
+	}
+
+	doctorResponse := performRequest(t, fixture.Engine, http.MethodGet, "/doctor?only=daemon", nil)
+	if doctorResponse.Code != http.StatusOK {
+		t.Fatalf("doctor = %d, want %d; body=%s", doctorResponse.Code, http.StatusOK, doctorResponse.Body.String())
+	}
+	var doctorPayload contract.DoctorPayload
+	decodeJSON(t, doctorResponse.Body.Bytes(), &doctorPayload)
+	itemIndex := slices.IndexFunc(doctorPayload.Items, func(item contract.DiagnosticItem) bool {
+		return item.Code == contract.CodeDaemonDraining
+	})
+	if itemIndex < 0 {
+		t.Fatalf("doctor items = %#v, want daemon draining item", doctorPayload.Items)
+	}
+	item := doctorPayload.Items[itemIndex]
+	if item.Code != contract.CodeDaemonDraining || item.Severity != contract.SeverityInfo {
+		t.Fatalf("daemon diagnostic = %#v, want draining info", item)
+	}
+
+	for range 2 {
+		response := performRequest(t, fixture.Engine, http.MethodPost, "/undrain", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("undrain status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.DrainStatusResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if payload.State != contract.DrainStateActive {
+			t.Fatalf("undrain state = %q, want %q", payload.State, contract.DrainStateActive)
+		}
+	}
+
+	activeStatusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+	var activeStatus contract.StatusPayload
+	decodeJSON(t, activeStatusResponse.Body.Bytes(), &activeStatus)
+	if activeStatusResponse.Code != http.StatusOK || activeStatus.Daemon.Status != "running" {
+		t.Fatalf("active daemon status = %d %#v, want running", activeStatusResponse.Code, activeStatus.Daemon)
+	}
+}
+
+type testDrainController struct {
+	draining atomic.Bool
+}
+
+func (c *testDrainController) Drain(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	c.draining.Store(true)
+	return nil
+}
+
+func (c *testDrainController) Undrain(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	c.draining.Store(false)
+	return nil
+}
+
+func (c *testDrainController) DrainState() contract.DrainState {
+	if c.draining.Load() {
+		return contract.DrainStateDraining
+	}
+	return contract.DrainStateActive
 }
 
 func TestLogsEndpointsRejectConflictingAliases(t *testing.T) {

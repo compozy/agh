@@ -258,8 +258,10 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 	}
 
 	if err := globalDB.UpdateTokenStats(testutil.Context(t), TokenStatsUpdate{
-		SessionID: "sess-defaults",
-		AgentName: "coder",
+		SessionID:  "sess-defaults",
+		AgentName:  "coder",
+		CostStatus: "unknown",
+		CostSource: "none",
 	}); err != nil {
 		t.Fatalf("UpdateTokenStats(default turns) error = %v", err)
 	}

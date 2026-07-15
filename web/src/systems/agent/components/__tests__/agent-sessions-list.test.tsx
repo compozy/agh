@@ -59,6 +59,20 @@ describe("AgentSessionsList", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the daemon-generated session name instead of fallback identity", () => {
+    render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[makeSession({ id: "sess_auto_title", name: "Checkout Retry Fencing" })]}
+        status="ready"
+      />
+    );
+
+    const row = screen.getByTestId("agent-session-row-sess_auto_title");
+    expect(within(row).getByText("Checkout Retry Fencing")).toBeInTheDocument();
+    expect(screen.queryByText("New session")).not.toBeInTheDocument();
+  });
+
   it("formats relative times against one render-pass timestamp", () => {
     vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-04-17T18:11:00Z"));
     const sessions = [

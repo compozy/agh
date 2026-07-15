@@ -8,5 +8,6 @@ const (
 	sessionWriteEventBatch
 	sessionWriteUsage
 	sessionWriteHookRun
+	sessionWriteArchive
 	sessionWriteClear
 )

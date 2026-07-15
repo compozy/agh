@@ -27,6 +27,11 @@ export { fetchSessionGoal } from "./session-goal-api";
 export { buildSessionStreamUrl, fetchSessionTranscript } from "./session-transcript-api";
 export type { SessionStreamCursor } from "./session-transcript-api";
 export { SessionApiError, SessionNotFoundError } from "./session-api-errors";
+export {
+  answerSessionClarification,
+  ClarificationNotAnswerableError,
+  fetchSessionClarifications,
+} from "./session-clarification-api";
 
 export type {
   ApproveSessionParams,

@@ -287,6 +287,81 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldLimitPerScope(t *testin
 	})
 }
 
+func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferAtWorkspaceCapacity(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 18, 22, 15, 0, 0, time.UTC)
+	workspaceID := "ws-backstop-capacity"
+	db := openDaemonTestGlobalDB(t)
+	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID:        workspaceID,
+		RootDir:   t.TempDir(),
+		Name:      workspaceID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	activeTask := daemonTaskRecordForTest("task-backstop-capacity-active", now)
+	activeTask.Scope = taskpkg.ScopeWorkspace
+	activeTask.WorkspaceID = workspaceID
+	if err := db.CreateTask(ctx, activeTask); err != nil {
+		t.Fatalf("CreateTask(active) error = %v", err)
+	}
+	if err := db.CreateTaskRun(ctx, taskpkg.Run{
+		ID:          "run-backstop-capacity-active",
+		TaskID:      activeTask.ID,
+		WorkspaceID: workspaceID,
+		RunKind:     taskpkg.RunKindWorker,
+		Status:      taskpkg.TaskRunStatusQueued,
+		Attempt:     1,
+		Origin:      activeTask.Origin,
+		QueuedAt:    now,
+	}); err != nil {
+		t.Fatalf("CreateTaskRun(active) error = %v", err)
+	}
+	if _, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            "run-backstop-capacity-active",
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      workspaceID,
+		RunKind:          taskpkg.RunKindWorker,
+		ClaimerSessionID: "sess-backstop-capacity",
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	}); err != nil {
+		t.Fatalf("ClaimNextRun(active) error = %v", err)
+	}
+	seedCoordinatorBackstopRun(t, db, now, "capacity", 0, workspaceID)
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(db),
+		taskpkg.WithWorkspaceActiveRunCap(1),
+		taskpkg.WithManagerNow(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("task.NewManager() error = %v", err)
+	}
+	actor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+
+	started, err := (schedulerTaskSource{manager: manager, store: db}).RunLoopCoordinatorBackstop(ctx, now, actor)
+	if err != nil {
+		t.Fatalf("RunLoopCoordinatorBackstop() error = %v", err)
+	}
+	if started != 0 {
+		t.Fatalf("started = %d, want 0 while workspace capacity is full", started)
+	}
+	queued, err := db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
+	if err != nil {
+		t.Fatalf("ListTaskRunsByStatus(queued) error = %v", err)
+	}
+	if len(queued) != 1 || queued[0].RunKind.Normalize() != taskpkg.RunKindCoordinator {
+		t.Fatalf("queued runs = %#v, want deferred coordinator", queued)
+	}
+}
+
 func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldRecoverWatchEventsGap(t *testing.T) {
 	t.Parallel()
 

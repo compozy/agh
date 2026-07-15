@@ -32,6 +32,21 @@ const gitFlowSkill = {
   },
 };
 
+const inactiveGitFlowSkill = {
+  ...gitFlowSkill,
+  activation: {
+    active: false,
+    reasons: [
+      {
+        gate: "requires_tools",
+        code: "missing_tool" as const,
+        missing: ["agh__browser_screenshot"],
+        message: "gate requires_tools unmet: agh__browser_screenshot",
+      },
+    ],
+  },
+};
+
 const gitFlowShadows = {
   name: "git-flow",
   winner: {
@@ -56,10 +71,10 @@ const gitFlowShadows = {
   ],
 };
 
-function detailSkillHandlers(disableFailure = false) {
+function detailSkillHandlers(disableFailure = false, skill = gitFlowSkill) {
   return storybookMswParameters({
     marketplace: [
-      aghApiMock.get("/api/skills/{name}", () => HttpResponse.json({ skill: gitFlowSkill })),
+      aghApiMock.get("/api/skills/{name}", () => HttpResponse.json({ skill })),
       aghApiMock.get("/api/skills/{name}/content", () =>
         HttpResponse.json({
           content:
@@ -163,6 +178,16 @@ export const DetailSkillInstalled: Story = {
   parameters: {
     ...appRouteParameters("/marketplace/skill/git-flow"),
     ...detailSkillHandlers(),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Enabled skill withheld from agent prompts because a required tool is unavailable. */
+export const DetailSkillInactive: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/skill/git-flow"),
+    ...detailSkillHandlers(false, inactiveGitFlowSkill),
   },
   render: () => <StorybookWorkspaceSetup />,
 };

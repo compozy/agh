@@ -316,16 +316,14 @@ func recordLoopNodeTerminalWithExecutor(
 		return nil
 	}
 	status := loopNodeOutputSucceeded
-	failureDelta := 0
 	if outcome == loopNodeOutcomeFailure {
 		status = loopNodeOutputFailed
-		failureDelta = 1
 	}
 	if err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, outputRef); err != nil {
 		return err
 	}
 	affected, err := sqlcgen.New(exec).UpdateLoopRunNodeTerminal(ctx, sqlcgen.UpdateLoopRunNodeTerminalParams{
-		TerminalAt: store.FormatTimestamp(terminalAt), FailureDelta: int64(failureDelta), ID: loopRunID,
+		TerminalAt: store.FormatTimestamp(terminalAt), ID: loopRunID,
 	})
 	if err != nil {
 		return fmt.Errorf("store: record loop run %q node terminal progress: %w", loopRunID, err)

@@ -18,6 +18,7 @@ func (d *Daemon) nativeToolsDeps(
 	)
 	return daemonNativeToolsDeps{
 		Registry:                   registryRef,
+		ToolArtifacts:              state.toolArtifacts,
 		Config:                     state.cfg,
 		Skills:                     skillsRegistryAPI(state.skillsRegistry),
 		Sessions:                   state.sessions,
@@ -63,8 +64,12 @@ func (d *Daemon) nativeToolsDeps(
 		ExtensionEvents:  extensionEventSummaryStore(state.registry),
 		AgentSkills:      state.agentSkillResources,
 		ToolMCP:          state.toolMCPResources,
-		BundleResources:  state.bundleResources,
-		LoopResources:    state.loopResources,
+		ApprovalGrants:   state.deps.ApprovalGrants,
+		Clarify: func() toolspkg.ClarifyBroker {
+			return state.clarify
+		},
+		BundleResources: state.bundleResources,
+		LoopResources:   state.loopResources,
 		BundleService: func() core.BundleService {
 			return state.deps.Bundles
 		},

@@ -81,6 +81,8 @@ type ObserveRepo struct{ *repoBase }
 type ToolRuntimeRepo struct{ *repoBase }
 type VaultRepo struct{ *repoBase }
 type WatchEventsRepo struct{ *repoBase }
+type DeadEntityRepo struct{ *repoBase }
+type ApprovalGrantRepo struct{ *repoBase }
 
 func (g *GlobalDB) initializeRepositories() {
 	base := newRepoBase(g.db, func() time.Time { return g.now() }, &g.closed)
@@ -113,6 +115,8 @@ func (g *GlobalDB) initializeRepositories() {
 	g.ToolRuntimeRepo = &ToolRuntimeRepo{repoBase: base}
 	g.VaultRepo = &VaultRepo{repoBase: base}
 	g.WatchEventsRepo = &WatchEventsRepo{repoBase: base}
+	g.DeadEntityRepo = &DeadEntityRepo{repoBase: base}
+	g.ApprovalGrantRepo = &ApprovalGrantRepo{repoBase: base}
 	loopRepo.watchEvents = g.WatchEventsRepo
 	loopRepo.observe = g.ObserveRepo
 	taskRepo.enqueueLoopCoordinatorWake = g.EnqueueLoopCoordinatorWake

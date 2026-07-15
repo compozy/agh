@@ -15,6 +15,10 @@ type sessionLifecycleObserver interface {
 	OnSessionStopped(context.Context, *session.Session)
 }
 
+type sessionFinalizationObserver interface {
+	OnSessionFinalizing(context.Context, *session.Session)
+}
+
 type taskRunEnqueuedObserver interface {
 	OnTaskRunEnqueued(context.Context, hookspkg.TaskRunEnqueuedPayload)
 }
@@ -62,6 +66,25 @@ func (f *sessionLifecycleFanout) OnSessionCreated(ctx context.Context, sess *ses
 func (f *sessionLifecycleFanout) OnSessionStopped(ctx context.Context, sess *session.Session) {
 	for _, observer := range f.snapshot() {
 		observer.OnSessionStopped(ctx, sess)
+	}
+}
+
+func (f *sessionLifecycleFanout) OnSessionFinalizing(ctx context.Context, sess *session.Session) {
+	for _, observer := range f.snapshot() {
+		if finalizer, ok := observer.(sessionFinalizationObserver); ok {
+			finalizer.OnSessionFinalizing(ctx, sess)
+		}
+	}
+}
+
+func (f *sessionLifecycleFanout) OnSubprocessHealth(
+	ctx context.Context,
+	observation session.SubprocessHealthSnapshot,
+) {
+	for _, observer := range f.snapshot() {
+		if notifier, ok := observer.(session.SubprocessHealthNotifier); ok {
+			notifier.OnSubprocessHealth(ctx, observation)
+		}
 	}
 }
 

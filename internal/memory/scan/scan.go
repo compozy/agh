@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	memcontract "github.com/compozy/agh/internal/memory/contract"
+	redactpkg "github.com/compozy/agh/internal/redact"
 )
 
 // Action is the strongest deterministic outcome produced by the scanner.
@@ -270,6 +271,14 @@ func Candidate(candidate memcontract.Candidate) Result {
 // Content scans memory content with deterministic lexical policy rules.
 func Content(content string) Result {
 	result := Result{Action: ActionAllow}
+	if redactpkg.ContainsRawClaimToken(content) {
+		result.add(Match{
+			RuleID:   "policy_raw_claim_token",
+			Category: CategoryWhatNotToSave,
+			Action:   ActionReject,
+			Reason:   "matches WHAT_NOT_TO_SAVE raw claim-token policy",
+		})
+	}
 	for _, rule := range invisibleRuneRules {
 		if strings.ContainsRune(content, rule.r) {
 			result.add(Match{

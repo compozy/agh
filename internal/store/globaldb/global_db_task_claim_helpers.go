@@ -91,20 +91,51 @@ func requeueExpiredLease(
 	exec taskSQLExecutor,
 	run taskpkg.Run,
 	snapshot taskRunLeaseSnapshot,
+	recoveryIncrement int64,
 ) error {
 	affected, err := sqlcgen.New(exec).RequeueExpiredTaskRunLease(
 		ctx,
 		sqlcgen.RequeueExpiredTaskRunLeaseParams{
-			QueuedStatus:   taskpkg.TaskRunStatusQueued.String(),
-			ID:             run.ID,
-			PreviousStatus: snapshot.status.Normalize().String(),
-			SessionID:      nullableTaskString(strings.TrimSpace(snapshot.sessionID)),
-			ClaimTokenHash: nullableTaskString(strings.TrimSpace(snapshot.claimTokenHash)),
-			LeaseUntil:     nullableTaskTime(snapshot.leaseUntil),
+			QueuedStatus:      taskpkg.TaskRunStatusQueued.String(),
+			ID:                run.ID,
+			PreviousStatus:    snapshot.status.Normalize().String(),
+			SessionID:         nullableTaskString(strings.TrimSpace(snapshot.sessionID)),
+			ClaimTokenHash:    nullableTaskString(strings.TrimSpace(snapshot.claimTokenHash)),
+			LeaseUntil:        nullableTaskTime(snapshot.leaseUntil),
+			RecoveryIncrement: recoveryIncrement,
 		},
 	)
 	if err != nil {
 		return fmt.Errorf("store: recover expired task run lease %q: %w", run.ID, err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("store: expired task run lease %q: %w", run.ID, taskpkg.ErrTaskRunNotFound)
+	}
+	return nil
+}
+
+func exhaustExpiredLease(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run taskpkg.Run,
+	snapshot taskRunLeaseSnapshot,
+	now time.Time,
+) error {
+	affected, err := sqlcgen.New(exec).ExhaustExpiredTaskRunLease(
+		ctx,
+		sqlcgen.ExhaustExpiredTaskRunLeaseParams{
+			NeedsAttentionStatus: taskpkg.TaskRunStatusNeedsAttention.String(),
+			EndedAt:              nullableTaskTime(now),
+			Error:                nullableTaskString(taskpkg.LeaseRecoveryExhaustedReason),
+			ID:                   run.ID,
+			PreviousStatus:       snapshot.status.Normalize().String(),
+			SessionID:            nullableTaskString(strings.TrimSpace(snapshot.sessionID)),
+			ClaimTokenHash:       nullableTaskString(strings.TrimSpace(snapshot.claimTokenHash)),
+			LeaseUntil:           nullableTaskTime(snapshot.leaseUntil),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("store: exhaust expired task run lease %q: %w", run.ID, err)
 	}
 	if affected == 0 {
 		return fmt.Errorf("store: expired task run lease %q: %w", run.ID, taskpkg.ErrTaskRunNotFound)

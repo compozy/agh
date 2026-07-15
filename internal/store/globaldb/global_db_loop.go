@@ -20,7 +20,7 @@ const loopRunSelectColumnsSQL = `
 	id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at, started_at,
 	last_progress_at, definition_version, definition_digest, active_gate_id,
 	active_human_criteria_json, budget_approval_seq, start_metadata_json,
-	consecutive_failures, budget_tokens, budget_wall_sec,
+	budget_tokens, budget_wall_sec,
 	budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested,
 	control_actor_kind, control_actor_id, control_requested_at, inputs_json, iteration_cap,
 	started_by_kind, started_by_ref, started_origin_kind, started_origin_ref,

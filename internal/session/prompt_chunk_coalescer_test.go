@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -52,9 +53,26 @@ func TestPromptChunkCoalescing(t *testing.T) {
 			}
 		})
 
-		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		var prepared PromptDelivery
+		eventsCh, err := h.manager.PromptWithOpts(testutil.Context(t), session.ID, PromptOpts{
+			Message: "hello",
+			PrepareDelivery: func(_ context.Context, delivery PromptDelivery) error {
+				prepared = delivery
+				got := countAgentEvents(
+					h.notifier.eventsForSession(session.ID),
+					acp.EventTypeAgentMessage,
+				)
+				if got != 0 {
+					t.Fatalf("agent_message notifier events before delivery preparation = %d, want 0", got)
+				}
+				return nil
+			},
+		})
 		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
+			t.Fatalf("PromptWithOpts() error = %v", err)
+		}
+		if prepared.SessionID != session.ID || strings.TrimSpace(prepared.TurnID) == "" {
+			t.Fatalf("prepared delivery = %#v, want session %q and a turn id", prepared, session.ID)
 		}
 		runtimeEvents := collectEvents(t, eventsCh)
 		if got, want := countAgentEvents(runtimeEvents, acp.EventTypeAgentMessage), 3; got != want {
@@ -64,6 +82,10 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		wantTexts := []string{"hel", "lo ", "world"}
 		if !slices.Equal(gotTexts, wantTexts) {
 			t.Fatalf("agent_message runtime texts = %q, want %q", gotTexts, wantTexts)
+		}
+		notifiedTexts := agentEventTexts(h.notifier.eventsForSession(session.ID), acp.EventTypeAgentMessage)
+		if !slices.Equal(notifiedTexts, wantTexts) {
+			t.Fatalf("agent_message notifier texts = %q, want streaming texts %q", notifiedTexts, wantTexts)
 		}
 
 		stored := readStoredEvents(t, session)

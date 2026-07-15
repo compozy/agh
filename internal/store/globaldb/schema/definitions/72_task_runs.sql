@@ -77,6 +77,7 @@ CREATE TABLE "task_runs" (
 		workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 		status          TEXT NOT NULL,
 		attempt         INTEGER NOT NULL CHECK (attempt > 0),
+		recovery_count  INTEGER NOT NULL DEFAULT 0 CHECK (recovery_count >= 0),
 		previous_run_id TEXT,
 		failure_kind    TEXT NOT NULL DEFAULT '' CHECK (
 			failure_kind = '' OR failure_kind IN ('operator_forced')
@@ -231,6 +232,10 @@ CREATE INDEX idx_task_runs_task_review_round
 		WHERE review_round > 0;
 
 CREATE INDEX idx_task_runs_task_status ON task_runs(task_id, status, queued_at DESC, id DESC);
+
+CREATE INDEX idx_task_runs_workspace_active
+			ON task_runs(workspace_id, status, lease_until)
+			WHERE workspace_id IS NOT NULL AND run_kind IN ('worker', 'coordinator');
 
 CREATE UNIQUE INDEX uq_task_run_reviews_delivery
 		ON task_run_reviews(review_id, delivery_id)

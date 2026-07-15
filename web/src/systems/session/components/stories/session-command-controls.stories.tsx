@@ -41,12 +41,13 @@ const errorEvent: AgentEventPayload = {
 
 const markerEvent: AgentEventPayload = {
   type: "transcript_marker.created",
-  text: "Prompt exceeded the configured timeout",
+  text: "1 file mutation failed and was not recovered in this turn. Verify the affected file before trusting completion claims.",
   marker: {
-    kind: "prompt_timeout",
+    kind: "transcript_marker.file_mutation_unverified",
     occurred_at: "2026-05-20T13:56:00Z",
-    summary: "Prompt exceeded the configured timeout",
-    evidence: { prompt_timeout_seconds: 180 },
+    summary:
+      "1 file mutation failed and was not recovered in this turn. Verify the affected file before trusting completion claims.",
+    evidence: { failure_count: 1, paths: ["checkout/retry.go"] },
   },
   timestamp: "2026-05-20T13:56:00Z",
 };

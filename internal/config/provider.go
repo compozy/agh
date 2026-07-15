@@ -126,41 +126,6 @@ type ProviderCredentialSlot struct {
 	Required  bool   `toml:"required"`
 }
 
-// ProviderModelsConfig describes provider-scoped model defaults and metadata.
-type ProviderModelsConfig struct {
-	Default   string                        `toml:"default,omitempty"`
-	Curated   []ProviderModelConfig         `toml:"curated,omitempty"`
-	Discovery ProviderModelsDiscoveryConfig `toml:"discovery,omitempty"`
-	Reasoning ProviderReasoningConfig       `toml:"reasoning,omitempty"`
-}
-
-// ProviderModelsDiscoveryConfig describes optional side-effect-free model discovery.
-type ProviderModelsDiscoveryConfig struct {
-	Enabled  *bool  `toml:"enabled,omitempty"`
-	Command  string `toml:"command,omitempty"`
-	Endpoint string `toml:"endpoint,omitempty"`
-	Timeout  string `toml:"timeout,omitempty"`
-}
-
-// ProviderModelConfig describes one curated provider model entry.
-type ProviderModelConfig struct {
-	ID                     string   `toml:"id"`
-	DisplayName            string   `toml:"display_name,omitempty"`
-	ContextWindow          *int64   `toml:"context_window,omitempty"`
-	MaxInputTokens         *int64   `toml:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64   `toml:"max_output_tokens,omitempty"`
-	SupportsTools          *bool    `toml:"supports_tools,omitempty"`
-	SupportsReasoning      *bool    `toml:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []string `toml:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort string   `toml:"default_reasoning_effort,omitempty"`
-	CostInputPerMillion    *float64 `toml:"cost_input_per_million,omitempty"`
-	CostOutputPerMillion   *float64 `toml:"cost_output_per_million,omitempty"`
-	Deprecated             *bool    `toml:"deprecated,omitempty"`
-	Hidden                 *bool    `toml:"hidden,omitempty"`
-	Featured               *bool    `toml:"featured,omitempty"`
-	ReleaseDate            string   `toml:"release_date,omitempty"`
-}
-
 // ModelCatalogConfig controls daemon-owned model catalog sources.
 type ModelCatalogConfig struct {
 	Sources ModelCatalogSourcesConfig `toml:"sources,omitempty"`
@@ -1463,69 +1428,6 @@ func cloneBoolRef(src *bool) *bool {
 		return nil
 	}
 	return new(*src)
-}
-
-func cloneInt64Ref(src *int64) *int64 {
-	if src == nil {
-		return nil
-	}
-	value := *src
-	return &value
-}
-
-func cloneFloat64Ref(src *float64) *float64 {
-	if src == nil {
-		return nil
-	}
-	value := *src
-	return &value
-}
-
-func cloneProviderModelsConfig(src ProviderModelsConfig) ProviderModelsConfig {
-	return ProviderModelsConfig{
-		Default:   src.Default,
-		Curated:   cloneProviderModelConfigs(src.Curated),
-		Discovery: cloneProviderModelsDiscoveryConfig(src.Discovery),
-		Reasoning: src.Reasoning,
-	}
-}
-
-func cloneProviderModelsDiscoveryConfig(
-	src ProviderModelsDiscoveryConfig,
-) ProviderModelsDiscoveryConfig {
-	return ProviderModelsDiscoveryConfig{
-		Enabled:  cloneBoolRef(src.Enabled),
-		Command:  src.Command,
-		Endpoint: src.Endpoint,
-		Timeout:  src.Timeout,
-	}
-}
-
-func cloneProviderModelConfigs(src []ProviderModelConfig) []ProviderModelConfig {
-	if src == nil {
-		return nil
-	}
-	cloned := make([]ProviderModelConfig, len(src))
-	for idx, model := range src {
-		cloned[idx] = ProviderModelConfig{
-			ID:                     model.ID,
-			DisplayName:            model.DisplayName,
-			ContextWindow:          cloneInt64Ref(model.ContextWindow),
-			MaxInputTokens:         cloneInt64Ref(model.MaxInputTokens),
-			MaxOutputTokens:        cloneInt64Ref(model.MaxOutputTokens),
-			SupportsTools:          cloneBoolRef(model.SupportsTools),
-			SupportsReasoning:      cloneBoolRef(model.SupportsReasoning),
-			ReasoningEfforts:       cloneStrings(model.ReasoningEfforts),
-			DefaultReasoningEffort: model.DefaultReasoningEffort,
-			CostInputPerMillion:    cloneFloat64Ref(model.CostInputPerMillion),
-			CostOutputPerMillion:   cloneFloat64Ref(model.CostOutputPerMillion),
-			Deprecated:             cloneBoolRef(model.Deprecated),
-			Hidden:                 cloneBoolRef(model.Hidden),
-			Featured:               cloneBoolRef(model.Featured),
-			ReleaseDate:            model.ReleaseDate,
-		}
-	}
-	return cloned
 }
 
 func cloneProviderCredentialSlots(src []ProviderCredentialSlot) []ProviderCredentialSlot {

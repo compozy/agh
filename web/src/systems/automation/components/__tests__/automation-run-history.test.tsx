@@ -121,6 +121,26 @@ describe("AutomationRunHistory", () => {
     expect(within(row).getByText("pending")).toBeInTheDocument();
   });
 
+  it("Should surface a durable skip reason on a canceled run without inventing a new status", () => {
+    const overlapSkip: AutomationRun = {
+      id: "run_skip",
+      status: "canceled",
+      attempt: 1,
+      job_id: "job_daily_review",
+      fire_id: "fire_daily_review_003",
+      scheduled_at: "2026-04-11T12:00:00Z",
+      metadata: { reason: "self_overlap" },
+    };
+
+    render(<AutomationRunHistory error={null} isLoading={false} runs={[overlapSkip]} />);
+
+    const row = screen.getByTestId("automation-run-run_skip");
+    expect(within(row).getByText("CANCELED")).toBeInTheDocument();
+    expect(within(row).getByTestId("automation-run-skip-reason")).toHaveTextContent("OVERLAP");
+    expect(within(row).getByText("A previous run was still active.")).toBeInTheDocument();
+    expect(within(row).queryByText("pending")).not.toBeInTheDocument();
+  });
+
   it("Should link a delegated automation run to its correlated Loop run", () => {
     const loopRun: AutomationRun = {
       ...pendingRun,

@@ -9,9 +9,13 @@ func promptResponseUsage(turn acpmock.TurnFixture) *acpsdk.Usage {
 	if turn.Usage == nil {
 		return nil
 	}
+	totalTokens := turn.Usage.InputTokens + turn.Usage.OutputTokens
+	if turn.Usage.TotalTokens != nil {
+		totalTokens = *turn.Usage.TotalTokens
+	}
 	return &acpsdk.Usage{
 		InputTokens:  turn.Usage.InputTokens,
 		OutputTokens: turn.Usage.OutputTokens,
-		TotalTokens:  turn.Usage.InputTokens + turn.Usage.OutputTokens,
+		TotalTokens:  totalTokens,
 	}
 }

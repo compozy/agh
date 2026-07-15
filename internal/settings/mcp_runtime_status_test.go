@@ -134,6 +134,58 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 			t.Fatalf("clone mutated source runtime or metadata: %#v", source)
 		}
 	})
+
+	t.Run("Should pass the effective workspace source target to the runtime", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		workspaceRoot := t.TempDir()
+		writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName), `
+[[mcp_servers]]
+name = "workspace-docs"
+command = "docs-mcp"
+`)
+		runtime := &fakeMCPRuntimeProvider{
+			statuses: map[string]MCPServerRuntimeStatus{
+				"workspace-docs": {
+					Configured: true,
+					State:      MCPServerRuntimeStateDead,
+					Probe:      MCPServerProbeSkipped,
+					Reason:     "backend_dead",
+				},
+			},
+			targets: make(map[string]mcpauth.Target),
+		}
+		service := testService(t, homePaths, Dependencies{
+			MCPRuntime: runtime,
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-runtime": {
+					Workspace: workspacepkg.Workspace{ID: "ws-runtime", RootDir: workspaceRoot},
+				},
+			}},
+		})
+
+		envelope, err := service.ListCollection(ctx, CollectionRequest{
+			Collection:  CollectionMCPServers,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-runtime",
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(workspace mcp) error = %v", err)
+		}
+		item := findMCPItem(t, envelope.MCPServers, "workspace-docs")
+		if item.RuntimeStatus == nil || item.RuntimeStatus.State != MCPServerRuntimeStateDead {
+			t.Fatalf("workspace runtime status = %#v, want dead", item.RuntimeStatus)
+		}
+		if got, want := runtime.targets["workspace-docs"], (mcpauth.Target{
+			Scope:       mcpauth.ScopeWorkspace,
+			WorkspaceID: "ws-runtime",
+			ServerName:  "workspace-docs",
+		}); got != want {
+			t.Fatalf("runtime target = %#v, want %#v", got, want)
+		}
+	})
 }
 
 func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
@@ -356,13 +408,17 @@ func confirmedMCPAuthRuntimeStatus(target mcpauth.Target) mcpauth.Status {
 
 type fakeMCPRuntimeProvider struct {
 	statuses map[string]MCPServerRuntimeStatus
+	targets  map[string]mcpauth.Target
 }
 
-func (f fakeMCPRuntimeProvider) MCPServerRuntimeStatus(
+func (f *fakeMCPRuntimeProvider) MCPServerRuntimeStatus(
 	_ context.Context,
-	_ mcpauth.Target,
+	target mcpauth.Target,
 	server aghconfig.MCPServer,
 ) (MCPServerRuntimeStatus, error) {
+	if f.targets != nil {
+		f.targets[strings.TrimSpace(server.Name)] = target
+	}
 	if status, ok := f.statuses[strings.TrimSpace(server.Name)]; ok {
 		return status, nil
 	}

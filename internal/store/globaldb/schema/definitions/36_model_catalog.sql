@@ -29,6 +29,9 @@ CREATE TABLE model_catalog_rows (
 			default_reasoning_effort TEXT,
 			cost_input_per_million   REAL,
 			cost_output_per_million  REAL,
+			cost_cache_read_per_million  REAL,
+			cost_cache_write_per_million REAL,
+			cost_reasoning_per_million   REAL,
 			last_error               TEXT NOT NULL DEFAULT '', deprecated INTEGER NOT NULL DEFAULT 0 CHECK (deprecated IN (0, 1)), hidden INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)), featured INTEGER NOT NULL DEFAULT 0 CHECK (featured IN (0, 1)), release_date TEXT, explicitly_curated INTEGER NOT NULL DEFAULT 0 CHECK (explicitly_curated IN (0, 1)), deprecated_set INTEGER NOT NULL DEFAULT 0 CHECK (deprecated_set IN (0, 1)), hidden_set INTEGER NOT NULL DEFAULT 0 CHECK (hidden_set IN (0, 1)), featured_set INTEGER NOT NULL DEFAULT 0 CHECK (featured_set IN (0, 1)),
 			PRIMARY KEY (source_id, provider_id, model_id),
 			FOREIGN KEY (source_id, provider_id)

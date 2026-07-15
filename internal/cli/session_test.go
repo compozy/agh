@@ -509,6 +509,132 @@ func TestSessionRepairPassesFlagsAndRendersJSON(t *testing.T) {
 	})
 }
 
+func TestSessionClarifyPendingUsesLiveDaemonProjection(t *testing.T) {
+	t.Parallel()
+
+	want := ClarificationsRecord{Clarifications: []ClarificationPendingRecord{{
+		RequestID: "req-1",
+		SessionID: "sess-1",
+		AgentName: "reviewer",
+		Question:  "Which workspace should I use?",
+		Choices:   []string{"staging", "production"},
+		AskedAt:   fixedTestNow,
+		Deadline:  fixedTestNow.Add(5 * time.Minute),
+	}}}
+	deps := newTestDeps(t, &stubClient{
+		listSessionClarificationsFn: func(_ context.Context, sessionID string) (ClarificationsRecord, error) {
+			if sessionID != "sess-1" {
+				t.Fatalf("session id = %q, want sess-1", sessionID)
+			}
+			return want, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "clarify", "pending", "sess-1", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand(session clarify pending) error = %v", err)
+	}
+	var got ClarificationsRecord
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("json.Unmarshal(session clarify pending) error = %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("pending clarifications = %#v, want %#v", got, want)
+	}
+}
+
+func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T) {
+	t.Parallel()
+
+	wireChoice := 1
+	deps := newTestDeps(t, &stubClient{
+		answerSessionClarificationFn: func(
+			_ context.Context,
+			sessionID string,
+			requestID string,
+			request ClarificationAnswerRequest,
+		) (ClarificationAnswerRecord, error) {
+			if sessionID != "sess-1" || requestID != "req-1" {
+				t.Fatalf("answer target = %q/%q, want sess-1/req-1", sessionID, requestID)
+			}
+			if request.ChoiceIndex == nil || *request.ChoiceIndex != wireChoice || request.Text != "" {
+				t.Fatalf("answer request = %#v, want zero-based choice %d", request, wireChoice)
+			}
+			return ClarificationAnswerRecord{Choice: &wireChoice}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"session",
+		"clarify",
+		"answer",
+		"sess-1",
+		"req-1",
+		"--choice",
+		"2",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("executeRootCommand(session clarify answer) error = %v", err)
+	}
+	var got ClarificationAnswerRecord
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("json.Unmarshal(session clarify answer) error = %v", err)
+	}
+	if got.Choice == nil || *got.Choice != wireChoice || got.Text != "" || got.Fallback {
+		t.Fatalf("clarification answer = %#v, want exact wire result", got)
+	}
+}
+
+func TestSessionClarifyAnswerRequiresExactlyOneAnswerFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "Should reject a missing answer",
+			wantErr: "exactly one of --choice or --text is required",
+		},
+		{
+			name:    "Should reject both answer forms",
+			args:    []string{"--choice", "1", "--text", "staging"},
+			wantErr: "exactly one of --choice or --text is required",
+		},
+		{
+			name:    "Should reject a zero choice",
+			args:    []string{"--choice", "0"},
+			wantErr: "--choice must be at least 1",
+		},
+		{
+			name:    "Should reject blank text",
+			args:    []string{"--text", "   "},
+			wantErr: "--text cannot be blank",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			args := []string{"session", "clarify", "answer", "sess-1", "req-1"}
+			args = append(args, tt.args...)
+			_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), args...)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf(
+					"executeRootCommand(session clarify answer) error = %v, want %q",
+					err,
+					tt.wantErr,
+				)
+			}
+		})
+	}
+}
+
 func TestSessionEventsFollowUsesSSE(t *testing.T) {
 	t.Parallel()
 
@@ -905,6 +1031,95 @@ func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 	if decoded.SessionID != "sess-1" || decoded.State != "idle" || !decoded.EligibleForWake {
 		t.Fatalf("decoded = %#v, want sess-1 eligible idle health", decoded)
 	}
+}
+
+func TestSessionUsageCommandPreservesCostProvenance(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the exact estimated usage contract as JSON", func(t *testing.T) {
+		t.Parallel()
+
+		input := int64(128_400)
+		output := int64(24_900)
+		total := input + output
+		amount := 0.7587
+		deps := newTestDeps(t, &stubClient{
+			getSessionUsageFn: func(_ context.Context, id string) (SessionUsageRecord, error) {
+				if id != "sess-1" {
+					t.Fatalf("GetSessionUsage() id = %q, want sess-1", id)
+				}
+				return SessionUsageRecord{
+					InputTokens:  &input,
+					OutputTokens: &output,
+					TotalTokens:  &total,
+					TotalCost:    &amount,
+					CostCurrency: "USD",
+					CostStatus:   "estimated",
+					CostSource:   "catalog_config",
+					TurnCount:    1,
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "session", "usage", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+		var decoded SessionUsageRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.TotalCost == nil || *decoded.TotalCost != amount || decoded.CostCurrency != "USD" ||
+			decoded.CostStatus != "estimated" || decoded.CostSource != "catalog_config" {
+			t.Fatalf("decoded usage = %#v, want estimated/catalog_config USD %.4f", decoded, amount)
+		}
+	})
+
+	t.Run("Should render included usage without a monetary amount", func(t *testing.T) {
+		t.Parallel()
+
+		total := int64(42)
+		contradictoryAmount := 99.0
+		deps := newTestDeps(t, &stubClient{
+			getSessionUsageFn: func(context.Context, string) (SessionUsageRecord, error) {
+				return SessionUsageRecord{
+					TotalTokens:  &total,
+					TotalCost:    &contradictoryAmount,
+					CostCurrency: "USD",
+					CostStatus:   "included",
+					CostSource:   "none",
+					TurnCount:    1,
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "session", "usage", "sess-1")
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+		if !strings.Contains(stdout, "Included") || strings.Contains(stdout, "USD 99") {
+			t.Fatalf("session usage output = %q, want Included without monetary amount", stdout)
+		}
+	})
+
+	t.Run("Should suppress an amount without authoritative status", func(t *testing.T) {
+		t.Parallel()
+
+		amount := 18.42
+		deps := newTestDeps(t, &stubClient{
+			getSessionUsageFn: func(context.Context, string) (SessionUsageRecord, error) {
+				return SessionUsageRecord{TotalCost: &amount, CostCurrency: "USD"}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "session", "usage", "sess-1")
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+		if strings.Contains(stdout, "USD 18.42") {
+			t.Fatalf("session usage output = %q, want no amount without cost status", stdout)
+		}
+	})
 }
 
 func TestSessionResumeReturnsSessionRecord(t *testing.T) {

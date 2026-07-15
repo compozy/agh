@@ -56,6 +56,7 @@ test.describe("Marketplace acquisition", () => {
         marketplaceCatalog: {
           extensions: [
             {
+              artifact_url: `https://github.com/compozy/agh/releases/download/v1.0.0/${extensionEntryID}.tar.gz`,
               author: "agh",
               description: "An unverified extension blocked by the live side-load policy.",
               digest_sha256: "a".repeat(64),
@@ -1018,7 +1019,7 @@ test.describe("Skills marketplace management", () => {
     ]);
     const cliInfo = await skillCLI<SkillPayload>(runtime, [
       "skill",
-      "info",
+      "inspect",
       skillName,
       "--workspace",
       workspaceID,
@@ -1309,13 +1310,13 @@ test.describe("MCP marketplace authorization", () => {
       await appPage.getByTestId("mcp-authorize-btn").click();
       const urlBlock = appPage.getByTestId("settings-page-mcp-authorize-url");
       await expect(urlBlock).toBeVisible();
-      const liveUrl = (await urlBlock.locator("code").innerText()).trim();
-      const state = new URL(liveUrl).searchParams.get("state");
-      expect(state, "begin must return a live PKCE state").toBeTruthy();
-
       await appPage.getByTestId("settings-page-mcp-authorize-manual-trigger").click();
+      await expect(appPage.getByTestId("settings-page-mcp-authorize-manual-input")).toBeVisible();
+      const manualLiveUrl = (await urlBlock.locator("code").innerText()).trim();
+      const manualState = new URL(manualLiveUrl).searchParams.get("state");
+      expect(manualState, "manual begin must return a live PKCE state").toBeTruthy();
       const callbackUrl = runtime.url(
-        `/api/mcp/oauth/callback?code=auth-code&state=${encodeURIComponent(state ?? "")}`
+        `/api/mcp/oauth/callback?code=auth-code&state=${encodeURIComponent(manualState ?? "")}`
       );
       await appPage.getByTestId("settings-page-mcp-authorize-manual-input").fill(callbackUrl);
       await appPage.getByTestId("settings-page-mcp-authorize-exchange").click();
@@ -1464,7 +1465,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
       read_only: boolean;
       risk: string;
     };
-    availability: { available: boolean; executable: boolean };
+    availability: { available: boolean; executable: boolean; reason_codes?: string[] };
     decision: { approval_required: boolean; callable: boolean; visible_to_operator: boolean };
   }
 
@@ -1514,6 +1515,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
 
   interface BundleActivation {
     id: string;
+    version: number;
     extension_name: string;
     bundle_name: string;
     profile_name: string;
@@ -1881,6 +1883,8 @@ test.describe("Extension and bundle marketplace runtime", () => {
       "bundle",
       "update",
       activationID,
+      "--expected-version",
+      String(cliActivation.version),
       "--confirm-network-requirement",
     ]);
     expect(updatedActivation.id).toBe(activationID);
@@ -2471,6 +2475,9 @@ test.describe("Extension and bundle marketplace runtime", () => {
     if (!tool) {
       throw new Error(`${label} did not expose ${toolID}`);
     }
+    if (!tool.availability.available || !tool.availability.executable) {
+      throw new Error(`${label} exposed an unavailable tool: ${JSON.stringify(projectTool(tool))}`);
+    }
     expect(tool.availability.available).toBe(true);
     expect(tool.availability.executable).toBe(true);
     expect(tool.decision.visible_to_operator).toBe(true);
@@ -2539,6 +2546,7 @@ test.describe("Extension and bundle marketplace runtime", () => {
       risk: tool.descriptor.risk,
       available: tool.availability.available,
       executable: tool.availability.executable,
+      reason_codes: tool.availability.reason_codes ?? [],
       decision: tool.decision,
     };
   }

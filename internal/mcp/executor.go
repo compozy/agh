@@ -50,15 +50,15 @@ func (e *CallExecutor) ListTools(
 	}
 	client, err := e.openClient(ctx, resolved)
 	if err != nil {
-		return nil, err
+		return nil, normalizeMCPDiscoveryError(err)
 	}
 	defer closeMCPClient(client)
 	if err := initializeClient(ctx, client); err != nil {
-		return nil, normalizeMCPError("", err)
+		return nil, normalizeMCPDiscoveryError(err)
 	}
 	result, err := client.ListTools(ctx, mcpsdk.ListToolsRequest{})
 	if err != nil {
-		return nil, normalizeMCPError("", err)
+		return nil, normalizeMCPDiscoveryError(err)
 	}
 	descriptors := make([]toolspkg.MCPToolDescriptor, 0, len(result.Tools))
 	for i := range result.Tools {
@@ -155,9 +155,6 @@ func (e *CallExecutor) Status(
 }
 
 func (e *CallExecutor) callContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if _, ok := ctx.Deadline(); ok {
-		return context.WithCancel(ctx)
-	}
 	return context.WithTimeout(ctx, e.timeout)
 }
 
@@ -318,6 +315,23 @@ func normalizeMCPError(id toolspkg.ToolID, err error) error {
 	default:
 		return fmt.Errorf("mcp: call upstream server: %w", err)
 	}
+}
+
+func normalizeMCPDiscoveryError(err error) error {
+	normalized := normalizeMCPError("", err)
+	if normalized == nil {
+		return nil
+	}
+	if _, ok := toolspkg.ReasonOf(normalized); ok {
+		return normalized
+	}
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeUnavailable,
+		"",
+		"mcp server is unreachable",
+		fmt.Errorf("%w: %w", toolspkg.ErrToolUnavailable, normalized),
+		toolspkg.ReasonMCPUnreachable,
+	)
 }
 
 func mcpServerMatches(server aghconfig.MCPServer, target string) bool {

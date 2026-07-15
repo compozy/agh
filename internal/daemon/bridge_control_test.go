@@ -15,8 +15,11 @@ import (
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	"github.com/compozy/agh/internal/deadentity"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestBridgeRuntimeResolveBridgeControlRuntimeKeepsDisabledState(t *testing.T) {
@@ -136,6 +139,141 @@ func TestBridgeRuntimeCheckBridgeDoesNotChangeLifecycleState(t *testing.T) {
 				persisted.Enabled,
 				persisted.Status,
 			)
+		}
+	})
+}
+
+func TestBridgeRuntimeCheckBridgeDeadEntityRecovery(t *testing.T) {
+	t.Run("Should mark and suppress only workspace bridge failures", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 7, 15, 20, 30, 0, 0, time.UTC)
+		workspaceID := "ws-dead-bridge"
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID:        workspaceID,
+			Name:      "Dead Bridge",
+			RootDir:   t.TempDir(),
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		runtime.deadEntities = deadentity.New(db, deadentity.WithClock(func() time.Time { return now }))
+		workspaceInstance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-dead-workspace",
+			Scope:         bridgepkg.ScopeWorkspace,
+			WorkspaceID:   workspaceID,
+			Platform:      "telegram",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "Telegram Workspace",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		globalInstance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-dead-global",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "telegram-adapter",
+			DisplayName:   "Global Bridge",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		transport := newBlockingBridgeControlExtensionRuntime()
+		transport.setChecks([]bridgepkg.BridgeCheckRecord{{
+			Check:       "provider.identity",
+			Status:      bridgepkg.BridgeCheckStatusFail,
+			Remediation: "replace the invalid token",
+		}})
+		close(transport.release)
+		runtime.setExtensionRuntime(transport)
+		assertProviderCall := func(wantInstanceID string) {
+			t.Helper()
+			select {
+			case gotInstanceID := <-transport.enteredCalls:
+				if gotInstanceID != wantInstanceID {
+					t.Fatalf("provider bridge instance = %q, want %q", gotInstanceID, wantInstanceID)
+				}
+			default:
+				t.Fatalf("provider was not called for bridge instance %q", wantInstanceID)
+			}
+		}
+
+		for attempt := 1; attempt <= deadentity.DefaultPermanentFailureThreshold; attempt++ {
+			response, err := runtime.CheckBridge(ctx, workspaceInstance.ExtensionName, bridgepkg.BridgeCheckRequest{
+				BridgeInstanceID: workspaceInstance.ID,
+			})
+			if err != nil {
+				t.Fatalf("CheckBridge(workspace attempt %d) error = %v", attempt, err)
+			}
+			if len(response.Checks) != 1 || response.Checks[0].Status != bridgepkg.BridgeCheckStatusFail {
+				t.Fatalf("CheckBridge(workspace attempt %d) = %#v, want structured failure", attempt, response)
+			}
+			assertProviderCall(workspaceInstance.ID)
+		}
+		_, err := runtime.CheckBridge(ctx, workspaceInstance.ExtensionName, bridgepkg.BridgeCheckRequest{
+			BridgeInstanceID: workspaceInstance.ID,
+		})
+		if !errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable) {
+			t.Fatalf("CheckBridge(suppressed) error = %v, want ErrBridgeInstanceUnavailable", err)
+		}
+		if got := transport.Calls(); got != deadentity.DefaultPermanentFailureThreshold {
+			t.Fatalf(
+				"workspace provider calls = %d, want %d before suppression",
+				got,
+				deadentity.DefaultPermanentFailureThreshold,
+			)
+		}
+		entities, err := db.ListDeadEntities(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("ListDeadEntities(marked) error = %v", err)
+		}
+		if len(entities) != 1 || entities[0].Kind != store.DeadEntityKindBridge ||
+			entities[0].EntityID != workspaceInstance.ID {
+			t.Fatalf("dead bridge entities = %#v, want workspace bridge", entities)
+		}
+
+		now = now.Add(deadentity.DefaultRecoveryInterval)
+		transport.setChecks([]bridgepkg.BridgeCheckRecord{{
+			Check:  "provider.identity",
+			Status: bridgepkg.BridgeCheckStatusPass,
+		}})
+		recovered, err := runtime.CheckBridge(ctx, workspaceInstance.ExtensionName, bridgepkg.BridgeCheckRequest{
+			BridgeInstanceID: workspaceInstance.ID,
+		})
+		if err != nil {
+			t.Fatalf("CheckBridge(recovery) error = %v", err)
+		}
+		assertProviderCall(workspaceInstance.ID)
+		if len(recovered.Checks) != 1 || recovered.Checks[0].Status != bridgepkg.BridgeCheckStatusPass {
+			t.Fatalf("CheckBridge(recovery) = %#v, want structured pass", recovered)
+		}
+		entities, err = db.ListDeadEntities(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("ListDeadEntities(recovered) error = %v", err)
+		}
+		if len(entities) != 0 {
+			t.Fatalf("dead bridge entities after recovery = %#v, want none", entities)
+		}
+
+		for attempt := range deadentity.DefaultPermanentFailureThreshold + 1 {
+			if _, err := runtime.CheckBridge(ctx, globalInstance.ExtensionName, bridgepkg.BridgeCheckRequest{
+				BridgeInstanceID: globalInstance.ID,
+			}); err != nil {
+				t.Fatalf("CheckBridge(global attempt %d) error = %v", attempt, err)
+			}
+			assertProviderCall(globalInstance.ID)
+		}
+		entities, err = db.ListDeadEntities(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("ListDeadEntities(global) error = %v", err)
+		}
+		if len(entities) != 0 {
+			t.Fatalf("dead bridge entities after global failures = %#v, want none", entities)
 		}
 	})
 }
@@ -391,6 +529,7 @@ type blockingBridgeControlExtensionRuntime struct {
 	release      chan struct{}
 	once         sync.Once
 	resolve      func(context.Context, string, bridgepkg.BridgeCheckRequest) error
+	checks       []bridgepkg.BridgeCheckRecord
 }
 
 func newBlockingBridgeControlExtensionRuntime() *blockingBridgeControlExtensionRuntime {
@@ -424,11 +563,27 @@ func (r *blockingBridgeControlExtensionRuntime) CheckBridge(
 	case <-ctx.Done():
 		return bridgepkg.BridgeCheckResponse{}, ctx.Err()
 	}
-	return bridgepkg.BridgeCheckResponse{
-		Checks: []bridgepkg.BridgeCheckRecord{{
+	r.mu.Lock()
+	checks := append([]bridgepkg.BridgeCheckRecord(nil), r.checks...)
+	r.mu.Unlock()
+	if len(checks) == 0 {
+		checks = []bridgepkg.BridgeCheckRecord{{
 			Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusPass,
-		}},
-	}, nil
+		}}
+	}
+	return bridgepkg.BridgeCheckResponse{Checks: checks}, nil
+}
+
+func (r *blockingBridgeControlExtensionRuntime) setChecks(checks []bridgepkg.BridgeCheckRecord) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.checks = append([]bridgepkg.BridgeCheckRecord(nil), checks...)
+}
+
+func (r *blockingBridgeControlExtensionRuntime) Calls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.calls
 }
 
 func waitForBridgeLifecycleRefs(t *testing.T, runtime *bridgeRuntime, instanceID string, want int) {

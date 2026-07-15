@@ -216,7 +216,16 @@ def prepare_activation(
                 json.dumps({"playbook_ref": playbook_ref, "activation": "pre_kickoff"}),
             ]
             if channel:
-                args.extend(["--channel", channel])
+                args.extend(
+                    [
+                        "--network",
+                        "live",
+                        "--network-channel-strategy",
+                        "named",
+                        "--network-channel",
+                        channel,
+                    ]
+                )
             output = runner(agh_bin, args, env)
             task_id, run_id = execution_ids(output, runtime_id)
             evidence["tasks"].append(

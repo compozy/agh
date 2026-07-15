@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -506,45 +505,22 @@ func createLegacyRawEventDB(ctx context.Context, t *testing.T) string {
 
 	path := filepath.Join(t.TempDir(), "events.db")
 	legacyContent := `{"schema":"agh.session.event.v1","type":"tool_call","raw":{"content":"preserve"}}`
-	timestamp := store.FormatTimestamp(time.Date(2026, 5, 5, 12, 0, 1, 0, time.UTC))
-	db, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		_, err := db.ExecContext(ctx, `CREATE TABLE events (
-			id TEXT PRIMARY KEY,
-			sequence INTEGER NOT NULL,
-			turn_id TEXT NOT NULL,
-			type TEXT NOT NULL,
-			agent_name TEXT NOT NULL,
-			content TEXT NOT NULL,
-			timestamp TEXT NOT NULL
-		);`)
-		if err != nil {
-			return fmt.Errorf("create legacy events table: %w", err)
-		}
-		_, err = db.ExecContext(
-			ctx,
-			`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			"ev-raw",
-			1,
-			"turn-raw",
-			"tool_call",
-			"coder",
-			legacyContent,
-			timestamp,
-		)
-		if err != nil {
-			return fmt.Errorf("insert legacy event: %w", err)
-		}
-		return nil
-	})
+	recorder, err := sessiondb.OpenSessionDB(ctx, "sess-legacy-raw", path)
 	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(legacy raw) error = %v", err)
+		t.Fatalf("OpenSessionDB(legacy raw) error = %v", err)
 	}
-	if err := store.Checkpoint(ctx, db); err != nil {
-		t.Fatalf("Checkpoint(legacy raw) error = %v", err)
+	if _, err := recorder.RecordPersisted(ctx, store.SessionEvent{
+		ID:        "ev-raw",
+		TurnID:    "turn-raw",
+		Type:      "tool_call",
+		AgentName: "coder",
+		Content:   legacyContent,
+		Timestamp: time.Date(2026, 5, 5, 12, 0, 1, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("RecordPersisted(legacy raw) error = %v", err)
 	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("legacy raw db Close() error = %v", err)
+	if err := recorder.Close(ctx); err != nil {
+		t.Fatalf("Close(legacy raw recorder) error = %v", err)
 	}
 	return path
 }
