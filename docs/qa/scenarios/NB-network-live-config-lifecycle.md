@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-network-live
 expected: Supported `[network.live.defaults]` and `[network.live.limits]` values survive reload and restart, while removed Network keys are rejected without changing active availability.
 entry_points: config.toml; agh config set; agh config reload; agh status -o json
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-07-14-network-changes/ch-network-admin-lifecycle.md
+last_report: docs/qa/reports/2026-07-14-network-changes.md
 overlaps:
 ---
 

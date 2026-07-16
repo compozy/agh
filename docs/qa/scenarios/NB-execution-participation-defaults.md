@@ -6,13 +6,13 @@ persona: Ada
 journey: J-network-local-default
 expected: A plain session create, task run, Loop run, or task-backed automation fire persists one immutable `Local`/`built_in_local` snapshot, creates no Network channel or wake, exposes no Network prompt, environment, or coordination tools, and records zero Network usage. Spawn, review, and detached child sessions resolve independently and never inherit a parent conversation.
 entry_points: web session/task/Loop/automation create, edit, and start surfaces; HTTP/UDS/CLI/native owner create/start verbs; schedule/webhook/trigger automation fire; Network channel catalog and usage reads
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
+qa_status: pass
+bug_ids: BUG-20260715-loop-participation-contract-dropped;BUG-20260715-automation-task-participation-control-missing;BUG-20260715-loop-run-compact-layout-collapsed
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-07-14-network-changes/ch-network-local-default.md
+last_report: docs/qa/reports/2026-07-14-network-changes.md
 overlaps: NB-006;TA-001;TA-004;TA-052
 ---
 
