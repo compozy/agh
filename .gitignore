@@ -31,10 +31,10 @@ ai-docs/
 .firecrawl
 .kodebase
 .compozy/tasks/final-qa/_runs
+# deep-review artifacts stay local; learnings.md is team review doctrine and ships with the repo
 .deep-review/*
 !.deep-review/learnings.md
 .peer-reviews
-.deep-review/
 .agh
 .clawpatch
 .claude/analysis
