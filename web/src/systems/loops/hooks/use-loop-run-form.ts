@@ -1,6 +1,11 @@
 import { useState } from "react";
 
 import { toast } from "@agh/ui";
+import {
+  networkParticipationDraftFromPayload,
+  serializeNetworkParticipation,
+  type NetworkParticipationDraft,
+} from "@/systems/network";
 
 import {
   buildConfigOverrides,
@@ -43,6 +48,9 @@ export function useLoopRunForm({
   const [overrides, setOverrides] = useState<LoopOverrideDraft>(() =>
     initialOverrideDraft(effectiveConfig)
   );
+  const [networkParticipation, setNetworkParticipation] = useState<NetworkParticipationDraft>(() =>
+    networkParticipationDraftFromPayload(loop.definition.network_participation)
+  );
   const [plan, setPlan] = useState<LoopDryRunPreview | null>(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
@@ -57,6 +65,7 @@ export function useLoopRunForm({
     return {
       inputs: serializeRunInputs(schema, inputs),
       config_overrides: configOverrides,
+      network_participation: serializeNetworkParticipation(networkParticipation),
     };
   }
 
@@ -68,6 +77,11 @@ export function useLoopRunForm({
   function setOverridesDraft(next: LoopOverrideDraft) {
     setPlan(null);
     setOverrides(next);
+  }
+
+  function setNetworkParticipationDraft(next: NetworkParticipationDraft) {
+    setPlan(null);
+    setNetworkParticipation(next);
   }
 
   function handleDryRun() {
@@ -107,6 +121,7 @@ export function useLoopRunForm({
     schema,
     inputs,
     overrides,
+    networkParticipation,
     configOverrides,
     plan,
     submitAttempted,
@@ -115,6 +130,7 @@ export function useLoopRunForm({
     busy,
     setInput,
     setOverridesDraft,
+    setNetworkParticipationDraft,
     handleDryRun,
     handleRun,
   };

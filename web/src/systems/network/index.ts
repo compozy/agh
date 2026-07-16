@@ -60,6 +60,8 @@ export type {
   NetworkThreadSummary,
   NetworkWorkDetail,
   NetworkWorkResponse,
+  TaskRunNetworkProjection,
+  TaskRunNetworkUsage,
 } from "./types";
 
 // Adapters
@@ -128,6 +130,7 @@ export {
 export type { NetworkWorkState } from "./lib/network-formatters";
 export { formatElapsedSeconds, useElapsedSeconds } from "./lib/use-elapsed";
 export type { UseElapsedOptions } from "./lib/use-elapsed";
+export { formatTaskRunBounds } from "./lib/task-run-network";
 export {
   NETWORK_IDENTITY_PALETTE,
   getIdentityInitial,
@@ -182,6 +185,8 @@ export type {
 } from "./hooks/use-directs";
 export { useNetworkMessages } from "./hooks/use-messages";
 export type { UseNetworkMessagesArgs, UseNetworkMessagesResult } from "./hooks/use-messages";
+export { useTaskRunConversation } from "./hooks/use-task-run-conversation";
+export type { UseTaskRunConversationResult } from "./hooks/use-task-run-conversation";
 export { useNetworkPage } from "./hooks/use-network-page";
 export type { UseNetworkPageResult } from "./hooks/use-network-page";
 export { useDirectRoom } from "./hooks/use-direct-room";
@@ -280,6 +285,7 @@ export { TaskRunConversationPanel } from "./components/task-run-conversation-pan
 export type { TaskRunConversationPanelProps } from "./components/task-run-conversation-panel";
 export {
   DEFAULT_NETWORK_PARTICIPATION_DRAFT,
+  networkParticipationDraftFromPayload,
   serializeNetworkParticipation,
 } from "./lib/network-participation";
 export type {

@@ -170,6 +170,37 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("job-target-agent")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("Should serialize the Automation Task participation control without legacy fields", () => {
+    const { onChange } = renderJobForm();
+    fireEvent.click(screen.getByTestId("job-target-task"));
+
+    expect(screen.getByTestId("job-task-participation-mode")).toHaveValue("local");
+    fireEvent.change(screen.getByTestId("job-task-participation-mode"), {
+      target: { value: "live" },
+    });
+    fireEvent.change(screen.getByTestId("job-task-participation-channel"), {
+      target: { value: "release-room" },
+    });
+    fireEvent.change(screen.getByTestId("job-task-participation-strategy"), {
+      target: { value: "named" },
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        task: expect.objectContaining({
+          network_participation: {
+            mode: "live",
+            channel_id: "release-room",
+            channel_strategy: "named",
+          },
+        }),
+      })
+    );
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
+      /"channel"|"network_channel"|"coordination_channel_id"/
+    );
+  });
+
   it("Should switch the target to Run loop with a static input form and no payload mapping (§9.14)", () => {
     const { onChange } = renderJobForm();
 

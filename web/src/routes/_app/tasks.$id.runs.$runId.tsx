@@ -4,7 +4,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskRunPage } from "@/hooks/routes/use-task-run-page";
-import { TaskRunConversationPanel, TaskRunCoordinationInvitationHost } from "@/systems/network";
+import {
+  formatTaskRunBounds,
+  TaskRunConversationPanel,
+  TaskRunCoordinationInvitationHost,
+  useTaskRunConversation,
+} from "@/systems/network";
 import {
   TaskRunDetailHeader,
   TaskInspectDiagnosticsCard,
@@ -24,6 +29,7 @@ function TaskRunDetailRoute() {
   const { id, runId } = Route.useParams();
   const page = useTaskRunPage(id, runId);
   const timelineQuery = useTaskTimeline(id, {}, { enabled: Boolean(id) });
+  const conversation = useTaskRunConversation(page.run?.network);
 
   if (page.runLoading) {
     return (
@@ -111,17 +117,19 @@ function TaskRunDetailRoute() {
           taskId={id}
           workerCount={workerCount}
         />
-        <TaskRunConversationPanel
-          boundsLabel={
-            participation?.mode
-              ? `Participation ${participation.mode}${
-                  participation.channel_id ? ` · ${participation.channel_id}` : ""
-                }`
-              : null
-          }
-          conversationEmpty
-          messageCount={0}
-        />
+        {conversation && run.network ? (
+          <TaskRunConversationPanel
+            boundsLabel={formatTaskRunBounds(record, run.network)}
+            conversationError={conversation.error}
+            conversationLoading={conversation.isLoading}
+            hasMoreMessages={conversation.hasOlder}
+            isFetchingMore={conversation.isLoadingOlder}
+            messages={conversation.messages}
+            onLoadMore={conversation.loadOlder}
+            streamError={conversation.streamError}
+            usage={conversation.usage}
+          />
+        ) : null}
         <TaskRunTimelinePanel
           isLive={page.isLive}
           isLoading={timelineQuery.isLoading && timelineItems.length === 0}

@@ -1,6 +1,6 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Bot, Box, Clock3, Link2, MoreHorizontal, Radio, Zap } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import {
   Button,
@@ -20,17 +20,13 @@ import {
 } from "@agh/ui";
 
 import { DeactivateBundleDialog } from "./extension-dialogs";
+import { useBundleActivationLifecycle } from "../hooks/use-bundle-activation-lifecycle";
 import { useBundleActivation } from "../hooks/use-extensions";
-import { useDeactivateBundle, useUpdateBundleActivation } from "../hooks/use-extension-actions";
 import type { BundleActivation } from "../types";
 
 export function BundleActivationDetail({ id }: { id: string }) {
   const query = useBundleActivation(id);
-  const update = useUpdateBundleActivation();
-  const deactivate = useDeactivateBundle();
-  const navigate = useNavigate();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmNetworkRequirement, setConfirmNetworkRequirement] = useState(false);
+  const lifecycle = useBundleActivationLifecycle(id, query.data);
   if (query.isLoading) return <BundleActivationDetailSkeleton />;
   if (query.error)
     return (
@@ -42,15 +38,6 @@ export function BundleActivationDetail({ id }: { id: string }) {
     );
   if (!query.data) return <Empty icon={Box} title="Bundle activation not found" />;
   const activation = query.data;
-  const applyUpdate = () => {
-    update.mutate({
-      id,
-      body: {
-        expected_version: activation.version,
-        ...(confirmNetworkRequirement ? { confirm_network_requirement: true } : {}),
-      },
-    });
-  };
   const capabilityCount = (activation.inventory ?? []).length;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto" data-testid="bundle-activation-detail">
@@ -58,7 +45,12 @@ export function BundleActivationDetail({ id }: { id: string }) {
         actions={
           <>
             {activation.spec_drift ? (
-              <Button disabled={update.isPending} onClick={applyUpdate} size="sm" variant="outline">
+              <Button
+                disabled={lifecycle.update.isPending}
+                onClick={lifecycle.applyUpdate}
+                size="sm"
+                variant="outline"
+              >
                 Update
               </Button>
             ) : null}
@@ -85,7 +77,10 @@ export function BundleActivationDetail({ id }: { id: string }) {
                 <MoreHorizontal className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem className="text-danger" onClick={() => setDialogOpen(true)}>
+                <DropdownMenuItem
+                  className="text-danger"
+                  onClick={() => lifecycle.setDialogOpen(true)}
+                >
                   Deactivate…
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -208,10 +203,10 @@ export function BundleActivationDetail({ id }: { id: string }) {
               <div className="flex items-start gap-3 rounded-lg bg-canvas-soft px-4 py-3">
                 <Switch
                   aria-describedby="bundle-update-network-confirmation-description"
-                  checked={confirmNetworkRequirement}
-                  disabled={update.isPending}
+                  checked={lifecycle.confirmNetworkRequirement}
+                  disabled={lifecycle.update.isPending}
                   id="bundle-update-network-confirmation"
-                  onCheckedChange={setConfirmNetworkRequirement}
+                  onCheckedChange={lifecycle.setConfirmNetworkRequirement}
                   size="sm"
                 />
                 <span className="flex flex-col gap-1">
@@ -243,15 +238,11 @@ export function BundleActivationDetail({ id }: { id: string }) {
       </div>
       <DeactivateBundleDialog
         activation={activation}
-        error={deactivate.error?.message}
-        onConfirm={async () => {
-          await deactivate.mutateAsync(id);
-          setDialogOpen(false);
-          void navigate({ search: { tab: "bundles" }, to: "/extensions" });
-        }}
-        onOpenChange={setDialogOpen}
-        open={dialogOpen}
-        pending={deactivate.isPending}
+        error={lifecycle.deactivate.error?.message}
+        onConfirm={lifecycle.confirmDeactivation}
+        onOpenChange={lifecycle.setDialogOpen}
+        open={lifecycle.dialogOpen}
+        pending={lifecycle.deactivate.isPending}
       />
     </div>
   );

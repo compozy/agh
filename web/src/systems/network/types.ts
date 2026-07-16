@@ -16,6 +16,10 @@ export type NetworkKindFilter =
 export type NetworkStatusResponse = OperationResponse<"getNetworkStatus", 200>;
 export type NetworkStatus = NetworkStatusResponse["network"];
 
+type TaskRunDetailNetwork = OperationResponse<"getTaskRun", 200>["run"]["network"];
+export type TaskRunNetworkProjection = NonNullable<TaskRunDetailNetwork>;
+export type TaskRunNetworkUsage = TaskRunNetworkProjection["usage"];
+
 export type NetworkChannelsResponse = OperationResponse<"listNetworkChannels", 200>;
 export type NetworkChannelSummary = NetworkChannelsResponse["channels"][number];
 export type NetworkChannelsQuery = OperationQuery<"listNetworkChannels">;

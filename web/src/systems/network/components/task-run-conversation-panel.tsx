@@ -1,45 +1,46 @@
-import { Spinner } from "@agh/ui";
+import { AlertCircle } from "lucide-react";
 
-import { useNetworkUsage } from "../hooks/use-network-coordination";
+import type { NetworkConversationMessage, TaskRunNetworkUsage } from "../types";
+import { MessageTimeline } from "./timeline/timeline";
 
 export interface TaskRunConversationPanelProps {
-  conversationEmpty: boolean;
+  messages: ReadonlyArray<NetworkConversationMessage>;
+  usage: TaskRunNetworkUsage;
   conversationLoading?: boolean;
+  conversationError?: Error | null;
+  streamError?: Error | null;
   hasMoreMessages?: boolean;
   isFetchingMore?: boolean;
-  onLoadMore?: () => void;
-  messageCount: number;
+  onLoadMore?: () => void | Promise<void>;
   boundsLabel?: string | null;
 }
 
-/**
- * Run conversation + bounds/usage surface (UT-057).
- * Empty explains silence; pagination keeps the run view interactive.
- */
+/** Run-scoped conversation, bound consumption, and truthful usage surface (UT-057). */
 export function TaskRunConversationPanel({
-  conversationEmpty,
+  messages,
+  usage,
   conversationLoading = false,
+  conversationError = null,
+  streamError = null,
   hasMoreMessages = false,
   isFetchingMore = false,
   onLoadMore,
-  messageCount,
   boundsLabel,
 }: TaskRunConversationPanelProps) {
-  const usage = useNetworkUsage();
-  const total = usage.data?.total;
-  const usageLabel =
-    total === undefined
-      ? null
-      : total.unavailable_wake_count > 0 && total.actual_wake_count === 0
-        ? "usage_unavailable"
-        : "actual";
+  const total = usage.total;
+  const usageLabel = total.unavailable_wake_count > 0 ? "usage_unavailable" : "actual";
+  const emptyState = (
+    <p className="text-sm text-muted" data-testid="tasks-run-conversation-empty">
+      No coordination messages yet. Silence is normal until workers post updates on this run.
+    </p>
+  );
 
   return (
     <section
       className="flex flex-col gap-3 rounded-md border border-border px-3 py-3"
       data-testid="tasks-run-conversation-panel"
     >
-      <header className="flex items-baseline justify-between gap-3">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-sm font-medium text-foreground">Coordination conversation</h2>
         {boundsLabel ? (
           <p className="text-xs text-muted" data-testid="tasks-run-bounds-label">
@@ -48,42 +49,45 @@ export function TaskRunConversationPanel({
         ) : null}
       </header>
 
-      {conversationLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted" role="status">
-          <Spinner className="size-4" />
-          Loading conversation…
+      {conversationError ? (
+        <div className="flex items-center gap-2 text-sm text-danger" role="alert">
+          <AlertCircle aria-hidden="true" className="size-4 shrink-0" />
+          {conversationError.message}
         </div>
-      ) : conversationEmpty ? (
-        <p className="text-sm text-muted" data-testid="tasks-run-conversation-empty">
-          No coordination messages yet. Silence is normal until workers post updates on this run.
-        </p>
       ) : (
-        <p className="text-sm text-muted" data-testid="tasks-run-conversation-summary">
-          {messageCount} message{messageCount === 1 ? "" : "s"} in this run conversation.
-        </p>
+        <>
+          {messages.length > 0 ? (
+            <p className="text-xs text-muted" data-testid="tasks-run-conversation-summary">
+              {messages.length} message{messages.length === 1 ? "" : "s"} loaded for this run.
+            </p>
+          ) : null}
+          <MessageTimeline
+            ariaLabel="Run coordination messages"
+            asScrollContainer={false}
+            className="rounded-md border border-border"
+            density="overlay"
+            emptyState={emptyState}
+            hasOlder={hasMoreMessages}
+            isLoading={conversationLoading}
+            isLoadingOlder={isFetchingMore}
+            messages={messages}
+            onLoadOlder={onLoadMore}
+          />
+        </>
       )}
 
-      {hasMoreMessages && onLoadMore ? (
-        <button
-          className="self-start text-xs text-action underline-offset-2 hover:underline"
-          data-testid="tasks-run-conversation-load-more"
-          disabled={isFetchingMore}
-          onClick={onLoadMore}
-          type="button"
-        >
-          {isFetchingMore ? "Loading…" : "Load earlier messages"}
-        </button>
+      {streamError ? (
+        <p className="text-xs text-warning" data-testid="tasks-run-conversation-stream-status">
+          Live updates are reconnecting; paginated refresh remains active.
+        </p>
       ) : null}
 
       <div
         className="border-t border-border pt-2 text-xs text-muted"
         data-testid="tasks-run-usage-summary"
       >
-        {usage.isLoading
-          ? "Loading workspace usage…"
-          : usageLabel && total
-            ? `Workspace usage (${usageLabel}): ${total.wake_count} wakes · ${total.input_tokens} in / ${total.output_tokens} out`
-            : "Workspace usage unavailable."}
+        Run usage ({usageLabel}): {total.wake_count} wakes · {total.input_tokens} in /{" "}
+        {total.output_tokens} out
       </div>
     </section>
   );

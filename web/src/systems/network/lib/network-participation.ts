@@ -19,6 +19,21 @@ export const DEFAULT_NETWORK_PARTICIPATION_DRAFT: NetworkParticipationDraft = {
   channelStrategy: "",
 };
 
+/** Hydrate the shared control from an optional public participation request. */
+export function networkParticipationDraftFromPayload(
+  payload?: {
+    mode?: string | null;
+    channel_id?: string | null;
+    channel_strategy?: string | null;
+  } | null
+): NetworkParticipationDraft {
+  return {
+    mode: payload?.mode === "live" ? "live" : "local",
+    channelId: payload?.channel_id ?? "",
+    channelStrategy: payload?.channel_strategy ?? "",
+  };
+}
+
 /**
  * Serialize draft to exact `network_participation` contract.
  * Local default omits channel fields; never emits legacy participation keys.

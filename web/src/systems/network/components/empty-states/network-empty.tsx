@@ -21,8 +21,8 @@ export function NetworkEmpty({
 }: NetworkEmptyProps) {
   const title = disabledByAdmin ? "Network is disabled." : "Network is ready when you are.";
   const description = disabledByAdmin
-    ? "An operator with admin access can enable Network availability. Existing channels and history stay intact."
-    : "You are in the Network area. Enable coordination for future multi-agent runs, or open settings to review Live defaults and ceilings. Availability does not opt executions in.";
+    ? "An operator with admin access can enable Network availability. Local work remains available, and existing Network channels and history stay intact."
+    : "Executions stay Local by default. Choose Live explicitly for a future run to coordinate in channels, or open Settings to review Live defaults and ceilings. Network availability never enrolls an execution.";
 
   return (
     <Empty
@@ -31,11 +31,11 @@ export function NetworkEmpty({
           <Button
             data-testid="network-empty-open-settings"
             onClick={onOpenSettings}
-            size="sm"
+            size="default"
             type="button"
-            variant="outline"
+            variant="neutral"
           >
-            Open network settings
+            Open Network settings
           </Button>
         ) : null
       }

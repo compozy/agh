@@ -1,69 +1,80 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 
+import type { NetworkConversationMessage, TaskRunNetworkUsage } from "../../types";
 import { TaskRunConversationPanel } from "../task-run-conversation-panel";
 
-vi.mock("@/systems/workspace", () => ({
-  useActiveWorkspace: () => ({ workspaceId: "ws-fixture" }),
-}));
+const usage: TaskRunNetworkUsage = {
+  workspace_id: "ws-fixture",
+  details: [],
+  total: {
+    wake_count: 2,
+    reserved_wake_count: 0,
+    actual_wake_count: 2,
+    unavailable_wake_count: 0,
+    charged_wall_time: "1s",
+    input_tokens: 10,
+    output_tokens: 4,
+  },
+};
 
-vi.mock("../../hooks/use-network-coordination", () => ({
-  useNetworkUsage: () => ({
-    isLoading: false,
-    data: {
-      workspace_id: "ws-fixture",
-      details: [],
-      total: {
-        wake_count: 2,
-        reserved_wake_count: 0,
-        actual_wake_count: 2,
-        unavailable_wake_count: 0,
-        charged_wall_time: "1s",
-        input_tokens: 10,
-        output_tokens: 4,
-      },
-    },
-  }),
-}));
-
-function wrap(node: ReactNode) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={client}>{node}</QueryClientProvider>;
+function message(id: string, text: string): NetworkConversationMessage {
+  return {
+    message_id: id,
+    channel: "coord-run-1",
+    surface: "thread",
+    thread_id: "thread_agent_channel",
+    kind: "say",
+    direction: "sent",
+    peer_from: "sess-1",
+    body: { text },
+    text,
+    timestamp: "2026-07-15T08:00:00Z",
+  };
 }
 
 describe("TaskRunConversationPanel", () => {
-  it("Should explain empty conversation silence", () => {
+  it("Should explain empty conversation silence with truthful run usage", () => {
     render(
-      wrap(
-        <TaskRunConversationPanel
-          conversationEmpty
-          messageCount={0}
-          boundsLabel="Participation local"
-        />
-      )
+      <TaskRunConversationPanel boundsLabel="Bounds: 0/4 wakes" messages={[]} usage={usage} />
     );
     expect(screen.getByTestId("tasks-run-conversation-empty")).toHaveTextContent(
       /Silence is normal/i
     );
-    expect(screen.getByTestId("tasks-run-usage-summary")).toHaveTextContent(/actual/i);
+    expect(screen.getByTestId("tasks-run-usage-summary")).toHaveTextContent(
+      "Run usage (actual): 2 wakes"
+    );
   });
 
-  it("Should keep the run view interactive while paginating long transcripts", () => {
+  it("Should render durable messages and keep the run view interactive while paginating", () => {
     const onLoadMore = vi.fn();
     render(
-      wrap(
-        <TaskRunConversationPanel
-          conversationEmpty={false}
-          hasMoreMessages
-          messageCount={120}
-          onLoadMore={onLoadMore}
-        />
-      )
+      <TaskRunConversationPanel
+        hasMoreMessages
+        messages={[message("msg-1", "First update"), message("msg-2", "Second update")]}
+        onLoadMore={onLoadMore}
+        usage={usage}
+      />
     );
-    fireEvent.click(screen.getByTestId("tasks-run-conversation-load-more"));
+    fireEvent.click(screen.getByRole("button", { name: "Load older messages" }));
     expect(onLoadMore).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("tasks-run-conversation-summary")).toHaveTextContent("120 messages");
+    expect(screen.getByTestId("tasks-run-conversation-summary")).toHaveTextContent("2 messages");
+    expect(screen.getByRole("log", { name: "Run coordination messages" })).toHaveTextContent(
+      "Second update"
+    );
+  });
+
+  it("Should disclose SSE reconnects without hiding paginated history", () => {
+    render(
+      <TaskRunConversationPanel
+        messages={[message("msg-1", "Durable update")]}
+        streamError={new Error("stream disconnected")}
+        usage={usage}
+      />
+    );
+    expect(screen.getByTestId("tasks-run-conversation-stream-status")).toHaveTextContent(
+      /paginated refresh remains active/i
+    );
+    expect(screen.getByRole("log")).toHaveTextContent("Durable update");
   });
 });

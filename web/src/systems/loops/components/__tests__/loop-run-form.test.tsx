@@ -114,6 +114,40 @@ describe("LoopRunForm", () => {
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_running"));
+    await expect(runRequestBody()).resolves.toMatchObject({
+      network_participation: { mode: "local" },
+    });
+  });
+
+  it("Should serialize an explicit Live run without legacy participation fields", async () => {
+    renderForm();
+    expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("Local");
+    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
+      target: { value: "ship it" },
+    });
+    fireEvent.change(screen.getByTestId("loop-run-participation-mode"), {
+      target: { value: "live" },
+    });
+    fireEvent.change(screen.getByTestId("loop-run-participation-channel"), {
+      target: { value: "release-room" },
+    });
+    fireEvent.change(screen.getByTestId("loop-run-participation-strategy"), {
+      target: { value: "named" },
+    });
+    expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("Live");
+    expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("release-room");
+
+    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await expect(runRequestBody()).resolves.toEqual({
+      inputs: expect.any(Object),
+      config_overrides: null,
+      network_participation: {
+        mode: "live",
+        channel_id: "release-room",
+        channel_strategy: "named",
+      },
+    });
   });
 
   it("Should start a run for the selected Loop, not the fixture default", async () => {

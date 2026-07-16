@@ -10,7 +10,7 @@ describe("Empty / disabled / error state copy (`_design.md` §7.2 + §7.3)", () 
   it("NetworkEmpty matches the ready-state orientation copy", () => {
     render(<NetworkEmpty />);
     expect(screen.getByText("Network is ready when you are.")).toBeInTheDocument();
-    expect(screen.getByText(/You are in the Network area/i)).toBeInTheDocument();
+    expect(screen.getByText(/Executions stay Local by default/i)).toBeInTheDocument();
   });
 
   it("NetworkEmpty names who can change availability when disabled", () => {

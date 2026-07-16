@@ -40,9 +40,21 @@ export const ConversationEmpty: Story = {
     wrap(
       <PanelSurface className="min-h-[320px] p-6">
         <TaskRunConversationPanel
-          boundsLabel="Participation live · builders"
-          conversationEmpty
-          messageCount={0}
+          boundsLabel="Bounds: 0/4 wakes · wall 0s/10m · depth ≤3"
+          messages={[]}
+          usage={{
+            workspace_id: "ws-story",
+            details: [],
+            total: {
+              wake_count: 0,
+              reserved_wake_count: 0,
+              actual_wake_count: 0,
+              unavailable_wake_count: 0,
+              charged_wall_time: "0s",
+              input_tokens: 0,
+              output_tokens: 0,
+            },
+          }}
         />
       </PanelSurface>
     ),

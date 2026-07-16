@@ -17,7 +17,7 @@ interface TriggerPreviewProps {
 export function TriggerPreview({ preview }: TriggerPreviewProps) {
   return (
     <aside
-      className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-line-soft bg-canvas px-5 pt-5 pb-6 max-lg:border-t max-lg:border-l-0"
+      className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-line-soft bg-canvas px-5 pt-5 pb-6 max-lg:overflow-visible max-lg:border-t max-lg:border-l-0"
       data-testid="trigger-preview"
     >
       <div className="flex items-center gap-2">

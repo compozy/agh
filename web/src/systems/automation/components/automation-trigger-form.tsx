@@ -58,8 +58,8 @@ export function AutomationTriggerForm({
       data-testid="automation-trigger-form"
       onSubmit={form.handleSubmit}
     >
-      <div className="grid min-h-0 flex-1 grid-cols-[1fr_var(--width-right-rail-default)] max-lg:grid-cols-1 max-lg:grid-rows-[minmax(0,1fr)_auto]">
-        <section className="min-h-0 overflow-y-auto px-6 py-5">
+      <div className="grid min-h-0 flex-1 grid-cols-[1fr_var(--width-right-rail-default)] max-lg:block max-lg:overflow-y-auto">
+        <section className="min-h-0 overflow-y-auto px-6 py-5 max-lg:overflow-visible">
           <Field className="mb-1">
             <FieldLabel htmlFor="trigger-name">Trigger name</FieldLabel>
             <Input

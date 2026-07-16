@@ -6,6 +6,7 @@ import {
   useLoopTargetCatalog,
   type LoopTargetDraft,
 } from "@/systems/loops";
+import { serializeNetworkParticipation, type NetworkParticipationDraft } from "@/systems/network";
 
 import {
   automationTargetMode,
@@ -229,6 +230,10 @@ export function useAutomationJobForm({
     patchTask({ owner: { ...owner, ref } });
   };
 
+  const handleTaskNetworkParticipation = (next: NetworkParticipationDraft) => {
+    patchTask({ network_participation: serializeNetworkParticipation(next) });
+  };
+
   const handleScheduleMode = (next: AutomationScheduleMode) => {
     setCronFrequencyOverride(null);
     if (next === "cron") {
@@ -312,6 +317,7 @@ export function useAutomationJobForm({
     onTaskDescription: (description: string) => patchTask({ description }),
     onOwnerKind: handleOwnerKind,
     onOwnerRef: handleOwnerRef,
+    onTaskNetworkParticipation: handleTaskNetworkParticipation,
 
     // schedule mode
     onScheduleMode: handleScheduleMode,

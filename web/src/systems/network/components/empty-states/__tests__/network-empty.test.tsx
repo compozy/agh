@@ -7,12 +7,15 @@ describe("NetworkEmpty", () => {
   it("Should answer orientation questions with one settings action", () => {
     render(<NetworkEmpty onOpenSettings={() => undefined} />);
     expect(screen.getByTestId("network-empty")).toBeInTheDocument();
-    expect(screen.getByText(/Network area/i)).toBeInTheDocument();
+    expect(screen.getByText(/Executions stay Local by default/i)).toBeInTheDocument();
+    expect(screen.getByText(/Choose Live explicitly/i)).toBeInTheDocument();
+    expect(screen.getByText(/never enrolls an execution/i)).toBeInTheDocument();
     expect(screen.getByTestId("network-empty-open-settings")).toBeInTheDocument();
   });
 
   it("Should name who can change availability when disabled", () => {
     render(<NetworkEmpty disabledByAdmin onOpenSettings={() => undefined} />);
     expect(screen.getByText(/operator with admin access/i)).toBeInTheDocument();
+    expect(screen.getByText(/Local work remains available/i)).toBeInTheDocument();
   });
 });
