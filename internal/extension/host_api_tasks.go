@@ -1026,19 +1026,6 @@ func taskTreeNodePayloadFromNode(node taskpkg.TreeNode) apicontract.TaskTreeNode
 	}
 }
 
-func taskRunDetailPayloadFromView(view *taskpkg.RunDetailView) apicontract.TaskRunDetailPayload {
-	if view == nil {
-		return apicontract.TaskRunDetailPayload{}
-	}
-
-	return apicontract.TaskRunDetailPayload{
-		Run:     taskRunPayloadFromRun(&view.Run),
-		Task:    taskReferencePayloadFromReference(view.Task),
-		Session: taskRunSessionPayloadFromSession(view.Session),
-		Summary: taskRunOperationalSummaryPayloadFromSummary(view.Summary),
-	}
-}
-
 func taskRunSessionPayloadFromSession(session *taskpkg.RunSessionRef) *apicontract.TaskRunSessionPayload {
 	if session == nil {
 		return nil

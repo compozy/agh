@@ -852,6 +852,11 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 			report.Total.InputTokens != 1000 || report.Total.OutputTokens != 1000 {
 			t.Fatalf("GetNetworkUsage().Total = %#v", report.Total)
 		}
+		if report.Budget == nil || report.Budget.OwnerKey != "task_run:"+ownerRunID ||
+			report.Budget.WakesUsed != 2 || report.Budget.WallTimeUsed != 540*time.Millisecond ||
+			report.Budget.InputTokensUsed != 1000 || report.Budget.OutputTokensUsed != 1000 {
+			t.Fatalf("GetNetworkUsage().Budget = %#v, want durable owner consumption", report.Budget)
+		}
 		var detailWall time.Duration
 		var detailInput int64
 		var detailOutput int64
@@ -877,7 +882,7 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetNetworkUsage(empty workspace) error = %v", err)
 		}
-		if len(empty.Details) != 0 || empty.Total != (store.NetworkUsageSummary{}) {
+		if len(empty.Details) != 0 || empty.Total != (store.NetworkUsageSummary{}) || empty.Budget != nil {
 			t.Fatalf("GetNetworkUsage(empty workspace) = %#v, want zero", empty)
 		}
 	})

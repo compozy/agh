@@ -47,7 +47,8 @@ Usage is aggregate per turn:
 - `usage_unavailable` means it did not; never substitute zero or estimate provider usage.
 
 Inspect workspace usage with `agh network usage -o json` or the matching API. Usage visibility is
-not a currency spend limit.
+not a currency spend limit. Inspect a wake's durable `task_run_id` with `agh task run show`; a
+taskless Network wake omits the `task` reference instead of fabricating one.
 
 ## Conversation containers
 

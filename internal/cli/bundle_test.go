@@ -229,12 +229,31 @@ func TestBundleCommands(t *testing.T) {
 			"update",
 			"act_marketing",
 			"--confirm-network-requirement",
+			"--expected-version",
+			"7",
 			"--json",
 		); err != nil {
 			t.Fatalf("bundle update confirm error = %v", err)
 		}
-		if !captured.ConfirmNetworkRequirement {
-			t.Fatalf("captured.ConfirmNetworkRequirement = false, want true")
+		if !captured.ConfirmNetworkRequirement || captured.ExpectedVersion != 7 {
+			t.Fatalf("captured request = %#v, want confirmation at version 7", captured)
+		}
+	})
+
+	t.Run("Should require expected-version before calling the client", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"bundle",
+			"update",
+			"act_marketing",
+			"--confirm-network-requirement",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--expected-version") {
+			t.Fatalf("bundle update error = %v, want expected-version guidance", err)
 		}
 	})
 
@@ -252,11 +271,19 @@ func TestBundleCommands(t *testing.T) {
 				return sampleBundleActivationRecord(), nil
 			},
 		})
-		if _, _, err := executeRootCommand(t, deps, "bundle", "update", "act_marketing"); err != nil {
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"bundle",
+			"update",
+			"act_marketing",
+			"--expected-version",
+			"7",
+		); err != nil {
 			t.Fatalf("bundle update reapply error = %v", err)
 		}
-		if captured.ConfirmNetworkRequirement {
-			t.Fatal("captured.ConfirmNetworkRequirement = true, want false")
+		if captured.ConfirmNetworkRequirement || captured.ExpectedVersion != 7 {
+			t.Fatalf("captured request = %#v, want reapply at version 7 without confirmation", captured)
 		}
 	})
 
@@ -314,6 +341,7 @@ func TestBundleCommands(t *testing.T) {
 func sampleBundleActivationRecord() BundleActivationRecord {
 	return BundleActivationRecord{
 		ID:                 "act_marketing",
+		Version:            7,
 		ExtensionName:      "marketing-team",
 		BundleName:         "marketing",
 		BundleDescription:  "Marketing team bundle",

@@ -27,7 +27,8 @@ func (e *Evaluator) evaluateAgentJudge(
 			}},
 		}
 	}
-	rubric, err := RenderAgentJudgeRubric(criterion, in.Contract, in.TemplateData, in.JudgeEvidence)
+	contract := gateInputContract(in.Contract)
+	rubric, err := RenderAgentJudgeRubric(criterion, contract, in.TemplateData, in.JudgeEvidence)
 	if err != nil {
 		return CriterionResult{
 			ID:      criterion.ID,
@@ -57,7 +58,7 @@ func (e *Evaluator) evaluateAgentJudge(
 		Agent:                criterion.Agent,
 		Model:                model,
 		Rubric:               rubric,
-		Contract:             in.Contract,
+		Contract:             contract,
 		NetworkParticipation: in.NetworkParticipation,
 	})
 	if err != nil {
@@ -87,6 +88,13 @@ func (e *Evaluator) evaluateAgentJudge(
 	result.judgeTokensUsed = response.TokensUsed
 	result.judgeTokensReported = response.TokensReported
 	return result
+}
+
+func gateInputContract(contract *dsl.Contract) dsl.Contract {
+	if contract == nil {
+		return dsl.Contract{}
+	}
+	return *contract
 }
 
 func (e *Evaluator) evaluateHuman(gate Gate, criterion dsl.GateCriterion, in GateInput) CriterionResult {

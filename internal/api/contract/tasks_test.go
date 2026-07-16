@@ -216,7 +216,7 @@ func TestTaskContractsMarshalLiveDashboardAndInboxPayloads(t *testing.T) {
 				QueuedAt:  now,
 				ClaimedAt: &claimedAt,
 			},
-			Task: TaskReferencePayload{
+			Task: &TaskReferencePayload{
 				ID:          "task-1",
 				Identifier:  "TSK-001",
 				Title:       "Review contract coverage",

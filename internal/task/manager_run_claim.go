@@ -42,6 +42,7 @@ func (m *Service) EnqueueRun(
 		ctx,
 		taskRecord,
 		runID,
+		normalizedSpec.DesignationGroupID,
 		normalizedSpec.RunKind,
 		normalizedSpec.LoopRunID,
 		normalizedSpec.NetworkParticipation,

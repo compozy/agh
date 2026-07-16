@@ -1,9 +1,13 @@
 package bundles
 
 import (
+	"errors"
 	"testing"
 
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestActivationResourceSpecNetworkRequirementFields(t *testing.T) {
@@ -14,6 +18,7 @@ func TestActivationResourceSpecNetworkRequirementFields(t *testing.T) {
 
 		activation := Activation{
 			ID:                       "act_live",
+			Version:                  7,
 			ExtensionName:            "ext-live",
 			BundleName:               "bundle",
 			ProfileName:              "default",
@@ -30,11 +35,13 @@ func TestActivationResourceSpecNetworkRequirementFields(t *testing.T) {
 			t.Fatalf("confirmation = (%q, %q)", spec.ConfirmedBy, spec.ConfirmedAt)
 		}
 		restored := activationFromResourceRecord(resources.Record[ActivationResourceSpec]{
-			ID:   activation.ID,
-			Kind: BundleActivationResourceKind,
-			Spec: spec,
+			ID:      activation.ID,
+			Kind:    BundleActivationResourceKind,
+			Version: activation.Version,
+			Spec:    spec,
 		})
-		if restored.NetworkRequirementDigest != "digest-v1" ||
+		if restored.Version != activation.Version ||
+			restored.NetworkRequirementDigest != "digest-v1" ||
 			restored.ConfirmedBy != "operator" ||
 			restored.ConfirmedAt != "2026-07-14T12:00:00Z" {
 			t.Fatalf("restored = %#v", restored)
@@ -54,6 +61,67 @@ func TestActivationResourceSpecNetworkRequirementFields(t *testing.T) {
 		)
 		if got.NetworkRequirementDigest != "" || got.ConfirmedBy != "" || got.ConfirmedAt != "" {
 			t.Fatalf("preview = %#v, want cleared confirmation", got)
+		}
+	})
+
+	t.Run("Should invalidate changed digests and reject a stale confirmation", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		ext := newMarketingExtension()
+		ext.Manifest.NetworkParticipation = &extensionpkg.NetworkParticipationRequirement{
+			Required:      true,
+			Mode:          string(participation.ModeLive),
+			ChannelScopes: []string{"builders"},
+		}
+		service := newServiceForExtensions(store, []*extensionpkg.Extension{ext})
+		activated, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName:             ext.Info.Name,
+			BundleName:                "marketing",
+			ProfileName:               "default",
+			Scope:                     ScopeGlobal,
+			ConfirmNetworkRequirement: true,
+		})
+		if err != nil {
+			t.Fatalf("Activate() error = %v", err)
+		}
+		staleVersion := activated.Activation.Version
+		oldDigest := activated.Activation.NetworkRequirementDigest
+
+		ext.Manifest.NetworkParticipation.ChannelScopes = []string{"operators"}
+		if err := service.Reconcile(testutil.Context(t)); err != nil {
+			t.Fatalf("Reconcile(changed digest) error = %v", err)
+		}
+		changed, err := service.GetActivation(testutil.Context(t), activated.Activation.ID)
+		if err != nil {
+			t.Fatalf("GetActivation(changed digest) error = %v", err)
+		}
+		if changed.Activation.Version <= staleVersion ||
+			changed.Activation.NetworkRequirementDigest == oldDigest ||
+			changed.Activation.ConfirmedBy != "" ||
+			changed.Activation.ConfirmedAt != "" {
+			t.Fatalf("changed activation = %#v, want bumped unconfirmed digest", changed.Activation)
+		}
+
+		_, err = service.ConfirmNetworkRequirement(
+			testutil.Context(t),
+			activated.Activation.ID,
+			staleVersion,
+		)
+		if !errors.Is(err, resources.ErrConflict) {
+			t.Fatalf("ConfirmNetworkRequirement(stale) error = %v, want ErrConflict", err)
+		}
+		confirmed, err := service.ConfirmNetworkRequirement(
+			testutil.Context(t),
+			activated.Activation.ID,
+			changed.Activation.Version,
+		)
+		if err != nil {
+			t.Fatalf("ConfirmNetworkRequirement(current) error = %v", err)
+		}
+		if confirmed.Activation.Version <= changed.Activation.Version ||
+			confirmed.Activation.ConfirmedBy != networkRequirementConfirmedByOperator {
+			t.Fatalf("confirmed activation = %#v", confirmed.Activation)
 		}
 	})
 }

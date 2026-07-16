@@ -2656,6 +2656,9 @@ func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testi
 		if err != nil {
 			t.Fatalf("RunDetail() error = %v", err)
 		}
+		if detail.Task == nil {
+			t.Fatal("detail.Task = nil, want task reference")
+		}
 		if got, want := detail.Task.ID, taskRecord.ID; got != want {
 			t.Fatalf("detail.Task.ID = %q, want %q", got, want)
 		}
@@ -2750,6 +2753,39 @@ func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testi
 		}
 		if detail.Summary.ToolCallCount != nil {
 			t.Fatalf("detail.Summary.ToolCallCount = %#v, want nil", detail.Summary.ToolCallCount)
+		}
+	})
+
+	t.Run("Should read a taskless network wake without inventing a task reference", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		run := Run{
+			ID:        "run-network-wake",
+			RunKind:   RunKindNetworkWake,
+			Status:    TaskRunStatusCompleted,
+			Attempt:   1,
+			SessionID: "sess-target",
+			Origin:    actor.Origin,
+			QueuedAt:  time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+		}
+		run.SetNetworkState(participation.LocalSpec(), "wake-1", "sess-target", "owner-1")
+		if err := store.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		detail, err := manager.RunDetail(ctx, run.ID, actor)
+		if err != nil {
+			t.Fatalf("RunDetail(network wake) error = %v", err)
+		}
+		if detail.Run.ID != run.ID || detail.Run.RunKind != RunKindNetworkWake {
+			t.Fatalf("detail.Run = %#v, want network wake %q", detail.Run, run.ID)
+		}
+		if detail.Task != nil {
+			t.Fatalf("detail.Task = %#v, want nil for taskless network wake", detail.Task)
 		}
 	})
 }

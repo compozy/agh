@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -50,6 +51,7 @@ type networkWakeTaskManager interface {
 }
 
 type networkWakePrompter interface {
+	Resume(ctx context.Context, sessionID string) (*session.Session, error)
 	PromptNetwork(
 		ctx context.Context,
 		sessionID string,
@@ -282,7 +284,11 @@ func (r *networkWakeRunner) executeClaimedWake(
 	}()
 	startedAt := r.now().UTC()
 	heartbeatDone := r.startHeartbeat(turnCtx, cancel, actor, claim)
-	events, promptErr := r.prompter.PromptNetwork(turnCtx, targetSessionID, prompt, meta)
+	var events <-chan acp.AgentEvent
+	_, promptErr := r.prompter.Resume(turnCtx, targetSessionID)
+	if promptErr == nil {
+		events, promptErr = r.prompter.PromptNetwork(turnCtx, targetSessionID, prompt, meta)
+	}
 	outcome := r.collectWakeOutcome(turnCtx, events, promptErr, startedAt)
 	if turnCtx.Err() != nil {
 		if cancelErr := r.cancelProviderPrompt(ctx, targetSessionID); cancelErr != nil {

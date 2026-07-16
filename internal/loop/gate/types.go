@@ -86,7 +86,7 @@ func GateFromContract(id string, contract dsl.Contract, maxRevisions int) Gate {
 type GateInput struct {
 	LoopRunID                string
 	Placement                Placement
-	Contract                 dsl.Contract
+	Contract                 *dsl.Contract
 	TemplateData             map[string]any
 	Revision                 int
 	BrokenJudgeStreak        int

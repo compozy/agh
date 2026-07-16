@@ -546,6 +546,7 @@ func TestWatchEventsEvaluatorHelpers(t *testing.T) {
 		terminal := watchEventsBlockedTerminal("bad_state")
 		if terminal == nil {
 			t.Fatal("watchEventsBlockedTerminal() = nil, want terminal")
+			return
 		}
 		if got, want := terminal.Status, string(StatusBlocked); got != want {
 			t.Fatalf("terminal status = %q, want %q", got, want)

@@ -439,6 +439,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/tasks/:id/runs", handlers.EnqueueTaskRun)
 	engine.POST("/tasks/:id/runs/fan-out", handlers.FanOutTaskRuns)
 	engine.GET("/task-runs/:id", handlers.GetTaskRun)
+	engine.GET("/task-runs/:id/conversation/stream", handlers.StreamTaskRunConversation)
 	engine.GET("/runs/:id/inspect", handlers.InspectRun)
 	engine.POST("/runs/:id/release", handlers.ForceReleaseTaskRun)
 	engine.POST("/runs/:id/fail", handlers.ForceFailTaskRun)

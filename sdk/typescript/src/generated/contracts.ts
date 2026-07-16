@@ -5282,11 +5282,70 @@ export interface TaskRunOperationalSummaryPayload {
   cost_currency?: string;
 }
 
+export interface TaskRunConversationRefPayload {
+  workspace_id: string;
+  channel: string;
+  surface: string;
+  thread_id: string;
+  stream_url: string;
+}
+
+export interface NetworkUsageDetailPayload {
+  wake_id: string;
+  task_run_id: string;
+  owner_key: string;
+  workspace_id: string;
+  channel: string;
+  root_id: string;
+  depth: number;
+  state: string;
+  usage_state: string;
+  charged_wall_time: string;
+  input_tokens: number;
+  output_tokens: number;
+  reserved_at: ISODateTime;
+  settled_at?: ISODateTime;
+  reason?: string;
+}
+
+export interface NetworkUsageSummaryPayload {
+  wake_count: number;
+  reserved_wake_count: number;
+  actual_wake_count: number;
+  unavailable_wake_count: number;
+  charged_wall_time: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface NetworkBudgetUsagePayload {
+  owner_key: string;
+  wakes_used: number;
+  wall_time_used: string;
+  input_tokens_used: number;
+  output_tokens_used: number;
+  exhausted_reason?: string;
+  updated_at: ISODateTime;
+}
+
+export interface NetworkUsageResponse {
+  workspace_id: string;
+  details: NetworkUsageDetailPayload[];
+  total: NetworkUsageSummaryPayload;
+  budget?: NetworkBudgetUsagePayload;
+}
+
+export interface TaskRunNetworkPayload {
+  conversation: TaskRunConversationRefPayload;
+  usage: NetworkUsageResponse;
+}
+
 export interface TaskRunDetail {
   run: TaskRun;
-  task: TaskReferencePayload;
+  task?: TaskReferencePayload;
   session?: TaskRunSessionPayload;
   summary: TaskRunOperationalSummaryPayload;
+  network?: TaskRunNetworkPayload;
 }
 
 export interface TaskRunEnqueueParams {

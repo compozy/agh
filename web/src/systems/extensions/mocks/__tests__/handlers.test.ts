@@ -52,7 +52,7 @@ describe("extensions MSW handlers", () => {
   it("Should retain bundle updates and deactivation across activation refetches", async () => {
     const id = "activation-ops-starter";
     const update = await fetch(`${API}/api/bundles/activations/${id}`, {
-      body: JSON.stringify({ confirm_network_requirement: true }),
+      body: JSON.stringify({ confirm_network_requirement: true, expected_version: 7 }),
       headers: { "Content-Type": "application/json" },
       method: "PATCH",
     });
@@ -60,11 +60,16 @@ describe("extensions MSW handlers", () => {
 
     let detail = await fetch(`${API}/api/bundles/activations/${id}`);
     let body = (await detail.json()) as {
-      activation: { network_requirement_confirmed_by?: string; spec_drift: boolean };
+      activation: {
+        network_requirement_confirmed_by?: string;
+        spec_drift: boolean;
+        version: number;
+      };
     };
     expect(body.activation).toMatchObject({
       network_requirement_confirmed_by: "operator",
       spec_drift: false,
+      version: 8,
     });
 
     const deactivate = await fetch(`${API}/api/bundles/activations/${id}`, {

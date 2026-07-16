@@ -364,6 +364,7 @@ export const marketplaceBundlePreviewFixture: BundlePreviewResponse = {
     scope: "workspace",
     spec_drift: false,
     updated_at: "2026-07-14T12:00:00Z",
+    version: 1,
     workspace_id: "ws_story_fintech",
   },
 };

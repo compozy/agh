@@ -83,10 +83,10 @@ type TreeNode struct {
 	LastActivityAt time.Time   `json:"last_activity_at"`
 }
 
-// RunDetailView is the task-owned run detail payload for task run deep links.
+// RunDetailView is one run detail payload with an optional task anchor.
 type RunDetailView struct {
 	Run     Run                   `json:"run"`
-	Task    Reference             `json:"task"`
+	Task    *Reference            `json:"task,omitempty"`
 	Session *RunSessionRef        `json:"session,omitempty"`
 	Summary RunOperationalSummary `json:"summary"`
 }

@@ -78,17 +78,26 @@ func ensureDaemonParticipationResolver(
 		return nil, fmt.Errorf("daemon: participation resolver state is required")
 	}
 	if state.participationResolver != nil {
+		var hooksRuntime *hookspkg.Hooks
+		if hooks, ok := state.hooks.(*hookspkg.Hooks); ok {
+			hooksRuntime = hooks
+		}
+		state.participationResolver = wrapParticipationResolverWithHooks(
+			state.participationResolver,
+			hooksRuntime,
+		)
 		return state.participationResolver, nil
 	}
 	resolver, err := newDaemonParticipationResolver(dependencies, state.cfg.Network)
 	if err != nil {
 		return nil, err
 	}
-	if hooksRuntime, ok := state.hooks.(*hookspkg.Hooks); ok {
-		resolver = wrapParticipationResolverWithHooks(resolver, hooksRuntime)
+	var hooksRuntime *hookspkg.Hooks
+	if hooks, ok := state.hooks.(*hookspkg.Hooks); ok {
+		hooksRuntime = hooks
 	}
-	state.participationResolver = resolver
-	return resolver, nil
+	state.participationResolver = wrapParticipationResolverWithHooks(resolver, hooksRuntime)
+	return state.participationResolver, nil
 }
 
 func participationSnapshotPointer(spec participation.Spec) *participation.Spec {

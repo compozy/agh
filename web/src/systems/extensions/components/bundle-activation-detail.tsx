@@ -45,7 +45,10 @@ export function BundleActivationDetail({ id }: { id: string }) {
   const applyUpdate = () => {
     update.mutate({
       id,
-      body: confirmNetworkRequirement ? { confirm_network_requirement: true } : {},
+      body: {
+        expected_version: activation.version,
+        ...(confirmNetworkRequirement ? { confirm_network_requirement: true } : {}),
+      },
     });
   };
   const capabilityCount = (activation.inventory ?? []).length;

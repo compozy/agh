@@ -56,7 +56,7 @@ func NetworkUsageResponseFromReport(workspaceID string, report store.NetworkUsag
 			Reason:          detail.Reason,
 		})
 	}
-	return contract.NetworkUsageResponse{
+	response := contract.NetworkUsageResponse{
 		WorkspaceID: workspaceID,
 		Details:     details,
 		Total: contract.NetworkUsageSummaryPayload{
@@ -69,6 +69,18 @@ func NetworkUsageResponseFromReport(workspaceID string, report store.NetworkUsag
 			OutputTokens:         report.Total.OutputTokens,
 		},
 	}
+	if report.Budget != nil {
+		response.Budget = &contract.NetworkBudgetUsagePayload{
+			OwnerKey:         report.Budget.OwnerKey,
+			WakesUsed:        report.Budget.WakesUsed,
+			WallTimeUsed:     report.Budget.WallTimeUsed.String(),
+			InputTokensUsed:  report.Budget.InputTokensUsed,
+			OutputTokensUsed: report.Budget.OutputTokensUsed,
+			ExhaustedReason:  report.Budget.ExhaustedReason,
+			UpdatedAt:        report.Budget.UpdatedAt,
+		}
+	}
+	return response
 }
 
 func cloneOptionalTime(value *time.Time) *time.Time {

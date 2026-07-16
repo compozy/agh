@@ -46867,6 +46867,10 @@
                             "format": "date-time",
                             "type": "string"
                           },
+                          "version": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
                           "workspace_id": {
                             "type": "string"
                           }
@@ -46879,7 +46883,8 @@
                           "profile_name",
                           "scope",
                           "spec_drift",
-                          "updated_at"
+                          "updated_at",
+                          "version"
                         ],
                         "type": "object"
                       },
@@ -47305,6 +47310,10 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "version": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
                         "workspace_id": {
                           "type": "string"
                         }
@@ -47317,7 +47326,8 @@
                         "profile_name",
                         "scope",
                         "spec_drift",
-                        "updated_at"
+                        "updated_at",
+                        "version"
                       ],
                       "type": "object"
                     }
@@ -48193,6 +48203,10 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "version": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
                         "workspace_id": {
                           "type": "string"
                         }
@@ -48205,7 +48219,8 @@
                         "profile_name",
                         "scope",
                         "spec_drift",
-                        "updated_at"
+                        "updated_at",
+                        "version"
                       ],
                       "type": "object"
                     }
@@ -48441,8 +48456,15 @@
                 "properties": {
                   "confirm_network_requirement": {
                     "type": "boolean"
+                  },
+                  "expected_version": {
+                    "format": "int64",
+                    "type": "integer"
                   }
                 },
+                "required": [
+                  "expected_version"
+                ],
                 "type": "object"
               }
             }
@@ -48684,6 +48706,10 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "version": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
                         "workspace_id": {
                           "type": "string"
                         }
@@ -48696,7 +48722,8 @@
                         "profile_name",
                         "scope",
                         "spec_drift",
-                        "updated_at"
+                        "updated_at",
+                        "version"
                       ],
                       "type": "object"
                     }
@@ -49743,6 +49770,10 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "version": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
                         "workspace_id": {
                           "type": "string"
                         }
@@ -49755,7 +49786,8 @@
                         "profile_name",
                         "scope",
                         "spec_drift",
-                        "updated_at"
+                        "updated_at",
+                        "version"
                       ],
                       "type": "object"
                     }
@@ -117490,6 +117522,204 @@
                   "properties": {
                     "run": {
                       "properties": {
+                        "network": {
+                          "nullable": true,
+                          "properties": {
+                            "conversation": {
+                              "properties": {
+                                "channel": {
+                                  "type": "string"
+                                },
+                                "stream_url": {
+                                  "type": "string"
+                                },
+                                "surface": {
+                                  "type": "string"
+                                },
+                                "thread_id": {
+                                  "type": "string"
+                                },
+                                "workspace_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "channel",
+                                "stream_url",
+                                "surface",
+                                "thread_id",
+                                "workspace_id"
+                              ],
+                              "type": "object"
+                            },
+                            "usage": {
+                              "properties": {
+                                "budget": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "exhausted_reason": {
+                                      "type": "string"
+                                    },
+                                    "input_tokens_used": {
+                                      "format": "int64",
+                                      "type": "integer"
+                                    },
+                                    "output_tokens_used": {
+                                      "format": "int64",
+                                      "type": "integer"
+                                    },
+                                    "owner_key": {
+                                      "type": "string"
+                                    },
+                                    "updated_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "wakes_used": {
+                                      "type": "integer"
+                                    },
+                                    "wall_time_used": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "input_tokens_used",
+                                    "output_tokens_used",
+                                    "owner_key",
+                                    "updated_at",
+                                    "wakes_used",
+                                    "wall_time_used"
+                                  ],
+                                  "type": "object"
+                                },
+                                "details": {
+                                  "items": {
+                                    "properties": {
+                                      "channel": {
+                                        "type": "string"
+                                      },
+                                      "charged_wall_time": {
+                                        "type": "string"
+                                      },
+                                      "depth": {
+                                        "type": "integer"
+                                      },
+                                      "input_tokens": {
+                                        "format": "int64",
+                                        "type": "integer"
+                                      },
+                                      "output_tokens": {
+                                        "format": "int64",
+                                        "type": "integer"
+                                      },
+                                      "owner_key": {
+                                        "type": "string"
+                                      },
+                                      "reason": {
+                                        "type": "string"
+                                      },
+                                      "reserved_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "root_id": {
+                                        "type": "string"
+                                      },
+                                      "settled_at": {
+                                        "format": "date-time",
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "state": {
+                                        "type": "string"
+                                      },
+                                      "task_run_id": {
+                                        "type": "string"
+                                      },
+                                      "usage_state": {
+                                        "type": "string"
+                                      },
+                                      "wake_id": {
+                                        "type": "string"
+                                      },
+                                      "workspace_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "channel",
+                                      "charged_wall_time",
+                                      "depth",
+                                      "input_tokens",
+                                      "output_tokens",
+                                      "owner_key",
+                                      "reserved_at",
+                                      "root_id",
+                                      "state",
+                                      "task_run_id",
+                                      "usage_state",
+                                      "wake_id",
+                                      "workspace_id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "total": {
+                                  "properties": {
+                                    "actual_wake_count": {
+                                      "type": "integer"
+                                    },
+                                    "charged_wall_time": {
+                                      "type": "string"
+                                    },
+                                    "input_tokens": {
+                                      "format": "int64",
+                                      "type": "integer"
+                                    },
+                                    "output_tokens": {
+                                      "format": "int64",
+                                      "type": "integer"
+                                    },
+                                    "reserved_wake_count": {
+                                      "type": "integer"
+                                    },
+                                    "unavailable_wake_count": {
+                                      "type": "integer"
+                                    },
+                                    "wake_count": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "actual_wake_count",
+                                    "charged_wall_time",
+                                    "input_tokens",
+                                    "output_tokens",
+                                    "reserved_wake_count",
+                                    "unavailable_wake_count",
+                                    "wake_count"
+                                  ],
+                                  "type": "object"
+                                },
+                                "workspace_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "details",
+                                "total",
+                                "workspace_id"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "conversation",
+                            "usage"
+                          ],
+                          "type": "object"
+                        },
                         "run": {
                           "properties": {
                             "attempt": {
@@ -117845,6 +118075,7 @@
                           "type": "object"
                         },
                         "task": {
+                          "nullable": true,
                           "properties": {
                             "effective_paused": {
                               "type": "boolean"
@@ -117938,8 +118169,7 @@
                       },
                       "required": [
                         "run",
-                        "summary",
-                        "task"
+                        "summary"
                       ],
                       "type": "object"
                     }
@@ -120165,6 +120395,638 @@
         "summary": "Complete one running task run",
         "tags": [
           "tasks"
+        ],
+        "x-agh-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/task-runs/{id}/conversation/stream": {
+      "get": {
+        "operationId": "streamTaskRunConversation",
+        "parameters": [
+          {
+            "description": "Task run id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Replay messages after this message id",
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "nullable": true,
+                      "properties": {
+                        "body": {},
+                        "causation_id": {
+                          "type": "string"
+                        },
+                        "channel": {
+                          "type": "string"
+                        },
+                        "direct_id": {
+                          "type": "string"
+                        },
+                        "direction": {
+                          "type": "string"
+                        },
+                        "display_name": {
+                          "type": "string"
+                        },
+                        "intent": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "local": {
+                          "type": "boolean"
+                        },
+                        "mentions": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "message_id": {
+                          "type": "string"
+                        },
+                        "peer_from": {
+                          "type": "string"
+                        },
+                        "peer_to": {
+                          "type": "string"
+                        },
+                        "presence_count": {
+                          "type": "integer"
+                        },
+                        "presence_last_seen_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "presence_started_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "preview_text": {
+                          "type": "string"
+                        },
+                        "reply_to": {
+                          "type": "string"
+                        },
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "size_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "surface": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "thread_id": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "trace_id": {
+                          "type": "string"
+                        },
+                        "work_id": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "body",
+                        "channel",
+                        "direction",
+                        "kind",
+                        "message_id",
+                        "peer_from",
+                        "timestamp"
+                      ],
+                      "type": "object"
+                    },
+                    "usage": {
+                      "nullable": true,
+                      "properties": {
+                        "budget": {
+                          "nullable": true,
+                          "properties": {
+                            "exhausted_reason": {
+                              "type": "string"
+                            },
+                            "input_tokens_used": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "output_tokens_used": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "owner_key": {
+                              "type": "string"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "wakes_used": {
+                              "type": "integer"
+                            },
+                            "wall_time_used": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "input_tokens_used",
+                            "output_tokens_used",
+                            "owner_key",
+                            "updated_at",
+                            "wakes_used",
+                            "wall_time_used"
+                          ],
+                          "type": "object"
+                        },
+                        "details": {
+                          "items": {
+                            "properties": {
+                              "channel": {
+                                "type": "string"
+                              },
+                              "charged_wall_time": {
+                                "type": "string"
+                              },
+                              "depth": {
+                                "type": "integer"
+                              },
+                              "input_tokens": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "output_tokens": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "owner_key": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "reserved_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "root_id": {
+                                "type": "string"
+                              },
+                              "settled_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "task_run_id": {
+                                "type": "string"
+                              },
+                              "usage_state": {
+                                "type": "string"
+                              },
+                              "wake_id": {
+                                "type": "string"
+                              },
+                              "workspace_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "channel",
+                              "charged_wall_time",
+                              "depth",
+                              "input_tokens",
+                              "output_tokens",
+                              "owner_key",
+                              "reserved_at",
+                              "root_id",
+                              "state",
+                              "task_run_id",
+                              "usage_state",
+                              "wake_id",
+                              "workspace_id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "total": {
+                          "properties": {
+                            "actual_wake_count": {
+                              "type": "integer"
+                            },
+                            "charged_wall_time": {
+                              "type": "string"
+                            },
+                            "input_tokens": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "output_tokens": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "reserved_wake_count": {
+                              "type": "integer"
+                            },
+                            "unavailable_wake_count": {
+                              "type": "integer"
+                            },
+                            "wake_count": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "actual_wake_count",
+                            "charged_wall_time",
+                            "input_tokens",
+                            "output_tokens",
+                            "reserved_wake_count",
+                            "unavailable_wake_count",
+                            "wake_count"
+                          ],
+                          "type": "object"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "details",
+                        "total",
+                        "workspace_id"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task run conversation stream"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task run not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Local task run has no coordination conversation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid task-run id or conversation cursor"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task or Network service is not configured"
+          }
+        },
+        "summary": "Stream one task run coordination conversation",
+        "tags": [
+          "tasks",
+          "network"
         ],
         "x-agh-transports": [
           "http",
@@ -164945,6 +165807,60 @@
                           ],
                           "type": "object"
                         },
+                        "network_participation": {
+                          "nullable": true,
+                          "properties": {
+                            "bounds": {
+                              "nullable": true,
+                              "properties": {
+                                "coalesce_window": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "max_input_tokens": {
+                                  "format": "int64",
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "max_output_tokens": {
+                                  "format": "int64",
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "max_total_wall_time": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "max_wake_depth": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "max_wake_wall_time": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "max_wakes": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "channel_id": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "channel_strategy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "mode": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "start": {
                           "items": {
                             "properties": {
@@ -169768,6 +170684,60 @@
                         ],
                         "type": "object"
                       },
+                      "network_participation": {
+                        "nullable": true,
+                        "properties": {
+                          "bounds": {
+                            "nullable": true,
+                            "properties": {
+                              "coalesce_window": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "nullable": true,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channel_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "channel_strategy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
                       "start": {
                         "items": {
                           "properties": {
@@ -170262,6 +171232,60 @@
                                 "catalog",
                                 "name"
                               ],
+                              "type": "object"
+                            },
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
                               "type": "object"
                             },
                             "start": {
@@ -171544,6 +172568,60 @@
                               ],
                               "type": "object"
                             },
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
                             "start": {
                               "items": {
                                 "properties": {
@@ -172335,6 +173413,60 @@
                         ],
                         "type": "object"
                       },
+                      "network_participation": {
+                        "nullable": true,
+                        "properties": {
+                          "bounds": {
+                            "nullable": true,
+                            "properties": {
+                              "coalesce_window": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "nullable": true,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channel_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "channel_strategy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
                       "start": {
                         "items": {
                           "properties": {
@@ -172833,6 +173965,60 @@
                                 "catalog",
                                 "name"
                               ],
+                              "type": "object"
+                            },
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
                               "type": "object"
                             },
                             "start": {
@@ -176939,6 +178125,60 @@
                           "catalog",
                           "name"
                         ],
+                        "type": "object"
+                      },
+                      "network_participation": {
+                        "nullable": true,
+                        "properties": {
+                          "bounds": {
+                            "nullable": true,
+                            "properties": {
+                              "coalesce_window": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "nullable": true,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channel_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "channel_strategy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
                         "type": "object"
                       },
                       "start": {
@@ -188464,6 +189704,44 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "budget": {
+                      "nullable": true,
+                      "properties": {
+                        "exhausted_reason": {
+                          "type": "string"
+                        },
+                        "input_tokens_used": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "output_tokens_used": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "owner_key": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "wakes_used": {
+                          "type": "integer"
+                        },
+                        "wall_time_used": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "input_tokens_used",
+                        "output_tokens_used",
+                        "owner_key",
+                        "updated_at",
+                        "wakes_used",
+                        "wall_time_used"
+                      ],
+                      "type": "object"
+                    },
                     "details": {
                       "items": {
                         "properties": {

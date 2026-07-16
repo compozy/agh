@@ -11,7 +11,9 @@
                     "name": "bounds-alpha-mention",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 1
+                        "network": {
+                            "message_id": "bounds_mention_root"
+                        }
                     },
                     "steps": [
                         {
@@ -43,7 +45,9 @@
                     "name": "bounds-beta-direct",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 1
+                        "network": {
+                            "message_id": "bounds_direct_root"
+                        }
                     },
                     "steps": [
                         {
@@ -60,7 +64,9 @@
                     "name": "bounds-beta-burst",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 2
+                        "network": {
+                            "reply_to": "bounds_direct_root"
+                        }
                     },
                     "steps": [
                         {

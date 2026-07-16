@@ -173,6 +173,7 @@ func activationFromResourceRecord(record resources.Record[ActivationResourceSpec
 	}
 	return Activation{
 		ID:                       strings.TrimSpace(record.ID),
+		Version:                  record.Version,
 		ExtensionName:            strings.TrimSpace(record.Spec.ExtensionName),
 		BundleName:               strings.TrimSpace(record.Spec.BundleName),
 		ProfileName:              strings.TrimSpace(record.Spec.ProfileName),

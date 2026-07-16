@@ -128,18 +128,25 @@ func (h *BaseHandlers) PutNetworkCoordinationInvitation(c *gin.Context) {
 }
 
 func (h *BaseHandlers) requireRouteWorkspaceID(c *gin.Context) (string, bool) {
-	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
-	if workspaceID == "" {
+	workspaceRef := strings.TrimSpace(c.Param("workspace_id"))
+	if workspaceRef == "" {
 		h.respondError(c, http.StatusBadRequest, errors.New("api: workspace_id is required"))
 		return "", false
 	}
 	if h.Workspaces != nil {
-		if _, err := h.Workspaces.Get(c.Request.Context(), workspaceID); err != nil {
+		workspace, err := h.Workspaces.Get(c.Request.Context(), workspaceRef)
+		if err != nil {
 			h.respondError(c, StatusForWorkspaceError(err), err)
 			return "", false
 		}
+		workspaceID := strings.TrimSpace(workspace.ID)
+		if workspaceID == "" {
+			h.respondError(c, http.StatusInternalServerError, errors.New("api: resolved workspace id is required"))
+			return "", false
+		}
+		return workspaceID, true
 	}
-	return workspaceID, true
+	return workspaceRef, true
 }
 
 func (h *BaseHandlers) networkCoordinationPayload(

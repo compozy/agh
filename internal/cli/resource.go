@@ -246,7 +246,7 @@ func resourceListBundle(items []ResourceRecord) outputBundle {
 		"Resources",
 		[]string{"KIND", "ID", "VERSION", "SCOPE", "OWNER", "SOURCE"},
 		"resources",
-		[]string{resourceKindKey, "id", daemonVersionKey, automationScopeKey, taskOwnerKey, automationSourceKey},
+		[]string{resourceKindKey, "id", versionKey, automationScopeKey, taskOwnerKey, automationSourceKey},
 		resourceRow,
 		resourceRow,
 	)
@@ -274,7 +274,7 @@ func resourceBundle(item ResourceRecord) outputBundle {
 			return renderToonObject(resourceResourceKey, []string{
 				resourceKindKey,
 				"id",
-				daemonVersionKey,
+				versionKey,
 				automationScopeKey,
 				taskOwnerKey,
 				automationSourceKey,

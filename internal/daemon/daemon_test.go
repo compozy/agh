@@ -1293,6 +1293,7 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 	observer := &hookAwareTestObserver{}
 	reconcile := &fakeResourceReconcileDriver{}
 	d := newTestDaemon(t, homePaths, &cfg)
+	participationResolver := &hookAwareParticipationResolver{}
 	state := &bootState{
 		cfg:    cfg,
 		logger: discardLogger(),
@@ -1300,11 +1301,12 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 			discardLogger(),
 			func() time.Time { return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC) },
 		),
-		observer:          observer,
-		skillsRegistry:    skills.NewRegistry(skills.RegistryConfig{}),
-		resourceKernel:    kernel,
-		resourceCodecs:    codecs,
-		resourceReconcile: reconcile,
+		observer:              observer,
+		skillsRegistry:        skills.NewRegistry(skills.RegistryConfig{}),
+		resourceKernel:        kernel,
+		resourceCodecs:        codecs,
+		resourceReconcile:     reconcile,
+		participationResolver: participationResolver,
 	}
 	cleanup := &bootCleanup{}
 
@@ -1324,6 +1326,9 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 	}
 	if state.hooks == nil || state.hookDispatcher == nil || state.hookBindings == nil {
 		t.Fatalf("hook state = %#v, want populated runtime, dispatcher, and bindings", state)
+	}
+	if participationResolver.hooks.Load() != state.hooks {
+		t.Fatal("participation resolver hooks were not attached during hook boot")
 	}
 	if len(cleanup.fns) < 2 {
 		t.Fatalf("cleanup fns = %d, want hook close plus skills watcher stop", len(cleanup.fns))

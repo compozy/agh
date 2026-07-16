@@ -111,7 +111,7 @@ describe("extensions management mutations", () => {
 
   it("Should confirm a network requirement when updating and deactivating a bundle", async () => {
     const controller = new AbortController();
-    const body = { confirm_network_requirement: true };
+    const body = { confirm_network_requirement: true, expected_version: 7 };
     mockJsonResponse({ activation: bundleActivationFixtures[0] });
     await expect(
       updateBundleActivation("activation-ops-starter", body, controller.signal)
@@ -185,6 +185,7 @@ describe("extensions management failures", () => {
       () =>
         updateBundleActivation("activation-ops-starter", {
           confirm_network_requirement: true,
+          expected_version: 7,
         }),
     ],
   ])("Should reject a successful empty %s envelope", async (_name, field, invoke) => {

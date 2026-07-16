@@ -324,14 +324,15 @@ type ApproveLoopRunRequest struct {
 
 // LoopDefinitionDocument is the public agh.loop/v1 authoring document.
 type LoopDefinitionDocument struct {
-	APIVersion  string               `json:"apiVersion"`
-	Kind        string               `json:"kind"`
-	Meta        LoopDefinitionMeta   `json:"meta"`
-	Concurrency string               `json:"concurrency,omitempty"`
-	Inputs      map[string]LoopInput `json:"inputs,omitempty"`
-	Contract    LoopContract         `json:"contract"`
-	Graph       LoopGraph            `json:"graph"`
-	Start       []LoopStartBinding   `json:"start,omitempty"`
+	APIVersion           string                 `json:"apiVersion"`
+	Kind                 string                 `json:"kind"`
+	Meta                 LoopDefinitionMeta     `json:"meta"`
+	Concurrency          string                 `json:"concurrency,omitempty"`
+	Inputs               map[string]LoopInput   `json:"inputs,omitempty"`
+	Contract             LoopContract           `json:"contract"`
+	Graph                LoopGraph              `json:"graph"`
+	Start                []LoopStartBinding     `json:"start,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 }
 
 // NewLoopDefinitionDocument converts any JSON-compatible loop document into the public DTO.

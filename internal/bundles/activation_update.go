@@ -2,12 +2,21 @@ package bundles
 
 import (
 	"context"
+	"fmt"
 	"strings"
+
+	"github.com/compozy/agh/internal/resources"
 )
 
 func (s *Service) UpdateActivation(ctx context.Context, req UpdateActivationRequest) (ActivationPreview, error) {
 	if err := s.checkReady(ctx); err != nil {
 		return ActivationPreview{}, err
+	}
+	if req.ExpectedVersion <= 0 {
+		return ActivationPreview{}, fmt.Errorf(
+			"%w: expected version must be positive",
+			resources.ErrValidation,
+		)
 	}
 
 	s.opMu.Lock()
@@ -16,6 +25,13 @@ func (s *Service) UpdateActivation(ctx context.Context, req UpdateActivationRequ
 	current, err := s.store.GetBundleActivation(ctx, strings.TrimSpace(req.ID))
 	if err != nil {
 		return ActivationPreview{}, err
+	}
+	if req.ExpectedVersion != current.Version {
+		return ActivationPreview{}, fmt.Errorf(
+			"%w: expected version %d",
+			resources.ErrConflict,
+			req.ExpectedVersion,
+		)
 	}
 	next := cloneActivation(current)
 	definition, err := s.resolveActivationDefinition(ctx, current)
@@ -41,7 +57,7 @@ func (s *Service) UpdateActivation(ctx context.Context, req UpdateActivationRequ
 			ctx,
 			reconcileErr,
 			func(rollbackCtx context.Context) error {
-				return s.store.UpdateBundleActivation(rollbackCtx, current)
+				return s.restoreBundleActivation(rollbackCtx, current)
 			},
 			"restore bundle activation after update",
 			current.ID,

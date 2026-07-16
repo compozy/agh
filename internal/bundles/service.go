@@ -151,6 +151,7 @@ type ActivateRequest struct {
 	ProfileName               string
 	Scope                     Scope
 	Workspace                 string
+	ExpectedVersion           int64
 	ConfirmNetworkRequirement bool
 	ConfirmedBy               string
 	ConfirmedAt               string
@@ -158,6 +159,7 @@ type ActivateRequest struct {
 
 type UpdateActivationRequest struct {
 	ID                        string
+	ExpectedVersion           int64
 	ConfirmNetworkRequirement bool
 }
 
@@ -185,134 +187,6 @@ func (s *Service) Catalog(ctx context.Context) ([]CatalogEntry, error) {
 		return strings.Compare(left.Bundle.Name, right.Bundle.Name)
 	})
 	return entries, nil
-}
-
-func (s *Service) PreviewActivation(ctx context.Context, req ActivateRequest) (ActivationPreview, error) {
-	if err := s.checkReady(ctx); err != nil {
-		return ActivationPreview{}, err
-	}
-
-	resolved, err := s.resolveRequest(ctx, req, workspaceResolutionReadOnly)
-	if err != nil {
-		return ActivationPreview{}, err
-	}
-	digest, digestErr := s.networkRequirementDigestForExtension(ctx, resolved.activation.ExtensionName)
-	if digestErr != nil {
-		return ActivationPreview{}, digestErr
-	}
-	resolved.activation = previewNetworkRequirement(resolved.activation, digest)
-	return ActivationPreview{
-		Activation: cloneActivation(resolved.activation),
-		Bundle:     cloneBundleSpec(resolved.bundle),
-		Profile:    cloneBundleProfile(resolved.profile),
-		Inventory:  cloneInventoryItems(resolved.inventory),
-	}, nil
-}
-
-func (s *Service) Activate(ctx context.Context, req ActivateRequest) (ActivationPreview, error) {
-	if err := s.checkReady(ctx); err != nil {
-		return ActivationPreview{}, err
-	}
-
-	s.opMu.Lock()
-	defer s.opMu.Unlock()
-
-	resolved, err := s.resolveRequest(ctx, req, workspaceResolutionRegisterPaths)
-	if err != nil {
-		return ActivationPreview{}, err
-	}
-
-	existing, err := s.store.GetBundleActivation(ctx, resolved.activation.ID)
-	createNew := false
-	var existingPtr *Activation
-	switch {
-	case err == nil:
-		resolved.activation.CreatedAt = existing.CreatedAt
-		existingCopy := existing
-		existingPtr = &existingCopy
-	case errors.Is(err, ErrActivationNotFound):
-		createNew = true
-	default:
-		return ActivationPreview{}, err
-	}
-
-	if confirmErr := s.applyNetworkRequirementConfirmation(
-		ctx,
-		req,
-		existingPtr,
-		&resolved.activation,
-	); confirmErr != nil {
-		return ActivationPreview{}, confirmErr
-	}
-
-	if resolved.activation.CreatedAt.IsZero() {
-		resolved.activation.CreatedAt = s.now().UTC()
-	}
-	resolved.activation.UpdatedAt = s.now().UTC()
-
-	if createNew {
-		if err := s.store.CreateBundleActivation(ctx, resolved.activation); err != nil {
-			return ActivationPreview{}, err
-		}
-	} else {
-		if err := s.store.UpdateBundleActivation(ctx, resolved.activation); err != nil {
-			return ActivationPreview{}, err
-		}
-	}
-
-	if reconcileErr := s.reconcileLocked(ctx); reconcileErr != nil {
-		if createNew {
-			return ActivationPreview{}, s.rollbackActivationAndReconcileLocked(
-				ctx,
-				reconcileErr,
-				func(rollbackCtx context.Context) error {
-					return s.store.DeleteBundleActivation(rollbackCtx, resolved.activation.ID)
-				},
-				"delete newly-created bundle activation",
-				resolved.activation.ID,
-			)
-		}
-		return ActivationPreview{}, s.rollbackActivationAndReconcileLocked(
-			ctx,
-			reconcileErr,
-			func(rollbackCtx context.Context) error {
-				return s.store.UpdateBundleActivation(rollbackCtx, existing)
-			},
-			"restore existing bundle activation",
-			existing.ID,
-		)
-	}
-
-	return s.GetActivation(ctx, resolved.activation.ID)
-}
-
-func (s *Service) Deactivate(ctx context.Context, id string) error {
-	if err := s.checkReady(ctx); err != nil {
-		return err
-	}
-
-	s.opMu.Lock()
-	defer s.opMu.Unlock()
-
-	current, err := s.store.GetBundleActivation(ctx, strings.TrimSpace(id))
-	if err != nil {
-		return err
-	}
-	if err := s.store.DeleteBundleActivation(ctx, current.ID); err != nil {
-		return err
-	}
-	if reconcileErr := s.reconcileLocked(ctx); reconcileErr != nil {
-		return s.rollbackActivationAndReconcileLocked(
-			ctx,
-			reconcileErr,
-			func(rollbackCtx context.Context) error {
-				return s.store.CreateBundleActivation(rollbackCtx, current)
-			},
-			"restore bundle activation after deactivate",
-			current.ID,
-		)
-	}
-	return nil
 }
 
 func (s *Service) NetworkSettings(ctx context.Context) (NetworkSettings, error) {
@@ -363,6 +237,9 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 
 	state, err := s.collectDesiredState(ctx, activations)
 	if err != nil {
+		return err
+	}
+	if err := s.reconcileNetworkRequirementDigests(ctx, activations); err != nil {
 		return err
 	}
 

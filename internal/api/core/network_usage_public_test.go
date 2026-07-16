@@ -17,7 +17,7 @@ import (
 func usageWorkspaceService() testutil.StubWorkspaceService {
 	return testutil.StubWorkspaceService{
 		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
-			return workspacepkg.Workspace{ID: ref, Name: ref, RootDir: "/workspace"}, nil
+			return workspacepkg.Workspace{ID: "ws-alpha", Name: ref, RootDir: "/workspace"}, nil
 		},
 	}
 }
@@ -74,6 +74,14 @@ func TestNetworkUsageHandlers(t *testing.T) {
 					InputTokens:     11,
 					OutputTokens:    7,
 				},
+				Budget: &store.NetworkBudgetUsage{
+					OwnerKey:         "task_run:run-1",
+					WakesUsed:        1,
+					WallTimeUsed:     time.Second,
+					InputTokensUsed:  11,
+					OutputTokensUsed: 7,
+					UpdatedAt:        settled,
+				},
 			},
 		}
 		fixture.Handlers.NetworkUsage = usage
@@ -82,7 +90,7 @@ func TestNetworkUsageHandlers(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-alpha/network/usage?channel=builders&run_id=run-1",
+			"/workspaces/alpha/network/usage?channel=builders&run_id=run-1",
 			nil,
 		)
 		if resp.Code != http.StatusOK {
@@ -100,6 +108,10 @@ func TestNetworkUsageHandlers(t *testing.T) {
 		}
 		if len(body.Details) != 1 || body.Details[0].WakeID != "wake-1" {
 			t.Fatalf("details = %#v, want wake-1", body.Details)
+		}
+		if body.Budget == nil || body.Budget.OwnerKey != "task_run:run-1" ||
+			body.Budget.WallTimeUsed != "1s" {
+			t.Fatalf("budget = %#v, want run owner consumption", body.Budget)
 		}
 		if usage.lastQuery.WorkspaceID != "ws-alpha" ||
 			usage.lastQuery.Channel != "builders" ||

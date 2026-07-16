@@ -183,6 +183,7 @@ type networkRuntime interface {
 }
 
 type networkBindableSessionManager interface {
+	Resume(ctx context.Context, sessionID string) (*session.Session, error)
 	PromptNetwork(
 		ctx context.Context,
 		sessionID string,

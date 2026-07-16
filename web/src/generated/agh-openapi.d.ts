@@ -3262,6 +3262,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/task-runs/{id}/conversation/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream one task run coordination conversation */
+    get: operations["streamTaskRunConversation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/task-runs/{id}/fail": {
     parameters: {
       query?: never;
@@ -21961,6 +21978,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             }[];
           };
@@ -22106,6 +22125,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             };
           };
@@ -22342,6 +22363,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             };
           };
@@ -22535,6 +22558,8 @@ export interface operations {
       content: {
         "application/json": {
           confirm_network_requirement?: boolean;
+          /** Format: int64 */
+          expected_version: number;
         };
       };
     };
@@ -22606,6 +22631,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             };
           };
@@ -22999,6 +23026,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             };
           };
@@ -48824,6 +48853,62 @@ export interface operations {
         content: {
           "application/json": {
             run: {
+              network?: {
+                conversation: {
+                  channel: string;
+                  stream_url: string;
+                  surface: string;
+                  thread_id: string;
+                  workspace_id: string;
+                };
+                usage: {
+                  budget?: {
+                    exhausted_reason?: string;
+                    /** Format: int64 */
+                    input_tokens_used: number;
+                    /** Format: int64 */
+                    output_tokens_used: number;
+                    owner_key: string;
+                    /** Format: date-time */
+                    updated_at: string;
+                    wakes_used: number;
+                    wall_time_used: string;
+                  } | null;
+                  details: {
+                    channel: string;
+                    charged_wall_time: string;
+                    depth: number;
+                    /** Format: int64 */
+                    input_tokens: number;
+                    /** Format: int64 */
+                    output_tokens: number;
+                    owner_key: string;
+                    reason?: string;
+                    /** Format: date-time */
+                    reserved_at: string;
+                    root_id: string;
+                    /** Format: date-time */
+                    settled_at?: string | null;
+                    state: string;
+                    task_run_id: string;
+                    usage_state: string;
+                    wake_id: string;
+                    workspace_id: string;
+                  }[];
+                  total: {
+                    actual_wake_count: number;
+                    charged_wall_time: string;
+                    /** Format: int64 */
+                    input_tokens: number;
+                    /** Format: int64 */
+                    output_tokens: number;
+                    reserved_wake_count: number;
+                    unavailable_wake_count: number;
+                    wake_count: number;
+                  };
+                  workspace_id: string;
+                };
+              } | null;
               run: {
                 attempt: number;
                 claim_token_hash?: string;
@@ -48957,7 +49042,7 @@ export interface operations {
                 /** Format: int64 */
                 turn_count?: number | null;
               };
-              task: {
+              task?: {
                 effective_paused?: boolean;
                 id: string;
                 identifier?: string;
@@ -48993,7 +49078,7 @@ export interface operations {
                   | "canceled";
                 title: string;
                 workspace_id?: string;
-              };
+              } | null;
             };
           };
         };
@@ -49856,6 +49941,238 @@ export interface operations {
         };
       };
       /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamTaskRunConversation: {
+    parameters: {
+      query?: {
+        /** @description Replay messages after this message id */
+        after?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Task run conversation stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            message?: {
+              body: unknown;
+              causation_id?: string;
+              channel: string;
+              direct_id?: string;
+              direction: string;
+              display_name?: string;
+              intent?: string;
+              kind: string;
+              local?: boolean;
+              mentions?: string[];
+              message_id: string;
+              peer_from: string;
+              peer_to?: string;
+              presence_count?: number;
+              /** Format: date-time */
+              presence_last_seen_at?: string | null;
+              /** Format: date-time */
+              presence_started_at?: string | null;
+              preview_text?: string;
+              reply_to?: string;
+              session_id?: string;
+              /** Format: int64 */
+              size_bytes?: number;
+              surface?: string;
+              text?: string;
+              thread_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              trace_id?: string;
+              work_id?: string;
+              workspace_id?: string;
+            } | null;
+            usage?: {
+              budget?: {
+                exhausted_reason?: string;
+                /** Format: int64 */
+                input_tokens_used: number;
+                /** Format: int64 */
+                output_tokens_used: number;
+                owner_key: string;
+                /** Format: date-time */
+                updated_at: string;
+                wakes_used: number;
+                wall_time_used: string;
+              } | null;
+              details: {
+                channel: string;
+                charged_wall_time: string;
+                depth: number;
+                /** Format: int64 */
+                input_tokens: number;
+                /** Format: int64 */
+                output_tokens: number;
+                owner_key: string;
+                reason?: string;
+                /** Format: date-time */
+                reserved_at: string;
+                root_id: string;
+                /** Format: date-time */
+                settled_at?: string | null;
+                state: string;
+                task_run_id: string;
+                usage_state: string;
+                wake_id: string;
+                workspace_id: string;
+              }[];
+              total: {
+                actual_wake_count: number;
+                charged_wall_time: string;
+                /** Format: int64 */
+                input_tokens: number;
+                /** Format: int64 */
+                output_tokens: number;
+                reserved_wake_count: number;
+                unavailable_wake_count: number;
+                wake_count: number;
+              };
+              workspace_id: string;
+            } | null;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Local task run has no coordination conversation */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run id or conversation cursor */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task or Network service is not configured */
       503: {
         headers: {
           [name: string]: unknown;
@@ -68070,6 +68387,22 @@ export interface operations {
                 name: string;
                 version?: number;
               };
+              network_participation?: {
+                bounds?: {
+                  coalesce_window?: string | null;
+                  /** Format: int64 */
+                  max_input_tokens?: number | null;
+                  /** Format: int64 */
+                  max_output_tokens?: number | null;
+                  max_total_wall_time?: string | null;
+                  max_wake_depth?: number | null;
+                  max_wake_wall_time?: string | null;
+                  max_wakes?: number | null;
+                } | null;
+                channel_id?: string | null;
+                channel_strategy?: string | null;
+                mode?: string | null;
+              } | null;
               start?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -70020,6 +70353,22 @@ export interface operations {
               name: string;
               version?: number;
             };
+            network_participation?: {
+              bounds?: {
+                coalesce_window?: string | null;
+                /** Format: int64 */
+                max_input_tokens?: number | null;
+                /** Format: int64 */
+                max_output_tokens?: number | null;
+                max_total_wall_time?: string | null;
+                max_wake_depth?: number | null;
+                max_wake_wall_time?: string | null;
+                max_wakes?: number | null;
+              } | null;
+              channel_id?: string | null;
+              channel_strategy?: string | null;
+              mode?: string | null;
+            } | null;
             start?: {
               input_mapping?: {
                 [key: string]: string;
@@ -70207,6 +70556,22 @@ export interface operations {
                   name: string;
                   version?: number;
                 };
+                network_participation?: {
+                  bounds?: {
+                    coalesce_window?: string | null;
+                    /** Format: int64 */
+                    max_input_tokens?: number | null;
+                    /** Format: int64 */
+                    max_output_tokens?: number | null;
+                    max_total_wall_time?: string | null;
+                    max_wake_depth?: number | null;
+                    max_wake_wall_time?: string | null;
+                    max_wakes?: number | null;
+                  } | null;
+                  channel_id?: string | null;
+                  channel_strategy?: string | null;
+                  mode?: string | null;
+                } | null;
                 start?: {
                   input_mapping?: {
                     [key: string]: string;
@@ -70557,6 +70922,22 @@ export interface operations {
                   name: string;
                   version?: number;
                 };
+                network_participation?: {
+                  bounds?: {
+                    coalesce_window?: string | null;
+                    /** Format: int64 */
+                    max_input_tokens?: number | null;
+                    /** Format: int64 */
+                    max_output_tokens?: number | null;
+                    max_total_wall_time?: string | null;
+                    max_wake_depth?: number | null;
+                    max_wake_wall_time?: string | null;
+                    max_wakes?: number | null;
+                  } | null;
+                  channel_id?: string | null;
+                  channel_strategy?: string | null;
+                  mode?: string | null;
+                } | null;
                 start?: {
                   input_mapping?: {
                     [key: string]: string;
@@ -71001,6 +71382,22 @@ export interface operations {
               name: string;
               version?: number;
             };
+            network_participation?: {
+              bounds?: {
+                coalesce_window?: string | null;
+                /** Format: int64 */
+                max_input_tokens?: number | null;
+                /** Format: int64 */
+                max_output_tokens?: number | null;
+                max_total_wall_time?: string | null;
+                max_wake_depth?: number | null;
+                max_wake_wall_time?: string | null;
+                max_wakes?: number | null;
+              } | null;
+              channel_id?: string | null;
+              channel_strategy?: string | null;
+              mode?: string | null;
+            } | null;
             start?: {
               input_mapping?: {
                 [key: string]: string;
@@ -71188,6 +71585,22 @@ export interface operations {
                   name: string;
                   version?: number;
                 };
+                network_participation?: {
+                  bounds?: {
+                    coalesce_window?: string | null;
+                    /** Format: int64 */
+                    max_input_tokens?: number | null;
+                    /** Format: int64 */
+                    max_output_tokens?: number | null;
+                    max_total_wall_time?: string | null;
+                    max_wake_depth?: number | null;
+                    max_wake_wall_time?: string | null;
+                    max_wakes?: number | null;
+                  } | null;
+                  channel_id?: string | null;
+                  channel_strategy?: string | null;
+                  mode?: string | null;
+                } | null;
                 start?: {
                   input_mapping?: {
                     [key: string]: string;
@@ -72665,6 +73078,22 @@ export interface operations {
               name: string;
               version?: number;
             };
+            network_participation?: {
+              bounds?: {
+                coalesce_window?: string | null;
+                /** Format: int64 */
+                max_input_tokens?: number | null;
+                /** Format: int64 */
+                max_output_tokens?: number | null;
+                max_total_wall_time?: string | null;
+                max_wake_depth?: number | null;
+                max_wake_wall_time?: string | null;
+                max_wakes?: number | null;
+              } | null;
+              channel_id?: string | null;
+              channel_strategy?: string | null;
+              mode?: string | null;
+            } | null;
             start?: {
               input_mapping?: {
                 [key: string]: string;
@@ -76936,6 +77365,18 @@ export interface operations {
         };
         content: {
           "application/json": {
+            budget?: {
+              exhausted_reason?: string;
+              /** Format: int64 */
+              input_tokens_used: number;
+              /** Format: int64 */
+              output_tokens_used: number;
+              owner_key: string;
+              /** Format: date-time */
+              updated_at: string;
+              wakes_used: number;
+              wall_time_used: string;
+            } | null;
             details: {
               channel: string;
               charged_wall_time: string;

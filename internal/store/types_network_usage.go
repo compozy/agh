@@ -57,8 +57,20 @@ type NetworkUsageSummary struct {
 	OutputTokens         int64
 }
 
+// NetworkBudgetUsage reports the durable consumption counters for one participation owner.
+type NetworkBudgetUsage struct {
+	OwnerKey         string
+	WakesUsed        int
+	WallTimeUsed     time.Duration
+	InputTokensUsed  int64
+	OutputTokensUsed int64
+	ExhaustedReason  string
+	UpdatedAt        time.Time
+}
+
 // NetworkUsageReport pairs per-wake evidence with its exact aggregate.
 type NetworkUsageReport struct {
 	Details []NetworkWakeUsageDetail
 	Total   NetworkUsageSummary
+	Budget  *NetworkBudgetUsage
 }

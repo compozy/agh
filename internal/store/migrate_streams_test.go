@@ -468,6 +468,7 @@ func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {
 	}
 	return exists
 }
+
 func normalizeSchemaSQL(statement string) string {
 	normalized := strings.Join(strings.Fields(strings.ReplaceAll(statement, "`", "")), " ")
 	normalized = strings.ReplaceAll(normalized, "( ", "(")

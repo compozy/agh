@@ -194,6 +194,7 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 			}
 			if profile == nil {
 				t.Fatal("SetExecutionProfile profile = nil")
+				return taskpkg.ExecutionProfile{}, nil
 			}
 			gotSetProfile = *profile
 			stored := *profile
@@ -2752,6 +2753,7 @@ func TestBaseHandlersUpdateTaskNetworkParticipation(t *testing.T) {
 				}
 				if profile == nil {
 					t.Fatal("SetExecutionProfile profile = nil")
+					return taskpkg.ExecutionProfile{}, nil
 				}
 				cloned := *profile
 				gotSetProfile = &cloned

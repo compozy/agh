@@ -1544,7 +1544,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeTaskSchemasAndEnums",
+			name: "Should describe Task schemas and enums",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
@@ -1778,8 +1778,19 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				getRunSchema := jsonResponseSchema(t, getRun, 200)
 				assertRequired(t, getRunSchema, "run")
 				runDetailSchema := propertySchema(t, getRunSchema, "run")
-				assertRequired(t, runDetailSchema, "run", "task", "summary")
-				assertNotRequired(t, runDetailSchema, "session")
+				assertRequired(t, runDetailSchema, "run", "summary")
+				assertNotRequired(t, runDetailSchema, "task", "session", "network")
+				runNetworkSchema := propertySchema(t, runDetailSchema, "network")
+				assertRequired(t, runNetworkSchema, "conversation", "usage")
+				assertRequired(
+					t,
+					propertySchema(t, runNetworkSchema, "conversation"),
+					"workspace_id",
+					"channel",
+					"surface",
+					"thread_id",
+					"stream_url",
+				)
 
 				runSchema := propertySchema(t, runDetailSchema, "run")
 				assertEnumValues(t, propertySchema(t, runSchema, "status"),

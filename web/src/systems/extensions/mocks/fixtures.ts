@@ -189,6 +189,7 @@ export const bundleActivationFixtures: BundleActivation[] = [
       },
     ],
     updated_at: "2026-07-12T16:40:00Z",
+    version: 7,
     workspace_id: "ws_northstar",
   },
   {
@@ -214,5 +215,6 @@ export const bundleActivationFixtures: BundleActivation[] = [
     spec_drift: true,
     triggers: [],
     updated_at: "2026-07-03T12:00:00Z",
+    version: 3,
   },
 ];

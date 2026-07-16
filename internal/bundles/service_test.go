@@ -3,6 +3,7 @@ package bundles
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"maps"
@@ -69,6 +70,7 @@ func (s *memoryStore) CreateBundleActivation(_ context.Context, activation Activ
 	if _, exists := s.activations[activation.ID]; exists {
 		return errors.New("duplicate activation")
 	}
+	activation.Version = 1
 	s.activations[activation.ID] = activation
 	return nil
 }
@@ -79,9 +81,14 @@ func (s *memoryStore) UpdateBundleActivation(_ context.Context, activation Activ
 			return err
 		}
 	}
-	if _, exists := s.activations[activation.ID]; !exists {
+	current, exists := s.activations[activation.ID]
+	if !exists {
 		return ErrActivationNotFound
 	}
+	if activation.Version != current.Version {
+		return fmt.Errorf("%w: expected version %d", resources.ErrConflict, activation.Version)
+	}
+	activation.Version++
 	s.activations[activation.ID] = activation
 	return nil
 }
@@ -607,7 +614,8 @@ func TestServiceActivationSpecDriftUsesContentHashAndClearsOnReapply(t *testing.
 		}
 
 		reapplied, err := service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
-			ID: activated.Activation.ID,
+			ID:              activated.Activation.ID,
+			ExpectedVersion: activated.Activation.Version,
 		})
 		if err != nil {
 			t.Fatalf("UpdateActivation() error = %v", err)
@@ -648,7 +656,8 @@ func TestServiceActivationSpecDriftUsesContentHashAndClearsOnReapply(t *testing.
 			ChannelScopes: []string{"workspace"},
 		}
 		_, err = service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
-			ID: activated.Activation.ID,
+			ID:              activated.Activation.ID,
+			ExpectedVersion: activated.Activation.Version,
 		})
 		if !errors.Is(err, ErrNetworkRequirementConfirmationRequired) {
 			t.Fatalf("UpdateActivation() error = %v, want confirmation required", err)
@@ -660,6 +669,7 @@ func TestServiceActivationSpecDriftUsesContentHashAndClearsOnReapply(t *testing.
 
 		reapplied, err := service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
 			ID:                        activated.Activation.ID,
+			ExpectedVersion:           activated.Activation.Version,
 			ConfirmNetworkRequirement: true,
 		})
 		if err != nil {

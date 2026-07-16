@@ -95,7 +95,7 @@ describe("BundleActivationDetail", () => {
     await user.click(screen.getByRole("switch", { name: "Confirm Live network participation" }));
     await user.click(screen.getByRole("button", { name: "Update" }));
     expect(mocks.update.mutate).toHaveBeenCalledWith({
-      body: { confirm_network_requirement: true },
+      body: { confirm_network_requirement: true, expected_version: 7 },
       id: "activation-ops-starter",
     });
   });

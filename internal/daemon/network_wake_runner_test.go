@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -121,6 +122,9 @@ func TestNetworkWakeRunner(t *testing.T) {
 		}
 		if got := fixture.prompter.calls; got != 1 {
 			t.Fatalf("PromptNetwork calls after recovery = %d, want 1", got)
+		}
+		if got := fixture.prompter.resumeCalls; got != 1 {
+			t.Fatalf("Resume calls after recovery = %d, want 1", got)
 		}
 	})
 
@@ -376,9 +380,15 @@ func (s *networkWakeTaskStub) ReleaseRunLease(
 type networkWakePrompterStub struct {
 	calls       int
 	cancelCalls int
+	resumeCalls int
 	events      []acp.AgentEvent
 	prompt      func(context.Context) (<-chan acp.AgentEvent, error)
 	cancelErr   error
+}
+
+func (s *networkWakePrompterStub) Resume(context.Context, string) (*session.Session, error) {
+	s.resumeCalls++
+	return nil, nil
 }
 
 func (s *networkWakePrompterStub) PromptNetwork(

@@ -1069,8 +1069,18 @@ func (h *BaseHandlers) GetTaskRun(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
+	if view == nil {
+		h.respondError(c, http.StatusInternalServerError, errors.New("api: task run detail is required"))
+		return
+	}
 
-	c.JSON(http.StatusOK, contract.TaskRunDetailResponse{Run: TaskRunDetailPayloadFromView(view)})
+	payload := TaskRunDetailPayloadFromView(view)
+	payload.Network, err = h.taskRunNetworkPayload(c.Request.Context(), view.Run)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskRunDetailResponse{Run: payload})
 }
 
 // TaskTimeline returns the task-native live timeline for one task.
@@ -2610,6 +2620,10 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 	}
 
 	networkSpec := run.NetworkSpecSnapshot()
+	var designation *taskpkg.RunDesignationSummary
+	if runDesignation, ok := taskpkg.DesignationFromRun(*run); ok {
+		designation = runDesignation.Summary()
+	}
 	return contract.TaskRunPayload{
 		ID:                           run.ID,
 		TaskID:                       run.TaskID,
@@ -2623,6 +2637,7 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		IdempotencyKey:               run.IdempotencyKey,
 		ResolvedNetworkParticipation: participation.CloneSpec(networkSpec),
 		DesignationGroupID:           run.DesignationGroupID,
+		Designation:                  designation,
 		ClaimTokenHash:               run.ClaimTokenHash,
 		LeaseUntil:                   optionalTime(run.LeaseUntil),
 		HeartbeatAt:                  optionalTime(run.HeartbeatAt),

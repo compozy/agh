@@ -1197,6 +1197,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	state.hooks = hooks
 	state.hookDispatcher = hooks
 	state.hookBindings = hookBindings
+	attachParticipationResolverHooks(state.participationResolver, hooks)
 	return nil
 }
 

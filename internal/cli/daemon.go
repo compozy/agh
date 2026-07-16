@@ -23,13 +23,13 @@ import (
 const (
 	daemonStartedValue = "Started"
 	daemonStatusValue  = "Status"
-	daemonVersionValue = "Version"
+	versionValue       = "Version"
 	daemonDaemonKey    = "daemon"
 	daemonDisabledKey  = "disabled"
 	daemonStartKey     = "start"
 	daemonStartedAtKey = "started_at"
 	daemonStatusKey    = "status"
-	daemonVersionKey   = "version"
+	versionKey         = "version"
 )
 
 const internalChildFlagName = "internal-child"
@@ -380,7 +380,7 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 		{Label: "HTTP", Value: stringOrDash(strings.TrimSpace(status.HTTPHost) + ":" + intOrDash(status.HTTPPort))},
 		{Label: "Active Sessions", Value: strconv.Itoa(status.ActiveSessions)},
 		{Label: "Total Sessions", Value: strconv.Itoa(status.TotalSessions)},
-		{Label: daemonVersionValue, Value: stringOrDash(status.Version)},
+		{Label: versionValue, Value: stringOrDash(status.Version)},
 	}
 	labels := []string{
 		daemonStatusKey,
@@ -392,7 +392,7 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 		"http_port",
 		"active_sessions",
 		"total_sessions",
-		daemonVersionKey,
+		versionKey,
 	}
 	values := []string{
 		status.Status,

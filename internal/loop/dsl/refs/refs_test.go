@@ -361,6 +361,7 @@ func TestNamespaceShouldValidateRootsAndSchemaShapes(t *testing.T) {
 			if tt.wantCode != "" {
 				if err == nil {
 					t.Fatalf("ValidatePath(%v) error = nil, want code %s", tt.path, tt.wantCode)
+					return
 				}
 				if err.Code != tt.wantCode {
 					t.Fatalf("ValidatePath(%v) code = %s, want %s", tt.path, err.Code, tt.wantCode)

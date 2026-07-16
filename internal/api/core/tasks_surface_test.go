@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/testutil"
 	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -147,14 +148,16 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 
 	runDetailPayload := core.TaskRunDetailPayloadFromView(&taskpkg.RunDetailView{
 		Run: taskpkg.Run{
-			ID:       "run-1",
-			TaskID:   "task-1",
-			Status:   taskpkg.TaskRunStatusRunning,
-			Attempt:  2,
-			Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
-			QueuedAt: now.Add(-10 * time.Minute),
+			ID:                 "run-1",
+			TaskID:             "task-1",
+			Status:             taskpkg.TaskRunStatusRunning,
+			Attempt:            2,
+			Origin:             taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
+			DesignationGroupID: "designation-group",
+			Metadata:           json.RawMessage(`{"designation":{"index":0,"brief":"Coordinate the group"}}`),
+			QueuedAt:           now.Add(-10 * time.Minute),
 		},
-		Task: taskpkg.Reference{
+		Task: &taskpkg.Reference{
 			ID:             "task-1",
 			Identifier:     "TASK-1",
 			Title:          "Review handlers",
@@ -187,7 +190,11 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		runDetailPayload.Summary.ToolCallCount == nil ||
 		*runDetailPayload.Summary.ToolCallCount != 3 ||
 		runDetailPayload.Task.Priority != taskpkg.PriorityHigh ||
-		runDetailPayload.Task.LatestEventSeq != 19 {
+		runDetailPayload.Task.LatestEventSeq != 19 ||
+		runDetailPayload.Run.DesignationGroupID != "designation-group" ||
+		runDetailPayload.Run.Designation == nil ||
+		runDetailPayload.Run.Designation.Index != 0 ||
+		runDetailPayload.Run.Designation.Brief != "Coordinate the group" {
 		t.Fatalf("TaskRunDetailPayloadFromView() = %#v", runDetailPayload)
 	}
 	if nilSession := core.TaskRunSessionPayloadFromSession(nil); nilSession != nil {
@@ -372,6 +379,155 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			t.Fatalf("TaskInboxPayloadFromView() JSON contains %s: %s", forbidden, encodedInbox)
 		}
 	}
+}
+
+func TestTaskRunConversationStreamSurface(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stream the run-fenced conversation and usage projection", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 15, 9, 0, 0, 0, time.UTC)
+		tasks := &testutil.StubTaskManager{
+			RunDetailFn: func(
+				_ context.Context,
+				runID string,
+				_ taskpkg.ActorContext,
+			) (*taskpkg.RunDetailView, error) {
+				return &taskpkg.RunDetailView{Run: taskpkg.Run{
+					ID:     runID,
+					TaskID: "task-1",
+					Status: taskpkg.TaskRunStatusRunning,
+					RunNetworkState: &taskpkg.RunNetworkState{
+						NetworkSpec: testLiveParticipation("ws-alpha", "coord-shared"),
+					},
+					QueuedAt: now.Add(-time.Minute),
+				}}, nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		var gotRef store.NetworkConversationRef
+		var gotQuery store.NetworkConversationMessageQuery
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListConversationMessagesFn: func(
+				_ context.Context,
+				ref store.NetworkConversationRef,
+				query store.NetworkConversationMessageQuery,
+			) ([]store.NetworkConversationMessage, error) {
+				gotRef = ref
+				gotQuery = query
+				return []store.NetworkConversationMessage{{
+					MessageID:   "msg-1",
+					WorkspaceID: "ws-alpha",
+					Channel:     "coord-shared",
+					Surface:     store.NetworkSurfaceThread,
+					ThreadID:    "thread_agent_channel",
+					Direction:   "received",
+					PeerFrom:    "coordinator.sess-1",
+					Kind:        "say",
+					Text:        "Coordinator posted durable evidence",
+					Timestamp:   now,
+				}}, nil
+			},
+		}
+		fixture.Handlers.NetworkUsage = &stubNetworkUsageStore{report: store.NetworkUsageReport{
+			Total: store.NetworkUsageSummary{
+				WakeCount:       1,
+				ActualWakeCount: 1,
+				InputTokens:     13,
+				OutputTokens:    5,
+			},
+			Budget: &store.NetworkBudgetUsage{
+				OwnerKey:     "task_run:run-1",
+				WakesUsed:    1,
+				WallTimeUsed: time.Second,
+				UpdatedAt:    now,
+			},
+		}}
+		done := make(chan struct{})
+		close(done)
+		fixture.Handlers.SetStreamDone(done)
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/task-runs/run-1/conversation/stream?after=msg-0",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		if got := resp.Header().Get("Content-Type"); got != "text/event-stream" {
+			t.Fatalf("stream content type = %q, want text/event-stream", got)
+		}
+		if gotRef.WorkspaceID != "ws-alpha" || gotRef.Channel != "coord-shared" ||
+			gotRef.Surface != store.NetworkSurfaceThread || gotRef.ThreadID != "thread_agent_channel" {
+			t.Fatalf("conversation ref = %#v, want run-fenced thread", gotRef)
+		}
+		if gotQuery.AfterMessageID != "msg-0" || gotQuery.Limit != 200 {
+			t.Fatalf("conversation query = %#v, want reconnect cursor + bounded page", gotQuery)
+		}
+		body := resp.Body.String()
+		for _, want := range []string{
+			"id: msg-1",
+			"event: network.message",
+			`"message_id":"msg-1"`,
+			"event: network.usage",
+			`"owner_key":"task_run:run-1"`,
+			`"actual_wake_count":1`,
+		} {
+			if !strings.Contains(body, want) {
+				t.Fatalf("stream body missing %q: %s", want, body)
+			}
+		}
+	})
+
+	t.Run("Should reject a Local run without inventing a conversation", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &testutil.StubTaskManager{
+			RunDetailFn: func(
+				_ context.Context,
+				runID string,
+				_ taskpkg.ActorContext,
+			) (*taskpkg.RunDetailView, error) {
+				return &taskpkg.RunDetailView{Run: taskpkg.Run{
+					ID:       runID,
+					Status:   taskpkg.TaskRunStatusRunning,
+					QueuedAt: time.Date(2026, 7, 15, 9, 0, 0, 0, time.UTC),
+				}}, nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/task-runs/run-local/conversation/stream",
+			nil,
+		)
+		if resp.Code != http.StatusConflict || !strings.Contains(resp.Body.String(), "local task run") {
+			t.Fatalf("local stream status/body = %d/%s, want 409 diagnostic", resp.Code, resp.Body.String())
+		}
+	})
 }
 
 func TestTaskCatalogResponseUsesLeanPageItems(t *testing.T) {
@@ -744,14 +900,17 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 			runDetailActor = actor
 			return &taskpkg.RunDetailView{
 				Run: taskpkg.Run{
-					ID:       id,
-					TaskID:   "task-1",
-					Status:   taskpkg.TaskRunStatusRunning,
-					Attempt:  2,
-					Origin:   actor.Origin,
+					ID:      id,
+					TaskID:  "task-1",
+					Status:  taskpkg.TaskRunStatusRunning,
+					Attempt: 2,
+					Origin:  actor.Origin,
+					RunNetworkState: &taskpkg.RunNetworkState{
+						NetworkSpec: testLiveParticipation("ws-alpha", "coord-run-detail"),
+					},
 					QueuedAt: now.Add(-10 * time.Minute),
 				},
-				Task: taskpkg.Reference{
+				Task: &taskpkg.Reference{
 					ID:          "task-1",
 					Identifier:  "TASK-1",
 					Title:       "Published task",
@@ -954,6 +1113,23 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 	}
 
 	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, observer, tasks, workspaces, nil, nil)
+	usage := &stubNetworkUsageStore{report: store.NetworkUsageReport{
+		Total: store.NetworkUsageSummary{
+			WakeCount:       1,
+			ActualWakeCount: 1,
+			InputTokens:     11,
+			OutputTokens:    7,
+		},
+		Budget: &store.NetworkBudgetUsage{
+			OwnerKey:         "task_run:run-1",
+			WakesUsed:        1,
+			WallTimeUsed:     time.Second,
+			InputTokensUsed:  11,
+			OutputTokensUsed: 7,
+			UpdatedAt:        now,
+		},
+	}}
+	fixture.Handlers.NetworkUsage = usage
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
@@ -1002,6 +1178,20 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		if runPayload.Run.Run.ID != "run-1" || runPayload.Run.Session == nil ||
 			runDetailActor.Origin.Ref != "tasks.get_run" {
 			t.Fatalf("run detail payload/actor = %#v / %#v", runPayload, runDetailActor)
+		}
+		if runPayload.Run.Network == nil ||
+			runPayload.Run.Network.Conversation.WorkspaceID != "ws-alpha" ||
+			runPayload.Run.Network.Conversation.Channel != "coord-run-detail" ||
+			runPayload.Run.Network.Conversation.Surface != store.NetworkSurfaceThread ||
+			runPayload.Run.Network.Conversation.ThreadID != "thread_agent_channel" ||
+			runPayload.Run.Network.Conversation.StreamURL != "/api/task-runs/run-1/conversation/stream" ||
+			runPayload.Run.Network.Usage.Budget == nil ||
+			runPayload.Run.Network.Usage.Budget.WakesUsed != 1 ||
+			runPayload.Run.Network.Usage.Total.ActualWakeCount != 1 {
+			t.Fatalf("run detail network projection = %#v", runPayload.Run.Network)
+		}
+		if usage.lastQuery.WorkspaceID != "ws-alpha" || usage.lastQuery.RunID != "run-1" {
+			t.Fatalf("run detail usage query = %#v, want workspace/run fence", usage.lastQuery)
 		}
 
 		inspectTaskResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1/inspect", nil)

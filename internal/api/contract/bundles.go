@@ -74,6 +74,7 @@ type BundleInventoryPayload struct {
 
 type BundleActivationPayload struct {
 	ID                            string                   `json:"id"`
+	Version                       int64                    `json:"version"`
 	ExtensionName                 string                   `json:"extension_name"`
 	BundleName                    string                   `json:"bundle_name"`
 	BundleDescription             string                   `json:"bundle_description,omitempty"`
@@ -120,7 +121,8 @@ type ActivateBundleRequest struct {
 }
 
 type UpdateBundleActivationRequest struct {
-	ConfirmNetworkRequirement bool `json:"confirm_network_requirement,omitempty"`
+	ExpectedVersion           int64 `json:"expected_version"`
+	ConfirmNetworkRequirement bool  `json:"confirm_network_requirement,omitempty"`
 }
 
 type BundlesCatalogResponse struct {

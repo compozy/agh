@@ -121,7 +121,7 @@ describe("ExtensionsInventory", () => {
     const update = screen.getByRole("button", { name: "Update" });
     await user.click(update);
     expect(mocks.updateBundle).toHaveBeenCalledWith({
-      body: {},
+      body: { expected_version: 3 },
       id: "activation-dep-kit",
     });
     expect(screen.getByTestId("bundle-row-activation-ops-starter")).not.toHaveTextContent("Update");

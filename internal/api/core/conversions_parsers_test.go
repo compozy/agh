@@ -255,6 +255,7 @@ func TestRuntimeActivityPayloadFromSessionMeta(t *testing.T) {
 				t.Helper()
 				if payload == nil {
 					t.Fatal("RuntimeActivityPayloadFromSessionMeta() = nil, want payload")
+					return
 				}
 				if payload.TurnID != "turn-1" ||
 					payload.TurnSource != "prompt" ||

@@ -74,6 +74,75 @@ func TestLoopDefinitionDocumentPreservesWatchEvents(t *testing.T) {
 	})
 }
 
+func TestLoopDefinitionDocumentPreservesNetworkParticipation(t *testing.T) {
+	t.Run("Should preserve definition participation across the public DTO boundary", func(t *testing.T) {
+		t.Parallel()
+
+		mode := participation.ModeLive
+		strategy := participation.StrategyNamed
+		channelID := "release-room"
+		definition := dsl.Definition{
+			APIVersion: dsl.APIVersion,
+			Kind:       dsl.KindLoop,
+			Meta:       dsl.Meta{Name: "network-contract"},
+			DefinitionExtensionState: &dsl.DefinitionExtensionState{
+				NetworkParticipation: &participation.Request{
+					Mode:            &mode,
+					ChannelStrategy: &strategy,
+					ChannelID:       &channelID,
+				},
+			},
+		}
+
+		document, err := contract.NewLoopDefinitionDocument(definition)
+		if err != nil {
+			t.Fatalf("NewLoopDefinitionDocument() error = %v", err)
+		}
+		if document.NetworkParticipation == nil {
+			t.Fatal("document.NetworkParticipation = nil, want authored Live request")
+		}
+		if document.NetworkParticipation.Mode == nil || *document.NetworkParticipation.Mode != mode {
+			t.Fatalf("document.NetworkParticipation.Mode = %v, want %q", document.NetworkParticipation.Mode, mode)
+		}
+		if document.NetworkParticipation.ChannelStrategy == nil ||
+			*document.NetworkParticipation.ChannelStrategy != strategy {
+			t.Fatalf(
+				"document.NetworkParticipation.ChannelStrategy = %v, want %q",
+				document.NetworkParticipation.ChannelStrategy,
+				strategy,
+			)
+		}
+		if document.NetworkParticipation.ChannelID == nil || *document.NetworkParticipation.ChannelID != channelID {
+			t.Fatalf(
+				"document.NetworkParticipation.ChannelID = %v, want %q",
+				document.NetworkParticipation.ChannelID,
+				channelID,
+			)
+		}
+
+		var decoded dsl.Definition
+		if err := document.Decode(&decoded); err != nil {
+			t.Fatalf("LoopDefinitionDocument.Decode() error = %v", err)
+		}
+		if decoded.NetworkParticipation == nil || decoded.NetworkParticipation.ChannelID == nil ||
+			*decoded.NetworkParticipation.ChannelID != channelID {
+			t.Fatalf("decoded.NetworkParticipation = %#v, want channel %q", decoded.NetworkParticipation, channelID)
+		}
+
+		encoded, err := json.Marshal(document)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var publicShape map[string]json.RawMessage
+		if err := json.Unmarshal(encoded, &publicShape); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if _, ok := publicShape["network_participation"]; !ok {
+			t.Fatalf("encoded document keys = %v, want network_participation", publicShape)
+		}
+	})
+}
+
 func TestSessionPayloadJSONShape(t *testing.T) {
 	t.Run("Should preserve session payload JSON shape", func(t *testing.T) {
 		t.Parallel()

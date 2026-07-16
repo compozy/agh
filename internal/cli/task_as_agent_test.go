@@ -248,6 +248,7 @@ func TestTaskReviewAsAgentUsesValidatedIdentity(t *testing.T) {
 				assertAgentCredentials(t, credentials)
 				if request == nil {
 					t.Fatal("review request is nil")
+					return TaskRunReviewRequestRecord{}, nil
 				}
 				requestedRunID = runID
 				if request.RunID != "run-1" || request.Reason != "ready for review" {
@@ -275,6 +276,7 @@ func TestTaskReviewAsAgentUsesValidatedIdentity(t *testing.T) {
 				assertAgentCredentials(t, credentials)
 				if request == nil {
 					t.Fatal("review verdict request is nil")
+					return TaskRunReviewVerdictRecord{}, nil
 				}
 				submittedID = reviewID
 				if request.RunID != "run-1" ||

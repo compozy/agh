@@ -843,7 +843,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				if gotID != "run-1" ||
 					output.Run.ID != "run-1" ||
 					output.Run.Status != taskpkg.TaskRunStatusQueued ||
-					output.Task.ID != "task-1" {
+					output.Task == nil || output.Task.ID != "task-1" {
 					t.Fatalf("gotID/output = %q / %#v, want queued run-1", gotID, output)
 				}
 			},
@@ -1926,6 +1926,7 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 			) (TaskExecutionProfileRecord, error) {
 				if request == nil {
 					t.Fatal("request is nil")
+					return TaskExecutionProfileRecord{}, nil
 				}
 				updateID = id
 				updateRequest = *request
@@ -2047,6 +2048,7 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 			) (TaskBridgeNotificationSubscriptionRecord, error) {
 				if request == nil {
 					t.Fatal("request is nil")
+					return TaskBridgeNotificationSubscriptionRecord{}, nil
 				}
 				subscribeTaskID = taskID
 				subscribeBody = *request
@@ -2305,6 +2307,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 			) (TaskRunReviewRequestRecord, error) {
 				if request == nil {
 					t.Fatal("request is nil")
+					return TaskRunReviewRequestRecord{}, nil
 				}
 				requestRunID = runID
 				requestBody = *request
@@ -2331,6 +2334,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 			) (TaskRunReviewVerdictRecord, error) {
 				if request == nil {
 					t.Fatal("request is nil")
+					return TaskRunReviewVerdictRecord{}, nil
 				}
 				submitID = reviewID
 				submitBody = *request
@@ -2974,7 +2978,7 @@ func sampleTaskRunDetailRecord(status taskpkg.RunStatus) TaskRunDetailRecord {
 	turnCount := int64(2)
 	return TaskRunDetailRecord{
 		Run: sampleTaskRunRecord(status),
-		Task: contract.TaskReferencePayload{
+		Task: &contract.TaskReferencePayload{
 			ID:             "task-1",
 			Identifier:     "OPS-42",
 			Title:          "Investigate flaky task runs",

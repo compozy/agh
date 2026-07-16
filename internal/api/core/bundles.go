@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
 	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/agh/internal/resources"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -95,8 +96,14 @@ func (h *BaseHandlers) UpdateBundleActivation(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	if req.ExpectedVersion <= 0 {
+		h.respondError(c, http.StatusBadRequest, errors.New("bundles: expected_version must be positive"))
+		return
+	}
+
 	item, err := h.Bundles.UpdateActivation(c.Request.Context(), bundlepkg.UpdateActivationRequest{
 		ID:                        strings.TrimSpace(c.Param("id")),
+		ExpectedVersion:           req.ExpectedVersion,
 		ConfirmNetworkRequirement: req.ConfirmNetworkRequirement,
 	})
 	if err != nil {
@@ -141,7 +148,7 @@ func (h *BaseHandlers) bindBundleActivateRequest(c *gin.Context) (bundlepkg.Acti
 	}
 
 	var req contract.ActivateBundleRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return bundlepkg.ActivateRequest{}, false
 	}
@@ -256,6 +263,7 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 	}
 	return contract.BundleActivationPayload{
 		ID:                            strings.TrimSpace(item.Activation.ID),
+		Version:                       item.Activation.Version,
 		ExtensionName:                 strings.TrimSpace(item.Activation.ExtensionName),
 		BundleName:                    strings.TrimSpace(item.Bundle.Name),
 		BundleDescription:             strings.TrimSpace(item.Bundle.Description),
@@ -318,12 +326,14 @@ func StatusForBundleError(err error) int {
 		errors.Is(err, extensionpkg.ErrExtensionNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, bundlepkg.ErrAgentConflict),
-		errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
+		errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles),
+		errors.Is(err, bundlepkg.ErrNetworkRequirementConfirmationRequired),
+		errors.Is(err, resources.ErrConflict):
 		return http.StatusConflict
 	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, bundlepkg.ErrWebhookUnsupported),
-		errors.Is(err, bundlepkg.ErrNetworkRequirementConfirmationRequired):
+		errors.Is(err, resources.ErrValidation):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):

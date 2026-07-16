@@ -1187,6 +1187,63 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 		}
 	})
 
+	t.Run("Should share one derived conversation across a designated fan-out group", func(t *testing.T) {
+		if _, setErr := db.Set(ctx, workspaceID, true, "operator:enable-fanout"); setErr != nil {
+			t.Fatalf("CoordinationSettings.Set(true) error = %v", setErr)
+		}
+		fanOutTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Title:       "Shared coordinated fan-out",
+		}, actor)
+		if createErr != nil {
+			t.Fatalf("CreateTask(fan-out) error = %v", createErr)
+		}
+		const groupID = "tdg-shared-conversation"
+		runs := make([]taskpkg.Run, 0, 3)
+		for index := range 3 {
+			run, enqueueErr := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
+				TaskID:             fanOutTask.ID,
+				IdempotencyKey:     fmt.Sprintf("shared-fanout-%d", index),
+				DesignationGroupID: groupID,
+			}, actor)
+			if enqueueErr != nil {
+				t.Fatalf("EnqueueRun(fan-out %d) error = %v", index, enqueueErr)
+			}
+			runs = append(runs, *run)
+		}
+		sharedChannel := runs[0].NetworkSpecSnapshot().ChannelID
+		if sharedChannel == "" {
+			t.Fatal("fan-out channel = empty, want group-derived conversation")
+		}
+		for index, run := range runs {
+			spec := run.NetworkSpecSnapshot()
+			if spec.Source != participation.SourceWorkspaceCoordination || spec.ChannelID != sharedChannel {
+				t.Fatalf("fan-out run %d spec = %#v, want one workspace-coordination channel %q", index, spec, sharedChannel)
+			}
+		}
+
+		independentTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Title:       "Independent coordinated fan-out",
+		}, actor)
+		if createErr != nil {
+			t.Fatalf("CreateTask(independent fan-out) error = %v", createErr)
+		}
+		independent, enqueueErr := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
+			TaskID:             independentTask.ID,
+			IdempotencyKey:     "independent-fanout-0",
+			DesignationGroupID: "tdg-independent-conversation",
+		}, actor)
+		if enqueueErr != nil {
+			t.Fatalf("EnqueueRun(independent fan-out) error = %v", enqueueErr)
+		}
+		if got := independent.NetworkSpecSnapshot().ChannelID; got == "" || got == sharedChannel {
+			t.Fatalf("independent fan-out channel = %q, want non-empty channel distinct from %q", got, sharedChannel)
+		}
+	})
+
 	channels, err := db.ListNetworkChannels(ctx, store.NetworkChannelQuery{WorkspaceID: workspaceID})
 	if err != nil {
 		t.Fatalf("ListNetworkChannels() error = %v", err)
@@ -1805,9 +1862,9 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun(%s) error = %v", title, err)
 			}
-			run, err = manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
+			run, err = claimExactRunIntegration(ctx, manager, db, run.ID, actor)
 			if err != nil {
-				t.Fatalf("ClaimRun(%s) error = %v", title, err)
+				t.Fatalf("claimExactRunIntegration(%s) error = %v", title, err)
 			}
 			run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
 			if err != nil {

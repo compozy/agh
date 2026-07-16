@@ -7768,6 +7768,7 @@ func (s *nativeBundleServiceStub) NetworkSettings(context.Context) (bundlepkg.Ne
 func (s *nativeBundleServiceStub) ConfirmNetworkRequirement(
 	_ context.Context,
 	activationID string,
+	_ int64,
 ) (bundlepkg.ActivationPreview, error) {
 	for _, item := range s.activations {
 		if item.Activation.ID == activationID {

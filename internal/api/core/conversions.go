@@ -2429,20 +2429,6 @@ func TaskRunOperationalSummaryPayloadFromSummary(
 	}
 }
 
-// TaskRunDetailPayloadFromView converts one run-detail view into the shared payload.
-func TaskRunDetailPayloadFromView(view *taskpkg.RunDetailView) contract.TaskRunDetailPayload {
-	if view == nil {
-		return contract.TaskRunDetailPayload{}
-	}
-
-	return contract.TaskRunDetailPayload{
-		Run:     TaskRunPayloadFromRun(&view.Run),
-		Task:    TaskReferencePayloadFromReference(view.Task),
-		Session: TaskRunSessionPayloadFromSession(view.Session),
-		Summary: TaskRunOperationalSummaryPayloadFromSummary(view.Summary),
-	}
-}
-
 // TaskTriageStatePayloadFromState converts one triage-state record into the shared payload.
 func TaskTriageStatePayloadFromState(state taskpkg.TriageState) contract.TaskTriageStatePayload {
 	return contract.TaskTriageStatePayload{

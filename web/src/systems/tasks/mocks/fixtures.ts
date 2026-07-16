@@ -1144,6 +1144,13 @@ export function buildTaskRunDetailFixture(
           state: "active",
           ...overrides.session,
         } as TaskRunDetailView["session"]);
+  const task =
+    overrides.task === null
+      ? null
+      : (buildTaskRecordFixture(
+          TASK_FIXTURES[0]!,
+          overrides.task ?? undefined
+        ) as unknown as TaskRunDetailView["task"]);
 
   return {
     run: buildTaskRunRecordFixture({
@@ -1159,10 +1166,7 @@ export function buildTaskRunDetailFixture(
       claimed_by: { kind: "agent_session", ref: storyAgentNames.product },
       ...overrides.run,
     }),
-    task: buildTaskRecordFixture(
-      TASK_FIXTURES[0]!,
-      overrides.task
-    ) as unknown as TaskRunDetailView["task"],
+    task,
     summary: {
       last_activity_at: "2026-04-17T18:01:00Z",
       last_event_type: "task.run_progress",

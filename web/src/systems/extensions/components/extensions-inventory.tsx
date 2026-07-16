@@ -269,7 +269,7 @@ function BundleInventory() {
               onUpdate={() =>
                 update.mutate({
                   id: activation.id,
-                  body: {},
+                  body: { expected_version: activation.version },
                 })
               }
               pending={update.isPending && update.variables?.id === activation.id}

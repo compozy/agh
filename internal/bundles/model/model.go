@@ -44,6 +44,7 @@ func (s Scope) Validate(workspaceID string) error {
 
 type Activation struct {
 	ID                       string
+	Version                  int64
 	ExtensionName            string
 	BundleName               string
 	ProfileName              string
@@ -85,6 +86,9 @@ func (a Activation) Validated() (Activation, error) {
 }
 
 func (a Activation) validateNormalized() error {
+	if a.Version < 0 {
+		return errors.New("bundles: activation version cannot be negative")
+	}
 	if err := requireNonEmpty(a.ID, "bundles: activation id is required"); err != nil {
 		return err
 	}

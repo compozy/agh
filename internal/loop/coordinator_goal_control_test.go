@@ -430,6 +430,7 @@ func TestResolveGoalActionControlShouldMapEveryDisposition(t *testing.T) {
 			}
 			if terminal == nil {
 				t.Fatal("terminal = nil, want mapped terminal")
+				return
 			}
 			if got := terminal.Status; got != tc.wantTerminalStatus {
 				t.Fatalf("terminal status = %q, want %q", got, tc.wantTerminalStatus)

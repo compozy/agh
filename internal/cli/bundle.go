@@ -146,34 +146,6 @@ func newBundleGetCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func newBundleUpdateCommand(deps commandDeps) *cobra.Command {
-	var confirmNetworkRequirement bool
-	cmd := &cobra.Command{
-		Use:   "update <activation-id>",
-		Short: "Update bundle activation overlays",
-		Args:  exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-			item, err := client.UpdateBundleActivation(
-				cmd.Context(),
-				args[0],
-				UpdateBundleActivationRequest{
-					ConfirmNetworkRequirement: confirmNetworkRequirement,
-				},
-			)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, bundleActivationBundle(item))
-		},
-	}
-	bindConfirmNetworkRequirementFlag(cmd, &confirmNetworkRequirement)
-	return cmd
-}
-
 func newBundleDeactivateCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "deactivate <activation-id>",
@@ -286,6 +258,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 		"Bundle Activations",
 		[]string{
 			"ID",
+			versionValue,
 			bridgeExtensionValue,
 			bundleBundleValue,
 			bundleProfileValue,
@@ -297,6 +270,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 		"bundle_activations",
 		[]string{
 			"id",
+			versionKey,
 			bundleExtensionKey,
 			bundleBundleKey,
 			bundleProfileKey,
@@ -308,6 +282,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 		func(item BundleActivationRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				strconv.FormatInt(item.Version, 10),
 				stringOrDash(item.ExtensionName),
 				stringOrDash(item.BundleName),
 				stringOrDash(item.ProfileName),
@@ -320,6 +295,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 		func(item BundleActivationRecord) []string {
 			return []string{
 				item.ID,
+				strconv.FormatInt(item.Version, 10),
 				item.ExtensionName,
 				item.BundleName,
 				item.ProfileName,
@@ -339,6 +315,7 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 			return renderHumanBlocks(
 				renderHumanSection("Bundle Activation", []keyValue{
 					{Label: "ID", Value: item.ID},
+					{Label: versionValue, Value: strconv.FormatInt(item.Version, 10)},
 					{Label: bridgeExtensionValue, Value: item.ExtensionName},
 					{Label: bundleBundleValue, Value: item.BundleName},
 					{Label: bundleProfileValue, Value: item.ProfileName},
@@ -369,6 +346,7 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 					"bundle_activation",
 					[]string{
 						"id",
+						versionKey,
 						bundleExtensionKey,
 						bundleBundleKey,
 						bundleProfileKey,
@@ -377,6 +355,7 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 					},
 					[]string{
 						item.ID,
+						strconv.FormatInt(item.Version, 10),
 						item.ExtensionName,
 						item.BundleName,
 						item.ProfileName,

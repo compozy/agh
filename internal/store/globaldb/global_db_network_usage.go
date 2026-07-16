@@ -79,7 +79,60 @@ ORDER BY reserved_at ASC, wake_id ASC`
 	if rowsErr := rows.Err(); rowsErr != nil {
 		return store.NetworkUsageReport{}, fmt.Errorf("store: iterate network usage: %w", rowsErr)
 	}
+	report.Budget, err = g.loadNetworkUsageBudget(ctx, normalized)
+	if err != nil {
+		return store.NetworkUsageReport{}, err
+	}
 	return report, nil
+}
+
+func (g *NetworkRepo) loadNetworkUsageBudget(
+	ctx context.Context,
+	query store.NetworkUsageQuery,
+) (*store.NetworkBudgetUsage, error) {
+	if query.OwnerKey == "" && query.RunID == "" {
+		return nil, nil
+	}
+	ownerKeys := []string{query.OwnerKey}
+	if query.OwnerKey == "" {
+		ownerKeys = []string{"task_run:" + query.RunID, "loop_run:" + query.RunID}
+	}
+	const selectBudget = `SELECT owner_key, wakes_used, wall_ms_used, input_tokens_used,
+	output_tokens_used, exhausted_reason, updated_at
+FROM network_participation_budgets
+WHERE owner_key IN (?, ?)
+ORDER BY CASE WHEN owner_key = ? THEN 0 ELSE 1 END
+LIMIT 1`
+	primary := ownerKeys[0]
+	secondary := primary
+	if len(ownerKeys) > 1 {
+		secondary = ownerKeys[1]
+	}
+	var budget store.NetworkBudgetUsage
+	var wallMS int64
+	var updatedAtRaw string
+	err := g.db.QueryRowContext(ctx, selectBudget, primary, secondary, primary).Scan(
+		&budget.OwnerKey,
+		&budget.WakesUsed,
+		&wallMS,
+		&budget.InputTokensUsed,
+		&budget.OutputTokensUsed,
+		&budget.ExhaustedReason,
+		&updatedAtRaw,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: query network usage budget: %w", err)
+	}
+	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
+	if err != nil {
+		return nil, fmt.Errorf("store: parse network usage budget updated_at: %w", err)
+	}
+	budget.WallTimeUsed = time.Duration(wallMS) * time.Millisecond
+	budget.UpdatedAt = updatedAt
+	return &budget, nil
 }
 
 func scanNetworkWakeUsage(rows *sql.Rows) (store.NetworkWakeUsageDetail, error) {

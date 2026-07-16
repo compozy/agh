@@ -37,7 +37,7 @@ func skillSearchBundle(items []registrypkg.Listing) outputBundle {
 			automationNameValue,
 			skillOutputDescriptionValue,
 			"Author",
-			daemonVersionValue,
+			versionValue,
 			"Downloads",
 		},
 		"skills",
@@ -46,7 +46,7 @@ func skillSearchBundle(items []registrypkg.Listing) outputBundle {
 			automationNameKey,
 			skillOutputDescriptionKey,
 			"author",
-			daemonVersionKey,
+			versionKey,
 			"downloads",
 		},
 		func(item registrypkg.Listing) []string {
@@ -118,7 +118,7 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 			base := renderHumanSection("Skill", []keyValue{
 				{Label: automationNameValue, Value: stringOrDash(item.Name)},
 				{Label: skillOutputDescriptionValue, Value: stringOrDash(item.Description)},
-				{Label: daemonVersionValue, Value: stringOrDash(item.Version)},
+				{Label: versionValue, Value: stringOrDash(item.Version)},
 				{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
 				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
 				{Label: skillOutputEnabledValue, Value: strconv.FormatBool(item.Enabled)},
@@ -157,7 +157,7 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 					[]string{
 						automationNameKey,
 						skillOutputDescriptionKey,
-						daemonVersionKey,
+						versionKey,
 						automationSourceKey,
 						skillOutputPathKey,
 						skillOutputEnabledKey,
@@ -197,7 +197,7 @@ func skillProvenanceRows(provenance *SkillProvenanceRecord) [][]string {
 		rows = append(rows, []string{skillOutputRegistryKey, provenance.Registry})
 	}
 	if provenance.Version != "" {
-		rows = append(rows, []string{daemonVersionKey, provenance.Version})
+		rows = append(rows, []string{versionKey, provenance.Version})
 	}
 	if provenance.InstalledFromBundle != "" {
 		rows = append(rows, []string{"installed_from_bundle", provenance.InstalledFromBundle})
@@ -318,7 +318,7 @@ func skillInstallBundle(item skillInstallItem) outputBundle {
 			return renderHumanSection("Skill Install", []keyValue{
 				{Label: automationNameValue, Value: stringOrDash(item.Name)},
 				{Label: skillOutputSlugValue, Value: stringOrDash(item.Slug)},
-				{Label: daemonVersionValue, Value: stringOrDash(item.Version)},
+				{Label: versionValue, Value: stringOrDash(item.Version)},
 				{Label: "Registry", Value: stringOrDash(item.Registry)},
 				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
 				{Label: cliHashValue, Value: stringOrDash(item.Hash)},
@@ -331,7 +331,7 @@ func skillInstallBundle(item skillInstallItem) outputBundle {
 				[]string{
 					automationNameKey,
 					skillOutputSlugKey,
-					daemonVersionKey,
+					versionKey,
 					skillOutputRegistryKey,
 					skillOutputPathKey,
 					"hash",

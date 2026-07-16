@@ -27,9 +27,11 @@ type networkRequirementDecision struct {
 func (s *Service) ConfirmNetworkRequirement(
 	ctx context.Context,
 	activationID string,
+	expectedVersion int64,
 ) (ActivationPreview, error) {
 	return s.UpdateActivation(ctx, UpdateActivationRequest{
 		ID:                        activationID,
+		ExpectedVersion:           expectedVersion,
 		ConfirmNetworkRequirement: true,
 	})
 }
@@ -128,10 +130,11 @@ func previewNetworkRequirement(
 	activation Activation,
 	digest string,
 ) Activation {
-	activation.NetworkRequirementDigest = strings.TrimSpace(digest)
-	if activation.NetworkRequirementDigest == "" {
+	nextDigest := strings.TrimSpace(digest)
+	if strings.TrimSpace(activation.NetworkRequirementDigest) != nextDigest {
 		activation.ConfirmedBy = ""
 		activation.ConfirmedAt = ""
 	}
+	activation.NetworkRequirementDigest = nextDigest
 	return activation
 }

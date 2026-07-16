@@ -322,12 +322,34 @@ type TaskRunOperationalSummaryPayload struct {
 	CostCurrency   *string   `json:"cost_currency,omitempty"`
 }
 
+// TaskRunConversationRefPayload identifies the deterministic conversation attached to a Live run.
+type TaskRunConversationRefPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	Surface     string `json:"surface"`
+	ThreadID    string `json:"thread_id"`
+	StreamURL   string `json:"stream_url"`
+}
+
+// TaskRunNetworkPayload carries the run-scoped conversation and truthful bound consumption.
+type TaskRunNetworkPayload struct {
+	Conversation TaskRunConversationRefPayload `json:"conversation"`
+	Usage        NetworkUsageResponse          `json:"usage"`
+}
+
+// TaskRunConversationStreamPayload is one typed message-or-usage SSE frame.
+type TaskRunConversationStreamPayload struct {
+	Message *NetworkConversationMessagePayload `json:"message,omitempty"`
+	Usage   *NetworkUsageResponse              `json:"usage,omitempty"`
+}
+
 // TaskRunDetailPayload is the shared run-detail response payload.
 type TaskRunDetailPayload struct {
 	Run     TaskRunPayload                   `json:"run"`
-	Task    TaskReferencePayload             `json:"task"`
+	Task    *TaskReferencePayload            `json:"task,omitempty"`
 	Session *TaskRunSessionPayload           `json:"session,omitempty"`
 	Summary TaskRunOperationalSummaryPayload `json:"summary"`
+	Network *TaskRunNetworkPayload           `json:"network,omitempty"`
 }
 
 // TaskInspectRunPayload is the redacted run projection returned by task inspect.

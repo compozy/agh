@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/network/participation"
 	observepkg "github.com/compozy/agh/internal/observe"
+	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -116,6 +117,12 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 			err:  extensionpkg.ErrExtensionHasActiveBundles,
 			want: http.StatusConflict,
 		},
+		{
+			name: "live network requirement needs confirmation",
+			err:  bundlepkg.ErrNetworkRequirementConfirmationRequired,
+			want: http.StatusConflict,
+		},
+		{name: "stale activation version", err: resources.ErrConflict, want: http.StatusConflict},
 		{name: "webhook unsupported", err: bundlepkg.ErrWebhookUnsupported, want: http.StatusBadRequest},
 		{name: "workspace missing", err: workspacepkg.ErrWorkspaceNotFound, want: http.StatusNotFound},
 		{name: "workspace root missing", err: workspacepkg.ErrWorkspaceRootMissing, want: http.StatusGone},
@@ -228,6 +235,7 @@ func TestNetworkChannelAggregateKeepsConversationActivitySeparateFromMetadata(t 
 		aggregate := aggregates["builders"]
 		if aggregate == nil {
 			t.Fatal("aggregate = nil, want builders aggregate")
+			return
 		}
 		if aggregate.lastActivityAt == nil || !aggregate.lastActivityAt.Equal(recordedAt) {
 			t.Fatalf("aggregate.lastActivityAt = %#v, want %s", aggregate.lastActivityAt, recordedAt)

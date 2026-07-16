@@ -110,7 +110,7 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 	}, gate.GateInput{
 		LoopRunID:              string(run.ID),
 		Placement:              gate.PlacementInBody,
-		Contract:               resolved.Definition.Contract,
+		Contract:               new(resolved.Definition.Contract),
 		TemplateData:           map[string]any{"goal_turn": req.Turn},
 		Revision:               req.Turn - 1,
 		BrokenJudgeStreakLimit: gate.DefaultBrokenJudgeStreakLimit,

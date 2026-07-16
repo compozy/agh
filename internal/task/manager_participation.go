@@ -13,6 +13,7 @@ func (m *Service) resolveQueuedRunParticipation(
 	ctx context.Context,
 	taskRecord Task,
 	runID string,
+	designationGroupID string,
 	runKind RunKind,
 	loopRunID string,
 	request *participation.Request,
@@ -35,6 +36,10 @@ func (m *Service) resolveQueuedRunParticipation(
 			runID,
 		)
 	}
+	conversationRunID := strings.TrimSpace(runID)
+	if groupID := strings.TrimSpace(designationGroupID); groupID != "" {
+		conversationRunID = groupID
+	}
 	return m.participationResolver.Resolve(ctx, participation.ResolveInput{
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
 		Owner: participation.OwnerRef{
@@ -44,7 +49,7 @@ func (m *Service) resolveQueuedRunParticipation(
 		Request:       request,
 		RequestSource: requestSource,
 		Definition:    definition,
-		RunID:         strings.TrimSpace(runID),
+		RunID:         conversationRunID,
 		LoopRunID:     strings.TrimSpace(loopRunID),
 		Coordinated: taskRecord.Scope.Normalize() == ScopeWorkspace &&
 			runKind.Normalize() == RunKindWorker && strings.TrimSpace(loopRunID) == "",

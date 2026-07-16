@@ -90,7 +90,7 @@ func runtimeGateInput(
 	return gate.GateInput{
 		LoopRunID:            string(run.ID),
 		Placement:            placement,
-		Contract:             resolved.Definition.Contract,
+		Contract:             new(resolved.Definition.Contract),
 		TemplateData:         namespace,
 		Revision:             max(0, generation-1),
 		HumanDecisions:       humanDecisions,

@@ -293,6 +293,7 @@ describe("marketplace acquisition cache boundaries", () => {
         scope: "global",
         spec_drift: false,
         updated_at: "2026-07-14T12:00:00Z",
+        version: 1,
       },
     };
     vi.mocked(previewMarketplaceBundle).mockResolvedValue(activation);

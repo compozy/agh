@@ -73,11 +73,23 @@ type NetworkUsageSummaryPayload struct {
 	OutputTokens         int64  `json:"output_tokens"`
 }
 
+// NetworkBudgetUsagePayload reports durable bound consumption for one execution owner.
+type NetworkBudgetUsagePayload struct {
+	OwnerKey         string    `json:"owner_key"`
+	WakesUsed        int       `json:"wakes_used"`
+	WallTimeUsed     string    `json:"wall_time_used"`
+	InputTokensUsed  int64     `json:"input_tokens_used"`
+	OutputTokensUsed int64     `json:"output_tokens_used"`
+	ExhaustedReason  string    `json:"exhausted_reason,omitempty"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
 // NetworkUsageResponse is the workspace-scoped usage meter.
 type NetworkUsageResponse struct {
 	WorkspaceID string                      `json:"workspace_id"`
 	Details     []NetworkUsageDetailPayload `json:"details"`
 	Total       NetworkUsageSummaryPayload  `json:"total"`
+	Budget      *NetworkBudgetUsagePayload  `json:"budget,omitempty"`
 }
 
 // Compile-time assertion that participation types remain the wire shapes.

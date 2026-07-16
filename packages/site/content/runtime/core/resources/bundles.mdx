@@ -59,7 +59,7 @@ agh bundle preview --extension github --bundle release-readiness --profile defau
 agh bundle activate --extension github --bundle release-readiness --profile default --scope workspace --workspace project --confirm-network-requirement
 agh bundle list
 agh bundle get act_123
-agh bundle update act_123 --confirm-network-requirement
+agh bundle update act_123 --expected-version 7 --confirm-network-requirement
 agh bundle deactivate act_123
 agh bundle network-settings
 ```
@@ -112,6 +112,22 @@ manifest digest clears the old confirmation and requires a new explicit confirma
 acknowledges the extension requirement; it never enrolls a session, task run, Loop run, or automation
 run by itself.
 
+Activation reads include an optimistic `version`. Confirmation updates must send that exact version:
+
+```http
+PATCH /api/bundles/activations/act_123
+Content-Type: application/json
+
+{
+  "expected_version": 7,
+  "confirm_network_requirement": true
+}
+```
+
+AGH returns `409 Conflict` when another writer or requirement reconciliation advanced the activation.
+Read the activation again, inspect the current digest and confirmation state, then decide whether to
+confirm the new version.
+
 ## Bundle-owned agents and sidecars
 
 Bundle profiles declare activation-scoped agents with `[[profiles.agents]]`:
@@ -159,14 +175,14 @@ bundle activations before disabling or removing the extension that owns them.
 
 ## Failure guide
 
-| Symptom                                    | Likely cause                                            | First check                                      |
-| ------------------------------------------ | ------------------------------------------------------- | ------------------------------------------------ |
-| `404` on preview or activation             | Extension, bundle, profile, or workspace missing.       | `GET /api/bundles/catalog` and workspace list.   |
-| `409` on activation                        | Unconfirmed Live requirement or bundled-agent conflict. | Activation digest and visible agents.            |
-| `422` on preview or activation             | Job or trigger references an unavailable agent.         | Preview payload and profile `agent` fields.      |
-| Activation exists but resources are absent | Reconcile failed after writing the activation.          | Activation inventory and daemon resource health. |
-| Extension cannot be disabled               | Active bundle activations still depend on it.           | `GET /api/bundles/activations`.                  |
-| Projected job or bridge should change      | Bundle profile changed or activation is stale.          | Preview the activation, then update/reactivate.  |
+| Symptom                                    | Likely cause                                                    | First check                                             |
+| ------------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------- |
+| `404` on preview or activation             | Extension, bundle, profile, or workspace missing.               | `GET /api/bundles/catalog` and workspace list.          |
+| `409` on activation or update              | Unconfirmed Live requirement, stale version, or agent conflict. | Current activation version, digest, and visible agents. |
+| `422` on preview or activation             | Job or trigger references an unavailable agent.                 | Preview payload and profile `agent` fields.             |
+| Activation exists but resources are absent | Reconcile failed after writing the activation.                  | Activation inventory and daemon resource health.        |
+| Extension cannot be disabled               | Active bundle activations still depend on it.                   | `GET /api/bundles/activations`.                         |
+| Projected job or bridge should change      | Bundle profile changed or activation is stale.                  | Preview the activation, then update/reactivate.         |
 
 ## Next
 

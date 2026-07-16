@@ -238,49 +238,6 @@ func splitTreeView(rootTaskID string, nodes []TreeNode) TreeView {
 	return TreeView{Root: root, Descendants: descendants}
 }
 
-func (m *Service) RunDetail(
-	ctx context.Context,
-	runID string,
-	actor ActorContext,
-) (*RunDetailView, error) {
-	if err := requireReadAuthority(actor); err != nil {
-		return nil, err
-	}
-
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
-	if err != nil {
-		return nil, err
-	}
-	dependencies, err := m.store.ListDependencies(ctx, taskRecord.ID)
-	if err != nil {
-		return nil, err
-	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: taskRecord.ID})
-	if err != nil {
-		return nil, err
-	}
-	status, err := m.canonicalTaskStatus(ctx, taskRecord, dependencies, runs)
-	if err != nil {
-		return nil, err
-	}
-
-	session := baseRunSessionRef(run.SessionID)
-	summary := RunOperationalSummary{}
-	if m.runtimeViews != nil && strings.TrimSpace(run.SessionID) != "" {
-		if enriched, runtimeErr := m.runtimeViews.GetSession(ctx, run.SessionID); runtimeErr == nil && enriched != nil {
-			session = enriched
-		}
-		summary = m.bestEffortRunOperationalSummary(ctx, run.SessionID)
-	}
-
-	return &RunDetailView{
-		Run:     run,
-		Task:    taskReferenceFromTask(taskRecord, status),
-		Session: session,
-		Summary: summary,
-	}, nil
-}
-
 func (m *Service) streamBacklog(
 	ctx context.Context,
 	rootTaskID string,

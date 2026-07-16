@@ -65,7 +65,8 @@ export function TaskRunDetailHeader({
   const record = run.run;
   const task = run.task;
   const session = run.session;
-  const identifier = task.identifier ?? task.id;
+  const taskID = task?.id ?? record.task_id;
+  const identifier = task?.identifier ?? taskID;
   const canCancel =
     record.status === "queued" ||
     record.status === "claimed" ||
@@ -104,7 +105,7 @@ export function TaskRunDetailHeader({
             </span>
             <Link
               data-testid="task-run-detail-breadcrumb-task"
-              params={{ id: task.id }}
+              params={{ id: taskID }}
               to="/tasks/$id"
               className="transition-colors duration-base ease-out hover:text-fg"
             >

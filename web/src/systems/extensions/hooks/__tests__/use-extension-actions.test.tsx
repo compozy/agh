@@ -124,6 +124,7 @@ describe("useUpdateBundleActivation", () => {
       scope: "workspace",
       spec_drift: false,
       updated_at: "2026-07-14T18:00:00Z",
+      version: 7,
       workspace_id: "ws_northstar",
     };
     mocks.updateBundleActivation.mockResolvedValue(activation);
@@ -131,13 +132,14 @@ describe("useUpdateBundleActivation", () => {
 
     await act(async () => {
       await result.current.mutateAsync({
-        body: { confirm_network_requirement: true },
+        body: { confirm_network_requirement: true, expected_version: 7 },
         id: activation.id,
       });
     });
 
     expect(mocks.updateBundleActivation).toHaveBeenCalledWith(activation.id, {
       confirm_network_requirement: true,
+      expected_version: 7,
     });
     expect(mocks.toastSuccess).toHaveBeenCalledWith("ops-starter updated");
   });
@@ -151,7 +153,7 @@ describe("useUpdateBundleActivation", () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          body: {},
+          body: { expected_version: 7 },
           id: "activation-ops-starter",
         })
       ).rejects.toThrow("bundle update rejected");
