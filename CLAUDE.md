@@ -93,7 +93,7 @@ AGH Impact Audit:
 | Lessons learned                                   | `lesson-learned`                                                                         |                                       |
 | Architecture audit                                | `architectural-analysis`                                                                 | `refactoring-analysis`                |
 | Concurrency / races                               | `golang-pro` + `systematic-debugging`                                                    | `agh-code-guidelines`                 |
-| AGH Network (`internal/network` only)             | `nats` + `agh-code-guidelines` + `golang-pro`                                            | `systematic-debugging`                |
+| AGH Network (`internal/network` only)             | `agh-code-guidelines` + `golang-pro`                                                      | `systematic-debugging`                |
 | Performance / hot paths                           | `extreme-software-optimization` + `golang-pro`                                           |                                       |
 | Security review                                   | `security-review`                                                                        |                                       |
 | Creative / new features                           | `grill-me`                                                                               |                                       |
