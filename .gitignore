@@ -39,6 +39,7 @@ ai-docs/
 .claude/analysis
 .claude/ledger
 .impeccable
+.coderabbit/reviews/
 
 # Python
 __pycache__/
