@@ -20,10 +20,12 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSandboxRouteImport } from './routes/_app/sandbox'
 import { Route as AppNetworkRouteImport } from './routes/_app/network'
 import { Route as AppMcpRouteImport } from './routes/_app/mcp'
+import { Route as AppMarketplaceRouteImport } from './routes/_app/marketplace'
 import { Route as AppLoopsRouteImport } from './routes/_app/loops'
 import { Route as AppLoopRunsRouteImport } from './routes/_app/loop-runs'
 import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
 import { Route as AppJobsRouteImport } from './routes/_app/jobs'
+import { Route as AppExtensionsRouteImport } from './routes/_app/extensions'
 import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
 import { Route as AppAgentsRouteImport } from './routes/_app/agents'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
@@ -35,18 +37,22 @@ import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
 import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
 import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
-import { Route as AppSettingsHooksExtensionsRouteImport } from './routes/_app/settings/hooks-extensions'
+import { Route as AppSettingsHooksRouteImport } from './routes/_app/settings/hooks'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
+import { Route as AppSettingsExtensionsRouteImport } from './routes/_app/settings/extensions'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 import { Route as AppLoopsNameRouteImport } from './routes/_app/loops.$name'
 import { Route as AppLoopRunsRunIdRouteImport } from './routes/_app/loop-runs.$runId'
+import { Route as AppExtensionsNameRouteImport } from './routes/_app/extensions.$name'
 import { Route as AppBridgesIdRouteImport } from './routes/_app/bridges.$id'
 import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
 import { Route as AppTasksIdEditRouteImport } from './routes/_app/tasks.$id.edit'
+import { Route as AppMarketplaceKindEntryIdRouteImport } from './routes/_app/marketplace.$kind.$entryId'
 import { Route as AppLoopsNameRunRouteImport } from './routes/_app/loops.$name.run'
 import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
 import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
+import { Route as AppExtensionsBundlesIdRouteImport } from './routes/_app/extensions.bundles.$id'
 import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
 import { Route as AppTasksIdRunsRunIdRouteImport } from './routes/_app/tasks.$id.runs.$runId'
 import { Route as AppNetworkWorkspaceIdChannelThreadsRouteImport } from './routes/_app/network.$workspaceId.$channel.threads'
@@ -110,6 +116,11 @@ const AppMcpRoute = AppMcpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMarketplaceRoute = AppMarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppLoopsRoute = AppLoopsRouteImport.update({
   id: '/loops',
   path: '/loops',
@@ -128,6 +139,11 @@ const AppKnowledgeRoute = AppKnowledgeRouteImport.update({
 const AppJobsRoute = AppJobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExtensionsRoute = AppExtensionsRouteImport.update({
+  id: '/extensions',
+  path: '/extensions',
   getParentRoute: () => AppRoute,
 } as any)
 const AppBridgesRoute = AppBridgesRouteImport.update({
@@ -186,15 +202,19 @@ const AppSettingsMemoryRoute = AppSettingsMemoryRouteImport.update({
   path: '/memory',
   getParentRoute: () => AppSettingsRoute,
 } as any)
-const AppSettingsHooksExtensionsRoute =
-  AppSettingsHooksExtensionsRouteImport.update({
-    id: '/hooks-extensions',
-    path: '/hooks-extensions',
-    getParentRoute: () => AppSettingsRoute,
-  } as any)
+const AppSettingsHooksRoute = AppSettingsHooksRouteImport.update({
+  id: '/hooks',
+  path: '/hooks',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsExtensionsRoute = AppSettingsExtensionsRouteImport.update({
+  id: '/extensions',
+  path: '/extensions',
   getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsAutomationRoute = AppSettingsAutomationRouteImport.update({
@@ -217,6 +237,11 @@ const AppLoopRunsRunIdRoute = AppLoopRunsRunIdRouteImport.update({
   path: '/$runId',
   getParentRoute: () => AppLoopRunsRoute,
 } as any)
+const AppExtensionsNameRoute = AppExtensionsNameRouteImport.update({
+  id: '/$name',
+  path: '/$name',
+  getParentRoute: () => AppExtensionsRoute,
+} as any)
 const AppBridgesIdRoute = AppBridgesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -232,6 +257,12 @@ const AppTasksIdEditRoute = AppTasksIdEditRouteImport.update({
   path: '/edit',
   getParentRoute: () => AppTasksIdRoute,
 } as any)
+const AppMarketplaceKindEntryIdRoute =
+  AppMarketplaceKindEntryIdRouteImport.update({
+    id: '/$kind/$entryId',
+    path: '/$kind/$entryId',
+    getParentRoute: () => AppMarketplaceRoute,
+  } as any)
 const AppLoopsNameRunRoute = AppLoopsNameRunRouteImport.update({
   id: '/run',
   path: '/run',
@@ -246,6 +277,11 @@ const AppLoopsNameConfigureRoute = AppLoopsNameConfigureRouteImport.update({
   id: '/configure',
   path: '/configure',
   getParentRoute: () => AppLoopsNameRoute,
+} as any)
+const AppExtensionsBundlesIdRoute = AppExtensionsBundlesIdRouteImport.update({
+  id: '/bundles/$id',
+  path: '/bundles/$id',
+  getParentRoute: () => AppExtensionsRoute,
 } as any)
 const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
   id: '/settings',
@@ -298,10 +334,12 @@ export interface FileRoutesByFullPath {
   '/design-system': typeof DesignSystemRoute
   '/agents': typeof AppAgentsRouteWithChildren
   '/bridges': typeof AppBridgesRouteWithChildren
+  '/extensions': typeof AppExtensionsRouteWithChildren
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/loops': typeof AppLoopsRouteWithChildren
+  '/marketplace': typeof AppMarketplaceRouteWithChildren
   '/mcp': typeof AppMcpRoute
   '/network': typeof AppNetworkRouteWithChildren
   '/sandbox': typeof AppSandboxRoute
@@ -312,12 +350,14 @@ export interface FileRoutesByFullPath {
   '/vault': typeof AppVaultRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/bridges/$id': typeof AppBridgesIdRoute
+  '/extensions/$name': typeof AppExtensionsNameRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
+  '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
-  '/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
+  '/settings/hooks': typeof AppSettingsHooksRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
@@ -328,9 +368,11 @@ export interface FileRoutesByFullPath {
   '/tasks/new': typeof AppTasksNewRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/extensions/bundles/$id': typeof AppExtensionsBundlesIdRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
+  '/marketplace/$kind/$entryId': typeof AppMarketplaceKindEntryIdRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
   '/network/$workspaceId/$channel/activity': typeof AppNetworkWorkspaceIdChannelActivityRoute
@@ -344,10 +386,12 @@ export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
   '/agents': typeof AppAgentsRouteWithChildren
   '/bridges': typeof AppBridgesRouteWithChildren
+  '/extensions': typeof AppExtensionsRouteWithChildren
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/loops': typeof AppLoopsRouteWithChildren
+  '/marketplace': typeof AppMarketplaceRouteWithChildren
   '/mcp': typeof AppMcpRoute
   '/network': typeof AppNetworkRouteWithChildren
   '/sandbox': typeof AppSandboxRoute
@@ -358,12 +402,14 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/bridges/$id': typeof AppBridgesIdRoute
+  '/extensions/$name': typeof AppExtensionsNameRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
+  '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/general': typeof AppSettingsGeneralRoute
-  '/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
+  '/settings/hooks': typeof AppSettingsHooksRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
@@ -374,9 +420,11 @@ export interface FileRoutesByTo {
   '/tasks/new': typeof AppTasksNewRoute
   '/settings': typeof AppSettingsIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/extensions/bundles/$id': typeof AppExtensionsBundlesIdRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
+  '/marketplace/$kind/$entryId': typeof AppMarketplaceKindEntryIdRoute
   '/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
   '/network/$workspaceId/$channel/activity': typeof AppNetworkWorkspaceIdChannelActivityRoute
@@ -392,10 +440,12 @@ export interface FileRoutesById {
   '/design-system': typeof DesignSystemRoute
   '/_app/agents': typeof AppAgentsRouteWithChildren
   '/_app/bridges': typeof AppBridgesRouteWithChildren
+  '/_app/extensions': typeof AppExtensionsRouteWithChildren
   '/_app/jobs': typeof AppJobsRoute
   '/_app/knowledge': typeof AppKnowledgeRoute
   '/_app/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/_app/loops': typeof AppLoopsRouteWithChildren
+  '/_app/marketplace': typeof AppMarketplaceRouteWithChildren
   '/_app/mcp': typeof AppMcpRoute
   '/_app/network': typeof AppNetworkRouteWithChildren
   '/_app/sandbox': typeof AppSandboxRoute
@@ -407,12 +457,14 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/_app/bridges/$id': typeof AppBridgesIdRoute
+  '/_app/extensions/$name': typeof AppExtensionsNameRoute
   '/_app/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
   '/_app/loops/$name': typeof AppLoopsNameRouteWithChildren
   '/_app/session/$id': typeof AppSessionIdRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
+  '/_app/settings/extensions': typeof AppSettingsExtensionsRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
-  '/_app/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
+  '/_app/settings/hooks': typeof AppSettingsHooksRoute
   '/_app/settings/memory': typeof AppSettingsMemoryRoute
   '/_app/settings/network': typeof AppSettingsNetworkRoute
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
@@ -423,9 +475,11 @@ export interface FileRoutesById {
   '/_app/tasks/new': typeof AppTasksNewRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/_app/extensions/bundles/$id': typeof AppExtensionsBundlesIdRoute
   '/_app/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/_app/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/_app/loops/$name/run': typeof AppLoopsNameRunRoute
+  '/_app/marketplace/$kind/$entryId': typeof AppMarketplaceKindEntryIdRoute
   '/_app/tasks/$id/edit': typeof AppTasksIdEditRoute
   '/_app/agents/$name/sessions/$id': typeof AppAgentsNameSessionsIdRoute
   '/_app/network/$workspaceId/$channel/activity': typeof AppNetworkWorkspaceIdChannelActivityRoute
@@ -442,10 +496,12 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/agents'
     | '/bridges'
+    | '/extensions'
     | '/jobs'
     | '/knowledge'
     | '/loop-runs'
     | '/loops'
+    | '/marketplace'
     | '/mcp'
     | '/network'
     | '/sandbox'
@@ -456,12 +512,14 @@ export interface FileRouteTypes {
     | '/vault'
     | '/agents/$name'
     | '/bridges/$id'
+    | '/extensions/$name'
     | '/loop-runs/$runId'
     | '/loops/$name'
     | '/session/$id'
     | '/settings/automation'
+    | '/settings/extensions'
     | '/settings/general'
-    | '/settings/hooks-extensions'
+    | '/settings/hooks'
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
@@ -472,9 +530,11 @@ export interface FileRouteTypes {
     | '/tasks/new'
     | '/settings/'
     | '/agents/$name/settings'
+    | '/extensions/bundles/$id'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
+    | '/marketplace/$kind/$entryId'
     | '/tasks/$id/edit'
     | '/agents/$name/sessions/$id'
     | '/network/$workspaceId/$channel/activity'
@@ -488,10 +548,12 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/agents'
     | '/bridges'
+    | '/extensions'
     | '/jobs'
     | '/knowledge'
     | '/loop-runs'
     | '/loops'
+    | '/marketplace'
     | '/mcp'
     | '/network'
     | '/sandbox'
@@ -502,12 +564,14 @@ export interface FileRouteTypes {
     | '/'
     | '/agents/$name'
     | '/bridges/$id'
+    | '/extensions/$name'
     | '/loop-runs/$runId'
     | '/loops/$name'
     | '/session/$id'
     | '/settings/automation'
+    | '/settings/extensions'
     | '/settings/general'
-    | '/settings/hooks-extensions'
+    | '/settings/hooks'
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
@@ -518,9 +582,11 @@ export interface FileRouteTypes {
     | '/tasks/new'
     | '/settings'
     | '/agents/$name/settings'
+    | '/extensions/bundles/$id'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
+    | '/marketplace/$kind/$entryId'
     | '/tasks/$id/edit'
     | '/agents/$name/sessions/$id'
     | '/network/$workspaceId/$channel/activity'
@@ -535,10 +601,12 @@ export interface FileRouteTypes {
     | '/design-system'
     | '/_app/agents'
     | '/_app/bridges'
+    | '/_app/extensions'
     | '/_app/jobs'
     | '/_app/knowledge'
     | '/_app/loop-runs'
     | '/_app/loops'
+    | '/_app/marketplace'
     | '/_app/mcp'
     | '/_app/network'
     | '/_app/sandbox'
@@ -550,12 +618,14 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/agents/$name'
     | '/_app/bridges/$id'
+    | '/_app/extensions/$name'
     | '/_app/loop-runs/$runId'
     | '/_app/loops/$name'
     | '/_app/session/$id'
     | '/_app/settings/automation'
+    | '/_app/settings/extensions'
     | '/_app/settings/general'
-    | '/_app/settings/hooks-extensions'
+    | '/_app/settings/hooks'
     | '/_app/settings/memory'
     | '/_app/settings/network'
     | '/_app/settings/observability'
@@ -566,9 +636,11 @@ export interface FileRouteTypes {
     | '/_app/tasks/new'
     | '/_app/settings/'
     | '/_app/agents/$name/settings'
+    | '/_app/extensions/bundles/$id'
     | '/_app/loops/$name/configure'
     | '/_app/loops/$name/editor'
     | '/_app/loops/$name/run'
+    | '/_app/marketplace/$kind/$entryId'
     | '/_app/tasks/$id/edit'
     | '/_app/agents/$name/sessions/$id'
     | '/_app/network/$workspaceId/$channel/activity'
@@ -663,6 +735,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMcpRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/marketplace': {
+      id: '/_app/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof AppMarketplaceRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/loops': {
       id: '/_app/loops'
       path: '/loops'
@@ -689,6 +768,13 @@ declare module '@tanstack/react-router' {
       path: '/jobs'
       fullPath: '/jobs'
       preLoaderRoute: typeof AppJobsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/extensions': {
+      id: '/_app/extensions'
+      path: '/extensions'
+      fullPath: '/extensions'
+      preLoaderRoute: typeof AppExtensionsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/bridges': {
@@ -768,11 +854,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsMemoryRouteImport
       parentRoute: typeof AppSettingsRoute
     }
-    '/_app/settings/hooks-extensions': {
-      id: '/_app/settings/hooks-extensions'
-      path: '/hooks-extensions'
-      fullPath: '/settings/hooks-extensions'
-      preLoaderRoute: typeof AppSettingsHooksExtensionsRouteImport
+    '/_app/settings/hooks': {
+      id: '/_app/settings/hooks'
+      path: '/hooks'
+      fullPath: '/settings/hooks'
+      preLoaderRoute: typeof AppSettingsHooksRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/general': {
@@ -780,6 +866,13 @@ declare module '@tanstack/react-router' {
       path: '/general'
       fullPath: '/settings/general'
       preLoaderRoute: typeof AppSettingsGeneralRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/extensions': {
+      id: '/_app/settings/extensions'
+      path: '/extensions'
+      fullPath: '/settings/extensions'
+      preLoaderRoute: typeof AppSettingsExtensionsRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/automation': {
@@ -810,6 +903,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLoopRunsRunIdRouteImport
       parentRoute: typeof AppLoopRunsRoute
     }
+    '/_app/extensions/$name': {
+      id: '/_app/extensions/$name'
+      path: '/$name'
+      fullPath: '/extensions/$name'
+      preLoaderRoute: typeof AppExtensionsNameRouteImport
+      parentRoute: typeof AppExtensionsRoute
+    }
     '/_app/bridges/$id': {
       id: '/_app/bridges/$id'
       path: '/$id'
@@ -831,6 +931,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksIdEditRouteImport
       parentRoute: typeof AppTasksIdRoute
     }
+    '/_app/marketplace/$kind/$entryId': {
+      id: '/_app/marketplace/$kind/$entryId'
+      path: '/$kind/$entryId'
+      fullPath: '/marketplace/$kind/$entryId'
+      preLoaderRoute: typeof AppMarketplaceKindEntryIdRouteImport
+      parentRoute: typeof AppMarketplaceRoute
+    }
     '/_app/loops/$name/run': {
       id: '/_app/loops/$name/run'
       path: '/run'
@@ -851,6 +958,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/loops/$name/configure'
       preLoaderRoute: typeof AppLoopsNameConfigureRouteImport
       parentRoute: typeof AppLoopsNameRoute
+    }
+    '/_app/extensions/bundles/$id': {
+      id: '/_app/extensions/bundles/$id'
+      path: '/bundles/$id'
+      fullPath: '/extensions/bundles/$id'
+      preLoaderRoute: typeof AppExtensionsBundlesIdRouteImport
+      parentRoute: typeof AppExtensionsRoute
     }
     '/_app/agents/$name/settings': {
       id: '/_app/agents/$name/settings'
@@ -949,6 +1063,20 @@ const AppBridgesRouteWithChildren = AppBridgesRoute._addFileChildren(
   AppBridgesRouteChildren,
 )
 
+interface AppExtensionsRouteChildren {
+  AppExtensionsNameRoute: typeof AppExtensionsNameRoute
+  AppExtensionsBundlesIdRoute: typeof AppExtensionsBundlesIdRoute
+}
+
+const AppExtensionsRouteChildren: AppExtensionsRouteChildren = {
+  AppExtensionsNameRoute: AppExtensionsNameRoute,
+  AppExtensionsBundlesIdRoute: AppExtensionsBundlesIdRoute,
+}
+
+const AppExtensionsRouteWithChildren = AppExtensionsRoute._addFileChildren(
+  AppExtensionsRouteChildren,
+)
+
 interface AppLoopRunsRouteChildren {
   AppLoopRunsRunIdRoute: typeof AppLoopRunsRunIdRoute
 }
@@ -987,6 +1115,18 @@ const AppLoopsRouteChildren: AppLoopsRouteChildren = {
 
 const AppLoopsRouteWithChildren = AppLoopsRoute._addFileChildren(
   AppLoopsRouteChildren,
+)
+
+interface AppMarketplaceRouteChildren {
+  AppMarketplaceKindEntryIdRoute: typeof AppMarketplaceKindEntryIdRoute
+}
+
+const AppMarketplaceRouteChildren: AppMarketplaceRouteChildren = {
+  AppMarketplaceKindEntryIdRoute: AppMarketplaceKindEntryIdRoute,
+}
+
+const AppMarketplaceRouteWithChildren = AppMarketplaceRoute._addFileChildren(
+  AppMarketplaceRouteChildren,
 )
 
 interface AppNetworkWorkspaceIdChannelDirectsRouteChildren {
@@ -1040,8 +1180,9 @@ const AppNetworkRouteWithChildren = AppNetworkRoute._addFileChildren(
 
 interface AppSettingsRouteChildren {
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
+  AppSettingsExtensionsRoute: typeof AppSettingsExtensionsRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
-  AppSettingsHooksExtensionsRoute: typeof AppSettingsHooksExtensionsRoute
+  AppSettingsHooksRoute: typeof AppSettingsHooksRoute
   AppSettingsMemoryRoute: typeof AppSettingsMemoryRoute
   AppSettingsNetworkRoute: typeof AppSettingsNetworkRoute
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
@@ -1052,8 +1193,9 @@ interface AppSettingsRouteChildren {
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsAutomationRoute: AppSettingsAutomationRoute,
+  AppSettingsExtensionsRoute: AppSettingsExtensionsRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
-  AppSettingsHooksExtensionsRoute: AppSettingsHooksExtensionsRoute,
+  AppSettingsHooksRoute: AppSettingsHooksRoute,
   AppSettingsMemoryRoute: AppSettingsMemoryRoute,
   AppSettingsNetworkRoute: AppSettingsNetworkRoute,
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
@@ -1109,10 +1251,12 @@ const AppTasksRouteWithChildren = AppTasksRoute._addFileChildren(
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRouteWithChildren
   AppBridgesRoute: typeof AppBridgesRouteWithChildren
+  AppExtensionsRoute: typeof AppExtensionsRouteWithChildren
   AppJobsRoute: typeof AppJobsRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppLoopRunsRoute: typeof AppLoopRunsRouteWithChildren
   AppLoopsRoute: typeof AppLoopsRouteWithChildren
+  AppMarketplaceRoute: typeof AppMarketplaceRouteWithChildren
   AppMcpRoute: typeof AppMcpRoute
   AppNetworkRoute: typeof AppNetworkRouteWithChildren
   AppSandboxRoute: typeof AppSandboxRoute
@@ -1128,10 +1272,12 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRouteWithChildren,
   AppBridgesRoute: AppBridgesRouteWithChildren,
+  AppExtensionsRoute: AppExtensionsRouteWithChildren,
   AppJobsRoute: AppJobsRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppLoopRunsRoute: AppLoopRunsRouteWithChildren,
   AppLoopsRoute: AppLoopsRouteWithChildren,
+  AppMarketplaceRoute: AppMarketplaceRouteWithChildren,
   AppMcpRoute: AppMcpRoute,
   AppNetworkRoute: AppNetworkRouteWithChildren,
   AppSandboxRoute: AppSandboxRoute,

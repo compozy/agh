@@ -122,7 +122,7 @@ function TemplateCard({ template, slot, onSelect }: TemplateCardProps) {
     <button
       className={cn(
         "flex h-full flex-col gap-3 rounded-lg bg-canvas-soft p-4 text-left transition-colors duration-base ease-out",
-        "hover:bg-elevated focus-visible:outline-none focus-visible:shadow-focus-ring-inset"
+        "hover:bg-elevated focus-visible:outline-none focus-visible:shadow-focus-inset"
       )}
       data-testid={`tasks-empty-template-${template.id}`}
       data-tone={slot.tone}

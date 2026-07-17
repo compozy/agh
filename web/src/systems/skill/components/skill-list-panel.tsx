@@ -214,7 +214,16 @@ function SkillListPanel({
               >
                 Clear filters
               </Button>
-            ) : undefined
+            ) : (
+              <Button
+                data-testid="skill-list-browse-marketplace"
+                render={<Link search={{ kind: "skills" }} to="/marketplace" />}
+                nativeButton={false}
+                size="sm"
+              >
+                Browse marketplace
+              </Button>
+            )
           }
           className="max-w-sm"
           description={
@@ -223,7 +232,7 @@ function SkillListPanel({
               : "No skills are installed in this workspace yet."
           }
           icon={Wrench}
-          title={hasActiveFilters ? "No skills match" : "No skills yet"}
+          title={hasActiveFilters ? "No skills match" : "No skills installed"}
         />
       </div>
     );

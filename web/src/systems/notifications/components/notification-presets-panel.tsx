@@ -74,7 +74,7 @@ export function NotificationPresetsPanel({
 
   return (
     <Section
-      data-testid="settings-page-hooks-extensions-notification-presets-section"
+      data-testid="settings-page-hooks-notification-presets-section"
       label="Notification presets"
       note="SQLite-backed fanout policies"
       right={<Bell className="size-4 text-muted" />}
@@ -84,7 +84,7 @@ export function NotificationPresetsPanel({
           <Input
             aria-label="Notification preset name"
             className="font-mono"
-            data-testid="settings-page-hooks-extensions-notification-preset-name"
+            data-testid="settings-page-hooks-notification-preset-name"
             placeholder="custom_alert"
             value={form.name}
             onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
@@ -92,14 +92,14 @@ export function NotificationPresetsPanel({
           <Input
             aria-label="Notification preset events"
             className="font-mono"
-            data-testid="settings-page-hooks-extensions-notification-preset-events"
+            data-testid="settings-page-hooks-notification-preset-events"
             value={form.events}
             onChange={event => setForm(current => ({ ...current, events: event.target.value }))}
           />
           <Input
             aria-label="Notification preset target"
             className="font-mono"
-            data-testid="settings-page-hooks-extensions-notification-preset-target"
+            data-testid="settings-page-hooks-notification-preset-target"
             placeholder="bridge_slack_ops:channel:ops"
             value={form.target}
             onChange={event => setForm(current => ({ ...current, target: event.target.value }))}
@@ -107,7 +107,7 @@ export function NotificationPresetsPanel({
           <Input
             aria-label="Notification preset filter"
             className="font-mono"
-            data-testid="settings-page-hooks-extensions-notification-preset-filter"
+            data-testid="settings-page-hooks-notification-preset-filter"
             placeholder="outcome >= warning"
             value={form.filter}
             onChange={event => setForm(current => ({ ...current, filter: event.target.value }))}
@@ -118,12 +118,12 @@ export function NotificationPresetsPanel({
               checked={form.enabled}
               disabled={!canMutate}
               onCheckedChange={next => setForm(current => ({ ...current, enabled: next }))}
-              data-testid="settings-page-hooks-extensions-notification-preset-enabled"
+              data-testid="settings-page-hooks-notification-preset-enabled"
             />
             enabled
           </label>
           <Button
-            data-testid="settings-page-hooks-extensions-notification-preset-create"
+            data-testid="settings-page-hooks-notification-preset-create"
             disabled={!canMutate || pendingName === form.name.trim()}
             onClick={submit}
             type="button"
@@ -141,7 +141,7 @@ export function NotificationPresetsPanel({
         {localError || error ? (
           <span
             className="text-xs text-danger"
-            data-testid="settings-page-hooks-extensions-notification-presets-error"
+            data-testid="settings-page-hooks-notification-presets-error"
           >
             {localError ?? error}
           </span>
@@ -150,7 +150,7 @@ export function NotificationPresetsPanel({
         {isLoading && presets.length === 0 ? (
           <div
             className="flex items-center gap-2 text-xs text-subtle"
-            data-testid="settings-page-hooks-extensions-notification-presets-loading"
+            data-testid="settings-page-hooks-notification-presets-loading"
           >
             <Spinner className="size-3" />
             Loading presets...
@@ -160,7 +160,7 @@ export function NotificationPresetsPanel({
             icon={Bell}
             title="No notification presets"
             description="SQLite has no preset rows for this runtime."
-            data-testid="settings-page-hooks-extensions-notification-presets-empty"
+            data-testid="settings-page-hooks-notification-presets-empty"
           />
         ) : (
           <>
@@ -178,7 +178,7 @@ export function NotificationPresetsPanel({
             </div>
             <div
               className="hidden overflow-hidden rounded-lg border border-line md:block"
-              data-testid="settings-page-hooks-extensions-notification-presets-table"
+              data-testid="settings-page-hooks-notification-presets-table"
             >
               <Table className="table-fixed">
                 <TableHeader>
@@ -227,7 +227,7 @@ function NotificationPresetCard({
   return (
     <article
       className="flex flex-col gap-3 rounded-md border border-line bg-elevated px-3 py-2"
-      data-testid={"settings-page-hooks-extensions-notification-preset-card-" + preset.name}
+      data-testid={"settings-page-hooks-notification-preset-card-" + preset.name}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -248,15 +248,11 @@ function NotificationPresetCard({
             checked={preset.enabled}
             disabled={!canMutate || pending}
             onCheckedChange={next => onToggle(preset, next)}
-            data-testid={
-              "settings-page-hooks-extensions-notification-preset-card-" + preset.name + "-toggle"
-            }
+            data-testid={"settings-page-hooks-notification-preset-card-" + preset.name + "-toggle"}
           />
           <Button
             aria-label={"Delete " + preset.name}
-            data-testid={
-              "settings-page-hooks-extensions-notification-preset-card-" + preset.name + "-delete"
-            }
+            data-testid={"settings-page-hooks-notification-preset-card-" + preset.name + "-delete"}
             disabled={!canMutate || pending || preset.built_in}
             onClick={() => onDelete(preset)}
             size="icon"
@@ -308,7 +304,7 @@ function NotificationPresetRow({
   onDelete: (preset: NotificationPresetEntry) => void;
 }) {
   return (
-    <TableRow data-testid={"settings-page-hooks-extensions-notification-preset-row-" + preset.name}>
+    <TableRow data-testid={"settings-page-hooks-notification-preset-row-" + preset.name}>
       <TableCell>
         <div className="flex min-w-0 flex-col gap-1">
           <span className="truncate font-mono text-sm text-fg">{preset.name}</span>
@@ -352,15 +348,11 @@ function NotificationPresetRow({
             checked={preset.enabled}
             disabled={!canMutate || pending}
             onCheckedChange={next => onToggle(preset, next)}
-            data-testid={
-              "settings-page-hooks-extensions-notification-preset-row-" + preset.name + "-toggle"
-            }
+            data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-toggle"}
           />
           <Button
             aria-label={"Delete " + preset.name}
-            data-testid={
-              "settings-page-hooks-extensions-notification-preset-row-" + preset.name + "-delete"
-            }
+            data-testid={"settings-page-hooks-notification-preset-row-" + preset.name + "-delete"}
             disabled={!canMutate || pending || preset.built_in}
             onClick={() => onDelete(preset)}
             size="icon"

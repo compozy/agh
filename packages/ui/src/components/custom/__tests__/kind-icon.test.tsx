@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { Bot, Code } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
-import { KindIcon, providerKindIconRegistry } from "../kind-icon";
+import { KindIcon } from "../kind-icon";
+import { providerKindIconRegistry } from "../kind-icon-registry";
 
 const providerKeys = [
   "blackbox",

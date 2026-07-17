@@ -13,6 +13,8 @@ export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "va
   description?: React.ReactNode;
   icon?: IconComponent;
   badge?: React.ReactNode;
+  /** Optional className merged onto the title slot. */
+  titleClassName?: string;
 }
 
 /**
@@ -28,6 +30,7 @@ function RadioCard({
   description,
   icon: Icon,
   badge,
+  titleClassName,
   className,
   type = "button",
   onClick,
@@ -56,8 +59,8 @@ function RadioCard({
       onClick={selectRadioCard}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex w-full min-w-0 flex-col gap-1.5 rounded bg-canvas-soft px-3 py-2.5 text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:ring-offset-0",
-        selected ? "bg-surface-glaze shadow-focus-ring-inset" : "hover:bg-elevated",
+        "group flex w-full min-w-0 flex-col gap-1.5 rounded bg-canvas-soft px-3 py-2.5 text-left transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-focus-ring",
+        selected ? "bg-surface-glaze shadow-inset-strong" : "hover:bg-elevated",
         className
       )}
       {...props}
@@ -77,8 +80,9 @@ function RadioCard({
         <span
           data-slot="radio-card-title"
           className={cn(
-            "min-w-0 truncate text-small-body font-medium tracking-eyebrow",
-            selected ? "text-fg-strong" : "text-fg"
+            "min-w-0 flex-1 text-small-body font-medium tracking-eyebrow",
+            selected ? "text-fg-strong" : "text-fg",
+            titleClassName ?? "truncate"
           )}
         >
           {title}

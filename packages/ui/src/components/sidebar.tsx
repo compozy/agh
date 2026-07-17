@@ -105,7 +105,7 @@ function Sidebar({
           }
           aria-expanded={panelVisible}
           onClick={handleToggle}
-          className="inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:outline-none"
+          className="inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
         >
           <PanelLeftIcon aria-hidden="true" className="size-3" />
         </button>

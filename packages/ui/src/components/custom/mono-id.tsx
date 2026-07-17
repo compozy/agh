@@ -8,7 +8,10 @@ import { cn } from "../../lib/utils";
 export type MonoIdSize = "default" | "sm";
 
 export interface MonoIdProps extends Omit<React.ComponentProps<"span">, "children"> {
-  /** Identifier value rendered bare (no Pill chrome). Always lowercased. */
+  /**
+   * Identifier value rendered bare (no Pill chrome). Lowercased by default; set
+   * `preserveCase` for case-sensitive identifiers (e.g. `vault:` references).
+   */
   value: string;
   /** Renders an inline 14 × 14 copy button next to the identifier. */
   copy?: boolean;
@@ -18,6 +21,13 @@ export interface MonoIdProps extends Omit<React.ComponentProps<"span">, "childre
   copyLabel?: string;
   /** Accessible label for the copy button when copied. */
   copiedLabel?: string;
+  /**
+   * Preserve the value's casing in both the rendered text and the copied
+   * string. Default `false` lowercases (generic IDs); set `true` for
+   * case-sensitive identifiers such as `vault:` references, whose bytes must
+   * round-trip exactly.
+   */
+  preserveCase?: boolean;
 }
 
 const COPY_FEEDBACK_MS = 1200;
@@ -33,10 +43,11 @@ function MonoId({
   size = "default",
   copyLabel = "Copy identifier",
   copiedLabel = "Copied",
+  preserveCase = false,
   className,
   ...props
 }: MonoIdProps) {
-  const lowered = value.toLowerCase();
+  const text = preserveCase ? value : value.toLowerCase();
   return (
     <span
       data-slot="mono-id"
@@ -49,10 +60,10 @@ function MonoId({
       {...props}
     >
       <span data-slot="mono-id-value" className="truncate">
-        {lowered}
+        {text}
       </span>
       {copy ? (
-        <MonoIdCopyButton value={lowered} copyLabel={copyLabel} copiedLabel={copiedLabel} />
+        <MonoIdCopyButton value={text} copyLabel={copyLabel} copiedLabel={copiedLabel} />
       ) : null}
     </span>
   );
@@ -99,7 +110,7 @@ function MonoIdCopyButton({
         event.preventDefault();
         void handleCopy();
       }}
-      className="inline-flex size-3 shrink-0 items-center justify-center rounded-xs text-subtle transition-colors duration-base ease-out hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
+      className="inline-flex size-3 shrink-0 items-center justify-center rounded-xs text-subtle transition-colors duration-base ease-out hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
     >
       {copied ? (
         <CheckIcon width={10} height={10} strokeWidth={2} />

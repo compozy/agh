@@ -227,8 +227,105 @@ describe("compozy-design-system lint plugin", () => {
         "no-design-glaze-rgba",
         "no-inline-design-tuples",
         "no-inline-eyebrow",
+        "no-low-contrast-focus-ring",
         "prefer-bare-token-utility",
       ]);
+    });
+
+    it("flags low-contrast and sub-2px focus rings, allows the shared focus tokens and accent rings", () => {
+      const src = "/repo/web/src/foo.tsx";
+      // Low-contrast focus color → focusRingColor (ring-line-strong / ring-ring).
+      expect(
+        runClassNameRule(
+          "no-low-contrast-focus-ring",
+          src,
+          literal("focus-visible:ring-line-strong")
+        )
+      ).toHaveLength(1);
+      // ring-ring with an opacity modifier is still a focus-color violation.
+      expect(
+        runClassNameRule("no-low-contrast-focus-ring", src, literal("focus-visible:ring-ring/50"))
+      ).toHaveLength(1);
+      // Sub-2px width → focusRingWidth, including bracketed has-[…focus…] variants.
+      expect(
+        runClassNameRule("no-low-contrast-focus-ring", src, literal("focus-visible:ring-1"))
+      ).toHaveLength(1);
+      expect(
+        runClassNameRule(
+          "no-low-contrast-focus-ring",
+          src,
+          literal("has-[input:focus-visible]:ring-1")
+        )
+      ).toHaveLength(1);
+      // Color + width in one className report once per messageId (seen-dedup).
+      expect(
+        runClassNameRule(
+          "no-low-contrast-focus-ring",
+          src,
+          literal("focus-visible:ring-1 focus-within:ring-line-strong focus-visible:ring-1")
+        )
+      ).toHaveLength(2);
+      // Walks cn()/logical/conditional wrappers like the other className rules.
+      expect(
+        runClassNameRule(
+          "no-low-contrast-focus-ring",
+          src,
+          jsxExpression(logical(identifier("active"), literal("focus-visible:ring-line-strong")))
+        )
+      ).toHaveLength(1);
+      // Allowed: shared focus tokens, accent ring at ≥2px, ring-0, and resting/hover rings.
+      for (const allowed of [
+        "focus-visible:shadow-focus-ring",
+        "focus-visible:shadow-focus-inset",
+        "focus-visible:ring-2 focus-visible:ring-accent",
+        "focus-visible:ring-0",
+        "focus-visible:ring-offset-0",
+        "ring-1",
+        "hover:ring-1",
+      ]) {
+        expect(runClassNameRule("no-low-contrast-focus-ring", src, literal(allowed))).toHaveLength(
+          0
+        );
+      }
+      // In scope: @agh/ui primitives are covered alongside web.
+      expect(
+        runClassNameRule(
+          "no-low-contrast-focus-ring",
+          "/repo/packages/ui/src/foo.tsx",
+          literal("focus-visible:ring-line-strong")
+        )
+      ).toHaveLength(1);
+      // In scope: packages/site is covered too — a sub-2px focus ring fails.
+      expect(
+        runClassNameRule(
+          "no-low-contrast-focus-ring",
+          "/repo/packages/site/components/foo.tsx",
+          literal("focus-visible:ring-1")
+        )
+      ).toHaveLength(1);
+      // ...and the corrected 2px accent ring on packages/site passes.
+      expect(
+        runClassNameRule(
+          "no-low-contrast-focus-ring",
+          "/repo/packages/site/components/foo.tsx",
+          literal("focus-visible:ring-2 focus-visible:ring-accent")
+        )
+      ).toHaveLength(0);
+      // Exempt: test/story files and non-frontend source.
+      expect(
+        runClassNameRule(
+          "no-low-contrast-focus-ring",
+          "/repo/web/src/foo.test.tsx",
+          literal("focus-visible:ring-1")
+        )
+      ).toHaveLength(0);
+      expect(
+        runClassNameRule(
+          "no-low-contrast-focus-ring",
+          "/repo/server/foo.tsx",
+          literal("focus-visible:ring-1")
+        )
+      ).toHaveLength(0);
     });
 
     it("walks no-inline-eyebrow literals, templates, calls, conditionals, and logical expressions", () => {

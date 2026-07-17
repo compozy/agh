@@ -1,10 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { DetailHeader } from "../detail-header";
 
 describe("DetailHeader", () => {
-  it("Should render the 6-row stack in order: crumbs → preTitle → title → pills → meta → actions", () => {
+  it("Should render optional sections in document order", () => {
     const { container } = render(
       <DetailHeader
         crumbs="Tasks / detail"
@@ -37,6 +37,38 @@ describe("DetailHeader", () => {
     ]);
   });
 
+  it("Should keep pills on the same namerow as the title", () => {
+    const { container } = render(
+      <DetailHeader title="cost-guard" pills={<span data-testid="pill">healthy</span>} />
+    );
+    const titleRow = container.querySelector('[data-slot="detail-header-title-row"]');
+    expect(titleRow).not.toBeNull();
+    expect(
+      within(titleRow as HTMLElement).getByRole("heading", { name: "cost-guard" })
+    ).toBeInTheDocument();
+    expect(within(titleRow as HTMLElement).getByTestId("pill")).toBeInTheDocument();
+  });
+
+  it("Should keep actions outside the title namerow", () => {
+    const { container } = render(
+      <DetailHeader
+        title="cost-guard"
+        pills={<span>healthy</span>}
+        actions={
+          <>
+            <button type="button">Inspect</button>
+            <button type="button">Resume</button>
+          </>
+        }
+      />
+    );
+    const titleRow = container.querySelector('[data-slot="detail-header-title-row"]');
+    expect(titleRow).not.toBeNull();
+    expect(within(titleRow as HTMLElement).queryByRole("button", { name: "Inspect" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Inspect" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+  });
+
   it("Should invoke the back callback when the back affordance is clicked", () => {
     const back = vi.fn();
     render(<DetailHeader title="Untitled" crumbs="Tasks" back={back} />);
@@ -67,5 +99,11 @@ describe("DetailHeader", () => {
   it("Should render crumbs without the back button when `back` is not provided", () => {
     render(<DetailHeader title="Untitled" crumbs="Tasks" />);
     expect(screen.queryByRole("button", { name: /go back/i })).toBeNull();
+  });
+
+  it("Should render the leading mark beside the title when `leading` is provided", () => {
+    render(<DetailHeader leading={<span>Extension mark</span>} title="cost-guard" />);
+    expect(screen.getByText("Extension mark")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "cost-guard" })).toBeInTheDocument();
   });
 });

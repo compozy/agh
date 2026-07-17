@@ -98,7 +98,7 @@ function PopoverContent({
                 />
               }
               className={cn(
-                "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-canvas-soft p-2.5 text-small-body text-fg shadow-focus-ring-soft outline-hidden",
+                "z-50 flex w-72 origin-(--transform-origin) flex-col gap-2.5 rounded-lg bg-canvas-soft p-2.5 text-small-body text-fg shadow-hairline outline-hidden",
                 className
               )}
               {...props}

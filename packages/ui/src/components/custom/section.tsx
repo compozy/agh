@@ -17,6 +17,8 @@ export interface SectionProps extends React.ComponentProps<"section"> {
    */
   bordered?: boolean;
   bodyClassName?: string;
+  headClassName?: string;
+  rightClassName?: string;
   count?: number | string;
   icon?: IconComponent;
   tabs?: React.ReactNode;
@@ -33,6 +35,8 @@ function Section({
   divided = false,
   bordered = false,
   bodyClassName,
+  headClassName,
+  rightClassName,
   className,
   children,
   count,
@@ -64,7 +68,8 @@ function Section({
           data-bordered={bordered ? "true" : undefined}
           className={cn(
             "flex flex-col gap-3 pb-2 lg:flex-row lg:items-start lg:justify-between",
-            bordered && "border-b border-line"
+            bordered && "border-b border-line",
+            headClassName
           )}
         >
           <div className="flex min-w-0 flex-col gap-2">
@@ -104,7 +109,10 @@ function Section({
           {hasRight || hasTabs ? (
             <div
               data-slot="section-right"
-              className="flex w-full items-center gap-2 self-start lg:w-auto lg:shrink-0"
+              className={cn(
+                "flex w-full items-center gap-2 self-start lg:w-auto lg:shrink-0",
+                rightClassName
+              )}
             >
               {hasTabs ? <div data-slot="section-tabs">{tabs}</div> : null}
               {hasRight ? right : null}

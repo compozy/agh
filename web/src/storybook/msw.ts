@@ -4,8 +4,10 @@ import { handlers as agentHandlers } from "@/systems/agent/mocks";
 import { handlers as automationHandlers } from "@/systems/automation/mocks";
 import { handlers as bridgeHandlers } from "@/systems/bridges/mocks";
 import { handlers as daemonHandlers } from "@/systems/status/mocks";
+import { handlers as extensionHandlers } from "@/systems/extensions/mocks";
 import { handlers as knowledgeHandlers } from "@/systems/knowledge/mocks";
 import { handlers as loopsHandlers } from "@/systems/loops/mocks";
+import { handlers as marketplaceHandlers } from "@/systems/marketplace/mocks";
 import { handlers as modelCatalogHandlers } from "@/systems/model-catalog/mocks";
 import { handlers as networkHandlers } from "@/systems/network/mocks";
 import { handlers as onboardingHandlers } from "@/systems/onboarding/mocks";
@@ -24,9 +26,11 @@ export type StorybookHandlerGroupName =
   | "bridges"
   | "daemon"
   | "design-system"
+  | "extensions"
   | "guard"
   | "knowledge"
   | "loops"
+  | "marketplace"
   | "model-catalog"
   | "network"
   | "onboarding"
@@ -48,8 +52,10 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   bridges: bridgeHandlers,
   daemon: daemonHandlers,
   "design-system": [],
+  extensions: extensionHandlers,
   knowledge: knowledgeHandlers,
   loops: loopsHandlers,
+  marketplace: marketplaceHandlers,
   "model-catalog": modelCatalogHandlers,
   network: networkHandlers,
   onboarding: onboardingHandlers,

@@ -31,6 +31,8 @@ ai-docs/
 .firecrawl
 .kodebase
 .compozy/tasks/final-qa/_runs
+.deep-review/*
+!.deep-review/learnings.md
 .peer-reviews
 .agh
 .clawpatch

@@ -32,7 +32,7 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
 const RAIL_CLASS: Record<InboxGroupId, string> = {
   needs_review: "bg-warning",
   blocked: "bg-danger",
-  updates: "bg-transparent shadow-focus-ring-inset",
+  updates: "bg-transparent shadow-inset-strong",
 };
 
 function TasksInboxRow({
@@ -74,7 +74,7 @@ function TasksInboxRow({
         "grid min-h-11 items-stretch gap-3 border-b border-line-soft py-2.5 pr-3.5 text-left transition-colors duration-base ease-out",
         trailing ? "grid-cols-[3px_minmax(0,1fr)_auto]" : "grid-cols-[3px_minmax(0,1fr)]",
         clickable &&
-          "cursor-pointer hover:bg-row-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong focus-visible:ring-inset",
+          "cursor-pointer hover:bg-row-hover focus-visible:outline-none focus-visible:shadow-focus-inset",
         className
       )}
       {...props}

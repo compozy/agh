@@ -254,16 +254,21 @@
   /* Shadows — whitelist. Every other surface stays flat. */
   --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
   --shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  /* Focus / hairline rings — the flat-depth replacement for borders on
-     form controls and surfaces. `*-soft` uses `--color-line-soft` (3 %)
-     for menu / popover surfaces; the default uses `--color-line-strong`
-     (9 %) for active form controls. Inset variants live alongside for
-     surfaces where the ring must paint inside the element bounds (cards,
-     accordions, items). */
-  --shadow-focus-ring: 0 0 0 1px var(--color-line-strong);
-  --shadow-focus-ring-soft: 0 0 0 1px var(--color-line-soft);
-  --shadow-focus-ring-inset: inset 0 0 0 1px var(--color-line-strong);
-  --shadow-focus-ring-inset-soft: inset 0 0 0 1px var(--color-line-soft);
+  /* Focus indicator — EXCLUSIVE :focus-visible semantics. A 2 px, 50 %-white
+     ring composites to ≈#898988 (≥5.3:1 on every surface-ramp background),
+     meeting the ≥2 px + ≥3:1 non-text contrast floor. Used ONLY by
+     :focus-visible consumers — outset by default; `-inset` for full-bleed
+     rows / triggers where the ring must paint inside the element bounds. */
+  --shadow-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.5);
+  --shadow-focus-inset: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+  /* Resting hairlines / selected insets — NOT focus indicators (these retain
+     `--color-line-*`; the 2 px tokens above are the only focus rings).
+     `--shadow-hairline` (outset) and `--shadow-hairline-inset` are menu / popover
+     hairlines (line-soft, 3 %); `--shadow-inset-strong` is the selected / active
+     inset (line-strong, 9 %) on cards, rows, and steps. */
+  --shadow-hairline: 0 0 0 1px var(--color-line-soft);
+  --shadow-hairline-inset: inset 0 0 0 1px var(--color-line-soft);
+  --shadow-inset-strong: inset 0 0 0 1px var(--color-line-strong);
 
   /* Component geometry — keyed into the @theme `--height-*` / `--width-*` /
      `--size-*` namespaces so Tailwind generates bare utilities (`h-button-default`,

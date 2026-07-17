@@ -66,7 +66,7 @@ export function ChannelRailRow({
         aria-label={ariaLabel}
         aria-pressed={isPinned}
         className={cn(
-          "absolute right-1 top-1/2 -translate-y-1/2 rounded-chip p-1 text-subtle opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent group-hover:opacity-100",
+          "absolute right-1 top-1/2 -translate-y-1/2 rounded-chip p-1 text-subtle opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent group-hover:opacity-100",
           (isPinned || active) && "opacity-100"
         )}
         data-testid={`network-channel-pin-${channel.channel}`}

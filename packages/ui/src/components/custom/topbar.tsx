@@ -89,7 +89,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
       {back ? (
         <button
           aria-label={backLabel}
-          className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
+          className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
           data-slot="topbar-back"
           data-testid="topbar-back"
           onClick={back}
@@ -112,7 +112,7 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
           ref={titleRef}
           tabIndex={-1}
           data-testid="topbar-title-text"
-          className="truncate text-card-title font-medium tracking-tight text-fg-strong outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
+          className="truncate text-card-title font-medium tracking-tight text-fg-strong outline-none focus-visible:shadow-focus-ring"
         >
           {renderedTitle}
         </h1>

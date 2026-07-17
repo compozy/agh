@@ -77,11 +77,11 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
       onKeyDown={handleKeyDown}
       className={cn(
         "relative flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-md bg-canvas-tint p-3 text-left transition-colors duration-base ease-out",
-        "shadow-focus-ring-inset-soft",
+        "shadow-hairline-inset",
         "hover:bg-elevated hover:inset-ring-1 hover:inset-ring-line",
         clickable && "cursor-pointer",
         clickable &&
-          "focus-visible:shadow-focus-ring-inset focus-visible:outline-none focus-visible:ring-0",
+          "focus-visible:shadow-focus-inset focus-visible:outline-none focus-visible:ring-0",
         selected && "bg-elevated inset-ring-1 inset-ring-line"
       )}
     >

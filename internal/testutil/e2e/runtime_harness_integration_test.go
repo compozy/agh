@@ -35,7 +35,7 @@ type runtimeMigrationExpectation struct {
 
 func runtimeMigrationExpectations() []runtimeMigrationExpectation {
 	return []runtimeMigrationExpectation{
-		{stream: "global", version: 3, appliedCount: 3},
+		{stream: "global", version: 5, appliedCount: 5},
 		{stream: "memory", version: 1, appliedCount: 1},
 	}
 }

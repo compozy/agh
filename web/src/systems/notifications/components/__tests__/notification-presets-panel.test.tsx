@@ -48,12 +48,10 @@ describe("NotificationPresetsPanel", () => {
     );
 
     expect(
-      screen.getByTestId("settings-page-hooks-extensions-notification-preset-row-task_terminal")
+      screen.getByTestId("settings-page-hooks-notification-preset-row-task_terminal")
     ).toHaveTextContent("built-in");
     expect(
-      screen.getByTestId(
-        "settings-page-hooks-extensions-notification-preset-row-task_terminal-delete"
-      )
+      screen.getByTestId("settings-page-hooks-notification-preset-row-task_terminal-delete")
     ).toBeDisabled();
   });
 
@@ -72,26 +70,17 @@ describe("NotificationPresetsPanel", () => {
       />
     );
 
-    fireEvent.change(
-      screen.getByTestId("settings-page-hooks-extensions-notification-preset-name"),
-      {
-        target: { value: "custom_task" },
-      }
-    );
-    fireEvent.change(
-      screen.getByTestId("settings-page-hooks-extensions-notification-preset-events"),
-      { target: { value: "task.run_*, provider.auth_failed" } }
-    );
-    fireEvent.change(
-      screen.getByTestId("settings-page-hooks-extensions-notification-preset-target"),
-      { target: { value: "bridge_slack_ops:channel:ops" } }
-    );
-    fireEvent.click(
-      screen.getByTestId("settings-page-hooks-extensions-notification-preset-enabled")
-    );
-    fireEvent.click(
-      screen.getByTestId("settings-page-hooks-extensions-notification-preset-create")
-    );
+    fireEvent.change(screen.getByTestId("settings-page-hooks-notification-preset-name"), {
+      target: { value: "custom_task" },
+    });
+    fireEvent.change(screen.getByTestId("settings-page-hooks-notification-preset-events"), {
+      target: { value: "task.run_*, provider.auth_failed" },
+    });
+    fireEvent.change(screen.getByTestId("settings-page-hooks-notification-preset-target"), {
+      target: { value: "bridge_slack_ops:channel:ops" },
+    });
+    fireEvent.click(screen.getByTestId("settings-page-hooks-notification-preset-enabled"));
+    fireEvent.click(screen.getByTestId("settings-page-hooks-notification-preset-create"));
 
     expect(onCreate).toHaveBeenCalledWith({
       name: "custom_task",
@@ -125,14 +114,10 @@ describe("NotificationPresetsPanel", () => {
     );
 
     fireEvent.click(
-      screen.getByTestId(
-        "settings-page-hooks-extensions-notification-preset-row-custom_failure-toggle"
-      )
+      screen.getByTestId("settings-page-hooks-notification-preset-row-custom_failure-toggle")
     );
     fireEvent.click(
-      screen.getByTestId(
-        "settings-page-hooks-extensions-notification-preset-row-custom_failure-delete"
-      )
+      screen.getByTestId("settings-page-hooks-notification-preset-row-custom_failure-delete")
     );
 
     expect(onToggle).toHaveBeenCalledWith(customPreset, false);
@@ -154,23 +139,17 @@ describe("NotificationPresetsPanel", () => {
       />
     );
 
-    fireEvent.change(
-      screen.getByTestId("settings-page-hooks-extensions-notification-preset-name"),
-      {
-        target: { value: "custom_task" },
-      }
-    );
-    fireEvent.change(
-      screen.getByTestId("settings-page-hooks-extensions-notification-preset-target"),
-      { target: { value: "bridge_without_route" } }
-    );
-    fireEvent.click(
-      screen.getByTestId("settings-page-hooks-extensions-notification-preset-create")
-    );
+    fireEvent.change(screen.getByTestId("settings-page-hooks-notification-preset-name"), {
+      target: { value: "custom_task" },
+    });
+    fireEvent.change(screen.getByTestId("settings-page-hooks-notification-preset-target"), {
+      target: { value: "bridge_without_route" },
+    });
+    fireEvent.click(screen.getByTestId("settings-page-hooks-notification-preset-create"));
 
     expect(onCreate).not.toHaveBeenCalled();
-    expect(
-      screen.getByTestId("settings-page-hooks-extensions-notification-presets-error")
-    ).toHaveTextContent("bridge_id:canonical_route");
+    expect(screen.getByTestId("settings-page-hooks-notification-presets-error")).toHaveTextContent(
+      "bridge_id:canonical_route"
+    );
   });
 });

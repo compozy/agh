@@ -61,7 +61,7 @@ export function TasksDashboardActiveRuns({
                 <Link
                   className={cn(
                     "group flex min-w-0 items-center gap-3 text-form-label outline-none",
-                    "focus-visible:rounded-xs focus-visible:ring-1 focus-visible:ring-line-strong"
+                    "focus-visible:rounded-xs focus-visible:shadow-focus-ring"
                   )}
                   data-testid={`tasks-dashboard-active-run-link-${run.run_id}`}
                   params={{ id: run.task_id, runId: run.run_id }}

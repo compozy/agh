@@ -326,7 +326,7 @@ describe("TaskKanbanCard", () => {
     );
 
     const card = screen.getByTestId("tasks-kanban-card-ring");
-    expect(card.className).toContain("shadow-focus-ring-inset-soft");
+    expect(card.className).toContain("shadow-hairline-inset");
     expect(card.className).not.toContain("border-line");
   });
 
