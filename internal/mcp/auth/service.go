@@ -23,10 +23,11 @@ type ServiceOption func(*Service)
 
 // Service executes OAuth 2.1 authorization-code flows for remote MCP servers.
 type Service struct {
-	store  TokenStore
-	client *http.Client
-	random io.Reader
-	now    func() time.Time
+	store      TokenStore
+	client     *http.Client
+	random     io.Reader
+	now        func() time.Time
+	generation *MutationGeneration
 }
 
 // NewService constructs an MCP auth service.
@@ -35,8 +36,9 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 		return nil, errors.New("mcp auth: token store is required")
 	}
 	service := &Service{
-		store:  store,
-		client: &http.Client{Timeout: defaultMetadataClientTimeout},
+		store:      store,
+		client:     &http.Client{Timeout: defaultMetadataClientTimeout},
+		generation: NewMutationGeneration(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -51,6 +53,9 @@ func NewService(store TokenStore, opts ...ServiceOption) (*Service, error) {
 	}
 	if service.now == nil {
 		service.now = func() time.Time { return time.Now().UTC() }
+	}
+	if service.generation == nil {
+		service.generation = NewMutationGeneration()
 	}
 	return service, nil
 }
@@ -249,7 +254,11 @@ func (s *Service) refreshToken(
 	return s.tokenRecordFromResponse(cfg, metadata, resp, current)
 }
 
-func (s *Service) postForm(ctx context.Context, endpoint string, values url.Values) (tokenEndpointResponse, error) {
+func (s *Service) postForm(
+	ctx context.Context,
+	endpoint string,
+	values url.Values,
+) (payload tokenEndpointResponse, err error) {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -266,11 +275,8 @@ func (s *Service) postForm(ctx context.Context, endpoint string, values url.Valu
 	if err != nil {
 		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: call token endpoint: %w", err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer func() { err = errors.Join(err, drainAndCloseResponseBody(resp.Body)) }()
 
-	var payload tokenEndpointResponse
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return tokenEndpointResponse{}, fmt.Errorf("mcp auth: decode token response: %w", err)
 	}
@@ -355,7 +361,12 @@ func tokenResponseExpiresAt(now time.Time, expiresIn int64) (time.Time, error) {
 	return now.UTC().Add(time.Duration(expiresIn) * time.Second), nil
 }
 
-func (s *Service) revoke(ctx context.Context, cfg ServerConfig, metadata Metadata, token TokenRecord) error {
+func (s *Service) revoke(
+	ctx context.Context,
+	cfg ServerConfig,
+	metadata Metadata,
+	token TokenRecord,
+) (err error) {
 	revokeToken := strings.TrimSpace(token.RefreshToken)
 	hint := serviceRefreshTokenKey
 	if revokeToken == "" {
@@ -387,9 +398,7 @@ func (s *Service) revoke(ctx context.Context, cfg ServerConfig, metadata Metadat
 	if err != nil {
 		return fmt.Errorf("mcp auth: call revocation endpoint: %w", err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer func() { err = errors.Join(err, drainAndCloseResponseBody(resp.Body)) }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("mcp auth: revocation endpoint HTTP %d", resp.StatusCode)
 	}
@@ -406,6 +415,7 @@ func statusFromTokenWithDiagnostic(
 	now time.Time,
 	diagnostic string,
 ) Status {
+	cfg.Target = cfg.Target.Normalize()
 	status := Status{
 		ServerName:       cfg.Target.ServerName,
 		Scope:            cfg.Target.Scope,

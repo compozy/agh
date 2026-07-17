@@ -29,7 +29,8 @@ func settingsMCPAuthOperations() []OperationSpec {
 			Method: httpMethodPost, Path: basePath + "begin", OperationID: "beginSettingsMCPAuth",
 			Summary: "Begin daemon-mediated OAuth for one MCP server", Tags: []string{specSettingsKey},
 			Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: targetParameters,
-			Responses: responses(contract.SettingsMCPAuthBeginResponse{}),
+			RequestBody: contract.SettingsMCPAuthBeginRequest{},
+			Responses:   responses(contract.SettingsMCPAuthBeginResponse{}),
 		},
 		{
 			Method: httpMethodPost, Path: basePath + "exchange", OperationID: "exchangeSettingsMCPAuth",
@@ -50,7 +51,7 @@ func settingsMCPAuthOperations() []OperationSpec {
 			Transports: []Transport{TransportHTTP},
 			Parameters: []ParameterSpec{
 				queryParam("code", "Authorization code returned by the provider", false),
-				queryParam("state", "Single-use OAuth state", false),
+				queryParam("state", "Single-use OAuth state", true),
 				queryParam("error", "OAuth error returned by the provider", false),
 			},
 			Responses: []ResponseSpec{

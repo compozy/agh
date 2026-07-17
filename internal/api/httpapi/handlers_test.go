@@ -1120,6 +1120,7 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		{
 			method: http.MethodPost,
 			path:   "/api/settings/mcp-servers/server-a/auth/begin?scope=global",
+			body:   []byte(`{"mode":"automatic"}`),
 		},
 		{
 			method: http.MethodPost,
@@ -1363,6 +1364,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 		body       []byte
 		wantStatus int
 		assert     func(t *testing.T)
+		assertBody func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
 		{
 			name:       "patch section",
@@ -1410,7 +1412,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			},
 		},
 		{
-			name:       "install catalog MCP server",
+			name:       "Should install a catalog MCP server with strict request and response mapping",
 			method:     http.MethodPost,
 			path:       "/api/settings/mcp-servers/install",
 			wantStatus: http.StatusOK,
@@ -1419,14 +1421,36 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 				Name:        "github-workspace",
 				Scope:       contract.SettingsWorkspaceScopeWorkspace,
 				WorkspaceID: "ws-1",
-				Values:      &contract.SettingsMCPCatalogInstallValuesPayload{},
+				Values: &contract.SettingsMCPCatalogInstallValuesPayload{
+					Env: map[string]contract.SettingsMCPSecretInputPayload{
+						"TOKEN": {VaultRef: "vault:mcp/shared/token"},
+					},
+				},
 			}),
 			assert: func(t *testing.T) {
 				t.Helper()
 				if settingsService.LastMCPCatalogInstall.EntryID != "github" ||
+					settingsService.LastMCPCatalogInstall.Name != "github-workspace" ||
 					settingsService.LastMCPCatalogInstall.Scope != settingspkg.ScopeWorkspace ||
 					settingsService.LastMCPCatalogInstall.WorkspaceID != "ws-1" {
 					t.Fatalf("LastMCPCatalogInstall = %#v", settingsService.LastMCPCatalogInstall)
+				}
+				if got, want := settingsService.LastMCPCatalogInstall.Values.Env["TOKEN"].VaultRef, "vault:mcp/shared/token"; got != want {
+					t.Fatalf("LastMCPCatalogInstall.Values.Env[TOKEN].VaultRef = %q, want %q", got, want)
+				}
+			},
+			assertBody: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+				var response contract.InstallSettingsMCPServerResponse
+				if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+					t.Fatalf("json.Unmarshal(MCP install response) error = %v; body=%s", err, recorder.Body.String())
+				}
+				if response.MCPServer.Name != "github-workspace" ||
+					response.MCPServer.Scope != contract.SettingsScopeWorkspace ||
+					response.MCPServer.WorkspaceID != "ws-1" ||
+					response.MCPServer.CatalogEntry != "github" ||
+					response.NextStep != contract.SettingsMCPInstallNextStepNone {
+					t.Fatalf("MCP install response = %#v, want persisted workspace catalog item", response)
 				}
 			},
 		},
@@ -1516,6 +1540,9 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			}
 			if tc.assert != nil {
 				tc.assert(t)
+			}
+			if tc.assertBody != nil {
+				tc.assertBody(t, recorder)
 			}
 		})
 	}

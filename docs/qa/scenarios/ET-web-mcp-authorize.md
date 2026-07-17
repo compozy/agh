@@ -4,7 +4,7 @@ area: ET
 title: MCP OAuth authorize/repair flow (browser auto path)
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: Authorize on a needs_login OAuth remote begins a daemon PKCE session and always renders the live `auth/begin` authorization_url copyable (browser open optional). The waiting dialog polls the scoped list and confirms ONLY on `authenticated && token_present`. A tools/list-style success alone never flips the UI. Cancel/failure preserves the prior public status and token.
+expected: Authorize on a needs_login OAuth remote begins an explicit `mode=automatic` daemon PKCE session and always renders the live `auth/begin` authorization_url copyable (browser open optional). The waiting dialog polls the scoped list and confirms ONLY on `authenticated && token_present`. A tools/list-style success alone never flips the UI. Automatic begin failure offers retry and a manual-callback fallback; cancel/failure preserves the prior public status and token.
 entry_points: web `/mcp` Authorize action; `POST /api/settings/mcp-servers/{name}/auth/begin`; daemon callback `GET /api/mcp/oauth/callback`
 qa_status: untested
 bug_ids: BUG-20260715-mcp-oauth-name-segment
@@ -26,3 +26,6 @@ QA impact 2026-07-15: new behavior from Task 08 (ADR-006/016). Flagged untested 
 
 QA impact 2026-07-16: OAuth begin attempts now have monotonic ownership; an older response cannot
 replace a retry, and a begin failure offers Retry authorization without exposing an unusable exchange.
+
+QA impact 2026-07-17: automatic begin now sends `mode=automatic`; begin failure offers a manual
+fallback that creates a new `mode=manual` session rather than exchanging against the failed attempt.

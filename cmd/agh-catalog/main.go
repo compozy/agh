@@ -3,19 +3,20 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/compozy/agh/internal/marketplace"
 )
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	if err := run(os.Args[1:], os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(args []string) error {
+func run(args []string, output io.Writer) error {
 	if len(args) < 2 {
 		return catalogUsageError()
 	}
@@ -33,7 +34,9 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(os.Stdout, digest)
+		if _, err := fmt.Fprintln(output, digest); err != nil {
+			return fmt.Errorf("write catalog digest: %w", err)
+		}
 		return nil
 	case "package":
 		if len(args) != 3 {

@@ -102,14 +102,16 @@ func newMCPAuthStatusCommand(deps commandDeps) *cobra.Command {
 			if err := opts.validateScope(); err != nil {
 				return err
 			}
+			scope := contract.SettingsWorkspaceScopeKind(strings.TrimSpace(opts.scope))
+			workspaceID := strings.TrimSpace(opts.workspaceID)
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
 			response, err := client.ListSettingsMCPServers(
 				cmd.Context(),
-				contract.SettingsWorkspaceScopeKind(opts.scope),
-				opts.workspaceID,
+				scope,
+				workspaceID,
 			)
 			if err != nil {
 				return err
@@ -207,7 +209,11 @@ func authorizeMCPServer(
 	if err != nil {
 		return SettingsMCPAuthStatusRecord{}, err
 	}
-	begin, err := client.BeginSettingsMCPAuth(authCtx, target)
+	mode := contract.SettingsMCPAuthBeginModeAutomatic
+	if manual {
+		mode = contract.SettingsMCPAuthBeginModeManual
+	}
+	begin, err := client.BeginSettingsMCPAuth(authCtx, target, SettingsMCPAuthBeginRequest{Mode: mode})
 	if err != nil {
 		return SettingsMCPAuthStatusRecord{}, err
 	}

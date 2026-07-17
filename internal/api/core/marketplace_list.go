@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -17,10 +18,7 @@ import (
 	settingspkg "github.com/compozy/agh/internal/settings"
 )
 
-const (
-	remoteSkillEntryPrefix = "skill_"
-	bundleEntryPrefix      = "bundle_"
-)
+const bundleEntryPrefix = "bundle_"
 
 func (h *BaseHandlers) marketplaceKindResult(
 	ctx context.Context,
@@ -80,9 +78,16 @@ func (h *BaseHandlers) curatedMarketplaceKind(
 		Kind:       string(kind),
 		Stale:      result.State.Stale,
 		ErrorClass: result.State.ErrorClass,
-		Error:      result.State.LastError,
+		Error:      h.marketplaceKindDiagnostic(result.State.LastError),
 		Items:      items,
 	}, nil
+}
+
+func (h *BaseHandlers) marketplaceKindDiagnostic(diagnostic string) string {
+	if strings.TrimSpace(diagnostic) == "" || h == nil || !h.MaskInternalErrors {
+		return diagnostic
+	}
+	return http.StatusText(http.StatusInternalServerError)
 }
 
 func (h *BaseHandlers) remoteSkillMarketplaceKind(
@@ -97,7 +102,7 @@ func (h *BaseHandlers) remoteSkillMarketplaceKind(
 	}
 	listings, err := h.skillMarketplaceService().Search(ctx, query, limit)
 	if err != nil {
-		return contract.MarketplaceKindResult{}, err
+		return contract.MarketplaceKindResult{}, normalizeSkillMarketplaceError(err)
 	}
 	installed, err := h.skillInstallIndex(ctx)
 	if err != nil {
@@ -206,11 +211,23 @@ type marketplaceInstall struct {
 	managePath string
 }
 
+type marketplaceInstallIndex struct {
+	byEntryID map[string]marketplaceInstall
+	bySlug    map[string]marketplaceInstall
+}
+
+func newMarketplaceInstallIndex() marketplaceInstallIndex {
+	return marketplaceInstallIndex{
+		byEntryID: make(map[string]marketplaceInstall),
+		bySlug:    make(map[string]marketplaceInstall),
+	}
+}
+
 func (h *BaseHandlers) marketplaceInstallIndex(
 	ctx context.Context,
 	kind string,
 	scope marketplaceReadScope,
-) (map[string]marketplaceInstall, error) {
+) (marketplaceInstallIndex, error) {
 	switch kind {
 	case contract.MarketplaceKindMCP:
 		return h.mcpInstallIndex(ctx, scope)
@@ -219,34 +236,44 @@ func (h *BaseHandlers) marketplaceInstallIndex(
 	case contract.MarketplaceKindSkill:
 		return h.skillInstallIndex(ctx)
 	default:
-		return nil, errors.Join(ErrMarketplaceNotFound, fmt.Errorf("unknown marketplace kind %q", kind))
+		return marketplaceInstallIndex{}, errors.Join(
+			ErrMarketplaceNotFound,
+			fmt.Errorf("unknown marketplace kind %q", kind),
+		)
 	}
 }
 
 func (h *BaseHandlers) mcpInstallIndex(
 	ctx context.Context,
 	scope marketplaceReadScope,
-) (map[string]marketplaceInstall, error) {
+) (marketplaceInstallIndex, error) {
 	if h.Settings == nil {
-		return nil, errors.Join(ErrMarketplaceUnavailable, errors.New("settings service is not configured"))
+		return marketplaceInstallIndex{}, errors.Join(
+			ErrMarketplaceUnavailable,
+			errors.New("settings service is not configured"),
+		)
 	}
 	envelope, err := h.Settings.ListCollection(ctx, settingspkg.CollectionRequest{
 		Collection: settingspkg.CollectionMCPServers, Scope: scope.scope, WorkspaceID: scope.workspaceID,
 	})
 	if err != nil {
-		return nil, err
+		return marketplaceInstallIndex{}, err
 	}
-	index := make(map[string]marketplaceInstall)
+	index := newMarketplaceInstallIndex()
 	for _, item := range envelope.MCPServers {
 		entryID := strings.TrimSpace(item.CatalogEntry)
 		if entryID == "" {
 			continue
 		}
-		managePath := "/mcp?" + url.Values{
+		params := url.Values{
 			"scope":  {string(scope.scope)},
 			"server": {strings.TrimSpace(item.Name)},
-		}.Encode()
-		index[entryID] = marketplaceInstall{
+		}
+		if scope.scope == settingspkg.ScopeWorkspace {
+			params.Set("workspace_id", scope.workspaceID)
+		}
+		managePath := "/mcp?" + params.Encode()
+		index.byEntryID[entryID] = marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
 			managePath: managePath,
 		}
@@ -254,29 +281,38 @@ func (h *BaseHandlers) mcpInstallIndex(
 	return index, nil
 }
 
-func (h *BaseHandlers) extensionInstallIndex(ctx context.Context) (map[string]marketplaceInstall, error) {
+func (h *BaseHandlers) extensionInstallIndex(ctx context.Context) (marketplaceInstallIndex, error) {
 	if h.Extensions == nil {
-		return nil, errors.Join(ErrMarketplaceUnavailable, errors.New("extension service is not configured"))
+		return marketplaceInstallIndex{}, errors.Join(
+			ErrMarketplaceUnavailable,
+			errors.New("extension service is not configured"),
+		)
 	}
 	items, err := h.Extensions.List(ctx)
 	if err != nil {
-		return nil, err
+		return marketplaceInstallIndex{}, err
 	}
-	index := make(map[string]marketplaceInstall)
+	index := newMarketplaceInstallIndex()
 	for _, item := range items {
-		if item.Provenance == nil || strings.TrimSpace(item.Provenance.Slug) == "" {
+		if item.Provenance == nil {
 			continue
 		}
-		index[strings.TrimSpace(item.Provenance.Slug)] = marketplaceInstall{
+		installation := marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Version),
 			managePath: "/extensions/" + url.PathEscape(strings.TrimSpace(item.Name)),
+		}
+		if entryID := strings.TrimSpace(item.Provenance.CatalogEntryID); entryID != "" {
+			index.byEntryID[entryID] = installation
+		}
+		if slug := strings.TrimSpace(item.Provenance.Slug); slug != "" {
+			index.bySlug[slug] = installation
 		}
 	}
 	return index, nil
 }
 
-func (h *BaseHandlers) skillInstallIndex(ctx context.Context) (map[string]marketplaceInstall, error) {
+func (h *BaseHandlers) skillInstallIndex(ctx context.Context) (marketplaceInstallIndex, error) {
 	service := h.InstalledSkillMarketplace
 	if service == nil {
 		if candidate, ok := h.skillMarketplaceService().(InstalledSkillMarketplaceService); ok {
@@ -284,19 +320,22 @@ func (h *BaseHandlers) skillInstallIndex(ctx context.Context) (map[string]market
 		}
 	}
 	if service == nil {
-		return nil, errors.Join(ErrMarketplaceUnavailable, errors.New("skill marketplace is not configured"))
+		return marketplaceInstallIndex{}, errors.Join(
+			ErrMarketplaceUnavailable,
+			errors.New("skill marketplace is not configured"),
+		)
 	}
 	items, err := service.ListInstalled(ctx)
 	if err != nil {
-		return nil, err
+		return marketplaceInstallIndex{}, err
 	}
-	index := make(map[string]marketplaceInstall)
+	index := newMarketplaceInstallIndex()
 	for _, item := range items {
 		slug := strings.TrimSpace(item.Provenance.Slug)
 		if slug == "" {
 			continue
 		}
-		index[slug] = marketplaceInstall{
+		index.bySlug[slug] = marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Provenance.Version),
 			managePath: "/skills/" + url.PathEscape(strings.TrimSpace(item.Name)),
@@ -308,17 +347,16 @@ func (h *BaseHandlers) skillInstallIndex(ctx context.Context) (map[string]market
 func (h *BaseHandlers) curatedMarketplaceListing(
 	ctx context.Context,
 	entry marketplacepkg.Entry,
-	installed map[string]marketplaceInstall,
+	installed marketplaceInstallIndex,
 ) (contract.MarketplaceListingPayload, error) {
 	details, err := marketplacepkg.ProjectEntry(entry)
 	if err != nil {
 		return contract.MarketplaceListingPayload{}, err
 	}
-	identity := entry.EntryID
-	if entry.InstallSlug != "" {
-		identity = entry.InstallSlug
+	installation, isInstalled := installed.byEntryID[entry.EntryID]
+	if !isInstalled && entry.InstallSlug != "" {
+		installation, isInstalled = installed.bySlug[entry.InstallSlug]
 	}
-	installation, isInstalled := installed[identity]
 	updateAvailable := false
 	if entry.Kind == marketplacepkg.KindExtension || entry.Kind == marketplacepkg.KindSkill {
 		updateAvailable = isInstalled && registrypkg.VersionIsNewer(installation.version, entry.Version)
@@ -369,10 +407,10 @@ func marketplaceTransport(details marketplacepkg.EntryDetails) string {
 
 func remoteSkillMarketplaceListing(
 	listing registrypkg.Listing,
-	installed map[string]marketplaceInstall,
+	installed marketplaceInstallIndex,
 ) contract.MarketplaceListingPayload {
 	slug := strings.TrimSpace(listing.Slug)
-	installation, isInstalled := installed[slug]
+	installation, isInstalled := installed.bySlug[slug]
 	downloads := listing.Downloads
 	return contract.MarketplaceListingPayload{
 		Kind: contract.MarketplaceKindSkill, EntryID: encodeRemoteSkillEntryID(slug),
@@ -401,7 +439,9 @@ func bundleActivationIndex(
 			continue
 		}
 		key := bundleIdentityKey(activation.ExtensionName, activation.BundleName)
-		if _, exists := index[key]; !exists {
+		existing, exists := index[key]
+		if !exists || activation.Scope == bundlepkg.ScopeWorkspace &&
+			existing.Activation.Scope != bundlepkg.ScopeWorkspace {
 			index[key] = item
 		}
 	}
@@ -409,14 +449,16 @@ func bundleActivationIndex(
 }
 
 func encodeRemoteSkillEntryID(slug string) string {
-	return remoteSkillEntryPrefix + base64.RawURLEncoding.EncodeToString([]byte(strings.TrimSpace(slug)))
+	return marketplacepkg.RemoteSkillEntryPrefix + base64.RawURLEncoding.EncodeToString([]byte(strings.TrimSpace(slug)))
 }
 
 func decodeRemoteSkillEntryID(entryID string) (string, bool) {
-	if !strings.HasPrefix(entryID, remoteSkillEntryPrefix) {
+	if !strings.HasPrefix(entryID, marketplacepkg.RemoteSkillEntryPrefix) {
 		return "", false
 	}
-	decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(entryID, remoteSkillEntryPrefix))
+	decoded, err := base64.RawURLEncoding.DecodeString(
+		strings.TrimPrefix(entryID, marketplacepkg.RemoteSkillEntryPrefix),
+	)
 	if err != nil || strings.TrimSpace(string(decoded)) == "" {
 		return "", false
 	}

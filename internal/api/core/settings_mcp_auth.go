@@ -15,7 +15,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const mcpOAuthCallbackPath = "/api/mcp/oauth/callback"
+const (
+	mcpOAuthCallbackPath      = "/api/mcp/oauth/callback"
+	defaultManualCallbackPort = 2123
+)
+
+var errInvalidMCPAuthBeginMode = errors.New("settings: MCP OAuth begin mode must be automatic or manual")
 
 func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.SettingsMCPAuthStatusPayload {
 	if value == nil {
@@ -60,8 +65,19 @@ func (h *BaseHandlers) BeginSettingsMCPAuth(c *gin.Context) {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
-	callbackURL, err := h.mcpOAuthCallbackURL()
+	var body contract.SettingsMCPAuthBeginRequest
+	if err := decodeStrictJSONBody(c, &body); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewSettingsValidationError(
+			errors.New("decode MCP auth begin request"),
+		))
+		return
+	}
+	callbackURL, err := h.mcpOAuthCallbackURLForMode(body.Mode)
 	if err != nil {
+		if errors.Is(err, errInvalidMCPAuthBeginMode) {
+			h.respondError(c, http.StatusBadRequest, NewSettingsValidationError(err))
+			return
+		}
 		h.respondError(c, http.StatusServiceUnavailable, err)
 		return
 	}
@@ -80,6 +96,24 @@ func (h *BaseHandlers) BeginSettingsMCPAuth(c *gin.Context) {
 		CallbackURL:      result.CallbackURL,
 		ManualSupported:  result.ManualSupported,
 	})
+}
+
+func (h *BaseHandlers) mcpOAuthCallbackURLForMode(mode contract.SettingsMCPAuthBeginMode) (string, error) {
+	switch mode {
+	case contract.SettingsMCPAuthBeginModeAutomatic:
+		return h.mcpOAuthCallbackURL()
+	case contract.SettingsMCPAuthBeginModeManual:
+		port := h.HTTPPortValue()
+		if port <= 0 {
+			port = h.Config.HTTP.Port
+		}
+		if port <= 0 {
+			port = defaultManualCallbackPort
+		}
+		return "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(port)) + mcpOAuthCallbackPath, nil
+	default:
+		return "", errInvalidMCPAuthBeginMode
+	}
 }
 
 // ExchangeSettingsMCPAuth consumes one active PKCE session.

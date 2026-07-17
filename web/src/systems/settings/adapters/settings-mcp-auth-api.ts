@@ -6,6 +6,7 @@ import {
 } from "@/lib/api-client";
 
 import type {
+  SettingsMCPAuthBeginRequest,
   SettingsMCPAuthBeginResponse,
   SettingsMCPAuthExchangeRequest,
   SettingsMCPAuthFilter,
@@ -23,11 +24,12 @@ function normalizeMCPAuthFilter(filter: SettingsMCPAuthFilter) {
 export async function beginSettingsMCPAuth(
   name: string,
   filter: SettingsMCPAuthFilter,
+  body: SettingsMCPAuthBeginRequest,
   signal?: AbortSignal
 ): Promise<SettingsMCPAuthBeginResponse> {
   const { data, error, response } = await apiClient.POST(
     "/api/settings/mcp-servers/{name}/auth/begin",
-    { params: { path: { name }, query: normalizeMCPAuthFilter(filter) }, signal }
+    { params: { path: { name }, query: normalizeMCPAuthFilter(filter) }, body, signal }
   );
 
   if (apiRequestFailed(response, error)) {

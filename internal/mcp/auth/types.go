@@ -42,12 +42,6 @@ func (t Target) Normalize() Target {
 func (t Target) Validate() error {
 	t = t.Normalize()
 	switch {
-	case t.ServerName == "":
-		return errors.New("mcp auth: server name is required")
-	case strings.ContainsRune(t.ServerName, '\x00'):
-		return errors.New("mcp auth: server name cannot contain NUL")
-	case strings.Contains(t.ServerName, "/"):
-		return errors.New("mcp auth: server name cannot contain a slash")
 	case strings.ContainsRune(t.WorkspaceID, '\x00'):
 		return errors.New("mcp auth: workspace_id cannot contain NUL")
 	case t.Scope == ScopeGlobal && t.WorkspaceID != "":
@@ -57,6 +51,9 @@ func (t Target) Validate() error {
 	case t.Scope != ScopeGlobal && t.Scope != ScopeWorkspace:
 		return fmt.Errorf("mcp auth: unsupported target scope %q", t.Scope)
 	default:
+		if err := aghconfig.ValidateMCPServerName(t.ServerName); err != nil {
+			return fmt.Errorf("mcp auth: %w", err)
+		}
 		return nil
 	}
 }

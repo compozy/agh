@@ -110,7 +110,7 @@ func TestMarketplaceOperations(t *testing.T) {
 			statuses   []int
 		}{
 			{
-				name:   "search",
+				name:   "Should describe marketplace search",
 				path:   "/api/marketplace/search",
 				method: httpMethodGet,
 				parameters: []parameterExpectation{
@@ -122,7 +122,7 @@ func TestMarketplaceOperations(t *testing.T) {
 				statuses: []int{200, 400, 500, 503},
 			},
 			{
-				name:   "kind browse",
+				name:   "Should describe marketplace kind browse",
 				path:   "/api/marketplace/{kind}",
 				method: httpMethodGet,
 				parameters: []parameterExpectation{
@@ -138,7 +138,7 @@ func TestMarketplaceOperations(t *testing.T) {
 				statuses: []int{200, 400, 404, 500, 503},
 			},
 			{
-				name:   "entry detail",
+				name:   "Should describe marketplace entry detail",
 				path:   "/api/marketplace/{kind}/{entry_id}",
 				method: httpMethodGet,
 				parameters: []parameterExpectation{
@@ -153,7 +153,7 @@ func TestMarketplaceOperations(t *testing.T) {
 				statuses: []int{200, 400, 404, 500, 503},
 			},
 			{
-				name:   "refresh",
+				name:   "Should describe marketplace refresh",
 				path:   "/api/marketplace/refresh",
 				method: httpMethodPost,
 				parameters: []parameterExpectation{

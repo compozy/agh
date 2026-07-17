@@ -19,6 +19,7 @@ import {
   usePutSettingsMCPServer,
   useSettingsMCPServers,
   validateDraft,
+  withoutMCPSecretPreservation,
 } from "@/systems/settings";
 import { vaultSecretsListOptions } from "@/systems/vault";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -82,18 +83,82 @@ function resolveAvailableTargets(
   return result;
 }
 
+function effectiveEditTarget(
+  entry: SettingsMCPServerEntry,
+  scope: SettingsScope
+): SettingsMCPServerTarget | null {
+  const source = entry.source_metadata.effective_source;
+  if (source.scope !== scope) return null;
+  if (source.kind === "global-config" || source.kind === "workspace-config") return "config";
+  if (source.kind === "global-mcp-sidecar" || source.kind === "workspace-mcp-sidecar") {
+    return "sidecar";
+  }
+  return null;
+}
+
 // Route owns the URL search; the page hook consumes scope/server and reports
 // changes back so scope and selection stay deep-linkable and refresh-safe.
 export interface UseMcpPageOptions {
   scope: MCPActiveScope;
+  workspaceId?: string;
   selectedServer: string;
   onScopeChange: (scope: MCPActiveScope) => void;
+  onWorkspaceChange: (workspaceId: string) => void;
   onSelectServer: (server: string) => void;
 }
 
 export function useMcpPage(options: UseMcpPageOptions) {
   const page = useSettingsPage({ currentSlug: "mcp-servers" });
-  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const {
+    activeWorkspace: selectedWorkspace,
+    activeWorkspaceId: selectedWorkspaceId,
+    hasHydrated: workspaceHasHydrated,
+    setActiveWorkspaceId,
+    workspaces,
+  } = useActiveWorkspace();
+  const requestedWorkspaceId =
+    options.scope === "workspace" ? (options.workspaceId?.trim() ?? "") : "";
+  const requestedWorkspace = workspaceHasHydrated
+    ? workspaces.find(workspace => workspace.id === requestedWorkspaceId)
+    : undefined;
+  const [pendingWorkspaceDeepLink, setPendingWorkspaceDeepLink] = useState(() =>
+    options.scope === "workspace" ? (options.workspaceId?.trim() ?? "") : ""
+  );
+  const initialRequestedWorkspace =
+    pendingWorkspaceDeepLink !== "" && requestedWorkspace?.id === pendingWorkspaceDeepLink
+      ? requestedWorkspace
+      : undefined;
+  if (
+    pendingWorkspaceDeepLink !== "" &&
+    workspaceHasHydrated &&
+    (!initialRequestedWorkspace || selectedWorkspaceId === pendingWorkspaceDeepLink)
+  ) {
+    setPendingWorkspaceDeepLink("");
+  }
+  const activeWorkspaceId = initialRequestedWorkspace?.id ?? selectedWorkspaceId;
+  const activeWorkspace = initialRequestedWorkspace ?? selectedWorkspace;
+
+  useEffect(() => {
+    if (!workspaceHasHydrated || options.scope !== "workspace") return;
+    if (pendingWorkspaceDeepLink !== "" && initialRequestedWorkspace) {
+      if (initialRequestedWorkspace.id !== selectedWorkspaceId) {
+        setActiveWorkspaceId(initialRequestedWorkspace.id);
+      }
+      return;
+    }
+    if (selectedWorkspaceId && requestedWorkspaceId !== selectedWorkspaceId) {
+      options.onWorkspaceChange(selectedWorkspaceId);
+    }
+  }, [
+    options.scope,
+    options.onWorkspaceChange,
+    initialRequestedWorkspace,
+    pendingWorkspaceDeepLink,
+    requestedWorkspaceId,
+    selectedWorkspaceId,
+    setActiveWorkspaceId,
+    workspaceHasHydrated,
+  ]);
 
   const activeScope = options.scope;
   const putMutation = usePutSettingsMCPServer();
@@ -136,6 +201,15 @@ export function useMcpPage(options: UseMcpPageOptions) {
     enabled: editorOpen,
   });
   const vaultRefs = (vaultQuery.data ?? []).map(secret => secret.ref);
+  const editorVaultInventory = vaultQuery.isLoading
+    ? ({ status: "loading" } as const)
+    : vaultQuery.error
+      ? ({
+          status: "error",
+          message: errorMessage(vaultQuery.error) ?? "Vault inventory could not be loaded",
+          retry: () => void vaultQuery.refetch(),
+        } as const)
+      : ({ status: "ready", refs: vaultRefs } as const);
 
   const counts = {
     total: servers.length,
@@ -164,12 +238,13 @@ export function useMcpPage(options: UseMcpPageOptions) {
   // pending save/delete/authorize can't target the newly selected workspace.
   const previousWorkspaceIdRef = useRef(activeWorkspaceId);
   useEffect(() => {
-    if (previousWorkspaceIdRef.current === activeWorkspaceId) {
+    const currentWorkspaceId = initialRequestedWorkspace?.id ?? selectedWorkspaceId;
+    if (previousWorkspaceIdRef.current === currentWorkspaceId) {
       return;
     }
-    previousWorkspaceIdRef.current = activeWorkspaceId;
+    previousWorkspaceIdRef.current = currentWorkspaceId;
     resetTransientStateAfterWorkspaceChange();
-  }, [activeWorkspaceId]);
+  }, [initialRequestedWorkspace?.id, selectedWorkspaceId]);
 
   const selectServer = (name: string) => options.onSelectServer(name);
   const clearSelection = () => options.onSelectServer("");
@@ -198,7 +273,15 @@ export function useMcpPage(options: UseMcpPageOptions) {
 
   const openEdit = (entry: SettingsMCPServerEntry) => {
     putMutation.reset();
-    setEditor({ mode: "edit", name: entry.name, draft: toDraft(entry), entry, target: "auto" });
+    const exactTarget = effectiveEditTarget(entry, activeScope);
+    const draft = exactTarget ? toDraft(entry) : withoutMCPSecretPreservation(toDraft(entry));
+    setEditor({
+      mode: "edit",
+      name: entry.name,
+      draft,
+      entry,
+      target: exactTarget ?? "auto",
+    });
   };
 
   const openAuthorize = (entry: SettingsMCPServerEntry) => {
@@ -244,7 +327,10 @@ export function useMcpPage(options: UseMcpPageOptions) {
 
   const editorAvailableTargets: SettingsMCPServerTarget[] =
     editor.mode === "edit"
-      ? resolveAvailableTargets(editor.entry, activeScope)
+      ? (() => {
+          const exactTarget = effectiveEditTarget(editor.entry, activeScope);
+          return exactTarget ? [exactTarget] : ["auto", "config", "sidecar"];
+        })()
       : ["auto", "config", "sidecar"];
 
   const saveEditor = () => {
@@ -349,7 +435,7 @@ export function useMcpPage(options: UseMcpPageOptions) {
     editorErrors,
     editorIsValid,
     editorAvailableTargets,
-    editorVaultRefs: vaultRefs,
+    editorVaultInventory,
     editorSaveError: errorMessage(putMutation.error),
     editorWarnings: putMutation.data?.warnings,
     editorIsSaving: putMutation.isPending,

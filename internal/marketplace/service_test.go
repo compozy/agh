@@ -26,31 +26,43 @@ func TestNewCatalogServiceValidation(t *testing.T) {
 		store   Store
 		sources []Source
 		ttl     time.Duration
+		timeout time.Duration
 		wantErr string
 	}{
 		{
 			name:    "Should reject a missing store",
 			sources: []Source{validSource},
 			ttl:     time.Hour,
+			timeout: time.Minute,
 			wantErr: "store is required",
 		},
 		{
 			name:    "Should reject a non-positive TTL",
 			store:   store,
 			sources: []Source{validSource},
+			timeout: time.Minute,
 			wantErr: "TTL must be positive",
+		},
+		{
+			name:    "Should reject a non-positive refresh timeout",
+			store:   store,
+			sources: []Source{validSource},
+			ttl:     time.Hour,
+			wantErr: "refresh timeout must be positive",
 		},
 		{
 			name:    "Should reject a missing source",
 			store:   store,
 			sources: []Source{nil},
 			ttl:     time.Hour,
+			timeout: time.Minute,
 			wantErr: "source is required",
 		},
 		{
 			name:    "Should reject an empty source set",
 			store:   store,
 			ttl:     time.Hour,
+			timeout: time.Minute,
 			wantErr: "at least one source",
 		},
 		{
@@ -58,6 +70,7 @@ func TestNewCatalogServiceValidation(t *testing.T) {
 			store:   store,
 			sources: []Source{&recordingSource{kind: Kind("bundle")}},
 			ttl:     time.Hour,
+			timeout: time.Minute,
 			wantErr: "unsupported kind",
 		},
 		{
@@ -65,13 +78,14 @@ func TestNewCatalogServiceValidation(t *testing.T) {
 			store:   store,
 			sources: []Source{validSource, validSource},
 			ttl:     time.Hour,
+			timeout: time.Minute,
 			wantErr: "registered more than once",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := NewService(tc.store, tc.sources, tc.ttl)
+			_, err := NewService(tc.store, tc.sources, tc.ttl, tc.timeout)
 			if err == nil {
 				t.Fatal("NewService() error = nil, want validation error")
 			}
@@ -85,42 +99,58 @@ func TestNewCatalogServiceValidation(t *testing.T) {
 func TestCatalogServiceDetailStatusAndSelection(t *testing.T) {
 	t.Parallel()
 
-	store := openMarketplaceTestStore(t)
 	now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
-	sources := []Source{
-		&recordingSource{kind: KindSkill, fetch: func(context.Context) (*Document, error) {
-			return testDocument(now, testEntry(KindSkill, "skill", "Skill", "Detail fixture")), nil
-		}},
-		&recordingSource{kind: KindMCP, fetch: func(context.Context) (*Document, error) {
-			return testDocument(now, testEntry(KindMCP, "mcp", "MCP", "Status fixture")), nil
-		}},
+	newService := func(t *testing.T) *CatalogService {
+		t.Helper()
+		sources := []Source{
+			&recordingSource{kind: KindSkill, fetch: func(context.Context) (*Document, error) {
+				return testDocument(now, testEntry(KindSkill, "skill", "Skill", "Detail fixture")), nil
+			}},
+			&recordingSource{kind: KindMCP, fetch: func(context.Context) (*Document, error) {
+				return testDocument(now, testEntry(KindMCP, "mcp", "MCP", "Status fixture")), nil
+			}},
+		}
+		service, err := NewService(
+			openMarketplaceTestStore(t),
+			sources,
+			time.Hour,
+			time.Minute,
+			WithNow(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		return service
 	}
-	service, err := NewService(store, sources, time.Hour, WithNow(func() time.Time { return now }))
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	ctx := testutil.Context(t)
 
-	states, err := service.Status(ctx)
-	if err != nil {
-		t.Fatalf("Status() error = %v", err)
-	}
-	if got, want := len(states), 2; got != want || states[0].Kind != KindMCP || states[1].Kind != KindSkill {
-		t.Fatalf("Status() = %#v, want missing states in deterministic kind order", states)
-	}
-	entry, err := service.Detail(ctx, KindSkill, "skill")
-	if err != nil {
-		t.Fatalf("Detail() error = %v", err)
-	}
-	if entry.EntryID != "skill" {
-		t.Fatalf("Detail().EntryID = %q, want skill", entry.EntryID)
-	}
-	if _, err := service.Detail(ctx, KindSkill, "missing"); !errors.Is(err, ErrEntryNotFound) {
-		t.Fatalf("Detail(missing) error = %v, want ErrEntryNotFound", err)
-	}
+	t.Run("Should return status in kind order and resolve detail by immutable id", func(t *testing.T) {
+		t.Parallel()
+
+		service := newService(t)
+		ctx := testutil.Context(t)
+		states, err := service.Status(ctx)
+		if err != nil {
+			t.Fatalf("Status() error = %v", err)
+		}
+		if got, want := len(states), 2; got != want || states[0].Kind != KindMCP || states[1].Kind != KindSkill {
+			t.Fatalf("Status() = %#v, want missing states in deterministic kind order", states)
+		}
+		entry, err := service.Detail(ctx, KindSkill, "skill")
+		if err != nil {
+			t.Fatalf("Detail() error = %v", err)
+		}
+		if entry.EntryID != "skill" {
+			t.Fatalf("Detail().EntryID = %q, want skill", entry.EntryID)
+		}
+		if _, err := service.Detail(ctx, KindSkill, "missing"); !errors.Is(err, ErrEntryNotFound) {
+			t.Fatalf("Detail(missing) error = %v, want ErrEntryNotFound", err)
+		}
+	})
+
 	t.Run("Should resolve extension install by slug and fail for a missing slug", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t)
 		extensionSource := &recordingSource{kind: KindExtension, fetch: func(context.Context) (*Document, error) {
 			entry := testEntry(KindExtension, "telemetry", "Telemetry", "Curated extension")
 			entry.Version = "2.1.0"
@@ -145,6 +175,7 @@ func TestCatalogServiceDetailStatusAndSelection(t *testing.T) {
 	t.Run("Should preserve refresh and missing-entry failures together", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t)
 		refreshErr := errors.New("catalog unavailable")
 		extensionSource := &recordingSource{kind: KindExtension, fetch: func(context.Context) (*Document, error) {
 			return nil, refreshErr
@@ -159,43 +190,64 @@ func TestCatalogServiceDetailStatusAndSelection(t *testing.T) {
 			t.Fatalf("ResolveExtensionInstall() error = %#v, want combined resolution error", err)
 		}
 	})
-	report, err := service.Refresh(ctx, KindSkill, KindSkill)
-	if err != nil {
-		t.Fatalf("Refresh(duplicate kinds) error = %v", err)
-	}
-	if got, want := len(report.Outcomes), 1; got != want {
-		t.Fatalf("Refresh(duplicate kinds) outcomes = %d, want %d", got, want)
-	}
-	if _, err := service.Refresh(ctx, KindExtension); err == nil || !strings.Contains(err.Error(), "not configured") {
-		t.Fatalf("Refresh(unconfigured kind) error = %v, want source diagnostic", err)
-	}
-	_, err = service.Refresh(ctx, Kind("bundle"))
-	if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
-		t.Fatalf("Refresh(unsupported kind) error = %v, want kind diagnostic", err)
-	}
-	//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-	if _, err := service.Browse(nil, KindSkill, "", 10); err == nil {
-		t.Fatal("Browse(nil context) error = nil")
-	}
-	//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-	if _, err := service.Detail(nil, KindSkill, "skill"); err == nil {
-		t.Fatal("Detail(nil context) error = nil")
-	}
-	//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-	if _, err := service.Refresh(nil); err == nil {
-		t.Fatal("Refresh(nil context) error = nil")
-	}
-	//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-	if _, err := service.Status(nil); err == nil {
-		t.Fatal("Status(nil context) error = nil")
-	}
-	var unavailable *CatalogService
-	if _, err := unavailable.Browse(ctx, KindSkill, "", 10); err == nil {
-		t.Fatal("Browse(nil service) error = nil")
-	}
-	if _, err := unavailable.Refresh(ctx); err == nil {
-		t.Fatal("Refresh(nil service) error = nil")
-	}
+
+	t.Run("Should deduplicate refresh kinds and reject invalid selections", func(t *testing.T) {
+		t.Parallel()
+
+		service := newService(t)
+		ctx := testutil.Context(t)
+		report, err := service.Refresh(ctx, KindSkill, KindSkill)
+		if err != nil {
+			t.Fatalf("Refresh(duplicate kinds) error = %v", err)
+		}
+		if got, want := len(report.Outcomes), 1; got != want {
+			t.Fatalf("Refresh(duplicate kinds) outcomes = %d, want %d", got, want)
+		}
+		_, err = service.Refresh(ctx, KindExtension)
+		if err == nil || !strings.Contains(err.Error(), "not configured") {
+			t.Fatalf("Refresh(unconfigured kind) error = %v, want source diagnostic", err)
+		}
+		_, err = service.Refresh(ctx, Kind("bundle"))
+		if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
+			t.Fatalf("Refresh(unsupported kind) error = %v, want kind diagnostic", err)
+		}
+	})
+
+	t.Run("Should reject nil contexts and service receivers with specific diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		service := newService(t)
+		ctx := testutil.Context(t)
+		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
+		_, err := service.Browse(nil, KindSkill, "", 10)
+		if err == nil || !strings.Contains(err.Error(), "service context is required") {
+			t.Fatalf("Browse(nil context) error = %v, want service-context validation", err)
+		}
+		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
+		_, err = service.Detail(nil, KindSkill, "skill")
+		if err == nil || !strings.Contains(err.Error(), "service context is required") {
+			t.Fatalf("Detail(nil context) error = %v, want service-context validation", err)
+		}
+		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
+		_, err = service.Refresh(nil)
+		if err == nil || !strings.Contains(err.Error(), "refresh context is required") {
+			t.Fatalf("Refresh(nil context) error = %v, want refresh-context validation", err)
+		}
+		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
+		_, err = service.Status(nil)
+		if err == nil || !strings.Contains(err.Error(), "status context is required") {
+			t.Fatalf("Status(nil context) error = %v, want status-context validation", err)
+		}
+		var unavailable *CatalogService
+		_, err = unavailable.Browse(ctx, KindSkill, "", 10)
+		if err == nil || !strings.Contains(err.Error(), "service is required") {
+			t.Fatalf("Browse(nil service) error = %v, want service validation", err)
+		}
+		_, err = unavailable.Refresh(ctx)
+		if err == nil || !strings.Contains(err.Error(), "service sources are required") {
+			t.Fatalf("Refresh(nil service) error = %v, want source validation", err)
+		}
+	})
 }
 
 func TestCatalogServiceRefreshErrorClasses(t *testing.T) {
@@ -324,6 +376,160 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep a shared refresh alive when its first caller cancels", func(t *testing.T) {
+		t.Parallel()
+
+		store := openMarketplaceTestStore(t)
+		started := make(chan struct{})
+		release := make(chan struct{})
+		now := time.Date(2026, time.July, 17, 12, 0, 0, 0, time.UTC)
+		source := &recordingSource{kind: KindSkill, fetch: func(context.Context) (*Document, error) {
+			close(started)
+			<-release
+			return testDocument(now, testEntry(KindSkill, "shared", "Shared", "Detached refresh")), nil
+		}}
+		service := newMarketplaceTestService(t, store, source, now, nil)
+
+		leaderCtx, cancelLeader := context.WithCancel(t.Context())
+		leaderResult := make(chan error, 1)
+		go func() {
+			_, refreshErr := service.Refresh(leaderCtx, KindSkill)
+			leaderResult <- refreshErr
+		}()
+		<-started
+		cancelLeader()
+
+		select {
+		case err := <-leaderResult:
+			if !errors.Is(err, context.Canceled) {
+				close(release)
+				t.Fatalf("Refresh(canceled leader) error = %v, want context.Canceled", err)
+			}
+		case <-time.After(time.Second):
+			close(release)
+			<-leaderResult
+			t.Fatal("Refresh(canceled leader) did not return while the shared refresh remained active")
+		}
+
+		service.flightMu.Lock()
+		flight := service.flights[KindSkill]
+		service.flightMu.Unlock()
+		if flight == nil {
+			close(release)
+			t.Fatal("shared refresh was removed when its first caller canceled")
+		}
+
+		close(release)
+		select {
+		case <-flight.done:
+		case <-time.After(time.Second):
+			t.Fatal("shared refresh did not finish after its source was released")
+		}
+		if got, want := source.calls.Load(), int32(1); got != want {
+			t.Fatalf("source calls = %d, want one shared refresh", got)
+		}
+		if _, err := store.GetEntry(t.Context(), KindSkill, "shared"); err != nil {
+			t.Fatalf("GetEntry(shared) error = %v, want the detached refresh to persist its result", err)
+		}
+	})
+
+	t.Run("Should cancel and join an owned refresh before rejecting later work", func(t *testing.T) {
+		t.Parallel()
+
+		store := openMarketplaceTestStore(t)
+		started := make(chan struct{})
+		canceled := make(chan struct{})
+		release := make(chan struct{})
+		now := time.Date(2026, time.July, 17, 12, 0, 0, 0, time.UTC)
+		source := &recordingSource{kind: KindSkill, fetch: func(ctx context.Context) (*Document, error) {
+			close(started)
+			<-ctx.Done()
+			close(canceled)
+			<-release
+			return testDocument(now, testEntry(KindSkill, "obsolete", "Obsolete", "Closed generation")), nil
+		}}
+		service := newMarketplaceTestService(t, store, source, now, nil)
+		refreshResult := make(chan error, 1)
+		go func() {
+			_, err := service.Refresh(t.Context(), KindSkill)
+			refreshResult <- err
+		}()
+		<-started
+
+		closeResult := make(chan error, 1)
+		go func() { closeResult <- service.Close(t.Context()) }()
+		<-canceled
+		select {
+		case err := <-closeResult:
+			close(release)
+			t.Fatalf("Close() returned before the flight joined: %v", err)
+		default:
+		}
+		close(release)
+		if err := <-closeResult; err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		if err := <-refreshResult; !errors.Is(err, ErrServiceClosed) {
+			t.Fatalf("Refresh() error = %v, want ErrServiceClosed", err)
+		}
+		if _, err := store.GetEntry(t.Context(), KindSkill, "obsolete"); !errors.Is(err, ErrEntryNotFound) {
+			t.Fatalf("GetEntry(obsolete) error = %v, want no stale-generation commit", err)
+		}
+		if err := service.Close(t.Context()); err != nil {
+			t.Fatalf("Close(second) error = %v", err)
+		}
+		if _, err := service.Refresh(t.Context(), KindSkill); !errors.Is(err, ErrServiceClosed) {
+			t.Fatalf("Refresh(after close) error = %v, want ErrServiceClosed", err)
+		}
+	})
+
+	t.Run("Should persist stale state after the service refresh deadline expires", func(t *testing.T) {
+		t.Parallel()
+
+		store := openMarketplaceTestStore(t)
+		source := &recordingSource{kind: KindSkill, fetch: func(ctx context.Context) (*Document, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}}
+		service, err := NewService(store, []Source{source}, time.Hour, 30*time.Millisecond)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+
+		_, err = service.Refresh(t.Context(), KindSkill)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Refresh() error = %v, want context.DeadlineExceeded", err)
+		}
+		state, err := store.KindState(t.Context(), KindSkill)
+		if err != nil {
+			t.Fatalf("KindState() error = %v, want persisted timeout state", err)
+		}
+		if !state.Stale || state.ErrorClass != "timeout" || !strings.Contains(state.LastError, "deadline exceeded") {
+			t.Fatalf("KindState() = %#v, want durable timeout failure", state)
+		}
+	})
+
+	t.Run("Should propagate canonical refresh event persistence failures", func(t *testing.T) {
+		t.Parallel()
+
+		store := openMarketplaceTestStore(t)
+		notifyErr := errors.New("event store unavailable")
+		notifier := &recordingRefreshNotifier{err: notifyErr}
+		now := time.Date(2026, time.July, 17, 12, 0, 0, 0, time.UTC)
+		source := &recordingSource{kind: KindSkill, fetch: func(context.Context) (*Document, error) {
+			return testDocument(now, testEntry(KindSkill, "persisted", "Persisted", "Committed projection")), nil
+		}}
+		service := newMarketplaceTestService(t, store, source, now, notifier)
+
+		_, err := service.Refresh(t.Context(), KindSkill)
+		if !errors.Is(err, notifyErr) {
+			t.Fatalf("Refresh() error = %v, want event persistence failure", err)
+		}
+		if _, err := store.GetEntry(t.Context(), KindSkill, "persisted"); err != nil {
+			t.Fatalf("GetEntry(persisted) error = %v, want committed projection", err)
+		}
+	})
+
 	t.Run("Should force refresh a fresh kind and prune a pulled entry", func(t *testing.T) {
 		t.Parallel()
 
@@ -445,15 +651,17 @@ func (s *recordingSource) Fetch(ctx context.Context) (*Document, error) {
 type recordingRefreshNotifier struct {
 	mu       sync.Mutex
 	outcomes []RefreshOutcome
+	err      error
 }
 
-func (n *recordingRefreshNotifier) NotifyCatalogRefresh(_ context.Context, outcome RefreshOutcome) {
+func (n *recordingRefreshNotifier) NotifyCatalogRefresh(_ context.Context, outcome RefreshOutcome) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.outcomes = append(n.outcomes, outcome)
+	return n.err
 }
 
-func (n *recordingRefreshNotifier) NotifyInstall(context.Context, InstallOutcome) {}
+func (n *recordingRefreshNotifier) NotifyInstall(context.Context, InstallOutcome) error { return n.err }
 
 func (n *recordingRefreshNotifier) snapshot() []RefreshOutcome {
 	n.mu.Lock()
@@ -473,7 +681,7 @@ func newMarketplaceTestService(
 	if notifier != nil {
 		options = append(options, WithNotifier(notifier))
 	}
-	service, err := NewService(store, []Source{source}, time.Hour, options...)
+	service, err := NewService(store, []Source{source}, time.Hour, time.Minute, options...)
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}

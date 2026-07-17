@@ -70,7 +70,11 @@ type stubClient struct {
 	refreshMarketplaceFn        func(context.Context, string) (MarketplaceRefreshRecord, error)
 	installSettingsMCPServerFn  func(context.Context, InstallSettingsMCPServerRequest) (InstallSettingsMCPServerRecord, error)
 	listSettingsMCPServersFn    func(context.Context, contract.SettingsWorkspaceScopeKind, string) (contract.SettingsMCPServersResponse, error)
-	beginSettingsMCPAuthFn      func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthBeginRecord, error)
+	beginSettingsMCPAuthFn      func(
+		context.Context,
+		SettingsMCPAuthTarget,
+		SettingsMCPAuthBeginRequest,
+	) (SettingsMCPAuthBeginRecord, error)
 	exchangeSettingsMCPAuthFn   func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
 	logoutSettingsMCPAuthFn     func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	installExtensionFn          func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
@@ -878,9 +882,10 @@ func (s *stubClient) ListSettingsMCPServers(
 func (s *stubClient) BeginSettingsMCPAuth(
 	ctx context.Context,
 	target SettingsMCPAuthTarget,
+	request SettingsMCPAuthBeginRequest,
 ) (SettingsMCPAuthBeginRecord, error) {
 	if s.beginSettingsMCPAuthFn != nil {
-		return s.beginSettingsMCPAuthFn(ctx, target)
+		return s.beginSettingsMCPAuthFn(ctx, target, request)
 	}
 	return SettingsMCPAuthBeginRecord{}, errors.New("unexpected BeginSettingsMCPAuth call")
 }

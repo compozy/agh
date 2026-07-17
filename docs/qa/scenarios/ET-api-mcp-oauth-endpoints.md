@@ -4,7 +4,7 @@ area: ET
 title: Manage scoped MCP OAuth through daemon API routes
 persona: Ada
 journey: J-mcp-authorize-repair
-expected: HTTP and UDS begin/exchange/logout return equivalent redacted contracts for an explicit global or workspace target; HTTP mutations require loopback privilege; the HTTP-only callback completes on loopback while refusing non-loopback binds; replacing or deleting a server invalidates pending target/callback completion, preserves any prior token record, and never sends its bearer to the replacement endpoint.
+expected: HTTP and UDS begin/exchange/logout return equivalent redacted contracts for an explicit global or workspace target; begin requires `mode=automatic|manual`, and manual creates a fresh paste-based PKCE session; HTTP mutations require loopback privilege; the HTTP-only callback completes on loopback while refusing non-loopback binds; replacing or deleting a server invalidates pending target/callback completion, preserves any prior token record, and never sends its bearer to the replacement endpoint. A successful exchange supersedes every older refresh generation.
 entry_points: POST /api/settings/mcp-servers/{name}/auth/begin; POST /api/settings/mcp-servers/{name}/auth/exchange; POST /api/settings/mcp-servers/{name}/auth/logout; GET /api/mcp/oauth/callback
 qa_status: untested
 bug_ids: BUG-20260715-mcp-oauth-name-segment
@@ -30,3 +30,7 @@ expired state can no longer complete.
 QA impact 2026-07-16: begin now derives its callback from the effective loopback listener instead of
 assuming `127.0.0.1`; verify IPv4, IPv6, and non-loopback behavior plus the callback's documented
 `503` HTML response when runtime state is unavailable.
+
+QA impact 2026-07-17: begin now requires the explicit automatic/manual mode over HTTP and UDS.
+Exercise a refresh that starts after begin but finishes after exchange; the exchanged credential must
+remain authoritative. A wrong-state redirect must not consume the active session.

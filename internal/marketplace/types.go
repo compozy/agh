@@ -9,6 +9,11 @@ import (
 
 const ManifestVersion = 1
 
+// RemoteSkillEntryPrefix reserves the synthetic ID namespace used for registry-only skills.
+const RemoteSkillEntryPrefix = "skill_"
+
+const maxCatalogEntriesPerKind = 50_000
+
 const (
 	RefreshOutcomeSucceeded = "succeeded"
 	RefreshOutcomeFailed    = "failed"
@@ -119,6 +124,7 @@ type Service interface {
 	ResolveExtensionInstall(ctx context.Context, installSlug string, version string) (*Entry, error)
 	Refresh(ctx context.Context, kinds ...Kind) (RefreshReport, error)
 	Status(ctx context.Context) ([]KindState, error)
+	Close(ctx context.Context) error
 }
 
 // SkillInstallResolver batches curated identity reads for remote skill listings.
@@ -126,8 +132,8 @@ type SkillInstallResolver interface {
 	ResolveSkillInstalls(ctx context.Context, installSlugs []string) ([]Entry, error)
 }
 
-// Notifier receives non-blocking canonical marketplace observations.
+// Notifier persists canonical marketplace observations.
 type Notifier interface {
-	NotifyCatalogRefresh(ctx context.Context, outcome RefreshOutcome)
-	NotifyInstall(ctx context.Context, outcome InstallOutcome)
+	NotifyCatalogRefresh(ctx context.Context, outcome RefreshOutcome) error
+	NotifyInstall(ctx context.Context, outcome InstallOutcome) error
 }

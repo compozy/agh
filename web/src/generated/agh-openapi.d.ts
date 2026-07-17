@@ -9484,7 +9484,7 @@ export interface operations {
                 auth?: {
                   authorization_url?: string;
                   client_id?: string;
-                  client_secret_ref?: string;
+                  client_secret_configured: boolean;
                   issuer_url?: string;
                   metadata_url?: string;
                   revocation_url?: string;
@@ -9607,7 +9607,7 @@ export interface operations {
                 auth?: {
                   authorization_url?: string;
                   client_id?: string;
-                  client_secret_ref?: string;
+                  client_secret_configured: boolean;
                   issuer_url?: string;
                   metadata_url?: string;
                   revocation_url?: string;
@@ -9844,7 +9844,7 @@ export interface operations {
                   auth?: {
                     authorization_url?: string;
                     client_id?: string;
-                    client_secret_ref?: string;
+                    client_secret_configured: boolean;
                     issuer_url?: string;
                     metadata_url?: string;
                     revocation_url?: string;
@@ -10069,7 +10069,7 @@ export interface operations {
                 auth?: {
                   authorization_url?: string;
                   client_id?: string;
-                  client_secret_ref?: string;
+                  client_secret_configured: boolean;
                   issuer_url?: string;
                   metadata_url?: string;
                   revocation_url?: string;
@@ -10219,7 +10219,7 @@ export interface operations {
                 auth?: {
                   authorization_url?: string;
                   client_id?: string;
-                  client_secret_ref?: string;
+                  client_secret_configured: boolean;
                   issuer_url?: string;
                   metadata_url?: string;
                   revocation_url?: string;
@@ -10602,7 +10602,7 @@ export interface operations {
                 auth?: {
                   authorization_url?: string;
                   client_id?: string;
-                  client_secret_ref?: string;
+                  client_secret_configured: boolean;
                   issuer_url?: string;
                   metadata_url?: string;
                   revocation_url?: string;
@@ -23660,6 +23660,20 @@ export interface operations {
               name: string;
               path: string;
               status: string;
+              warnings?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              }[];
             };
           };
         };
@@ -25916,11 +25930,11 @@ export interface operations {
   };
   completeMCPAuthCallback: {
     parameters: {
-      query?: {
+      query: {
         /** @description Authorization code returned by the provider */
         code?: string;
         /** @description Single-use OAuth state */
-        state?: string;
+        state: string;
         /** @description OAuth error returned by the provider */
         error?: string;
       };
@@ -40095,7 +40109,7 @@ export interface operations {
               auth?: {
                 authorization_url?: string;
                 client_id?: string;
-                client_secret_ref?: string;
+                client_secret_configured: boolean;
                 issuer_url?: string;
                 metadata_url?: string;
                 revocation_url?: string;
@@ -40126,9 +40140,7 @@ export interface operations {
               catalog_entry?: string;
               catalog_version?: string;
               command?: string;
-              env?: {
-                [key: string]: string;
-              };
+              env_keys?: string[];
               name: string;
               runtime_status?: {
                 configured: boolean;
@@ -40141,9 +40153,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               scope: "global" | "workspace" | "agent";
-              secret_env?: {
-                [key: string]: string;
-              };
+              secret_env_keys?: string[];
               source_metadata: {
                 available_targets: (
                   | "global-config"
@@ -40372,7 +40382,7 @@ export interface operations {
               auth?: {
                 authorization_url?: string;
                 client_id?: string;
-                client_secret_ref?: string;
+                client_secret_configured: boolean;
                 issuer_url?: string;
                 metadata_url?: string;
                 revocation_url?: string;
@@ -40403,9 +40413,7 @@ export interface operations {
               catalog_entry?: string;
               catalog_version?: string;
               command?: string;
-              env?: {
-                [key: string]: string;
-              };
+              env_keys?: string[];
               name: string;
               runtime_status?: {
                 configured: boolean;
@@ -40418,9 +40426,7 @@ export interface operations {
               } | null;
               /** @enum {string} */
               scope: "global" | "workspace" | "agent";
-              secret_env?: {
-                [key: string]: string;
-              };
+              secret_env_keys?: string[];
               source_metadata: {
                 available_targets: (
                   | "global-config"
@@ -40467,6 +40473,20 @@ export interface operations {
             };
             /** @enum {string} */
             next_step: "none" | "authorize";
+            warnings?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            }[];
           };
         };
       };
@@ -40668,6 +40688,11 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          preserve_env?: string[];
+          preserve_secrets?: {
+            oauth_client_secret?: boolean;
+            secret_env?: string[];
+          } | null;
           secret_values?: {
             oauth_client_secret?: string | null;
             secret_env?: {
@@ -41108,7 +41133,15 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          mode: "automatic" | "manual";
+        };
+      };
+    };
     responses: {
       /** @description OK */
       200: {
@@ -65276,7 +65309,7 @@ export interface operations {
                 auth?: {
                   authorization_url?: string;
                   client_id?: string;
-                  client_secret_ref?: string;
+                  client_secret_configured: boolean;
                   issuer_url?: string;
                   metadata_url?: string;
                   revocation_url?: string;

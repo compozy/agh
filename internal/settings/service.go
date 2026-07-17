@@ -139,10 +139,19 @@ type MCPCatalog interface {
 	Detail(ctx context.Context, kind marketplace.Kind, entryID string) (*marketplace.Entry, error)
 }
 
-// MarketplaceInstallNotifier receives redacted install outcomes without controlling the mutation.
+// MarketplaceInstallNotifier persists redacted install outcomes.
 type MarketplaceInstallNotifier interface {
-	NotifyInstall(ctx context.Context, outcome marketplace.InstallOutcome)
+	NotifyInstall(ctx context.Context, outcome marketplace.InstallOutcome) error
 }
+
+// MCPDefinitionWriter persists one MCP definition to its selected config target.
+type MCPDefinitionWriter func(
+	homePaths aghconfig.HomePaths,
+	workspaceRoot string,
+	name string,
+	target aghconfig.WriteTarget,
+	server aghconfig.MCPServer,
+) error
 
 // Dependencies captures the runtime dependencies required by the settings service.
 type Dependencies struct {
@@ -159,6 +168,7 @@ type Dependencies struct {
 	MCPRuntime                 MCPRuntimeProvider
 	MCPCatalog                 MCPCatalog
 	MarketplaceInstallEvents   MarketplaceInstallNotifier
+	MCPDefinitionWriter        MCPDefinitionWriter
 	ModelCatalog               modelcatalog.Service
 	RuntimeApplier             ConfigRuntimeApplier
 	ProviderSecrets            ProviderSecretStore
@@ -186,6 +196,7 @@ type service struct {
 	mcpRuntime                 MCPRuntimeProvider
 	mcpCatalog                 MCPCatalog
 	marketplaceInstallEvents   MarketplaceInstallNotifier
+	mcpDefinitionWriter        MCPDefinitionWriter
 	modelCatalog               modelcatalog.Service
 	runtimeApplier             ConfigRuntimeApplier
 	providerSecrets            ProviderSecretStore
@@ -216,6 +227,10 @@ func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, erro
 	if lookupEnv == nil {
 		lookupEnv = os.LookupEnv
 	}
+	mcpDefinitionWriter := deps.MCPDefinitionWriter
+	if mcpDefinitionWriter == nil {
+		mcpDefinitionWriter = writeMCPDefinition
+	}
 
 	return &service{
 		homePaths:                  homePaths,
@@ -232,6 +247,7 @@ func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, erro
 		mcpRuntime:                 deps.MCPRuntime,
 		mcpCatalog:                 deps.MCPCatalog,
 		marketplaceInstallEvents:   deps.MarketplaceInstallEvents,
+		mcpDefinitionWriter:        mcpDefinitionWriter,
 		modelCatalog:               deps.ModelCatalog,
 		runtimeApplier:             deps.RuntimeApplier,
 		providerSecrets:            deps.ProviderSecrets,

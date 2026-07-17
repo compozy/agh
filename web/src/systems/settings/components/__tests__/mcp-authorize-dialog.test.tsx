@@ -28,6 +28,7 @@ function makeAuthorize(overrides: Partial<UseMCPAuthorizeReturn> = {}): UseMCPAu
     begin: { authorization_url: AUTH_URL },
     error: null,
     prior: null,
+    mode: "automatic",
     isBeginning: false,
     isExchanging: false,
     isAwaiting: true,
@@ -98,23 +99,27 @@ describe("MCPAuthorizeDialog copy URL", () => {
 describe("MCPAuthorizeDialog failure recovery", () => {
   it("Should retry begin without offering an impossible exchange when start fails", () => {
     const retryBegin = vi.fn();
+    const enterManual = vi.fn();
     renderDialog({
       begin: null,
       error: "provider unreachable",
       phase: "failed",
       retryBegin,
+      enterManual,
     });
 
     expect(screen.getByText("Authorization could not be started")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-page-mcp-authorize-manual")).not.toBeInTheDocument();
     expect(screen.queryByTestId("settings-page-mcp-authorize-exchange")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("settings-page-mcp-authorize-manual-fallback"));
+    expect(enterManual).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByTestId("settings-page-mcp-authorize-retry"));
     expect(retryBegin).toHaveBeenCalledOnce();
   });
 
   it("Should retain manual exchange after a started authorization fails", () => {
-    renderDialog({ error: "provider rejected the code", phase: "failed" });
+    renderDialog({ error: "provider rejected the code", phase: "failed", mode: "manual" });
 
     expect(screen.getByText("Authorization could not be completed")).toBeInTheDocument();
     expect(screen.getByTestId("settings-page-mcp-authorize-manual")).toBeInTheDocument();

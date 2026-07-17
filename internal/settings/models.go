@@ -201,6 +201,8 @@ type CollectionItemPutRequest struct {
 	ProviderSecrets       []ProviderSecretWrite
 	MCPServer             *aghconfig.MCPServer
 	MCPSecrets            MCPSecretValues
+	MCPSecretPreservation MCPSecretPreservation
+	MCPEnvPreservation    []string
 	Sandbox               *aghconfig.SandboxProfile
 	Hook                  *hookspkg.HookDecl
 }
@@ -254,6 +256,7 @@ type MutationResult struct {
 	Warnings        []string         `json:"warnings,omitempty"`
 	Lifecycle       lifecycle.Lifecycle
 	DiffClass       lifecycle.DiffClass
+	MCPServer       *MCPServerItem `json:"-"`
 }
 
 // MutationDescriptor identifies the changed fields or action behind one mutation.
@@ -290,6 +293,7 @@ type ApplyResult struct {
 	PartialFailures []ApplyFailure
 	Skipped         bool
 	SkippedReason   string
+	MCPServer       *MCPServerItem `json:"-"`
 }
 
 // ApplyFailure reports one subsystem failure after the desired config was written.
@@ -599,6 +603,12 @@ type MCPSecretValues struct {
 	OAuthClientSecret *string
 }
 
+// MCPSecretPreservation identifies existing bindings to retain without revealing their refs.
+type MCPSecretPreservation struct {
+	SecretEnv         []string
+	OAuthClientSecret bool
+}
+
 func (v MCPSecretValues) Empty() bool {
 	return len(v.SecretEnv) == 0 && v.OAuthClientSecret == nil
 }
@@ -779,40 +789,6 @@ func cloneProviderItem(value *ProviderItem) ProviderItem {
 		cloned.Fallback = &fallback
 	}
 	return cloned
-}
-
-func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
-	value.Args = append([]string(nil), value.Args...)
-	if len(value.Env) > 0 {
-		cloned := make(map[string]string, len(value.Env))
-		maps.Copy(cloned, value.Env)
-		value.Env = cloned
-	}
-	if len(value.SecretEnv) > 0 {
-		cloned := make(map[string]string, len(value.SecretEnv))
-		maps.Copy(cloned, value.SecretEnv)
-		value.SecretEnv = cloned
-	}
-	value.Auth.Scopes = append([]string(nil), value.Auth.Scopes...)
-	if value.AuthStatus != nil {
-		status := *value.AuthStatus
-		status.Scopes = append([]string(nil), value.AuthStatus.Scopes...)
-		if value.AuthStatus.ExpiresAt != nil {
-			expiresAt := *value.AuthStatus.ExpiresAt
-			status.ExpiresAt = &expiresAt
-		}
-		if value.AuthStatus.UpdatedAt != nil {
-			updatedAt := *value.AuthStatus.UpdatedAt
-			status.UpdatedAt = &updatedAt
-		}
-		value.AuthStatus = &status
-	}
-	if value.RuntimeStatus != nil {
-		status := *value.RuntimeStatus
-		value.RuntimeStatus = &status
-	}
-	value.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
-	return value
 }
 
 func cloneSandboxItem(value SandboxItem) SandboxItem {

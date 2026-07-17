@@ -201,9 +201,10 @@ func (s *daemonExtensionService) Remove(
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
 	item := contract.ManagedExtensionRemovePayload{
-		Name:   removed.Name,
-		Path:   removed.Path,
-		Status: removed.Status,
+		Name:     removed.Name,
+		Path:     removed.Path,
+		Status:   removed.Status,
+		Warnings: append([]contract.DiagnosticItem(nil), removed.Warnings...),
 	}
 	if err := s.recordExtensionRemoveEvent(ctx, actor, item); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err

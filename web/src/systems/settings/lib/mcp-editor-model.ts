@@ -5,30 +5,41 @@ import type { SettingsMCPServerEntry, SettingsMCPServerRequest } from "../types"
  * mirrors the daemon's transport-conditional field exclusivity client-side:
  *  - stdio keeps command, ordered args, non-secret env, and hybrid secret_env;
  *  - remote (http/sse) keeps url + optional OAuth, and OMITS command/args/env/secret_env.
- * Secret values are write-only: an existing binding renders as its Vault ref
- * (MonoId), a typed value is sent through `secret_values` and never reflected.
+ * Secret values and bindings are write-only. Read responses expose configured
+ * presence only; unchanged bindings are retained through `preserve_secrets`.
  * Field-error strings mirror `internal/config/mcp_server_validation.go` so the
  * client message matches the daemon rejection.
  */
 
 export type MCPTransport = "stdio" | "http" | "sse";
 export type MCPOAuthDiscovery = "issuer" | "metadata" | "endpoints";
-export type MCPSecretMode = "typed" | "ref";
+export type MCPSecretMode = "preserve" | "typed" | "ref";
 
-export type MCPEnvPair = { key: string; value: string };
+export type MCPEnvPair = {
+  key: string;
+  value: string;
+  /** Presence-only read state; the prior value is never returned. */
+  existing?: boolean;
+  /** Exact prior key eligible for same-target preservation. */
+  originalKey?: string;
+  /** Distinguishes an explicit value (including empty) from an untouched hidden value. */
+  valueChanged?: boolean;
+};
 
 export interface MCPSecretBinding {
   mode: MCPSecretMode;
+  /** Presence-only read state; the bound identifier is never available here. */
+  existing: boolean;
   /** Write-only replacement value; sent via `secret_values`, never echoed back. */
   typedValue: string;
-  /** An existing `vault:mcp/**` ref chosen via "Use Vault". */
+  /** An explicit `vault:mcp/**` ref selected from the separate Vault inventory. */
   vaultRef: string;
-  /** The currently-bound ref read from the entry; rendered as MonoId, kept on save. */
-  existingRef?: string;
 }
 
 export interface MCPSecretEnvEntry {
   key: string;
+  /** Original presence-bearing key; preservation is invalid after a rename. */
+  originalKey?: string;
   binding: MCPSecretBinding;
 }
 
@@ -64,8 +75,11 @@ export interface MCPDraftErrors {
   command?: string;
   url?: string;
   clientId?: string;
+  clientSecret?: string;
   metadata?: string;
   remoteFields?: string;
+  /** Per-row plain-env errors, keyed by the draft `env` index. */
+  env?: Record<number, string>;
   /** Per-row stdio secret-env binding errors, keyed by the draft `secretEnv` index. */
   secretEnv?: Record<number, string>;
 }
@@ -76,7 +90,7 @@ export interface MCPDraftValidation {
 }
 
 function emptyBinding(): MCPSecretBinding {
-  return { mode: "typed", typedValue: "", vaultRef: "" };
+  return { mode: "typed", existing: false, typedValue: "", vaultRef: "" };
 }
 
 function emptyOAuth(): MCPOAuthDraft {
@@ -132,23 +146,26 @@ function inferDiscovery(auth: NonNullable<SettingsMCPServerEntry["auth"]>): MCPO
   return "metadata";
 }
 
-function refBinding(existingRef: string | undefined): MCPSecretBinding {
-  const base = emptyBinding();
-  if (existingRef && existingRef.trim() !== "") {
-    return { ...base, mode: "ref", vaultRef: existingRef.trim(), existingRef: existingRef.trim() };
-  }
-  return base;
+function configuredBinding(configured: boolean): MCPSecretBinding {
+  if (!configured) return emptyBinding();
+  return { mode: "preserve", existing: true, typedValue: "", vaultRef: "" };
 }
 
 /** Seed an editor draft from an existing server entry (never reflects secret values). */
 export function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
   const transport = normalizeTransport(entry.transport);
-  const env: MCPEnvPair[] = entry.env
-    ? Object.entries(entry.env).map(([key, value]) => ({ key, value }))
-    : [];
-  const secretEnv: MCPSecretEnvEntry[] = entry.secret_env
-    ? Object.entries(entry.secret_env).map(([key, ref]) => ({ key, binding: refBinding(ref) }))
-    : [];
+  const env: MCPEnvPair[] = (entry.env_keys ?? []).map(key => ({
+    key,
+    value: "",
+    existing: true,
+    originalKey: key,
+    valueChanged: false,
+  }));
+  const secretEnv: MCPSecretEnvEntry[] = (entry.secret_env_keys ?? []).map(key => ({
+    key,
+    originalKey: key,
+    binding: configuredBinding(true),
+  }));
   const auth = entry.auth ?? null;
   const oauth: MCPOAuthDraft = auth
     ? {
@@ -161,7 +178,7 @@ export function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
         tokenUrl: auth.token_url ?? "",
         revocationUrl: auth.revocation_url ?? "",
         scopes: (auth.scopes ?? []).join(" "),
-        clientSecret: refBinding(auth.client_secret_ref),
+        clientSecret: configuredBinding(auth.client_secret_configured),
       }
     : emptyOAuth();
   return {
@@ -176,11 +193,34 @@ export function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
   };
 }
 
+/** Remove effective-source presence when an edit creates a different-scope override. */
+export function withoutMCPSecretPreservation(draft: MCPDraft): MCPDraft {
+  const withoutPreservation = (binding: MCPSecretBinding): MCPSecretBinding => ({
+    ...binding,
+    existing: false,
+    mode: binding.mode === "preserve" ? "typed" : binding.mode,
+  });
+  return {
+    ...draft,
+    env: draft.env.map(entry => ({ ...entry, originalKey: undefined })),
+    secretEnv: draft.secretEnv.map(entry => ({
+      ...entry,
+      originalKey: undefined,
+      binding: withoutPreservation(entry.binding),
+    })),
+    oauth: {
+      ...draft.oauth,
+      clientSecret: withoutPreservation(draft.oauth.clientSecret),
+    },
+  };
+}
+
 type ServerBody = SettingsMCPServerRequest["server"];
 type AuthBody = NonNullable<ServerBody["auth"]>;
 type SecretValues = NonNullable<SettingsMCPServerRequest["secret_values"]>;
 
 type SecretResolution =
+  | { kind: "preserve" }
   | { kind: "ref"; ref: string }
   | { kind: "typed"; value: string }
   | { kind: "none" };
@@ -188,33 +228,62 @@ type SecretResolution =
 /**
  * The single precedence rule for what a hybrid secret binding contributes to a
  * request, shared by stdio secret_env, OAuth client-secret serialization, and
- * validation so the three can never drift: a selected Vault ref wins, then a
- * typed write-only value, then a preserved existing ref; otherwise the binding
- * is unresolved and emits nothing.
+ * validation so the three can never drift. Each explicit mode has one output:
+ * preservation by presence, a selected Vault ref, or a typed write-only value.
  */
 function resolveSecretBinding(binding: MCPSecretBinding): SecretResolution {
+  if (binding.mode === "preserve") {
+    return binding.existing ? { kind: "preserve" } : { kind: "none" };
+  }
   if (binding.mode === "ref" && binding.vaultRef.trim()) {
     return { kind: "ref", ref: binding.vaultRef.trim() };
   }
   if (binding.mode === "typed" && binding.typedValue !== "") {
     return { kind: "typed", value: binding.typedValue };
   }
-  if (binding.existingRef) {
-    return { kind: "ref", ref: binding.existingRef };
-  }
   return { kind: "none" };
 }
 
-function collectEnv(pairs: MCPEnvPair[]): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const pair of pairs) {
-    const key = pair.key.trim();
-    if (key) env[key] = pair.value;
+function resolveSecretEnvBinding(entry: MCPSecretEnvEntry): SecretResolution {
+  const resolved = resolveSecretBinding(entry.binding);
+  if (
+    resolved.kind === "preserve" &&
+    entry.originalKey !== undefined &&
+    entry.key.trim() !== entry.originalKey.trim()
+  ) {
+    return { kind: "none" };
   }
-  return env;
+  return resolved;
 }
 
-function buildAuthBody(oauth: MCPOAuthDraft): { auth: AuthBody; oauthClientSecret?: string } {
+function collectEnv(pairs: MCPEnvPair[]): {
+  values: Record<string, string>;
+  preserved: string[];
+} {
+  const env: Record<string, string> = {};
+  const preserved: string[] = [];
+  for (const pair of pairs) {
+    const key = pair.key.trim();
+    if (!key) continue;
+    if (
+      pair.existing &&
+      !pair.valueChanged &&
+      pair.originalKey !== undefined &&
+      key === pair.originalKey.trim()
+    ) {
+      preserved.push(key);
+    } else {
+      env[key] = pair.value;
+    }
+  }
+  return { values: env, preserved };
+}
+
+function buildAuthBody(oauth: MCPOAuthDraft): {
+  auth: AuthBody;
+  oauthClientSecret?: string;
+  preserveOAuthClientSecret: boolean;
+} {
   const auth: AuthBody = { type: "oauth2_pkce", client_id: oauth.clientId.trim() };
   if (oauth.discovery === "issuer") auth.issuer_url = oauth.issuerUrl.trim();
   else if (oauth.discovery === "metadata") auth.metadata_url = oauth.metadataUrl.trim();
@@ -229,12 +298,17 @@ function buildAuthBody(oauth: MCPOAuthDraft): { auth: AuthBody; oauthClientSecre
   const resolved = resolveSecretBinding(oauth.clientSecret);
   if (resolved.kind === "ref") auth.client_secret_ref = resolved.ref;
   else if (resolved.kind === "typed") oauthClientSecret = resolved.value;
-  return { auth, oauthClientSecret };
+  return {
+    auth,
+    oauthClientSecret,
+    preserveOAuthClientSecret: resolved.kind === "preserve",
+  };
 }
 
 /**
- * Serialize a draft into the PUT body. stdio emits command/args/env + kept refs
- * on `server.secret_env` and typed replacements under `secret_values.secret_env`;
+ * Serialize a draft into the PUT body. stdio emits command/args/env + explicitly
+ * selected refs on `server.secret_env`, unchanged names under `preserve_secrets`,
+ * and typed replacements under `secret_values.secret_env`;
  * remote emits url + optional OAuth and NEVER command/args/env/secret_env. The
  * daemon computes canonical scope-qualified refs from the typed values.
  */
@@ -248,18 +322,24 @@ export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
     });
     if (args.length > 0) server.args = args;
     const env = collectEnv(draft.env);
-    if (Object.keys(env).length > 0) server.env = env;
+    if (Object.keys(env.values).length > 0) server.env = env.values;
     const keptRefs: Record<string, string> = {};
+    const preservedSecrets: string[] = [];
     const typedSecrets: Record<string, string> = {};
     for (const entry of draft.secretEnv) {
       const key = entry.key.trim();
       if (!key) continue;
-      const resolved = resolveSecretBinding(entry.binding);
-      if (resolved.kind === "ref") keptRefs[key] = resolved.ref;
+      const resolved = resolveSecretEnvBinding(entry);
+      if (resolved.kind === "preserve") preservedSecrets.push(key);
+      else if (resolved.kind === "ref") keptRefs[key] = resolved.ref;
       else if (resolved.kind === "typed") typedSecrets[key] = resolved.value;
     }
     if (Object.keys(keptRefs).length > 0) server.secret_env = keptRefs;
     const request: SettingsMCPServerRequest = { server };
+    if (env.preserved.length > 0) request.preserve_env = env.preserved;
+    if (preservedSecrets.length > 0) {
+      request.preserve_secrets = { secret_env: preservedSecrets };
+    }
     if (Object.keys(typedSecrets).length > 0) {
       request.secret_values = { secret_env: typedSecrets };
     }
@@ -268,8 +348,11 @@ export function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
   const server: ServerBody = { name, transport: draft.transport, url: draft.url.trim() };
   const request: SettingsMCPServerRequest = { server };
   if (draft.oauth.enabled) {
-    const { auth, oauthClientSecret } = buildAuthBody(draft.oauth);
+    const { auth, oauthClientSecret, preserveOAuthClientSecret } = buildAuthBody(draft.oauth);
     server.auth = auth;
+    if (preserveOAuthClientSecret) {
+      request.preserve_secrets = { oauth_client_secret: true };
+    }
     if (oauthClientSecret !== undefined) {
       const secretValues: SecretValues = { oauth_client_secret: oauthClientSecret };
       request.secret_values = secretValues;
@@ -298,8 +381,20 @@ function validateStdioSecretEnv(secretEnv: MCPSecretEnvEntry[]): Record<number, 
   const errors: Record<number, string> = {};
   secretEnv.forEach((entry, index) => {
     if (entry.key.trim().length === 0) return;
-    if (resolveSecretBinding(entry.binding).kind === "none") {
+    if (resolveSecretEnvBinding(entry).kind === "none") {
       errors[index] = "Enter a value or select a Vault reference";
+    }
+  });
+  return errors;
+}
+
+function validateStdioEnv(env: MCPEnvPair[]): Record<number, string> {
+  const errors: Record<number, string> = {};
+  env.forEach((entry, index) => {
+    const key = entry.key.trim();
+    if (!key || !entry.existing || entry.valueChanged) return;
+    if (entry.originalKey === undefined || key !== entry.originalKey.trim()) {
+      errors[index] = "Enter a value after changing this existing key or target";
     }
   });
   return errors;
@@ -312,6 +407,8 @@ export function validateDraft(draft: MCPDraft): MCPDraftValidation {
 
   if (draft.transport === "stdio") {
     if (draft.command.trim().length === 0) errors.command = "Command is required";
+    const envErrors = validateStdioEnv(draft.env);
+    if (Object.keys(envErrors).length > 0) errors.env = envErrors;
     const secretEnvErrors = validateStdioSecretEnv(draft.secretEnv);
     if (Object.keys(secretEnvErrors).length > 0) errors.secretEnv = secretEnvErrors;
   } else {
@@ -323,6 +420,13 @@ export function validateDraft(draft: MCPDraft): MCPDraftValidation {
     if (draft.oauth.enabled) {
       if (draft.oauth.clientId.trim().length === 0) {
         errors.clientId = "Client ID is required for OAuth";
+      }
+      if (
+        draft.oauth.clientSecret.existing &&
+        draft.oauth.clientSecret.mode !== "preserve" &&
+        resolveSecretBinding(draft.oauth.clientSecret).kind === "none"
+      ) {
+        errors.clientSecret = "Enter a replacement value or select a Vault reference";
       }
       const { discovery, issuerUrl, metadataUrl, authorizationUrl, tokenUrl } = draft.oauth;
       if (discovery === "issuer" && issuerUrl.trim().length === 0) {

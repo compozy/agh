@@ -9,11 +9,33 @@ import (
 
 // Exchange validates the OAuth callback and stores the token response.
 func (s *Service) Exchange(ctx context.Context, state LoginState, callbackURL string) (Status, error) {
+	generation, err := s.generation.Advance(state.Config.Target)
+	if err != nil {
+		return Status{}, err
+	}
 	token, err := s.exchangeToken(ctx, state, callbackURL)
 	if err != nil {
 		return Status{}, err
 	}
-	return s.persistToken(ctx, state.Config, token)
+	return s.persistReplacementTokenAtGeneration(ctx, state.Config, token, generation)
+}
+
+func (s *Service) persistReplacementTokenAtGeneration(
+	ctx context.Context,
+	cfg ServerConfig,
+	token TokenRecord,
+	generation uint64,
+) (Status, error) {
+	committed, err := s.generation.CommitAndAdvanceIfCurrent(cfg.Target, generation, func() error {
+		return s.store.SaveMCPAuthToken(ctx, token)
+	})
+	if err != nil {
+		return Status{}, fmt.Errorf("mcp auth: persist replacement token for %q: %w", cfg.Target.ServerName, err)
+	}
+	if !committed {
+		return Status{}, ErrTokenMutationStale
+	}
+	return statusFromToken(cfg, &token, s.now()), nil
 }
 
 func (s *Service) exchangeToken(ctx context.Context, state LoginState, callbackURL string) (TokenRecord, error) {
@@ -32,9 +54,20 @@ func (s *Service) exchangeToken(ctx context.Context, state LoginState, callbackU
 	return token, nil
 }
 
-func (s *Service) persistToken(ctx context.Context, cfg ServerConfig, token TokenRecord) (Status, error) {
-	if err := s.store.SaveMCPAuthToken(ctx, token); err != nil {
+func (s *Service) persistTokenAtGeneration(
+	ctx context.Context,
+	cfg ServerConfig,
+	token TokenRecord,
+	generation uint64,
+) (Status, error) {
+	committed, err := s.generation.CommitIfCurrent(cfg.Target, generation, func() error {
+		return s.store.SaveMCPAuthToken(ctx, token)
+	})
+	if err != nil {
 		return Status{}, fmt.Errorf("mcp auth: persist token for %q: %w", cfg.Target.ServerName, err)
+	}
+	if !committed {
+		return Status{}, ErrTokenMutationStale
 	}
 	return statusFromToken(cfg, &token, s.now()), nil
 }
@@ -42,6 +75,10 @@ func (s *Service) persistToken(ctx context.Context, cfg ServerConfig, token Toke
 // Refresh refreshes a persisted token and updates durable storage.
 func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error) {
 	if err := cfg.Validate(); err != nil {
+		return Status{}, err
+	}
+	generation, err := s.generation.Snapshot(cfg.Target)
+	if err != nil {
 		return Status{}, err
 	}
 	current, err := s.store.GetMCPAuthToken(ctx, cfg.Target)
@@ -76,14 +113,15 @@ func (s *Service) Refresh(ctx context.Context, cfg ServerConfig) (Status, error)
 	if err != nil {
 		return Status{}, err
 	}
-	if err := s.store.SaveMCPAuthToken(ctx, refreshed); err != nil {
-		return Status{}, fmt.Errorf("mcp auth: persist refreshed token for %q: %w", cfg.Target.ServerName, err)
-	}
-	return statusFromToken(cfg, &refreshed, s.now()), nil
+	return s.persistTokenAtGeneration(ctx, cfg, refreshed, generation)
 }
 
 // Status returns redacted durable auth state for one server.
 func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) {
+	cfg.Target = cfg.Target.Normalize()
+	if err := cfg.Target.Validate(); err != nil {
+		return Status{}, err
+	}
 	if strings.TrimSpace(cfg.Type) == "" {
 		return Status{
 			ServerName:  cfg.Target.ServerName,
@@ -118,6 +156,9 @@ func (s *Service) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 // then deletes local durable token state.
 func (s *Service) Logout(ctx context.Context, cfg ServerConfig) (Status, error) {
 	if err := cfg.Validate(); err != nil {
+		return Status{}, err
+	}
+	if _, err := s.generation.Advance(cfg.Target); err != nil {
 		return Status{}, err
 	}
 	token, err := s.store.GetMCPAuthToken(ctx, cfg.Target)

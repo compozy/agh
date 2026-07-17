@@ -25,7 +25,8 @@ type documentEnvelope struct {
 type HTTPSource struct {
 	kind             Kind
 	endpoint         string
-	client           *http.Client
+	client           http.Client
+	timeout          time.Duration
 	maxResponseBytes int64
 }
 
@@ -56,13 +57,20 @@ func NewHTTPSource(kind Kind, baseURL string, client *http.Client, options ...HT
 	if err != nil || parsed.Host == "" || (parsed.Scheme != protocolHTTP && parsed.Scheme != protocolHTTPS) {
 		return nil, errors.New("marketplace catalog: base URL must be an absolute HTTP(S) URL")
 	}
+	if parsed.User != nil {
+		return nil, errors.New("marketplace catalog: base URL must not contain credentials")
+	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + filename
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
+	ownedClient := *client
+	timeout := ownedClient.Timeout
+	ownedClient.Timeout = 0
 	source := &HTTPSource{
 		kind:             kind,
 		endpoint:         parsed.String(),
-		client:           client,
+		client:           ownedClient,
+		timeout:          timeout,
 		maxResponseBytes: defaultMaxResponseBytes,
 	}
 	for _, option := range options {
@@ -85,10 +93,12 @@ func (s *HTTPSource) Fetch(ctx context.Context) (document *Document, err error) 
 	if ctx == nil {
 		return nil, errors.New("marketplace catalog: fetch context is required")
 	}
-	if s == nil || s.client == nil || s.maxResponseBytes <= 0 {
+	if s == nil || s.timeout <= 0 || s.maxResponseBytes <= 0 {
 		return nil, errors.New("marketplace catalog: HTTP source is required")
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, s.endpoint, http.NoBody)
+	requestCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, s.endpoint, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace catalog: create %q request: %w", s.kind, err)
 	}
@@ -140,22 +150,27 @@ func DecodeDocument(kind Kind, raw []byte) (*Document, error) {
 	if envelope.Entries == nil {
 		return nil, fmt.Errorf("marketplace catalog %q entries is required", kind)
 	}
+	if len(*envelope.Entries) > maxCatalogEntriesPerKind {
+		return nil, fmt.Errorf(
+			"marketplace catalog %q entries exceeds limit %d",
+			kind,
+			maxCatalogEntriesPerKind,
+		)
+	}
 	generatedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(envelope.GeneratedAt))
 	if err != nil {
 		return nil, fmt.Errorf("marketplace catalog %q generated_at must be RFC3339: %w", kind, err)
 	}
 	entries := make([]Entry, 0, len(*envelope.Entries))
-	seen := make(map[string]struct{}, len(*envelope.Entries))
 	for index, entryRaw := range *envelope.Entries {
 		entry, err := decodeKindEntry(kind, entryRaw)
 		if err != nil {
 			return nil, fmt.Errorf("marketplace catalog %q entry %d: %w", kind, index, err)
 		}
-		if _, exists := seen[entry.EntryID]; exists {
-			return nil, fmt.Errorf("marketplace catalog %q entry_id %q is duplicated", kind, entry.EntryID)
-		}
-		seen[entry.EntryID] = struct{}{}
 		entries = append(entries, entry)
+	}
+	if err := validateDocumentEntries(kind, entries); err != nil {
+		return nil, err
 	}
 	return &Document{
 		ManifestVersion: *envelope.ManifestVersion,

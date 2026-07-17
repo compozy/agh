@@ -101,7 +101,8 @@ func classifyMCPAuthExchangeError(err error) error {
 	if errors.Is(err, mcpauth.ErrInvalidExchange) ||
 		errors.Is(err, mcpauth.ErrLoginSessionNotFound) ||
 		errors.Is(err, mcpauth.ErrLoginSessionExpired) ||
-		errors.Is(err, mcpauth.ErrLoginSessionStale) {
+		errors.Is(err, mcpauth.ErrLoginSessionStale) ||
+		errors.Is(err, mcpauth.ErrTokenMutationStale) {
 		return validationError(err)
 	}
 	return err

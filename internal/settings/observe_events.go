@@ -77,3 +77,25 @@ func (s *service) emitSettingsChanged(
 		Summary: summary,
 	})
 }
+
+func (s *service) finalizeCommittedCollectionMutation(
+	ctx context.Context,
+	result MutationResult,
+	err error,
+	operation string,
+	skipNoChangeEvent bool,
+) (MutationResult, error) {
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if skipNoChangeEvent && mutationResultHasNoChanges(result) {
+		return result, nil
+	}
+	if emitErr := s.emitSettingsChanged(ctx, result, operation); emitErr != nil {
+		result.Warnings = append(
+			result.Warnings,
+			"committed settings change event was not persisted: "+emitErr.Error(),
+		)
+	}
+	return result, nil
+}

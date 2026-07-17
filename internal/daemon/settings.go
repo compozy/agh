@@ -28,18 +28,19 @@ import (
 const defaultSettingsMCPProbeTimeout = 5 * time.Second
 
 type settingsRuntimeSurface struct {
-	config         aghconfig.Config
-	startedAt      time.Time
-	sessions       SessionManager
-	observer       Observer
-	memoryStore    *memory.Store
-	dreamTrigger   DreamTrigger
-	automation     automationRuntime
-	network        networkRuntime
-	mcpAuthStore   mcpauth.TokenStore
-	mcpAuthManager *mcpauth.Manager
-	secretResolver mcpauth.SecretRefResolver
-	secretRefs     interface {
+	config            aghconfig.Config
+	startedAt         time.Time
+	sessions          SessionManager
+	observer          Observer
+	memoryStore       *memory.Store
+	dreamTrigger      DreamTrigger
+	automation        automationRuntime
+	network           networkRuntime
+	mcpAuthStore      mcpauth.TokenStore
+	mcpAuthManager    *mcpauth.Manager
+	mcpAuthGeneration *mcpauth.MutationGeneration
+	secretResolver    mcpauth.SecretRefResolver
+	secretRefs        interface {
 		ResolveRef(context.Context, string) (string, error)
 	}
 	lookupSecret func(string) string
@@ -87,7 +88,7 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		writer: state.registry,
 		logger: state.logger,
 		now:    now,
-	})
+	}, state.mcpAuthGeneration)
 	if err != nil {
 		return nil, err
 	}
@@ -112,23 +113,24 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 	}
 
 	return &settingsRuntimeSurface{
-		config:         state.cfg,
-		startedAt:      state.startedAt,
-		sessions:       state.sessions,
-		observer:       state.observer,
-		memoryStore:    state.memoryStore,
-		dreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
-		automation:     state.automation,
-		network:        state.network,
-		mcpAuthStore:   mcpAuthStore,
-		mcpAuthManager: mcpAuthManager,
-		secretResolver: secretResolver,
-		secretRefs:     secretRefs,
-		lookupSecret:   lookupSecret,
-		extensions:     state.deps.Extensions,
-		now:            now,
-		pid:            pid,
-		info:           info,
+		config:            state.cfg,
+		startedAt:         state.startedAt,
+		sessions:          state.sessions,
+		observer:          state.observer,
+		memoryStore:       state.memoryStore,
+		dreamTrigger:      dreamTriggerFromRuntime(state.dreamRuntime),
+		automation:        state.automation,
+		network:           state.network,
+		mcpAuthStore:      mcpAuthStore,
+		mcpAuthManager:    mcpAuthManager,
+		mcpAuthGeneration: state.mcpAuthGeneration,
+		secretResolver:    secretResolver,
+		secretRefs:        secretRefs,
+		lookupSecret:      lookupSecret,
+		extensions:        state.deps.Extensions,
+		now:               now,
+		pid:               pid,
+		info:              info,
 	}, nil
 }
 
@@ -388,6 +390,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 			return mcppkg.ResolvedServer{Server: server, Target: target}, nil
 		}),
 		mcppkg.WithTokenStore(s.mcpAuthStore),
+		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
 		mcppkg.WithSecretLookup(s.lookupSecret),
 		mcppkg.WithSecretResolver(s.secretRefs),
 		mcppkg.WithTimeout(s.mcpProbeTimeout()),
@@ -503,13 +506,6 @@ func (s *settingsRuntimeSurface) currentInfo() Info {
 		return Info{}
 	}
 	return s.info()
-}
-
-func (s *settingsRuntimeSurface) mcpProbeTimeout() time.Duration {
-	if s != nil && s.config.Observability.AgentProbeTimeout > 0 {
-		return s.config.Observability.AgentProbeTimeout
-	}
-	return defaultSettingsMCPProbeTimeout
 }
 
 type settingsRestartController struct {

@@ -24,12 +24,14 @@ function invalidateBridgeDeliveryQueries(
 }
 
 export function useVerifyBridge() {
+  // react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- Verification is a live read-only check and does not mutate bridge state.
   return useMutation({
     mutationFn: ({ id }: BridgeSetupMutationParams) => verifyBridge(id),
   });
 }
 
 export function useRegisterBridgeWebhook() {
+  // react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- Registration returns a provider handshake and does not mutate cached bridge state.
   return useMutation({
     mutationFn: ({ id }: BridgeSetupMutationParams) => registerBridgeWebhook(id),
   });

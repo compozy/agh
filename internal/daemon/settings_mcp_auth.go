@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
@@ -13,11 +14,16 @@ import (
 func newSettingsMCPAuthManager(
 	store mcpauth.TokenStore,
 	notifier mcpauth.LifecycleNotifier,
+	generation ...*mcpauth.MutationGeneration,
 ) (*mcpauth.Manager, error) {
 	if store == nil {
 		return nil, nil
 	}
-	service, err := mcpauth.NewService(store)
+	serviceOptions := []mcpauth.ServiceOption{}
+	if len(generation) > 0 && generation[0] != nil {
+		serviceOptions = append(serviceOptions, mcpauth.WithMutationGeneration(generation[0]))
+	}
+	service, err := mcpauth.NewService(store, serviceOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create MCP auth service: %w", err)
 	}
@@ -148,4 +154,11 @@ func unavailableMCPAuthStatus(cfg mcpauth.ServerConfig) mcpauth.Status {
 		Scopes:      append([]string(nil), cfg.Scopes...),
 		Diagnostic:  "token store unavailable",
 	}
+}
+
+func (s *settingsRuntimeSurface) mcpProbeTimeout() time.Duration {
+	if s != nil && s.config.Observability.AgentProbeTimeout > 0 {
+		return s.config.Observability.AgentProbeTimeout
+	}
+	return defaultSettingsMCPProbeTimeout
 }

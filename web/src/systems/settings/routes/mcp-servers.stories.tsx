@@ -30,7 +30,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// The nine-server reference matrix, plus a vault ref for the stdio secret editor.
+// The nine-server reference matrix, plus a selectable Vault inventory entry.
 const managementMsw = storybookMswParameters({
   settings: [
     aghApiMock.get("/api/settings/mcp-servers", () =>
@@ -213,7 +213,7 @@ export const EditorStdioIncompleteSecret: Story = {
           secretEnv: [
             {
               key: "GITHUB_PERSONAL_ACCESS_TOKEN",
-              binding: { mode: "typed", typedValue: "", vaultRef: "" },
+              binding: { mode: "typed", existing: false, typedValue: "", vaultRef: "" },
             },
           ],
         }}
@@ -222,7 +222,7 @@ export const EditorStdioIncompleteSecret: Story = {
         isValid={false}
         isSaving={false}
         saveError={null}
-        vaultRefs={[]}
+        vaultInventory={{ status: "ready", refs: [] }}
         target="config"
         availableTargets={["config"]}
         entry={null}

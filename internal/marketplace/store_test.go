@@ -72,8 +72,9 @@ func TestSQLiteStoreReplaceKind(t *testing.T) {
 		}
 
 		invalid := testDocument(now.Add(time.Hour), testEntry(KindSkill, "", "Invalid", "Missing id"))
-		if err := store.ReplaceKind(ctx, KindSkill, invalid); err == nil {
-			t.Fatal("ReplaceKind(invalid) error = nil, want validation error")
+		err := store.ReplaceKind(ctx, KindSkill, invalid)
+		if err == nil || !strings.Contains(err.Error(), "identity fields are required") {
+			t.Fatalf("ReplaceKind(invalid) error = %v, want identity-fields validation", err)
 		}
 		entries, err := store.ListKind(ctx, KindSkill, "", 10)
 		if err != nil {
@@ -98,6 +99,9 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 			testEntry(KindExtension, "alpha", "Telemetry bridge", "Exports traces"),
 			testEntry(KindExtension, "beta", "Audit log", "Records telemetry events"),
 			testEntry(KindExtension, "gamma", "Cost guard", "Enforces budgets"),
+			testEntry(KindExtension, "resume", "RÉSUMÉ helper", "Indexes accented metadata"),
+			testEntry(KindExtension, "strasse", "Straße tools", "Indexes German names"),
+			testEntry(KindExtension, "cafe", "Cafe\u0301 index", "Decomposed canonical text"),
 		)
 		if err := store.ReplaceKind(ctx, KindExtension, document); err != nil {
 			t.Fatalf("ReplaceKind() error = %v", err)
@@ -126,6 +130,34 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 		}
 		if got, want := len(byDescription), 1; got != want || byDescription[0].EntryID != "alpha" {
 			t.Fatalf("ListKind(description query) = %#v, want alpha", byDescription)
+		}
+		caseInsensitive, err := store.ListKind(ctx, KindExtension, "TELEMETRY", 10)
+		if err != nil {
+			t.Fatalf("ListKind(case-insensitive query) error = %v", err)
+		}
+		if got, want := len(caseInsensitive), 2; got != want {
+			t.Fatalf("ListKind(case-insensitive query) = %#v, want alpha and beta", caseInsensitive)
+		}
+		unicodeFolded, err := store.ListKind(ctx, KindExtension, "résumé", 10)
+		if err != nil {
+			t.Fatalf("ListKind(Unicode-folded query) error = %v", err)
+		}
+		if got, want := len(unicodeFolded), 1; got != want || unicodeFolded[0].EntryID != "resume" {
+			t.Fatalf("ListKind(Unicode-folded query) = %#v, want resume", unicodeFolded)
+		}
+		fullFolded, err := store.ListKind(ctx, KindExtension, "STRASSE", 10)
+		if err != nil {
+			t.Fatalf("ListKind(full-fold query) error = %v", err)
+		}
+		if got, want := len(fullFolded), 1; got != want || fullFolded[0].EntryID != "strasse" {
+			t.Fatalf("ListKind(full-fold query) = %#v, want strasse", fullFolded)
+		}
+		canonicalEquivalent, err := store.ListKind(ctx, KindExtension, "Café", 10)
+		if err != nil {
+			t.Fatalf("ListKind(canonical-equivalence query) error = %v", err)
+		}
+		if got, want := len(canonicalEquivalent), 1; got != want || canonicalEquivalent[0].EntryID != "cafe" {
+			t.Fatalf("ListKind(canonical-equivalence query) = %#v, want cafe", canonicalEquivalent)
 		}
 		empty, err := store.ListKind(ctx, KindExtension, "not-present", 10)
 		if err != nil {
@@ -247,8 +279,15 @@ func TestSQLiteStoreListsCuratedSkillsByInstallSlugs(t *testing.T) {
 		if len(entries) != 2 || entries[0].EntryID != "alpha" || entries[1].EntryID != "beta" {
 			t.Fatalf("ListSkillsByInstallSlugs() = %#v, want alpha then beta", entries)
 		}
-		if _, err := store.ListSkillsByInstallSlugs(ctx, []string{"", "  "}); err == nil {
-			t.Fatal("ListSkillsByInstallSlugs(blank) error = nil")
+	})
+
+	t.Run("Should reject a list with no non-blank skill slug", func(t *testing.T) {
+		t.Parallel()
+
+		store := openMarketplaceTestStore(t)
+		_, err := store.ListSkillsByInstallSlugs(testutil.Context(t), []string{"", "  "})
+		if err == nil || !strings.Contains(err.Error(), "skill install slugs are required") {
+			t.Fatalf("ListSkillsByInstallSlugs(blank) error = %v, want slug validation", err)
 		}
 	})
 }
@@ -256,9 +295,14 @@ func TestSQLiteStoreListsCuratedSkillsByInstallSlugs(t *testing.T) {
 func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 	t.Parallel()
 
-	if _, err := NewSQLiteStore(nil); err == nil {
-		t.Fatal("NewSQLiteStore(nil) error = nil")
-	}
+	t.Run("Should reject a missing database", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewSQLiteStore(nil)
+		if err == nil || !strings.Contains(err.Error(), "SQLite repository is required") {
+			t.Fatalf("NewSQLiteStore(nil) error = %v, want database validation", err)
+		}
+	})
 	store := openMarketplaceTestStore(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
@@ -348,20 +392,46 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 		})
 	}
 
-	if _, err := store.GetEntry(ctx, KindSkill, "   "); err == nil {
-		t.Fatal("GetEntry(blank) error = nil")
-	}
-	if err := store.MarkKindStale(ctx, Kind("bundle"), "validation", "bad kind"); err == nil {
-		t.Fatal("MarkKindStale(unsupported kind) error = nil")
-	}
-	//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-	if _, err := store.ListKind(nil, KindSkill, "", 10); err == nil {
-		t.Fatal("ListKind(nil context) error = nil")
-	}
-	var nilStore *SQLiteStore
-	if _, err := nilStore.KindState(ctx, KindSkill); err == nil {
-		t.Fatal("KindState(nil store) error = nil")
-	}
+	t.Run("Should reject a blank entry id", func(t *testing.T) {
+		t.Parallel()
+
+		store := openMarketplaceTestStore(t)
+		_, err := store.GetEntry(testutil.Context(t), KindSkill, "   ")
+		if err == nil || !strings.Contains(err.Error(), "entry id is required") {
+			t.Fatalf("GetEntry(blank) error = %v, want entry-id validation", err)
+		}
+	})
+
+	t.Run("Should reject an unsupported stale kind", func(t *testing.T) {
+		t.Parallel()
+
+		store := openMarketplaceTestStore(t)
+		err := store.MarkKindStale(testutil.Context(t), Kind("bundle"), "validation", "bad kind")
+		if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
+			t.Fatalf("MarkKindStale(unsupported kind) error = %v, want kind validation", err)
+		}
+	})
+
+	t.Run("Should reject a nil list context", func(t *testing.T) {
+		t.Parallel()
+
+		store := openMarketplaceTestStore(t)
+		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
+		_, err := store.ListKind(nil, KindSkill, "", 10)
+		if err == nil || !strings.Contains(err.Error(), "store context is required") {
+			t.Fatalf("ListKind(nil context) error = %v, want context validation", err)
+		}
+	})
+
+	t.Run("Should reject a nil store receiver", func(t *testing.T) {
+		t.Parallel()
+
+		var nilStore *SQLiteStore
+		_, err := nilStore.KindState(testutil.Context(t), KindSkill)
+		if err == nil || !strings.Contains(err.Error(), "SQLite store is required") {
+			t.Fatalf("KindState(nil store) error = %v, want store validation", err)
+		}
+	})
 }
 
 func openMarketplaceTestStore(t *testing.T) *SQLiteStore {

@@ -110,6 +110,8 @@ extension and completed count, and every earlier committed update retains an `ex
 event. Inspect those events before retrying the failed remainder.
 Successful update results may also contain `extension_update_cleanup_failed`; this is cleanup debt,
 not an activation failure, and the active version remains the reported latest version.
+Successful `agh__extensions_remove` results may similarly contain `extension_remove_cleanup_failed`.
+The removal remains committed; use the warning's residual path for operator cleanup.
 
 Bundle tools live under `agh__bundles_*` for list/info/activate/deactivate/status. Resource tools live under `agh__resources_*` for list/info/snapshot of desired-state resources.
 

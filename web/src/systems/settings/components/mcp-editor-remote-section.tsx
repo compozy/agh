@@ -5,11 +5,12 @@ import type { SettingsMCPServerTarget } from "../types";
 
 import { MCPFieldLabel, MCPNameField, MCPTargetField } from "./mcp-editor-fields";
 import { MCPEditorOAuthSection } from "./mcp-editor-oauth-section";
+import type { MCPVaultInventory } from "./mcp-secret-binding";
 
 export interface MCPEditorRemoteSectionProps {
   draft: MCPDraft;
   errors: MCPDraftErrors;
-  vaultRefs: string[];
+  vaultInventory: MCPVaultInventory;
   isCreate: boolean;
   target: SettingsMCPServerTarget;
   availableTargets: SettingsMCPServerTarget[];
@@ -20,7 +21,7 @@ export interface MCPEditorRemoteSectionProps {
 export function MCPEditorRemoteSection({
   draft,
   errors,
-  vaultRefs,
+  vaultInventory,
   isCreate,
   target,
   availableTargets,
@@ -79,7 +80,7 @@ export function MCPEditorRemoteSection({
 
       <MCPEditorOAuthSection
         oauth={draft.oauth}
-        vaultRefs={vaultRefs}
+        vaultInventory={vaultInventory}
         errors={errors}
         onChange={oauth => onChange(current => ({ ...current, oauth }))}
       />

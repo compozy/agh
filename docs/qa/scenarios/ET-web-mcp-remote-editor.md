@@ -4,7 +4,7 @@ area: ET
 title: MCP remote-capable editor (stdio/http/sse) with mirrored validation
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: The editor switches field sets by transport. stdio keeps command, ordered args, non-secret env, and hybrid secret_env bindings; remote (http/sse) keeps url + optional OAuth (client_id + metadata triad + scopes + client-secret binding) and omits command/args/env/secret_env. Switching transport clears hidden fields so the new form remains completable. Every named stdio secret row requires a typed value, selected Vault ref, or preserved existing ref; incomplete rows show an inline error and keep Save disabled. Existing bound secrets render as MonoId; typed values are write-only and never reflected. Scope lives in `validateSearch` and refresh-preserves.
+expected: The editor switches field sets by transport. stdio keeps command, ordered args, non-secret env, and hybrid secret_env bindings; remote (http/sse) keeps url + optional OAuth (client_id + metadata triad + scopes + client-secret binding) and omits command/args/env/secret_env. Switching transport clears hidden fields so the new form remains completable. Existing plain env and secret bindings render as presence-only configured state; unchanged exact-target fields use `preserve_env` or `preserve_secrets`, while renames and scope changes require explicit replacement values. Vault inventory renders distinct loading, error/retry, ready-empty, and ready-with-refs states. Scope lives in `validateSearch`; an initial valid `workspace_id` is adopted once, then sidebar selection owns the workspace and updates the URL.
 entry_points: web `/mcp` Edit action; `PUT /api/settings/mcp-servers/{name}`
 qa_status: untested
 bug_ids: BUG-20260715-mcp-editor-vault-ref-case
@@ -25,3 +25,11 @@ inventory: Needs QA
 QA impact 2026-07-15: new behavior from Task 08 (ADR-006). Flagged untested for the next QA cycle.
 
 QA impact 2026-07-16: reset after hardening editor draft transitions and stdio secret completeness. Retest create and edit flows in both directions (stdio ↔ http/sse), confirm hidden fields cannot deadlock Save or leak into the request, and verify a named secret row without a value/ref visibly blocks Save while existing refs remain valid and secret values remain write-only.
+
+QA impact 2026-07-17: existing refs are no longer delivered to or rendered by the editor. Retest the
+"Keep configured" path for environment and OAuth secrets and inspect requests for `preserve_secrets`
+without binding refs in the preceding GET response or visible UI.
+
+QA impact 2026-07-17: plain environment values are now presence-only through `env_keys`. Retest
+same-key `preserve_env`, rename and cross-scope replacement requirements, all Vault inventory
+states, one-shot workspace deep-link adoption, and subsequent sidebar-to-URL synchronization.

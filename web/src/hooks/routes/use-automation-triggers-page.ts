@@ -132,9 +132,8 @@ export function useAutomationTriggersPage(
           : `${detail}. Review the target and try again.`;
       setSubmitError(message);
       toast.error(detail);
-    } finally {
-      triggerSubmitInFlightRef.current = false;
     }
+    triggerSubmitInFlightRef.current = false;
   };
 
   const handleDelete = async () => {

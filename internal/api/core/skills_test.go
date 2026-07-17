@@ -422,12 +422,14 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 			Meta: skills.SkillMeta{
 				Name: "review",
 			},
+			Dir:     "/tmp/agh/skills/review",
 			Source:  skills.SourceMarketplace,
 			Enabled: true,
 			Provenance: &skills.Provenance{
 				Slug:     "@agh/review",
 				Registry: "clawhub",
 				Version:  "1.2.0",
+				Hash:     "sha256:abc",
 			},
 		}
 		registry := &stubSkillsRegistry{
@@ -500,12 +502,14 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 			Meta: skills.SkillMeta{
 				Name: "review",
 			},
+			Dir:     "/tmp/agh/skills/review",
 			Source:  skills.SourceMarketplace,
 			Enabled: true,
 			Provenance: &skills.Provenance{
 				Slug:     "@agh/review",
 				Registry: "clawhub",
 				Version:  "1.2.0",
+				Hash:     "sha256:abc",
 			},
 		}
 		registry := &stubSkillsRegistry{

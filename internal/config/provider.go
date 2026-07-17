@@ -1272,39 +1272,6 @@ func (a MCPAuthConfig) Enabled() bool {
 	return !a.IsZero()
 }
 
-// Validate ensures remote MCP OAuth configuration has enough metadata to run
-// the authorization-code flow without placing token material in config files.
-func (a MCPAuthConfig) Validate(path string) error {
-	if a.IsZero() {
-		return nil
-	}
-	if a.Type != MCPAuthTypeOAuth2PKCE {
-		return fmt.Errorf("%s.type must be %q", path, MCPAuthTypeOAuth2PKCE)
-	}
-	if strings.TrimSpace(a.ClientID) == "" {
-		return fmt.Errorf("%s.client_id is required", path)
-	}
-	if strings.TrimSpace(a.MetadataURL) == "" &&
-		strings.TrimSpace(a.IssuerURL) == "" &&
-		(strings.TrimSpace(a.AuthorizationURL) == "" || strings.TrimSpace(a.TokenURL) == "") {
-		return fmt.Errorf(
-			"%s requires metadata_url, issuer_url, or both authorization_url and token_url",
-			path,
-		)
-	}
-	if strings.TrimSpace(a.ClientSecretRef) != "" {
-		if err := vault.ValidateRefNamespace(a.ClientSecretRef, "mcp"); err != nil {
-			return fmt.Errorf("%s.client_secret_ref is invalid: %w", path, err)
-		}
-	}
-	for idx, scope := range a.Scopes {
-		if strings.TrimSpace(scope) == "" {
-			return fmt.Errorf("%s.scopes[%d] is required", path, idx)
-		}
-	}
-	return nil
-}
-
 func validateResolvedProvider(name string, provider ProviderConfig) error {
 	if strings.TrimSpace(provider.Command) == "" {
 		return fmt.Errorf("provider %q command is required", name)

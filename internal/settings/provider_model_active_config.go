@@ -78,6 +78,7 @@ func (s *service) recordProjectedMutationApply(
 		PartialFailures: plan.partialFailures,
 		Skipped:         noChanges,
 		SkippedReason:   skippedReason(noChanges),
+		MCPServer:       cloneMCPServerItemPointer(result.MCPServer),
 	}, nil
 }
 

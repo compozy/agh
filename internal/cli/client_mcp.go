@@ -25,6 +25,9 @@ type SettingsMCPAuthTarget struct {
 // SettingsMCPAuthBeginRecord is the verifier-free daemon OAuth handoff.
 type SettingsMCPAuthBeginRecord = contract.SettingsMCPAuthBeginResponse
 
+// SettingsMCPAuthBeginRequest selects automatic or manual callback delivery.
+type SettingsMCPAuthBeginRequest = contract.SettingsMCPAuthBeginRequest
+
 // SettingsMCPAuthExchangeRequest is the secret-bearing one-time exchange body.
 type SettingsMCPAuthExchangeRequest = contract.SettingsMCPAuthExchangeRequest
 
@@ -42,7 +45,11 @@ type MCPSettingsClient interface {
 		scope contract.SettingsWorkspaceScopeKind,
 		workspaceID string,
 	) (contract.SettingsMCPServersResponse, error)
-	BeginSettingsMCPAuth(ctx context.Context, target SettingsMCPAuthTarget) (SettingsMCPAuthBeginRecord, error)
+	BeginSettingsMCPAuth(
+		ctx context.Context,
+		target SettingsMCPAuthTarget,
+		request SettingsMCPAuthBeginRequest,
+	) (SettingsMCPAuthBeginRecord, error)
 	ExchangeSettingsMCPAuth(
 		ctx context.Context,
 		target SettingsMCPAuthTarget,
@@ -89,6 +96,7 @@ func (c *unixSocketClient) ListSettingsMCPServers(
 func (c *unixSocketClient) BeginSettingsMCPAuth(
 	ctx context.Context,
 	target SettingsMCPAuthTarget,
+	request SettingsMCPAuthBeginRequest,
 ) (SettingsMCPAuthBeginRecord, error) {
 	var response SettingsMCPAuthBeginRecord
 	if err := c.doJSON(
@@ -96,7 +104,7 @@ func (c *unixSocketClient) BeginSettingsMCPAuth(
 		http.MethodPost,
 		settingsMCPAuthPath(target, "begin"),
 		settingsMCPAuthQuery(target),
-		nil,
+		request,
 		&response,
 	); err != nil {
 		return SettingsMCPAuthBeginRecord{}, err

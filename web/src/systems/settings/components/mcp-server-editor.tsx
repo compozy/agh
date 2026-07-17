@@ -23,6 +23,7 @@ import {
 import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "../types";
 
 import { MCPEditorRemoteSection } from "./mcp-editor-remote-section";
+import type { MCPVaultInventory } from "./mcp-secret-binding";
 import { MCPEditorStdioSection } from "./mcp-editor-stdio-section";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
@@ -42,7 +43,7 @@ export interface MCPServerEditorProps {
   isSaving: boolean;
   saveError: string | null;
   warnings?: string[];
-  vaultRefs: string[];
+  vaultInventory: MCPVaultInventory;
   target: SettingsMCPServerTarget;
   availableTargets: SettingsMCPServerTarget[];
   entry: SettingsMCPServerEntry | null;
@@ -63,7 +64,7 @@ export function MCPServerEditor({
   isSaving,
   saveError,
   warnings,
-  vaultRefs,
+  vaultInventory,
   target,
   availableTargets,
   entry,
@@ -140,7 +141,7 @@ export function MCPServerEditor({
               <MCPEditorStdioSection
                 draft={draft}
                 errors={errors}
-                vaultRefs={vaultRefs}
+                vaultInventory={vaultInventory}
                 isCreate={isCreate}
                 target={target}
                 availableTargets={availableTargets}
@@ -151,7 +152,7 @@ export function MCPServerEditor({
               <MCPEditorRemoteSection
                 draft={draft}
                 errors={errors}
-                vaultRefs={vaultRefs}
+                vaultInventory={vaultInventory}
                 isCreate={isCreate}
                 target={target}
                 availableTargets={availableTargets}

@@ -37,8 +37,10 @@ type PutSettingsProviderRequest struct {
 }
 
 type PutSettingsMCPServerRequest struct {
-	Server       SettingsMCPServerPayload        `json:"server"`
-	SecretValues *SettingsMCPSecretValuesPayload `json:"secret_values,omitempty"`
+	Server          SettingsMCPServerPayload              `json:"server"`
+	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitempty"`
+	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitempty"`
+	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
 }
 
 type PutSettingsSandboxRequest struct {

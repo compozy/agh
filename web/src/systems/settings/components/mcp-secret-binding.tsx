@@ -1,36 +1,66 @@
-import { Eyebrow, Input, NativeSelect, NativeSelectOption, RadioCard } from "@agh/ui";
+import {
+  Button,
+  cn,
+  Eyebrow,
+  Input,
+  NativeSelect,
+  NativeSelectOption,
+  Pill,
+  RadioCard,
+  Spinner,
+} from "@agh/ui";
 
 import type { MCPSecretBinding } from "../lib/mcp-editor-model";
 
+export type MCPVaultInventory =
+  | { status: "loading" }
+  | { status: "error"; message: string; retry: () => void }
+  | { status: "ready"; refs: string[] };
+
 export interface MCPSecretBindingControlProps {
   binding: MCPSecretBinding;
-  /** Existing `vault:mcp/**` refs offered by "Use Vault". */
-  vaultRefs: string[];
+  /** Explicit, query-backed `vault:mcp/**` inventory state. */
+  vaultInventory: MCPVaultInventory;
   idPrefix: string;
   valueLabel?: string;
   onChange: (binding: MCPSecretBinding) => void;
 }
 
 /**
- * Hybrid secret binding consistent with the task-06 modal vocabulary: write a
- * new value (write-only, the daemon returns the computed canonical ref) OR select
- * an existing Vault ref. Plaintext is never reflected.
+ * Presence-safe secret editor: preserve a configured binding without revealing
+ * it, write a replacement value, or select a separate Vault inventory entry.
  */
 export function MCPSecretBindingControl({
   binding,
-  vaultRefs,
+  vaultInventory,
   idPrefix,
   valueLabel = "New secret value",
   onChange,
 }: MCPSecretBindingControlProps) {
-  const refs =
-    binding.existingRef && !vaultRefs.includes(binding.existingRef)
-      ? [binding.existingRef, ...vaultRefs]
-      : vaultRefs;
+  const refs = vaultInventory.status === "ready" ? vaultInventory.refs : [];
+  const vaultAvailable = refs.length > 0;
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div
+        className={cn("grid gap-1.5", binding.existing ? "grid-cols-3" : "grid-cols-2")}
+        role="radiogroup"
+        aria-label="Secret binding source"
+      >
+        {binding.existing ? (
+          <RadioCard
+            selected={binding.mode === "preserve"}
+            title="Keep configured"
+            description="Retain the current binding"
+            badge={
+              <Pill size="xs" tone="success">
+                Configured
+              </Pill>
+            }
+            onSelect={() => onChange({ ...binding, mode: "preserve" })}
+            data-testid={`${idPrefix}-mode-preserve`}
+          />
+        ) : null}
         <RadioCard
           selected={binding.mode === "typed"}
           title="Write a new value"
@@ -41,19 +71,25 @@ export function MCPSecretBindingControl({
         <RadioCard
           selected={binding.mode === "ref"}
           title="Use Vault"
-          description="Select an existing credential"
+          description={vaultAvailable ? "Select an existing credential" : "Inventory unavailable"}
+          disabled={!vaultAvailable}
+          className="disabled:cursor-not-allowed disabled:opacity-50"
           onSelect={() =>
             onChange({
               ...binding,
               mode: "ref",
-              vaultRef: binding.vaultRef || binding.existingRef || refs[0] || "",
+              vaultRef: binding.vaultRef || refs[0],
             })
           }
           data-testid={`${idPrefix}-mode-ref`}
         />
       </div>
 
-      {binding.mode === "typed" ? (
+      {binding.mode === "preserve" ? (
+        <p className="mt-2 text-caption text-muted">
+          AGH keeps the configured binding without returning or displaying its identifier.
+        </p>
+      ) : binding.mode === "typed" ? (
         <div className="mt-2">
           <label
             className="mb-1.5 flex items-center gap-2 text-form-label font-medium text-fg"
@@ -73,8 +109,7 @@ export function MCPSecretBindingControl({
             data-testid={`${idPrefix}-typed-input`}
           />
           <p className="mt-1.5 text-caption text-muted">
-            AGH stores this value on save and returns the computed canonical Vault ref. The value is
-            never reflected.
+            AGH stores this value on save. The value and resulting binding are never returned.
           </p>
         </div>
       ) : (
@@ -85,11 +120,29 @@ export function MCPSecretBindingControl({
           >
             Existing Vault ref
           </label>
-          {refs.length > 0 ? (
+          {vaultInventory.status === "loading" ? (
+            <p
+              className="flex items-center gap-2 text-caption text-muted"
+              data-testid={`${idPrefix}-ref-loading`}
+            >
+              <Spinner className="size-3" />
+              Loading Vault inventory…
+            </p>
+          ) : vaultInventory.status === "error" ? (
+            <div
+              className="flex items-center justify-between gap-3"
+              data-testid={`${idPrefix}-ref-error`}
+            >
+              <p className="text-caption text-danger">{vaultInventory.message}</p>
+              <Button type="button" variant="ghost" size="xs" onClick={vaultInventory.retry}>
+                Retry
+              </Button>
+            </div>
+          ) : refs.length > 0 ? (
             <NativeSelect
               id={`${idPrefix}-ref`}
               className="font-mono"
-              value={binding.vaultRef || binding.existingRef || refs[0]}
+              value={binding.vaultRef}
               onChange={event => onChange({ ...binding, vaultRef: event.target.value })}
               data-testid={`${idPrefix}-ref-select`}
             >

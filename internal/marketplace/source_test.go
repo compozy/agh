@@ -27,19 +27,23 @@ func TestDecodeDocumentValidation(t *testing.T) {
 			{kind: KindSkill, raw: validSkillDocumentJSON()},
 		}
 		for _, tt := range tests {
-			document, err := DecodeDocument(tt.kind, []byte(tt.raw))
-			if err != nil {
-				t.Fatalf("DecodeDocument(%q) error = %v", tt.kind, err)
-			}
-			if got, want := document.ManifestVersion, 1; got != want {
-				t.Fatalf("DecodeDocument(%q).ManifestVersion = %d, want %d", tt.kind, got, want)
-			}
-			if got, want := len(document.Entries), 1; got != want {
-				t.Fatalf("DecodeDocument(%q) entries = %d, want %d", tt.kind, got, want)
-			}
-			if got := document.Entries[0].Kind; got != tt.kind {
-				t.Fatalf("DecodeDocument(%q) entry kind = %q, want %q", tt.kind, got, tt.kind)
-			}
+			t.Run("Should accept a valid "+string(tt.kind)+" document", func(t *testing.T) {
+				t.Parallel()
+
+				document, err := DecodeDocument(tt.kind, []byte(tt.raw))
+				if err != nil {
+					t.Fatalf("DecodeDocument(%q) error = %v", tt.kind, err)
+				}
+				if got, want := document.ManifestVersion, 1; got != want {
+					t.Fatalf("DecodeDocument(%q).ManifestVersion = %d, want %d", tt.kind, got, want)
+				}
+				if got, want := len(document.Entries), 1; got != want {
+					t.Fatalf("DecodeDocument(%q) entries = %d, want %d", tt.kind, got, want)
+				}
+				if got := document.Entries[0].Kind; got != tt.kind {
+					t.Fatalf("DecodeDocument(%q) entry kind = %q, want %q", tt.kind, got, tt.kind)
+				}
+			})
 		}
 	})
 
@@ -132,6 +136,34 @@ func TestDecodeDocumentValidation(t *testing.T) {
 				wantErr: "must not set default for secret fields",
 			},
 			{
+				name: "forbidden stdio environment key",
+				kind: KindMCP,
+				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"node-options","name":"Node options","description":"Unsafe injection",` +
+					`"transport":"stdio","command":"server","env":[{` +
+					`"name":"NODE_OPTIONS","required":false,"secret":false}]}]}`,
+				wantErr: "is forbidden for stdio MCP servers",
+			},
+			{
+				name: "secret-like plain stdio environment key",
+				kind: KindMCP,
+				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"plain-token","name":"Plain token","description":"Unsafe plaintext",` +
+					`"transport":"stdio","command":"server","env":[{` +
+					`"name":"API_TOKEN","required":true,"secret":false}]}]}`,
+				wantErr: "must move secret-like values to secret_env",
+			},
+			{
+				name: "non-loopback plaintext OAuth endpoint",
+				kind: KindMCP,
+				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"remote-http","name":"Remote HTTP","description":"Insecure OAuth",` +
+					`"transport":"http","url":"https://example.test/mcp","oauth":{` +
+					`"client_id":"client","authorization_url":"http://auth.example/authorize",` +
+					`"token_url":"https://auth.example/token"}}]}`,
+				wantErr: "must use https unless host is loopback",
+			},
+			{
 				name: "missing common identity fields deterministically",
 				kind: KindMCP,
 				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
@@ -145,6 +177,39 @@ func TestDecodeDocumentValidation(t *testing.T) {
 					`"entry_id":"nested/server","name":"Nested","description":"Unsafe route identity",` +
 					`"transport":"stdio","command":"server"}]}`,
 				wantErr: "one URL-safe path segment",
+			},
+			{
+				name: "reserved current-directory entry id",
+				kind: KindMCP,
+				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":".","name":"Current","description":"Ambiguous route identity",` +
+					`"transport":"stdio","command":"server"}]}`,
+				wantErr: "one URL-safe path segment",
+			},
+			{
+				name: "reserved parent-directory entry id",
+				kind: KindMCP,
+				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"..","name":"Parent","description":"Ambiguous route identity",` +
+					`"transport":"stdio","command":"server"}]}`,
+				wantErr: "one URL-safe path segment",
+			},
+			{
+				name: "MCP URL containing credentials",
+				kind: KindMCP,
+				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"remote","name":"Remote","description":"Credential-bearing URL",` +
+					`"transport":"http","url":"https://user:password@example.test/mcp"}]}`,
+				wantErr: "without credentials",
+			},
+			{
+				name: "OAuth URL containing credentials",
+				kind: KindMCP,
+				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"remote","name":"Remote","description":"Credential-bearing OAuth URL",` +
+					`"transport":"http","url":"https://example.test/mcp","oauth":{` +
+					`"client_id":"client","issuer_url":"https://user:password@auth.example.test"}}]}`,
+				wantErr: "without credentials",
 			},
 			{
 				name: "extension without digest",
@@ -204,6 +269,22 @@ func TestDecodeDocumentValidation(t *testing.T) {
 					`"entry_id":"skill","name":"Skill","description":"Invalid trust",` +
 					`"install_slug":"compozy/skill","verified":true}]}`,
 				wantErr: "unknown field",
+			},
+			{
+				name: "skill using the synthetic remote ID namespace",
+				kind: KindSkill,
+				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"skill_QGFjbWUvc2tpbGw","name":"Colliding skill",` +
+					`"description":"Cannot shadow a synthetic ID","install_slug":"@acme/skill"}]}`,
+				wantErr: "reserved prefix",
+			},
+			{
+				name: "duplicate skill install slugs",
+				kind: KindSkill,
+				raw: `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[` +
+					`{"entry_id":"first","name":"First","description":"First skill","install_slug":"@acme/shared"},` +
+					`{"entry_id":"second","name":"Second","description":"Second skill","install_slug":"@acme/shared"}]}`,
+				wantErr: `install_slug "@acme/shared" is duplicated`,
 			},
 		}
 		for _, tt := range tests {
@@ -340,6 +421,47 @@ func TestHTTPSourceFetch(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve the construction timeout after the caller mutates its client", func(t *testing.T) {
+		t.Parallel()
+
+		const constructionTimeout = 50 * time.Millisecond
+		deadlineRemaining := time.Duration(0)
+		client := &http.Client{
+			Timeout: constructionTimeout,
+			Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				deadline, ok := request.Context().Deadline()
+				if !ok {
+					return nil, errors.New("request context has no deadline")
+				}
+				deadlineRemaining = time.Until(deadline)
+				<-request.Context().Done()
+				return nil, request.Context().Err()
+			}),
+		}
+		source, err := NewHTTPSource(KindMCP, "https://example.test/catalog", client)
+		if err != nil {
+			t.Fatalf("NewHTTPSource() error = %v", err)
+		}
+		client.Timeout = 0
+
+		startedAt := time.Now()
+		_, err = source.Fetch(t.Context())
+		elapsed := time.Since(startedAt)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Fetch() error = %v, want context.DeadlineExceeded", err)
+		}
+		if deadlineRemaining <= 0 || deadlineRemaining > 2*constructionTimeout {
+			t.Fatalf(
+				"request deadline remaining = %s, want preserved %s timeout",
+				deadlineRemaining,
+				constructionTimeout,
+			)
+		}
+		if elapsed < constructionTimeout/2 || elapsed > time.Second {
+			t.Fatalf("Fetch() elapsed = %s, want bounded construction timeout near %s", elapsed, constructionTimeout)
+		}
+	})
+
 	t.Run("Should reject an oversized body before decoding", func(t *testing.T) {
 		t.Parallel()
 
@@ -395,15 +517,27 @@ func TestHTTPSourceFetch(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject invalid construction and fetch inputs", func(t *testing.T) {
+	t.Run("Should reject a relative catalog URL", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := NewHTTPSource(KindSkill, "relative/catalog", &http.Client{Timeout: time.Second}); err == nil {
-			t.Fatal("NewHTTPSource(relative URL) error = nil")
+		_, err := NewHTTPSource(KindSkill, "relative/catalog", &http.Client{Timeout: time.Second})
+		if err == nil || !strings.Contains(err.Error(), "absolute HTTP(S) URL") {
+			t.Fatalf("NewHTTPSource(relative URL) error = %v, want absolute-URL validation", err)
 		}
-		if _, err := NewHTTPSource(KindSkill, "https://example.test", nil); err == nil {
-			t.Fatal("NewHTTPSource(nil client) error = nil")
+	})
+
+	t.Run("Should reject a missing HTTP client", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewHTTPSource(KindSkill, "https://example.test", nil)
+		if err == nil || !strings.Contains(err.Error(), "HTTP client timeout must be positive") {
+			t.Fatalf("NewHTTPSource(nil client) error = %v, want client validation", err)
 		}
+	})
+
+	t.Run("Should reject a nil fetch context", func(t *testing.T) {
+		t.Parallel()
+
 		source, err := NewHTTPSource(KindSkill, "https://example.test", &http.Client{Timeout: time.Second})
 		if err != nil {
 			t.Fatalf("NewHTTPSource(valid) error = %v", err)
@@ -412,17 +546,29 @@ func TestHTTPSourceFetch(t *testing.T) {
 			t.Fatalf("Kind() = %q, want %q", got, KindSkill)
 		}
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-		if _, err := source.Fetch(nil); err == nil {
-			t.Fatal("Fetch(nil context) error = nil")
+		if _, err := source.Fetch(nil); err == nil || !strings.Contains(err.Error(), "fetch context is required") {
+			t.Fatalf("Fetch(nil context) error = %v, want context validation", err)
 		}
+	})
+
+	t.Run("Should reject a nil HTTP source receiver", func(t *testing.T) {
+		t.Parallel()
+
 		var nilSource *HTTPSource
 		if got := nilSource.Kind(); got != "" {
 			t.Fatalf("nil Kind() = %q, want empty", got)
 		}
-		if _, err := nilSource.Fetch(context.Background()); err == nil {
-			t.Fatal("nil Fetch() error = nil")
+		_, err := nilSource.Fetch(context.Background())
+		if err == nil || !strings.Contains(err.Error(), "HTTP source is required") {
+			t.Fatalf("nil Fetch() error = %v, want source validation", err)
 		}
 	})
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }
 
 func TestDecodeRemoteMCPAndTimestamps(t *testing.T) {

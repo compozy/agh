@@ -39,6 +39,7 @@ const linearEntry: SettingsMCPServerEntry = {
     type: "oauth2_pkce",
     client_id: "agh-linear-public",
     issuer_url: "https://auth.linear.app",
+    client_secret_configured: false,
   },
   auth_status: {
     server_name: "linear",
@@ -105,16 +106,29 @@ function makeCollection(
 
 let pageState: PageState;
 
+const routeHarness = vi.hoisted(() => ({
+  search: {
+    scope: "workspace" as const,
+    server: undefined as string | undefined,
+    workspace_id: "ws-polybot" as string | undefined,
+  },
+  navigate: vi.fn(),
+  hookOptions: [] as Array<Record<string, unknown>>,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (opts: { component: () => ReactNode }) => ({
     component: opts.component,
-    useSearch: () => ({ scope: "workspace" as const, server: undefined }),
-    useNavigate: () => vi.fn(),
+    useSearch: () => routeHarness.search,
+    useNavigate: () => routeHarness.navigate,
   }),
 }));
 
 vi.mock("@/hooks/routes/use-mcp-page", () => ({
-  useMcpPage: () => pageState,
+  useMcpPage: (options: Record<string, unknown>) => {
+    routeHarness.hookOptions.push(options);
+    return pageState;
+  },
 }));
 
 function makeAuthorize(overrides: Partial<AuthorizeState> = {}): AuthorizeState {
@@ -124,6 +138,7 @@ function makeAuthorize(overrides: Partial<AuthorizeState> = {}): AuthorizeState 
     begin: null,
     error: null,
     prior: null,
+    mode: "automatic",
     isBeginning: false,
     isExchanging: false,
     isAwaiting: false,
@@ -163,7 +178,7 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     editorErrors: {},
     editorIsValid: false,
     editorAvailableTargets: ["auto", "config", "sidecar"],
-    editorVaultRefs: [],
+    editorVaultInventory: { status: "ready", refs: [] },
     editorSaveError: null,
     editorWarnings: undefined,
     editorIsSaving: false,
@@ -193,6 +208,11 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
 
 beforeEach(() => {
   pageState = makeState();
+  routeHarness.navigate.mockReset();
+  routeHarness.hookOptions.length = 0;
+  routeHarness.search.scope = "workspace";
+  routeHarness.search.server = undefined;
+  routeHarness.search.workspace_id = "ws-polybot";
 });
 
 import { routeComponent } from "@/test/route-options";
@@ -219,6 +239,15 @@ describe("MCPPage", () => {
     render(<MCPPage />);
     expect(screen.getByTestId("mcp-scope-workspace")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("mcp-scope-global")).toHaveAttribute("data-active", "false");
+  });
+
+  it("Should pass the deep-linked workspace to the page hook", () => {
+    render(<MCPPage />);
+
+    expect(routeHarness.hookOptions.at(-1)).toMatchObject({
+      scope: "workspace",
+      workspaceId: "ws-polybot",
+    });
   });
 
   it("Should render the composed status matrix without a hardcoded success dot", () => {
@@ -265,6 +294,40 @@ describe("MCPPage", () => {
     render(<MCPPage />);
     fireEvent.click(screen.getByTestId("mcp-scope-global"));
     expect(pageState.selectScope).toHaveBeenCalledWith("global");
+  });
+
+  it("Should clear workspace identity when the page hook switches to global scope", () => {
+    render(<MCPPage />);
+    const options = routeHarness.hookOptions.at(-1);
+    const onScopeChange = options?.onScopeChange as
+      | ((scope: "workspace" | "global") => void)
+      | undefined;
+
+    onScopeChange?.("global");
+
+    const navigation = routeHarness.navigate.mock.calls.at(-1)?.[0] as {
+      search: (previous: Record<string, unknown>) => Record<string, unknown>;
+    };
+    expect(
+      navigation.search({ scope: "workspace", server: "linear", workspace_id: "ws-polybot" })
+    ).toMatchObject({ scope: "global", server: undefined, workspace_id: undefined });
+  });
+
+  it("Should synchronize a sidebar workspace switch into the route", () => {
+    render(<MCPPage />);
+    const options = routeHarness.hookOptions.at(-1);
+    const onWorkspaceChange = options?.onWorkspaceChange as
+      | ((workspaceId: string) => void)
+      | undefined;
+
+    onWorkspaceChange?.("ws-other");
+
+    const navigation = routeHarness.navigate.mock.calls.at(-1)?.[0] as {
+      search: (previous: Record<string, unknown>) => Record<string, unknown>;
+    };
+    expect(
+      navigation.search({ scope: "workspace", server: "linear", workspace_id: "ws-polybot" })
+    ).toMatchObject({ scope: "workspace", server: undefined, workspace_id: "ws-other" });
   });
 
   it("Should render provenance with a marketplace cross-link for a selected catalog server", () => {

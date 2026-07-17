@@ -66,7 +66,7 @@ describe("useMCPAuthorize", () => {
     await waitFor(() => expect(result.current.phase).toBe("waiting"));
     expect(result.current.begin?.authorization_url).toBe(beginResponse.authorization_url);
     expect(result.current.isAwaiting).toBe(true);
-    expect(beginSettingsMCPAuth).toHaveBeenCalledWith("linear", filter);
+    expect(beginSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, { mode: "automatic" });
   });
 
   it("marks the flow failed when begin errors, preserving the prior status", async () => {
@@ -138,13 +138,16 @@ describe("useMCPAuthorize", () => {
     await act(async () => {
       await result.current.beginAuthorize("linear", prior);
     });
-    act(() => result.current.enterManual());
+    await act(async () => {
+      await result.current.enterManual();
+    });
     await act(async () => {
       await result.current.submitManual("code-123");
     });
 
     await waitFor(() => expect(result.current.phase).toBe("confirmed"));
     expect(exchangeSettingsMCPAuth).toHaveBeenCalledWith("linear", filter, { code: "code-123" });
+    expect(beginSettingsMCPAuth).toHaveBeenLastCalledWith("linear", filter, { mode: "manual" });
   });
 
   it("accepts a full redirect URL for the exchange", async () => {
@@ -156,7 +159,9 @@ describe("useMCPAuthorize", () => {
     await act(async () => {
       await result.current.beginAuthorize("linear", prior);
     });
-    act(() => result.current.enterManual());
+    await act(async () => {
+      await result.current.enterManual();
+    });
     const redirect = "http://127.0.0.1:2123/api/mcp/oauth/callback?code=abc&state=x";
     await act(async () => {
       await result.current.submitManual(redirect);
@@ -180,7 +185,9 @@ describe("useMCPAuthorize", () => {
     await act(async () => {
       await result.current.beginAuthorize("linear", prior);
     });
-    act(() => result.current.enterManual());
+    await act(async () => {
+      await result.current.enterManual();
+    });
     await act(async () => {
       await result.current.submitManual("code-123");
     });

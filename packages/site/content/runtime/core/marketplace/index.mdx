@@ -135,7 +135,8 @@ Context7 needs no required values and can be installed globally from the launch 
 agh mcp install context7 --scope global -o json
 ```
 
-For non-secret fields, use `--set`. For secret fields, bind an existing present Vault ref:
+Use `--set KEY` to read a field value from stdin or a hidden terminal prompt. To bind an existing
+present Vault ref:
 
 ```bash
 printf "%s" "$GITHUB_TOKEN" | \
@@ -157,9 +158,9 @@ agh mcp install github \
   -o json
 ```
 
-Do not put secret values in `--set`; shell arguments can enter process listings and history. The
-web guided installer offers the same typed-value or existing-Vault-ref choice. Settings responses
-return secret refs so you can identify a binding, but never return the secret values.
+`--set` accepts only the field name; the value is never a process argument. The web guided
+installer offers the same typed-value or existing-Vault-ref choice. Settings responses return
+configured field names and OAuth client-secret presence, never refs or secret values.
 For direct HTTP or UDS calls, `values` is a required nullable property: send `null` when the entry
 needs no operator inputs. Omission is rejected before the settings lifecycle runs.
 

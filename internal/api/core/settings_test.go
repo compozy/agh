@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -612,7 +613,13 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		targetPath := "/api/settings/mcp-servers/linear/auth/"
 		query := "?scope=workspace&workspace_id=workspace-a"
 
-		begin := performRequest(t, fixture.Engine, http.MethodPost, targetPath+"begin"+query, nil)
+		begin := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			targetPath+"begin"+query,
+			[]byte(`{"mode":"automatic"}`),
+		)
 		if begin.Code != http.StatusOK {
 			t.Fatalf("begin status = %d, want %d; body=%s", begin.Code, http.StatusOK, begin.Body.String())
 		}
@@ -647,8 +654,17 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		if logout.Code != http.StatusOK {
 			t.Fatalf("logout status = %d, want %d; body=%s", logout.Code, http.StatusOK, logout.Body.String())
 		}
-		if strings.Contains(logout.Body.String(), "token") && strings.Contains(logout.Body.String(), "sensitive") {
-			t.Fatalf("logout response leaked token material: %s", logout.Body.String())
+		var logoutPayload contract.SettingsMCPAuthStatusPayload
+		decodeJSON(t, logout.Body.Bytes(), &logoutPayload)
+		if logoutPayload.ServerName != "linear" ||
+			logoutPayload.Scope != "workspace" ||
+			logoutPayload.WorkspaceID != "workspace-a" ||
+			logoutPayload.Status != string(mcpauth.StatusNeedsLogin) ||
+			logoutPayload.TokenPresent {
+			t.Fatalf("logout payload = %#v, want redacted needs-login workspace status", logoutPayload)
+		}
+		if strings.Contains(logout.Body.String(), "sensitive") {
+			t.Fatalf("logout response leaked secret material: %s", logout.Body.String())
 		}
 
 		callback := performRequest(
@@ -664,6 +680,18 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		if strings.Contains(callback.Body.String(), "sensitive-callback-code") ||
 			strings.Contains(callback.Body.String(), "public-state") {
 			t.Fatalf("callback response leaked inbound OAuth material: %s", callback.Body.String())
+		}
+		if contentType := callback.Header().Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+			t.Fatalf("callback Content-Type = %q, want HTML", contentType)
+		}
+		for _, expected := range []string{
+			"<title>Authorization complete</title>",
+			"<h1>Authorization complete</h1>",
+			"You can close this tab and return to AGH.",
+		} {
+			if !strings.Contains(callback.Body.String(), expected) {
+				t.Fatalf("callback success body missing %q: %s", expected, callback.Body.String())
+			}
 		}
 		service.CompleteMCPAuthFn = func(context.Context, string) (mcpauth.Status, error) {
 			return mcpauth.Status{}, errors.New("provider rejected sensitive-failure-code")
@@ -687,6 +715,15 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 			strings.Contains(failedCallback.Body.String(), "provider rejected") {
 			t.Fatalf("callback failure reflected secret or internal error: %s", failedCallback.Body.String())
 		}
+		for _, expected := range []string{
+			"<title>Authorization failed</title>",
+			"<h1>Authorization failed</h1>",
+			"Return to AGH and try again, or use manual authorization.",
+		} {
+			if !strings.Contains(failedCallback.Body.String(), expected) {
+				t.Fatalf("callback failure body missing %q: %s", expected, failedCallback.Body.String())
+			}
+		}
 	})
 }
 
@@ -696,6 +733,7 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 	tests := []struct {
 		name         string
 		host         string
+		mode         contract.SettingsMCPAuthBeginMode
 		wantStatus   int
 		wantCallback string
 		wantCalls    int
@@ -703,6 +741,7 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 		{
 			name:         "Should advertise the configured IPv6 loopback listener",
 			host:         "::1",
+			mode:         contract.SettingsMCPAuthBeginModeAutomatic,
 			wantStatus:   http.StatusOK,
 			wantCallback: "http://[::1]:2123/api/mcp/oauth/callback",
 			wantCalls:    1,
@@ -710,8 +749,17 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 		{
 			name:       "Should reject automatic authorization on a non-loopback listener",
 			host:       "0.0.0.0",
+			mode:       contract.SettingsMCPAuthBeginModeAutomatic,
 			wantStatus: http.StatusServiceUnavailable,
 			wantCalls:  0,
+		},
+		{
+			name:         "Should allow manual authorization without a loopback listener",
+			host:         "0.0.0.0",
+			mode:         contract.SettingsMCPAuthBeginModeManual,
+			wantStatus:   http.StatusOK,
+			wantCallback: "http://127.0.0.1:2123/api/mcp/oauth/callback",
+			wantCalls:    1,
 		},
 	}
 	for _, tc := range tests {
@@ -743,7 +791,7 @@ func TestSettingsMCPAuthHandlersUseEffectiveLoopbackListener(t *testing.T) {
 				fixture.Engine,
 				http.MethodPost,
 				"/api/settings/mcp-servers/linear/auth/begin?scope=global",
-				nil,
+				[]byte(`{"mode":"`+string(tc.mode)+`"}`),
 			)
 			if response.Code != tc.wantStatus {
 				t.Fatalf("begin status = %d, want %d; body=%s", response.Code, tc.wantStatus, response.Body.String())
@@ -768,6 +816,12 @@ func TestSettingsMCPAuthHandlersRejectInvalidTargetsAndBodies(t *testing.T) {
 		{
 			name: "Should require an explicit scope",
 			path: "/api/settings/mcp-servers/linear/auth/begin",
+			body: []byte(`{"mode":"automatic"}`),
+		},
+		{
+			name: "Should require a supported begin mode",
+			path: "/api/settings/mcp-servers/linear/auth/begin?scope=global",
+			body: []byte(`{"mode":"unspecified"}`),
 		},
 		{
 			name: "Should reject unknown exchange fields without echoing their value",
@@ -842,6 +896,7 @@ func TestSettingsMCPAuthHandlersMatchAcrossHTTPAndUDSTransportShims(t *testing.T
 		}{
 			{
 				path: "/api/settings/mcp-servers/linear/auth/begin?scope=workspace&workspace_id=workspace-a",
+				body: []byte(`{"mode":"automatic"}`),
 			},
 			{
 				path: "/api/settings/mcp-servers/linear/auth/exchange?scope=workspace&workspace_id=workspace-a",
@@ -1319,7 +1374,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				Name:        "memory",
 				Command:     "memoryd",
 				Args:        []string{"serve"},
-				Env:         map[string]string{"TOKEN": "abc"},
+				EnvKeys:     []string{"TOKEN"},
 				Scope:       settingspkg.ScopeWorkspace,
 				WorkspaceID: "ws-1",
 				SourceMetadata: settingspkg.SourceMetadata{
@@ -2710,7 +2765,7 @@ func TestGetSettingsRestartStatusReturnsPersistedOperationShape(t *testing.T) {
 	}
 }
 
-func TestInstallSettingsMCPServerMapsStrictRequestAndRefVisibleResponse(t *testing.T) {
+func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing.T) {
 	newService := func() *stubSettingsService {
 		return &stubSettingsService{
 			InstallMCPCatalogFn: func(
@@ -2719,14 +2774,18 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRefVisibleResponse(t *testi
 			) (settingspkg.MCPCatalogInstallResult, error) {
 				return settingspkg.MCPCatalogInstallResult{
 					Item: settingspkg.MCPServerItem{
-						Name:           req.Name,
-						Transport:      aghconfig.MCPServerTransportStdio,
-						Command:        "npx",
-						SecretEnv:      map[string]string{"GITHUB_TOKEN": "vault:mcp/ws/ws-1/github/env/GITHUB_TOKEN"},
-						Scope:          req.Scope,
-						WorkspaceID:    req.WorkspaceID,
-						CatalogEntry:   req.EntryID,
-						CatalogVersion: "1.2.3",
+						Name:          req.Name,
+						Transport:     aghconfig.MCPServerTransportStdio,
+						Command:       "npx",
+						SecretEnvKeys: []string{"GITHUB_TOKEN"},
+						Auth: aghconfig.MCPAuthConfig{
+							Type: aghconfig.MCPAuthTypeOAuth2PKCE,
+						},
+						ClientSecretConfigured: true,
+						Scope:                  req.Scope,
+						WorkspaceID:            req.WorkspaceID,
+						CatalogEntry:           req.EntryID,
+						CatalogVersion:         "1.2.3",
 					},
 					Apply: settingspkg.ApplyResult{
 						Record: settingspkg.ApplyRecord{
@@ -2749,7 +2808,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRefVisibleResponse(t *testi
 		}
 	}
 
-	t.Run("Should map the strict request and return only the bound ref", func(t *testing.T) {
+	t.Run("Should map the strict request without returning secret bindings", func(t *testing.T) {
 		t.Parallel()
 
 		service := newService()
@@ -2781,13 +2840,23 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRefVisibleResponse(t *testi
 		if got, want := service.LastMCPCatalogInstall.Values.Env["GITHUB_TOKEN"].Value, "write-only-secret"; got != want {
 			t.Fatalf("install secret input = %q, want mapped write-only value", got)
 		}
-		if strings.Contains(resp.Body.String(), "write-only-secret") {
-			t.Fatalf("response leaked write-only secret: %s", resp.Body.String())
+		for _, forbidden := range []string{
+			"write-only-secret",
+			"vault:mcp/ws/ws-1/github/env/GITHUB_TOKEN",
+			"vault:mcp/ws/ws-1/github/oauth/client-secret",
+			"client_secret_ref",
+		} {
+			if strings.Contains(resp.Body.String(), forbidden) {
+				t.Fatalf("response leaked secret material %q: %s", forbidden, resp.Body.String())
+			}
 		}
 		var payload contract.InstallSettingsMCPServerResponse
 		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if got, want := payload.MCPServer.SecretEnv["GITHUB_TOKEN"], "vault:mcp/ws/ws-1/github/env/GITHUB_TOKEN"; got != want {
-			t.Fatalf("response secret ref = %q, want %q", got, want)
+		if got := payload.MCPServer.SecretEnvKeys; len(got) != 1 || got[0] != "GITHUB_TOKEN" {
+			t.Fatalf("response secret env keys = %#v, want [GITHUB_TOKEN]", got)
+		}
+		if payload.MCPServer.Auth == nil || !payload.MCPServer.Auth.ClientSecretConfigured {
+			t.Fatalf("response auth = %#v, want configured client-secret presence", payload.MCPServer.Auth)
 		}
 		if got, want := payload.NextStep, contract.SettingsMCPInstallNextStepNone; got != want {
 			t.Fatalf("response next_step = %q, want %q", got, want)
@@ -2913,6 +2982,11 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		SecretValues: &contract.SettingsMCPSecretValuesPayload{
 			SecretEnv: map[string]string{"TOKEN": "server-token"},
 		},
+		PreserveSecrets: &contract.SettingsMCPSecretPreservationPayload{
+			SecretEnv:         []string{"EXISTING_TOKEN"},
+			OAuthClientSecret: true,
+		},
+		PreserveEnv: []string{"PROJECT"},
 	})
 	putResp := performRequest(
 		t,
@@ -2942,6 +3016,25 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 	}
 	if got, want := service.LastPutCollectionRequest.MCPSecrets.SecretEnv["TOKEN"], "server-token"; got != want {
 		t.Fatalf("LastPutCollectionRequest.MCPSecrets.SecretEnv[TOKEN] = %q, want %q", got, want)
+	}
+	preservedSecretEnv := service.LastPutCollectionRequest.MCPSecretPreservation.SecretEnv
+	if len(preservedSecretEnv) != 1 || preservedSecretEnv[0] != "EXISTING_TOKEN" {
+		t.Fatalf(
+			"LastPutCollectionRequest.MCPSecretPreservation.SecretEnv = %#v, want [EXISTING_TOKEN]",
+			preservedSecretEnv,
+		)
+	}
+	if !service.LastPutCollectionRequest.MCPSecretPreservation.OAuthClientSecret {
+		t.Fatal("LastPutCollectionRequest.MCPSecretPreservation.OAuthClientSecret = false, want true")
+	}
+	gotEnvPreservation := service.LastPutCollectionRequest.MCPEnvPreservation
+	wantEnvPreservation := []string{"PROJECT"}
+	if !reflect.DeepEqual(gotEnvPreservation, wantEnvPreservation) {
+		t.Fatalf(
+			"LastPutCollectionRequest.MCPEnvPreservation = %#v, want %#v",
+			gotEnvPreservation,
+			wantEnvPreservation,
+		)
 	}
 	if strings.Contains(putResp.Body.String(), "server-token") {
 		t.Fatalf("PUT response leaked raw secret value: %s", putResp.Body.String())

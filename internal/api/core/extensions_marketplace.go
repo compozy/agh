@@ -48,17 +48,17 @@ func (h *BaseHandlers) joinInstalledExtensionMarketplace(
 			continue
 		}
 
-		identity := strings.TrimSpace(entry.InstallSlug)
-		if identity == "" {
-			identity = strings.TrimSpace(entry.EntryID)
+		installed := newMarketplaceInstallIndex()
+		installation := marketplaceInstall{
+			name:       strings.TrimSpace(item.Name),
+			version:    strings.TrimSpace(item.Version),
+			managePath: "/extensions/" + url.PathEscape(strings.TrimSpace(item.Name)),
 		}
-		listing, err := h.curatedMarketplaceListing(ctx, *entry, map[string]marketplaceInstall{
-			identity: {
-				name:       strings.TrimSpace(item.Name),
-				version:    strings.TrimSpace(item.Version),
-				managePath: "/extensions/" + url.PathEscape(strings.TrimSpace(item.Name)),
-			},
-		})
+		installed.byEntryID[strings.TrimSpace(entry.EntryID)] = installation
+		if slug := strings.TrimSpace(entry.InstallSlug); slug != "" {
+			installed.bySlug[slug] = installation
+		}
+		listing, err := h.curatedMarketplaceListing(ctx, *entry, installed)
 		if err != nil {
 			joinErrors = append(
 				joinErrors,

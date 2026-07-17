@@ -9,6 +9,7 @@ var (
 	ErrResponseTooLarge = errors.New("marketplace catalog: response exceeds size limit")
 	ErrEntryNotFound    = errors.New("marketplace catalog: entry not found")
 	ErrKindStateMissing = errors.New("marketplace catalog: kind state missing")
+	ErrServiceClosed    = errors.New("marketplace catalog: service is closed")
 )
 
 // UnsupportedManifestVersionError requires the operator to upgrade the client.

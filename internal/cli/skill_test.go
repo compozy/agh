@@ -494,63 +494,67 @@ func TestSkillViewCommandRejectsSymlinkEscape(t *testing.T) {
 func TestSkillInspectCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 	t.Parallel()
 
-	env := newSkillTestEnv(t, nil)
-	skillFile := writeUserSkill(t, env.homePaths, "info-skill", strings.Join([]string{
-		"---",
-		"name: info-skill",
-		"description: Show all metadata.",
-		"version: 1.2.3",
-		"metadata:",
-		"  author: test-suite",
-		"  tags:",
-		"    - go",
-		"    - cli",
-		"---",
-		"# Info Skill",
-		"",
-		"Use this skill for metadata inspection.",
-	}, "\n"))
-	writeSkillResource(
-		t,
-		filepath.Dir(skillFile),
-		"references/notes.md",
-		"Useful notes.\n",
-	)
+	t.Run("Should show metadata source path and resources", func(t *testing.T) {
+		t.Parallel()
 
-	stdout, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill", "-o", "json")
-	if err != nil {
-		t.Fatalf("skill inspect json error = %v", err)
-	}
+		env := newSkillTestEnv(t, nil)
+		skillFile := writeUserSkill(t, env.homePaths, "info-skill", strings.Join([]string{
+			"---",
+			"name: info-skill",
+			"description: Show all metadata.",
+			"version: 1.2.3",
+			"metadata:",
+			"  author: test-suite",
+			"  tags:",
+			"    - go",
+			"    - cli",
+			"---",
+			"# Info Skill",
+			"",
+			"Use this skill for metadata inspection.",
+		}, "\n"))
+		writeSkillResource(
+			t,
+			filepath.Dir(skillFile),
+			"references/notes.md",
+			"Useful notes.\n",
+		)
 
-	var payload skillInfoItem
-	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(skill inspect) error = %v; stdout=%s", err, stdout)
-	}
+		stdout, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill", "-o", "json")
+		if err != nil {
+			t.Fatalf("skill inspect json error = %v", err)
+		}
 
-	if payload.Name != "info-skill" || payload.Version != "1.2.3" {
-		t.Fatalf("payload = %#v, want name/version populated", payload)
-	}
-	if payload.Source != "user" {
-		t.Fatalf("payload.Source = %q, want user", payload.Source)
-	}
-	if !strings.HasSuffix(payload.Path, filepath.ToSlash(filepath.Join("info-skill", skillMarkdownFileName))) &&
-		!strings.HasSuffix(payload.Path, filepath.Join("info-skill", skillMarkdownFileName)) {
-		t.Fatalf("payload.Path = %q, want SKILL.md suffix", payload.Path)
-	}
-	if len(payload.Resources) != 1 || payload.Resources[0] != "references/notes.md" {
-		t.Fatalf("payload.Resources = %#v, want notes resource", payload.Resources)
-	}
-	if payload.Metadata["author"] != "test-suite" {
-		t.Fatalf("payload.Metadata = %#v, want author", payload.Metadata)
-	}
+		var payload skillInfoItem
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill inspect) error = %v; stdout=%s", err, stdout)
+		}
 
-	humanOut, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill")
-	if err != nil {
-		t.Fatalf("skill inspect human error = %v", err)
-	}
-	if !strings.Contains(humanOut, "Metadata") || !strings.Contains(humanOut, "references/notes.md") {
-		t.Fatalf("skill inspect human output missing metadata/resources:\n%s", humanOut)
-	}
+		if payload.Name != "info-skill" || payload.Version != "1.2.3" {
+			t.Fatalf("payload = %#v, want name/version populated", payload)
+		}
+		if payload.Source != "user" {
+			t.Fatalf("payload.Source = %q, want user", payload.Source)
+		}
+		if !strings.HasSuffix(payload.Path, filepath.ToSlash(filepath.Join("info-skill", skillMarkdownFileName))) &&
+			!strings.HasSuffix(payload.Path, filepath.Join("info-skill", skillMarkdownFileName)) {
+			t.Fatalf("payload.Path = %q, want SKILL.md suffix", payload.Path)
+		}
+		if len(payload.Resources) != 1 || payload.Resources[0] != "references/notes.md" {
+			t.Fatalf("payload.Resources = %#v, want notes resource", payload.Resources)
+		}
+		if payload.Metadata["author"] != "test-suite" {
+			t.Fatalf("payload.Metadata = %#v, want author", payload.Metadata)
+		}
+
+		humanOut, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill")
+		if err != nil {
+			t.Fatalf("skill inspect human error = %v", err)
+		}
+		if !strings.Contains(humanOut, "Metadata") || !strings.Contains(humanOut, "references/notes.md") {
+			t.Fatalf("skill inspect human output missing metadata/resources:\n%s", humanOut)
+		}
+	})
 }
 
 func TestSkillListCommandRejectsInvalidSource(t *testing.T) {

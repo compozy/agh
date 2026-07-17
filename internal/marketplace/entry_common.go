@@ -38,8 +38,16 @@ func (c entryCommon) validate(kind Kind) error {
 			return fmt.Errorf("marketplace catalog %q entry %s is required", kind, field.name)
 		}
 	}
-	if !entryIDPattern.MatchString(strings.TrimSpace(c.EntryID)) {
+	entryID := strings.TrimSpace(c.EntryID)
+	if entryID == "." || entryID == ".." || !entryIDPattern.MatchString(entryID) {
 		return fmt.Errorf("marketplace catalog %q entry_id must be one URL-safe path segment", kind)
+	}
+	if kind == KindSkill && strings.HasPrefix(entryID, RemoteSkillEntryPrefix) {
+		return fmt.Errorf(
+			"marketplace catalog %q entry_id must not use reserved prefix %q",
+			kind,
+			RemoteSkillEntryPrefix,
+		)
 	}
 	if _, err := parseOptionalTimestamp(c.PublishedAt, "published_at"); err != nil {
 		return err

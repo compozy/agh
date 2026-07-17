@@ -15,6 +15,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	mcppkg "github.com/compozy/agh/internal/mcp"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	toolspkg "github.com/compozy/agh/internal/tools"
 	"github.com/compozy/agh/internal/vault"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -107,18 +108,21 @@ func TestWorkspaceScopedMCPMutationResolvesWorkspaceRootAndPersistsToTarget(t *t
 }
 
 func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
-	homePaths := testHomePaths(t)
-	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-	store := newSettingsIntegrationVaultStore()
-	vaultService, err := vault.NewService(store, settingsIntegrationKeyProvider{})
-	if err != nil {
-		t.Fatalf("vault.NewService() error = %v", err)
-	}
-	entry := stdioMCPCatalogEntry()
-	entry.Name = "catalog-helper"
-	entry.Payload = json.RawMessage(`{
+	t.Run("Should persist an encrypted secret and resolve it in the MCP executor", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		t.Cleanup(cancel)
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		store := newSettingsIntegrationVaultStore()
+		vaultService, err := vault.NewService(store, settingsIntegrationKeyProvider{})
+		if err != nil {
+			t.Fatalf("vault.NewService() error = %v", err)
+		}
+		entry := stdioMCPCatalogEntry()
+		entry.Name = "catalog-helper"
+		entry.Payload = json.RawMessage(`{
 		"transport":"stdio",
 		"command":"` + strings.ReplaceAll(os.Args[0], `\`, `\\`) + `",
 		"args":["-test.run=TestSettingsCatalogMCPStdioHelperProcess"],
@@ -128,95 +132,115 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 		],
 		"default_scope":"global"
 	}`)
-	service := testService(t, homePaths, Dependencies{
-		MCPCatalog:      fakeMCPCatalog{entry: entry},
-		ProviderSecrets: vaultService,
-	})
+		service := testService(t, homePaths, Dependencies{
+			MCPCatalog:      fakeMCPCatalog{entry: entry},
+			ProviderSecrets: vaultService,
+		})
 
-	installed, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
-		EntryID: "github",
-		Scope:   ScopeGlobal,
-		Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-			"CATALOG_TOKEN": {Value: "executor-secret"},
-		}},
+		installed, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
+			EntryID: "github",
+			Scope:   ScopeGlobal,
+			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
+				"CATALOG_TOKEN": {Value: "executor-secret"},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("InstallMCPCatalog() error = %v", err)
+		}
+		assertMCPSecretKeys(t, installed.Item, "CATALOG_TOKEN")
+		ref := "vault:mcp/global/catalog-helper/env/CATALOG_TOKEN"
+		record, err := store.GetVaultSecret(ctx, ref)
+		if err != nil {
+			t.Fatalf("GetVaultSecret(%q) error = %v", ref, err)
+		}
+		if strings.Contains(record.EncryptedValue, "executor-secret") {
+			t.Fatalf("vault record contains plaintext: %#v", record)
+		}
+		servers, err := aghconfig.LoadMCPServersJSONFile(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		if err != nil {
+			t.Fatalf("LoadMCPServersJSONFile() error = %v", err)
+		}
+		if len(servers) != 1 {
+			t.Fatalf("len(sidecar servers) = %d, want 1", len(servers))
+		}
+		executor, err := mcppkg.NewMCPCallExecutor(
+			mcppkg.ServerResolverFunc(func(
+				_ context.Context,
+				source toolspkg.SourceRef,
+			) (mcppkg.ResolvedServer, error) {
+				if source.RawServerName != installed.Item.Name {
+					return mcppkg.ResolvedServer{}, fmt.Errorf(
+						"resolve unexpected MCP server %q",
+						source.RawServerName,
+					)
+				}
+				return mcppkg.ResolvedServer{
+					Server: servers[0],
+					Target: mcpauth.Target{
+						Scope:      mcpauth.ScopeGlobal,
+						ServerName: installed.Item.Name,
+					},
+				}, nil
+			}),
+			mcppkg.WithSecretResolver(vaultService),
+			mcppkg.WithTimeout(5*time.Second),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPCallExecutor() error = %v", err)
+		}
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         installed.Item.Name,
+			RawServerName: installed.Item.Name,
+			RawToolName:   "*",
+		}
+		descriptors, err := executor.ListTools(ctx, source)
+		if err != nil {
+			t.Fatalf("ListTools() error = %v", err)
+		}
+		if len(descriptors) != 1 {
+			t.Fatalf("len(ListTools()) = %d, want 1", len(descriptors))
+		}
+		result, err := executor.CallTool(ctx, descriptors[0].Source, toolspkg.MCPToolCallRequest{
+			ToolID:      descriptors[0].ID,
+			RawToolName: descriptors[0].RawName,
+			Input:       json.RawMessage(`{"message":"CATALOG_TOKEN"}`),
+		})
+		if err != nil {
+			t.Fatalf("CallTool() error = %v", err)
+		}
+		if got, want := result.Preview, "env: executor-secret"; got != want {
+			t.Fatalf("CallTool().Preview = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("InstallMCPCatalog() error = %v", err)
-	}
-	ref := installed.Item.SecretEnv["CATALOG_TOKEN"]
-	record, err := store.GetVaultSecret(ctx, ref)
-	if err != nil {
-		t.Fatalf("GetVaultSecret(%q) error = %v", ref, err)
-	}
-	if strings.Contains(record.EncryptedValue, "executor-secret") {
-		t.Fatalf("vault record contains plaintext: %#v", record)
-	}
-	servers, err := aghconfig.LoadMCPServersJSONFile(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
-	if err != nil {
-		t.Fatalf("LoadMCPServersJSONFile() error = %v", err)
-	}
-	if len(servers) != 1 {
-		t.Fatalf("len(sidecar servers) = %d, want 1", len(servers))
-	}
-	executor, err := mcppkg.NewMCPCallExecutor(
-		mcppkg.ServerResolverFunc(func(context.Context) ([]aghconfig.MCPServer, error) {
-			return servers, nil
-		}),
-		mcppkg.WithSecretResolver(vaultService),
-		mcppkg.WithTimeout(5*time.Second),
-	)
-	if err != nil {
-		t.Fatalf("NewMCPCallExecutor() error = %v", err)
-	}
-	source := toolspkg.SourceRef{
-		Kind:          toolspkg.SourceMCP,
-		Owner:         installed.Item.Name,
-		RawServerName: installed.Item.Name,
-		RawToolName:   "*",
-	}
-	descriptors, err := executor.ListTools(ctx, source)
-	if err != nil {
-		t.Fatalf("ListTools() error = %v", err)
-	}
-	if len(descriptors) != 1 {
-		t.Fatalf("len(ListTools()) = %d, want 1", len(descriptors))
-	}
-	result, err := executor.CallTool(ctx, descriptors[0].Source, toolspkg.MCPToolCallRequest{
-		ToolID:      descriptors[0].ID,
-		RawToolName: descriptors[0].RawName,
-		Input:       json.RawMessage(`{"message":"CATALOG_TOKEN"}`),
-	})
-	if err != nil {
-		t.Fatalf("CallTool() error = %v", err)
-	}
-	if got, want := result.Preview, "env: executor-secret"; got != want {
-		t.Fatalf("CallTool().Preview = %q, want %q", got, want)
-	}
 }
 
-func TestSettingsCatalogMCPStdioHelperProcess(_ *testing.T) {
+func TestSettingsCatalogMCPStdioHelperProcess(t *testing.T) {
 	if os.Getenv(settingsCatalogMCPHelperEnv) != "1" {
 		return
 	}
-	server := mcpsrv.NewMCPServer("settings-catalog-helper", "1.0.0", mcpsrv.WithToolCapabilities(true))
-	server.AddTool(
-		mcpsdk.NewTool("env", mcpsdk.WithString("message")),
-		func(_ context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-			name := mcpsdk.ParseString(req, "message", "")
-			value := os.Getenv(name)
-			return mcpsdk.NewToolResultStructured(
-				map[string]string{"message": value},
-				"env: "+value,
-			), nil
-		},
-	)
-	if err := mcpsrv.ServeStdio(server); err != nil {
-		if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
-			os.Exit(3)
+	// Intentionally serial: this subprocess test owns stdin/stdout as the MCP stdio protocol.
+	t.Run("Should serve the catalog MCP helper over stdio", func(_ *testing.T) {
+		server := mcpsrv.NewMCPServer("settings-catalog-helper", "1.0.0", mcpsrv.WithToolCapabilities(true))
+		server.AddTool(
+			mcpsdk.NewTool("env", mcpsdk.WithString("message")),
+			func(_ context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+				name := mcpsdk.ParseString(req, "message", "")
+				value := os.Getenv(name)
+				return mcpsdk.NewToolResultStructured(
+					map[string]string{"message": value},
+					"env: "+value,
+				), nil
+			},
+		)
+		if err := mcpsrv.ServeStdio(server); err != nil {
+			if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
+				os.Exit(3)
+			}
+			os.Exit(2)
 		}
-		os.Exit(2)
-	}
-	os.Exit(0)
+		os.Exit(0)
+	})
 }
 
 type settingsIntegrationKeyProvider struct{}

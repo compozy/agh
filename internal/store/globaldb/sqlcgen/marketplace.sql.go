@@ -168,23 +168,17 @@ SELECT kind, entry_id, name, description, version, published_at, updated_at,
        digest_sha256, tier, install_slug, payload_json, fetched_at
 FROM marketplace_catalog_entries
 WHERE kind = ?1
-  AND (
-    CAST(?2 AS TEXT) = ''
-    OR instr(lower(name), CAST(?2 AS TEXT)) > 0
-    OR instr(lower(description), CAST(?2 AS TEXT)) > 0
-  )
-ORDER BY lower(name) ASC, entry_id ASC
-LIMIT ?3
+ORDER BY entry_id ASC
+LIMIT ?2
 `
 
 type ListMarketplaceCatalogEntriesParams struct {
 	Kind        string `json:"kind"`
-	Query       string `json:"query"`
 	ResultLimit int64  `json:"result_limit"`
 }
 
 func (q *Queries) ListMarketplaceCatalogEntries(ctx context.Context, arg ListMarketplaceCatalogEntriesParams) ([]MarketplaceCatalogEntry, error) {
-	rows, err := q.db.QueryContext(ctx, listMarketplaceCatalogEntries, arg.Kind, arg.Query, arg.ResultLimit)
+	rows, err := q.db.QueryContext(ctx, listMarketplaceCatalogEntries, arg.Kind, arg.ResultLimit)
 	if err != nil {
 		return nil, err
 	}

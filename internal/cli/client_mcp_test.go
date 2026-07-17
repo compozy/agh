@@ -39,6 +39,17 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 						req.URL.Path != "/api/settings/mcp-servers/linear/auth/begin" {
 						return nil, fmt.Errorf("begin request = %s %s", req.Method, req.URL.Path)
 					}
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						return nil, fmt.Errorf("read begin body: %w", err)
+					}
+					var begin SettingsMCPAuthBeginRequest
+					if err := json.Unmarshal(body, &begin); err != nil {
+						return nil, fmt.Errorf("decode begin body: %w", err)
+					}
+					if begin.Mode != contract.SettingsMCPAuthBeginModeAutomatic {
+						return nil, fmt.Errorf("begin mode = %q, want automatic", begin.Mode)
+					}
 					return newHTTPResponse(http.StatusOK, `{
                   "authorization_url":"https://auth.example/authorize?state=public",
                   "state":"public",
@@ -85,7 +96,9 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 		if _, err := client.ListSettingsMCPServers(ctx, scope, "workspace-a"); err != nil {
 			t.Fatalf("ListSettingsMCPServers() error = %v", err)
 		}
-		begin, err := client.BeginSettingsMCPAuth(ctx, target)
+		begin, err := client.BeginSettingsMCPAuth(ctx, target, SettingsMCPAuthBeginRequest{
+			Mode: contract.SettingsMCPAuthBeginModeAutomatic,
+		})
 		if err != nil {
 			t.Fatalf("BeginSettingsMCPAuth() error = %v", err)
 		}

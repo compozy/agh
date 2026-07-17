@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +23,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	marketplacepkg "github.com/compozy/agh/internal/marketplace"
 	mcppkg "github.com/compozy/agh/internal/mcp"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/memory/consolidation"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
@@ -110,6 +110,7 @@ type bootState struct {
 	heartbeatCatalog       *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog            *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog       *resourceCatalog[aghconfig.MCPServer]
+	mcpAuthGeneration      *mcpauth.MutationGeneration
 	loopCatalog            *resourceCatalog[looppkg.ResourceSpec]
 	agentSkillResources    agentSkillPublisher
 	toolMCPResources       toolMCPPublisher
@@ -135,36 +136,6 @@ type bootState struct {
 	deps                   RuntimeDeps
 }
 
-type bootCleanup struct {
-	fns []func(context.Context) error
-}
-
-func (c *bootCleanup) add(fn func(context.Context) error) {
-	if fn == nil {
-		return
-	}
-	c.fns = append(c.fns, fn)
-}
-
-func (c *bootCleanup) run(ctx context.Context, err *error) {
-	if err == nil || *err == nil {
-		return
-	}
-	if ctx == nil {
-		ctx = context.WithoutCancel(context.TODO())
-	}
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
-	defer cancel()
-
-	var cleanupErrs []error
-	for _, v := range slices.Backward(c.fns) {
-		if cleanupErr := v(cleanupCtx); cleanupErr != nil {
-			cleanupErrs = append(cleanupErrs, cleanupErr)
-		}
-	}
-	*err = errors.Join(*err, errors.Join(cleanupErrs...))
-}
-
 func (d *Daemon) boot(ctx context.Context) (err error) {
 	if ctx == nil {
 		return errors.New("daemon: boot context is required")
@@ -175,7 +146,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 	defer d.finishBoot(&err)
 
-	state := &bootState{}
+	state := &bootState{mcpAuthGeneration: mcpauth.NewMutationGeneration()}
 	cleanup := &bootCleanup{}
 	defer cleanup.run(ctx, &err)
 

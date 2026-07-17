@@ -34,9 +34,13 @@ func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
 		client.beginSettingsMCPAuthFn = func(
 			_ context.Context,
 			target SettingsMCPAuthTarget,
+			request SettingsMCPAuthBeginRequest,
 		) (SettingsMCPAuthBeginRecord, error) {
 			if target.Name != "linear" || target.Scope != contract.SettingsWorkspaceScopeGlobal {
 				t.Fatalf("begin target = %#v", target)
+			}
+			if request.Mode != contract.SettingsMCPAuthBeginModeManual {
+				t.Fatalf("begin mode = %q, want manual", request.Mode)
 			}
 			return SettingsMCPAuthBeginRecord{
 				AuthorizationURL: "https://auth.example/authorize?state=public-state",
@@ -93,6 +97,7 @@ func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
 			beginSettingsMCPAuthFn: func(
 				context.Context,
 				SettingsMCPAuthTarget,
+				SettingsMCPAuthBeginRequest,
 			) (SettingsMCPAuthBeginRecord, error) {
 				return SettingsMCPAuthBeginRecord{
 					AuthorizationURL: "https://auth.example/authorize",
@@ -175,6 +180,7 @@ func TestMCPAuthorizeManualHonorsTimeout(t *testing.T) {
 			beginSettingsMCPAuthFn: func(
 				context.Context,
 				SettingsMCPAuthTarget,
+				SettingsMCPAuthBeginRequest,
 			) (SettingsMCPAuthBeginRecord, error) {
 				return SettingsMCPAuthBeginRecord{
 					AuthorizationURL: "https://auth.example/authorize",
@@ -354,9 +360,13 @@ func TestMCPAuthorizeWaitsForAChangedConfirmedCredential(t *testing.T) {
 				return mcpAuthServerResponse(mcpAuthStatus("linear", "global", "", true, updatedAt)), nil
 			},
 			beginSettingsMCPAuthFn: func(
-				context.Context,
-				SettingsMCPAuthTarget,
+				_ context.Context,
+				_ SettingsMCPAuthTarget,
+				request SettingsMCPAuthBeginRequest,
 			) (SettingsMCPAuthBeginRecord, error) {
+				if request.Mode != contract.SettingsMCPAuthBeginModeAutomatic {
+					t.Fatalf("begin mode = %q, want automatic", request.Mode)
+				}
 				return SettingsMCPAuthBeginRecord{
 					AuthorizationURL: "https://auth.example/authorize",
 					ExpiresAt:        time.Now().Add(time.Minute),
@@ -422,7 +432,7 @@ func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
 			t,
 			deps,
 			"mcp", "auth", "status", "linear",
-			"--scope", "workspace", "--workspace", workspaceID, "-o", "json",
+			"--scope", " workspace ", "--workspace", " "+workspaceID+" ", "-o", "json",
 		)
 		if err != nil {
 			t.Fatalf("execute mcp auth status error = %v", err)

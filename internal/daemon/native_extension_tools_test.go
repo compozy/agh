@@ -36,6 +36,8 @@ type nativeExtensionCatalog struct {
 	err   error
 }
 
+func (nativeExtensionCatalog) Close(context.Context) error { return nil }
+
 func (c nativeExtensionCatalog) Browse(
 	context.Context,
 	marketplacepkg.Kind,

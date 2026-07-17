@@ -45,7 +45,7 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 			Env:       redacted.Env,
 			SecretEnv: redacted.SecretEnv,
 			URL:       redacted.URL,
-			Auth:      settingsMCPAuthConfigPayload(redacted.Auth),
+			Auth:      agentMCPAuthPayload(redacted.Auth),
 		})
 	}
 	digest, digestErr := aghconfig.AgentDefinitionDigest(agent)

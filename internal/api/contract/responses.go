@@ -347,9 +347,10 @@ type ManagedExtensionUpdatePayload struct {
 
 // ManagedExtensionRemovePayload describes one daemon-owned extension removal.
 type ManagedExtensionRemovePayload struct {
-	Name   string `json:"name"`
-	Path   string `json:"path"`
-	Status string `json:"status"`
+	Name     string           `json:"name"`
+	Path     string           `json:"path"`
+	Status   string           `json:"status"`
+	Warnings []DiagnosticItem `json:"warnings,omitempty"`
 }
 
 // ResourcesResponse wraps the shared desired-state resource list payload.

@@ -33,10 +33,9 @@ export function AutomationDeleteAction({
       setOpen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : `Failed to delete automation ${noun}`);
-    } finally {
-      submissionRef.current = false;
-      setIsSubmitting(false);
     }
+    submissionRef.current = false;
+    setIsSubmitting(false);
   };
 
   return (

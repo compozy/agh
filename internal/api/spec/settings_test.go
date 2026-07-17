@@ -181,6 +181,9 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertParameter(t, begin, "scope", openapi3.ParameterInQuery, true)
 		assertParameter(t, begin, "workspace_id", openapi3.ParameterInQuery, false)
 		assertParameterEnumValues(t, begin, "scope", "global", "workspace")
+		beginRequest := jsonRequestSchema(t, begin)
+		assertRequired(t, beginRequest, "mode")
+		assertEnumValues(t, propertySchema(t, beginRequest, "mode"), "automatic", "manual")
 		beginSchema := jsonResponseSchema(t, begin, 200)
 		assertRequired(
 			t,
@@ -212,7 +215,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		callback := operationFor(t, doc, "/api/mcp/oauth/callback", "GET")
 		assertOperationTransports(t, callback, TransportHTTP)
 		assertParameter(t, callback, "code", openapi3.ParameterInQuery, false)
-		assertParameter(t, callback, "state", openapi3.ParameterInQuery, false)
+		assertParameter(t, callback, "state", openapi3.ParameterInQuery, true)
 		assertParameter(t, callback, "error", openapi3.ParameterInQuery, false)
 		for _, status := range []int{200, 400, 403, 503} {
 			assertResponseStatus(t, callback, status)
@@ -464,6 +467,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		serverSchema := propertySchema(t, putMCPSchema, "server")
 		assertRequired(t, serverSchema, "name")
 		assertNotRequired(t, serverSchema, "transport", "command", "args", "env", "url", "auth")
+		assertNotRequired(t, putMCPSchema, "secret_values", "preserve_secrets", "preserve_env")
 
 		installMCP := operationFor(t, doc, "/api/settings/mcp-servers/install", "POST")
 		installMCPSchema := jsonRequestSchema(t, installMCP)
@@ -504,8 +508,8 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			mcpItemRootSchema,
 			"command",
 			"args",
-			"env",
-			"secret_env",
+			"env_keys",
+			"secret_env_keys",
 			"url",
 			"auth",
 			"auth_status",
@@ -513,6 +517,11 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"catalog_entry",
 			"catalog_version",
 		)
+		assertPropertyAbsent(t, mcpItemRootSchema, "env")
+		assertPropertyAbsent(t, mcpItemRootSchema, "secret_env")
+		mcpAuthSchema := propertySchema(t, mcpItemRootSchema, "auth")
+		assertRequired(t, mcpAuthSchema, "client_secret_configured")
+		assertPropertyAbsent(t, mcpAuthSchema, "client_secret_ref")
 		mcpRuntimeSchema := propertySchema(t, mcpItemRootSchema, "runtime_status")
 		assertRequired(t, mcpRuntimeSchema, "configured", "initialized", "state", "probe", "tool_count")
 		assertNotRequired(t, mcpRuntimeSchema, "reason", "diagnostic")

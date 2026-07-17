@@ -3,11 +3,10 @@ package marketplace
 import (
 	"fmt"
 	"net/url"
-	"regexp"
 	"strings"
-)
 
-var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	aghconfig "github.com/compozy/agh/internal/config"
+)
 
 type mcpEntry struct {
 	entryCommon
@@ -127,7 +126,7 @@ func (e mcpEntry) validateOAuth() error {
 		if endpoint.value == "" {
 			continue
 		}
-		if err := validateAbsoluteHTTPURL(endpoint.value, "oauth."+endpoint.name); err != nil {
+		if err := aghconfig.ValidateMCPOAuthURL("oauth."+endpoint.name, endpoint.value); err != nil {
 			return fmt.Errorf("marketplace catalog MCP entry %q: %w", e.EntryID, err)
 		}
 	}
@@ -138,8 +137,8 @@ func (e mcpEntry) validateEnvironment() error {
 	seenEnv := make(map[string]struct{}, len(e.Env))
 	for index, field := range e.Env {
 		name := strings.TrimSpace(field.Name)
-		if !envNamePattern.MatchString(name) {
-			return fmt.Errorf("marketplace catalog MCP entry %q env[%d].name is invalid", e.EntryID, index)
+		if err := aghconfig.ValidateMCPStdioEnvName("env", name, field.Secret); err != nil {
+			return fmt.Errorf("marketplace catalog MCP entry %q env[%d]: %w", e.EntryID, index, err)
 		}
 		if _, exists := seenEnv[name]; exists {
 			return fmt.Errorf("marketplace catalog MCP entry %q env name %q is duplicated", e.EntryID, name)
@@ -167,6 +166,9 @@ func validateAbsoluteHTTPURL(raw string, field string) error {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || parsed.Host == "" || (parsed.Scheme != protocolHTTP && parsed.Scheme != protocolHTTPS) {
 		return fmt.Errorf("%s must be an absolute HTTP(S) URL", field)
+	}
+	if parsed.User != nil {
+		return fmt.Errorf("%s must be an absolute HTTP(S) URL without credentials", field)
 	}
 	return nil
 }

@@ -106,6 +106,10 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[contract.RestartOperationStatus]():           restartOperationStatusValues(),
 	reflect.TypeFor[contract.SettingsStreamTransport]():          settingsStreamTransportValues(),
 	reflect.TypeFor[contract.SettingsUpdateStatusKind]():         settingsUpdateStatusValues(),
+	reflect.TypeFor[contract.SettingsMCPAuthBeginMode](): {
+		string(contract.SettingsMCPAuthBeginModeAutomatic),
+		string(contract.SettingsMCPAuthBeginModeManual),
+	},
 	reflect.TypeFor[contract.SettingsMCPInstallNextStep](): {
 		string(contract.SettingsMCPInstallNextStepNone),
 		string(contract.SettingsMCPInstallNextStepAuthorize),

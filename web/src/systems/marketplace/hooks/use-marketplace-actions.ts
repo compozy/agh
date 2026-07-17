@@ -34,9 +34,10 @@ function invalidateMarketplace(queryClient: ReturnType<typeof useQueryClient>) {
 // Deep-link the post-install toast to the exact installed scope + server so the
 // operator lands on /mcp with the row preselected, matching the marketplace
 // Manage path producer (internal/api/core/marketplace_list.go).
-function mcpManagePath(scope: string, server: string): string {
+function mcpManagePath(scope: string, server: string, workspaceId: string): string {
   const params = new URLSearchParams({ scope });
   if (server) params.set("server", server);
+  if (scope === "workspace" && workspaceId) params.set("workspace_id", workspaceId);
   return `/mcp?${params.toString()}`;
 }
 
@@ -65,7 +66,8 @@ export function useInstallMarketplaceMCP() {
     onSuccess: (result, variables) => {
       const server = result.mcp_server?.name ?? variables.name ?? "";
       const scope = result.mcp_server?.scope ?? variables.scope;
-      const path = mcpManagePath(scope, server);
+      const workspaceId = result.mcp_server?.workspace_id ?? variables.workspace_id ?? "";
+      const path = mcpManagePath(scope, server, workspaceId);
       if (result.next_step === "authorize") {
         toast.success(
           "MCP server installed. Authorization is required.",

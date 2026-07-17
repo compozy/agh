@@ -19,6 +19,7 @@ const maxStoredErrorBytes = 1024
 const (
 	errorClassCanceled = "canceled"
 	errorClassNetwork  = "network"
+	errorClassTimeout  = "timeout"
 )
 
 type refreshFlight struct {
@@ -29,13 +30,20 @@ type refreshFlight struct {
 
 // CatalogService coordinates TTL freshness and durable projections.
 type CatalogService struct {
-	store    Store
-	sources  map[Kind]Source
-	ttl      time.Duration
-	now      func() time.Time
-	notifier Notifier
-	flightMu sync.Mutex
-	flights  map[Kind]*refreshFlight
+	store          Store
+	sources        map[Kind]Source
+	ttl            time.Duration
+	refreshTimeout time.Duration
+	now            func() time.Time
+	notifier       Notifier
+	flightMu       sync.Mutex
+	flights        map[Kind]*refreshFlight
+	lifecycleCtx   context.Context
+	lifecycleStop  context.CancelFunc
+	flightWG       sync.WaitGroup
+	closeOnce      sync.Once
+	closeDone      chan struct{}
+	closed         bool
 }
 
 var _ Service = (*CatalogService)(nil)
@@ -62,12 +70,21 @@ func WithNotifier(notifier Notifier) ServiceOption {
 }
 
 // NewService creates the internal curated catalog service.
-func NewService(store Store, sources []Source, ttl time.Duration, options ...ServiceOption) (*CatalogService, error) {
+func NewService(
+	store Store,
+	sources []Source,
+	ttl time.Duration,
+	refreshTimeout time.Duration,
+	options ...ServiceOption,
+) (*CatalogService, error) {
 	if store == nil {
 		return nil, errors.New("marketplace catalog: store is required")
 	}
 	if ttl <= 0 {
 		return nil, errors.New("marketplace catalog: TTL must be positive")
+	}
+	if refreshTimeout <= 0 {
+		return nil, errors.New("marketplace catalog: refresh timeout must be positive")
 	}
 	sourceByKind := make(map[Kind]Source, len(sources))
 	for _, source := range sources {
@@ -86,14 +103,19 @@ func NewService(store Store, sources []Source, ttl time.Duration, options ...Ser
 	if len(sourceByKind) == 0 {
 		return nil, errors.New("marketplace catalog: at least one source is required")
 	}
+	lifecycleCtx, lifecycleStop := context.WithCancel(context.Background())
 	service := &CatalogService{
-		store:   store,
-		sources: sourceByKind,
-		ttl:     ttl,
+		store:          store,
+		sources:        sourceByKind,
+		ttl:            ttl,
+		refreshTimeout: refreshTimeout,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		flights: make(map[Kind]*refreshFlight),
+		flights:       make(map[Kind]*refreshFlight),
+		lifecycleCtx:  lifecycleCtx,
+		lifecycleStop: lifecycleStop,
+		closeDone:     make(chan struct{}),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -146,6 +168,9 @@ func (s *CatalogService) Refresh(ctx context.Context, kinds ...Kind) (RefreshRep
 	if ctx == nil {
 		return RefreshReport{}, errors.New("marketplace catalog: refresh context is required")
 	}
+	if err := s.lifecycleError(); err != nil {
+		return RefreshReport{}, err
+	}
 	selected, err := s.selectKinds(kinds)
 	if err != nil {
 		return RefreshReport{}, err
@@ -166,6 +191,9 @@ func (s *CatalogService) Refresh(ctx context.Context, kinds ...Kind) (RefreshRep
 func (s *CatalogService) Status(ctx context.Context) ([]KindState, error) {
 	if ctx == nil {
 		return nil, errors.New("marketplace catalog: status context is required")
+	}
+	if err := s.lifecycleError(); err != nil {
+		return nil, err
 	}
 	kinds, err := s.selectKinds(nil)
 	if err != nil {
@@ -203,30 +231,60 @@ func (s *CatalogService) ensureFresh(ctx context.Context, kind Kind) error {
 }
 
 func (s *CatalogService) withRefreshFlight(ctx context.Context, kind Kind) (RefreshOutcome, error) {
+	if err := ctx.Err(); err != nil {
+		return canceledRefreshOutcome(kind), err
+	}
 	s.flightMu.Lock()
+	if s.closed {
+		s.flightMu.Unlock()
+		return canceledRefreshOutcome(kind), ErrServiceClosed
+	}
 	if existing := s.flights[kind]; existing != nil {
 		s.flightMu.Unlock()
-		select {
-		case <-existing.done:
-			return existing.outcome, existing.err
-		case <-ctx.Done():
-			return RefreshOutcome{
-				Kind:       kind,
-				Outcome:    RefreshOutcomeFailed,
-				ErrorClass: errorClassCanceled,
-			}, ctx.Err()
-		}
+		return awaitRefreshFlight(ctx, kind, existing)
 	}
 	flight := &refreshFlight{done: make(chan struct{})}
 	s.flights[kind] = flight
+	s.flightWG.Add(1)
+	refreshCtx, cancel := context.WithTimeout(s.lifecycleCtx, s.refreshTimeout)
 	s.flightMu.Unlock()
 
+	// The flight map owns this goroutine until completion. Its service-level
+	// deadline bounds the lifetime independently of any individual caller.
+	go s.runRefreshFlight(refreshCtx, cancel, kind, flight)
+	return awaitRefreshFlight(ctx, kind, flight)
+}
+
+func (s *CatalogService) runRefreshFlight(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	kind Kind,
+	flight *refreshFlight,
+) {
+	defer s.flightWG.Done()
+	defer cancel()
 	flight.outcome, flight.err = s.refreshKind(ctx, kind)
 	s.flightMu.Lock()
 	delete(s.flights, kind)
 	close(flight.done)
 	s.flightMu.Unlock()
-	return flight.outcome, flight.err
+}
+
+func awaitRefreshFlight(ctx context.Context, kind Kind, flight *refreshFlight) (RefreshOutcome, error) {
+	select {
+	case <-flight.done:
+		return flight.outcome, flight.err
+	case <-ctx.Done():
+		return canceledRefreshOutcome(kind), ctx.Err()
+	}
+}
+
+func canceledRefreshOutcome(kind Kind) RefreshOutcome {
+	return RefreshOutcome{
+		Kind:       kind,
+		Outcome:    RefreshOutcomeFailed,
+		ErrorClass: errorClassCanceled,
+	}
 }
 
 func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOutcome, error) {
@@ -234,6 +292,9 @@ func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOut
 	now := s.now().UTC()
 	document, err := source.Fetch(ctx)
 	if err != nil {
+		if lifecycleErr := s.lifecycleError(); lifecycleErr != nil {
+			return canceledRefreshOutcome(kind), errors.Join(lifecycleErr, err)
+		}
 		return s.recordFailure(ctx, kind, classifyFetchError(err), err)
 	}
 	if document == nil {
@@ -243,6 +304,9 @@ func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOut
 	for index := range document.Entries {
 		document.Entries[index].FetchedAt = now
 	}
+	if lifecycleErr := s.lifecycleError(); lifecycleErr != nil {
+		return canceledRefreshOutcome(kind), lifecycleErr
+	}
 	if err := s.store.ReplaceKind(ctx, kind, document); err != nil {
 		return s.recordFailure(ctx, kind, "store", err)
 	}
@@ -251,7 +315,9 @@ func (s *CatalogService) refreshKind(ctx context.Context, kind Kind) (RefreshOut
 		Outcome:    RefreshOutcomeSucceeded,
 		EntryCount: len(document.Entries),
 	}
-	s.notify(ctx, outcome)
+	if err := s.notify(ctx, outcome); err != nil {
+		return outcome, fmt.Errorf("marketplace catalog: persist %q refresh event: %w", kind, err)
+	}
 	return outcome, nil
 }
 
@@ -261,9 +327,14 @@ func (s *CatalogService) recordFailure(
 	errorClass string,
 	cause error,
 ) (RefreshOutcome, error) {
+	// Fetch/store failures may arrive because the refresh deadline expired. Use
+	// a fresh bounded context so failure state and its event outlive that dead
+	// operation context without becoming unbounded background work.
+	failureCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.refreshTimeout)
+	defer cancel()
 	redacted := diagnostics.RedactAndBound(cause.Error(), maxStoredErrorBytes)
-	markErr := s.store.MarkKindStale(ctx, kind, errorClass, redacted)
-	state, stateErr := s.store.KindState(ctx, kind)
+	markErr := s.store.MarkKindStale(failureCtx, kind, errorClass, redacted)
+	state, stateErr := s.store.KindState(failureCtx, kind)
 	outcome := RefreshOutcome{
 		Kind:       kind,
 		Outcome:    RefreshOutcomeFailed,
@@ -273,15 +344,15 @@ func (s *CatalogService) recordFailure(
 	if stateErr == nil {
 		outcome.EntryCount = state.EntryCount
 	}
-	s.notify(ctx, outcome)
-	return outcome, errors.Join(cause, markErr, stateErr)
+	notifyErr := s.notify(failureCtx, outcome)
+	return outcome, errors.Join(cause, markErr, stateErr, notifyErr)
 }
 
-func (s *CatalogService) notify(ctx context.Context, outcome RefreshOutcome) {
+func (s *CatalogService) notify(ctx context.Context, outcome RefreshOutcome) error {
 	if s.notifier == nil {
-		return
+		return nil
 	}
-	s.notifier.NotifyCatalogRefresh(context.WithoutCancel(ctx), outcome)
+	return s.notifier.NotifyCatalogRefresh(context.WithoutCancel(ctx), outcome)
 }
 
 func (s *CatalogService) checkReady(ctx context.Context, kind Kind) error {
@@ -290,6 +361,9 @@ func (s *CatalogService) checkReady(ctx context.Context, kind Kind) error {
 	}
 	if s == nil || s.store == nil {
 		return errors.New("marketplace catalog: service is required")
+	}
+	if err := s.lifecycleError(); err != nil {
+		return err
 	}
 	if _, ok := s.sources[kind]; !ok {
 		if _, err := kindFilename(kind); err != nil {
@@ -303,6 +377,9 @@ func (s *CatalogService) checkReady(ctx context.Context, kind Kind) error {
 func (s *CatalogService) selectKinds(requested []Kind) ([]Kind, error) {
 	if s == nil || len(s.sources) == 0 {
 		return nil, errors.New("marketplace catalog: service sources are required")
+	}
+	if err := s.lifecycleError(); err != nil {
+		return nil, err
 	}
 	if len(requested) == 0 {
 		kinds := make([]Kind, 0, len(s.sources))
@@ -338,7 +415,7 @@ func classifyFetchError(err error) string {
 	case errors.Is(err, context.Canceled):
 		return errorClassCanceled
 	case errors.Is(err, context.DeadlineExceeded):
-		return "timeout"
+		return errorClassTimeout
 	case errors.Is(err, ErrResponseTooLarge):
 		return "payload_too_large"
 	}

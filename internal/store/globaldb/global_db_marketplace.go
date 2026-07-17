@@ -84,7 +84,6 @@ func (r *MarketplaceRepo) MarkMarketplaceCatalogStale(
 func (r *MarketplaceRepo) ListMarketplaceCatalogEntries(
 	ctx context.Context,
 	kind string,
-	query string,
 	limit int64,
 ) ([]store.MarketplaceCatalogEntry, error) {
 	if err := r.checkReady(ctx, "list marketplace catalog entries"); err != nil {
@@ -92,7 +91,6 @@ func (r *MarketplaceRepo) ListMarketplaceCatalogEntries(
 	}
 	rows, err := r.queries.ListMarketplaceCatalogEntries(ctx, sqlcgen.ListMarketplaceCatalogEntriesParams{
 		Kind:        kind,
-		Query:       query,
 		ResultLimit: limit,
 	})
 	if err != nil {

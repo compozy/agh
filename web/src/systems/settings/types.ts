@@ -85,6 +85,8 @@ export type SettingsMCPServerDeleteFilter = NonNullable<OperationQuery<"deleteSe
 // Daemon-mediated OAuth (ADR-016). The begin response returns the ONLY live PKCE
 // authorization URL; the exchange/logout responses return the fresh auth-status shape.
 export type SettingsMCPAuthFilter = NonNullable<OperationQuery<"beginSettingsMCPAuth">>;
+export type SettingsMCPAuthBeginRequest = OperationRequestBody<"beginSettingsMCPAuth">;
+export type SettingsMCPAuthBeginMode = SettingsMCPAuthBeginRequest["mode"];
 export type SettingsMCPAuthBeginResponse = OperationResponse<"beginSettingsMCPAuth", 200>;
 export type SettingsMCPAuthExchangeRequest = OperationRequestBody<"exchangeSettingsMCPAuth">;
 export type SettingsMCPAuthStatusResponse = OperationResponse<"exchangeSettingsMCPAuth", 200>;

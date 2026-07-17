@@ -34,4 +34,5 @@ type InstallSettingsMCPServerResponse struct {
 	MCPServer SettingsMCPServerItemPayload `json:"mcp_server"`
 	Apply     SettingsApplyResponse        `json:"apply"`
 	NextStep  SettingsMCPInstallNextStep   `json:"next_step"`
+	Warnings  []DiagnosticItem             `json:"warnings,omitempty"`
 }

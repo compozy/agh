@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 
 import {
   type SettingsMCPAuthBeginResponse,
+  type SettingsMCPAuthBeginMode,
   type SettingsMCPAuthExchangeRequest,
   type SettingsMCPAuthFilter,
   useBeginMCPAuth,
@@ -37,6 +38,7 @@ export interface MCPAuthorizeState {
   begin: SettingsMCPAuthBeginResponse | null;
   error: string | null;
   prior: MCPAuthorizePriorStatus | null;
+  mode: SettingsMCPAuthBeginMode | null;
 }
 
 const IDLE: MCPAuthorizeState = {
@@ -45,6 +47,7 @@ const IDLE: MCPAuthorizeState = {
   begin: null,
   error: null,
   prior: null,
+  mode: null,
 };
 
 function isConfirmed(status: string, tokenPresent: boolean): boolean {
@@ -68,16 +71,20 @@ export function useMCPAuthorize(filter: SettingsMCPAuthFilter | null) {
   const beginMutation = useBeginMCPAuth();
   const exchangeMutation = useExchangeMCPAuth();
 
-  const beginAuthorize = async (server: string, prior: MCPAuthorizePriorStatus) => {
+  const startAuthorize = async (
+    server: string,
+    prior: MCPAuthorizePriorStatus,
+    mode: SettingsMCPAuthBeginMode
+  ) => {
     if (!filter) return;
     const attempt = ++beginAttempt.current;
-    setState({ phase: "beginning", server, begin: null, error: null, prior });
+    setState({ phase: "beginning", server, begin: null, error: null, prior, mode });
     try {
-      const begin = await beginMutation.mutateAsync({ name: server, filter });
+      const begin = await beginMutation.mutateAsync({ name: server, filter, mode });
       if (beginAttempt.current !== attempt) return;
       setState(current =>
         current.server === server && current.phase === "beginning"
-          ? { ...current, phase: "waiting", begin }
+          ? { ...current, phase: mode === "manual" ? "manual" : "waiting", begin }
           : current
       );
     } catch (error) {
@@ -94,12 +101,12 @@ export function useMCPAuthorize(filter: SettingsMCPAuthFilter | null) {
     }
   };
 
-  const enterManual = () => {
-    setState(current =>
-      current.phase === "waiting" || (current.phase === "failed" && current.begin !== null)
-        ? { ...current, phase: "manual", error: null }
-        : current
-    );
+  const beginAuthorize = (server: string, prior: MCPAuthorizePriorStatus) =>
+    startAuthorize(server, prior, "automatic");
+
+  const enterManual = async () => {
+    if (!state.server || !state.prior) return;
+    await startAuthorize(state.server, state.prior, "manual");
   };
 
   const submitManual = async (value: string) => {
@@ -157,7 +164,7 @@ export function useMCPAuthorize(filter: SettingsMCPAuthFilter | null) {
 
   const retryBegin = async () => {
     if (!state.server || !state.prior) return;
-    await beginAuthorize(state.server, state.prior);
+    await startAuthorize(state.server, state.prior, state.mode ?? "automatic");
   };
 
   return {

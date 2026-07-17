@@ -90,7 +90,7 @@ func buildMarketplaceService(
 	if now != nil {
 		options = append(options, marketplace.WithNow(now))
 	}
-	service, err := marketplace.NewService(marketplaceStore, sources, ttl, options...)
+	service, err := marketplace.NewService(marketplaceStore, sources, ttl, timeout, options...)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create marketplace service: %w", err)
 	}
@@ -182,27 +182,45 @@ func (r *marketplaceRuntime) ReconcileConfig(ctx context.Context, cfg *aghconfig
 		return err
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.stopped {
-		return errors.New("daemon: marketplace runtime is stopped")
+		r.mu.Unlock()
+		return errors.Join(errors.New("daemon: marketplace runtime is stopped"), next.Close(ctx))
+	}
+	previous := r.service
+	if previous != nil {
+		if err := previous.Close(ctx); err != nil {
+			r.mu.Unlock()
+			return errors.Join(
+				fmt.Errorf("daemon: retire previous marketplace service: %w", err),
+				next.Close(context.WithoutCancel(ctx)),
+			)
+		}
 	}
 	r.service = next
+	r.mu.Unlock()
 	return nil
 }
 
-func (r *marketplaceRuntime) Shutdown(context.Context) error {
+func (r *marketplaceRuntime) Shutdown(ctx context.Context) error {
 	if r == nil {
 		return nil
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.stopped {
+		r.mu.Unlock()
 		return nil
 	}
 	r.stopped = true
+	service := r.service
 	r.service = nil
-	return nil
+	r.mu.Unlock()
+	if service == nil {
+		return nil
+	}
+	return service.Close(ctx)
 }
+
+func (r *marketplaceRuntime) Close(ctx context.Context) error { return r.Shutdown(ctx) }
 
 func (r *marketplaceRuntime) currentService(ctx context.Context) (marketplaceRuntimeService, error) {
 	if ctx == nil {
@@ -232,14 +250,17 @@ type daemonMarketplaceNotifier struct {
 
 var _ marketplace.Notifier = (*daemonMarketplaceNotifier)(nil)
 
-func (n *daemonMarketplaceNotifier) NotifyCatalogRefresh(ctx context.Context, outcome marketplace.RefreshOutcome) {
+func (n *daemonMarketplaceNotifier) NotifyCatalogRefresh(
+	ctx context.Context,
+	outcome marketplace.RefreshOutcome,
+) error {
 	if n == nil || n.writer == nil {
-		return
+		return nil
 	}
 	content, err := json.Marshal(outcome)
 	if err != nil {
 		n.logFailure("catalog.refresh", "marshal", err)
-		return
+		return fmt.Errorf("daemon: marshal marketplace catalog refresh event: %w", err)
 	}
 	eventOutcome := eventspkg.OutcomeInfo
 	switch outcome.Outcome {
@@ -248,7 +269,7 @@ func (n *daemonMarketplaceNotifier) NotifyCatalogRefresh(ctx context.Context, ou
 	case marketplace.RefreshOutcomeFailed:
 		eventOutcome = eventspkg.OutcomeFailure
 	}
-	n.writeEvent(ctx, "catalog.refresh", store.EventSummary{
+	return n.writeEvent(ctx, "catalog.refresh", store.EventSummary{
 		Type:    eventspkg.MarketplaceCatalogRefresh,
 		Outcome: string(eventOutcome),
 		Content: content,
@@ -256,14 +277,14 @@ func (n *daemonMarketplaceNotifier) NotifyCatalogRefresh(ctx context.Context, ou
 	})
 }
 
-func (n *daemonMarketplaceNotifier) NotifyInstall(ctx context.Context, outcome marketplace.InstallOutcome) {
+func (n *daemonMarketplaceNotifier) NotifyInstall(ctx context.Context, outcome marketplace.InstallOutcome) error {
 	if n == nil || n.writer == nil {
-		return
+		return nil
 	}
 	content, err := json.Marshal(outcome)
 	if err != nil {
 		n.logFailure("install", "marshal", err)
-		return
+		return fmt.Errorf("daemon: marshal marketplace install event: %w", err)
 	}
 	eventOutcome := eventspkg.OutcomeInfo
 	switch outcome.Outcome {
@@ -272,7 +293,7 @@ func (n *daemonMarketplaceNotifier) NotifyInstall(ctx context.Context, outcome m
 	case marketplace.InstallOutcomeFailed:
 		eventOutcome = eventspkg.OutcomeFailure
 	}
-	n.writeEvent(ctx, "install", store.EventSummary{
+	return n.writeEvent(ctx, "install", store.EventSummary{
 		Type:    eventspkg.MarketplaceInstall,
 		Outcome: string(eventOutcome),
 		Content: content,
@@ -280,9 +301,13 @@ func (n *daemonMarketplaceNotifier) NotifyInstall(ctx context.Context, outcome m
 	})
 }
 
-func (n *daemonMarketplaceNotifier) writeEvent(ctx context.Context, event string, summary store.EventSummary) {
+func (n *daemonMarketplaceNotifier) writeEvent(
+	ctx context.Context,
+	event string,
+	summary store.EventSummary,
+) error {
 	if n == nil || n.writer == nil {
-		return
+		return nil
 	}
 	if n.now != nil {
 		summary.Timestamp = n.now().UTC()
@@ -300,7 +325,9 @@ func (n *daemonMarketplaceNotifier) writeEvent(ctx context.Context, event string
 	defer cancel()
 	if err := n.writer.WriteEventSummary(writeCtx, summary); err != nil {
 		n.logFailure(event, "write", err)
+		return fmt.Errorf("daemon: persist marketplace %s event: %w", event, err)
 	}
+	return nil
 }
 
 func (n *daemonMarketplaceNotifier) logFailure(event string, operation string, err error) {

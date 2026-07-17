@@ -57,6 +57,17 @@ function applyRecordsForUrl(request: Request) {
   return { entries };
 }
 
+function mcpAuthTarget(request: Request, serverName: string) {
+  const url = new URL(request.url);
+  const scope = url.searchParams.get("scope") === "workspace" ? "workspace" : "global";
+  const workspaceId = url.searchParams.get("workspace_id")?.trim();
+  return {
+    server_name: serverName,
+    scope,
+    ...(scope === "workspace" && workspaceId ? { workspace_id: workspaceId } : {}),
+  };
+}
+
 export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/settings/general", () => HttpResponse.json(settingsGeneralSectionFixture)),
   aghApiMock.patch("/api/settings/general", () =>
@@ -219,14 +230,19 @@ export const handlers: HttpHandler[] = [
   aghApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
     HttpResponse.json(mcpAuthBeginFixture)
   ),
-  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", () =>
-    HttpResponse.json(mcpAuthStatusAuthenticatedFixture)
-  ),
-  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/logout", () =>
+  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", ({ request, params }) =>
     HttpResponse.json({
       ...mcpAuthStatusAuthenticatedFixture,
+      ...mcpAuthTarget(request, String(params.name)),
+    })
+  ),
+  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/logout", ({ request, params }) =>
+    HttpResponse.json({
+      ...mcpAuthStatusAuthenticatedFixture,
+      ...mcpAuthTarget(request, String(params.name)),
       status: "needs_login",
       token_present: false,
+      diagnostic: "login required",
     })
   ),
 

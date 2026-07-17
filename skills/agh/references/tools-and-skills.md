@@ -65,7 +65,8 @@ bundles are derived and cannot be refreshed directly. Inspect each discovery kin
 `error_class`, and `error` fields:
 failed feed refreshes preserve the last successful rows and return their per-kind stale outcome.
 On installed HTTP/UDS and structured CLI rows, use `installed_name` for lifecycle mutations;
-`name` is feed-owned display text, and `manage_path` is presentation-only.
+`name` is feed-owned display text, and `manage_path` is presentation-only. Treat `manage_path` as
+opaque: workspace-scoped MCP links include the exact `workspace_id` that owns the installation.
 
 Extension rows carry the daemon's pre-install `trust` report. Use its `decision`, `registry_tier`,
 `allow_unverified`, and `warnings` directly; `checksum_verified` remains false until download verification.
@@ -77,19 +78,18 @@ For non-curated side-loads, `extension_unverified_policy_blocked` means the live
 `/settings/extensions` and the config key. `extension_archive_digest_mismatch` means curated bytes
 do not match the catalog pin; do not retry with `--allow-unverified`.
 
-MCP catalog install is also an operator mutation. Use
+Install MCP catalog entries with
 `agh mcp install <entry> --scope global|workspace [--workspace <id>] -o json` or
-`POST /api/settings/mcp-servers/install`. `--set KEY=VALUE` supplies a catalog field;
-`--vault-ref KEY=vault:mcp/...` binds an existing present MCP Vault ref. Confidential OAuth entries
-accept exactly one of `--oauth-client-secret-value <secret>` or
-`--oauth-client-secret-vault-ref vault:mcp/...`. The response preserves catalog provenance and
-returns config `apply` truth (`applied`, lifecycle, apply record, active generation, and next action)
-plus `next_step=authorize` only for OAuth entries. Treat a failed apply as desired config that still
-needs the returned repair action; it is not active runtime state. There is no mutating native MCP
-install tool. Direct HTTP/UDS requests must include `values`; use explicit `null` for an input-free
-entry because omission is a contract error.
-Replacing a catalog binding garbage-collects only superseded AGH-owned canonical refs. Shared or
-still-bound refs are retained, and cleanup failure restores the prior definition and owned secret.
+`POST /api/settings/mcp-servers/install`; no mutating native install tool exists. `--set KEY` reads
+one field from stdin/hidden prompt; `--vault-ref KEY=vault:mcp/...` binds a present ref. Confidential
+OAuth accepts exactly one of `--oauth-client-secret` or `--oauth-client-secret-vault-ref`.
+
+Reads expose configured field names/OAuth-secret presence, never refs. JSON returns provenance,
+full config `apply` truth, and `next_step=authorize` only for OAuth. Failed apply means desired config
+needs its returned repair action, not that runtime is active. HTTP/UDS requires `values` (`null` when
+input-free). `mcp_install_event_persist_failed` warns that install committed but its Marketplace
+event did not. Cleanup touches only superseded owned refs. Complete secret restoration rolls back;
+partial secret/definition restoration retains the commit and returns a residual-state warning.
 
 When `next_step=authorize`, run `agh mcp authorize <name>`; `agh mcp auth login <name>` reaches the
 same daemon-owned PKCE flow. Use `--manual` to paste a code or full redirect URL, especially for a
@@ -107,18 +107,19 @@ invalidates pending completion, and a stored token is never sent when the transp
 OAuth settings no longer match. A mismatched or pre-fingerprint token remains stored until explicit
 logout but status reports that login is required; begin a new authorization for the current definition.
 
-Agents that need transport-level management can call the HTTP or UDS `POST` routes
-`/api/settings/mcp-servers/{name}/auth/begin`, `/auth/exchange`, and `/auth/logout`, with explicit
-`scope` and optional `workspace_id`. The HTTP-only `/api/mcp/oauth/callback` accepts automatic
-completion only on a loopback bind. Its origin follows the effective listener, including bracketed
-IPv6, and callback-runtime unavailability is a documented `503` HTML outcome. Keep `code` and
-`redirect_url` values confined to the exchange request; status and event payloads are redacted.
+HTTP/UDS auth routes `/auth/begin`, `/auth/exchange`, and `/auth/logout` use explicit `scope` and
+optional `workspace_id`; begin requires `mode: "automatic" | "manual"`, with manual creating a fresh
+paste session. The HTTP-only callback auto-completes only on loopback, follows the effective listener
+(including IPv6), and returns documented `503` HTML when unavailable. Keep exchange codes/redirects
+out of status and events.
 
 Inspect MCP management truth with `agh__mcp_status`, `agh__mcp_auth_status`, or
 `GET /api/settings/mcp-servers`. Configuration, authorization, runtime, and probe are independent
 signals; `configured` alone never means ready. Edit stdio or remote HTTP/SSE definitions through
-`PUT /api/settings/mcp-servers/{name}` with explicit scope. A generic edit clears catalog provenance,
-and OAuth repair is complete only when status is `authenticated` with `token_present=true`.
+`PUT /api/settings/mcp-servers/{name}` with explicit scope. A generic edit clears provenance; OAuth
+repair requires `authenticated` plus `token_present=true`. Reads project `env_keys` and
+`secret_env_keys`, never values/refs. Preserve exact-target fields with `preserve_env` or
+`preserve_secrets`; renames and target changes require replacement.
 
 The singular `agh skill search`, `agh skill info <entry_id>`, and `agh extension search` commands
 read the same discovery namespace. Use `agh skill inspect <installed-name>` for effective metadata

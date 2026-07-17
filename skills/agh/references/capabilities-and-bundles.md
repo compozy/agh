@@ -84,6 +84,11 @@ Post-commit backup or staging cleanup failure does not roll back or relabel that
 cleanup target and residual path. Verify the active version before asking an operator to remove the
 residue.
 
+Extension removal follows the same commit boundary. After the registry, managed directory, and
+runtime reload confirm removal, backup cleanup failure leaves `status` as `removed` and reports
+`extension_remove_cleanup_failed` with the residual path. Treat that path as cleanup debt; do not
+restore or operate the removed extension from it.
+
 ## Hooks
 
 Hooks are typed dispatch at the owning state transition. They are not a generic event bus and must not tail event/log tables to infer work.

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
 	"github.com/compozy/agh/internal/marketplace"
 	"github.com/compozy/agh/internal/vault"
 )
@@ -45,6 +46,7 @@ type MCPCatalogInstallResult struct {
 	Item     MCPServerItem
 	Apply    ApplyResult
 	NextStep MCPCatalogInstallNextStep
+	Warnings []diagnosticcontract.DiagnosticItem
 }
 
 // InstallMCPCatalog validates and persists one feed-locked MCP template.
@@ -83,18 +85,19 @@ func (s *service) InstallMCPCatalog(
 	if err != nil {
 		return MCPCatalogInstallResult{}, err
 	}
-	item := committedMCPServerItem(
-		server,
-		normalized.Scope,
-		normalized.WorkspaceID,
-		applyResult.WriteTarget,
-	)
-	s.notifyMCPCatalogInstalled(ctx, normalized.EntryID)
+	if applyResult.MCPServer == nil {
+		return MCPCatalogInstallResult{}, errors.New("settings: committed MCP catalog item is unavailable")
+	}
+	item := cloneMCPServerItem(*applyResult.MCPServer)
 	nextStep := MCPCatalogInstallNextStepNone
 	if detail.OAuth != nil {
 		nextStep = MCPCatalogInstallNextStepAuthorize
 	}
-	return MCPCatalogInstallResult{Item: item, Apply: applyResult, NextStep: nextStep}, nil
+	result := MCPCatalogInstallResult{Item: item, Apply: applyResult, NextStep: nextStep}
+	if warning := s.notifyMCPCatalogInstalled(ctx, normalized.EntryID); warning != nil {
+		result.Warnings = []diagnosticcontract.DiagnosticItem{*warning}
+	}
+	return result, nil
 }
 
 func (s *service) prepareMCPCatalogInstall(

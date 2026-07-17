@@ -2000,11 +2000,267 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 			t.Fatalf("ListCollection(MCP refs) error = %v", err)
 		}
 		item := findMCPItem(t, envelope.MCPServers, "github")
-		if got, want := item.SecretEnv["GITHUB_TOKEN"], "vault:mcp/global/github/env/GITHUB_TOKEN"; got != want {
-			t.Fatalf("settings read secret_env = %q, want bound ref %q", got, want)
+		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
+		if item.Auth.ClientSecretRef != "" {
+			t.Fatalf("settings read exposed OAuth client secret ref %q", item.Auth.ClientSecretRef)
 		}
-		if strings.Contains(item.SecretEnv["GITHUB_TOKEN"], "ghp-secret") {
-			t.Fatalf("settings read leaked plaintext in %#v", item.SecretEnv)
+		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "github",
+			Target:            TargetAuto,
+			MCPServer: &aghconfig.MCPServer{
+				Command: "npx-updated",
+			},
+			MCPSecretPreservation: MCPSecretPreservation{
+				SecretEnv: []string{"GITHUB_TOKEN"},
+			},
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(preserve MCP secret env) error = %v", err)
+		}
+		envelope, err = service.ListCollection(ctx, CollectionRequest{Collection: CollectionMCPServers})
+		if err != nil {
+			t.Fatalf("ListCollection(preserved MCP refs) error = %v", err)
+		}
+		item = findMCPItem(t, envelope.MCPServers, "github")
+		if got, want := item.Command, "npx-updated"; got != want {
+			t.Fatalf("preserved MCP command = %q, want %q", got, want)
+		}
+		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
+		if got, want := secretStore.plaintext["vault:mcp/global/github/env/GITHUB_TOKEN"], "ghp-secret"; got != want {
+			t.Fatalf("preserved MCP secret plaintext = %q, want %q", got, want)
+		}
+		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "github",
+		}); err != nil {
+			t.Fatalf("DeleteCollectionItem(non-catalog MCP) error = %v", err)
+		}
+		deletedRef := "vault:mcp/global/github/env/GITHUB_TOKEN"
+		_, err = secretStore.GetMetadata(ctx, deletedRef)
+		if !errors.Is(err, vault.ErrSecretNotFound) {
+			t.Fatalf("GetMetadata(deleted non-catalog MCP secret) error = %v, want ErrSecretNotFound", err)
+		}
+	})
+
+	t.Run(
+		"Should roll back definition and secret replacement when post-mutation auth invalidation fails",
+		func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+			secretStore := newFakeProviderSecretStore()
+			initialService := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+			request := CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+				Name:              "github",
+				MCPServer:         &aghconfig.MCPServer{Command: "old-command"},
+				MCPSecrets: MCPSecretValues{
+					SecretEnv: map[string]string{"GITHUB_TOKEN": "old-secret"},
+				},
+			}
+			if _, err := initialService.PutCollectionItem(t.Context(), request); err != nil {
+				t.Fatalf("PutCollectionItem(initial) error = %v", err)
+			}
+
+			invalidateErr := errors.New("auth invalidation unavailable")
+			runtime := &recordingMCPAuthRuntime{invalidateErrs: map[int]error{2: invalidateErr}}
+			service := testService(t, homePaths, Dependencies{
+				MCPAuth:         runtime,
+				ProviderSecrets: secretStore,
+			})
+			request.MCPServer = &aghconfig.MCPServer{Command: "new-command"}
+			request.MCPSecrets.SecretEnv["GITHUB_TOKEN"] = "new-secret"
+
+			_, err := service.PutCollectionItem(t.Context(), request)
+			if !errors.Is(err, invalidateErr) {
+				t.Fatalf("PutCollectionItem(replacement) error = %v, want auth invalidation failure", err)
+			}
+			envelope, err := service.ListCollection(t.Context(), CollectionRequest{Collection: CollectionMCPServers})
+			if err != nil {
+				t.Fatalf("ListCollection() error = %v", err)
+			}
+			item := findMCPItem(t, envelope.MCPServers, "github")
+			if item.Command != "old-command" {
+				t.Fatalf("restored command = %q, want old-command", item.Command)
+			}
+			ref := "vault:mcp/global/github/env/GITHUB_TOKEN"
+			if got := secretStore.plaintext[ref]; got != "old-secret" {
+				t.Fatalf("restored secret = %q, want old-secret", got)
+			}
+			if got, want := len(runtime.invalidated), 3; got != want {
+				t.Fatalf(
+					"auth invalidation calls = %d, want pre-mutation, failed post-mutation, and post-rollback",
+					got,
+				)
+			}
+		},
+	)
+
+	t.Run(
+		"Should retain committed replacement secrets when definition rollback fails",
+		func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+			secretStore := newFakeProviderSecretStore()
+			initialService := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+			request := CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+				Name:              "github",
+				MCPServer:         &aghconfig.MCPServer{Command: "old-command"},
+				MCPSecrets: MCPSecretValues{
+					SecretEnv: map[string]string{"GITHUB_TOKEN": "old-secret"},
+				},
+			}
+			if _, err := initialService.PutCollectionItem(t.Context(), request); err != nil {
+				t.Fatalf("PutCollectionItem(initial) error = %v", err)
+			}
+
+			invalidateErr := errors.New("auth invalidation unavailable")
+			rollbackErr := errors.New("definition rollback unavailable")
+			runtime := &recordingMCPAuthRuntime{invalidateErrs: map[int]error{2: invalidateErr}}
+			writeCalls := 0
+			writer := func(
+				home aghconfig.HomePaths,
+				root string,
+				name string,
+				target aghconfig.WriteTarget,
+				server aghconfig.MCPServer,
+			) error {
+				writeCalls++
+				if writeCalls == 2 {
+					return rollbackErr
+				}
+				return writeMCPDefinition(home, root, name, target, server)
+			}
+			service := testService(t, homePaths, Dependencies{
+				MCPAuth:             runtime,
+				ProviderSecrets:     secretStore,
+				MCPDefinitionWriter: writer,
+			})
+			request.MCPServer = &aghconfig.MCPServer{Command: "new-command"}
+			request.MCPSecrets.SecretEnv["GITHUB_TOKEN"] = "new-secret"
+
+			_, err := service.PutCollectionItem(t.Context(), request)
+			if !errors.Is(err, invalidateErr) || !errors.Is(err, rollbackErr) {
+				t.Fatalf("PutCollectionItem(replacement) error = %v, want invalidation and rollback failures", err)
+			}
+			envelope, err := service.ListCollection(t.Context(), CollectionRequest{Collection: CollectionMCPServers})
+			if err != nil {
+				t.Fatalf("ListCollection() error = %v", err)
+			}
+			if got := findMCPItem(t, envelope.MCPServers, "github").Command; got != "new-command" {
+				t.Fatalf("committed command = %q, want new-command", got)
+			}
+			ref := "vault:mcp/global/github/env/GITHUB_TOKEN"
+			if got := secretStore.plaintext[ref]; got != "new-secret" {
+				t.Fatalf("committed secret = %q, want new-secret", got)
+			}
+		},
+	)
+
+	t.Run("Should preserve a canonical secret referenced by a surviving source", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		secretStore := newFakeProviderSecretStore()
+		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+		canonicalRef := "vault:mcp/global/shared/env/TOKEN"
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "shared",
+			Target:            TargetConfig,
+			MCPServer:         &aghconfig.MCPServer{Command: "config-command"},
+			MCPSecrets: MCPSecretValues{
+				SecretEnv: map[string]string{"TOKEN": "shared-secret"},
+			},
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(config source) error = %v", err)
+		}
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "shared",
+			Target:            TargetSidecar,
+			MCPServer: &aghconfig.MCPServer{
+				Command:   "sidecar-command",
+				SecretEnv: map[string]string{"TOKEN": canonicalRef},
+			},
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(sidecar source) error = %v", err)
+		}
+		if _, err := service.DeleteCollectionItem(t.Context(), CollectionItemDeleteRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "shared",
+			Target:            TargetSidecar,
+		}); err != nil {
+			t.Fatalf("DeleteCollectionItem(sidecar source) error = %v", err)
+		}
+		if got := secretStore.plaintext[canonicalRef]; got != "shared-secret" {
+			t.Fatalf("surviving source secret = %q, want shared-secret", got)
+		}
+		envelope, err := service.ListCollection(t.Context(), CollectionRequest{Collection: CollectionMCPServers})
+		if err != nil {
+			t.Fatalf("ListCollection() error = %v", err)
+		}
+		if got := findMCPItem(t, envelope.MCPServers, "shared").Command; got != "config-command" {
+			t.Fatalf("surviving source command = %q, want config-command", got)
+		}
+	})
+
+	t.Run("Should preserve plain env only for the exact existing target", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "plain-env",
+			Target:            TargetSidecar,
+			MCPServer: &aghconfig.MCPServer{
+				Command: "old-command",
+				Env:     map[string]string{"PROJECT": "agh"},
+			},
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(initial plain env) error = %v", err)
+		}
+
+		if _, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			CollectionRequest:  CollectionRequest{Collection: CollectionMCPServers},
+			Name:               "plain-env",
+			Target:             TargetSidecar,
+			MCPServer:          &aghconfig.MCPServer{Command: "new-command"},
+			MCPEnvPreservation: []string{"PROJECT"},
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(preserve plain env) error = %v", err)
+		}
+		servers, err := aghconfig.LoadMCPServersJSONFile(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		if err != nil {
+			t.Fatalf("LoadMCPServersJSONFile() error = %v", err)
+		}
+		var persisted aghconfig.MCPServer
+		for _, candidate := range servers {
+			if candidate.Name == "plain-env" {
+				persisted = candidate
+				break
+			}
+		}
+		if got, want := persisted.Env["PROJECT"], "agh"; got != want {
+			t.Fatalf("preserved PROJECT = %q, want %q", got, want)
+		}
+
+		_, err = service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			CollectionRequest:  CollectionRequest{Collection: CollectionMCPServers},
+			Name:               "plain-env",
+			Target:             TargetConfig,
+			MCPServer:          &aghconfig.MCPServer{Command: "config-command"},
+			MCPEnvPreservation: []string{"PROJECT"},
+		})
+		if err == nil || !strings.Contains(err.Error(), "has no existing env values") {
+			t.Fatalf("PutCollectionItem(cross-target preserve) error = %v, want exact-target rejection", err)
 		}
 	})
 
@@ -2047,6 +2303,62 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		if strings.Contains(sidecarPayload, clientSecret) {
 			t.Fatalf("sidecar payload leaked OAuth client secret:\n%s", sidecarPayload)
 		}
+		if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "linear",
+			Target:            TargetAuto,
+			MCPServer: &aghconfig.MCPServer{
+				Transport: aghconfig.MCPServerTransportSSE,
+				URL:       "https://mcp.linear.app/sse-v2",
+				Auth: aghconfig.MCPAuthConfig{
+					Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+					AuthorizationURL: "https://linear.app/oauth/authorize",
+					TokenURL:         "https://api.linear.app/oauth/token",
+					ClientID:         "agh-client",
+				},
+			},
+			MCPSecretPreservation: MCPSecretPreservation{OAuthClientSecret: true},
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(preserve MCP OAuth secret) error = %v", err)
+		}
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionMCPServers})
+		if err != nil {
+			t.Fatalf("ListCollection(preserved MCP OAuth secret) error = %v", err)
+		}
+		item := findMCPItem(t, envelope.MCPServers, "linear")
+		if got, want := item.URL, "https://mcp.linear.app/sse-v2"; got != want {
+			t.Fatalf("preserved MCP URL = %q, want %q", got, want)
+		}
+		if !item.ClientSecretConfigured || item.Auth.ClientSecretRef != "" {
+			t.Fatalf(
+				"preserved MCP OAuth presence = %t with ref %q, want true without ref",
+				item.ClientSecretConfigured,
+				item.Auth.ClientSecretRef,
+			)
+		}
+		if got := secretStore.plaintext["vault:mcp/global/linear/oauth/client-secret"]; got != clientSecret {
+			t.Fatalf("preserved MCP OAuth plaintext = %q, want original value", got)
+		}
+	})
+
+	t.Run("Should reject preservation when the exact target has no existing binding", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{ProviderSecrets: newFakeProviderSecretStore()})
+		_, err := service.PutCollectionItem(t.Context(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "github",
+			Target:            TargetConfig,
+			MCPServer:         &aghconfig.MCPServer{Command: "npx"},
+			MCPSecretPreservation: MCPSecretPreservation{
+				SecretEnv: []string{"GITHUB_TOKEN"},
+			},
+		})
+		if err == nil || !strings.Contains(err.Error(), "has no existing bindings") {
+			t.Fatalf("PutCollectionItem(missing preserved binding) error = %v, want exact-target rejection", err)
+		}
 	})
 
 	t.Run("Should preserve the complete OAuth contract in the config target", func(t *testing.T) {
@@ -2088,7 +2400,6 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		}
 
 		canonicalRef := "vault:mcp/global/full-oauth/oauth/client-secret"
-		wantAuth.ClientSecretRef = canonicalRef
 		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionMCPServers})
 		if err != nil {
 			t.Fatalf("ListCollection(full OAuth config) error = %v", err)
@@ -2096,6 +2407,9 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		item := findMCPItem(t, envelope.MCPServers, "full-oauth")
 		if !reflect.DeepEqual(item.Auth, wantAuth) {
 			t.Fatalf("full OAuth auth = %#v, want %#v", item.Auth, wantAuth)
+		}
+		if !item.ClientSecretConfigured {
+			t.Fatal("full OAuth client secret presence = false, want true")
 		}
 		if got, want := secretStore.plaintext[canonicalRef], clientSecret; got != want {
 			t.Fatalf("stored full OAuth secret = %q, want %q", got, want)
@@ -2232,7 +2546,7 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 				serverName:    "github/unsafe",
 				server:        aghconfig.MCPServer{Command: "npx"},
 				secrets:       MCPSecretValues{SecretEnv: map[string]string{"TOKEN": "secret"}},
-				wantErrorPart: "invalid MCP secret owner",
+				wantErrorPart: "server name cannot contain a slash",
 			},
 			{
 				name:       "Should reject an empty OAuth client secret",
@@ -2291,150 +2605,156 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 
 func TestInstallMCPCatalogAppliesLiveConfiguration(t *testing.T) {
 	t.Parallel()
+	t.Run("Should apply the installed catalog configuration live", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := WithMutationSource(context.Background(), "uds")
-	homePaths := testHomePaths(t)
-	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := db.Close(ctx); err != nil {
-			t.Errorf("Close() error = %v", err)
+		ctx := WithMutationSource(context.Background(), "uds")
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		applier := &fakeConfigRuntimeApplier{}
+		service := testService(t, homePaths, Dependencies{
+			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+			ProviderSecrets: newFakeProviderSecretStore(),
+			RuntimeApplier:  applier,
+			ApplyRecords:    NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		if _, err := service.ActiveConfig(ctx); err != nil {
+			t.Fatalf("ActiveConfig(before install) error = %v", err)
+		}
+
+		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
+			EntryID: "github",
+			Scope:   ScopeGlobal,
+			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
+				"GITHUB_TOKEN": {Value: "ghp-secret"},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("InstallMCPCatalog() error = %v", err)
+		}
+		if got, want := applier.calls, 1; got != want {
+			t.Fatalf("runtime apply calls = %d, want %d", got, want)
+		}
+		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{Status: lifecycle.StatusApplied})
+		if err != nil {
+			t.Fatalf("ListApplyRecords() error = %v", err)
+		}
+		if got, want := len(records), 1; got != want {
+			t.Fatalf("applied record count = %d, want %d", got, want)
+		}
+		if got, want := records[0].Actor, "uds"; got != want {
+			t.Fatalf("apply actor = %q, want %q", got, want)
+		}
+		if got, want := records[0].Lifecycle, lifecycle.LiveAdd; got != want {
+			t.Fatalf("apply lifecycle = %q, want %q", got, want)
+		}
+		if got, want := records[0].Generation, int64(1); got != want {
+			t.Fatalf("active generation = %d, want %d", got, want)
+		}
+		active, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(after install) error = %v", err)
+		}
+		if len(active.MCPServers) != 1 || active.MCPServers[0].Name != "GitHub" {
+			t.Fatalf("active MCP servers = %#v, want GitHub", active.MCPServers)
 		}
 	})
-	applier := &fakeConfigRuntimeApplier{}
-	service := testService(t, homePaths, Dependencies{
-		MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
-		ProviderSecrets: newFakeProviderSecretStore(),
-		RuntimeApplier:  applier,
-		ApplyRecords:    NewConfigApplyRecordRepository(db.DB(), nil),
-	})
-	if _, err := service.ActiveConfig(ctx); err != nil {
-		t.Fatalf("ActiveConfig(before install) error = %v", err)
-	}
-
-	_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
-		EntryID: "github",
-		Scope:   ScopeGlobal,
-		Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-			"GITHUB_TOKEN": {Value: "ghp-secret"},
-		}},
-	})
-	if err != nil {
-		t.Fatalf("InstallMCPCatalog() error = %v", err)
-	}
-	if got, want := applier.calls, 1; got != want {
-		t.Fatalf("runtime apply calls = %d, want %d", got, want)
-	}
-	records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{Status: lifecycle.StatusApplied})
-	if err != nil {
-		t.Fatalf("ListApplyRecords() error = %v", err)
-	}
-	if got, want := len(records), 1; got != want {
-		t.Fatalf("applied record count = %d, want %d", got, want)
-	}
-	if got, want := records[0].Actor, "uds"; got != want {
-		t.Fatalf("apply actor = %q, want %q", got, want)
-	}
-	if got, want := records[0].Lifecycle, lifecycle.LiveAdd; got != want {
-		t.Fatalf("apply lifecycle = %q, want %q", got, want)
-	}
-	if got, want := records[0].Generation, int64(1); got != want {
-		t.Fatalf("active generation = %d, want %d", got, want)
-	}
-	active, err := service.ActiveConfig(ctx)
-	if err != nil {
-		t.Fatalf("ActiveConfig(after install) error = %v", err)
-	}
-	if len(active.MCPServers) != 1 || active.MCPServers[0].Name != "GitHub" {
-		t.Fatalf("active MCP servers = %#v, want GitHub", active.MCPServers)
-	}
 }
 
 func TestInstallMCPCatalogSerializesConcurrentMutations(t *testing.T) {
 	t.Parallel()
+	t.Run("Should serialize concurrent catalog install mutations", func(t *testing.T) {
+		t.Parallel()
 
-	const installCount = 12
-	ctx := WithMutationSource(context.Background(), "http")
-	homePaths := testHomePaths(t)
-	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-	secretStore := newFakeProviderSecretStore()
-	applier := &fakeConfigRuntimeApplier{}
-	service := testService(t, homePaths, Dependencies{
-		MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
-		ProviderSecrets: secretStore,
-		RuntimeApplier:  applier,
-	})
-	if _, err := service.ActiveConfig(ctx); err != nil {
-		t.Fatalf("ActiveConfig(before installs) error = %v", err)
-	}
-
-	start := make(chan struct{})
-	results := make(chan MCPCatalogInstallResult, installCount)
-	errorsByInstall := make(chan error, installCount)
-	var installs sync.WaitGroup
-	for index := range installCount {
-		installs.Go(func() {
-			<-start
-			name := fmt.Sprintf("github-%02d", index)
-			result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
-				EntryID: "github",
-				Name:    name,
-				Scope:   ScopeGlobal,
-				Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-					"GITHUB_TOKEN": {Value: "secret-" + name},
-				}},
-			})
-			if err != nil {
-				errorsByInstall <- err
-				return
-			}
-			results <- result
+		const installCount = 12
+		ctx := WithMutationSource(context.Background(), "http")
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		secretStore := newFakeProviderSecretStore()
+		applier := &fakeConfigRuntimeApplier{}
+		service := testService(t, homePaths, Dependencies{
+			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+			ProviderSecrets: secretStore,
+			RuntimeApplier:  applier,
 		})
-	}
-	close(start)
-	installs.Wait()
-	close(results)
-	close(errorsByInstall)
-	for err := range errorsByInstall {
-		t.Errorf("InstallMCPCatalog() error = %v", err)
-	}
+		if _, err := service.ActiveConfig(ctx); err != nil {
+			t.Fatalf("ActiveConfig(before installs) error = %v", err)
+		}
 
-	generations := make(map[int64]struct{}, installCount)
-	for result := range results {
-		if !result.Apply.Applied {
-			t.Errorf("install %q Applied = false", result.Item.Name)
+		start := make(chan struct{})
+		results := make(chan MCPCatalogInstallResult, installCount)
+		errorsByInstall := make(chan error, installCount)
+		var installs sync.WaitGroup
+		for index := range installCount {
+			installs.Go(func() {
+				<-start
+				name := fmt.Sprintf("github-%02d", index)
+				result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
+					EntryID: "github",
+					Name:    name,
+					Scope:   ScopeGlobal,
+					Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
+						"GITHUB_TOKEN": {Value: "secret-" + name},
+					}},
+				})
+				if err != nil {
+					errorsByInstall <- err
+					return
+				}
+				results <- result
+			})
 		}
-		if got, want := result.Apply.Record.Lifecycle, lifecycle.LiveAdd; got != want {
-			t.Errorf("install %q lifecycle = %q, want %q", result.Item.Name, got, want)
+		close(start)
+		installs.Wait()
+		close(results)
+		close(errorsByInstall)
+		for err := range errorsByInstall {
+			t.Errorf("InstallMCPCatalog() error = %v", err)
 		}
-		generations[result.Apply.Record.Generation] = struct{}{}
-	}
-	if got, want := len(generations), installCount; got != want {
-		t.Fatalf("unique active generations = %d, want %d", got, want)
-	}
-	servers, err := aghconfig.LoadMCPServersJSONFile(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
-	if err != nil {
-		t.Fatalf("LoadMCPServersJSONFile() error = %v", err)
-	}
-	if got, want := len(servers), installCount; got != want {
-		t.Fatalf("persisted MCP servers = %d, want %d", got, want)
-	}
-	if got, want := len(secretStore.plaintext), installCount; got != want {
-		t.Fatalf("persisted MCP secrets = %d, want %d", got, want)
-	}
-	if got, want := applier.calls, installCount; got != want {
-		t.Fatalf("runtime apply calls = %d, want %d", got, want)
-	}
-	records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{Status: lifecycle.StatusApplied})
-	if err != nil {
-		t.Fatalf("ListApplyRecords() error = %v", err)
-	}
-	if got, want := len(records), installCount; got != want {
-		t.Fatalf("applied record count = %d, want %d", got, want)
-	}
+
+		generations := make(map[int64]struct{}, installCount)
+		for result := range results {
+			if !result.Apply.Applied {
+				t.Errorf("install %q Applied = false", result.Item.Name)
+			}
+			if got, want := result.Apply.Record.Lifecycle, lifecycle.LiveAdd; got != want {
+				t.Errorf("install %q lifecycle = %q, want %q", result.Item.Name, got, want)
+			}
+			generations[result.Apply.Record.Generation] = struct{}{}
+		}
+		if got, want := len(generations), installCount; got != want {
+			t.Fatalf("unique active generations = %d, want %d", got, want)
+		}
+		servers, err := aghconfig.LoadMCPServersJSONFile(filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		if err != nil {
+			t.Fatalf("LoadMCPServersJSONFile() error = %v", err)
+		}
+		if got, want := len(servers), installCount; got != want {
+			t.Fatalf("persisted MCP servers = %d, want %d", got, want)
+		}
+		if got, want := len(secretStore.plaintext), installCount; got != want {
+			t.Fatalf("persisted MCP secrets = %d, want %d", got, want)
+		}
+		if got, want := applier.calls, installCount; got != want {
+			t.Fatalf("runtime apply calls = %d, want %d", got, want)
+		}
+		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{Status: lifecycle.StatusApplied})
+		if err != nil {
+			t.Fatalf("ListApplyRecords() error = %v", err)
+		}
+		if got, want := len(records), installCount; got != want {
+			t.Fatalf("applied record count = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
@@ -2472,9 +2792,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 			t.Fatalf("CatalogVersion = %q, want %q", got, want)
 		}
 		canonicalRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
-		if got, want := result.Item.SecretEnv["GITHUB_TOKEN"], canonicalRef; got != want {
-			t.Fatalf("SecretEnv ref = %q, want %q", got, want)
-		}
+		assertMCPSecretKeys(t, result.Item, "GITHUB_TOKEN")
 		if got, want := secretStore.plaintext[canonicalRef], "ghp-secret"; got != want {
 			t.Fatalf("stored secret = %q, want %q", got, want)
 		}
@@ -2486,8 +2804,9 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal(install result) error = %v", err)
 		}
-		if strings.Contains(string(responsePayload), "ghp-secret") {
-			t.Fatalf("install response leaked write-only value: %s", responsePayload)
+		if strings.Contains(string(responsePayload), "ghp-secret") ||
+			strings.Contains(string(responsePayload), canonicalRef) {
+			t.Fatalf("install result leaked secret material or binding: %s", responsePayload)
 		}
 		outcomes := installNotifier.snapshot()
 		outcomePayload, err := json.Marshal(outcomes)
@@ -2505,6 +2824,66 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 			outcomes[0].Outcome != marketplace.InstallOutcomeSucceeded ||
 			outcomes[0].PolicyGate != marketplace.InstallPolicyGatePassed {
 			t.Fatalf("marketplace install outcome = %#v", outcomes[0])
+		}
+	})
+
+	t.Run("Should report an install event persistence failure after committing the server", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		notifyErr := errors.New("event store unavailable")
+		service := testService(t, homePaths, Dependencies{
+			MCPCatalog:               fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+			ProviderSecrets:          newFakeProviderSecretStore(),
+			MarketplaceInstallEvents: &recordingMarketplaceInstallNotifier{err: notifyErr},
+		})
+
+		result, err := service.InstallMCPCatalog(t.Context(), MCPCatalogInstallRequest{
+			EntryID: "github",
+			Scope:   ScopeGlobal,
+			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
+				"GITHUB_TOKEN": {Value: "ghp-secret"},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("InstallMCPCatalog() error = %v, want committed result with warning", err)
+		}
+		if result.Item.Name != "GitHub" {
+			t.Fatalf("InstallMCPCatalog() item = %#v, want committed GitHub server", result.Item)
+		}
+		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		if !strings.Contains(sidecar, `"GitHub"`) {
+			t.Fatalf("committed sidecar missing GitHub server:\n%s", sidecar)
+		}
+		if len(result.Warnings) != 1 ||
+			result.Warnings[0].Code != diagnosticcontract.CodeMCPInstallEventPersistFailed {
+			t.Fatalf("InstallMCPCatalog() warnings = %#v, want event persistence diagnostic", result.Warnings)
+		}
+	})
+
+	t.Run("Should reject an unaddressable server name before catalog persistence", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{
+			MCPCatalog: fakeMCPCatalog{entry: plainEnvMCPCatalogEntry()},
+		})
+		_, err := service.InstallMCPCatalog(t.Context(), MCPCatalogInstallRequest{
+			EntryID: "plain-env",
+			Name:    "team/server",
+			Scope:   ScopeGlobal,
+			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
+				"PROJECT": {Value: "agh"},
+			}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "server name cannot contain a slash") {
+			t.Fatalf("InstallMCPCatalog(unaddressable name) error = %v, want canonical-name rejection", err)
+		}
+		sidecarPath := filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)
+		if _, statErr := os.Stat(sidecarPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("catalog install created sidecar before name validation: %v", statErr)
 		}
 	})
 
@@ -2527,11 +2906,8 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(plain env) error = %v", err)
 		}
-		if got, want := result.Item.Env["PROJECT"], aghconfig.RedactedValue(); got != want {
-			t.Fatalf("PROJECT response value = %q, want %q", got, want)
-		}
-		if got, want := result.Item.Env["REGION"], aghconfig.RedactedValue(); got != want {
-			t.Fatalf("REGION response value = %q, want %q", got, want)
+		if got, want := result.Item.EnvKeys, []string{"PROJECT", "REGION"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("plain env response keys = %#v, want %#v", got, want)
 		}
 		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
 		if !strings.Contains(sidecar, `"PROJECT": "agh"`) ||
@@ -2566,9 +2942,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(shared ref) error = %v", err)
 		}
-		if got := result.Item.SecretEnv["GITHUB_TOKEN"]; got != sharedRef {
-			t.Fatalf("SecretEnv ref = %q, want shared ref %q", got, sharedRef)
-		}
+		assertMCPSecretKeys(t, result.Item, "GITHUB_TOKEN")
 		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              result.Item.Name,
@@ -2597,7 +2971,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 			ProviderSecrets: secretStore,
 		})
 
-		initial, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
+		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
 			Scope:   ScopeGlobal,
 			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
@@ -2607,7 +2981,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(owned ref) error = %v", err)
 		}
-		ownedRef := initial.Item.SecretEnv["GITHUB_TOKEN"]
+		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
 
 		replacement, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
@@ -2619,9 +2993,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(shared replacement) error = %v", err)
 		}
-		if got := replacement.Item.SecretEnv["GITHUB_TOKEN"]; got != sharedRef {
-			t.Fatalf("replacement SecretEnv ref = %q, want %q", got, sharedRef)
-		}
+		assertMCPSecretKeys(t, replacement.Item, "GITHUB_TOKEN")
 		if _, err := secretStore.GetMetadata(ctx, ownedRef); !errors.Is(err, vault.ErrSecretNotFound) {
 			t.Fatalf("GetMetadata(superseded owned ref) error = %v, want ErrSecretNotFound", err)
 		}
@@ -2638,12 +3010,14 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		secretStore := newFakeProviderSecretStore()
+		runtime := &recordingMCPAuthRuntime{}
 		sharedRef := "vault:mcp/shared/github-token"
 		if _, err := secretStore.PutSecret(ctx, sharedRef, "shared", "shared-secret"); err != nil {
 			t.Fatalf("PutSecret(shared) error = %v", err)
 		}
 		service := testService(t, homePaths, Dependencies{
 			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+			MCPAuth:         runtime,
 			ProviderSecrets: secretStore,
 		})
 
@@ -2657,9 +3031,10 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(owned ref) error = %v", err)
 		}
-		ownedRef := initial.Item.SecretEnv["GITHUB_TOKEN"]
+		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
+		invalidationBaseline := len(runtime.invalidated)
 		deleteFailure := errors.New("forced superseded secret deletion failure")
-		secretStore.deleteErr = deleteFailure
+		secretStore.deleteErrors[ownedRef] = deleteFailure
 
 		_, err = service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
@@ -2671,13 +3046,22 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if !errors.Is(err, deleteFailure) {
 			t.Fatalf("InstallMCPCatalog(failed replacement cleanup) error = %v, want deletion failure", err)
 		}
+		if got, want := len(runtime.invalidated), invalidationBaseline+3; got != want {
+			t.Fatalf(
+				"auth invalidation calls after cleanup rollback = %d, want %d (pre, post, restored)",
+				got,
+				want,
+			)
+		}
 		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionMCPServers})
 		if err != nil {
 			t.Fatalf("ListCollection(restored binding) error = %v", err)
 		}
 		item := findMCPItem(t, envelope.MCPServers, initial.Item.Name)
-		if got := item.SecretEnv["GITHUB_TOKEN"]; got != ownedRef {
-			t.Fatalf("restored SecretEnv ref = %q, want %q", got, ownedRef)
+		assertMCPSecretKeys(t, item, "GITHUB_TOKEN")
+		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		if !strings.Contains(sidecar, ownedRef) || strings.Contains(sidecar, sharedRef) {
+			t.Fatalf("restored sidecar binding is incorrect:\n%s", sidecar)
 		}
 		metadata, err := secretStore.GetMetadata(ctx, ownedRef)
 		if err != nil || !metadata.Present {
@@ -2710,7 +3094,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("InstallMCPCatalog(owned ref) error = %v", err)
 		}
-		ownedRef := result.Item.SecretEnv["GITHUB_TOKEN"]
+		ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
 		if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
 			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
 			Name:              result.Item.Name,
@@ -2798,7 +3182,7 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 				if err != nil {
 					t.Fatalf("InstallMCPCatalog(ownership proof) error = %v", err)
 				}
-				ownedRef := result.Item.SecretEnv["GITHUB_TOKEN"]
+				ownedRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
 				tc.mutateStore(secretStore, ownedRef)
 
 				_, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
@@ -2864,11 +3248,19 @@ func TestInstallMCPCatalogEnforcesBornValidVaultSemantics(t *testing.T) {
 			t.Fatalf("RuntimeStatus = %#v, want no live probe result", result.Item.RuntimeStatus)
 		}
 		canonicalRef := "vault:mcp/global/linear/oauth/client-secret"
-		if got := result.Item.Auth.ClientSecretRef; got != canonicalRef {
-			t.Fatalf("OAuth client secret ref = %q, want %q", got, canonicalRef)
+		if !result.Item.ClientSecretConfigured || result.Item.Auth.ClientSecretRef != "" {
+			t.Fatalf(
+				"OAuth client secret presence = %t with ref %q, want true without ref",
+				result.Item.ClientSecretConfigured,
+				result.Item.Auth.ClientSecretRef,
+			)
 		}
 		if got := secretStore.plaintext[canonicalRef]; got != "oauth-client-secret" {
 			t.Fatalf("stored OAuth client secret = %q, want typed value", got)
+		}
+		sidecar := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		if !strings.Contains(sidecar, canonicalRef) {
+			t.Fatalf("OAuth sidecar missing configured client secret ref:\n%s", sidecar)
 		}
 	})
 }
@@ -3142,78 +3534,96 @@ func TestInstallMCPCatalogRejectsInvalidInputsBeforeWrites(t *testing.T) {
 
 func TestInstallMCPCatalogKeepsWorkspaceCanonicalRefsIsolated(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep canonical refs isolated across workspace identities", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := context.Background()
-	homePaths := testHomePaths(t)
-	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-	firstRoot := filepath.Join(t.TempDir(), "first")
-	secondRoot := filepath.Join(t.TempDir(), "second")
-	workspaceIDs := []string{"Workspace One", "workspace/two"}
-	secretStore := newFakeProviderSecretStore()
-	service := testService(t, homePaths, Dependencies{
-		MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
-		ProviderSecrets: secretStore,
-		WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
-			workspaceIDs[0]: {Workspace: workspacepkg.Workspace{ID: workspaceIDs[0], RootDir: firstRoot}},
-			workspaceIDs[1]: {Workspace: workspacepkg.Workspace{ID: workspaceIDs[1], RootDir: secondRoot}},
-		}},
-	})
-
-	refs := make([]string, 0, len(workspaceIDs))
-	for _, workspaceID := range workspaceIDs {
-		result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
-			EntryID:     "github",
-			Name:        "github",
-			Scope:       ScopeWorkspace,
-			WorkspaceID: workspaceID,
-			Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
-				"GITHUB_TOKEN": {Value: "secret-for-" + workspaceID},
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		firstRoot := filepath.Join(t.TempDir(), "first")
+		secondRoot := filepath.Join(t.TempDir(), "second")
+		workspaceIDs := []string{"Workspace One", "workspace/two"}
+		secretStore := newFakeProviderSecretStore()
+		service := testService(t, homePaths, Dependencies{
+			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+			ProviderSecrets: secretStore,
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				workspaceIDs[0]: {Workspace: workspacepkg.Workspace{ID: workspaceIDs[0], RootDir: firstRoot}},
+				workspaceIDs[1]: {Workspace: workspacepkg.Workspace{ID: workspaceIDs[1], RootDir: secondRoot}},
 			}},
 		})
+
+		refs := make([]string, 0, len(workspaceIDs))
+		for _, workspaceID := range workspaceIDs {
+			result, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
+				EntryID:     "github",
+				Name:        "github",
+				Scope:       ScopeWorkspace,
+				WorkspaceID: workspaceID,
+				Values: MCPCatalogInstallValues{Env: map[string]MCPSecretInput{
+					"GITHUB_TOKEN": {Value: "secret-for-" + workspaceID},
+				}},
+			})
+			if err != nil {
+				t.Fatalf("InstallMCPCatalog(%q) error = %v", workspaceID, err)
+			}
+			assertMCPSecretKeys(t, result.Item, "GITHUB_TOKEN")
+			workspaceSegment, segmentErr := vault.MCPWorkspaceSegment(workspaceID)
+			if segmentErr != nil {
+				t.Fatalf("MCPWorkspaceSegment(%q) error = %v", workspaceID, segmentErr)
+			}
+			refs = append(refs, "vault:mcp/ws/"+workspaceSegment+"/github/env/GITHUB_TOKEN")
+		}
+		if refs[0] == refs[1] {
+			t.Fatalf("workspace refs collided: %#v", refs)
+		}
+		firstSegment, err := vault.MCPWorkspaceSegment(workspaceIDs[0])
 		if err != nil {
-			t.Fatalf("InstallMCPCatalog(%q) error = %v", workspaceID, err)
+			t.Fatalf("workspaceVaultSegment(%q) error = %v", workspaceIDs[0], err)
 		}
-		refs = append(refs, result.Item.SecretEnv["GITHUB_TOKEN"])
-	}
-	if refs[0] == refs[1] {
-		t.Fatalf("workspace refs collided: %#v", refs)
-	}
-	firstSegment, err := vault.MCPWorkspaceSegment(workspaceIDs[0])
-	if err != nil {
-		t.Fatalf("workspaceVaultSegment(%q) error = %v", workspaceIDs[0], err)
-	}
-	if got, want := firstSegment, "encoded-576f726b7370616365204f6e65"; got != want {
-		t.Fatalf("encoded workspace segment = %q, want %q", got, want)
-	}
-	reservedSegment, err := vault.MCPWorkspaceSegment(firstSegment)
-	if err != nil {
-		t.Fatalf("workspaceVaultSegment(reserved prefix) error = %v", err)
-	}
-	if reservedSegment == firstSegment {
-		t.Fatalf("reserved literal workspace segment collided with encoded ID: %q", reservedSegment)
-	}
-	for index, workspaceID := range workspaceIDs {
-		segment, err := vault.MCPWorkspaceSegment(workspaceID)
+		if got, want := firstSegment, "encoded-576f726b7370616365204f6e65"; got != want {
+			t.Fatalf("encoded workspace segment = %q, want %q", got, want)
+		}
+		reservedSegment, err := vault.MCPWorkspaceSegment(firstSegment)
 		if err != nil {
-			t.Fatalf("workspaceVaultSegment(%q) error = %v", workspaceID, err)
+			t.Fatalf("workspaceVaultSegment(reserved prefix) error = %v", err)
 		}
-		want := "vault:mcp/ws/" + segment + "/github/env/GITHUB_TOKEN"
-		if refs[index] != want {
-			t.Fatalf("workspace ref[%d] = %q, want %q", index, refs[index], want)
+		if reservedSegment == firstSegment {
+			t.Fatalf("reserved literal workspace segment collided with encoded ID: %q", reservedSegment)
 		}
-	}
-	firstSidecar := readFile(t, filepath.Join(firstRoot, aghconfig.DirName, aghconfig.MCPJSONName))
-	secondSidecar := readFile(t, filepath.Join(secondRoot, aghconfig.DirName, aghconfig.MCPJSONName))
-	if !strings.Contains(firstSidecar, refs[0]) || strings.Contains(firstSidecar, refs[1]) {
-		t.Fatalf("first workspace sidecar crossed refs:\n%s", firstSidecar)
-	}
-	if !strings.Contains(secondSidecar, refs[1]) || strings.Contains(secondSidecar, refs[0]) {
-		t.Fatalf("second workspace sidecar crossed refs:\n%s", secondSidecar)
-	}
+		for index, workspaceID := range workspaceIDs {
+			segment, err := vault.MCPWorkspaceSegment(workspaceID)
+			if err != nil {
+				t.Fatalf("workspaceVaultSegment(%q) error = %v", workspaceID, err)
+			}
+			want := "vault:mcp/ws/" + segment + "/github/env/GITHUB_TOKEN"
+			if refs[index] != want {
+				t.Fatalf("workspace ref[%d] = %q, want %q", index, refs[index], want)
+			}
+		}
+		firstSidecar := readFile(t, filepath.Join(firstRoot, aghconfig.DirName, aghconfig.MCPJSONName))
+		secondSidecar := readFile(t, filepath.Join(secondRoot, aghconfig.DirName, aghconfig.MCPJSONName))
+		if !strings.Contains(firstSidecar, refs[0]) || strings.Contains(firstSidecar, refs[1]) {
+			t.Fatalf("first workspace sidecar crossed refs:\n%s", firstSidecar)
+		}
+		if !strings.Contains(secondSidecar, refs[1]) || strings.Contains(secondSidecar, refs[0]) {
+			t.Fatalf("second workspace sidecar crossed refs:\n%s", secondSidecar)
+		}
+	})
 }
 
 func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 	cleanupFailure := errors.New("forced cleanup failure")
+	writeFailure := errors.New("forced MCP definition write failure")
+	failingWriter := func(
+		aghconfig.HomePaths,
+		string,
+		string,
+		aghconfig.WriteTarget,
+		aghconfig.MCPServer,
+	) error {
+		return writeFailure
+	}
 	tests := []struct {
 		name             string
 		deleteErr        error
@@ -3228,9 +3638,6 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if os.Geteuid() == 0 {
-				t.Skip("permission-based config write failure is not enforceable as root")
-			}
 			t.Parallel()
 
 			ctx := context.Background()
@@ -3244,16 +3651,9 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			secretStore := newFakeProviderSecretStore()
 			secretStore.deleteErr = tc.deleteErr
 			service := testService(t, homePaths, Dependencies{
-				MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
-				ProviderSecrets: secretStore,
-			})
-			if err := os.Chmod(homePaths.HomeDir, 0o500); err != nil {
-				t.Fatalf("Chmod(read-only home) error = %v", err)
-			}
-			t.Cleanup(func() {
-				if err := os.Chmod(homePaths.HomeDir, 0o700); err != nil {
-					t.Errorf("restore home permissions error = %v", err)
-				}
+				MCPCatalog:          fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+				ProviderSecrets:     secretStore,
+				MCPDefinitionWriter: failingWriter,
 			})
 
 			_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
@@ -3265,6 +3665,9 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			})
 			if err == nil {
 				t.Fatal("InstallMCPCatalog(config write failure) error = nil")
+			}
+			if !errors.Is(err, writeFailure) {
+				t.Fatalf("InstallMCPCatalog() error = %v, want definition write failure", err)
 			}
 			canonicalRef := "vault:mcp/global/GitHub/env/GITHUB_TOKEN"
 			metadata, metadataErr := secretStore.GetMetadata(ctx, canonicalRef)
@@ -3285,9 +3688,6 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 	}
 
 	t.Run("Should restore an overwritten ref when the config write fails", func(t *testing.T) {
-		if os.Geteuid() == 0 {
-			t.Skip("permission-based config write failure is not enforceable as root")
-		}
 		t.Parallel()
 
 		ctx := context.Background()
@@ -3304,16 +3704,9 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 			t.Fatalf("PutSecret(original) error = %v", err)
 		}
 		service := testService(t, homePaths, Dependencies{
-			MCPCatalog:      fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
-			ProviderSecrets: secretStore,
-		})
-		if err := os.Chmod(homePaths.HomeDir, 0o500); err != nil {
-			t.Fatalf("Chmod(read-only home) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := os.Chmod(homePaths.HomeDir, 0o700); err != nil {
-				t.Errorf("restore home permissions error = %v", err)
-			}
+			MCPCatalog:          fakeMCPCatalog{entry: stdioMCPCatalogEntry()},
+			ProviderSecrets:     secretStore,
+			MCPDefinitionWriter: failingWriter,
 		})
 
 		_, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
@@ -3325,6 +3718,9 @@ func TestInstallMCPCatalogCompensatesPartialFailures(t *testing.T) {
 		})
 		if err == nil {
 			t.Fatal("InstallMCPCatalog(overwrite config failure) error = nil")
+		}
+		if !errors.Is(err, writeFailure) {
+			t.Fatalf("InstallMCPCatalog() error = %v, want definition write failure", err)
 		}
 		if got, want := secretStore.plaintext[canonicalRef], "original-secret"; got != want {
 			t.Fatalf("restored secret = %q, want %q", got, want)
@@ -3463,114 +3859,117 @@ func assertMCPSecretRefsAbsent(
 
 func TestDeleteMCPServerAutoUsesHighestPrecedenceSourceInScope(t *testing.T) {
 	t.Parallel()
+	t.Run("Should delete the highest-precedence MCP source within each scope", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := context.Background()
-	homePaths := testHomePaths(t)
-	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 
-	writeFile(t, homePaths.ConfigFile, `
+		writeFile(t, homePaths.ConfigFile, `
 [[mcp_servers]]
 name = "alpha"
 command = "global-config"
 `)
-	writeFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName), `{
+		writeFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName), `{
   "mcpServers": {
     "alpha": { "command": "global-sidecar" },
     "beta": { "command": "beta-sidecar" }
   }
 }`)
-	writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName), `
+		writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName), `
 [[mcp_servers]]
 name = "alpha"
 command = "workspace-config"
 `)
-	writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName), `{
+		writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName), `{
   "mcpServers": {
     "alpha": { "command": "workspace-sidecar" }
   }
 }`)
 
-	service := testService(t, homePaths, Dependencies{
-		WorkspaceResolver: fakeWorkspaceResolver{
-			resolved: map[string]workspacepkg.ResolvedWorkspace{
-				"ws-1": {
-					Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+		service := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{
+				resolved: map[string]workspacepkg.ResolvedWorkspace{
+					"ws-1": {
+						Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+					},
 				},
 			},
-		},
-	})
+		})
 
-	result, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-		Name:              "alpha",
-		Target:            TargetAuto,
-	})
-	if err != nil {
-		t.Fatalf("DeleteCollectionItem(global alpha sidecar) error = %v", err)
-	}
-	if got, want := result.WriteTarget, WriteTargetGlobalMCPSidecar; got != want {
-		t.Fatalf("global alpha first delete target = %q, want %q", got, want)
-	}
-	sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
-	if strings.Contains(sidecarPayload, `"alpha"`) {
-		t.Fatalf("global sidecar alpha still present after delete:\n%s", sidecarPayload)
-	}
+		result, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "alpha",
+			Target:            TargetAuto,
+		})
+		if err != nil {
+			t.Fatalf("DeleteCollectionItem(global alpha sidecar) error = %v", err)
+		}
+		if got, want := result.WriteTarget, WriteTargetGlobalMCPSidecar; got != want {
+			t.Fatalf("global alpha first delete target = %q, want %q", got, want)
+		}
+		sidecarPayload := readFile(t, filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName))
+		if strings.Contains(sidecarPayload, `"alpha"`) {
+			t.Fatalf("global sidecar alpha still present after delete:\n%s", sidecarPayload)
+		}
 
-	result, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
-		Name:              "alpha",
-		Target:            TargetAuto,
-	})
-	if err != nil {
-		t.Fatalf("DeleteCollectionItem(global alpha config) error = %v", err)
-	}
-	if got, want := result.WriteTarget, WriteTargetGlobalConfig; got != want {
-		t.Fatalf("global alpha second delete target = %q, want %q", got, want)
-	}
-	configPayload := readFile(t, homePaths.ConfigFile)
-	if strings.Contains(configPayload, `name = "alpha"`) {
-		t.Fatalf("global config alpha still present after delete:\n%s", configPayload)
-	}
+		result, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "alpha",
+			Target:            TargetAuto,
+		})
+		if err != nil {
+			t.Fatalf("DeleteCollectionItem(global alpha config) error = %v", err)
+		}
+		if got, want := result.WriteTarget, WriteTargetGlobalConfig; got != want {
+			t.Fatalf("global alpha second delete target = %q, want %q", got, want)
+		}
+		configPayload := readFile(t, homePaths.ConfigFile)
+		if strings.Contains(configPayload, `name = "alpha"`) {
+			t.Fatalf("global config alpha still present after delete:\n%s", configPayload)
+		}
 
-	result, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{
-			Collection:  CollectionMCPServers,
-			Scope:       ScopeWorkspace,
-			WorkspaceID: "ws-1",
-		},
-		Name:   "alpha",
-		Target: TargetAuto,
-	})
-	if err != nil {
-		t.Fatalf("DeleteCollectionItem(workspace alpha sidecar) error = %v", err)
-	}
-	if got, want := result.WriteTarget, WriteTargetWorkspaceMCPSidecar; got != want {
-		t.Fatalf("workspace alpha first delete target = %q, want %q", got, want)
-	}
-	workspaceSidecarPayload := readFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName))
-	if strings.Contains(workspaceSidecarPayload, `"alpha"`) {
-		t.Fatalf("workspace sidecar alpha still present after delete:\n%s", workspaceSidecarPayload)
-	}
+		result, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
+			CollectionRequest: CollectionRequest{
+				Collection:  CollectionMCPServers,
+				Scope:       ScopeWorkspace,
+				WorkspaceID: "ws-1",
+			},
+			Name:   "alpha",
+			Target: TargetAuto,
+		})
+		if err != nil {
+			t.Fatalf("DeleteCollectionItem(workspace alpha sidecar) error = %v", err)
+		}
+		if got, want := result.WriteTarget, WriteTargetWorkspaceMCPSidecar; got != want {
+			t.Fatalf("workspace alpha first delete target = %q, want %q", got, want)
+		}
+		workspaceSidecarPayload := readFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName))
+		if strings.Contains(workspaceSidecarPayload, `"alpha"`) {
+			t.Fatalf("workspace sidecar alpha still present after delete:\n%s", workspaceSidecarPayload)
+		}
 
-	result, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
-		CollectionRequest: CollectionRequest{
-			Collection:  CollectionMCPServers,
-			Scope:       ScopeWorkspace,
-			WorkspaceID: "ws-1",
-		},
-		Name:   "alpha",
-		Target: TargetAuto,
+		result, err = service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
+			CollectionRequest: CollectionRequest{
+				Collection:  CollectionMCPServers,
+				Scope:       ScopeWorkspace,
+				WorkspaceID: "ws-1",
+			},
+			Name:   "alpha",
+			Target: TargetAuto,
+		})
+		if err != nil {
+			t.Fatalf("DeleteCollectionItem(workspace alpha config) error = %v", err)
+		}
+		if got, want := result.WriteTarget, WriteTargetWorkspaceConfig; got != want {
+			t.Fatalf("workspace alpha second delete target = %q, want %q", got, want)
+		}
+		workspaceConfigPayload := readFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName))
+		if strings.Contains(workspaceConfigPayload, `name = "alpha"`) {
+			t.Fatalf("workspace config alpha still present after delete:\n%s", workspaceConfigPayload)
+		}
 	})
-	if err != nil {
-		t.Fatalf("DeleteCollectionItem(workspace alpha config) error = %v", err)
-	}
-	if got, want := result.WriteTarget, WriteTargetWorkspaceConfig; got != want {
-		t.Fatalf("workspace alpha second delete target = %q, want %q", got, want)
-	}
-	workspaceConfigPayload := readFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName))
-	if strings.Contains(workspaceConfigPayload, `name = "alpha"`) {
-		t.Fatalf("workspace config alpha still present after delete:\n%s", workspaceConfigPayload)
-	}
 }
 
 func TestUpdateSectionRestartRequiredSections(t *testing.T) {
@@ -4158,6 +4557,7 @@ type fakeProviderSecretStore struct {
 	metadataErrors map[string]error
 	resolveErrors  map[string]error
 	putErrors      map[string]error
+	deleteErrors   map[string]error
 	deleteErr      error
 }
 
@@ -4202,15 +4602,17 @@ func (panicMCPRuntimeProvider) MCPServerRuntimeStatus(
 type recordingMarketplaceInstallNotifier struct {
 	mu       sync.Mutex
 	outcomes []marketplace.InstallOutcome
+	err      error
 }
 
 func (n *recordingMarketplaceInstallNotifier) NotifyInstall(
 	_ context.Context,
 	outcome marketplace.InstallOutcome,
-) {
+) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.outcomes = append(n.outcomes, outcome)
+	return n.err
 }
 
 func (n *recordingMarketplaceInstallNotifier) snapshot() []marketplace.InstallOutcome {
@@ -4298,6 +4700,7 @@ func newFakeProviderSecretStore() *fakeProviderSecretStore {
 		metadataErrors: make(map[string]error),
 		resolveErrors:  make(map[string]error),
 		putErrors:      make(map[string]error),
+		deleteErrors:   make(map[string]error),
 	}
 }
 
@@ -4366,6 +4769,9 @@ func (f *fakeProviderSecretStore) DeleteSecret(ctx context.Context, ref string) 
 		return f.deleteErr
 	}
 	normalized := vault.NormalizeRef(ref)
+	if err := f.deleteErrors[normalized]; err != nil {
+		return err
+	}
 	if _, ok := f.metadata[normalized]; !ok {
 		return vault.ErrSecretNotFound
 	}
@@ -4729,6 +5135,16 @@ func findMCPItem(t *testing.T, items []MCPServerItem, name string) MCPServerItem
 	}
 	t.Fatalf("MCP item %q not found in %#v", name, items)
 	return MCPServerItem{}
+}
+
+func assertMCPSecretKeys(t *testing.T, item MCPServerItem, expected ...string) {
+	t.Helper()
+	if !reflect.DeepEqual(item.SecretEnvKeys, expected) {
+		t.Fatalf("MCP secret env keys = %#v, want %#v", item.SecretEnvKeys, expected)
+	}
+	if item.Auth.ClientSecretRef != "" {
+		t.Fatalf("MCP item exposed OAuth client secret ref %q", item.Auth.ClientSecretRef)
+	}
 }
 
 func equalWriteTargets(left []WriteTargetKind, right []WriteTargetKind) bool {

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,9 @@ func newMarketplaceSearchCommand(deps commandDeps) *cobra.Command {
 		Short: "Search or browse the marketplace",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if limit <= 0 {
+				return fmt.Errorf("cli: marketplace limit must be positive: %d", limit)
+			}
 			scope, err := readScope.value()
 			if err != nil {
 				return err

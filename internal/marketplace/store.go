@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -94,19 +95,33 @@ func (s *SQLiteStore) ListKind(
 	rows, err := s.repository.ListMarketplaceCatalogEntries(
 		ctx,
 		string(kind),
-		strings.ToLower(strings.TrimSpace(query)),
-		int64(normalizeListLimit(limit)),
+		maxCatalogEntriesPerKind,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("marketplace catalog: list %q entries: %w", kind, err)
 	}
-	entries := make([]Entry, 0, len(rows))
+	needle := foldMarketplaceText(query)
+	entries := make([]Entry, 0, min(len(rows), normalizeListLimit(limit)))
 	for _, row := range rows {
 		entry, mapErr := marketplaceEntryFromRow(row)
 		if mapErr != nil {
 			return nil, mapErr
 		}
-		entries = append(entries, entry)
+		if needle == "" || strings.Contains(foldMarketplaceText(entry.Name), needle) ||
+			strings.Contains(foldMarketplaceText(entry.Description), needle) {
+			entries = append(entries, entry)
+		}
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		left := foldMarketplaceText(entries[i].Name)
+		right := foldMarketplaceText(entries[j].Name)
+		if left == right {
+			return entries[i].EntryID < entries[j].EntryID
+		}
+		return left < right
+	})
+	if normalizedLimit := normalizeListLimit(limit); len(entries) > normalizedLimit {
+		entries = entries[:normalizedLimit]
 	}
 	return entries, nil
 }
@@ -199,35 +214,7 @@ func validateReplacement(kind Kind, document *Document) error {
 	if document.GeneratedAt.IsZero() || document.FetchedAt.IsZero() {
 		return fmt.Errorf("marketplace catalog %q generated_at and fetched_at are required", kind)
 	}
-	seen := make(map[string]struct{}, len(document.Entries))
-	seenInstallSlugs := make(map[string]struct{}, len(document.Entries))
-	for index, entry := range document.Entries {
-		if entry.Kind != kind {
-			return fmt.Errorf("marketplace catalog %q entry %d kind = %q", kind, index, entry.Kind)
-		}
-		entryID := strings.TrimSpace(entry.EntryID)
-		if entryID == "" || strings.TrimSpace(entry.Name) == "" || strings.TrimSpace(entry.Description) == "" {
-			return fmt.Errorf("marketplace catalog %q entry %d identity fields are required", kind, index)
-		}
-		if _, exists := seen[entryID]; exists {
-			return fmt.Errorf("marketplace catalog %q entry_id %q is duplicated", kind, entryID)
-		}
-		seen[entryID] = struct{}{}
-		if kind == KindExtension || kind == KindSkill {
-			installSlug := strings.TrimSpace(entry.InstallSlug)
-			if installSlug == "" {
-				return fmt.Errorf("marketplace catalog %q entry %q install_slug is required", kind, entryID)
-			}
-			if _, exists := seenInstallSlugs[installSlug]; exists {
-				return fmt.Errorf("marketplace catalog %q install_slug %q is duplicated", kind, installSlug)
-			}
-			seenInstallSlugs[installSlug] = struct{}{}
-		}
-		if len(entry.Payload) == 0 || !jsonValid(entry.Payload) {
-			return fmt.Errorf("marketplace catalog %q entry %q payload_json is invalid", kind, entryID)
-		}
-	}
-	return nil
+	return validateDocumentEntries(kind, document.Entries)
 }
 
 func marketplaceEntryToRow(entry Entry, fetchedAt time.Time) storepkg.MarketplaceCatalogEntry {

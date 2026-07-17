@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/compozy/agh/internal/api/contract"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
@@ -132,7 +133,7 @@ func (h *BaseHandlers) remoteSkillMarketplaceEntry(
 	}
 	detail, err := h.skillMarketplaceService().Info(ctx, slug)
 	if err != nil {
-		return contract.MarketplaceEntryResponse{}, err
+		return contract.MarketplaceEntryResponse{}, normalizeSkillMarketplaceError(err)
 	}
 	installed, err := h.skillInstallIndex(ctx)
 	if err != nil {
@@ -192,7 +193,7 @@ func (h *BaseHandlers) bundleMarketplaceEntry(
 		Installed: installed, UpdateAvailable: installed && activation.SpecDrift,
 	}
 	if installed {
-		listing.ManagePath = "/extensions/bundles/" + activation.Activation.ID
+		listing.ManagePath = "/extensions/bundles/" + url.PathEscape(activation.Activation.ID)
 	}
 	profiles := make([]contract.MarketplaceBundleProfilePayload, 0, len(found.Bundle.Profiles))
 	for _, profile := range found.Bundle.Profiles {

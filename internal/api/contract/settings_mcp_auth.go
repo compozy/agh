@@ -2,6 +2,21 @@ package contract
 
 import "time"
 
+// SettingsMCPAuthBeginMode selects callback delivery for one OAuth session.
+type SettingsMCPAuthBeginMode string
+
+const (
+	// SettingsMCPAuthBeginModeAutomatic completes through the daemon loopback callback.
+	SettingsMCPAuthBeginModeAutomatic SettingsMCPAuthBeginMode = "automatic"
+	// SettingsMCPAuthBeginModeManual returns a copy/paste callback without requiring a listener.
+	SettingsMCPAuthBeginModeManual SettingsMCPAuthBeginMode = "manual"
+)
+
+// SettingsMCPAuthBeginRequest selects automatic or manual callback delivery.
+type SettingsMCPAuthBeginRequest struct {
+	Mode SettingsMCPAuthBeginMode `json:"mode"`
+}
+
 // SettingsMCPAuthBeginResponse returns the verifier-free PKCE handoff.
 type SettingsMCPAuthBeginResponse struct {
 	AuthorizationURL string    `json:"authorization_url"`

@@ -68,9 +68,10 @@ get, delete, settings read, CLI output, or web views.
 
 ## MCP Catalog Bindings
 
-`agh mcp install` supports two secret modes. A typed value creates a scope-qualified canonical ref;
-a `--vault-ref KEY=vault:mcp/...` assignment binds an existing, present ref anywhere inside the
-`mcp` namespace.
+`agh mcp install` supports two secret modes. `--set KEY` reads a typed value from stdin or a hidden
+terminal prompt and creates a scope-qualified canonical ref. A
+`--vault-ref KEY=vault:mcp/...` assignment binds an existing, present ref anywhere inside the `mcp`
+namespace.
 
 | Install scope | Canonical environment ref                             |
 | ------------- | ----------------------------------------------------- |
@@ -82,8 +83,8 @@ IDs that do not fit the Vault ref grammar, so two workspaces installing the same
 share credential identity.
 
 Catalog uninstall removes only canonical refs created and owned by that install. It retains a
-shared ref supplied through `--vault-ref`. Settings reads expose the bound ref strings but never
-the stored plaintext.
+shared ref supplied through `--vault-ref`. Settings reads expose configured field names and OAuth
+client-secret presence, never bound refs or stored plaintext.
 
 ## CLI Usage
 

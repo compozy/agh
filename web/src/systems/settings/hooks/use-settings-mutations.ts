@@ -36,6 +36,7 @@ import type {
   SettingsCreateNotificationPresetRequest,
   SettingsNotificationPresetEntry,
   SettingsMCPAuthExchangeRequest,
+  SettingsMCPAuthBeginMode,
   SettingsMCPAuthFilter,
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerPutFilter,
@@ -323,15 +324,19 @@ interface MCPAuthParams {
   filter: SettingsMCPAuthFilter;
 }
 
+interface MCPAuthBeginParams extends MCPAuthParams {
+  mode: SettingsMCPAuthBeginMode;
+}
+
 interface MCPAuthExchangeParams extends MCPAuthParams {
   body: SettingsMCPAuthExchangeRequest;
 }
 
-// Begin only creates a PKCE session (no server-state change) -> no invalidation,
-// no restart record. It is a mutation for in-flight/error tracking only.
 export function useBeginMCPAuth() {
+  // react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- Begin creates only an ephemeral PKCE session; no cached server state changes.
   return useMutation({
-    mutationFn: ({ name, filter }: MCPAuthParams) => beginSettingsMCPAuth(name, filter),
+    mutationFn: ({ name, filter, mode }: MCPAuthBeginParams) =>
+      beginSettingsMCPAuth(name, filter, { mode }),
   });
 }
 

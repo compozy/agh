@@ -1048,6 +1048,12 @@ func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 		if err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID); err != nil {
 			t.Fatalf("DeleteWorkspace() error = %v, want nil", err)
 		}
+		if _, err := globalDB.GetWorkspace(testutil.Context(t), workspaceID); !errors.Is(
+			err,
+			aghworkspace.ErrWorkspaceNotFound,
+		) {
+			t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
+		}
 	})
 
 	t.Run("Should delete only scoped MCP credentials and prevent same ID recovery", func(t *testing.T) {

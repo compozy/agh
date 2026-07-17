@@ -2128,67 +2128,6 @@ func settingsProviderCredentialStatusPayloads(
 	return payloads
 }
 
-func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contract.SettingsMCPServerItemPayload {
-	if len(values) == 0 {
-		return []contract.SettingsMCPServerItemPayload{}
-	}
-	payloads := make([]contract.SettingsMCPServerItemPayload, 0, len(values))
-	for _, value := range values {
-		payloads = append(payloads, contract.SettingsMCPServerItemPayload{
-			Name:           strings.TrimSpace(value.Name),
-			Transport:      strings.TrimSpace(string(value.Transport)),
-			Command:        strings.TrimSpace(value.Command),
-			Args:           cloneStrings(value.Args),
-			Env:            cloneStringMap(value.Env),
-			SecretEnv:      cloneStringMap(value.SecretEnv),
-			URL:            strings.TrimSpace(value.URL),
-			Auth:           settingsMCPAuthConfigPayload(value.Auth),
-			AuthStatus:     settingsMCPAuthStatusPayload(value.AuthStatus),
-			RuntimeStatus:  settingsMCPServerRuntimeStatusPayload(value.RuntimeStatus),
-			Scope:          contract.SettingsScopeKind(value.Scope),
-			WorkspaceID:    strings.TrimSpace(value.WorkspaceID),
-			CatalogEntry:   strings.TrimSpace(value.CatalogEntry),
-			CatalogVersion: strings.TrimSpace(value.CatalogVersion),
-			SourceMetadata: settingsSourceMetadataPayload(value.SourceMetadata),
-		})
-	}
-	return payloads
-}
-
-func settingsMCPServerRuntimeStatusPayload(
-	value *settingspkg.MCPServerRuntimeStatus,
-) *contract.SettingsMCPServerRuntimeStatusPayload {
-	if value == nil {
-		return nil
-	}
-	return &contract.SettingsMCPServerRuntimeStatusPayload{
-		Configured:  value.Configured,
-		Initialized: value.Initialized,
-		State:       strings.TrimSpace(string(value.State)),
-		Probe:       strings.TrimSpace(string(value.Probe)),
-		ToolCount:   value.ToolCount,
-		Reason:      strings.TrimSpace(value.Reason),
-		Diagnostic:  strings.TrimSpace(value.Diagnostic),
-	}
-}
-
-func settingsMCPAuthConfigPayload(value aghconfig.MCPAuthConfig) *contract.SettingsMCPAuthConfigPayload {
-	if value.IsZero() {
-		return nil
-	}
-	return &contract.SettingsMCPAuthConfigPayload{
-		Type:             strings.TrimSpace(string(value.Type)),
-		IssuerURL:        strings.TrimSpace(value.IssuerURL),
-		MetadataURL:      strings.TrimSpace(value.MetadataURL),
-		AuthorizationURL: strings.TrimSpace(value.AuthorizationURL),
-		TokenURL:         strings.TrimSpace(value.TokenURL),
-		RevocationURL:    strings.TrimSpace(value.RevocationURL),
-		ClientID:         strings.TrimSpace(value.ClientID),
-		ClientSecretRef:  strings.TrimSpace(value.ClientSecretRef),
-		Scopes:           cloneStrings(value.Scopes),
-	}
-}
-
 func settingsSandboxItemPayloads(values []settingspkg.SandboxItem) []contract.SettingsSandboxItemPayload {
 	if len(values) == 0 {
 		return []contract.SettingsSandboxItemPayload{}

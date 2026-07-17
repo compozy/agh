@@ -49,7 +49,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			}
 			sources = append(sources, source)
 		}
-		service, err := NewService(openMarketplaceTestStore(t), sources, time.Hour)
+		service, err := NewService(openMarketplaceTestStore(t), sources, time.Hour, time.Minute)
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -84,7 +84,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewHTTPSource() error = %v", err)
 		}
-		service, err := NewService(store, []Source{source}, time.Hour)
+		service, err := NewService(store, []Source{source}, time.Hour, time.Minute)
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -102,14 +102,14 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		assertProjectedSkillIDs(t, ctx, store, "stable")
 
 		feed.setBody(`{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[{"entry_id":"broken"}]}`)
-		if _, err := service.Refresh(ctx, KindSkill); err == nil {
-			t.Fatal("Refresh(malformed) error = nil, want strict validation failure")
+		if _, err := service.Refresh(ctx, KindSkill); err == nil || !strings.Contains(err.Error(), "name is required") {
+			t.Fatalf("Refresh(malformed) error = %v, want required-name validation failure", err)
 		}
 		assertProjectedSkillIDs(t, ctx, store, "stable")
 
 		server.Close()
-		if _, err := service.Refresh(ctx, KindSkill); err == nil {
-			t.Fatal("Refresh(unavailable) error = nil, want transport failure")
+		if _, err := service.Refresh(ctx, KindSkill); err == nil || !strings.Contains(err.Error(), "connection refused") {
+			t.Fatalf("Refresh(unavailable) error = %v, want connection-refused transport failure", err)
 		}
 		result, err := service.Browse(ctx, KindSkill, "", 10)
 		if err != nil {

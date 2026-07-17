@@ -81,16 +81,7 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 
 func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRequest) (MutationResult, error) {
 	finalize := func(result MutationResult, err error) (MutationResult, error) {
-		if err != nil {
-			return MutationResult{}, err
-		}
-		if mutationResultHasNoChanges(result) {
-			return result, nil
-		}
-		if emitErr := s.emitSettingsChanged(ctx, result, "replace"); emitErr != nil {
-			return MutationResult{}, emitErr
-		}
-		return result, nil
+		return s.finalizeCommittedCollectionMutation(ctx, result, err, "replace", true)
 	}
 
 	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
@@ -123,10 +114,7 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 			req.ProviderSecrets,
 		))
 	case CollectionMCPServers:
-		if req.MCPServer == nil {
-			return MutationResult{}, validationError(errors.New("settings: MCP server payload is required"))
-		}
-		return finalize(s.putMCPServer(ctx, scope, workspaceID, name, req.Target, *req.MCPServer, req.MCPSecrets))
+		return finalize(s.putMCPCollectionItem(ctx, scope, workspaceID, name, req))
 	case CollectionSandboxes:
 		if scope != ScopeGlobal {
 			return MutationResult{}, conflictError(
@@ -152,13 +140,7 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 
 func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDeleteRequest) (MutationResult, error) {
 	finalize := func(result MutationResult, err error) (MutationResult, error) {
-		if err != nil {
-			return MutationResult{}, err
-		}
-		if emitErr := s.emitSettingsChanged(ctx, result, "delete"); emitErr != nil {
-			return MutationResult{}, emitErr
-		}
-		return result, nil
+		return s.finalizeCommittedCollectionMutation(ctx, result, err, "delete", false)
 	}
 
 	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)

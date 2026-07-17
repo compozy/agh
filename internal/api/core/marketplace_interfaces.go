@@ -10,8 +10,10 @@ import (
 
 // MarketplaceCatalogService exposes the daemon-owned curated feed projection.
 type MarketplaceCatalogService interface {
-	marketplacepkg.Service
-	marketplacepkg.SkillInstallResolver
+	Browse(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
+	Detail(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
+	Refresh(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
+	ResolveSkillInstalls(context.Context, []string) ([]marketplacepkg.Entry, error)
 }
 
 // SkillMarketplaceService exposes remote skill marketplace lifecycle operations.

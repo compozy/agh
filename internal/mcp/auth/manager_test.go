@@ -130,6 +130,135 @@ func TestManagerPKCESessionContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject an in-flight Begin after logout completes", func(t *testing.T) {
+		t.Parallel()
+
+		handlerErrors := newHandlerErrorRecorder()
+		metadataStarted := make(chan struct{})
+		releaseMetadata := make(chan struct{})
+		var releaseMetadataOnce sync.Once
+		releaseBegin := func() { releaseMetadataOnce.Do(func() { close(releaseMetadata) }) }
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/metadata" {
+				http.NotFound(w, r)
+				return
+			}
+			close(metadataStarted)
+			<-releaseMetadata
+			if err := writeJSON(w, Metadata{
+				AuthorizationEndpoint:         "http://" + r.Host + "/authorize",
+				TokenEndpoint:                 "http://" + r.Host + "/token",
+				CodeChallengeMethodsSupported: []string{pkceS256Value},
+			}); err != nil {
+				handlerErrors.record(err)
+			}
+		}))
+		defer func() {
+			releaseBegin()
+			server.Close()
+			handlerErrors.assertEmpty(t)
+		}()
+
+		store := newMemoryTokenStore()
+		service, err := NewService(store, WithHTTPClient(server.Client()))
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		manager, err := NewManager(service)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cfg := ServerConfig{
+			Target: globalTestTarget("linear"), Type: "oauth2_pkce",
+			MetadataURL: server.URL + "/metadata", ClientID: "client-id",
+		}
+		beginResult := make(chan error, 1)
+		go func() {
+			_, beginErr := manager.Begin(t.Context(), cfg, managerTestCallbackURL)
+			beginResult <- beginErr
+		}()
+		<-metadataStarted
+
+		if _, err := manager.Logout(t.Context(), cfg); err != nil {
+			t.Fatalf("Logout() error = %v", err)
+		}
+		releaseBegin()
+		if err := <-beginResult; !errors.Is(err, ErrLoginSessionStale) {
+			t.Fatalf("Begin(racing logout) error = %v, want ErrLoginSessionStale", err)
+		}
+	})
+
+	t.Run("Should refuse token persistence when logout races an in-flight exchange", func(t *testing.T) {
+		t.Parallel()
+
+		handlerErrors := newHandlerErrorRecorder()
+		tokenStarted := make(chan struct{})
+		releaseToken := make(chan struct{})
+		var releaseTokenOnce sync.Once
+		releaseExchange := func() { releaseTokenOnce.Do(func() { close(releaseToken) }) }
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/metadata":
+				if err := writeJSON(w, Metadata{
+					AuthorizationEndpoint:         "http://" + r.Host + "/authorize",
+					TokenEndpoint:                 "http://" + r.Host + "/token",
+					CodeChallengeMethodsSupported: []string{pkceS256Value},
+				}); err != nil {
+					handlerErrors.record(err)
+				}
+			case "/token":
+				close(tokenStarted)
+				<-releaseToken
+				if err := writeJSON(w, map[string]any{
+					"access_token": "logged-out-access", "token_type": "Bearer", "expires_in": 3600,
+				}); err != nil {
+					handlerErrors.record(err)
+				}
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer func() {
+			releaseExchange()
+			server.Close()
+			handlerErrors.assertEmpty(t)
+		}()
+
+		store := newMemoryTokenStore()
+		service, err := NewService(store, WithHTTPClient(server.Client()))
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		manager, err := NewManager(service)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cfg := ServerConfig{
+			Target: globalTestTarget("linear"), Type: "oauth2_pkce",
+			MetadataURL: server.URL + "/metadata", ClientID: "client-id",
+		}
+		if _, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL); err != nil {
+			t.Fatalf("Begin() error = %v", err)
+		}
+		exchangeResult := make(chan error, 1)
+		go func() {
+			_, exchangeErr := manager.Exchange(t.Context(), cfg, ExchangeInput{Code: "racing-code"})
+			exchangeResult <- exchangeErr
+		}()
+		<-tokenStarted
+
+		if _, err := manager.Logout(t.Context(), cfg); err != nil {
+			t.Fatalf("Logout() error = %v", err)
+		}
+		releaseExchange()
+		if err := <-exchangeResult; !errors.Is(err, ErrLoginSessionStale) {
+			t.Fatalf("Exchange(racing logout) error = %v, want ErrLoginSessionStale", err)
+		}
+		if _, err := store.GetMCPAuthToken(t.Context(), cfg.Target); !errors.Is(err, ErrTokenNotFound) {
+			t.Fatalf("GetMCPAuthToken(after racing logout) error = %v, want ErrTokenNotFound", err)
+		}
+	})
+
 	t.Run("Should reject an expired session", func(t *testing.T) {
 		t.Parallel()
 
@@ -208,7 +337,8 @@ func TestManagerRedirectURLExchangeRequiresMatchingState(t *testing.T) {
 			t.Fatalf("Exchange(redirect URL) status = %#v", status)
 		}
 
-		if _, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL); err != nil {
+		secondLogin, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL)
+		if err != nil {
 			t.Fatalf("Begin(mismatch) error = %v", err)
 		}
 		_, err = manager.Exchange(t.Context(), cfg, ExchangeInput{
@@ -216,6 +346,15 @@ func TestManagerRedirectURLExchangeRequiresMatchingState(t *testing.T) {
 		})
 		if !errors.Is(err, ErrInvalidExchange) {
 			t.Fatalf("Exchange(mismatched state) error = %v, want ErrInvalidExchange", err)
+		}
+		status, err = manager.Exchange(t.Context(), cfg, ExchangeInput{
+			RedirectURL: callbackWithCodeAndState(t, "accepted-after-mismatch", secondLogin.State),
+		})
+		if err != nil {
+			t.Fatalf("Exchange(correct state after mismatch) error = %v", err)
+		}
+		if status.Status != StatusAuthenticated || !status.TokenPresent {
+			t.Fatalf("Exchange(correct state after mismatch) status = %#v", status)
 		}
 	})
 }
@@ -351,6 +490,98 @@ func TestManagerServerDefinitionBinding(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject an older Begin while the superseding generation exchanges", func(t *testing.T) {
+		t.Parallel()
+
+		handlerErrors := newHandlerErrorRecorder()
+		firstMetadataStarted := make(chan struct{})
+		releaseFirstMetadata := make(chan struct{})
+		tokenStarted := make(chan struct{})
+		releaseToken := make(chan struct{})
+		var metadataCalls atomic.Int32
+		var releaseMetadataOnce sync.Once
+		var releaseTokenOnce sync.Once
+		releaseMetadata := func() { releaseMetadataOnce.Do(func() { close(releaseFirstMetadata) }) }
+		releaseExchange := func() { releaseTokenOnce.Do(func() { close(releaseToken) }) }
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/metadata":
+				if metadataCalls.Add(1) == 1 {
+					close(firstMetadataStarted)
+					<-releaseFirstMetadata
+				}
+				if err := writeJSON(w, Metadata{
+					AuthorizationEndpoint:         "http://" + r.Host + "/authorize",
+					TokenEndpoint:                 "http://" + r.Host + "/token",
+					CodeChallengeMethodsSupported: []string{pkceS256Value},
+				}); err != nil {
+					handlerErrors.record(err)
+				}
+			case "/token":
+				close(tokenStarted)
+				<-releaseToken
+				if err := writeJSON(w, map[string]any{
+					"access_token": "superseding-access", "token_type": "Bearer", "expires_in": 3600,
+				}); err != nil {
+					handlerErrors.record(err)
+				}
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer func() {
+			releaseMetadata()
+			releaseExchange()
+			server.Close()
+			handlerErrors.assertEmpty(t)
+		}()
+
+		store := newMemoryTokenStore()
+		service, err := NewService(store, WithHTTPClient(server.Client()))
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		manager, err := NewManager(service)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cfg := ServerConfig{
+			Target: globalTestTarget("linear"), Type: "oauth2_pkce",
+			MetadataURL: server.URL + "/metadata", ClientID: "client-id",
+		}
+		firstBegin := make(chan error, 1)
+		go func() {
+			_, beginErr := manager.Begin(t.Context(), cfg, managerTestCallbackURL)
+			firstBegin <- beginErr
+		}()
+		<-firstMetadataStarted
+
+		if _, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL); err != nil {
+			t.Fatalf("Begin(superseding) error = %v", err)
+		}
+		exchangeResult := make(chan error, 1)
+		go func() {
+			_, exchangeErr := manager.Exchange(t.Context(), cfg, ExchangeInput{Code: "superseding-code"})
+			exchangeResult <- exchangeErr
+		}()
+		<-tokenStarted
+		releaseMetadata()
+		if err := <-firstBegin; !errors.Is(err, ErrLoginSessionStale) {
+			t.Fatalf("Begin(older) error = %v, want ErrLoginSessionStale", err)
+		}
+		releaseExchange()
+		if err := <-exchangeResult; err != nil {
+			t.Fatalf("Exchange(superseding) error = %v", err)
+		}
+		persisted, err := store.GetMCPAuthToken(t.Context(), cfg.Target)
+		if err != nil {
+			t.Fatalf("GetMCPAuthToken() error = %v", err)
+		}
+		if persisted.AccessToken != "superseding-access" {
+			t.Fatalf("persisted access token = %q, want superseding-access", persisted.AccessToken)
+		}
+	})
+
 	t.Run("Should invalidate pending state without deleting a durable token", func(t *testing.T) {
 		t.Parallel()
 
@@ -475,39 +706,43 @@ func TestManagerServerDefinitionBinding(t *testing.T) {
 func TestManagerPrunesAbandonedExpiredSessions(t *testing.T) {
 	t.Parallel()
 
-	var nowMu sync.Mutex
-	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
-	nowFn := func() time.Time {
+	t.Run("Should prune abandoned expired sessions", func(t *testing.T) {
+		t.Parallel()
+
+		var nowMu sync.Mutex
+		now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+		nowFn := func() time.Time {
+			nowMu.Lock()
+			defer nowMu.Unlock()
+			return now
+		}
+		manager, cfg, _, closeHarness := newManagerTestHarness(t, nowFn)
+		defer closeHarness()
+		first, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL)
+		if err != nil {
+			t.Fatalf("Begin(first) error = %v", err)
+		}
 		nowMu.Lock()
-		defer nowMu.Unlock()
-		return now
-	}
-	manager, cfg, _, closeHarness := newManagerTestHarness(t, nowFn)
-	defer closeHarness()
-	first, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL)
-	if err != nil {
-		t.Fatalf("Begin(first) error = %v", err)
-	}
-	nowMu.Lock()
-	now = now.Add(defaultLoginSessionTTL + time.Nanosecond)
-	nowMu.Unlock()
-	secondConfig := cfg
-	secondConfig.Target = globalTestTarget("github")
-	if _, err := manager.Begin(t.Context(), secondConfig, managerTestCallbackURL); err != nil {
-		t.Fatalf("Begin(second) error = %v", err)
-	}
-	manager.mu.Lock()
-	targetCount, stateCount := len(manager.byTarget), len(manager.byState)
-	_, staleStatePresent := manager.byState[first.State]
-	manager.mu.Unlock()
-	if targetCount != 1 || stateCount != 1 || staleStatePresent {
-		t.Fatalf(
-			"sessions after prune = targets:%d states:%d stale:%t, want 1/1/false",
-			targetCount,
-			stateCount,
-			staleStatePresent,
-		)
-	}
+		now = now.Add(defaultLoginSessionTTL + time.Nanosecond)
+		nowMu.Unlock()
+		secondConfig := cfg
+		secondConfig.Target = globalTestTarget("github")
+		if _, err := manager.Begin(t.Context(), secondConfig, managerTestCallbackURL); err != nil {
+			t.Fatalf("Begin(second) error = %v", err)
+		}
+		manager.mu.Lock()
+		targetCount, stateCount := len(manager.byTarget), len(manager.byState)
+		_, staleStatePresent := manager.byState[first.State]
+		manager.mu.Unlock()
+		if targetCount != 1 || stateCount != 1 || staleStatePresent {
+			t.Fatalf(
+				"sessions after prune = targets:%d states:%d stale:%t, want 1/1/false",
+				targetCount,
+				stateCount,
+				staleStatePresent,
+			)
+		}
+	})
 }
 
 type recordingLifecycleNotifier struct {
@@ -528,18 +763,31 @@ func TestManagerConcurrentSessionContract(t *testing.T) {
 		defer closeHarness()
 		const workers = 24
 
+		var beginSuccesses atomic.Int32
+		var beginStale atomic.Int32
 		var beginErrors atomic.Int32
 		var begins sync.WaitGroup
 		for range workers {
 			begins.Go(func() {
-				if _, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL); err != nil {
+				_, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL)
+				switch {
+				case err == nil:
+					beginSuccesses.Add(1)
+				case errors.Is(err, ErrLoginSessionStale):
+					beginStale.Add(1)
+				default:
 					beginErrors.Add(1)
 				}
 			})
 		}
 		begins.Wait()
-		if beginErrors.Load() != 0 {
-			t.Fatalf("concurrent Begin errors = %d", beginErrors.Load())
+		if beginSuccesses.Load() == 0 || beginSuccesses.Load()+beginStale.Load() != workers || beginErrors.Load() != 0 {
+			t.Fatalf(
+				"concurrent Begin results = successes:%d stale:%d other:%d",
+				beginSuccesses.Load(),
+				beginStale.Load(),
+				beginErrors.Load(),
+			)
 		}
 		manager.mu.Lock()
 		activeTargets := len(manager.byTarget)

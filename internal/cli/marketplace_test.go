@@ -70,6 +70,28 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a non-positive search limit before transport", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newTestDeps(t, &stubClient{searchMarketplaceFn: func(
+			context.Context,
+			string,
+			int,
+			MarketplaceReadScope,
+		) (MarketplaceSearchRecord, error) {
+			called = true
+			return MarketplaceSearchRecord{}, nil
+		}})
+		_, _, err := executeRootCommand(t, deps, "marketplace", "search", "--limit", "0")
+		if err == nil || !strings.Contains(err.Error(), "marketplace limit must be positive") {
+			t.Fatalf("marketplace search --limit=0 error = %v, want positive-limit validation", err)
+		}
+		if called {
+			t.Fatal("marketplace transport called after local limit validation failure")
+		}
+	})
+
 	t.Run("Should render one kind without changing the daemon payload", func(t *testing.T) {
 		t.Parallel()
 

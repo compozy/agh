@@ -60,9 +60,10 @@ type MarketplaceInstallRequest struct {
 
 // ManagedRemoveResult describes one removed managed extension.
 type ManagedRemoveResult struct {
-	Name   string `json:"name"`
-	Path   string `json:"path"`
-	Status string `json:"status"`
+	Name     string                              `json:"name"`
+	Path     string                              `json:"path"`
+	Status   string                              `json:"status"`
+	Warnings []diagnosticcontract.DiagnosticItem `json:"warnings,omitempty"`
 }
 
 // MarketplaceUpdateRequest describes one marketplace update batch.
@@ -94,8 +95,9 @@ type MarketplaceUpdateResult struct {
 }
 
 type stagedExtensionDirChange struct {
-	targetDir string
-	backupDir string
+	targetDir    string
+	backupDir    string
+	removeBackup func(string) error
 }
 
 type marketplaceManagedInstall struct {
@@ -166,6 +168,7 @@ func prepareMarketplaceManagedInstall(
 		return marketplaceManagedInstall{}, err
 	}
 	var downloader registrypkg.Downloader
+	var closeDownloader func() error
 	var detail *registrypkg.Detail
 	if hasCuratedMarketplaceArtifact(req.Trust) {
 		downloader, err = newCuratedMarketplaceArtifactDownloader(req.Trust, req.ArtifactHTTPClient)
@@ -178,8 +181,11 @@ func prepareMarketplaceManagedInstall(
 		if registryErr != nil {
 			return marketplaceManagedInstall{}, registryErr
 		}
+		closeDownloader = multi.Close
 		defer func() {
-			err = errors.Join(err, multi.Close())
+			if closeDownloader != nil {
+				err = errors.Join(err, closeDownloader())
+			}
 		}()
 		detail, err = multi.Info(ctx, slug)
 		if err != nil {
@@ -196,6 +202,13 @@ func prepareMarketplaceManagedInstall(
 	result, err := installMarketplaceArchive(ctx, downloader, slug, req, stagingDir)
 	if err != nil {
 		return marketplaceManagedInstall{}, err
+	}
+	if closeDownloader != nil {
+		closeSource := closeDownloader
+		closeDownloader = nil
+		if closeErr := closeSource(); closeErr != nil {
+			return marketplaceManagedInstall{}, fmt.Errorf("extension: close marketplace registry source: %w", closeErr)
+		}
 	}
 	manifest, finalDir, err := moveMarketplaceInstallIntoPlace(homePaths, registry, slug, result)
 	if err != nil {
@@ -355,13 +368,7 @@ func RemoveManagedExtension(
 			)
 		}
 	}
-	if err := change.Commit(); err != nil {
-		return ManagedRemoveResult{}, errors.Join(
-			fmt.Errorf("extension: finalize extension removal %q: %w", info.Name, err),
-			restoreRemovedExtensionRecord(registry, *info, installDir, change),
-		)
-	}
-	return ManagedRemoveResult{Name: info.Name, Path: installDir, Status: "removed"}, nil
+	return finalizeManagedExtensionRemoval(info.Name, installDir, change), nil
 }
 
 // InstalledExtensionDir returns the root directory for a persisted extension

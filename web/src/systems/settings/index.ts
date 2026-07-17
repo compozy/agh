@@ -21,6 +21,8 @@ export type {
   SettingsHooksExtensionsInstalled,
   SettingsHooksExtensionsSection,
   SettingsMCPAuthBeginResponse,
+  SettingsMCPAuthBeginRequest,
+  SettingsMCPAuthBeginMode,
   SettingsMCPAuthExchangeRequest,
   SettingsMCPAuthFilter,
   SettingsMCPAuthStatusResponse,
@@ -101,7 +103,13 @@ export type {
   MCPRuntimeState,
   MCPStatusCell,
 } from "./lib/mcp-status-view-model";
-export { emptyDraft, toDraft, toRequest, validateDraft } from "./lib/mcp-editor-model";
+export {
+  emptyDraft,
+  toDraft,
+  toRequest,
+  validateDraft,
+  withoutMCPSecretPreservation,
+} from "./lib/mcp-editor-model";
 export type {
   MCPDraft,
   MCPDraftErrors,

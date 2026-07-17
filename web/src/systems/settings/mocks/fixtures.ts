@@ -837,7 +837,7 @@ export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
     name: "github",
     transport: "stdio",
     command: "npx -y @modelcontextprotocol/server-github",
-    env: { GITHUB_TOKEN: "env:GITHUB_TOKEN" },
+    env_keys: ["GITHUB_TOKEN"],
     scope: "global",
     source_metadata: {
       available_targets: ["global-mcp-sidecar"],
@@ -893,11 +893,8 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     transport: "stdio",
     command: "npx",
     args: ["-y", "@modelcontextprotocol/server-github"],
-    env: { LOG_LEVEL: "info" },
-    secret_env: {
-      GITHUB_PERSONAL_ACCESS_TOKEN:
-        "vault:mcp/ws/ws-platform/github-local/env/github_personal_access_token",
-    },
+    env_keys: ["LOG_LEVEL"],
+    secret_env_keys: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
     scope: "workspace",
     workspace_id: "ws-platform",
     runtime_status: {
@@ -916,6 +913,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     auth: {
       type: "oauth2_pkce",
       client_id: "agh-linear-public",
+      client_secret_configured: true,
       issuer_url: "https://auth.linear.app",
     },
     auth_status: {
@@ -946,6 +944,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     auth: {
       type: "oauth2_pkce",
       client_id: "agh-sentry-public",
+      client_secret_configured: false,
       issuer_url: "https://auth.sentry.io",
     },
     auth_status: {
@@ -976,6 +975,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     auth: {
       type: "oauth2_pkce",
       client_id: "agh-notion-public",
+      client_secret_configured: false,
       issuer_url: "https://auth.notion.com",
     },
     auth_status: {
@@ -1004,6 +1004,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     auth: {
       type: "oauth2_pkce",
       client_id: "agh-figma-public",
+      client_secret_configured: false,
       issuer_url: "https://auth.figma.com",
     },
     auth_status: {
@@ -1031,6 +1032,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     auth: {
       type: "oauth2_pkce",
       client_id: "agh-github-public",
+      client_secret_configured: false,
       issuer_url: "https://github.com/login/oauth",
     },
     auth_status: {
@@ -1074,6 +1076,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     auth: {
       type: "oauth2_pkce",
       client_id: "agh-pagerduty-public",
+      client_secret_configured: false,
       issuer_url: "https://auth.pagerduty.com",
     },
     auth_status: {
@@ -1102,6 +1105,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     auth: {
       type: "oauth2_pkce",
       client_id: "agh-buildkite-public",
+      client_secret_configured: false,
       issuer_url: "https://auth.buildkite.com",
     },
     auth_status: {
@@ -1136,7 +1140,7 @@ export const mcpAuthBeginFixture = {
   authorization_url:
     "https://auth.linear.app/oauth/authorize?client_id=agh-linear-public&code_challenge=J6lRkq8l9lZ3tZpQf7uYx2AqY7M3xv2b9R6n0ZsVn4A&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%3A2123%2Fapi%2Fmcp%2Foauth%2Fcallback&state=agh_mcp_7m3p9q",
   callback_url: "http://127.0.0.1:2123/api/mcp/oauth/callback",
-  expires_at: "2026-07-15T00:05:00Z",
+  expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
   manual_supported: true,
   state: "agh_mcp_7m3p9q",
 };

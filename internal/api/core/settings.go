@@ -997,8 +997,10 @@ func providerSecretWritesFromPayload(
 
 func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {
 	var body struct {
-		Server       *contract.SettingsMCPServerPayload       `json:"server"`
-		SecretValues *contract.SettingsMCPSecretValuesPayload `json:"secret_values,omitempty"`
+		Server          *contract.SettingsMCPServerPayload             `json:"server"`
+		SecretValues    *contract.SettingsMCPSecretValuesPayload       `json:"secret_values,omitempty"`
+		PreserveSecrets *contract.SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitempty"`
+		PreserveEnv     []string                                       `json:"preserve_env,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(
@@ -1054,27 +1056,14 @@ func parsePutSettingsMCPServerRequest(c *gin.Context) (settingspkg.CollectionIte
 		return settingspkg.CollectionItemPutRequest{}, NewSettingsValidationError(err)
 	}
 	return settingspkg.CollectionItemPutRequest{
-		CollectionRequest: req,
-		Name:              name,
-		Target:            target,
-		MCPServer:         &server,
-		MCPSecrets:        mcpSecretValuesFromPayload(body.SecretValues),
+		CollectionRequest:     req,
+		Name:                  name,
+		Target:                target,
+		MCPServer:             &server,
+		MCPSecrets:            mcpSecretValuesFromPayload(body.SecretValues),
+		MCPSecretPreservation: mcpSecretPreservationFromPayload(body.PreserveSecrets),
+		MCPEnvPreservation:    cloneStrings(body.PreserveEnv),
 	}, nil
-}
-
-func mcpSecretValuesFromPayload(payload *contract.SettingsMCPSecretValuesPayload) settingspkg.MCPSecretValues {
-	if payload == nil {
-		return settingspkg.MCPSecretValues{}
-	}
-	var oauthClientSecret *string
-	if payload.OAuthClientSecret != nil {
-		value := *payload.OAuthClientSecret
-		oauthClientSecret = &value
-	}
-	return settingspkg.MCPSecretValues{
-		SecretEnv:         cloneStringMap(payload.SecretEnv),
-		OAuthClientSecret: oauthClientSecret,
-	}
 }
 
 func parsePutSettingsSandboxRequest(c *gin.Context) (settingspkg.CollectionItemPutRequest, error) {

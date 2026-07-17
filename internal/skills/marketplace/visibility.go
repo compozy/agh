@@ -1,7 +1,10 @@
 package marketplace
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/compozy/agh/internal/skills"
@@ -26,6 +29,13 @@ func VerifyInstallVisible(resolver SkillResolver, result InstallResult) error {
 			result.Path,
 		)
 	}
+	if err := verifyInstallDiscovery(skill, result); err != nil {
+		return err
+	}
+	return verifyInstallProvenance(skill, result)
+}
+
+func verifyInstallDiscovery(skill *skills.Skill, result InstallResult) error {
 	if skill.Source != skills.SourceMarketplace {
 		return classifiedf(
 			ErrUnavailable,
@@ -36,6 +46,41 @@ func VerifyInstallVisible(resolver SkillResolver, result InstallResult) error {
 			installVisibilityLocation(skill),
 		)
 	}
+	discoveredDir := strings.TrimSpace(skill.Dir)
+	if discoveredDir == "" && strings.TrimSpace(skill.FilePath) != "" {
+		discoveredDir = filepath.Dir(skill.FilePath)
+	}
+	canonicalDiscovered, err := canonicalInstallVisibilityPath(discoveredDir)
+	if err != nil {
+		return classifiedf(
+			ErrUnavailable,
+			"installed marketplace skill %q discovery path cannot be resolved: %v",
+			result.Name,
+			err,
+		)
+	}
+	canonicalInstalled, err := canonicalInstallVisibilityPath(result.Path)
+	if err != nil {
+		return classifiedf(
+			ErrUnavailable,
+			"installed marketplace skill %q result path cannot be resolved: %v",
+			result.Name,
+			err,
+		)
+	}
+	if canonicalDiscovered != canonicalInstalled {
+		return classifiedf(
+			ErrUnavailable,
+			"installed marketplace skill %q resolved from %s after skill discovery, want %s",
+			result.Name,
+			canonicalDiscovered,
+			canonicalInstalled,
+		)
+	}
+	return nil
+}
+
+func verifyInstallProvenance(skill *skills.Skill, result InstallResult) error {
 	if skill.Provenance == nil {
 		return classifiedf(
 			ErrUnavailable,
@@ -54,6 +99,33 @@ func VerifyInstallVisible(resolver SkillResolver, result InstallResult) error {
 			result.Slug,
 		)
 	}
+	if strings.TrimSpace(skill.Provenance.Registry) != strings.TrimSpace(result.Registry) {
+		return classifiedf(
+			ErrUnavailable,
+			"installed marketplace skill %q resolved registry %q after skill discovery, want %q",
+			result.Name,
+			skill.Provenance.Registry,
+			result.Registry,
+		)
+	}
+	if strings.TrimSpace(skill.Provenance.Version) != strings.TrimSpace(result.Version) {
+		return classifiedf(
+			ErrUnavailable,
+			"installed marketplace skill %q resolved version %q after skill discovery, want %q",
+			result.Name,
+			skill.Provenance.Version,
+			result.Version,
+		)
+	}
+	if strings.TrimSpace(skill.Provenance.Hash) != strings.TrimSpace(result.Hash) {
+		return classifiedf(
+			ErrUnavailable,
+			"installed marketplace skill %q resolved hash %q after skill discovery, want %q",
+			result.Name,
+			skill.Provenance.Hash,
+			result.Hash,
+		)
+	}
 	if !skill.Enabled {
 		return classifiedf(
 			ErrUnavailable,
@@ -63,6 +135,25 @@ func VerifyInstallVisible(resolver SkillResolver, result InstallResult) error {
 		)
 	}
 	return nil
+}
+
+func canonicalInstallVisibilityPath(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", errors.New("path is empty")
+	}
+	absolute, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("resolve absolute path %q: %w", trimmed, err)
+	}
+	canonical, err := filepath.EvalSymlinks(absolute)
+	if err == nil {
+		return filepath.Clean(canonical), nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return filepath.Clean(absolute), nil
+	}
+	return "", fmt.Errorf("resolve symlinks for %q: %w", absolute, err)
 }
 
 func installVisibilityLocation(skill *skills.Skill) string {

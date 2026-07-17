@@ -29,6 +29,7 @@ type CallExecutor struct {
 	lookupSecret   func(string) string
 	secretResolver secretRefResolver
 	httpClient     *http.Client
+	authGeneration *mcpauth.MutationGeneration
 	timeout        time.Duration
 }
 
@@ -42,6 +43,13 @@ type CallExecutorOption func(*CallExecutor)
 func WithTokenStore(store mcpauth.TokenStore) CallExecutorOption {
 	return func(executor *CallExecutor) {
 		executor.tokenStore = store
+	}
+}
+
+// WithAuthMutationGeneration coordinates refresh with settings-owned login and logout.
+func WithAuthMutationGeneration(generation *mcpauth.MutationGeneration) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		executor.authGeneration = generation
 	}
 }
 
@@ -120,7 +128,11 @@ func NewMCPCallExecutor(
 		executor.httpClient = &cloned
 	}
 	if executor.auth == nil && executor.tokenStore != nil {
-		service, err := mcpauth.NewService(executor.tokenStore, mcpauth.WithHTTPClient(executor.httpClient))
+		service, err := mcpauth.NewService(
+			executor.tokenStore,
+			mcpauth.WithHTTPClient(executor.httpClient),
+			mcpauth.WithMutationGeneration(executor.authGeneration),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("mcp: create auth service: %w", err)
 		}

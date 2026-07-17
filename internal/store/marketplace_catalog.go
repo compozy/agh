@@ -42,7 +42,7 @@ type MarketplaceCatalogState struct {
 type MarketplaceCatalogRepository interface {
 	ReplaceMarketplaceCatalog(context.Context, MarketplaceCatalogReplacement) error
 	MarkMarketplaceCatalogStale(context.Context, string, string) error
-	ListMarketplaceCatalogEntries(context.Context, string, string, int64) ([]MarketplaceCatalogEntry, error)
+	ListMarketplaceCatalogEntries(context.Context, string, int64) ([]MarketplaceCatalogEntry, error)
 	GetMarketplaceCatalogEntry(context.Context, string, string) (MarketplaceCatalogEntry, error)
 	GetMarketplaceExtensionByInstallSlug(context.Context, string, string) (MarketplaceCatalogEntry, error)
 	ListMarketplaceSkillsByInstallSlugs(context.Context, []string) ([]MarketplaceCatalogEntry, error)

@@ -217,7 +217,11 @@ func (d *Daemon) newDaemonMCPToolProvider(
 		options = append(options, mcppkg.WithSecretResolver(state.providerVault))
 	}
 	if store, ok := state.registry.(mcpauth.TokenStore); ok {
-		options = append(options, mcppkg.WithTokenStore(store))
+		options = append(
+			options,
+			mcppkg.WithTokenStore(store),
+			mcppkg.WithAuthMutationGeneration(state.mcpAuthGeneration),
+		)
 	}
 	executor, err := mcppkg.NewMCPCallExecutor(resolver, options...)
 	if err != nil {

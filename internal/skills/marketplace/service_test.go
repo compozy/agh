@@ -435,17 +435,13 @@ func TestVerifyInstallVisible(t *testing.T) {
 	}
 	visibleSkill := func() *skills.Skill {
 		return &skills.Skill{
-			Meta:   skills.SkillMeta{Name: "review"},
-			Source: skills.SourceMarketplace,
-			FilePath: filepath.Join(
-				"tmp",
-				"agh",
-				"skills",
-				"review",
-				SkillMarkdownFileName,
-			),
-			Enabled: true,
+			Meta:     skills.SkillMeta{Name: "review"},
+			Source:   skills.SourceMarketplace,
+			Dir:      result.Path,
+			FilePath: filepath.Join(result.Path, SkillMarkdownFileName),
+			Enabled:  true,
 			Provenance: &skills.Provenance{
+				Hash:     "sha256:abc",
 				Slug:     "@agh/review",
 				Registry: "clawhub",
 				Version:  "1.2.0",
@@ -498,6 +494,18 @@ func TestVerifyInstallVisible(t *testing.T) {
 			wantText: "missing provenance after skill discovery",
 		},
 		{
+			name: "Should classify a discovered path mismatch as unavailable",
+			resolver: fakeSkillResolver{skills: map[string]*skills.Skill{
+				"review": func() *skills.Skill {
+					skill := visibleSkill()
+					skill.Dir = "/tmp/other/review"
+					skill.FilePath = "/tmp/other/review/SKILL.md"
+					return skill
+				}(),
+			}},
+			wantText: "resolved from /tmp/other/review",
+		},
+		{
 			name: "Should classify slug mismatch as unavailable",
 			resolver: fakeSkillResolver{skills: map[string]*skills.Skill{
 				"review": func() *skills.Skill {
@@ -507,6 +515,28 @@ func TestVerifyInstallVisible(t *testing.T) {
 				}(),
 			}},
 			wantText: "resolved slug \"@other/review\" after skill discovery, want \"@agh/review\"",
+		},
+		{
+			name: "Should classify registry mismatch as unavailable",
+			resolver: fakeSkillResolver{skills: map[string]*skills.Skill{
+				"review": func() *skills.Skill {
+					skill := visibleSkill()
+					skill.Provenance.Registry = "other"
+					return skill
+				}(),
+			}},
+			wantText: "resolved registry \"other\" after skill discovery, want \"clawhub\"",
+		},
+		{
+			name: "Should classify hash mismatch as unavailable",
+			resolver: fakeSkillResolver{skills: map[string]*skills.Skill{
+				"review": func() *skills.Skill {
+					skill := visibleSkill()
+					skill.Provenance.Hash = "sha256:different"
+					return skill
+				}(),
+			}},
+			wantText: "resolved hash \"sha256:different\" after skill discovery, want \"sha256:abc\"",
 		},
 		{
 			name: "Should classify disabled skill as unavailable",

@@ -93,7 +93,7 @@ export const handlers: HttpHandler[] = [
         write_target: body.scope === "workspace" ? "workspace-mcp-sidecar" : "global-mcp-sidecar",
       },
       mcp_server: {
-        auth: remote ? { type: "oauth2" } : null,
+        auth: remote ? { type: "oauth2", client_secret_configured: false } : null,
         auth_status: null,
         catalog_entry: body.entry_id,
         name: body.name ?? body.entry_id ?? "mcp-server",

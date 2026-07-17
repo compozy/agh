@@ -126,20 +126,24 @@ func TestSeedConfigPersistsMarketplaceCatalogOverlay(t *testing.T) {
 func TestSeedConfigPersistsExtensionsMarketplaceOverlay(t *testing.T) {
 	t.Parallel()
 
-	homePaths := NewHomePaths(t)
-	SeedConfig(t, homePaths, ConfigSeedOptions{
-		Mutate: func(cfg *aghconfig.Config) {
-			cfg.Extensions.Marketplace.AllowUnverified = true
-		},
-	})
+	t.Run("Should persist the extension marketplace overlay", func(t *testing.T) {
+		t.Parallel()
 
-	loaded, err := aghconfig.LoadForHome(homePaths)
-	if err != nil {
-		t.Fatalf("LoadForHome() error = %v", err)
-	}
-	if !loaded.Extensions.Marketplace.AllowUnverified {
-		t.Fatal("Extensions.Marketplace.AllowUnverified = false, want true")
-	}
+		homePaths := NewHomePaths(t)
+		SeedConfig(t, homePaths, ConfigSeedOptions{
+			Mutate: func(cfg *aghconfig.Config) {
+				cfg.Extensions.Marketplace.AllowUnverified = true
+			},
+		})
+
+		loaded, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if !loaded.Extensions.Marketplace.AllowUnverified {
+			t.Fatal("Extensions.Marketplace.AllowUnverified = false, want true")
+		}
+	})
 }
 
 func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {

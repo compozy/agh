@@ -170,24 +170,26 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
         ) : null}
       </div>
 
-      <DialogFooter variant="ruled">
-        <span className="mr-auto text-caption text-muted">
+      <DialogFooter variant="ruled" className="grid items-center">
+        <span className="text-caption text-muted">
           Existing credentials stay unchanged until a confirmed exchange.
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={authorize.cancel}
-          data-testid="settings-page-mcp-authorize-cancel"
-        >
-          {isConfirmed ? "Close" : "Cancel"}
-        </Button>
-        <AuthorizePrimaryAction
-          authorize={authorize}
-          manualValue={manualValue}
-          showManual={showManual}
-        />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={authorize.cancel}
+            data-testid="settings-page-mcp-authorize-cancel"
+          >
+            {isConfirmed ? "Close" : "Cancel"}
+          </Button>
+          <AuthorizePrimaryAction
+            authorize={authorize}
+            manualValue={manualValue}
+            showManual={showManual}
+          />
+        </div>
       </DialogFooter>
     </>
   );
@@ -230,14 +232,27 @@ function AuthorizePrimaryAction({
   }
   if (authorize.phase === "failed" && authorize.begin === null) {
     return (
-      <Button
-        type="button"
-        size="sm"
-        onClick={() => void authorize.retryBegin()}
-        data-testid="settings-page-mcp-authorize-retry"
-      >
-        Retry authorization
-      </Button>
+      <div className="flex items-center gap-2">
+        {authorize.mode !== "manual" ? (
+          <Button
+            type="button"
+            variant="neutral"
+            size="sm"
+            onClick={() => void authorize.enterManual()}
+            data-testid="settings-page-mcp-authorize-manual-fallback"
+          >
+            Try manual callback
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => void authorize.retryBegin()}
+          data-testid="settings-page-mcp-authorize-retry"
+        >
+          Retry authorization
+        </Button>
+      </div>
     );
   }
   return (
@@ -246,7 +261,7 @@ function AuthorizePrimaryAction({
       variant="neutral"
       size="sm"
       disabled={authorize.phase !== "waiting"}
-      onClick={authorize.enterManual}
+      onClick={() => void authorize.enterManual()}
       data-testid="settings-page-mcp-authorize-manual-trigger"
     >
       Enter code or redirect

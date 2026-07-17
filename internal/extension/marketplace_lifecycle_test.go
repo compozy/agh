@@ -231,6 +231,102 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			t.Fatalf("os.Stat(managed dir after remove) error = %v, want not exist", err)
 		}
 	})
+
+	t.Run("Should close the registry source before moving an installation into place", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		closeErr := errors.New("registry close failed")
+		source := newLifecycleSource(t, "1.0.0")
+		source.closeErr = closeErr
+		_, err = InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{source}, nil
+			},
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
+		)
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("InstallMarketplaceManaged() error = %v, want source close failure", err)
+		}
+		if got, want := source.closeCount, 1; got != want {
+			t.Fatalf("source close count = %d, want %d", got, want)
+		}
+		if _, statErr := os.Stat(ManagedInstallPath(homePaths, "lifecycle-ext")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(managed install) error = %v, want not-exist", statErr)
+		}
+	})
+
+	t.Run("Should keep removal committed when backup cleanup partially fails", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		source := newLifecycleSource(t, "1.0.0")
+		installed, err := InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) { return []registrypkg.Source{source}, nil },
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
+		)
+		if err != nil {
+			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
+		}
+		installDir, err := InstalledExtensionDir(*installed)
+		if err != nil {
+			t.Fatalf("InstalledExtensionDir() error = %v", err)
+		}
+		change, err := stageExtensionDirRemoval(installDir)
+		if err != nil {
+			t.Fatalf("stageExtensionDirRemoval() error = %v", err)
+		}
+		if err := env.registry.Uninstall(installed.Name); err != nil {
+			t.Fatalf("registry.Uninstall() error = %v", err)
+		}
+		manifestPath := filepath.Join(change.backupDir, manifestTOMLFileName)
+		cleanupErr := errors.New("forced partial backup cleanup failure")
+		change.removeBackup = func(string) error {
+			if removeErr := os.Remove(manifestPath); removeErr != nil {
+				return errors.Join(cleanupErr, removeErr)
+			}
+			return cleanupErr
+		}
+
+		result := finalizeManagedExtensionRemoval(installed.Name, installDir, change)
+		if result.Status != "removed" || result.Name != installed.Name {
+			t.Fatalf("finalizeManagedExtensionRemoval() = %#v, want committed removal", result)
+		}
+		if len(result.Warnings) != 1 ||
+			result.Warnings[0].Code != diagnosticcontract.CodeExtensionRemoveCleanupFailed {
+			t.Fatalf("removal warnings = %#v, want cleanup warning", result.Warnings)
+		}
+		if _, getErr := env.registry.Get(installed.Name); !errors.Is(getErr, ErrExtensionNotFound) {
+			t.Fatalf("registry.Get(removed extension) error = %v, want ErrExtensionNotFound", getErr)
+		}
+		if _, statErr := os.Stat(installDir); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(removed install dir) error = %v, want not exist", statErr)
+		}
+		if _, statErr := os.Stat(change.backupDir); statErr != nil {
+			t.Fatalf("os.Stat(backup residue) error = %v, want retained residue", statErr)
+		}
+		if _, statErr := os.Stat(manifestPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(partially removed manifest) error = %v, want not exist", statErr)
+		}
+	})
 }
 
 func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {

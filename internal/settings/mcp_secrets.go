@@ -37,6 +37,10 @@ type mcpSecretCleanupPlan struct {
 	superseded     []ownedMCPSecretSnapshot
 }
 
+type ownedMCPSecretDeleteOutcome struct {
+	restorationComplete bool
+}
+
 func (s *service) prepareMCPSecretWrites(
 	scope ScopeKind,
 	workspaceID string,
@@ -311,25 +315,38 @@ func (s *service) prepareMCPSecretCleanupPlan(
 			err,
 		)
 	}
+	superseded = excludeMCPSecretsReferencedByOtherSources(superseded, name, target, sources)
 	return mcpSecretCleanupPlan{previousSource: previousSource, superseded: superseded}, nil
 }
 
 func (s *service) executeMCPSecretCleanupPlan(
 	ctx context.Context,
+	scope ScopeKind,
+	workspaceID string,
 	root string,
 	name string,
 	target aghconfig.WriteTarget,
 	plan mcpSecretCleanupPlan,
 	secretMutations []mcpSecretMutation,
-) error {
+) ([]string, error) {
 	if len(plan.superseded) == 0 {
-		return nil
+		return nil, nil
 	}
 	cleanupCtx, cancel := mcpSecretRollbackContext(ctx)
-	cleanupErr := s.deleteOwnedMCPSecrets(cleanupCtx, plan.superseded)
+	cleanupOutcome, cleanupErr := s.deleteOwnedMCPSecrets(cleanupCtx, plan.superseded)
 	cancel()
 	if cleanupErr == nil {
-		return nil
+		return nil, nil
+	}
+	cleanupFailure := fmt.Errorf(
+		"settings: garbage-collect MCP server %q superseded secrets: %w",
+		name,
+		cleanupErr,
+	)
+	if !cleanupOutcome.restorationComplete {
+		return []string{
+			"committed MCP replacement retained after partial secret cleanup rollback: " + cleanupFailure.Error(),
+		}, nil
 	}
 	restoreErr := s.writeMCPServer(root, name, target, plan.previousSource.Server)
 	if restoreErr != nil {
@@ -338,16 +355,46 @@ func (s *service) executeMCPSecretCleanupPlan(
 			name,
 			restoreErr,
 		)
+		return []string{
+			"committed MCP replacement retained because its prior definition could not be restored: " +
+				errors.Join(cleanupFailure, restoreErr).Error(),
+		}, nil
 	}
-	var rollbackErr error
-	if restoreErr == nil {
-		rollbackErr = s.rollbackMCPSecretMutations(ctx, secretMutations)
-	}
-	return errors.Join(
-		fmt.Errorf("settings: garbage-collect MCP server %q superseded secrets: %w", name, cleanupErr),
-		restoreErr,
+	invalidateErr := s.invalidateMCPAuthAfterDefinitionRestore(scope, workspaceID, name)
+	rollbackErr := s.rollbackMCPSecretMutations(ctx, secretMutations)
+	return nil, errors.Join(
+		cleanupFailure,
+		invalidateErr,
 		rollbackErr,
 	)
+}
+
+func excludeMCPSecretsReferencedByOtherSources(
+	snapshots []ownedMCPSecretSnapshot,
+	name string,
+	target WriteTargetKind,
+	sources map[string][]mcpSourceEntry,
+) []ownedMCPSecretSnapshot {
+	if len(snapshots) == 0 {
+		return nil
+	}
+	referenced := make(map[string]struct{})
+	for _, entry := range sources[strings.TrimSpace(name)] {
+		if entry.Target == target {
+			continue
+		}
+		for ref := range referencedMCPSecretRefs(entry.Server) {
+			referenced[ref] = struct{}{}
+		}
+	}
+	filtered := make([]ownedMCPSecretSnapshot, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		if _, retained := referenced[snapshot.ref]; retained {
+			continue
+		}
+		filtered = append(filtered, snapshot)
+	}
+	return filtered
 }
 
 func (s *service) prepareOwnedMCPSecretDeletes(
@@ -356,7 +403,7 @@ func (s *service) prepareOwnedMCPSecretDeletes(
 	workspaceID string,
 	server aghconfig.MCPServer,
 ) ([]ownedMCPSecretSnapshot, error) {
-	if strings.TrimSpace(server.CatalogEntry) == "" || s.providerSecrets == nil {
+	if s.providerSecrets == nil {
 		return nil, nil
 	}
 	prefix, err := vault.MCPSecretOwnerPrefix(string(scope), workspaceID, server.Name)
@@ -390,19 +437,22 @@ func (s *service) prepareOwnedMCPSecretDeletes(
 	return snapshots, nil
 }
 
-func (s *service) deleteOwnedMCPSecrets(ctx context.Context, snapshots []ownedMCPSecretSnapshot) error {
+func (s *service) deleteOwnedMCPSecrets(
+	ctx context.Context,
+	snapshots []ownedMCPSecretSnapshot,
+) (ownedMCPSecretDeleteOutcome, error) {
 	for idx, snapshot := range snapshots {
 		deleteErr := s.providerSecrets.DeleteSecret(ctx, snapshot.ref)
 		if deleteErr == nil || errors.Is(deleteErr, vault.ErrSecretNotFound) {
 			continue
 		}
 		restoreErr := s.restoreOwnedMCPSecrets(ctx, snapshots[:idx+1])
-		return errors.Join(
+		return ownedMCPSecretDeleteOutcome{restorationComplete: restoreErr == nil}, errors.Join(
 			fmt.Errorf("settings: delete owned MCP secret %q: %w", snapshot.ref, deleteErr),
 			restoreErr,
 		)
 	}
-	return nil
+	return ownedMCPSecretDeleteOutcome{}, nil
 }
 
 func (s *service) restoreOwnedMCPSecrets(ctx context.Context, snapshots []ownedMCPSecretSnapshot) error {

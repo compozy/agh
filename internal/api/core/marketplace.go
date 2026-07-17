@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	marketplacepkg "github.com/compozy/agh/internal/marketplace"
 	settingspkg "github.com/compozy/agh/internal/settings"
+	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -105,8 +106,12 @@ func (h *BaseHandlers) MarketplaceSearch(
 			if errors.Is(kindErr, ErrMarketplaceUnavailable) {
 				unavailableKinds++
 			}
+			errorMessage := kindErr.Error()
+			if h != nil && h.MaskInternalErrors {
+				errorMessage = http.StatusText(http.StatusInternalServerError)
+			}
 			result = contract.MarketplaceKindResult{
-				Kind: kind, Error: kindErr.Error(), Items: []contract.MarketplaceListingPayload{},
+				Kind: kind, Error: errorMessage, Items: []contract.MarketplaceListingPayload{},
 			}
 		}
 		results = append(results, result)
@@ -298,6 +303,21 @@ func parseRefreshMarketplaceKind(raw string) (marketplacepkg.Kind, error) {
 
 func marketplaceValidationf(format string, args ...any) error {
 	return errors.Join(ErrMarketplaceValidation, fmt.Errorf(format, args...))
+}
+
+func normalizeSkillMarketplaceError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, skillmarketplace.ErrValidation):
+		return errors.Join(ErrMarketplaceValidation, err)
+	case errors.Is(err, skillmarketplace.ErrNotFound):
+		return errors.Join(ErrMarketplaceNotFound, err)
+	case errors.Is(err, skillmarketplace.ErrUnavailable), errors.Is(err, skillmarketplace.ErrNotConfigured):
+		return errors.Join(ErrMarketplaceUnavailable, err)
+	default:
+		return err
+	}
 }
 
 func (h *BaseHandlers) respondMarketplaceError(c *gin.Context, err error) {

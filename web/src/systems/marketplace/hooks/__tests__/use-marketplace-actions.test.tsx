@@ -153,6 +153,63 @@ describe("useInstallMarketplaceMCP", () => {
     manageAction?.action?.onClick?.();
     expect(locationAssign).toHaveBeenCalledWith("/mcp?scope=global&server=filesystem");
   });
+
+  it("Should retain workspace identity in the post-install management deep link", async () => {
+    vi.mocked(installMarketplaceMCP).mockResolvedValue({
+      apply: {
+        active_config_hash: "sha256:active-live",
+        active_generation: 42,
+        applied: true,
+        apply_record_id: "cfg_apply_mcp_live_add",
+        lifecycle: "live-add",
+        next_action: "none",
+        restart_required: false,
+        scope: "workspace",
+        warnings: [],
+        workspace_id: "ws-polybot",
+        write_target: "workspace-mcp-sidecar",
+      },
+      mcp_server: {
+        name: "github",
+        scope: "workspace",
+        workspace_id: "ws-polybot",
+        source_metadata: {
+          available_targets: [],
+          effective_source: {
+            kind: "workspace-config",
+            scope: "workspace",
+            workspace_id: "ws-polybot",
+          },
+          shadowed_sources: [],
+        },
+        transport: "stdio",
+      },
+      next_step: "authorize",
+    });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useInstallMarketplaceMCP(), { wrapper });
+
+    act(() =>
+      result.current.mutate({
+        entry_id: "github-mcp",
+        scope: "workspace",
+        workspace_id: "ws-polybot",
+        values: null,
+      })
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const authorizeToast = vi
+      .mocked(toast.success)
+      .mock.calls.find(call => call[0] === "MCP server installed. Authorization is required.");
+    const authorizeAction = authorizeToast?.[1] as
+      | { action?: { onClick?: () => void } }
+      | undefined;
+    authorizeAction?.action?.onClick?.();
+    expect(locationAssign).toHaveBeenCalledWith(
+      "/mcp?scope=workspace&server=github&workspace_id=ws-polybot"
+    );
+  });
 });
 
 describe("marketplace acquisition cache boundaries", () => {

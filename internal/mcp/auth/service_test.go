@@ -192,6 +192,188 @@ func TestOAuthPKCELifecycleWithRefreshAndLogout(t *testing.T) {
 	handlerErrors.assertEmpty(t)
 }
 
+func TestOAuthRefreshCannotReinsertTokenAfterLogoutAcrossServices(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an older refresh commit after another service logs out", func(t *testing.T) {
+		t.Parallel()
+
+		refreshStarted := make(chan struct{})
+		releaseRefresh := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseRefresh) }) }
+		defer release()
+		handlerErrors := newHandlerErrorRecorder()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/token" {
+				http.NotFound(w, r)
+				return
+			}
+			if err := r.ParseForm(); err != nil {
+				handlerErrors.record(fmt.Errorf("parse refresh form: %w", err))
+				http.Error(w, "invalid form", http.StatusBadRequest)
+				return
+			}
+			close(refreshStarted)
+			<-releaseRefresh
+			if err := writeJSON(w, map[string]any{
+				"access_token": "refreshed-access",
+				"token_type":   "Bearer",
+			}); err != nil {
+				handlerErrors.record(err)
+			}
+		}))
+		defer func() {
+			server.Close()
+			handlerErrors.assertEmpty(t)
+		}()
+
+		target := globalTestTarget("linear")
+		cfg := ServerConfig{
+			Target:           target,
+			Type:             "oauth2_pkce",
+			AuthorizationURL: server.URL + "/authorize",
+			TokenURL:         server.URL + "/token",
+			ClientID:         "client-id",
+		}
+		fingerprint, err := ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatalf("ServerDefinitionFingerprint() error = %v", err)
+		}
+		store := newMemoryTokenStore()
+		if err := store.SaveMCPAuthToken(t.Context(), TokenRecord{
+			Target: target, DefinitionFingerprint: fingerprint,
+			AccessToken: "existing-access", RefreshToken: "existing-refresh", TokenType: "Bearer",
+		}); err != nil {
+			t.Fatalf("SaveMCPAuthToken() error = %v", err)
+		}
+		generation := NewMutationGeneration()
+		refreshService, err := NewService(
+			store,
+			WithHTTPClient(server.Client()),
+			WithMutationGeneration(generation),
+		)
+		if err != nil {
+			t.Fatalf("NewService(refresh) error = %v", err)
+		}
+		logoutService, err := NewService(store, WithMutationGeneration(generation))
+		if err != nil {
+			t.Fatalf("NewService(logout) error = %v", err)
+		}
+
+		refreshErr := make(chan error, 1)
+		go func() {
+			_, refreshError := refreshService.Refresh(t.Context(), cfg)
+			refreshErr <- refreshError
+		}()
+		<-refreshStarted
+		if _, err := logoutService.Logout(t.Context(), cfg); err != nil {
+			t.Fatalf("Logout() error = %v", err)
+		}
+		release()
+		if err := <-refreshErr; !errors.Is(err, ErrTokenMutationStale) {
+			t.Fatalf("Refresh() error = %v, want ErrTokenMutationStale", err)
+		}
+		if _, err := store.GetMCPAuthToken(t.Context(), target); !errors.Is(err, ErrTokenNotFound) {
+			t.Fatalf("GetMCPAuthToken(after logout) error = %v, want ErrTokenNotFound", err)
+		}
+	})
+
+	t.Run("Should reject a refresh commit after a newer Manager exchange", func(t *testing.T) {
+		t.Parallel()
+
+		refreshStarted := make(chan struct{})
+		releaseRefresh := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseRefresh) }) }
+		defer release()
+		handlerErrors := newHandlerErrorRecorder()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/token" {
+				http.NotFound(w, r)
+				return
+			}
+			if err := r.ParseForm(); err != nil {
+				handlerErrors.record(fmt.Errorf("parse token form: %w", err))
+				http.Error(w, "invalid form", http.StatusBadRequest)
+				return
+			}
+			accessToken := "new-login-access"
+			if r.Form.Get("grant_type") == "refresh_token" {
+				close(refreshStarted)
+				<-releaseRefresh
+				accessToken = "stale-refresh-access"
+			}
+			if err := writeJSON(w, map[string]any{
+				"access_token":  accessToken,
+				"refresh_token": "new-refresh",
+				"token_type":    "Bearer",
+			}); err != nil {
+				handlerErrors.record(err)
+			}
+		}))
+		defer func() {
+			server.Close()
+			handlerErrors.assertEmpty(t)
+		}()
+
+		target := globalTestTarget("linear")
+		cfg := ServerConfig{
+			Target: target, Type: "oauth2_pkce",
+			AuthorizationURL: server.URL + "/authorize", TokenURL: server.URL + "/token",
+			ClientID: "client-id",
+		}
+		fingerprint, err := ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatalf("ServerDefinitionFingerprint() error = %v", err)
+		}
+		store := newMemoryTokenStore()
+		if err := store.SaveMCPAuthToken(t.Context(), TokenRecord{
+			Target: target, DefinitionFingerprint: fingerprint,
+			AccessToken: "existing-access", RefreshToken: "existing-refresh", TokenType: "Bearer",
+		}); err != nil {
+			t.Fatalf("SaveMCPAuthToken() error = %v", err)
+		}
+		generation := NewMutationGeneration()
+		service, err := NewService(
+			store,
+			WithHTTPClient(server.Client()),
+			WithMutationGeneration(generation),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		manager, err := NewManager(service)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		if _, err := manager.Begin(t.Context(), cfg, managerTestCallbackURL); err != nil {
+			t.Fatalf("Begin() error = %v", err)
+		}
+
+		refreshErr := make(chan error, 1)
+		go func() {
+			_, refreshError := service.Refresh(t.Context(), cfg)
+			refreshErr <- refreshError
+		}()
+		<-refreshStarted
+		if _, err := manager.Exchange(t.Context(), cfg, ExchangeInput{Code: "new-login-code"}); err != nil {
+			t.Fatalf("Exchange() error = %v", err)
+		}
+		release()
+		if err := <-refreshErr; !errors.Is(err, ErrTokenMutationStale) {
+			t.Fatalf("Refresh() error = %v, want ErrTokenMutationStale", err)
+		}
+		stored, err := store.GetMCPAuthToken(t.Context(), target)
+		if err != nil {
+			t.Fatalf("GetMCPAuthToken() error = %v", err)
+		}
+		if got, want := stored.AccessToken, "new-login-access"; got != want {
+			t.Fatalf("durable access token = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestTokenResponseRejectsMalformedPayload(t *testing.T) {
 	t.Parallel()
 
@@ -456,6 +638,47 @@ func TestOAuthTokenDefinitionBinding(t *testing.T) {
 	if _, err := store.GetMCPAuthToken(ctx, target); !errors.Is(err, ErrTokenNotFound) {
 		t.Fatalf("GetMCPAuthToken(after logout) error = %v, want ErrTokenNotFound", err)
 	}
+}
+
+func TestOAuthStatusTargetNormalization(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should validate and normalize unconfigured and configured status targets", func(t *testing.T) {
+		t.Parallel()
+
+		service, err := NewService(newMemoryTokenStore())
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		unconfigured, err := service.Status(t.Context(), ServerConfig{
+			Target: Target{Scope: " global ", ServerName: " linear "},
+		})
+		if err != nil {
+			t.Fatalf("Status(unconfigured padded target) error = %v", err)
+		}
+		if unconfigured.Scope != ScopeGlobal || unconfigured.ServerName != "linear" || unconfigured.WorkspaceID != "" {
+			t.Fatalf("Status(unconfigured padded target) = %#v, want normalized global identity", unconfigured)
+		}
+		if _, err := service.Status(t.Context(), ServerConfig{
+			Target: Target{Scope: ScopeWorkspace, ServerName: "linear"},
+		}); err == nil || !strings.Contains(err.Error(), "workspace target requires workspace_id") {
+			t.Fatalf("Status(invalid unconfigured workspace target) error = %v", err)
+		}
+
+		configured, err := service.Status(t.Context(), ServerConfig{
+			Target:           Target{Scope: " global ", ServerName: " linear "},
+			Type:             "oauth2_pkce",
+			AuthorizationURL: "https://auth.example/authorize",
+			TokenURL:         "https://auth.example/token",
+			ClientID:         "client-id",
+		})
+		if err != nil {
+			t.Fatalf("Status(configured padded target) error = %v", err)
+		}
+		if configured.Scope != ScopeGlobal || configured.ServerName != "linear" || configured.WorkspaceID != "" {
+			t.Fatalf("Status(configured padded target) = %#v, want normalized global identity", configured)
+		}
+	})
 }
 
 func assertStoredMCPTokenUnchanged(

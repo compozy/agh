@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +20,10 @@ var (
 	ErrLoginSessionStale = errors.New("mcp auth: login session server definition changed")
 	// ErrInvalidExchange reports a malformed manual or callback completion.
 	ErrInvalidExchange = errors.New("mcp auth: invalid exchange")
+	// ErrTokenMutationStale reports a durable token mutation superseded by a newer action.
+	ErrTokenMutationStale = errors.New("mcp auth: token mutation superseded")
+	// ErrMutationGenerationUnavailable reports a missing mutation coordinator.
+	ErrMutationGenerationUnavailable = errors.New("mcp auth: mutation generation is unavailable")
 )
 
 // LifecycleAction identifies one operator-visible OAuth mutation.
@@ -70,10 +73,11 @@ type Manager struct {
 	ttl      time.Duration
 	notifier LifecycleNotifier
 
-	mu       sync.Mutex
-	byTarget map[string]*loginSession
-	byState  map[string]string
-	revision map[string]uint64
+	mu         sync.Mutex
+	byTarget   map[string]*loginSession
+	byState    map[string]string
+	revision   map[string]uint64
+	generation *MutationGeneration
 }
 
 type loginSession struct {
@@ -81,6 +85,7 @@ type loginSession struct {
 	expiresAt             time.Time
 	definitionFingerprint string
 	revision              uint64
+	generation            uint64
 }
 
 // NewManager constructs one process-wide MCP OAuth manager.
@@ -93,10 +98,11 @@ func NewManager(service *Service, opts ...ManagerOption) (*Manager, error) {
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		ttl:      defaultLoginSessionTTL,
-		byTarget: make(map[string]*loginSession),
-		byState:  make(map[string]string),
-		revision: make(map[string]uint64),
+		ttl:        defaultLoginSessionTTL,
+		byTarget:   make(map[string]*loginSession),
+		byState:    make(map[string]string),
+		revision:   make(map[string]uint64),
+		generation: service.generation,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -148,7 +154,14 @@ func (m *Manager) Begin(
 	m.mu.Lock()
 	m.pruneExpiredLocked()
 	revision := m.revision[targetKey]
+	if previous, ok := m.byTarget[targetKey]; ok {
+		m.removeSessionLocked(targetKey, previous)
+	}
 	m.mu.Unlock()
+	generation, err := m.generation.Advance(cfg.Target)
+	if err != nil {
+		return BeginResult{}, err
+	}
 
 	state, err := m.service.BeginLogin(ctx, cfg, callbackURL)
 	if err != nil {
@@ -159,17 +172,19 @@ func (m *Manager) Begin(
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.pruneExpiredLocked()
-	if m.revision[targetKey] != revision {
-		return BeginResult{}, ErrLoginSessionStale
+	currentGeneration, generationErr := m.generation.Snapshot(cfg.Target)
+	if generationErr != nil {
+		return BeginResult{}, generationErr
 	}
-	if previous, ok := m.byTarget[targetKey]; ok {
-		delete(m.byState, previous.state.State)
+	if m.revision[targetKey] != revision || currentGeneration != generation {
+		return BeginResult{}, ErrLoginSessionStale
 	}
 	m.byTarget[targetKey] = &loginSession{
 		state:                 state,
 		expiresAt:             expiresAt,
 		definitionFingerprint: fingerprint,
 		revision:              revision,
+		generation:            generation,
 	}
 	m.byState[state.State] = targetKey
 
@@ -196,7 +211,7 @@ func (m *Manager) Exchange(
 	if err != nil {
 		return Status{}, err
 	}
-	session, err := m.claimByTarget(cfg.Target)
+	session, err := m.claimByTarget(cfg.Target, callbackURL)
 	if err != nil {
 		return Status{}, err
 	}
@@ -208,9 +223,6 @@ func (m *Manager) Exchange(
 		if err != nil {
 			return Status{}, err
 		}
-	}
-	if _, err := authorizationCodeFromCallback(callbackURL, session.state.State); err != nil {
-		return Status{}, fmt.Errorf("%w: %v", ErrInvalidExchange, err)
 	}
 	token, err := m.service.exchangeToken(ctx, session.state, callbackURL)
 	if err != nil {
@@ -288,7 +300,12 @@ func (m *Manager) Status(ctx context.Context, cfg ServerConfig) (Status, error) 
 // Logout revokes remotely when possible and always removes local scoped state.
 func (m *Manager) Logout(ctx context.Context, cfg ServerConfig) (status Status, err error) {
 	defer func() { m.notify(ctx, LifecycleLogout, cfg.Target, err) }()
-	m.discardByTarget(cfg.Target)
+	// Advance the definition revision before remote/local token removal. Any
+	// Begin or Exchange already outside the mutex can no longer install state
+	// after this logout completes.
+	if err := m.Invalidate(cfg.Target); err != nil {
+		return Status{}, err
+	}
 	return m.service.Logout(ctx, cfg)
 }
 
@@ -297,6 +314,9 @@ func (m *Manager) Logout(ctx context.Context, cfg ServerConfig) (status Status, 
 func (m *Manager) Invalidate(target Target) error {
 	key, err := target.Key()
 	if err != nil {
+		return err
+	}
+	if _, err := m.generation.Advance(target); err != nil {
 		return err
 	}
 	m.mu.Lock()
@@ -309,19 +329,7 @@ func (m *Manager) Invalidate(target Target) error {
 	return nil
 }
 
-func (m *Manager) discardByTarget(target Target) {
-	key, err := target.Key()
-	if err != nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if session, ok := m.byTarget[key]; ok {
-		m.removeSessionLocked(key, session)
-	}
-}
-
-func (m *Manager) claimByTarget(target Target) (*loginSession, error) {
+func (m *Manager) claimByTarget(target Target, callbackURL string) (*loginSession, error) {
 	key, err := target.Key()
 	if err != nil {
 		return nil, err
@@ -333,11 +341,18 @@ func (m *Manager) claimByTarget(target Target) (*loginSession, error) {
 		m.pruneExpiredLocked()
 		return nil, ErrLoginSessionNotFound
 	}
-	m.removeSessionLocked(key, session)
-	m.pruneExpiredLocked()
 	if !session.expiresAt.After(m.now().UTC()) {
+		m.removeSessionLocked(key, session)
+		m.pruneExpiredLocked()
 		return nil, ErrLoginSessionExpired
 	}
+	if callbackURL != "" {
+		if _, err := authorizationCodeFromCallback(callbackURL, session.state.State); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidExchange, err)
+		}
+	}
+	m.removeSessionLocked(key, session)
+	m.pruneExpiredLocked()
 	return session, nil
 }
 
@@ -412,49 +427,7 @@ func (m *Manager) commitExchange(
 	if !tokenMatchesServerDefinition(token, cfg) {
 		return Status{}, ErrLoginSessionStale
 	}
-	return m.service.persistToken(ctx, cfg, token)
-}
-
-func validateExchangeInput(input ExchangeInput) (string, error) {
-	code := strings.TrimSpace(input.Code)
-	redirectURL := strings.TrimSpace(input.RedirectURL)
-	if (code == "") == (redirectURL == "") {
-		return "", fmt.Errorf("%w: exactly one of code or redirect_url is required", ErrInvalidExchange)
-	}
-	if redirectURL != "" {
-		parsed, err := url.Parse(redirectURL)
-		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-			return "", fmt.Errorf("%w: redirect_url must be an absolute URL", ErrInvalidExchange)
-		}
-	}
-	return redirectURL, nil
-}
-
-func callbackURLForCode(state LoginState, code string) (string, error) {
-	if code == "" {
-		return "", fmt.Errorf("%w: authorization code is required", ErrInvalidExchange)
-	}
-	parsed, err := url.Parse(state.RedirectURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", fmt.Errorf("%w: stored callback URL is invalid", ErrInvalidExchange)
-	}
-	values := parsed.Query()
-	values.Set("code", code)
-	values.Set("state", state.State)
-	parsed.RawQuery = values.Encode()
-	return parsed.String(), nil
-}
-
-func stateFromCallback(callbackURL string) (string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(callbackURL))
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", fmt.Errorf("%w: callback URL is invalid", ErrInvalidExchange)
-	}
-	state := strings.TrimSpace(parsed.Query().Get("state"))
-	if state == "" {
-		return "", fmt.Errorf("%w: OAuth callback state is required", ErrInvalidExchange)
-	}
-	return state, nil
+	return m.service.persistReplacementTokenAtGeneration(ctx, cfg, token, session.generation)
 }
 
 func (m *Manager) notify(ctx context.Context, action LifecycleAction, target Target, err error) {

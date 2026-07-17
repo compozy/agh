@@ -113,7 +113,11 @@ func (c *stagedExtensionDirChange) Commit() error {
 	if c == nil || strings.TrimSpace(c.backupDir) == "" {
 		return nil
 	}
-	if err := os.RemoveAll(c.backupDir); err != nil && !errors.Is(err, os.ErrNotExist) {
+	removeBackup := c.removeBackup
+	if removeBackup == nil {
+		removeBackup = os.RemoveAll
+	}
+	if err := removeBackup(c.backupDir); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("extension: remove extension backup %q: %w", c.backupDir, err)
 	}
 	return nil

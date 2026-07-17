@@ -26,9 +26,14 @@ describe("MCP auth adapter", () => {
       state: "agh_mcp_x",
     });
 
-    await beginSettingsMCPAuth("linear", { scope: "workspace", workspace_id: "  ws_alpha  " });
+    await beginSettingsMCPAuth(
+      "linear",
+      { scope: "workspace", workspace_id: "  ws_alpha  " },
+      { mode: "automatic" }
+    );
 
     await expectFetchRequest({
+      body: { mode: "automatic" },
       method: "POST",
       path: "/api/settings/mcp-servers/linear/auth/begin?scope=workspace&workspace_id=ws_alpha",
     });

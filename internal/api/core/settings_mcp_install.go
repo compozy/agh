@@ -51,6 +51,7 @@ func (h *BaseHandlers) InstallSettingsMCPServer(c *gin.Context) {
 		MCPServer: payloads[0],
 		Apply:     SettingsApplyResponseFromResult(result.Apply),
 		NextStep:  contract.SettingsMCPInstallNextStep(result.NextStep),
+		Warnings:  append([]contract.DiagnosticItem(nil), result.Warnings...),
 	})
 }
 

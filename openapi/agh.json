@@ -11750,8 +11750,8 @@
                                     "client_id": {
                                       "type": "string"
                                     },
-                                    "client_secret_ref": {
-                                      "type": "string"
+                                    "client_secret_configured": {
+                                      "type": "boolean"
                                     },
                                     "issuer_url": {
                                       "type": "string"
@@ -11775,6 +11775,9 @@
                                       "type": "string"
                                     }
                                   },
+                                  "required": [
+                                    "client_secret_configured"
+                                  ],
                                   "type": "object"
                                 },
                                 "command": {
@@ -12142,8 +12145,8 @@
                                   "client_id": {
                                     "type": "string"
                                   },
-                                  "client_secret_ref": {
-                                    "type": "string"
+                                  "client_secret_configured": {
+                                    "type": "boolean"
                                   },
                                   "issuer_url": {
                                     "type": "string"
@@ -12167,6 +12170,9 @@
                                     "type": "string"
                                   }
                                 },
+                                "required": [
+                                  "client_secret_configured"
+                                ],
                                 "type": "object"
                               },
                               "command": {
@@ -12813,8 +12819,8 @@
                                         "client_id": {
                                           "type": "string"
                                         },
-                                        "client_secret_ref": {
-                                          "type": "string"
+                                        "client_secret_configured": {
+                                          "type": "boolean"
                                         },
                                         "issuer_url": {
                                           "type": "string"
@@ -12838,6 +12844,9 @@
                                           "type": "string"
                                         }
                                       },
+                                      "required": [
+                                        "client_secret_configured"
+                                      ],
                                       "type": "object"
                                     },
                                     "command": {
@@ -13785,8 +13794,8 @@
                                   "client_id": {
                                     "type": "string"
                                   },
-                                  "client_secret_ref": {
-                                    "type": "string"
+                                  "client_secret_configured": {
+                                    "type": "boolean"
                                   },
                                   "issuer_url": {
                                     "type": "string"
@@ -13810,6 +13819,9 @@
                                     "type": "string"
                                   }
                                 },
+                                "required": [
+                                  "client_secret_configured"
+                                ],
                                 "type": "object"
                               },
                               "command": {
@@ -14246,8 +14258,8 @@
                                   "client_id": {
                                     "type": "string"
                                   },
-                                  "client_secret_ref": {
-                                    "type": "string"
+                                  "client_secret_configured": {
+                                    "type": "boolean"
                                   },
                                   "issuer_url": {
                                     "type": "string"
@@ -14271,6 +14283,9 @@
                                     "type": "string"
                                   }
                                 },
+                                "required": [
+                                  "client_secret_configured"
+                                ],
                                 "type": "object"
                               },
                               "command": {
@@ -14964,8 +14979,8 @@
                                   "client_id": {
                                     "type": "string"
                                   },
-                                  "client_secret_ref": {
-                                    "type": "string"
+                                  "client_secret_configured": {
+                                    "type": "boolean"
                                   },
                                   "issuer_url": {
                                     "type": "string"
@@ -14989,6 +15004,9 @@
                                     "type": "string"
                                   }
                                 },
+                                "required": [
+                                  "client_secret_configured"
+                                ],
                                 "type": "object"
                               },
                               "command": {
@@ -50120,6 +50138,54 @@
                         },
                         "status": {
                           "type": "string"
+                        },
+                        "warnings": {
+                          "items": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         }
                       },
                       "required": [
@@ -57662,6 +57728,7 @@
             "description": "Single-use OAuth state",
             "in": "query",
             "name": "state",
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -93460,8 +93527,8 @@
                               "client_id": {
                                 "type": "string"
                               },
-                              "client_secret_ref": {
-                                "type": "string"
+                              "client_secret_configured": {
+                                "type": "boolean"
                               },
                               "issuer_url": {
                                 "type": "string"
@@ -93485,6 +93552,9 @@
                                 "type": "string"
                               }
                             },
+                            "required": [
+                              "client_secret_configured"
+                            ],
                             "type": "object"
                           },
                           "auth_status": {
@@ -93564,11 +93634,11 @@
                           "command": {
                             "type": "string"
                           },
-                          "env": {
-                            "additionalProperties": {
+                          "env_keys": {
+                            "items": {
                               "type": "string"
                             },
-                            "type": "object"
+                            "type": "array"
                           },
                           "name": {
                             "type": "string"
@@ -93615,11 +93685,11 @@
                             ],
                             "type": "string"
                           },
-                          "secret_env": {
-                            "additionalProperties": {
+                          "secret_env_keys": {
+                            "items": {
                               "type": "string"
                             },
-                            "type": "object"
+                            "type": "array"
                           },
                           "source_metadata": {
                             "properties": {
@@ -94247,8 +94317,8 @@
                             "client_id": {
                               "type": "string"
                             },
-                            "client_secret_ref": {
-                              "type": "string"
+                            "client_secret_configured": {
+                              "type": "boolean"
                             },
                             "issuer_url": {
                               "type": "string"
@@ -94272,6 +94342,9 @@
                               "type": "string"
                             }
                           },
+                          "required": [
+                            "client_secret_configured"
+                          ],
                           "type": "object"
                         },
                         "auth_status": {
@@ -94351,11 +94424,11 @@
                         "command": {
                           "type": "string"
                         },
-                        "env": {
-                          "additionalProperties": {
+                        "env_keys": {
+                          "items": {
                             "type": "string"
                           },
-                          "type": "object"
+                          "type": "array"
                         },
                         "name": {
                           "type": "string"
@@ -94402,11 +94475,11 @@
                           ],
                           "type": "string"
                         },
-                        "secret_env": {
-                          "additionalProperties": {
+                        "secret_env_keys": {
+                          "items": {
                             "type": "string"
                           },
-                          "type": "object"
+                          "type": "array"
                         },
                         "source_metadata": {
                           "properties": {
@@ -94528,6 +94601,54 @@
                         "authorize"
                       ],
                       "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "properties": {
+                          "category": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "data_freshness": {
+                            "type": "string"
+                          },
+                          "doc_url": {
+                            "type": "string"
+                          },
+                          "evidence": {
+                            "additionalProperties": {},
+                            "type": "object"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string"
+                          },
+                          "suggested_command": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "category",
+                          "code",
+                          "data_freshness",
+                          "id",
+                          "message",
+                          "severity",
+                          "title"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     }
                   },
                   "required": [
@@ -95587,6 +95708,27 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "preserve_env": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "preserve_secrets": {
+                    "nullable": true,
+                    "properties": {
+                      "oauth_client_secret": {
+                        "type": "boolean"
+                      },
+                      "secret_env": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
                   "secret_values": {
                     "nullable": true,
                     "properties": {
@@ -96213,6 +96355,29 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "mode": {
+                    "enum": [
+                      "automatic",
+                      "manual"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -155993,8 +156158,8 @@
                                     "client_id": {
                                       "type": "string"
                                     },
-                                    "client_secret_ref": {
-                                      "type": "string"
+                                    "client_secret_configured": {
+                                      "type": "boolean"
                                     },
                                     "issuer_url": {
                                       "type": "string"
@@ -156018,6 +156183,9 @@
                                       "type": "string"
                                     }
                                   },
+                                  "required": [
+                                    "client_secret_configured"
+                                  ],
                                   "type": "object"
                                 },
                                 "command": {

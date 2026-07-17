@@ -47,6 +47,17 @@ func InstallWithRegistry(
 	if err != nil {
 		return InstallResult{}, err
 	}
+	if result == nil {
+		return InstallResult{}, classifiedf(
+			ErrNotFound,
+			"marketplace install returned no result for %q",
+			normalizedSlug,
+		)
+	}
+	result.InstallPath, err = PathInsideRoot(tempRoot, result.InstallPath)
+	if err != nil {
+		return InstallResult{}, fmt.Errorf("validate staged install path for %q: %w", normalizedSlug, err)
+	}
 
 	return finalizeMarketplaceInstall(
 		skillsDir,

@@ -40,6 +40,7 @@ vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
 }));
 
 let mockActiveWorkspaceId: string | null = "ws-polybot";
+const setActiveWorkspaceId = vi.fn();
 let mockActiveWorkspace: {
   id: string;
   name: string;
@@ -55,6 +56,7 @@ let mockActiveWorkspace: {
   created_at: "2026-04-01T00:00:00Z",
   updated_at: "2026-04-01T00:00:00Z",
 };
+let mockWorkspaces = mockActiveWorkspace ? [mockActiveWorkspace] : [];
 
 vi.mock("@/systems/workspace", async () => {
   const actual = await vi.importActual<typeof import("@/systems/workspace")>("@/systems/workspace");
@@ -63,11 +65,11 @@ vi.mock("@/systems/workspace", async () => {
     useActiveWorkspace: () => ({
       activeWorkspace: mockActiveWorkspace,
       activeWorkspaceId: mockActiveWorkspaceId,
-      workspaces: mockActiveWorkspace ? [mockActiveWorkspace] : [],
-      hasWorkspaces: Boolean(mockActiveWorkspace),
+      workspaces: mockWorkspaces,
+      hasWorkspaces: mockWorkspaces.length > 0,
       hasHydrated: true,
       selectedWorkspaceId: mockActiveWorkspaceId,
-      setActiveWorkspaceId: vi.fn(),
+      setActiveWorkspaceId,
       clearActiveWorkspaceSelection: vi.fn(),
     }),
   };
@@ -94,6 +96,13 @@ const polybotWorkspace = {
   updated_at: "2026-04-01T00:00:00Z",
 };
 
+const otherWorkspace = {
+  ...polybotWorkspace,
+  id: "ws-other",
+  name: "other",
+  root_dir: "/home/user/other",
+};
+
 type Entry = SettingsMCPServerCollection["mcp_servers"][number];
 
 const filesystemEntry: Entry = {
@@ -113,7 +122,8 @@ const githubEntry: Entry = {
   name: "github",
   transport: "stdio",
   command: "npx -y @modelcontextprotocol/server-github",
-  env: { GITHUB_TOKEN: "env:GITHUB_TOKEN" },
+  env_keys: ["GITHUB_TOKEN"],
+  secret_env_keys: ["GITHUB_TOKEN"],
   scope: "global",
   source_metadata: {
     available_targets: ["global-mcp-sidecar"],
@@ -152,6 +162,7 @@ const linearEntry: Entry = {
     type: "oauth2_pkce",
     client_id: "agh-linear-public",
     issuer_url: "https://auth.linear.app",
+    client_secret_configured: false,
   },
   auth_status: {
     server_name: "linear",
@@ -191,11 +202,14 @@ const workspaceCollection: SettingsMCPServerCollection = {
 
 function renderMcpPage(options: Partial<UseMcpPageOptions> = {}) {
   const onScopeChange = vi.fn();
+  const onWorkspaceChange = vi.fn();
   const onSelectServer = vi.fn();
   const resolved: UseMcpPageOptions = {
     scope: (options.scope ?? "workspace") as MCPActiveScope,
+    workspaceId: options.workspaceId,
     selectedServer: options.selectedServer ?? "",
     onScopeChange: options.onScopeChange ?? onScopeChange,
+    onWorkspaceChange: options.onWorkspaceChange ?? onWorkspaceChange,
     onSelectServer: options.onSelectServer ?? onSelectServer,
   };
   const queryClient = new QueryClient({
@@ -204,13 +218,18 @@ function renderMcpPage(options: Partial<UseMcpPageOptions> = {}) {
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
   const view = renderHook(() => useMcpPage(resolved), { wrapper });
-  return { ...view, onScopeChange, onSelectServer };
+  return { ...view, onScopeChange, onWorkspaceChange, onSelectServer };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockActiveWorkspaceId = polybotWorkspace.id;
   mockActiveWorkspace = polybotWorkspace;
+  mockWorkspaces = [polybotWorkspace];
+  setActiveWorkspaceId.mockImplementation(workspaceId => {
+    mockActiveWorkspaceId = workspaceId;
+    mockActiveWorkspace = mockWorkspaces.find(workspace => workspace.id === workspaceId) ?? null;
+  });
   useSettingsRestartStore.setState({
     ...initialSettingsRestartState,
     startRestart: useSettingsRestartStore.getState().startRestart,
@@ -244,6 +263,53 @@ describe("useMcpPage scope + selection", () => {
     expect(listSettingsMCPServers).toHaveBeenCalledWith({ scope: "global" }, expect.anything());
   });
 
+  it("uses and activates a valid workspace from the deep link", async () => {
+    mockWorkspaces = [polybotWorkspace, otherWorkspace];
+    const { result } = renderMcpPage({ scope: "workspace", workspaceId: otherWorkspace.id });
+
+    await waitFor(() => expect(result.current.activeWorkspaceId).toBe(otherWorkspace.id));
+    expect(result.current.activeWorkspace).toEqual(otherWorkspace);
+    expect(listSettingsMCPServers).toHaveBeenCalledWith(
+      { scope: "workspace", workspace_id: otherWorkspace.id },
+      expect.anything()
+    );
+    expect(setActiveWorkspaceId).toHaveBeenCalledWith(otherWorkspace.id);
+  });
+
+  it("adopts a deep link once and then follows the sidebar while syncing the URL", async () => {
+    mockWorkspaces = [polybotWorkspace, otherWorkspace];
+    const { result, rerender, onWorkspaceChange } = renderMcpPage({
+      scope: "workspace",
+      workspaceId: otherWorkspace.id,
+    });
+
+    await waitFor(() => expect(result.current.activeWorkspaceId).toBe(otherWorkspace.id));
+    expect(setActiveWorkspaceId).toHaveBeenCalledWith(otherWorkspace.id);
+    rerender();
+
+    mockActiveWorkspaceId = polybotWorkspace.id;
+    mockActiveWorkspace = polybotWorkspace;
+    rerender();
+
+    await waitFor(() => expect(result.current.activeWorkspaceId).toBe(polybotWorkspace.id));
+    expect(listSettingsMCPServers).toHaveBeenCalledWith(
+      { scope: "workspace", workspace_id: polybotWorkspace.id },
+      expect.anything()
+    );
+    expect(onWorkspaceChange).toHaveBeenCalledWith(polybotWorkspace.id);
+  });
+
+  it("falls back to the active workspace when a deep link names an unknown workspace", async () => {
+    const { result } = renderMcpPage({ scope: "workspace", workspaceId: "ws-missing" });
+
+    await waitFor(() => expect(result.current.activeWorkspaceId).toBe(polybotWorkspace.id));
+    expect(listSettingsMCPServers).toHaveBeenCalledWith(
+      { scope: "workspace", workspace_id: polybotWorkspace.id },
+      expect.anything()
+    );
+    expect(setActiveWorkspaceId).not.toHaveBeenCalled();
+  });
+
   it("reports scope changes to the route instead of holding local state", async () => {
     const { result, onScopeChange } = renderMcpPage({ scope: "workspace" });
     await waitFor(() => expect(result.current.servers).toHaveLength(2));
@@ -269,6 +335,8 @@ describe("useMcpPage scope + selection", () => {
     const { result } = renderMcpPage({ scope: "workspace" });
     await waitFor(() => expect(result.current.needsActiveWorkspace).toBe(true));
     expect(result.current.error).toBeNull();
+    expect(result.current.queryEnabled).toBe(false);
+    expect(listSettingsMCPServers).not.toHaveBeenCalled();
   });
 });
 
@@ -323,6 +391,39 @@ describe("useMcpPage editor serialization", () => {
     expect(body.server.url).toBe("https://mcp.linear.app/mcp");
     expect(body.server.command).toBeUndefined();
     expect(body.server.auth?.type).toBe("oauth2_pkce");
+  });
+
+  it("locks an exact-source edit to its presence-bearing target", async () => {
+    const { result } = renderMcpPage({ scope: "global" });
+    await waitFor(() => expect(result.current.servers).toHaveLength(2));
+
+    act(() => result.current.openEdit(githubEntry));
+
+    expect(result.current.editor).toMatchObject({ mode: "edit", target: "sidecar" });
+    expect(result.current.editorAvailableTargets).toEqual(["sidecar"]);
+    if (result.current.editor.mode === "edit") {
+      expect(result.current.editor.draft.secretEnv[0].binding).toMatchObject({
+        mode: "preserve",
+        existing: true,
+      });
+    }
+  });
+
+  it("strips source presence when editing an inherited entry into a workspace override", async () => {
+    const { result } = renderMcpPage({ scope: "workspace" });
+    await waitFor(() => expect(result.current.servers).toHaveLength(2));
+
+    act(() => result.current.openEdit(githubEntry));
+
+    expect(result.current.editor).toMatchObject({ mode: "edit", target: "auto" });
+    expect(result.current.editorAvailableTargets).toEqual(["auto", "config", "sidecar"]);
+    expect(result.current.editorIsValid).toBe(false);
+    if (result.current.editor.mode === "edit") {
+      expect(result.current.editor.draft.secretEnv[0]).toMatchObject({
+        originalKey: undefined,
+        binding: { mode: "typed", existing: false },
+      });
+    }
   });
 
   it("invalidates a remote draft that is missing a url", async () => {
@@ -399,10 +500,14 @@ describe("useMcpPage authorize + delete", () => {
     await waitFor(() => expect(result.current.servers).toHaveLength(2));
     act(() => result.current.openAuthorize(linearEntry));
     await waitFor(() => expect(result.current.authorize.phase).toBe("waiting"));
-    expect(beginSettingsMCPAuth).toHaveBeenCalledWith("linear", {
-      scope: "workspace",
-      workspace_id: polybotWorkspace.id,
-    });
+    expect(beginSettingsMCPAuth).toHaveBeenCalledWith(
+      "linear",
+      {
+        scope: "workspace",
+        workspace_id: polybotWorkspace.id,
+      },
+      { mode: "automatic" }
+    );
     expect(result.current.authorize.begin?.authorization_url).toContain("auth.linear.app");
   });
 

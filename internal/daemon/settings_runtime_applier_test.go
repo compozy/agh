@@ -124,12 +124,24 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			deps: RuntimeDeps{Extensions: extensionService},
 			toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
 				syncCalls++
+				if syncCalls == 1 && !extensionService.marketplaceConfig().AllowUnverified {
+					t.Error("extension side-load policy = false during active apply, want true")
+				}
+				if syncCalls == 2 && extensionService.marketplaceConfig().AllowUnverified {
+					t.Error("extension side-load policy = true during rollback, want false")
+				}
 				return errors.New("mcp sync boom")
 			}),
 		}
 		failures := daemonSettingsRuntimeApplier{daemon: &Daemon{}, state: state}.ApplyActiveConfig(t.Context(), &next)
+		if syncCalls != 2 {
+			t.Fatalf("MCP Sync calls = %d, want 2 (apply + rollback)", syncCalls)
+		}
 		if len(failures) != 2 {
 			t.Fatalf("ApplyActiveConfig() failures = %#v, want mcp plus rollback", failures)
+		}
+		if failures[0].Subsystem != "mcp" || failures[1].Subsystem != "mcp_rollback" {
+			t.Fatalf("ApplyActiveConfig() subsystems = %#v, want mcp then mcp_rollback", failures)
 		}
 		if extensionService.marketplaceConfig().AllowUnverified {
 			t.Fatal("extension side-load policy = true after rollback, want false")
@@ -212,9 +224,13 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			state: &bootState{
 				cfg:         previous,
 				marketplace: runtime,
-				toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
+				toolMCPResources: toolMCPPublisherFunc(func(ctx context.Context) error {
 					syncCalls++
 					if syncCalls == 1 {
+						if _, err := runtime.Refresh(ctx, marketplace.KindSkill); err != nil {
+							return errors.Join(errors.New("verify active marketplace source"), err)
+						}
+						assertMarketplaceRuntimeEntry(t, runtime, "rollback-second")
 						return errors.New("mcp sync boom")
 					}
 					return nil

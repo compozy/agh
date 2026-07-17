@@ -22,3 +22,6 @@ status with `token_present=false` that must exit non-zero.
 
 QA impact 2026-07-16: the authorization timeout now starts before status/begin and bounds automatic
 polling, manual input, and manual exchange; the daemon session expiry may only shorten it.
+
+QA impact 2026-07-17: automatic authorization sends `mode=automatic`; `--manual` sends
+`mode=manual`. Confirm the two modes create distinct sessions and preserve scoped targeting.

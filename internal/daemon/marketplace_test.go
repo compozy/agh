@@ -68,12 +68,14 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		}
 		assertMarketplaceRuntimeEntry(t, state.marketplace, "first")
 		assertMarketplaceRefreshEvent(t, registry)
-		state.marketplaceNotifier.NotifyInstall(testutil.Context(t), marketplace.InstallOutcome{
+		if err := state.marketplaceNotifier.NotifyInstall(testutil.Context(t), marketplace.InstallOutcome{
 			Kind:       marketplace.KindMCP,
 			EntryID:    "github",
 			Outcome:    marketplace.InstallOutcomeSucceeded,
 			PolicyGate: marketplace.InstallPolicyGatePassed,
-		})
+		}); err != nil {
+			t.Fatalf("NotifyInstall() error = %v", err)
+		}
 		assertMarketplaceInstallEvent(t, registry)
 
 		next := cfg
@@ -102,11 +104,16 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			writer:       blockingMarketplaceEventWriter{writeErrors: writeErrors},
 			writeTimeout: 20 * time.Millisecond,
 		}
+		parent, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
 		started := time.Now()
-		notifier.NotifyCatalogRefresh(testutil.Context(t), marketplace.RefreshOutcome{
+		err := notifier.NotifyCatalogRefresh(parent, marketplace.RefreshOutcome{
 			Kind:    marketplace.KindSkill,
 			Outcome: marketplace.RefreshOutcomeSucceeded,
 		})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("NotifyCatalogRefresh() error = %v, want context deadline exceeded", err)
+		}
 		if elapsed := time.Since(started); elapsed > time.Second {
 			t.Fatalf("NotifyCatalogRefresh() elapsed = %s, want bounded event write", elapsed)
 		}
@@ -118,6 +125,77 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		default:
 			t.Fatal("WriteEventSummary() did not observe its bounded deadline")
 		}
+	})
+
+	t.Run("Should retire a blocked catalog generation before publishing its replacement", func(t *testing.T) {
+		t.Parallel()
+
+		requestStarted := make(chan struct{})
+		requestCanceled := make(chan struct{})
+		oldServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if request.URL.Path != "/skills.json" {
+				if _, err := writer.Write([]byte(
+					`{"manifest_version":1,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`,
+				)); err != nil {
+					t.Errorf("write empty feed: %v", err)
+				}
+				return
+			}
+			close(requestStarted)
+			<-request.Context().Done()
+			close(requestCanceled)
+		}))
+		t.Cleanup(oldServer.Close)
+		newServer := newMarketplaceFeedServer(t, "replacement")
+		registry, err := globaldb.OpenGlobalDB(
+			testutil.Context(t),
+			filepath.Join(t.TempDir(), store.GlobalDatabaseName),
+		)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := registry.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		marketplaceStore, err := marketplace.NewSQLiteStore(registry)
+		if err != nil {
+			t.Fatalf("NewSQLiteStore() error = %v", err)
+		}
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Marketplace.Catalog.BaseURL = oldServer.URL
+		cfg.Marketplace.Catalog.TTL = "1h"
+		cfg.Marketplace.Catalog.Timeout = "1m"
+		runtime, err := newMarketplaceRuntime(marketplaceStore, nil, cfg.Marketplace.Catalog, time.Now)
+		if err != nil {
+			t.Fatalf("newMarketplaceRuntime() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+
+		oldRefresh := make(chan error, 1)
+		go func() {
+			_, refreshErr := runtime.Refresh(t.Context(), marketplace.KindSkill)
+			oldRefresh <- refreshErr
+		}()
+		<-requestStarted
+		next := cfg
+		next.Marketplace.Catalog.BaseURL = newServer.URL
+		if err := runtime.ReconcileConfig(testutil.Context(t), &next); err != nil {
+			t.Fatalf("ReconcileConfig() error = %v", err)
+		}
+		<-requestCanceled
+		if err := <-oldRefresh; !errors.Is(err, marketplace.ErrServiceClosed) {
+			t.Fatalf("old Refresh() error = %v, want ErrServiceClosed", err)
+		}
+		if _, err := runtime.Refresh(testutil.Context(t), marketplace.KindSkill); err != nil {
+			t.Fatalf("Refresh(replacement) error = %v", err)
+		}
+		assertMarketplaceRuntimeEntry(t, runtime, "replacement")
 	})
 }
 

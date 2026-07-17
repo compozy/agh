@@ -142,7 +142,10 @@ agh extension remove prompt-enhancer
 ```
 
 Removal deletes the managed install directory and registry row with rollback handling. Like disable,
-removal is rejected while active bundle activations still depend on the extension.
+removal is rejected while active bundle activations still depend on the extension. Once the registry,
+managed directory, and runtime reload confirm removal, backup cleanup is post-commit. A cleanup
+failure returns `status: "removed"` with an `extension_remove_cleanup_failed` warning and residual
+path; remove that residue separately instead of treating the extension as active.
 
 ## Configure Marketplace And Side-Load Policy
 

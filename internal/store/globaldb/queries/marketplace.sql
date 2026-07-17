@@ -39,12 +39,7 @@ SELECT kind, entry_id, name, description, version, published_at, updated_at,
        digest_sha256, tier, install_slug, payload_json, fetched_at
 FROM marketplace_catalog_entries
 WHERE kind = sqlc.arg(kind)
-  AND (
-    CAST(sqlc.arg(query) AS TEXT) = ''
-    OR instr(lower(name), CAST(sqlc.arg(query) AS TEXT)) > 0
-    OR instr(lower(description), CAST(sqlc.arg(query) AS TEXT)) > 0
-  )
-ORDER BY lower(name) ASC, entry_id ASC
+ORDER BY entry_id ASC
 LIMIT sqlc.arg(result_limit);
 
 -- name: GetMarketplaceCatalogEntry :one

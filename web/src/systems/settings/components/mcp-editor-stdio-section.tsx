@@ -1,4 +1,4 @@
-import { Button, FormSection, Input, MonoId } from "@agh/ui";
+import { Button, FormSection, Input } from "@agh/ui";
 import { Plus, Trash2 } from "lucide-react";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
@@ -13,12 +13,12 @@ import type {
 import type { SettingsMCPServerTarget } from "../types";
 
 import { MCPFieldLabel, MCPNameField, MCPTargetField } from "./mcp-editor-fields";
-import { MCPSecretBindingControl } from "./mcp-secret-binding";
+import { MCPSecretBindingControl, type MCPVaultInventory } from "./mcp-secret-binding";
 
 export interface MCPEditorStdioSectionProps {
   draft: MCPDraft;
   errors: MCPDraftErrors;
-  vaultRefs: string[];
+  vaultInventory: MCPVaultInventory;
   isCreate: boolean;
   target: SettingsMCPServerTarget;
   availableTargets: SettingsMCPServerTarget[];
@@ -29,7 +29,7 @@ export interface MCPEditorStdioSectionProps {
 export function MCPEditorStdioSection({
   draft,
   errors,
-  vaultRefs,
+  vaultInventory,
   isCreate,
   target,
   availableTargets,
@@ -67,7 +67,11 @@ export function MCPEditorStdioSection({
             args={draft.args}
             onChange={args => onChange(current => ({ ...current, args }))}
           />
-          <EnvEditor env={draft.env} onChange={env => onChange(current => ({ ...current, env }))} />
+          <EnvEditor
+            env={draft.env}
+            errors={errors.env}
+            onChange={env => onChange(current => ({ ...current, env }))}
+          />
           <MCPTargetField
             target={target}
             availableTargets={availableTargets}
@@ -83,7 +87,7 @@ export function MCPEditorStdioSection({
       <SecretEnvSection
         secretEnv={draft.secretEnv}
         errors={errors.secretEnv}
-        vaultRefs={vaultRefs}
+        vaultInventory={vaultInventory}
         onChange={secretEnv => onChange(current => ({ ...current, secretEnv }))}
       />
     </>
@@ -147,9 +151,11 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
 
 function EnvEditor({
   env,
+  errors,
   onChange,
 }: {
   env: MCPEnvPair[];
+  errors?: Record<number, string>;
   onChange: (next: MCPEnvPair[]) => void;
 }) {
   const rowKeys = useLocalRowKeys(env, "mcp-env");
@@ -158,44 +164,53 @@ function EnvEditor({
       <MCPFieldLabel hint="key / value">Non-secret environment</MCPFieldLabel>
       <div className="flex flex-col gap-1.5" data-testid="settings-mcp-servers-editor-env-list">
         {env.map((pair, index) => (
-          <div key={rowKeys.keys[index]} className="flex items-center gap-2">
-            <Input
-              className="w-40 font-mono"
-              aria-label="Environment key"
-              value={pair.key}
-              placeholder="KEY"
-              data-testid={`settings-mcp-servers-editor-env-key-${index}`}
-              onChange={event => {
-                const next = [...env];
-                next[index] = { ...pair, key: event.target.value };
-                onChange(next);
-              }}
-            />
-            <Input
-              className="flex-1 font-mono"
-              aria-label="Environment value"
-              value={pair.value}
-              placeholder="value"
-              data-testid={`settings-mcp-servers-editor-env-value-${index}`}
-              onChange={event => {
-                const next = [...env];
-                next[index] = { ...pair, value: event.target.value };
-                onChange(next);
-              }}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Remove environment variable"
-              data-testid={`settings-mcp-servers-editor-env-remove-${index}`}
-              onClick={() => {
-                rowKeys.remove(index);
-                onChange(env.filter((_, i) => i !== index));
-              }}
-            >
-              <Trash2 className="size-3" />
-            </Button>
+          <div key={rowKeys.keys[index]}>
+            <div className="flex items-center gap-2">
+              <Input
+                className="w-40 font-mono"
+                aria-label="Environment key"
+                aria-invalid={Boolean(errors?.[index])}
+                value={pair.key}
+                placeholder="KEY"
+                data-testid={`settings-mcp-servers-editor-env-key-${index}`}
+                onChange={event => {
+                  const next = [...env];
+                  next[index] = { ...pair, key: event.target.value };
+                  onChange(next);
+                }}
+              />
+              <Input
+                className="flex-1 font-mono"
+                aria-label="Environment value"
+                aria-invalid={Boolean(errors?.[index])}
+                value={pair.value}
+                placeholder={pair.existing && !pair.valueChanged ? "Configured value" : "value"}
+                data-testid={`settings-mcp-servers-editor-env-value-${index}`}
+                onChange={event => {
+                  const next = [...env];
+                  next[index] = { ...pair, value: event.target.value, valueChanged: true };
+                  onChange(next);
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Remove environment variable"
+                data-testid={`settings-mcp-servers-editor-env-remove-${index}`}
+                onClick={() => {
+                  rowKeys.remove(index);
+                  onChange(env.filter((_, i) => i !== index));
+                }}
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            </div>
+            {errors?.[index] ? (
+              <p className="mt-1 text-caption text-danger" role="alert">
+                {errors[index]}
+              </p>
+            ) : null}
           </div>
         ))}
         <Button
@@ -219,12 +234,12 @@ function EnvEditor({
 function SecretEnvSection({
   secretEnv,
   errors,
-  vaultRefs,
+  vaultInventory,
   onChange,
 }: {
   secretEnv: MCPSecretEnvEntry[];
   errors?: Record<number, string>;
-  vaultRefs: string[];
+  vaultInventory: MCPVaultInventory;
   onChange: (next: MCPSecretEnvEntry[]) => void;
 }) {
   const rowKeys = useLocalRowKeys(secretEnv, "mcp-secret");
@@ -269,18 +284,9 @@ function SecretEnvSection({
                   <Trash2 className="size-3" />
                 </Button>
               </div>
-              {entry.binding.existingRef ? (
-                <MonoId
-                  value={entry.binding.existingRef}
-                  preserveCase
-                  copy
-                  copyLabel="Copy Vault reference"
-                  data-testid={`settings-mcp-servers-editor-secret-ref-${index}`}
-                />
-              ) : null}
               <MCPSecretBindingControl
                 binding={entry.binding}
-                vaultRefs={vaultRefs}
+                vaultInventory={vaultInventory}
                 idPrefix={`mcp-secret-${index}`}
                 onChange={binding => updateEntry(index, { binding })}
               />
@@ -309,8 +315,9 @@ function SecretEnvSection({
           Add secret binding
         </Button>
         <p className="rounded-md bg-info-tint p-2.5 text-caption text-info">
-          <strong className="font-semibold">Values stay hidden.</strong> Existing bindings render as
-          identifiers. Typed replacements are write-only and return only as canonical Vault refs.
+          <strong className="font-semibold">Bindings stay hidden.</strong> Configured bindings can
+          be kept by name. Typed replacements are write-only, and Vault replacements come only from
+          the explicit inventory.
         </p>
       </div>
     </FormSection>
@@ -318,5 +325,5 @@ function SecretEnvSection({
 }
 
 function emptyBinding(): MCPSecretBinding {
-  return { mode: "typed", typedValue: "", vaultRef: "" };
+  return { mode: "typed", existing: false, typedValue: "", vaultRef: "" };
 }

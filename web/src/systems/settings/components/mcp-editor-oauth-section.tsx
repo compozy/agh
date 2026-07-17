@@ -1,9 +1,9 @@
-import { FormSection, Input, MonoId, RadioCard } from "@agh/ui";
+import { FormSection, Input, RadioCard } from "@agh/ui";
 
 import type { MCPDraftErrors, MCPOAuthDiscovery, MCPOAuthDraft } from "../lib/mcp-editor-model";
 
 import { MCPFieldLabel } from "./mcp-editor-fields";
-import { MCPSecretBindingControl } from "./mcp-secret-binding";
+import { MCPSecretBindingControl, type MCPVaultInventory } from "./mcp-secret-binding";
 
 const DISCOVERY_OPTIONS: { value: MCPOAuthDiscovery; title: string; description: string }[] = [
   { value: "issuer", title: "Issuer URL", description: "Discover from issuer metadata" },
@@ -13,14 +13,14 @@ const DISCOVERY_OPTIONS: { value: MCPOAuthDiscovery; title: string; description:
 
 export interface MCPEditorOAuthSectionProps {
   oauth: MCPOAuthDraft;
-  vaultRefs: string[];
+  vaultInventory: MCPVaultInventory;
   errors: MCPDraftErrors;
   onChange: (oauth: MCPOAuthDraft) => void;
 }
 
 export function MCPEditorOAuthSection({
   oauth,
-  vaultRefs,
+  vaultInventory,
   errors,
   onChange,
 }: MCPEditorOAuthSectionProps) {
@@ -86,28 +86,17 @@ export function MCPEditorOAuthSection({
           <MetadataFields oauth={oauth} error={errors.metadata} onChange={onChange} />
 
           <div>
-            <MCPFieldLabel>Current client secret</MCPFieldLabel>
-            {oauth.clientSecret.existingRef ? (
-              <MonoId
-                value={oauth.clientSecret.existingRef}
-                preserveCase
-                copy
-                copyLabel="Copy client secret ref"
-              />
-            ) : (
-              <p className="text-caption text-muted">No client secret bound.</p>
-            )}
-          </div>
-
-          <div>
-            <MCPFieldLabel hint="optional">Replace client secret</MCPFieldLabel>
+            <MCPFieldLabel hint="optional">Client secret</MCPFieldLabel>
             <MCPSecretBindingControl
               binding={oauth.clientSecret}
-              vaultRefs={vaultRefs}
+              vaultInventory={vaultInventory}
               idPrefix="mcp-oauth-secret"
               valueLabel="New client secret"
               onChange={clientSecret => onChange({ ...oauth, clientSecret })}
             />
+            {errors.clientSecret ? (
+              <p className="mt-1.5 text-caption text-danger">{errors.clientSecret}</p>
+            ) : null}
           </div>
 
           <div>

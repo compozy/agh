@@ -90,9 +90,9 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 		expiresAt := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
 		updatedAt := expiresAt.Add(-time.Minute)
 		source := MCPServerItem{
-			Args:      []string{"serve"},
-			Env:       map[string]string{"PROJECT": "agh"},
-			SecretEnv: map[string]string{"TOKEN": "vault:mcp/shared/token"},
+			Args:          []string{"serve"},
+			EnvKeys:       []string{"PROJECT"},
+			SecretEnvKeys: []string{"TOKEN"},
 			Auth: aghconfig.MCPAuthConfig{
 				Scopes: []string{"read"},
 			},
@@ -110,8 +110,8 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 
 		cloned := cloneMCPServerItem(source)
 		cloned.Args[0] = "changed"
-		cloned.Env["PROJECT"] = "changed"
-		cloned.SecretEnv["TOKEN"] = "changed"
+		cloned.EnvKeys[0] = "changed"
+		cloned.SecretEnvKeys[0] = "changed"
 		cloned.Auth.Scopes[0] = "changed"
 		cloned.AuthStatus.Scopes[0] = "changed"
 		*cloned.AuthStatus.ExpiresAt = time.Time{}
@@ -120,8 +120,8 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 		cloned.SourceMetadata.ShadowedSources[0].Kind = SourceKindGlobalMCPSidecar
 		cloned.SourceMetadata.AvailableTargets[0] = WriteTargetGlobalMCPSidecar
 
-		if source.Args[0] != "serve" || source.Env["PROJECT"] != "agh" ||
-			source.SecretEnv["TOKEN"] != "vault:mcp/shared/token" || source.Auth.Scopes[0] != "read" {
+		if source.Args[0] != "serve" || source.EnvKeys[0] != "PROJECT" ||
+			source.SecretEnvKeys[0] != "TOKEN" || source.Auth.Scopes[0] != "read" {
 			t.Fatalf("clone mutated source MCP config fields: %#v", source)
 		}
 		if source.AuthStatus.Scopes[0] != "read" || !source.AuthStatus.ExpiresAt.Equal(expiresAt) ||
@@ -138,23 +138,25 @@ func TestMCPServerItemsIncludeRuntimeStatusAndRemainIsolated(t *testing.T) {
 
 func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 	t.Parallel()
+	t.Run("Should resolve the exact workspace sidecar target for every auth operation", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := context.Background()
-	homePaths := testHomePaths(t)
-	workspaceRoot := t.TempDir()
-	writeFile(t, homePaths.ConfigFile, strings.Join([]string{
-		"[[mcp_servers]]",
-		"name = \"linear\"",
-		"transport = \"http\"",
-		"url = \"https://global.linear.example/mcp\"",
-		"",
-		"[mcp_servers.auth]",
-		"type = \"oauth2_pkce\"",
-		"authorization_url = \"https://global.linear.example/authorize\"",
-		"token_url = \"https://global.linear.example/token\"",
-		"client_id = \"global-client\"",
-	}, "\n"))
-	writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName), `{
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		workspaceRoot := t.TempDir()
+		writeFile(t, homePaths.ConfigFile, strings.Join([]string{
+			"[[mcp_servers]]",
+			"name = \"linear\"",
+			"transport = \"http\"",
+			"url = \"https://global.linear.example/mcp\"",
+			"",
+			"[mcp_servers.auth]",
+			"type = \"oauth2_pkce\"",
+			"authorization_url = \"https://global.linear.example/authorize\"",
+			"token_url = \"https://global.linear.example/token\"",
+			"client_id = \"global-client\"",
+		}, "\n"))
+		writeFile(t, filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.MCPJSONName), `{
   "mcpServers": {
     "linear": {
 	  "transport": "http",
@@ -168,68 +170,87 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
     }
   }
 }`)
-	runtime := &recordingMCPAuthRuntime{}
-	service := testService(t, homePaths, Dependencies{
-		WorkspaceResolver: fakeWorkspaceResolver{
-			resolved: map[string]workspacepkg.ResolvedWorkspace{
-				"workspace-a": {
-					Workspace: workspacepkg.Workspace{ID: "workspace-a", RootDir: workspaceRoot},
+		runtime := &recordingMCPAuthRuntime{}
+		service := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{
+				resolved: map[string]workspacepkg.ResolvedWorkspace{
+					"workspace-a": {
+						Workspace: workspacepkg.Workspace{ID: "workspace-a", RootDir: workspaceRoot},
+					},
 				},
 			},
-		},
-		MCPAuth: runtime,
-	})
-	workspaceTarget := MCPAuthTargetRequest{
-		Scope: ScopeWorkspace, WorkspaceID: "workspace-a", Name: "linear",
-	}
-	begin, err := service.BeginMCPAuth(ctx, MCPAuthBeginRequest{
-		MCPAuthTargetRequest: workspaceTarget,
-		CallbackURL:          "http://127.0.0.1:2123/api/mcp/oauth/callback",
-	})
-	if err != nil {
-		t.Fatalf("BeginMCPAuth(workspace sidecar) error = %v", err)
-	}
-	if begin.AuthorizationURL != "https://workspace.linear.example/authorize?state=public" {
-		t.Fatalf("BeginMCPAuth() = %#v", begin)
-	}
-	if runtime.beginTarget.Scope != mcpauth.ScopeWorkspace ||
-		runtime.beginTarget.WorkspaceID != "workspace-a" ||
-		runtime.beginServer.URL != "https://workspace.linear.example/mcp" ||
-		runtime.beginServer.Auth.ClientID != "workspace-client" {
-		t.Fatalf("workspace begin resolution = target:%#v server:%#v", runtime.beginTarget, runtime.beginServer)
-	}
+			MCPAuth: runtime,
+		})
+		workspaceTarget := MCPAuthTargetRequest{
+			Scope: ScopeWorkspace, WorkspaceID: "workspace-a", Name: "linear",
+		}
+		begin, err := service.BeginMCPAuth(ctx, MCPAuthBeginRequest{
+			MCPAuthTargetRequest: workspaceTarget,
+			CallbackURL:          "http://127.0.0.1:2123/api/mcp/oauth/callback",
+		})
+		if err != nil {
+			t.Fatalf("BeginMCPAuth(workspace sidecar) error = %v", err)
+		}
+		if begin.AuthorizationURL != "https://workspace.linear.example/authorize?state=public" {
+			t.Fatalf("BeginMCPAuth() = %#v", begin)
+		}
+		if runtime.beginTarget.Scope != mcpauth.ScopeWorkspace ||
+			runtime.beginTarget.WorkspaceID != "workspace-a" ||
+			runtime.beginServer.URL != "https://workspace.linear.example/mcp" ||
+			runtime.beginServer.Auth.ClientID != "workspace-client" {
+			t.Fatalf("workspace begin resolution = target:%#v server:%#v", runtime.beginTarget, runtime.beginServer)
+		}
 
-	status, err := service.ExchangeMCPAuth(ctx, MCPAuthExchangeRequest{
-		MCPAuthTargetRequest: workspaceTarget,
-		RedirectURL:          "https://callback.example/?code=opaque&state=public",
+		status, err := service.ExchangeMCPAuth(ctx, MCPAuthExchangeRequest{
+			MCPAuthTargetRequest: workspaceTarget,
+			RedirectURL:          "https://callback.example/?code=opaque&state=public",
+		})
+		if err != nil {
+			t.Fatalf("ExchangeMCPAuth(workspace) error = %v", err)
+		}
+		if status.WorkspaceID != "workspace-a" || !status.TokenPresent {
+			t.Fatalf("ExchangeMCPAuth(workspace) status = %#v", status)
+		}
+		if runtime.exchangeInput.Code != "" ||
+			runtime.exchangeInput.RedirectURL != "https://callback.example/?code=opaque&state=public" {
+			t.Fatalf("exchange input = %#v", runtime.exchangeInput)
+		}
+		if runtime.exchangeTarget != runtime.beginTarget ||
+			runtime.exchangeServer.URL != "https://workspace.linear.example/mcp" ||
+			runtime.exchangeServer.Auth.ClientID != "workspace-client" {
+			t.Fatalf(
+				"workspace exchange resolution = target:%#v server:%#v",
+				runtime.exchangeTarget,
+				runtime.exchangeServer,
+			)
+		}
+
+		if _, err := service.LogoutMCPAuth(ctx, workspaceTarget); err != nil {
+			t.Fatalf("LogoutMCPAuth(workspace sidecar) error = %v", err)
+		}
+		if runtime.logoutTarget != runtime.beginTarget || runtime.logoutServer.URL != runtime.beginServer.URL {
+			t.Fatalf("logout resolution = target:%#v server:%#v", runtime.logoutTarget, runtime.logoutServer)
+		}
+
+		if _, err := service.CompleteMCPAuthCallback(
+			ctx,
+			"http://127.0.0.1:2123/api/mcp/oauth/callback?code=opaque&state=public",
+		); err != nil {
+			t.Fatalf("CompleteMCPAuthCallback() error = %v", err)
+		}
+		if !strings.Contains(runtime.callbackURL, "code=opaque") {
+			t.Fatalf("callback URL = %q", runtime.callbackURL)
+		}
+		if runtime.callbackTarget != runtime.beginTarget ||
+			runtime.callbackServer.URL != "https://workspace.linear.example/mcp" ||
+			runtime.callbackServer.Auth.ClientID != "workspace-client" {
+			t.Fatalf(
+				"workspace callback resolution = target:%#v server:%#v",
+				runtime.callbackTarget,
+				runtime.callbackServer,
+			)
+		}
 	})
-	if err != nil {
-		t.Fatalf("ExchangeMCPAuth(workspace) error = %v", err)
-	}
-	if status.WorkspaceID != "workspace-a" || !status.TokenPresent {
-		t.Fatalf("ExchangeMCPAuth(workspace) status = %#v", status)
-	}
-	if runtime.exchangeInput.Code != "" ||
-		runtime.exchangeInput.RedirectURL != "https://callback.example/?code=opaque&state=public" {
-		t.Fatalf("exchange input = %#v", runtime.exchangeInput)
-	}
-
-	if _, err := service.LogoutMCPAuth(ctx, workspaceTarget); err != nil {
-		t.Fatalf("LogoutMCPAuth(workspace sidecar) error = %v", err)
-	}
-	if runtime.logoutTarget != runtime.beginTarget || runtime.logoutServer.URL != runtime.beginServer.URL {
-		t.Fatalf("logout resolution = target:%#v server:%#v", runtime.logoutTarget, runtime.logoutServer)
-	}
-
-	if _, err := service.CompleteMCPAuthCallback(
-		ctx,
-		"http://127.0.0.1:2123/api/mcp/oauth/callback?code=opaque&state=public",
-	); err != nil {
-		t.Fatalf("CompleteMCPAuthCallback() error = %v", err)
-	}
-	if !strings.Contains(runtime.callbackURL, "code=opaque") {
-		t.Fatalf("callback URL = %q", runtime.callbackURL)
-	}
 }
 
 type recordingMCPAuthRuntime struct {
@@ -240,8 +261,11 @@ type recordingMCPAuthRuntime struct {
 	exchangeInput  mcpauth.ExchangeInput
 	logoutTarget   mcpauth.Target
 	logoutServer   aghconfig.MCPServer
+	callbackTarget mcpauth.Target
+	callbackServer aghconfig.MCPServer
 	callbackURL    string
 	invalidated    []mcpauth.Target
+	invalidateErrs map[int]error
 }
 
 func (r *recordingMCPAuthRuntime) MCPAuthStatus(
@@ -290,15 +314,20 @@ func (r *recordingMCPAuthRuntime) MCPAuthCallbackTarget(string) (mcpauth.Target,
 func (r *recordingMCPAuthRuntime) MCPAuthCompleteCallback(
 	_ context.Context,
 	target mcpauth.Target,
-	_ aghconfig.MCPServer,
+	server aghconfig.MCPServer,
 	callbackURL string,
 ) (mcpauth.Status, error) {
+	r.callbackTarget = target
+	r.callbackServer = server
 	r.callbackURL = callbackURL
 	return confirmedMCPAuthRuntimeStatus(target), nil
 }
 
 func (r *recordingMCPAuthRuntime) MCPAuthInvalidate(target mcpauth.Target) error {
 	r.invalidated = append(r.invalidated, target)
+	if err := r.invalidateErrs[len(r.invalidated)]; err != nil {
+		return err
+	}
 	return nil
 }
 
