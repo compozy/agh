@@ -4153,13 +4153,28 @@ func TestInfoValidationAndReadFailures(t *testing.T) {
 }
 
 func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
+	t.Parallel()
+
 	ctx := testutil.Context(t)
 
 	if err := (NetworkInfo{}).Validate(); err == nil {
 		t.Fatal("NetworkInfo.Validate() error = nil, want non-nil")
 	}
-	if err := (NetworkInfo{Status: network.StatusActive}).Validate(); err != nil {
+	if err := (NetworkInfo{Enabled: true, Status: network.StatusActive}).Validate(); err != nil {
 		t.Fatalf("NetworkInfo.Validate(valid) error = %v", err)
+	}
+	for _, invalid := range []NetworkInfo{
+		{Status: network.StatusActive},
+		{Status: network.StatusReady},
+		{Enabled: true, Status: network.StatusDisabled},
+		{Enabled: true, Status: "degraded"},
+	} {
+		t.Run("Should reject inconsistent or unsupported network status "+invalid.Status, func(t *testing.T) {
+			t.Parallel()
+			if err := invalid.Validate(); err == nil {
+				t.Fatalf("NetworkInfo.Validate(%#v) error = nil, want non-nil", invalid)
+			}
+		})
 	}
 
 	disabledInfo, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{}, nil)
@@ -4639,6 +4654,12 @@ func testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *t
 		DetachedTaskRuntimeEnabled: true,
 	})
 	db := openDaemonTestGlobalDB(t)
+	if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID: "ws-1", RootDir: t.TempDir(), Name: "detached-recovery",
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(detached recovery) error = %v", err)
+	}
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
@@ -4761,6 +4782,12 @@ func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
 		DetachedTaskRuntimeEnabled: true,
 	})
 	db := openDaemonTestGlobalDB(t)
+	if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID: "ws-1", RootDir: t.TempDir(), Name: "detached-blocked-status",
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(detached blocked status) error = %v", err)
+	}
 	actor, err := detachedHarnessActorContext("sess-owner")
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
@@ -6541,10 +6568,9 @@ func (*recordingRegistry) AcceptNetworkMessage(
 
 func (*recordingRegistry) SettleNetworkWake(
 	context.Context,
-	store.WakeReservation,
-	store.NetworkWakeOutcome,
-) error {
-	return nil
+	taskpkg.NetworkWakeSettlement,
+) (taskpkg.NetworkWakeSettlementResult, error) {
+	return taskpkg.NetworkWakeSettlementResult{}, nil
 }
 
 func (*recordingRegistry) ListQueuedNetworkWakes(
@@ -6556,6 +6582,7 @@ func (*recordingRegistry) ListQueuedNetworkWakes(
 
 func (*recordingRegistry) LoadNetworkWake(
 	context.Context,
+	string,
 	string,
 ) (store.WakeReservation, []store.NetworkMessageEntry, error) {
 	return store.WakeReservation{}, nil, nil
@@ -6595,23 +6622,27 @@ func (r *recordingRegistry) Set(
 
 func (*recordingRegistry) GetInvitation(
 	_ context.Context,
+	workspaceID string,
 	scopeKind string,
 	scopeID string,
 ) (workspacepkg.CoordinationInvitation, error) {
 	return workspacepkg.CoordinationInvitation{
-		ScopeKind: strings.TrimSpace(scopeKind),
-		ScopeID:   strings.TrimSpace(scopeID),
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		ScopeKind:   strings.TrimSpace(scopeKind),
+		ScopeID:     strings.TrimSpace(scopeID),
 	}, nil
 }
 
 func (*recordingRegistry) DismissInvitation(
 	_ context.Context,
+	workspaceID string,
 	scopeKind string,
 	scopeID string,
 	actor string,
 ) (workspacepkg.CoordinationInvitation, error) {
 	now := time.Now().UTC()
 	return workspacepkg.CoordinationInvitation{
+		WorkspaceID: strings.TrimSpace(workspaceID),
 		ScopeKind:   strings.TrimSpace(scopeKind),
 		ScopeID:     strings.TrimSpace(scopeID),
 		Dismissed:   true,
@@ -6620,8 +6651,31 @@ func (*recordingRegistry) DismissInvitation(
 	}, nil
 }
 
-func (*recordingRegistry) ResetInvitation(context.Context, string, string) error {
+func (*recordingRegistry) ResetInvitation(context.Context, string, string, string) error {
 	return nil
+}
+
+func (*recordingRegistry) GetCoordination(
+	context.Context,
+	workspacepkg.CoordinationRef,
+) (workspacepkg.CoordinationView, error) {
+	return workspacepkg.CoordinationView{}, nil
+}
+
+func (*recordingRegistry) SetCoordination(
+	context.Context,
+	workspacepkg.SetCoordination,
+	taskpkg.ActorContext,
+) (workspacepkg.CoordinationView, error) {
+	return workspacepkg.CoordinationView{}, nil
+}
+
+func (*recordingRegistry) SetCoordinationInvitation(
+	context.Context,
+	workspacepkg.SetInvitation,
+	taskpkg.ActorContext,
+) (workspacepkg.CoordinationView, error) {
+	return workspacepkg.CoordinationView{}, nil
 }
 
 func (*recordingRegistry) GetNetworkUsage(
@@ -6762,6 +6816,14 @@ func (r *recordingRegistry) PutNetworkSubscription(context.Context, store.Networ
 	return nil
 }
 
+func (r *recordingRegistry) PutNetworkSubscriptionWithChannel(
+	context.Context,
+	store.NetworkChannelEntry,
+	store.NetworkSubscriptionEntry,
+) error {
+	return nil
+}
+
 func (r *recordingRegistry) ListNetworkSubscriptions(
 	context.Context,
 	store.NetworkSubscriptionQuery,
@@ -6796,6 +6858,34 @@ func (r *recordingRegistry) ListTaskDesignationRollups(
 }
 
 func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
+	return nil
+}
+
+func (r *recordingRegistry) CreateTaskDefinition(
+	context.Context,
+	taskpkg.CreateTaskDefinitionMutation,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) UpdateTaskDefinition(
+	context.Context,
+	*taskpkg.UpdateTaskDefinitionMutation,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
+
+func (r *recordingRegistry) SetTaskExecutionProfile(
+	context.Context,
+	*taskpkg.ExecutionProfileMutation,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
+
+func (r *recordingRegistry) DeleteTaskExecutionProfile(
+	context.Context,
+	taskpkg.ExecutionProfileDeleteMutation,
+) error {
 	return nil
 }
 

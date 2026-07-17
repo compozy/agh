@@ -157,7 +157,7 @@ func TaskInboxTaskPayloadFromReference(record taskpkg.Reference) TaskInboxTaskPa
 	return TaskInboxTaskPayload{
 		ID:             record.ID,
 		Identifier:     record.Identifier,
-		Title:          record.Title,
+		Title:          taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
 		Status:         record.Status,
 		Priority:       record.Priority,
 		Owner:          taskCatalogCloneOwnership(record.Owner),
@@ -189,7 +189,7 @@ func TaskCatalogRunPayloadFromSummary(summary *taskpkg.RunSummary) *TaskCatalogR
 		ClaimedAt:                    taskCatalogOptionalTime(summary.ClaimedAt),
 		StartedAt:                    taskCatalogOptionalTime(summary.StartedAt),
 		EndedAt:                      taskCatalogOptionalTime(summary.EndedAt),
-		Error:                        summary.Error,
+		Error:                        taskpkg.RedactClaimTokens(strings.TrimSpace(summary.Error)),
 	}
 }
 

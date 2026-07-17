@@ -181,9 +181,14 @@ func (g *TaskRepo) createQueuedRunWithExecutor(
 		return taskpkg.Run{}, err
 	}
 
+	workspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	if workspaceID == "" {
+		workspaceID = strings.TrimSpace(input.networkSpec.WorkspaceID)
+	}
 	run := taskpkg.Run{
 		ID:                 input.runID,
 		TaskID:             taskRecord.ID,
+		WorkspaceID:        workspaceID,
 		RunKind:            input.runKind,
 		LoopRunID:          input.loopRunID,
 		Status:             taskpkg.TaskRunStatusQueued,
@@ -309,12 +314,20 @@ func (g *TaskRepo) SaveTaskRunIdempotency(ctx context.Context, record taskpkg.Ru
 		return err
 	}
 
+	return g.saveTaskRunIdempotencyWithExecutor(ctx, g.db, record)
+}
+
+func (g *TaskRepo) saveTaskRunIdempotencyWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	record taskpkg.RunIdempotency,
+) error {
 	normalized, err := g.normalizeTaskRunIdempotencyForCreate(record)
 	if err != nil {
 		return err
 	}
 
-	run, err := g.getTaskRunWithExecutor(ctx, g.db, normalized.RunID)
+	run, err := g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
 	if err != nil {
 		return err
 	}
@@ -329,7 +342,7 @@ func (g *TaskRepo) SaveTaskRunIdempotency(ctx context.Context, record taskpkg.Ru
 		)
 	}
 
-	rowsAffected, err := g.queries.InsertTaskRunIdempotency(ctx, sqlcgen.InsertTaskRunIdempotencyParams{
+	rowsAffected, err := sqlcgen.New(exec).InsertTaskRunIdempotency(ctx, sqlcgen.InsertTaskRunIdempotencyParams{
 		IdempotencyKey: normalized.IdempotencyKey,
 		OriginKind:     string(normalized.Origin.Kind),
 		OriginRef:      normalized.Origin.Ref,
@@ -343,7 +356,7 @@ func (g *TaskRepo) SaveTaskRunIdempotency(ctx context.Context, record taskpkg.Ru
 		return nil
 	}
 
-	current, err := getTaskRunIdempotencyRecord(ctx, g.db, normalized.IdempotencyKey, normalized.Origin)
+	current, err := getTaskRunIdempotencyRecord(ctx, exec, normalized.IdempotencyKey, normalized.Origin)
 	if err != nil {
 		return err
 	}

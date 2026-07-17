@@ -16,6 +16,7 @@ const (
 	watchEventsTestNetworkStream    = "network_timeline_log"
 	watchEventsTestObserveStream    = "event_summaries"
 	watchEventsTestSessionStream    = "session_events"
+	watchEventsTestParticipation    = "resolved_network_participation"
 
 	loopRunEventTestStatusChanged = "status_changed"
 	loopRunEventTestNodeSucceeded = "node_succeeded"
@@ -227,6 +228,21 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 				"coordinator.stopped PayloadFields = %#v, want stop_reason",
 				coordinatorStopped.PayloadFields,
 			)
+		}
+		for _, kind := range []hooks.HookEvent{
+			hooks.HookCoordinatorSpawned,
+			hooks.HookCoordinatorDecision,
+			hooks.HookCoordinatorStopped,
+			hooks.HookCoordinatorFailed,
+		} {
+			if !slices.Contains(contracts[kind].PayloadFields, watchEventsTestParticipation) {
+				t.Fatalf(
+					"%s PayloadFields = %#v, want %s",
+					kind,
+					contracts[kind].PayloadFields,
+					watchEventsTestParticipation,
+				)
+			}
 		}
 		eventPostRecord := contracts[hooks.HookEventPostRecord]
 		if slices.Contains(eventPostRecord.PayloadFields, "content") {

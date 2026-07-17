@@ -12,8 +12,16 @@ func OwnerKey(owner OwnerRef) string {
 
 // ValidateOwner verifies that an execution owner has a supported kind and stable identity.
 func ValidateOwner(owner OwnerRef) error {
+	owner.WorkspaceID = strings.TrimSpace(owner.WorkspaceID)
 	owner.Kind = OwnerKind(strings.TrimSpace(string(owner.Kind)))
 	owner.ID = strings.TrimSpace(owner.ID)
+	if owner.WorkspaceID == "" {
+		return fmt.Errorf("network participation: owner workspace_id is required")
+	}
+	return validateOwnerIdentity(owner)
+}
+
+func validateOwnerIdentity(owner OwnerRef) error {
 	switch owner.Kind {
 	case OwnerKindSession, OwnerKindTaskRun, OwnerKindLoopRun, OwnerKindAutomationRun:
 	default:
@@ -31,8 +39,8 @@ func ValidateOwnerKey(value string) error {
 	if len(parts) != 2 {
 		return fmt.Errorf("network participation: owner key must use kind:id form")
 	}
-	owner := OwnerRef{Kind: OwnerKind(parts[0]), ID: parts[1]}
-	if err := ValidateOwner(owner); err != nil {
+	owner := OwnerRef{Kind: OwnerKind(parts[0]), ID: strings.TrimSpace(parts[1])}
+	if err := validateOwnerIdentity(owner); err != nil {
 		return err
 	}
 	if OwnerKey(owner) != strings.TrimSpace(value) {

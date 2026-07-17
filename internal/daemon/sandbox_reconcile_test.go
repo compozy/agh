@@ -423,6 +423,7 @@ func TestReconcileDaemonSandboxesFailureDoesNotBlockBoot(t *testing.T) {
 
 func TestReconcileDaemonSandboxesPersistsSessionIndexBestEffort(t *testing.T) {
 	daemon, state, provider, _ := newSandboxReconcileHarness(t)
+	wantParticipation := daemonTestLiveParticipation("ws-indexed", "sandbox-indexed")
 	registry := &sandboxReconcileRegistry{}
 	state.registry = registry
 	provider.prepareState = sandbox.SessionState{
@@ -434,11 +435,12 @@ func TestReconcileDaemonSandboxesPersistsSessionIndexBestEffort(t *testing.T) {
 		ProviderState: json.RawMessage(`{"indexed":true}`),
 	}
 	writeSandboxReconcileMeta(t, daemon, sandboxReconcileMeta{
-		id:     "sess-indexed",
-		state:  session.StateActive,
-		env:    remoteMeta("env-indexed", sandbox.BackendDaytona, "daytona", "sandbox-seed"),
-		agent:  "coder",
-		worker: "ws-indexed",
+		id:      "sess-indexed",
+		state:   session.StateActive,
+		env:     remoteMeta("env-indexed", sandbox.BackendDaytona, "daytona", "sandbox-seed"),
+		agent:   "coder",
+		worker:  "ws-indexed",
+		network: wantParticipation,
 	})
 
 	daemon.reconcileDaemonSandboxes(testutil.Context(t), state)
@@ -452,6 +454,9 @@ func TestReconcileDaemonSandboxesPersistsSessionIndexBestEffort(t *testing.T) {
 	}
 	if indexed.Sandbox.InstanceID != "sandbox-indexed" {
 		t.Fatalf("indexed sandbox instance = %q, want sandbox-indexed", indexed.Sandbox.InstanceID)
+	}
+	if got := indexed.NetworkSpecSnapshot(); got != wantParticipation {
+		t.Fatalf("indexed network participation = %#v, want %#v", got, wantParticipation)
 	}
 }
 
@@ -520,11 +525,12 @@ func TestReconcileDaemonSandboxesDestroySkippedWithoutInstance(t *testing.T) {
 }
 
 type sandboxReconcileMeta struct {
-	id     string
-	state  session.State
-	env    *store.SessionSandboxMeta
-	agent  string
-	worker string
+	id      string
+	state   session.State
+	env     *store.SessionSandboxMeta
+	agent   string
+	worker  string
+	network participation.Spec
 }
 
 func newSandboxReconcileHarness(
@@ -554,11 +560,15 @@ func newSandboxReconcileHarness(
 
 func writeSandboxReconcileMeta(t *testing.T, daemon *Daemon, spec sandboxReconcileMeta) {
 	t.Helper()
+	networkSpec := spec.network
+	if networkSpec == (participation.Spec{}) {
+		networkSpec = participation.LocalSpec()
+	}
 	meta := store.SessionMeta{
 		ID:                   spec.id,
 		AgentName:            spec.agent,
 		WorkspaceID:          spec.worker,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		NetworkParticipation: participation.CloneSpec(networkSpec),
 		SessionType:          string(session.SessionTypeUser),
 		State:                string(spec.state),
 		Sandbox:              spec.env,

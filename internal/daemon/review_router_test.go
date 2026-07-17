@@ -321,6 +321,49 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject Local reviewer creation when explicit channels allow no active candidate", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{
+					AgentName:         "reviewer",
+					AllowedChannelIDs: []string{"reviews"},
+				},
+			},
+		}
+		sessions := &coordinatorRuntimeSessions{
+			infos: []*session.Info{reviewRouterSessionInfo("sess-worker", "worker", "reviews")},
+		}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			reviewRouterStoreForTest(),
+			sessions,
+			reviewRouterAgentResolverStub{
+				"reviewer": reviewRouterAgentDef("reviewer"),
+				"worker":   reviewRouterAgentDef("worker"),
+			},
+		)
+
+		notification := reviewRouterNotificationForTest()
+		router.OnRunReviewRequested(context.Background(), &notification)
+
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("session create calls = %d, want 0", got)
+		}
+		if len(tasks.binds) != 0 {
+			t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
+		}
+		if got, want := len(tasks.records), 1; got != want {
+			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
+		}
+		if !strings.Contains(tasks.records[0].Verdict.Reason, "only explicit channels") {
+			t.Fatalf("RecordRunReview reason = %q, want channel allowlist diagnostic", tasks.records[0].Verdict.Reason)
+		}
+	})
+
 	t.Run("Should rebind in review requests when reviewer session stops", func(t *testing.T) {
 		t.Parallel()
 

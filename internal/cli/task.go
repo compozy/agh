@@ -13,7 +13,6 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
 	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/network"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/spf13/cobra"
 )
@@ -121,18 +120,6 @@ type taskBlockInput struct {
 	AsAgent    bool
 }
 
-type taskUpdateInput struct {
-	Title              string
-	Description        string
-	PriorityRaw        string
-	MetadataRaw        string
-	OwnerKindRaw       string
-	OwnerRef           string
-	ClearOwner         bool
-	AutoEnqueueOnReady bool
-	AutoEnqueueSet     bool
-}
-
 type taskExecutionInput struct {
 	IdempotencyKey string
 	NetworkFlags   networkParticipationFlags
@@ -233,7 +220,8 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
   agh task create --scope workspace --workspace checkout-api --title "Audit auth flow"
 
   # Explicitly enqueue execution for an existing task
-  agh task start task-123 --channel coord-run-123
+  agh task start task-123 --network live \
+    --network-channel-strategy named --network-channel coord-run-123
 
   # Let the current agent session claim work
   agh task next --wait`,
@@ -423,115 +411,6 @@ func newTaskInspectCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskInspectBundle(&inspect))
 		},
 	}
-}
-
-func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
-	var (
-		title        string
-		description  string
-		metadataRaw  string
-		priorityRaw  string
-		ownerKindRaw string
-		ownerRef     string
-		clearOwner   bool
-		autoEnqueue  bool
-	)
-
-	cmd := &cobra.Command{
-		Use:   taskUpdateIDValue,
-		Short: "Update mutable task fields",
-		Args:  exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			request, err := buildTaskUpdateRequest(cmd, taskUpdateInput{
-				Title:              title,
-				Description:        description,
-				PriorityRaw:        priorityRaw,
-				MetadataRaw:        metadataRaw,
-				OwnerKindRaw:       ownerKindRaw,
-				OwnerRef:           ownerRef,
-				ClearOwner:         clearOwner,
-				AutoEnqueueOnReady: autoEnqueue,
-				AutoEnqueueSet:     cmd.Flags().Changed(taskAutoEnqueueOnReadyFlag),
-			})
-			if err != nil {
-				return err
-			}
-			if !request.HasChanges() {
-				return errors.New("cli: task update requires at least one change flag")
-			}
-
-			updated, err := client.UpdateTask(cmd.Context(), args[0], request)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, taskBundle(&updated))
-		},
-	}
-	cmd.Flags().StringVar(&title, taskTitleKey, "", "Update the task title")
-	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Update the task description")
-	cmd.Flags().
-		StringVar(&priorityRaw, "priority", "", "Update the task priority: low, medium, high, or urgent")
-	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Update metadata JSON")
-	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Update the owner kind")
-	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Update the owner reference")
-	cmd.Flags().BoolVar(&clearOwner, "clear-owner", false, "Remove the current owner")
-	cmd.Flags().
-		BoolVar(&autoEnqueue, taskAutoEnqueueOnReadyFlag, false, "Toggle auto-enqueue once blocking dependencies complete")
-	return cmd
-}
-
-func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTaskRequest, error) {
-	request := UpdateTaskRequest{}
-	if cmd.Flags().Changed(taskTitleKey) {
-		trimmed := strings.TrimSpace(input.Title)
-		if trimmed == "" {
-			return UpdateTaskRequest{}, errors.New("cli: --title cannot be blank")
-		}
-		request.Title = new(trimmed)
-	}
-	if cmd.Flags().Changed(taskDescriptionKey) {
-		request.Description = new(strings.TrimSpace(input.Description))
-	}
-	if cmd.Flags().Changed("priority") {
-		priority, err := parseOptionalTaskPriority(input.PriorityRaw)
-		if err != nil {
-			return UpdateTaskRequest{}, err
-		}
-		request.Priority = &priority
-	}
-	if cmd.Flags().Changed("metadata") {
-		metadata, err := parseJSONFlag("metadata", input.MetadataRaw)
-		if err != nil {
-			return UpdateTaskRequest{}, err
-		}
-		request.Metadata = &metadata
-	}
-	if input.AutoEnqueueSet {
-		autoEnqueue := input.AutoEnqueueOnReady
-		request.AutoEnqueueOnReady = &autoEnqueue
-	}
-	ownerChanged := cmd.Flags().Changed("owner-kind") || cmd.Flags().Changed("owner-ref")
-	if input.ClearOwner && ownerChanged {
-		return UpdateTaskRequest{}, errors.New(
-			"cli: --clear-owner cannot be combined with --owner-kind or --owner-ref",
-		)
-	}
-	if ownerChanged {
-		owner, err := parseRequiredTaskOwnership(input.OwnerKindRaw, input.OwnerRef)
-		if err != nil {
-			return UpdateTaskRequest{}, err
-		}
-		request.Owner = owner
-	}
-	if input.ClearOwner {
-		request.ClearOwner = true
-	}
-	return request, nil
 }
 
 func newTaskPublishCommand(deps commandDeps) *cobra.Command {
@@ -1530,6 +1409,9 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
 			if err := validateAgentTaskLeaseSeconds(leaseSeconds); err != nil {
 				return err
 			}
+			if cmd.Flags().Changed("run-id") && strings.TrimSpace(runID) == "" {
+				return errors.New("cli: --run-id cannot be blank")
+			}
 			if priorityMin < 0 {
 				return fmt.Errorf("cli: --priority-min must be zero or positive: %d", priorityMin)
 			}
@@ -2311,9 +2193,10 @@ func newTaskRunCommand(deps commandDeps) *cobra.Command {
 
 func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 	var (
-		statusRaw string
-		sessionID string
-		last      int
+		statusRaw               string
+		sessionID               string
+		participationChannelRaw string
+		last                    int
 	)
 
 	cmd := &cobra.Command{
@@ -2326,7 +2209,12 @@ func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			query, err := parseTaskRunListFilters(statusRaw, sessionID, last)
+			query, err := parseTaskRunListFilters(
+				statusRaw,
+				sessionID,
+				participationChannelRaw,
+				last,
+			)
 			if err != nil {
 				return err
 			}
@@ -2340,6 +2228,12 @@ func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&statusRaw, taskStatusKey, "", "Filter by run status")
 	cmd.Flags().StringVar(&sessionID, "session", "", "Filter by attached session ID")
+	cmd.Flags().StringVar(
+		&participationChannelRaw,
+		"participation-channel",
+		"",
+		"Filter by resolved Network participation channel",
+	)
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
 	return cmd
 }
@@ -2580,6 +2474,7 @@ func newTaskRunCancelCommand(deps commandDeps) *cobra.Command {
 func parseTaskRunListFilters(
 	statusRaw string,
 	sessionID string,
+	participationChannelRaw string,
 	last int,
 ) (TaskRunListQuery, error) {
 	status, err := parseOptionalTaskRunStatus(statusRaw)
@@ -2589,10 +2484,14 @@ func parseTaskRunListFilters(
 	if err := validateTaskLast(last); err != nil {
 		return TaskRunListQuery{}, err
 	}
+	if err := validateTaskParticipationChannelFlag(participationChannelRaw); err != nil {
+		return TaskRunListQuery{}, err
+	}
 	return TaskRunListQuery{
-		Status:    status,
-		SessionID: strings.TrimSpace(sessionID),
-		Limit:     last,
+		Status:               status,
+		SessionID:            strings.TrimSpace(sessionID),
+		ParticipationChannel: strings.TrimSpace(participationChannelRaw),
+		Limit:                last,
 	}, nil
 }
 
@@ -2935,17 +2834,6 @@ func parseOptionalTaskPriority(raw string) (taskpkg.Priority, error) {
 		return "", fmt.Errorf("cli: %w", err)
 	}
 	return priority, nil
-}
-
-func validateTaskChannelFlag(channel string) error {
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return nil
-	}
-	if err := network.ValidateChannel(trimmed); err != nil {
-		return fmt.Errorf("cli: invalid --channel value %q: %w", trimmed, err)
-	}
-	return nil
 }
 
 func validateTaskLast(last int) error {
@@ -3476,7 +3364,7 @@ func taskFanOutRunsBundle(record FanOutTaskRunsRecord) outputBundle {
 		"Task Fan-Out Runs",
 		[]string{"Run ID", taskTaskValue, taskStatusValue, taskAttemptValue, taskParticipationChannelValue},
 		"task_fanout_runs",
-		[]string{"run_id", taskTaskIDKey, taskStatusKey, taskAttemptKey, taskParticipationChannelKey},
+		[]string{agentKernelRunIDKey, taskTaskIDKey, taskStatusKey, taskAttemptKey, taskParticipationChannelKey},
 		func(item TaskRunRecord) []string {
 			return []string{
 				stringOrDash(item.ID),

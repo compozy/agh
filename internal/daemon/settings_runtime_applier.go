@@ -15,7 +15,9 @@ type daemonSettingsRuntimeApplier struct {
 	daemon              *Daemon
 	state               *bootState
 	networkAvailability store.NetworkAvailabilityStore
-	networkWakeRunner   interface{ SetNetworkEnabled(bool) }
+	networkWakeRunner   interface {
+		SetEnabled(context.Context, bool) error
+	}
 }
 
 func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
@@ -48,7 +50,32 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 			return a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
 		}
 		if a.networkWakeRunner != nil {
-			a.networkWakeRunner.SetNetworkEnabled(next.Network.Enabled)
+			if err := a.networkWakeRunner.SetEnabled(ctx, next.Network.Enabled); err != nil {
+				failures := []settingspkg.ApplyFailure{configApplyFailure(
+					"network_wake_runner",
+					diagnosticcontract.CategoryConfig,
+					"Network wake runner sync failed",
+					err,
+				)}
+				if rollbackErr := a.networkWakeRunner.SetEnabled(ctx, previous.Network.Enabled); rollbackErr != nil {
+					failures = append(failures, configApplyFailure(
+						"network_wake_runner_rollback",
+						diagnosticcontract.CategoryConfig,
+						"Network wake runner rollback failed",
+						rollbackErr,
+					))
+				}
+				if failure := a.persistNetworkAvailability(
+					ctx,
+					previous.Network.Enabled,
+					"config.rollback",
+					"network_availability_rollback",
+					"Network availability rollback failed",
+				); failure != nil {
+					failures = append(failures, *failure)
+				}
+				return a.rollbackRuntimeDependencies(ctx, &previous, failures)
+			}
 		}
 		if networkRuntime, ok := a.state.network.(interface{ SetEnabled(bool) }); ok {
 			networkRuntime.SetEnabled(next.Network.Enabled)
@@ -91,7 +118,7 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 		}
 	}
 	if a.state.toolMCPResources != nil {
-		if err := a.state.toolMCPResources.Sync(ctx); err != nil {
+		if err := a.state.toolMCPResources.SyncConfig(ctx, previous); err != nil {
 			failures = append(failures, configApplyFailure(
 				"mcp_rollback",
 				diagnosticcontract.CategoryMCP,
@@ -130,7 +157,7 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 		}
 	}
 	if a.state.toolMCPResources != nil {
-		if err := a.state.toolMCPResources.Sync(ctx); err != nil {
+		if err := a.state.toolMCPResources.SyncConfig(ctx, next); err != nil {
 			failures = append(failures, configApplyFailure(
 				"mcp",
 				diagnosticcontract.CategoryMCP,

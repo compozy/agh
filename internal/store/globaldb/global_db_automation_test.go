@@ -1362,18 +1362,22 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		if err != nil {
 			t.Fatalf("CreateJob(loop target) error = %v", err)
 		}
-		if createdLoopJob.LoopTarget == nil {
-			t.Fatal("CreateJob(loop target).LoopTarget = nil, want persisted target")
+		storedLoopJob, err := globalDB.GetJob(ctx, createdLoopJob.ID)
+		if err != nil {
+			t.Fatalf("GetJob(loop target) error = %v", err)
 		}
-		if got, want := createdLoopJob.TargetKind, automation.TargetKindLoop; got != want {
-			t.Fatalf("CreateJob(loop target).TargetKind = %q, want %q", got, want)
+		if storedLoopJob.LoopTarget == nil {
+			t.Fatal("GetJob(loop target).LoopTarget = nil, want persisted target")
 		}
-		if got, want := createdLoopJob.LoopTarget.LoopName, "triage"; got != want {
-			t.Fatalf("CreateJob(loop target).LoopTarget.LoopName = %q, want %q", got, want)
+		if got, want := storedLoopJob.TargetKind, automation.TargetKindLoop; got != want {
+			t.Fatalf("GetJob(loop target).TargetKind = %q, want %q", got, want)
+		}
+		if got, want := storedLoopJob.LoopTarget.LoopName, "triage"; got != want {
+			t.Fatalf("GetJob(loop target).LoopTarget.LoopName = %q, want %q", got, want)
 		}
 		assertAutomationNamedParticipation(
 			t,
-			createdLoopJob.LoopTarget.NetworkParticipation,
+			storedLoopJob.LoopTarget.NetworkParticipation,
 			"loop-job-channel",
 		)
 		agentJob := automationJobForTest(
@@ -1399,6 +1403,14 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		if got, want := filteredJobs.Jobs[0].ID, createdLoopJob.ID; got != want {
 			t.Fatalf("ListJobs(loop filter)[0].ID = %q, want %q", got, want)
 		}
+		if filteredJobs.Jobs[0].LoopTarget == nil {
+			t.Fatal("ListJobs(loop filter)[0].LoopTarget = nil, want hydrated target")
+		}
+		assertAutomationNamedParticipation(
+			t,
+			filteredJobs.Jobs[0].LoopTarget.NetworkParticipation,
+			"loop-job-channel",
+		)
 	})
 
 	t.Run("Should persist and filter loop-target triggers", func(t *testing.T) {
@@ -1428,15 +1440,19 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		if err != nil {
 			t.Fatalf("CreateTrigger(loop target) error = %v", err)
 		}
-		if createdLoopTrigger.LoopTarget == nil {
-			t.Fatal("CreateTrigger(loop target).LoopTarget = nil, want persisted target")
+		storedLoopTrigger, err := globalDB.GetTrigger(ctx, createdLoopTrigger.ID)
+		if err != nil {
+			t.Fatalf("GetTrigger(loop target) error = %v", err)
 		}
-		if got, want := createdLoopTrigger.LoopTarget.InputMapping["title"], "{{ .trigger.payload.title }}"; got != want {
-			t.Fatalf("CreateTrigger(loop target).LoopTarget.InputMapping[title] = %q, want %q", got, want)
+		if storedLoopTrigger.LoopTarget == nil {
+			t.Fatal("GetTrigger(loop target).LoopTarget = nil, want persisted target")
+		}
+		if got, want := storedLoopTrigger.LoopTarget.InputMapping["title"], "{{ .trigger.payload.title }}"; got != want {
+			t.Fatalf("GetTrigger(loop target).LoopTarget.InputMapping[title] = %q, want %q", got, want)
 		}
 		assertAutomationNamedParticipation(
 			t,
-			createdLoopTrigger.LoopTarget.NetworkParticipation,
+			storedLoopTrigger.LoopTarget.NetworkParticipation,
 			"loop-trigger-channel",
 		)
 		agentTrigger := automationWebhookTriggerForTest(
@@ -1464,6 +1480,14 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		if got, want := filteredTriggers.Triggers[0].ID, createdLoopTrigger.ID; got != want {
 			t.Fatalf("ListTriggers(loop filter)[0].ID = %q, want %q", got, want)
 		}
+		if filteredTriggers.Triggers[0].LoopTarget == nil {
+			t.Fatal("ListTriggers(loop filter)[0].LoopTarget = nil, want hydrated target")
+		}
+		assertAutomationNamedParticipation(
+			t,
+			filteredTriggers.Triggers[0].LoopTarget.NetworkParticipation,
+			"loop-trigger-channel",
+		)
 	})
 
 	t.Run("Should correlate delegated automation runs to loop runs", func(t *testing.T) {
@@ -1967,13 +1991,14 @@ func TestGlobalDBSchedulerStateSaveClaimAndDeliveryError(t *testing.T) {
 	claimedAt := time.Date(2026, 4, 11, 9, 0, 1, 0, time.UTC)
 	nextAfterClaim := time.Date(2026, 4, 12, 9, 0, 0, 0, time.UTC)
 	claim, err := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
-		JobID:        job.ID,
-		RunID:        "run-scheduler-claim",
-		FireID:       "fire-scheduler-claim",
-		ScheduledAt:  nextRun,
-		NextRunAt:    &nextAfterClaim,
-		ClaimedAt:    claimedAt,
-		ScheduleHash: "hash-v1",
+		JobID:                job.ID,
+		RunID:                "run-scheduler-claim",
+		FireID:               "fire-scheduler-claim",
+		ScheduledAt:          nextRun,
+		NextRunAt:            &nextAfterClaim,
+		ClaimedAt:            claimedAt,
+		ScheduleHash:         "hash-v1",
+		NetworkParticipation: automationNamedParticipation("scheduled-ops"),
 	})
 	if err != nil {
 		t.Fatalf("ClaimScheduledRun() error = %v", err)
@@ -1990,6 +2015,7 @@ func TestGlobalDBSchedulerStateSaveClaimAndDeliveryError(t *testing.T) {
 	if got, want := claim.Run.ScheduledAt, &nextRun; got == nil || !got.Equal(*want) {
 		t.Fatalf("ClaimScheduledRun().Run.ScheduledAt = %v, want %v", got, want)
 	}
+	assertAutomationNamedParticipation(t, claim.Run.NetworkParticipation, "scheduled-ops")
 
 	_, duplicateErr := globalDB.ClaimScheduledRun(ctx, SchedulerClaim{
 		JobID:        job.ID,

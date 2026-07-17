@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -27,4 +28,6 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.NetworkSendRequest](): customizeNetworkSendRequestSchema,
 	reflect.TypeFor[contract.TaskPayload]():        describeTaskBlockedReasonsProperty,
 	reflect.TypeFor[contract.TaskSummaryPayload](): describeTaskBlockedReasonsProperty,
+	reflect.TypeFor[participation.Request]():       customizeParticipationRequestSchema,
+	reflect.TypeFor[participation.Spec]():          customizeParticipationSpecSchema,
 }

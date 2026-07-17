@@ -81,6 +81,7 @@ export function LoopRunForm({
 
         <Section label="Participation" note="Resolved once when this run starts.">
           <NetworkParticipationFields
+            allowedStrategies={["named", "loop_run"]}
             disabled={form.busy}
             onChange={form.setNetworkParticipationDraft}
             testIdPrefix="loop-run-participation"

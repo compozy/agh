@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -20,6 +21,9 @@ type networkCorrelationExpectation struct {
 	TraceID         string
 	CausationID     string
 	Trust           string
+	TranscriptFrom  string
+	PeerFrom        *string
+	PeerTo          *string
 	AuditDirections []string
 }
 
@@ -77,6 +81,14 @@ func validateNetworkCorrelationSurfaces(
 		}
 	}
 	if !matched {
+		matched = transcriptHasNetworkWakeMessage(
+			messages,
+			expectation.MessageID,
+			expectation.Kind,
+			expectation.TranscriptFrom,
+		)
+	}
+	if !matched {
 		return fmt.Errorf("transcript missing correlated attributes for message %q", expectation.MessageID)
 	}
 
@@ -89,12 +101,44 @@ func validateNetworkCorrelationSurfaces(
 			ThreadID:  auditFieldValue(expectation.ThreadID),
 			DirectID:  auditFieldValue(expectation.DirectID),
 			WorkID:    auditFieldValue(expectation.WorkID),
+			PeerFrom:  expectation.PeerFrom,
+			PeerTo:    expectation.PeerTo,
 		}); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func transcriptHasNetworkWakeMessage(
+	messages []transcript.UIMessage,
+	messageID string,
+	kind string,
+	from string,
+) bool {
+	type wakeMessage struct {
+		MessageID string `json:"message_id"`
+		From      string `json:"from"`
+		Kind      string `json:"kind"`
+	}
+	for _, message := range messages {
+		for line := range strings.SplitSeq(transcript.UIMessageText(message), "\n") {
+			var candidate wakeMessage
+			if json.Unmarshal([]byte(strings.TrimSpace(line)), &candidate) != nil {
+				continue
+			}
+			if strings.TrimSpace(candidate.MessageID) != strings.TrimSpace(messageID) ||
+				strings.TrimSpace(candidate.Kind) != strings.TrimSpace(kind) {
+				continue
+			}
+			if strings.TrimSpace(from) != "" && strings.TrimSpace(candidate.From) != strings.TrimSpace(from) {
+				continue
+			}
+			return true
+		}
+	}
+	return false
 }
 
 func validateNetworkAuditEntry(

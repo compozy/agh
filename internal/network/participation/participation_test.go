@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/network/participation"
 )
@@ -138,6 +139,210 @@ func TestCloneRequestShouldDeepCopyIntent(t *testing.T) {
 	}
 }
 
+func TestParticipationPublicHelpersShouldPreserveCanonicalSnapshots(t *testing.T) {
+	t.Parallel()
+
+	local := participation.LocalSpec()
+	if err := participation.ValidateSpec(local); err != nil {
+		t.Fatalf("ValidateSpec(LocalSpec()) error = %v", err)
+	}
+	if local.Version != participation.SpecVersion || local.Mode != participation.ModeLocal ||
+		local.Source != participation.SourceBuiltInLocal {
+		t.Fatalf("LocalSpec() = %#v, want canonical built-in Local", local)
+	}
+	cloned := participation.CloneSpec(local)
+	if cloned == nil || *cloned != local {
+		t.Fatalf("CloneSpec() = %#v, want %#v", cloned, local)
+	}
+	cloned.Source = participation.SourceExplicitRequest
+	if local.Source != participation.SourceBuiltInLocal {
+		t.Fatalf("CloneSpec() aliased source snapshot: %#v", local)
+	}
+
+	for _, test := range []struct {
+		name    string
+		key     string
+		wantErr bool
+	}{
+		{name: "Should accept a canonical session owner", key: "session:sess-1"},
+		{name: "Should accept a canonical task-run owner", key: "task_run:run-1"},
+		{name: "Should reject a missing separator", key: "run-1", wantErr: true},
+		{name: "Should reject an unsupported kind", key: "other:run-1", wantErr: true},
+		{name: "Should reject an empty id", key: "session:", wantErr: true},
+		{name: "Should reject noncanonical id whitespace", key: "session: sess-1", wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := participation.ValidateOwnerKey(test.key)
+			if test.wantErr && err == nil {
+				t.Fatalf("ValidateOwnerKey(%q) error = nil, want non-nil", test.key)
+			}
+			if !test.wantErr && err != nil {
+				t.Fatalf("ValidateOwnerKey(%q) error = %v", test.key, err)
+			}
+		})
+	}
+}
+
+func TestNormalizeIntentShouldValidatePartialPersistedIntent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve an omitted intent", func(t *testing.T) {
+		t.Parallel()
+		got, err := participation.NormalizeIntent(participation.Request{})
+		if err != nil || got.Mode != nil || got.ChannelStrategy != nil || got.ChannelID != nil || got.Bounds != nil {
+			t.Fatalf("NormalizeIntent(empty) = %#v, error=%v", got, err)
+		}
+	})
+
+	t.Run("Should normalize a partial named Live intent without filling defaults", func(t *testing.T) {
+		t.Parallel()
+		maxWakes := 2
+		wakeWall := " 30s "
+		mode := participation.Mode(" live ")
+		strategy := participation.ChannelStrategy(" named ")
+		channel := " builders "
+		got, err := participation.NormalizeIntent(participation.Request{
+			Mode: &mode, ChannelStrategy: &strategy, ChannelID: &channel,
+			Bounds: &participation.BoundsRequest{MaxWakes: &maxWakes, MaxWakeWallTime: &wakeWall},
+		})
+		if err != nil {
+			t.Fatalf("NormalizeIntent(partial Live) error = %v", err)
+		}
+		if got.Mode == nil || *got.Mode != participation.ModeLive ||
+			got.ChannelStrategy == nil || *got.ChannelStrategy != participation.StrategyNamed ||
+			got.ChannelID == nil || *got.ChannelID != "builders" || got.Bounds == nil ||
+			got.Bounds.MaxWakeWallTime == nil || *got.Bounds.MaxWakeWallTime != "30s" ||
+			got.Bounds.MaxInputTokens != nil {
+			t.Fatalf("NormalizeIntent(partial Live) = %#v, want normalized partial values only", got)
+		}
+	})
+
+	validPartial := func() participation.Request {
+		return participation.Request{
+			Mode:            new(participation.ModeLive),
+			ChannelStrategy: new(participation.StrategyRun),
+		}
+	}
+	for _, test := range []struct {
+		name    string
+		request func() participation.Request
+		wantErr error
+	}{
+		{
+			name: "Should reject Local channel state",
+			request: func() participation.Request {
+				return participation.Request{Mode: new(participation.ModeLocal), ChannelID: new("builders")}
+			},
+			wantErr: participation.ErrStrategyChannelConflict,
+		},
+		{
+			name: "Should reject an unknown mode",
+			request: func() participation.Request {
+				return participation.Request{Mode: new(participation.Mode("remote"))}
+			},
+			wantErr: participation.ErrStrategyInvalid,
+		},
+		{
+			name: "Should require a Live strategy",
+			request: func() participation.Request {
+				return participation.Request{Mode: new(participation.ModeLive)}
+			},
+			wantErr: participation.ErrStrategyInvalid,
+		},
+		{
+			name: "Should reject an unknown strategy",
+			request: func() participation.Request {
+				return participation.Request{
+					Mode: new(participation.ModeLive), ChannelStrategy: new(participation.ChannelStrategy("other")),
+				}
+			},
+			wantErr: participation.ErrStrategyInvalid,
+		},
+		{
+			name: "Should require a named channel",
+			request: func() participation.Request {
+				return participation.Request{
+					Mode: new(participation.ModeLive), ChannelStrategy: new(participation.StrategyNamed),
+				}
+			},
+			wantErr: participation.ErrStrategyInvalid,
+		},
+		{
+			name: "Should reject an invalid named channel",
+			request: func() participation.Request {
+				return participation.Request{
+					Mode: new(participation.ModeLive), ChannelStrategy: new(participation.StrategyNamed),
+					ChannelID: new("Invalid Channel"),
+				}
+			},
+			wantErr: participation.ErrStrategyInvalid,
+		},
+		{
+			name: "Should reject a channel on a derived strategy",
+			request: func() participation.Request {
+				request := validPartial()
+				request.ChannelID = new("builders")
+				return request
+			},
+			wantErr: participation.ErrStrategyChannelConflict,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := participation.NormalizeIntent(test.request()); !errors.Is(err, test.wantErr) {
+				t.Fatalf("NormalizeIntent() error = %v, want errors.Is(%v)", err, test.wantErr)
+			}
+		})
+	}
+
+	for _, test := range []struct {
+		name   string
+		bounds participation.BoundsRequest
+	}{
+		{name: "Should reject nonpositive wakes", bounds: participation.BoundsRequest{MaxWakes: new(0)}},
+		{name: "Should reject nonpositive input tokens", bounds: participation.BoundsRequest{MaxInputTokens: new(int64(0))}},
+		{name: "Should reject nonpositive output tokens", bounds: participation.BoundsRequest{MaxOutputTokens: new(int64(-1))}},
+		{name: "Should reject nonpositive wake depth", bounds: participation.BoundsRequest{MaxWakeDepth: new(0)}},
+		{name: "Should reject invalid wake wall time", bounds: participation.BoundsRequest{MaxWakeWallTime: new("bad")}},
+		{name: "Should reject invalid total wall time", bounds: participation.BoundsRequest{MaxTotalWallTime: new("0s")}},
+		{name: "Should reject invalid coalesce window", bounds: participation.BoundsRequest{CoalesceWindow: new("-1s")}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			request := validPartial()
+			request.Bounds = &test.bounds
+			if _, err := participation.NormalizeIntent(request); !errors.Is(err, participation.ErrBoundsExceedCeiling) {
+				t.Fatalf("NormalizeIntent() error = %v, want ErrBoundsExceedCeiling", err)
+			}
+		})
+	}
+}
+
+func TestObserveResolvedShouldDispatchOnlyToObservers(t *testing.T) {
+	t.Parallel()
+
+	observation := participation.ResolvedObservation{
+		WorkspaceID: "ws-1",
+		Owner: participation.OwnerRef{
+			WorkspaceID: "ws-1", Kind: participation.OwnerKindSession, ID: "sess-1",
+		},
+		Spec: participation.LocalSpec(),
+	}
+	plain := participation.Resolver(participationResolverStub{})
+	if err := participation.ObserveResolved(t.Context(), plain, observation); err != nil {
+		t.Fatalf("ObserveResolved(non-observer) error = %v", err)
+	}
+	wantErr := errors.New("observer failed")
+	observer := &participationObserverStub{err: wantErr}
+	if err := participation.ObserveResolved(t.Context(), observer, observation); !errors.Is(err, wantErr) {
+		t.Fatalf("ObserveResolved(observer) error = %v, want %v", err, wantErr)
+	}
+	if observer.observation != observation {
+		t.Fatalf("observed snapshot = %#v, want %#v", observer.observation, observation)
+	}
+}
+
 func TestValidateShouldRejectInvalidDurations(t *testing.T) {
 	t.Parallel()
 
@@ -174,6 +379,66 @@ func TestValidateShouldRejectInvalidDurations(t *testing.T) {
 			t.Fatalf("Validate() error = %v", err)
 		}
 	})
+
+	t.Run("Should reject a duration that can overflow millisecond ceiling conversion", func(t *testing.T) {
+		t.Parallel()
+
+		value := time.Duration(1<<63 - 1).String()
+		bounds := completeBoundsRequest()
+		bounds.MaxWakeWallTime = &value
+		_, err := participation.Validate(participation.Request{
+			Mode:            new(participation.ModeLive),
+			ChannelStrategy: new(participation.StrategyRun),
+			Bounds:          bounds,
+		})
+		if !errors.Is(err, participation.ErrBoundsExceedCeiling) {
+			t.Fatalf("Validate() error = %v, want ErrBoundsExceedCeiling", err)
+		}
+		if !strings.Contains(err.Error(), "max_wake_wall_time") {
+			t.Fatalf("Validate() error = %q, want max_wake_wall_time", err)
+		}
+	})
+}
+
+func TestValidateShouldKeepWakeWallWithinTotalWall(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name      string
+		wakeWall  string
+		totalWall string
+		wantErr   bool
+	}{
+		{name: "Should accept wake wall below total wall", wakeWall: "4m", totalWall: "5m"},
+		{name: "Should accept wake wall equal to total wall", wakeWall: "5m", totalWall: "5m"},
+		{name: "Should reject wake wall above total wall", wakeWall: "6m", totalWall: "5m", wantErr: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			bounds := completeBoundsRequest()
+			bounds.MaxWakeWallTime = &testCase.wakeWall
+			bounds.MaxTotalWallTime = &testCase.totalWall
+			_, err := participation.Validate(participation.Request{
+				Mode:            new(participation.ModeLive),
+				ChannelStrategy: new(participation.StrategyRun),
+				Bounds:          bounds,
+			})
+			if !testCase.wantErr {
+				if err != nil {
+					t.Fatalf("Validate() error = %v", err)
+				}
+				return
+			}
+			if !errors.Is(err, participation.ErrBoundsExceedCeiling) {
+				t.Fatalf("Validate() error = %v, want ErrBoundsExceedCeiling", err)
+			}
+			if !strings.Contains(err.Error(), "max_wake_wall_time") ||
+				!strings.Contains(err.Error(), "max_total_wall_time") {
+				t.Fatalf("Validate() error = %q, want both wall-time fields", err)
+			}
+		})
+	}
 }
 
 func TestResolverShouldResolveLocalWithoutChannelLookup(t *testing.T) {
@@ -186,7 +451,14 @@ func TestResolverShouldResolveLocalWithoutChannelLookup(t *testing.T) {
 			return true, nil
 		},
 	})
-	spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{})
+	spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+		WorkspaceID: "ws-1",
+		Owner: participation.OwnerRef{
+			WorkspaceID: "ws-1",
+			Kind:        participation.OwnerKindSession,
+			ID:          "session-1",
+		},
+	})
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
@@ -201,12 +473,70 @@ func TestResolverShouldResolveLocalWithoutChannelLookup(t *testing.T) {
 	}
 }
 
+func TestOwnerRefShouldRequireWorkspaceQualifiedIdentity(t *testing.T) {
+	t.Parallel()
+
+	valid := participation.OwnerRef{
+		WorkspaceID: "ws-a",
+		Kind:        participation.OwnerKindTaskRun,
+		ID:          "run-1",
+	}
+	if err := participation.ValidateOwner(valid); err != nil {
+		t.Fatalf("ValidateOwner(valid) error = %v", err)
+	}
+	if got := participation.OwnerKey(valid); got != "task_run:run-1" {
+		t.Fatalf("OwnerKey(valid) = %q, want task_run:run-1", got)
+	}
+
+	for _, testCase := range []struct {
+		name  string
+		owner participation.OwnerRef
+		field string
+	}{
+		{name: "missing workspace", owner: participation.OwnerRef{Kind: valid.Kind, ID: valid.ID}, field: "workspace_id"},
+		{name: "blank workspace", owner: participation.OwnerRef{WorkspaceID: "  ", Kind: valid.Kind, ID: valid.ID}, field: "workspace_id"},
+		{name: "unknown kind", owner: participation.OwnerRef{WorkspaceID: valid.WorkspaceID, Kind: "other", ID: valid.ID}, field: "kind"},
+		{name: "missing id", owner: participation.OwnerRef{WorkspaceID: valid.WorkspaceID, Kind: valid.Kind}, field: "id"},
+		{name: "blank id", owner: participation.OwnerRef{WorkspaceID: valid.WorkspaceID, Kind: valid.Kind, ID: "  "}, field: "id"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			err := participation.ValidateOwner(testCase.owner)
+			if err == nil || !strings.Contains(err.Error(), testCase.field) {
+				t.Fatalf("ValidateOwner(%#v) error = %v, want field %q", testCase.owner, err, testCase.field)
+			}
+		})
+	}
+}
+
+func TestResolverShouldRejectOwnerFromAnotherWorkspace(t *testing.T) {
+	t.Parallel()
+
+	resolver := newTestResolver(t, participation.ResolverOptions{})
+	_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+		WorkspaceID: "ws-a",
+		Owner: participation.OwnerRef{
+			WorkspaceID: "ws-b",
+			Kind:        participation.OwnerKindSession,
+			ID:          "session-1",
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("Resolve(cross-workspace owner) error = %v, want workspace mismatch", err)
+	}
+}
+
 func TestResolverShouldRejectRunStrategyWithoutRunID(t *testing.T) {
 	t.Parallel()
 
 	resolver := newTestResolver(t, participation.ResolverOptions{})
 	_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
-		Owner: participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "owner-1"},
+		WorkspaceID: "ws-1",
+		Owner: participation.OwnerRef{
+			WorkspaceID: "ws-1",
+			Kind:        participation.OwnerKindTaskRun,
+			ID:          "owner-1",
+		},
 		Request: &participation.Request{
 			Mode:            new(participation.ModeLive),
 			ChannelStrategy: new(participation.StrategyRun),
@@ -227,7 +557,12 @@ func TestResolverShouldDeriveUniqueChannelIDs(t *testing.T) {
 	resolve := func(runID string) participation.Spec {
 		t.Helper()
 		spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
-			Owner: participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: runID},
+			WorkspaceID: "ws-1",
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          runID,
+			},
 			RunID: runID,
 			Request: &participation.Request{
 				Mode:            new(participation.ModeLive),
@@ -268,6 +603,12 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 
 		resolver := newTestResolver(t, participation.ResolverOptions{})
 		spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindSession,
+				ID:          "session-1",
+			},
 			Request: &participation.Request{Mode: new(participation.ModeLocal)},
 		})
 		if err != nil {
@@ -283,6 +624,12 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 
 		resolver := newTestResolver(t, participation.ResolverOptions{})
 		spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindAutomationRun,
+				ID:          "automation-run-1",
+			},
 			Request:       &participation.Request{Mode: new(participation.ModeLocal)},
 			RequestSource: participation.SourceAutomationJob,
 		})
@@ -299,6 +646,12 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 
 		resolver := newTestResolver(t, participation.ResolverOptions{})
 		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          "run-1",
+			},
 			Request:       &participation.Request{Mode: new(participation.ModeLocal)},
 			RequestSource: participation.SourceTaskProfile,
 		})
@@ -319,8 +672,12 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 		})
 		spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
 			WorkspaceID: "ws-1",
-			Owner:       participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "run-1"},
-			RunID:       "run-1",
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          "run-1",
+			},
+			RunID: "run-1",
 		})
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -351,6 +708,11 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 		})
 		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
 			WorkspaceID: "ws-1",
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindSession,
+				ID:          "session-1",
+			},
 			Request: &participation.Request{
 				Mode:            new(participation.ModeLive),
 				ChannelStrategy: new(participation.StrategyNamed),
@@ -371,8 +733,12 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 		resolver := newTestResolver(t, participation.ResolverOptions{})
 		spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
 			WorkspaceID: "ws-1",
-			Owner:       participation.OwnerRef{Kind: participation.OwnerKindLoopRun, ID: "loop-run-1"},
-			LoopRunID:   "loop-run-1",
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindLoopRun,
+				ID:          "loop-run-1",
+			},
+			LoopRunID: "loop-run-1",
 			Definition: &participation.Request{
 				Mode:            new(participation.ModeLive),
 				ChannelStrategy: new(participation.StrategyLoopRun),
@@ -399,6 +765,11 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 		})
 		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
 			WorkspaceID: "ws-1",
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindSession,
+				ID:          "session-1",
+			},
 			Request: &participation.Request{
 				Mode:            new(participation.ModeLive),
 				ChannelStrategy: new(participation.StrategyNamed),
@@ -425,7 +796,11 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 		}
 		explicitLocal, err := resolver.Resolve(context.Background(), participation.ResolveInput{
 			WorkspaceID: "ws-1",
-			Owner:       participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "run-1"},
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          "run-1",
+			},
 			RunID:       "run-1",
 			Coordinated: true,
 			Request:     &participation.Request{Mode: new(participation.ModeLocal)},
@@ -440,7 +815,11 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 		}
 		profileLocal, err := resolver.Resolve(context.Background(), participation.ResolveInput{
 			WorkspaceID: "ws-1",
-			Owner:       participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "run-2"},
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          "run-2",
+			},
 			RunID:       "run-2",
 			Coordinated: true,
 			Definition:  &participation.Request{Mode: new(participation.ModeLocal)},
@@ -464,7 +843,11 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 		})
 		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
 			WorkspaceID: "ws-1",
-			Owner:       participation.OwnerRef{Kind: participation.OwnerKindSession, ID: "child-1"},
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindSession,
+				ID:          "child-1",
+			},
 			Request: &participation.Request{
 				Mode:            new(participation.ModeLive),
 				ChannelStrategy: new(participation.StrategyNamed),
@@ -482,7 +865,12 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 		resolver := newTestResolver(t, participation.ResolverOptions{})
 		for _, childID := range []string{"spawn-1", "review-1", "detached-1"} {
 			spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
-				Owner: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: childID},
+				WorkspaceID: "ws-1",
+				Owner: participation.OwnerRef{
+					WorkspaceID: "ws-1",
+					Kind:        participation.OwnerKindSession,
+					ID:          childID,
+				},
 			})
 			if err != nil {
 				t.Fatalf("Resolve(%s) error = %v", childID, err)
@@ -500,6 +888,12 @@ func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
 			LiveSupport: func(context.Context, participation.ResolveInput) (bool, error) { return false, nil },
 		})
 		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-1",
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          "run-unsupported",
+			},
 			RunID: "run-unsupported",
 			Request: &participation.Request{
 				Mode:            new(participation.ModeLive),
@@ -621,6 +1015,35 @@ func TestResolveBoundsShouldTreatAdministrativeCeilingsAsInclusive(t *testing.T)
 	if !strings.Contains(err.Error(), "network.live.limits.max_wakes") {
 		t.Fatalf("ResolveBounds(above ceiling) error = %q, want ceiling key", err)
 	}
+}
+
+type participationResolverStub struct{}
+
+func (participationResolverStub) Resolve(
+	context.Context,
+	participation.ResolveInput,
+) (participation.Spec, error) {
+	return participation.LocalSpec(), nil
+}
+
+type participationObserverStub struct {
+	observation participation.ResolvedObservation
+	err         error
+}
+
+func (*participationObserverStub) Resolve(
+	context.Context,
+	participation.ResolveInput,
+) (participation.Spec, error) {
+	return participation.LocalSpec(), nil
+}
+
+func (s *participationObserverStub) ObserveParticipationResolved(
+	_ context.Context,
+	observation participation.ResolvedObservation,
+) error {
+	s.observation = observation
+	return s.err
 }
 
 func newTestResolver(t *testing.T, options participation.ResolverOptions) participation.Resolver {

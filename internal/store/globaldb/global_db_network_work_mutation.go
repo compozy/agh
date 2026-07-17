@@ -75,7 +75,7 @@ func openNetworkWorkWithExecutor(
 		WorkID: entry.WorkID, WorkspaceID: entry.WorkspaceID, Channel: entry.Channel,
 		Surface: entry.Surface, ThreadID: nullableNetworkString(entry.ThreadID),
 		DirectID: nullableNetworkString(entry.DirectID), OpenedBySessionID: entry.SessionID,
-		TargetSessionID: sql.NullString{},
+		TargetSessionID: nullableNetworkString(entry.PeerTo),
 		State:           store.NetworkWorkStateSubmitted, OpenedAt: store.FormatTimestamp(entry.Timestamp),
 		LastActivityAt: store.FormatTimestamp(entry.Timestamp),
 	}); err != nil {

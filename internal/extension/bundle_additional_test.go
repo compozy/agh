@@ -173,6 +173,29 @@ requirements = ["workspace-write"]
 	}
 }
 
+func TestBundleJobValidateUsesNormalizedParticipation(t *testing.T) {
+	t.Parallel()
+
+	mode := participation.ModeLive
+	strategy := participation.ChannelStrategy(" named ")
+	channel := " ops "
+	job := BundleJob{
+		Name: "daily-digest", AgentName: "planner", Prompt: "Summarize incidents.",
+		Schedule: automationpkg.ScheduleSpec{
+			Mode: automationpkg.ScheduleModeEvery, Interval: "1m",
+		},
+		Task: &automationpkg.JobTaskConfig{NetworkParticipation: &participation.Request{
+			Mode: &mode, ChannelStrategy: &strategy, ChannelID: &channel,
+		}},
+		Retry: automationpkg.DefaultRetryConfig(), FireLimit: automationpkg.DefaultFireLimitConfig(),
+	}
+
+	err := job.Validate("operations", "default", map[string]struct{}{"alerts": {}})
+	if !errors.Is(err, ErrBundleInvalid) || !strings.Contains(err.Error(), "undeclared channel \"ops\"") {
+		t.Fatalf("BundleJob.Validate() error = %v, want normalized undeclared channel", err)
+	}
+}
+
 func TestLoadBundleSpecsRejectsInvalidProfileAgents(t *testing.T) {
 	t.Parallel()
 

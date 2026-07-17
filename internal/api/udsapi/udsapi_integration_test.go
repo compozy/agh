@@ -19,10 +19,12 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/api/core"
+	apitestutil "github.com/compozy/agh/internal/api/testutil"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/resources"
 	sandboxlocal "github.com/compozy/agh/internal/sandbox/local"
@@ -198,7 +200,7 @@ func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 
 func TestUDSSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
-	created := createIntegrationSessionPayload(t, runtime)
+	created := createLiveIntegrationSessionPayload(t, runtime)
 	sessionID := created.ID
 
 	const promptTimeout = 5 * time.Second
@@ -1328,7 +1330,7 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 
 func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
-	enableIntegrationLiveNetwork(t, runtime.registry)
+	apitestutil.EnableIntegrationLiveNetwork(t, runtime.registry)
 
 	createResp := mustUnixRequest(
 		t,
@@ -1354,7 +1356,13 @@ func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, createResp, &created)
-	assertResolvedParticipationChannel(t, created.Session.ResolvedNetworkParticipation, "builders")
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		created.Session.ResolvedNetworkParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 	if created.Session.WorkspaceID == "" {
 		t.Fatal("expected created session workspace id")
 	}
@@ -1372,7 +1380,13 @@ func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
 	}
-	assertResolvedParticipationChannel(t, listed.Sessions[0].ResolvedNetworkParticipation, "builders")
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		listed.Sessions[0].ResolvedNetworkParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 
 	stopIntegrationSession(t, runtime, created.Session.WorkspaceID, created.Session.ID)
 
@@ -1393,7 +1407,13 @@ func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, statusResp, &stopped)
-	assertResolvedParticipationChannel(t, stopped.Session.ResolvedNetworkParticipation, "builders")
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		stopped.Session.ResolvedNetworkParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 	if stopped.Session.State != session.StateStopped {
 		t.Fatalf("stopped session state = %q, want %q", stopped.Session.State, session.StateStopped)
 	}
@@ -1434,7 +1454,12 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	if created.Scope != taskpkg.ScopeGlobal {
 		t.Fatalf("created scope = %q, want %q", created.Scope, taskpkg.ScopeGlobal)
 	}
-	assertLocalResolvedParticipation(t, created.ResolvedNetworkParticipation)
+	if created.ResolvedNetworkParticipation != nil {
+		t.Fatalf(
+			"created resolved_network_participation = %#v, want nil without an active run",
+			created.ResolvedNetworkParticipation,
+		)
+	}
 	if created.Owner == nil || created.Owner.Kind != taskpkg.OwnerKindPool || created.Owner.Ref != "ops" {
 		t.Fatalf("created owner = %#v, want pool/ops", created.Owner)
 	}
@@ -1500,7 +1525,12 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	if updated.Task.Description != "Expose the task and run transports everywhere" {
 		t.Fatalf("updated description = %q", updated.Task.Description)
 	}
-	assertLocalResolvedParticipation(t, updated.Task.ResolvedNetworkParticipation)
+	if updated.Task.ResolvedNetworkParticipation != nil {
+		t.Fatalf(
+			"updated resolved_network_participation = %#v, want nil without an active run",
+			updated.Task.ResolvedNetworkParticipation,
+		)
+	}
 	if updated.Task.Owner != nil {
 		t.Fatalf("updated owner = %#v, want nil", updated.Task.Owner)
 	}
@@ -1530,9 +1560,197 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestUDSTaskParticipationRoundTrip(t *testing.T) {
+	runtime := newIntegrationRuntime(t)
+	workspaceID := createIntegrationSessionPayload(t, runtime).WorkspaceID
+	apitestutil.EnableIntegrationLiveNetwork(t, runtime.registry)
+
+	created := createIntegrationTask(t, runtime, fmt.Appendf(nil, `{
+		"id":"task-uds-live",
+		"scope":"workspace",
+		"workspace":%q,
+		"title":"Verify UDS participation",
+		"network_participation":{
+			"mode":"live",
+			"channel_strategy":"named",
+			"channel_id":"builders"
+		}
+	}`, workspaceID))
+	if created.WorkspaceID != workspaceID {
+		t.Fatalf("created workspace_id = %q, want %q", created.WorkspaceID, workspaceID)
+	}
+	if created.ResolvedNetworkParticipation != nil {
+		t.Fatalf(
+			"created resolved_network_participation = %#v, want nil before a run",
+			created.ResolvedNetworkParticipation,
+		)
+	}
+
+	getProfile := func() taskpkg.ExecutionProfile {
+		t.Helper()
+		resp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			"http://unix/api/tasks/"+created.ID+"/execution-profile",
+			nil,
+			nil,
+		)
+		if resp.StatusCode != http.StatusOK {
+			body := readAndCloseHTTPBody(t, resp)
+			t.Fatalf("get execution profile status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
+		}
+		var payload contract.TaskExecutionProfileResponse
+		decodeHTTPJSON(t, resp, &payload)
+		return payload.Profile
+	}
+	assertProfileChannel := func(wantChannel string) {
+		t.Helper()
+		profile := getProfile()
+		request := profile.NetworkParticipation
+		if request == nil || request.Mode == nil || *request.Mode != participation.ModeLive ||
+			request.ChannelStrategy == nil || *request.ChannelStrategy != participation.StrategyNamed ||
+			request.ChannelID == nil || *request.ChannelID != wantChannel {
+			t.Fatalf("profile network_participation = %#v, want named Live channel %q", request, wantChannel)
+		}
+	}
+	assertProfileChannel("builders")
+
+	invalidUpdate := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPatch,
+		"http://unix/api/tasks/"+created.ID,
+		[]byte(`{"title":"Must not persist","network_participation":{"mode":"live"}}`),
+		nil,
+	)
+	if invalidUpdate.StatusCode != http.StatusBadRequest {
+		body := readAndCloseHTTPBody(t, invalidUpdate)
+		t.Fatalf("invalid update status = %d, want %d; body=%s", invalidUpdate.StatusCode, http.StatusBadRequest, body)
+	}
+	closeHTTPBody(t, invalidUpdate.Body)
+
+	detailResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		"http://unix/api/tasks/"+created.ID,
+		nil,
+		nil,
+	)
+	if detailResp.StatusCode != http.StatusOK {
+		body := readAndCloseHTTPBody(t, detailResp)
+		t.Fatalf(
+			"get task after invalid update status = %d, want %d; body=%s",
+			detailResp.StatusCode,
+			http.StatusOK,
+			body,
+		)
+	}
+	var unchanged contract.TaskDetailResponse
+	decodeHTTPJSON(t, detailResp, &unchanged)
+	if unchanged.Task.Task.Title != created.Title {
+		t.Fatalf("title after invalid update = %q, want %q", unchanged.Task.Task.Title, created.Title)
+	}
+	assertProfileChannel("builders")
+
+	validUpdate := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPatch,
+		"http://unix/api/tasks/"+created.ID,
+		[]byte(`{"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"reviewers"}}`),
+		nil,
+	)
+	if validUpdate.StatusCode != http.StatusOK {
+		body := readAndCloseHTTPBody(t, validUpdate)
+		t.Fatalf("valid update status = %d, want %d; body=%s", validUpdate.StatusCode, http.StatusOK, body)
+	}
+	closeHTTPBody(t, validUpdate.Body)
+	assertProfileChannel("reviewers")
+
+	queued := enqueueIntegrationTaskRun(t, runtime, created.ID, `{
+		"idempotency_key":"uds-live-enqueue",
+		"network_participation":{
+			"mode":"live",
+			"channel_strategy":"named",
+			"channel_id":"builders"
+		}
+	}`)
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		queued.ResolvedNetworkParticipation,
+		workspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
+
+	assertTaskAbsent := func(id string) {
+		t.Helper()
+		resp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/tasks/"+id, nil, nil)
+		if resp.StatusCode != http.StatusNotFound {
+			body := readAndCloseHTTPBody(t, resp)
+			t.Fatalf(
+				"get rejected task %q status = %d, want %d; body=%s",
+				id,
+				resp.StatusCode,
+				http.StatusNotFound,
+				body,
+			)
+		}
+		closeHTTPBody(t, resp.Body)
+	}
+	for _, rejected := range []struct {
+		name string
+		id   string
+		body []byte
+	}{
+		{
+			name: "Should reject an invalid participation request atomically",
+			id:   "task-uds-invalid-participation",
+			body: fmt.Appendf(
+				nil,
+				`{"id":"task-uds-invalid-participation","scope":"workspace","workspace":%q,"title":"Invalid participation","network_participation":{"mode":"live"}}`,
+				workspaceID,
+			),
+		},
+		{
+			name: "Should reject a removed flat channel field atomically",
+			id:   "task-uds-legacy-channel",
+			body: fmt.Appendf(
+				nil,
+				`{"id":"task-uds-legacy-channel","scope":"workspace","workspace":%q,"title":"Legacy channel","channel":"builders"}`,
+				workspaceID,
+			),
+		},
+	} {
+		t.Run(rejected.name, func(t *testing.T) {
+			resp := mustUnixRequest(
+				t,
+				runtime.client,
+				http.MethodPost,
+				"http://unix/api/tasks",
+				rejected.body,
+				nil,
+			)
+			if resp.StatusCode != http.StatusBadRequest {
+				body := readAndCloseHTTPBody(t, resp)
+				t.Fatalf("rejected create status = %d, want %d; body=%s", resp.StatusCode, http.StatusBadRequest, body)
+			}
+			closeHTTPBody(t, resp.Body)
+			assertTaskAbsent(rejected.id)
+		})
+	}
+}
+
 func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
-	created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+	workspaceID := createIntegrationSessionPayload(t, runtime).WorkspaceID
+	created := createIntegrationTask(
+		t,
+		runtime,
+		fmt.Appendf(nil, `{"scope":"workspace","workspace":%q,"title":"Run task routes"}`, workspaceID),
+	)
 
 	queued := enqueueIntegrationTaskRun(
 		t,
@@ -1543,7 +1761,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	if queued.Status != taskpkg.TaskRunStatusQueued {
 		t.Fatalf("queued status = %q, want %q", queued.Status, taskpkg.TaskRunStatusQueued)
 	}
-	assertLocalResolvedParticipation(t, queued.ResolvedNetworkParticipation)
+	apitestutil.AssertLocalResolvedParticipation(t, queued.ResolvedNetworkParticipation)
 
 	listQueuedResp := mustUnixRequest(
 		t,
@@ -2887,7 +3105,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("local.NewRegistry() error = %v", err)
 	}
-	participationResolver := newIntegrationParticipationResolver(t, registry)
+	participationResolver := apitestutil.NewIntegrationParticipationResolver(t, registry)
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
@@ -3060,11 +3278,33 @@ func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 
 func createIntegrationSessionPayload(t *testing.T, runtime integrationRuntime) sessionPayload {
 	t.Helper()
-
-	body, err := json.Marshal(map[string]string{
+	return createIntegrationSessionPayloadFromRequest(t, runtime, map[string]any{
 		"agent_name":     "coder",
 		"workspace_path": runtime.workspace,
 	})
+}
+
+func createLiveIntegrationSessionPayload(t *testing.T, runtime integrationRuntime) sessionPayload {
+	t.Helper()
+	return createIntegrationSessionPayloadFromRequest(t, runtime, map[string]any{
+		"agent_name":     "coder",
+		"workspace_path": runtime.workspace,
+		"network_participation": map[string]any{
+			"mode":             "live",
+			"channel_strategy": "named",
+			"channel_id":       "builders",
+		},
+	})
+}
+
+func createIntegrationSessionPayloadFromRequest(
+	t *testing.T,
+	runtime integrationRuntime,
+	request map[string]any,
+) sessionPayload {
+	t.Helper()
+
+	body, err := json.Marshal(request)
 	if err != nil {
 		t.Fatalf("json.Marshal(create session body) error = %v", err)
 	}
@@ -3312,6 +3552,25 @@ func decodeHTTPJSON(t *testing.T, resp *http.Response, dest any) {
 	}
 	if err := json.Unmarshal(body, dest); err != nil {
 		t.Fatalf("json.Unmarshal(response) error = %v; body=%s", err, string(body))
+	}
+}
+
+func readAndCloseHTTPBody(t *testing.T, resp *http.Response) []byte {
+	t.Helper()
+
+	body, readErr := io.ReadAll(resp.Body)
+	closeErr := resp.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatalf("read and close HTTP response body: %v", err)
+	}
+	return body
+}
+
+func closeHTTPBody(t *testing.T, body io.Closer) {
+	t.Helper()
+
+	if err := body.Close(); err != nil {
+		t.Fatalf("close HTTP response body: %v", err)
 	}
 }
 

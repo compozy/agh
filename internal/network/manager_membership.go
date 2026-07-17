@@ -69,7 +69,7 @@ func (m *Manager) JoinChannel(ctx context.Context, join sessionpkg.NetworkPeerJo
 	m.mu.Unlock()
 	m.dispatchNetworkPeerLifecycleHooks(ctx, []PeerLifecycleEvent{{
 		Kind:      PeerLifecycleJoined,
-		Peer:      peerInfoFromLocal(local, local.JoinedAt, m.config.GreetIntervalDuration()),
+		Peer:      peerInfoFromLocal(local),
 		Timestamp: local.JoinedAt,
 	}})
 	m.logger.Info(
@@ -173,7 +173,7 @@ func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
 	leftAt := m.now().UTC()
 	m.dispatchNetworkPeerLifecycleHooks(ctx, []PeerLifecycleEvent{{
 		Kind:      PeerLifecycleLeft,
-		Peer:      peerInfoFromLocal(left, leftAt, m.config.GreetIntervalDuration()),
+		Peer:      peerInfoFromLocal(left),
 		Timestamp: leftAt,
 	}})
 	m.logger.Info(
@@ -186,7 +186,7 @@ func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-// ListPeers returns the current visible local+remote peer snapshot.
+// ListPeers returns the current daemon-local peer snapshot.
 func (m *Manager) ListPeers(ctx context.Context, workspaceID string, channel string) ([]PeerInfo, error) {
 	if ctx == nil {
 		return nil, errors.New("network: list peers context is required")
@@ -197,7 +197,7 @@ func (m *Manager) ListPeers(ctx context.Context, workspaceID string, channel str
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return m.peers.ListPeers(strings.TrimSpace(workspaceID), strings.TrimSpace(channel), m.now().UTC()), nil
+	return m.peers.ListPeers(strings.TrimSpace(workspaceID), strings.TrimSpace(channel)), nil
 }
 
 // ListChannels returns active in-process channels.
@@ -211,5 +211,5 @@ func (m *Manager) ListChannels(ctx context.Context, workspaceID string) ([]Chann
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return m.peers.ListChannels(strings.TrimSpace(workspaceID), m.now().UTC()), nil
+	return m.peers.ListChannels(strings.TrimSpace(workspaceID)), nil
 }

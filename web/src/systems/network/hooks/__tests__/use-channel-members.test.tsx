@@ -48,13 +48,8 @@ describe("useChannelMembers", () => {
   it("Should classify peers by session_id presence and surface aggregate counts", async () => {
     listNetworkPeersMock.mockResolvedValueOnce([
       buildPeer({ peer_id: "agent-a", session_id: "session-1", presence_state: "local" }),
-      buildPeer({
-        peer_id: "agent-b",
-        session_id: "session-2",
-        presence_state: "active",
-        last_seen_age_seconds: 12,
-      }),
-      buildPeer({ peer_id: "human-a", presence_state: "inactive", last_seen_age_seconds: 92 }),
+      buildPeer({ peer_id: "agent-b", session_id: "session-2", presence_state: "local" }),
+      buildPeer({ peer_id: "human-a", presence_state: "local" }),
     ]);
 
     const { result } = renderHook(() => useChannelMembers("ops", { workspaceId: WORKSPACE_ID }), {
@@ -73,10 +68,9 @@ describe("useChannelMembers", () => {
       "human-a",
     ]);
     expect(result.current.members[0].role).toBe("agent");
-    expect(result.current.members[1].presenceState).toBe("active");
-    expect(result.current.members[1].lastSeenAgeSeconds).toBe(12);
+    expect(result.current.members[1].presenceState).toBe("local");
     expect(result.current.members[2].role).toBe("human");
-    expect(result.current.members[2].presenceState).toBe("inactive");
+    expect(result.current.members[2].presenceState).toBe("local");
     expect(listNetworkPeersMock).toHaveBeenCalledWith(WORKSPACE_ID, "ops", expect.any(AbortSignal));
   });
 

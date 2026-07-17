@@ -1487,12 +1487,13 @@ describe("Triggers create modal", () => {
     });
     expect(createTriggerRequests[0]).toEqual(
       expect.objectContaining({
-        loop_target: {
+        loop_target: expect.objectContaining({
           input_mapping: {},
           inputs: { pr: 2 },
           loop_name: "reviews-watch",
+          network_participation: { mode: "local" },
           workspace_id: "ws_beta",
-        },
+        }),
         name: "review-on-stop",
         scope: "workspace",
         target_kind: "loop",

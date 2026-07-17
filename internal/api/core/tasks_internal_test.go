@@ -14,7 +14,6 @@ import (
 
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -223,7 +222,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	runCtx.Request = httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/tasks/task-1/runs?status=running&session_id=sess-1&limit=1",
+		"/tasks/task-1/runs?status=running&session_id=sess-1&participation_channel=builders&limit=1",
 		http.NoBody,
 	)
 
@@ -231,7 +230,10 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTaskRunListQuery() error = %v", err)
 	}
-	if runQuery.Status != taskpkg.TaskRunStatusRunning || runQuery.SessionID != "sess-1" || runQuery.Limit != 1 {
+	if runQuery.Status != taskpkg.TaskRunStatusRunning ||
+		runQuery.SessionID != "sess-1" ||
+		runQuery.ParticipationChannel != "builders" ||
+		runQuery.Limit != 1 {
 		t.Fatalf("parseTaskRunListQuery() = %#v", runQuery)
 	}
 
@@ -333,6 +335,20 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		assertTaskValidationError(t, err, `invalid integer "bad"`)
 	}
 
+	invalidChannelRecorder := httptest.NewRecorder()
+	invalidChannelCtx, _ := gin.CreateTestContext(invalidChannelRecorder)
+	invalidChannelCtx.Request = httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/tasks/task-1/runs?participation_channel=invalid%20channel",
+		http.NoBody,
+	)
+	if _, err := parseTaskRunListQuery(invalidChannelCtx); err == nil {
+		t.Fatal("parseTaskRunListQuery(invalid participation channel) error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, "task_run_query.participation_channel")
+	}
+
 	decodeRecorder := httptest.NewRecorder()
 	decodeCtx, _ := gin.CreateTestContext(decodeRecorder)
 	decodeCtx.Request = httptest.NewRequestWithContext(
@@ -407,22 +423,25 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 
 		claimedAt := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 		run := taskpkg.Run{
-			ID:              "run-lease",
-			TaskID:          "task-lease",
-			Status:          taskpkg.TaskRunStatusRunning,
-			Attempt:         1,
-			ClaimedBy:       &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
-			SessionID:       "sess-lease",
-			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-			ClaimTokenHash:  "sha256:" + strings.Repeat("c", 64),
-			LeaseUntil:      claimedAt.Add(15 * time.Minute),
-			HeartbeatAt:     claimedAt.Add(time.Minute),
-			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: coreTestLiveParticipation("ws-1", "coord-lease")},
-			QueuedAt:        claimedAt.Add(-time.Minute),
-			ClaimedAt:       claimedAt,
-			StartedAt:       claimedAt.Add(time.Minute),
+			ID:                 "run-lease",
+			TaskID:             "task-lease",
+			Status:             taskpkg.TaskRunStatusRunning,
+			Attempt:            1,
+			ClaimedBy:          &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
+			SessionID:          "sess-lease",
+			Origin:             taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+			ClaimTokenHash:     "sha256:" + strings.Repeat("c", 64),
+			LeaseUntil:         claimedAt.Add(15 * time.Minute),
+			HeartbeatAt:        claimedAt.Add(time.Minute),
+			RunNetworkState:    &taskpkg.RunNetworkState{NetworkSpec: coreTestLiveParticipation("ws-1", "coord-lease")},
+			QueuedAt:           claimedAt.Add(-time.Minute),
+			ClaimedAt:          claimedAt,
+			StartedAt:          claimedAt.Add(time.Minute),
+			DesignationGroupID: "designation-group",
+			Error:              "provider rejected agh_claim_error-secret",
 			Metadata: json.RawMessage(
-				`{"keep":"metadata","claim_token":"raw-secret-token","nested":{"claim_token":"nested-secret"}}`,
+				`{"keep":"metadata","claim_token":"raw-secret-token","nested":{"claim_token":"nested-secret"},` +
+					`"designation":{"index":1,"brief":"Review with agh_claim_designation-secret"}}`,
 			),
 			Result: json.RawMessage(`[{"ok":true},{"claim_token":"result-secret"}]`),
 		}
@@ -454,10 +473,21 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 		if strings.Contains(encoded, `"claim_token"`) {
 			t.Fatalf("TaskRunPayload JSON exposed raw claim_token field: %s", encoded)
 		}
-		for _, rawValue := range []string{"raw-secret-token", "nested-secret", "result-secret"} {
+		for _, rawValue := range []string{
+			"raw-secret-token",
+			"nested-secret",
+			"result-secret",
+			"agh_claim_error-secret",
+			"agh_claim_designation-secret",
+		} {
 			if strings.Contains(encoded, rawValue) {
 				t.Fatalf("TaskRunPayload JSON exposed raw token value %q: %s", rawValue, encoded)
 			}
+		}
+		if payload.Designation == nil || payload.Designation.Index != 1 ||
+			strings.Contains(payload.Designation.Brief, "agh_claim_designation-secret") ||
+			!strings.Contains(payload.Designation.Brief, "agh_claim_[REDACTED]") {
+			t.Fatalf("TaskRunPayload designation = %#v, want redacted index-1 projection", payload.Designation)
 		}
 		if !strings.Contains(encoded, `"claim_token_hash"`) || !strings.Contains(encoded, run.ClaimTokenHash) {
 			t.Fatalf("TaskRunPayload JSON = %s, want claim_token_hash", encoded)
@@ -478,37 +508,6 @@ func TestTaskExecutionRequestFromRequestValidatesDomainRequest(t *testing.T) {
 		_, err := taskExecutionRequestFromRequest(contract.TaskExecutionRequest{Metadata: oversizedMetadata})
 		if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
 			t.Fatalf("taskExecutionRequestFromRequest() error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
-		}
-	})
-}
-
-func TestTaskUpdateHasRowFields(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should treat network_participation alone as non-row patch", func(t *testing.T) {
-		t.Parallel()
-		mode := participation.ModeLive
-		req := contract.UpdateTaskRequest{
-			NetworkParticipation: &participation.Request{Mode: &mode},
-		}
-		if taskUpdateHasRowFields(req) {
-			t.Fatal("taskUpdateHasRowFields() = true, want false for network_participation-only patch")
-		}
-		if !req.HasChanges() {
-			t.Fatal("HasChanges() = false, want true when network_participation is set")
-		}
-	})
-
-	t.Run("Should detect row fields independently of network_participation", func(t *testing.T) {
-		t.Parallel()
-		title := "ship"
-		mode := participation.ModeLocal
-		req := contract.UpdateTaskRequest{
-			Title:                &title,
-			NetworkParticipation: &participation.Request{Mode: &mode},
-		}
-		if !taskUpdateHasRowFields(req) {
-			t.Fatal("taskUpdateHasRowFields() = false, want true when title is set")
 		}
 	})
 }

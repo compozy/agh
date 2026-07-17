@@ -111,6 +111,14 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			resolvedParticipationChannelID(payload.ResolvedNetworkParticipation) != "builders" {
 			t.Fatalf("payload = %#v", payload)
 		}
+		wantParticipation := testLiveParticipation("ws_alpha", "builders")
+		if payload.ResolvedNetworkParticipation == nil || *payload.ResolvedNetworkParticipation != wantParticipation {
+			t.Fatalf(
+				"payload.ResolvedNetworkParticipation = %#v, want %#v",
+				payload.ResolvedNetworkParticipation,
+				wantParticipation,
+			)
+		}
 		if payload.Provider != "fake" {
 			t.Fatalf("payload.Provider = %q, want %q", payload.Provider, "fake")
 		}

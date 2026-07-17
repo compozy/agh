@@ -48,71 +48,112 @@ func (g *TaskRunRepo) ClaimNextRun(
 
 	var result taskpkg.ClaimResult
 	if err := g.tasks.withTaskImmediateTransaction(ctx, "claim next task run", func(exec taskSQLExecutor) error {
-		if err := g.ensureClaimerHasNoActiveLease(ctx, exec, normalized); err != nil {
-			return err
-		}
-		runID, err := g.selectClaimableRunID(ctx, exec, normalized)
-		if err != nil {
-			return err
-		}
-		if runID == "" {
-			return taskpkg.ErrNoClaimableRun
-		}
-
-		claimToken, err := taskpkg.NewClaimToken()
-		if err != nil {
-			return err
-		}
-		claimHash, err := taskpkg.ClaimTokenHash(claimToken)
-		if err != nil {
-			return err
-		}
-		leaseUntil := normalized.Now.Add(normalized.LeaseDuration).UTC()
-		if err := claimRunWithExecutor(ctx, exec, runID, normalized, claimToken, claimHash, leaseUntil); err != nil {
-			return err
-		}
-		run, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
-		if err != nil {
-			return err
-		}
-		if run.IsNetworkWake() {
-			result = taskpkg.ClaimResult{
-				Run: run, ClaimToken: claimToken, LeaseUntil: leaseUntil,
-			}
-			return nil
-		}
-		if err := setTaskCurrentRunProjectionForRun(ctx, exec, runID); err != nil {
-			return err
-		}
-		if err := appendLoopNodeRunningEventWithExecutor(ctx, exec, run, normalized.Now); err != nil {
-			return err
-		}
-		taskRecord, err := g.tasks.getTaskWithExecutor(ctx, exec, run.TaskID)
-		if err != nil {
-			return err
-		}
-		channel, err := g.coordinationChannelMetadata(ctx, exec, run)
-		if err != nil {
-			return err
-		}
-		result = taskpkg.ClaimResult{
-			Task:                &taskRecord,
-			Run:                 run,
-			ClaimToken:          claimToken,
-			LeaseUntil:          leaseUntil,
-			CoordinationChannel: channel,
-		}
-		return nil
+		var claimErr error
+		result, claimErr = g.claimNextRunWithExecutor(ctx, exec, normalized)
+		return claimErr
 	}); err != nil {
 		return taskpkg.ClaimResult{}, err
 	}
 
+	return result, nil
+}
+
+func (g *TaskRunRepo) claimNextRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	criteria taskpkg.ClaimCriteria,
+) (taskpkg.ClaimResult, error) {
+	if err := g.ensureClaimerHasNoActiveLease(ctx, exec, criteria); err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	runID, err := g.selectClaimableRunID(ctx, exec, criteria)
+	if err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	if runID == "" {
+		return taskpkg.ClaimResult{}, taskpkg.ErrNoClaimableRun
+	}
+	claimToken, err := taskpkg.NewClaimToken()
+	if err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	claimHash, err := taskpkg.ClaimTokenHash(claimToken)
+	if err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	leaseUntil := criteria.Now.Add(criteria.LeaseDuration).UTC()
+	if err := claimRunWithExecutor(
+		ctx,
+		exec,
+		runID,
+		criteria,
+		claimToken,
+		claimHash,
+		leaseUntil,
+	); err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	run, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
+	if err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	if run.IsNetworkWake() {
+		return claimNetworkWakeResult(ctx, exec, run, claimToken, leaseUntil, criteria.Now)
+	}
+	return g.claimStandardTaskRunResult(ctx, exec, run, claimToken, leaseUntil, criteria.Now)
+}
+
+func claimNetworkWakeResult(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run taskpkg.Run,
+	claimToken string,
+	leaseUntil time.Time,
+	claimedAt time.Time,
+) (taskpkg.ClaimResult, error) {
+	if run.ClaimedBy == nil {
+		return taskpkg.ClaimResult{}, fmt.Errorf("store: network wake claim actor is required")
+	}
+	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
+	if err := appendNetworkWakeEventWithExecutor(ctx, exec, networkWakeEvent{
+		workspaceID: run.WorkspaceID, wakeID: wakeID, taskRunID: run.ID,
+		ownerKey: ownerKey, targetSessionID: targetSessionID,
+		eventType: networkWakeEventClaimed, state: run.Status.String(),
+		claimTokenHash: run.ClaimTokenHash, actor: *run.ClaimedBy, at: claimedAt,
+	}); err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	return taskpkg.ClaimResult{Run: run, ClaimToken: claimToken, LeaseUntil: leaseUntil}, nil
+}
+
+func (g *TaskRunRepo) claimStandardTaskRunResult(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run taskpkg.Run,
+	claimToken string,
+	leaseUntil time.Time,
+	claimedAt time.Time,
+) (taskpkg.ClaimResult, error) {
+	if err := setTaskCurrentRunProjectionForRun(ctx, exec, run.ID); err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	if err := appendLoopNodeRunningEventWithExecutor(ctx, exec, run, claimedAt); err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	taskRecord, err := g.tasks.getTaskWithExecutor(ctx, exec, run.TaskID)
+	if err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
+	channel, err := g.coordinationChannelMetadata(ctx, exec, run)
+	if err != nil {
+		return taskpkg.ClaimResult{}, err
+	}
 	return taskpkg.ClaimResult{
-		Task:                result.Task,
-		Run:                 result.Run,
-		ClaimToken:          result.ClaimToken,
-		LeaseUntil:          result.LeaseUntil,
-		CoordinationChannel: result.CoordinationChannel,
+		Task:                &taskRecord,
+		Run:                 run,
+		ClaimToken:          claimToken,
+		LeaseUntil:          leaseUntil,
+		CoordinationChannel: channel,
 	}, nil
 }
 
@@ -159,6 +200,15 @@ func (g *TaskRunRepo) HeartbeatRunLease(
 		updated, err = g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
 		if err != nil {
 			return err
+		}
+		if updated.IsNetworkWake() {
+			wakeID, targetSessionID, ownerKey := updated.NetworkWakeCorrelation()
+			return appendNetworkWakeEventWithExecutor(ctx, exec, networkWakeEvent{
+				workspaceID: updated.WorkspaceID, wakeID: wakeID, taskRunID: updated.ID,
+				ownerKey: ownerKey, targetSessionID: targetSessionID,
+				eventType: networkWakeEventHeartbeat, state: updated.Status.String(),
+				claimTokenHash: updated.ClaimTokenHash, actor: normalized.Actor.Actor, at: normalized.Now,
+			})
 		}
 		return g.appendLoopTokenTickForHeartbeat(ctx, exec, updated, normalized.TokensUsed)
 	}); err != nil {
@@ -231,7 +281,19 @@ func (g *TaskRunRepo) ReleaseRunLease(
 			}
 		}
 		updated, err = g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
-		return err
+		if err != nil {
+			return err
+		}
+		if updated.IsNetworkWake() {
+			wakeID, targetSessionID, ownerKey := updated.NetworkWakeCorrelation()
+			return appendNetworkWakeEventWithExecutor(ctx, exec, networkWakeEvent{
+				workspaceID: updated.WorkspaceID, wakeID: wakeID, taskRunID: updated.ID,
+				ownerKey: ownerKey, targetSessionID: targetSessionID,
+				eventType: networkWakeEventReleased, state: updated.Status.String(),
+				reason: normalized.Reason, actor: normalized.Actor.Actor, at: normalized.Now,
+			})
+		}
+		return nil
 	}); err != nil {
 		return taskpkg.Run{}, err
 	}

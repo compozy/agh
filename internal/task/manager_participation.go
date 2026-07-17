@@ -4,13 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/compozy/agh/internal/network/participation"
 )
 
-func (m *Service) resolveQueuedRunParticipation(
+type taskParticipationProfileStore interface {
+	GetExecutionProfile(context.Context, string) (ExecutionProfile, error)
+}
+
+func (m *Service) resolveQueuedRunParticipationWithStore(
 	ctx context.Context,
+	store taskParticipationProfileStore,
 	taskRecord Task,
 	runID string,
 	designationGroupID string,
@@ -19,7 +25,7 @@ func (m *Service) resolveQueuedRunParticipation(
 	request *participation.Request,
 	requestSource participation.Source,
 ) (participation.Spec, error) {
-	definition, err := m.taskParticipationDefinition(ctx, taskRecord.ID)
+	definition, err := taskParticipationDefinitionWithStore(ctx, store, taskRecord.ID)
 	if err != nil {
 		return participation.Spec{}, err
 	}
@@ -43,8 +49,9 @@ func (m *Service) resolveQueuedRunParticipation(
 	return m.participationResolver.Resolve(ctx, participation.ResolveInput{
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
 		Owner: participation.OwnerRef{
-			Kind: participation.OwnerKindTaskRun,
-			ID:   strings.TrimSpace(runID),
+			WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
+			Kind:        participation.OwnerKindTaskRun,
+			ID:          strings.TrimSpace(runID),
 		},
 		Request:       request,
 		RequestSource: requestSource,
@@ -56,11 +63,35 @@ func (m *Service) resolveQueuedRunParticipation(
 	})
 }
 
-func (m *Service) taskParticipationDefinition(
+func (m *Service) observeCommittedRunParticipation(
 	ctx context.Context,
+	observation *participation.ResolvedObservation,
+) {
+	if m == nil || observation == nil {
+		return
+	}
+	observationCtx := context.WithoutCancel(ctx)
+	if err := participation.ObserveResolved(
+		observationCtx,
+		m.participationResolver,
+		*observation,
+	); err != nil {
+		slog.ErrorContext(
+			observationCtx,
+			"task: committed network participation observation failed",
+			"error", err,
+			"workspace_id", observation.WorkspaceID,
+			"owner_id", observation.Owner.ID,
+		)
+	}
+}
+
+func taskParticipationDefinitionWithStore(
+	ctx context.Context,
+	store taskParticipationProfileStore,
 	taskID string,
 ) (*participation.Request, error) {
-	profile, err := m.store.GetExecutionProfile(ctx, strings.TrimSpace(taskID))
+	profile, err := store.GetExecutionProfile(ctx, strings.TrimSpace(taskID))
 	switch {
 	case errors.Is(err, ErrExecutionProfileNotFound):
 		return nil, nil
@@ -74,8 +105,13 @@ func (m *Service) taskParticipationDefinition(
 	}
 }
 
-func (m *Service) existingQueuedRun(
+type taskRunIdempotencyReader interface {
+	GetTaskRunByIdempotencyKey(context.Context, string, Origin) (Run, error)
+}
+
+func existingQueuedRunWithStore(
 	ctx context.Context,
+	store taskRunIdempotencyReader,
 	taskID string,
 	idempotencyKey string,
 	origin Origin,
@@ -83,7 +119,7 @@ func (m *Service) existingQueuedRun(
 	if strings.TrimSpace(idempotencyKey) == "" {
 		return nil, false, nil
 	}
-	run, err := m.store.GetTaskRunByIdempotencyKey(ctx, idempotencyKey, origin)
+	run, err := store.GetTaskRunByIdempotencyKey(ctx, idempotencyKey, origin)
 	switch {
 	case errors.Is(err, ErrTaskRunIdempotencyNotFound):
 		return nil, false, nil

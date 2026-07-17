@@ -26,15 +26,68 @@ func (g *NetworkRepo) PutNetworkSubscription(ctx context.Context, entry store.Ne
 	if normalized.UpdatedAt.IsZero() {
 		normalized.UpdatedAt = normalized.CreatedAt
 	}
-	if err := g.queries.UpsertNetworkSubscription(ctx, sqlcgen.UpsertNetworkSubscriptionParams{
-		WorkspaceID:        normalized.WorkspaceID,
-		Channel:            normalized.Channel,
-		ThreadID:           normalized.ThreadID,
-		SessionID:          normalized.SessionID,
-		Mode:               normalized.Mode,
-		KeywordFiltersJson: stringSliceJSONString(normalized.KeywordFilters),
-		CreatedAt:          store.FormatTimestamp(normalized.CreatedAt),
-		UpdatedAt:          store.FormatTimestamp(normalized.UpdatedAt),
+	return putNetworkSubscriptionWithExecutor(ctx, g.db, normalized)
+}
+
+// PutNetworkSubscriptionWithChannel creates missing channel authority and
+// upserts its subscription atomically without replacing existing metadata.
+func (g *NetworkRepo) PutNetworkSubscriptionWithChannel(
+	ctx context.Context,
+	channel store.NetworkChannelEntry,
+	entry store.NetworkSubscriptionEntry,
+) error {
+	preparedChannel, err := g.prepareNetworkChannelEntry(ctx, "put network subscription with channel", channel)
+	if err != nil {
+		return err
+	}
+	normalized := normalizeNetworkSubscriptionEntry(entry)
+	if err := normalized.Validate(); err != nil {
+		return fmt.Errorf("store: validate network subscription: %w", err)
+	}
+	if normalized.CreatedAt.IsZero() {
+		normalized.CreatedAt = g.now()
+	}
+	if normalized.UpdatedAt.IsZero() {
+		normalized.UpdatedAt = normalized.CreatedAt
+	}
+	if preparedChannel.WorkspaceID != normalized.WorkspaceID || preparedChannel.Channel != normalized.Channel {
+		return errors.New("store: network subscription channel identity does not match channel authority")
+	}
+	return g.withNetworkImmediateTransaction(
+		ctx,
+		"put network subscription with channel",
+		func(exec networkSQLExecutor) error {
+			queries := sqlcgen.New(exec)
+			if err := queries.CreateNetworkChannel(ctx, sqlcgen.CreateNetworkChannelParams{
+				Channel:           preparedChannel.Channel,
+				WorkspaceID:       preparedChannel.WorkspaceID,
+				Purpose:           preparedChannel.Purpose,
+				FanoutPolicy:      preparedChannel.FanoutPolicy,
+				CoordinatorPeerID: preparedChannel.CoordinatorPeerID,
+				CreatedBy:         preparedChannel.CreatedBy,
+				CreatedAt:         store.FormatTimestamp(preparedChannel.CreatedAt),
+				UpdatedAt:         store.FormatTimestamp(preparedChannel.UpdatedAt),
+			}); err != nil && !isSQLiteUniqueConstraint(err) && !isSQLitePrimaryKeyConstraint(err) {
+				return fmt.Errorf("store: create network subscription channel: %w", err)
+			}
+			return putNetworkSubscriptionWithExecutor(ctx, exec, normalized)
+		},
+	)
+}
+
+func putNetworkSubscriptionWithExecutor(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	normalized store.NetworkSubscriptionEntry,
+) error {
+	if err := sqlcgen.New(exec).UpsertNetworkSubscription(ctx, sqlcgen.UpsertNetworkSubscriptionParams{
+		WorkspaceID: normalized.WorkspaceID,
+		Channel:     normalized.Channel,
+		ThreadID:    normalized.ThreadID,
+		SessionID:   normalized.SessionID,
+		Mode:        normalized.Mode,
+		CreatedAt:   store.FormatTimestamp(normalized.CreatedAt),
+		UpdatedAt:   store.FormatTimestamp(normalized.UpdatedAt),
 	}); err != nil {
 		return fmt.Errorf("store: upsert network subscription: %w", err)
 	}
@@ -54,6 +107,7 @@ func (g *NetworkRepo) ListNetworkSubscriptions(
 		Channel:     strings.TrimSpace(query.Channel),
 		ThreadID:    strings.TrimSpace(query.ThreadID),
 		SessionID:   strings.TrimSpace(query.SessionID),
+		ExactThread: query.ExactThread,
 		Limit:       query.Limit,
 	}
 	if err := normalized.Validate(); err != nil {
@@ -61,14 +115,20 @@ func (g *NetworkRepo) ListNetworkSubscriptions(
 	}
 	// dynamic-sql: optional identity filters and the caller-provided limit change the statement shape.
 	sqlQuery := `SELECT
-		workspace_id, channel, thread_id, session_id, mode, keyword_filters_json, created_at, updated_at
+		workspace_id, channel, thread_id, session_id, mode, created_at, updated_at
 		FROM network_subscriptions`
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", normalized.WorkspaceID),
 		store.StringClause("channel", normalized.Channel),
-		store.StringClause("thread_id", normalized.ThreadID),
 		store.StringClause("session_id", normalized.SessionID),
 	)
+	if normalized.ExactThread {
+		where = append(where, "thread_id = ?")
+		args = append(args, normalized.ThreadID)
+	} else if normalized.ThreadID != "" {
+		where = append(where, "thread_id = ?")
+		args = append(args, normalized.ThreadID)
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY channel ASC, thread_id DESC, session_id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)

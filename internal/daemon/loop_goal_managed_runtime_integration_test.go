@@ -13,6 +13,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	loopdsl "github.com/compozy/agh/internal/loop/dsl"
 	goalpkg "github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -21,6 +22,51 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
+	t.Run("Should create a run-owned session when origin participation differs from the Loop Run", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "origin-participation", nil, withoutInitialGoalBinding())
+		originParticipation := daemonTestLiveParticipation(
+			string(fixture.run.WorkspaceID),
+			"goal-origin-live",
+		)
+		originID, originIdentity := fixture.createOriginSession(
+			t,
+			"origin-participation",
+			originParticipation,
+		)
+		request := fixture.bindingRequest("origin-participation")
+		request.OriginSessionID = originID
+		request.PinnedCreationProfileRef = originIdentity.CreationProfileRef
+		request.PinnedCreationDigest = originIdentity.CreationDigest
+		request.StaticPolicySpecDigest = originIdentity.PolicySpecDigest
+		localParticipation := participation.LocalSpec()
+		request.NetworkParticipation = &localParticipation
+
+		binding, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
+		if err != nil {
+			t.Fatalf("BindActionSession() error = %v", err)
+		}
+		if binding.SessionID == originID {
+			t.Fatalf("binding.SessionID = %q, want a run-owned session distinct from origin", binding.SessionID)
+		}
+		if got, want := binding.Ownership, string(goalpkg.BindingOwnershipRunOwned); got != want {
+			t.Fatalf("binding.Ownership = %q, want %q", got, want)
+		}
+		bound, err := fixture.manager.Status(testutil.Context(t), binding.SessionID)
+		if err != nil {
+			t.Fatalf("Status(bound session) error = %v", err)
+		}
+		if got := bound.NetworkParticipation; got != localParticipation {
+			t.Fatalf("bound session participation = %#v, want Loop Run snapshot %#v", got, localParticipation)
+		}
+		origin, err := fixture.manager.Status(testutil.Context(t), originID)
+		if err != nil {
+			t.Fatalf("Status(origin session) error = %v", err)
+		}
+		if got := origin.NetworkParticipation; got != originParticipation {
+			t.Fatalf("origin participation = %#v, want unchanged %#v", got, originParticipation)
+		}
+	})
+
 	t.Run("Should converge Stop after session materialization and before binding activation", func(t *testing.T) {
 		materialized := make(chan struct{})
 		releaseActivation := make(chan struct{})
@@ -973,6 +1019,37 @@ func (f loopGoalManagedRuntimeFixture) bindingRequest(suffix string) looppkg.Act
 		DesiredSessionID: "sess-goal-managed-" + suffix,
 		MaxTurns:         3,
 	}
+}
+
+func (f loopGoalManagedRuntimeFixture) createOriginSession(
+	t *testing.T,
+	suffix string,
+	spec participation.Spec,
+) (string, store.SessionCreationIdentity) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	request := f.bindingRequest("origin-" + suffix)
+	request.NetworkParticipation = &spec
+	profile, opts, err := f.runtime.resolveEffectiveCreationProfile(ctx, request, "")
+	if err != nil {
+		t.Fatalf("resolveEffectiveCreationProfile(origin) error = %v", err)
+	}
+	sessionID := "sess-goal-origin-" + suffix
+	opts.DesiredSessionID = sessionID
+	opts.NetworkOwnerKey = participation.OwnerKey(participation.OwnerRef{
+		Kind: participation.OwnerKindSession,
+		ID:   sessionID,
+	})
+	identity, err := bindingCreationIdentity(profile, opts, sessionID)
+	if err != nil {
+		t.Fatalf("bindingCreationIdentity(origin) error = %v", err)
+	}
+	opts.CreationProfile = cloneStoreCreationProfile(profile)
+	opts.CreationIdentity = cloneStoreCreationIdentity(identity)
+	if _, err := f.manager.EnsureCreated(ctx, opts); err != nil {
+		t.Fatalf("EnsureCreated(origin) error = %v", err)
+	}
+	return sessionID, identity
 }
 
 func (f loopGoalManagedRuntimeFixture) preparePrompt(

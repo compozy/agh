@@ -41,8 +41,9 @@ const (
 )
 
 type OwnerRef struct {
-	Kind OwnerKind `json:"kind"`
-	ID   string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Kind        OwnerKind `json:"kind"`
+	ID          string    `json:"id"`
 }
 
 // AuthorityScope carries the concrete channel grant delegated to one child execution.
@@ -51,11 +52,12 @@ type AuthorityScope struct {
 	ChannelIDs []string
 }
 
+//nolint:golines // JSON and YAML names are both authored participation contracts.
 type Request struct {
-	Mode            *Mode            `json:"mode,omitempty"`
-	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
-	ChannelID       *string          `json:"channel_id,omitempty"`
-	Bounds          *BoundsRequest   `json:"bounds,omitempty"`
+	Mode            *Mode            `json:"mode,omitempty" yaml:"mode,omitempty"`
+	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty" yaml:"channel_strategy,omitempty"`
+	ChannelID       *string          `json:"channel_id,omitempty" yaml:"channel_id,omitempty"`
+	Bounds          *BoundsRequest   `json:"bounds,omitempty" yaml:"bounds,omitempty"`
 }
 
 type Spec struct {
@@ -70,6 +72,31 @@ type Spec struct {
 
 type Resolver interface {
 	Resolve(ctx context.Context, in ResolveInput) (Spec, error)
+}
+
+// ResolvedObserver receives one immutable snapshot only after its owner commits.
+type ResolvedObserver interface {
+	ObserveParticipationResolved(ctx context.Context, observation ResolvedObservation) error
+}
+
+// ResolvedObservation binds one committed snapshot to its durable owner.
+type ResolvedObservation struct {
+	WorkspaceID string
+	Owner       OwnerRef
+	Spec        Spec
+}
+
+// ObserveResolved publishes a committed snapshot when the resolver supports observations.
+func ObserveResolved(
+	ctx context.Context,
+	resolver Resolver,
+	observation ResolvedObservation,
+) error {
+	observer, ok := resolver.(ResolvedObserver)
+	if !ok || observer == nil {
+		return nil
+	}
+	return observer.ObserveParticipationResolved(ctx, observation)
 }
 
 type ResolveInput struct {

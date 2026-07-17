@@ -18,7 +18,7 @@ func taskSummaryPayloadFromSummary(record *taskpkg.Summary) apicontract.TaskSumm
 		WorkspaceID:                  record.WorkspaceID,
 		ParentTaskID:                 record.ParentTaskID,
 		ResolvedNetworkParticipation: resolvedParticipationFromRunSummary(record.ActiveRun),
-		Title:                        record.Title,
+		Title:                        taskpkg.RedactClaimTokens(record.Title),
 		Priority:                     record.Priority,
 		MaxAttempts:                  record.MaxAttempts,
 		AutoEnqueueOnReady:           record.AutoEnqueueOnReady,
@@ -51,8 +51,8 @@ func taskPayloadFromTask(record *taskpkg.Task) apicontract.TaskPayload {
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,
 		ParentTaskID:       record.ParentTaskID,
-		Title:              record.Title,
-		Description:        record.Description,
+		Title:              taskpkg.RedactClaimTokens(record.Title),
+		Description:        taskpkg.RedactClaimTokens(record.Description),
 		Priority:           record.Priority,
 		MaxAttempts:        record.MaxAttempts,
 		AutoEnqueueOnReady: record.AutoEnqueueOnReady,
@@ -65,7 +65,7 @@ func taskPayloadFromTask(record *taskpkg.Task) apicontract.TaskPayload {
 		CreatedAt:          record.CreatedAt,
 		UpdatedAt:          record.UpdatedAt,
 		ClosedAt:           optionalTime(record.ClosedAt),
-		Metadata:           cloneRawMessage(record.Metadata),
+		Metadata:           taskpkg.RedactClaimTokenJSON(record.Metadata),
 	}
 }
 
@@ -102,8 +102,8 @@ func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
 		ClaimedAt:                    optionalTime(run.ClaimedAt),
 		StartedAt:                    optionalTime(run.StartedAt),
 		EndedAt:                      optionalTime(run.EndedAt),
-		Error:                        run.Error,
-		Metadata:                     cloneRawMessage(run.Metadata),
-		Result:                       cloneRawMessage(run.Result),
+		Error:                        taskpkg.RedactClaimTokens(run.Error),
+		Metadata:                     taskpkg.RedactClaimTokenJSON(run.Metadata),
+		Result:                       taskpkg.RedactClaimTokenJSON(run.Result),
 	}
 }

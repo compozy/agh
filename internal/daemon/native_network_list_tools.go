@@ -16,7 +16,7 @@ type networkThreadsInput struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
 	Query       string `json:"query,omitempty"`
-	PeerID      string `json:"peer_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
 	Sort        string `json:"sort,omitempty"`
 	HasWork     *bool  `json:"has_work,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
@@ -27,7 +27,7 @@ type networkDirectsInput struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
 	Query       string `json:"query,omitempty"`
-	PeerID      string `json:"peer_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
 	Sort        string `json:"sort,omitempty"`
 	HasWork     *bool  `json:"has_work,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
@@ -51,13 +51,9 @@ func (n *daemonNativeTools) networkThreads(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID, err := n.resolveNativeNetworkPeerSessionID(ctx, workspaceID, channel, input.PeerID)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
 	query := store.NetworkThreadQuery{
 		Search:    strings.TrimSpace(input.Query),
-		SessionID: sessionID,
+		SessionID: strings.TrimSpace(input.SessionID),
 		Sort:      strings.TrimSpace(input.Sort),
 		HasWork:   input.HasWork,
 		Limit:     input.Limit,
@@ -109,13 +105,9 @@ func (n *daemonNativeTools) networkDirects(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID, err := n.resolveNativeNetworkPeerSessionID(ctx, workspaceID, channel, input.PeerID)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
 	query := store.NetworkDirectRoomQuery{
 		Search:    strings.TrimSpace(input.Query),
-		SessionID: sessionID,
+		SessionID: strings.TrimSpace(input.SessionID),
 		Sort:      strings.TrimSpace(input.Sort),
 		HasWork:   input.HasWork,
 		Limit:     input.Limit,

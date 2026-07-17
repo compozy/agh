@@ -1254,9 +1254,9 @@ func forbiddenOwner(key string) string {
 	case "lease", "leases", "lease_duration", "task_lease", "lease_heartbeat",
 		"heartbeat_run_lease", "heartbeatrunlease", "heartbeat_at":
 		return "task lease heartbeat"
-	case "network", "greet", "greet_interval", "presence", "peer_presence", "peers",
+	case "network", "greet", "presence", "peer_presence", "peers",
 		"channels", "channel":
-		return "AGH Network greet presence"
+		return "AGH Network membership"
 	case "provider", "providers", "model", "command", "tools", "toolsets", "deny_tools",
 		"permissions", "capabilities", "capability", "hooks", "mcp_servers", "env", "config":
 		return "agent definition or runtime config"

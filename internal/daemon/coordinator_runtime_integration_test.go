@@ -150,6 +150,7 @@ func coordinatorTaskActor() taskpkg.ActorContext {
 			Kind: taskpkg.OriginKindCLI,
 			Ref:  "integration",
 		},
+		Scope:     taskpkg.CallerScope{Operator: true},
 		Authority: taskpkg.FullAccessAuthority(),
 	}
 }

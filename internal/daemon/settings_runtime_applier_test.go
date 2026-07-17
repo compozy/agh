@@ -69,25 +69,25 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		next.Providers = map[string]aghconfig.ProviderConfig{
 			"codex": {Command: "codex acp --next", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
 		}
-		syncCalls := 0
+		publisher := &recordingToolMCPPublisher{errors: []error{errors.New("mcp sync boom"), nil}}
 		daemonInstance := &Daemon{config: previous}
 		availability := &recordingNetworkAvailabilityStore{}
 		failures := daemonSettingsRuntimeApplier{
 			daemon:              daemonInstance,
 			networkAvailability: availability,
 			state: &bootState{
-				cfg: previous,
-				toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
-					syncCalls++
-					if syncCalls == 1 {
-						return errors.New("mcp sync boom")
-					}
-					return nil
-				}),
+				cfg:              previous,
+				toolMCPResources: publisher,
 			},
 		}.ApplyActiveConfig(t.Context(), &next)
-		if syncCalls != 2 {
-			t.Fatalf("MCP Sync calls = %d, want 2 (apply + rollback)", syncCalls)
+		if len(publisher.configs) != 2 {
+			t.Fatalf("MCP SyncConfig calls = %d, want 2 (apply + rollback)", len(publisher.configs))
+		}
+		if got := publisher.configs[0].Providers["codex"].Command; got != "codex acp --next" {
+			t.Fatalf("MCP apply config command = %q, want candidate", got)
+		}
+		if got := publisher.configs[1].Providers["codex"].Command; got != "codex acp" {
+			t.Fatalf("MCP rollback config command = %q, want previous", got)
 		}
 		if len(failures) != 1 {
 			t.Fatalf("ApplyActiveConfig() failures = %#v, want one mcp failure", failures)
@@ -345,6 +345,28 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "rollback-first")
 	})
+}
+
+type recordingToolMCPPublisher struct {
+	configs []aghconfig.Config
+	errors  []error
+}
+
+func (p *recordingToolMCPPublisher) Sync(ctx context.Context) error {
+	return p.SyncConfig(ctx, nil)
+}
+
+func (p *recordingToolMCPPublisher) SyncConfig(_ context.Context, cfg *aghconfig.Config) error {
+	if cfg == nil {
+		p.configs = append(p.configs, aghconfig.Config{})
+	} else {
+		p.configs = append(p.configs, *cfg)
+	}
+	index := len(p.configs) - 1
+	if index < len(p.errors) {
+		return p.errors[index]
+	}
+	return nil
 }
 
 type recordingNetworkAvailabilityStore struct {

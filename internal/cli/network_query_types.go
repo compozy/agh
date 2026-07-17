@@ -11,7 +11,7 @@ type NetworkSubscriptionsQuery struct {
 	WorkspaceRef string
 	Channel      string
 	ThreadID     string
-	PeerID       string
+	SessionID    string
 	Limit        int
 }
 
@@ -20,7 +20,7 @@ type NetworkThreadsQuery struct {
 	WorkspaceRef string
 	Channel      string
 	Query        string
-	PeerID       string
+	SessionID    string
 	Sort         string
 	HasWork      *bool
 	Limit        int
@@ -32,7 +32,7 @@ type NetworkDirectsQuery struct {
 	WorkspaceRef string
 	Channel      string
 	Query        string
-	PeerID       string
+	SessionID    string
 	Sort         string
 	HasWork      *bool
 	Limit        int

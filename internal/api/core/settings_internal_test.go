@@ -356,10 +356,8 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		t.Fatalf("automationSettingsFromPayload(valid) error = %v", err)
 	}
 	if _, err := networkConfigFromPayload(contract.SettingsNetworkConfigPayload{
-		Enabled:       true,
-		GreetInterval: 5,
-		MaxReplayAge:  10,
-		MaxQueueDepth: 32,
+		Enabled:      true,
+		MaxReplayAge: 10,
 		Live: contract.SettingsNetworkLiveConfigPayload{
 			Defaults: contract.SettingsNetworkLiveDefaultsPayload{
 				MaxWakes:         8,

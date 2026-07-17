@@ -37,7 +37,7 @@ portable sender SHOULD include them explicitly as `null` when no target or proof
 | -------------- | -------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `protocol`     | string         | Yes         | MUST be `agh-network/v0`.                                                                                                                                                                                                                                                                  |
 | `id`           | string         | Yes         | MUST identify this envelope uniquely within the sender's replay window. UUIDs are RECOMMENDED.                                                                                                                                                                                             |
-| `workspace_id` | string         | Yes         | MUST be the stable workspace ID that scopes the channel, peers, conversation containers, work, and transport subjects.                                                                                                                                                                     |
+| `workspace_id` | string         | Yes         | MUST be the stable workspace ID that scopes the channel, peers, conversation containers, and work.                                                                                                                                                                                         |
 | `kind`         | string         | Yes         | MUST be one of `greet`, `whois`, `say`, `capability`, `receipt`, or `trace`. `direct` is not a kind.                                                                                                                                                                                       |
 | `channel`      | string         | Yes         | MUST match `[a-z0-9][a-z0-9_-]{0,63}`.                                                                                                                                                                                                                                                     |
 | `surface`      | string or null | Conditional | MUST be `"thread"` or `"direct"` on conversation-bearing kinds. MUST be absent on `greet` and `whois`.                                                                                                                                                                                     |
@@ -67,10 +67,11 @@ A conversation-bearing envelope carries one explicit conversation container:
 `thread_id` and `direct_id` are mutually exclusive on a single envelope. Setting both is a
 validation failure.
 
-`direct_id` is deterministic: the runtime derives it from
-`(workspace_id, channel, sorted(peer_a, peer_b))` with a domain-separated SHA-256 hash. Any peer
-pair maps to exactly one direct room per workspace channel. Two sessions opening the same direct
-room observe the same `direct_id`.
+`direct_id` is deterministic: the runtime resolves the selected peers to stable session IDs, sorts
+the pair, and hashes
+`agh-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>` with SHA-256.
+One session pair maps to exactly one direct room per workspace channel. Two sessions opening the
+same direct room observe the same `direct_id`.
 
 Direct rooms describe restricted runtime visibility — not cryptographic privacy. RFC 004 Trust Mode
 signs `surface`, `thread_id`, `direct_id`, and `work_id` when present, but signing covers integrity

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // EnqueueRun persists one new queue-first task run under manager authority.
@@ -23,84 +25,156 @@ func (m *Service) EnqueueRun(
 	if err := requireLifecycleIdempotency(actor, normalizedSpec.IdempotencyKey, "enqueue_run"); err != nil {
 		return nil, err
 	}
-	if existing, ok, err := m.existingQueuedRun(
+	var result enqueueRunCommandResult
+	command := func(store ExecutionMutationStore) error {
+		var commandErr error
+		result, commandErr = m.enqueueRunWithStore(ctx, store, normalizedSpec, actor)
+		return commandErr
+	}
+	if transactions, ok := m.store.(ExecutionTransactionStore); ok {
+		if err := transactions.WithTaskExecutionTransaction(ctx, command); err != nil {
+			return nil, err
+		}
+	} else if err := command(m.store); err != nil {
+		return nil, err
+	}
+	if result.existing {
+		return &result.run, nil
+	}
+	m.publishTaskEventsAfterCommand(ctx, []Event{result.event})
+	m.observeCommittedRunParticipation(ctx, result.participationObservation)
+	m.dispatchTaskRunEnqueued(
 		ctx,
-		normalizedSpec.TaskID,
+		result.run,
+		result.task,
+		actor,
 		normalizedSpec.IdempotencyKey,
-		actor.Origin,
-	); err != nil {
-		return nil, err
-	} else if ok {
-		return existing, nil
-	}
-	taskRecord, err := m.store.GetTask(ctx, normalizedSpec.TaskID)
-	if err != nil {
-		return nil, err
-	}
-	runID := m.newID("run")
-	networkSpec, err := m.resolveQueuedRunParticipation(
-		ctx,
-		taskRecord,
-		runID,
-		normalizedSpec.DesignationGroupID,
-		normalizedSpec.RunKind,
-		normalizedSpec.LoopRunID,
-		normalizedSpec.NetworkParticipation,
-		normalizedSpec.NetworkParticipationSource,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	_, run, existing, err := m.store.ReserveQueuedRun(
-		ctx,
-		QueueRunReservation{
-			TaskID:             normalizedSpec.TaskID,
-			RunID:              runID,
-			RunKind:            normalizedSpec.RunKind,
-			LoopRunID:          normalizedSpec.LoopRunID,
-			IdempotencyKey:     normalizedSpec.IdempotencyKey,
-			Origin:             actor.Origin,
-			NetworkSpec:        networkSpec,
-			DesignationGroupID: normalizedSpec.DesignationGroupID,
-			Metadata:           normalizedSpec.Metadata,
-			QueuedAt:           m.now().UTC(),
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	if existing {
-		return &run, nil
-	}
-
-	if err := m.publishEnqueuedRun(ctx, run, actor, normalizedSpec.IdempotencyKey); err != nil {
-		return nil, err
-	}
-
-	return &run, nil
+	return &result.run, nil
 }
 
-func (m *Service) publishEnqueuedRun(
+type enqueueRunCommandResult struct {
+	task                     Task
+	run                      Run
+	event                    Event
+	participationObservation *participation.ResolvedObservation
+	existing                 bool
+}
+
+func (m *Service) enqueueRunWithStore(
 	ctx context.Context,
+	store ExecutionMutationStore,
+	spec EnqueueRun,
+	actor ActorContext,
+) (enqueueRunCommandResult, error) {
+	normalizedSpec, err := normalizeEnqueueRunSpec(spec)
+	if err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	spec = normalizedSpec
+	if existing, ok, err := existingQueuedRunWithStore(
+		ctx,
+		store,
+		spec.TaskID,
+		spec.IdempotencyKey,
+		actor.Origin,
+	); err != nil {
+		return enqueueRunCommandResult{}, err
+	} else if ok {
+		taskRecord, taskErr := store.GetTask(ctx, existing.TaskID)
+		return enqueueRunCommandResult{task: taskRecord, run: *existing, existing: true}, taskErr
+	}
+	taskRecord, err := store.GetTask(ctx, spec.TaskID)
+	if err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	run, existing, err := m.reserveQueuedRunWithStore(ctx, store, taskRecord, spec, actor)
+	if err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	if existing {
+		return enqueueRunCommandResult{task: taskRecord, run: run, existing: true}, nil
+	}
+	return m.finishEnqueuedRunWithStore(ctx, store, run, actor)
+}
+
+func (m *Service) reserveQueuedRunWithStore(
+	ctx context.Context,
+	store ExecutionMutationStore,
+	taskRecord Task,
+	spec EnqueueRun,
+	actor ActorContext,
+) (Run, bool, error) {
+	runID := m.newID("run")
+	networkSpec, err := m.resolveQueuedRunParticipationWithStore(
+		ctx,
+		store,
+		taskRecord,
+		runID,
+		spec.DesignationGroupID,
+		spec.RunKind,
+		spec.LoopRunID,
+		spec.NetworkParticipation,
+		spec.NetworkParticipationSource,
+	)
+	if err != nil {
+		return Run{}, false, err
+	}
+
+	_, run, existing, err := store.ReserveQueuedRun(ctx, QueueRunReservation{
+		TaskID:             spec.TaskID,
+		RunID:              runID,
+		RunKind:            spec.RunKind,
+		LoopRunID:          spec.LoopRunID,
+		IdempotencyKey:     spec.IdempotencyKey,
+		Origin:             actor.Origin,
+		NetworkSpec:        networkSpec,
+		DesignationGroupID: spec.DesignationGroupID,
+		Metadata:           spec.Metadata,
+		QueuedAt:           m.now().UTC(),
+	})
+	if err != nil {
+		return Run{}, false, err
+	}
+	return run, existing, nil
+}
+
+func (m *Service) finishEnqueuedRunWithStore(
+	ctx context.Context,
+	store ExecutionMutationStore,
 	run Run,
 	actor ActorContext,
-	idempotencyKey string,
-) error {
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
+) (enqueueRunCommandResult, error) {
+	reconciledTask, err := m.reconcileTaskCascadeWithStore(ctx, store, run.TaskID, actor)
 	if err != nil {
-		return err
+		return enqueueRunCommandResult{}, err
 	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
+	event, err := m.newTaskEvent(run.TaskID, run.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
 		Attempt:        int(run.Attempt),
 		Status:         run.Status,
 		TaskStatus:     reconciledTask.Status,
 		IdempotencyKey: run.IdempotencyKey,
-	}); err != nil {
-		return err
+	})
+	if err != nil {
+		return enqueueRunCommandResult{}, err
 	}
-	m.dispatchTaskRunEnqueued(ctx, run, reconciledTask, actor, idempotencyKey)
-	return nil
+	if err := store.CreateTaskEvent(ctx, event); err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	return enqueueRunCommandResult{
+		task:  reconciledTask,
+		run:   run,
+		event: event,
+		participationObservation: &participation.ResolvedObservation{
+			WorkspaceID: strings.TrimSpace(run.WorkspaceID),
+			Owner: participation.OwnerRef{
+				WorkspaceID: strings.TrimSpace(run.WorkspaceID),
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          strings.TrimSpace(run.ID),
+			},
+			Spec: run.NetworkSpecSnapshot(),
+		},
+	}, nil
 }
 
 func validateTaskForEnqueue(taskRecord Task) error {

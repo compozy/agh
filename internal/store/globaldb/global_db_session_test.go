@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
 	"github.com/compozy/agh/internal/testutil"
@@ -25,6 +27,30 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		db := openScanSessionInfoDB(t)
 		subprocessStartedAt := time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)
 		lastUpdateAt := time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)
+		liveSpec := participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     "ws-1",
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "builders",
+			Source:          participation.SourceExplicitRequest,
+			Bounds: participation.Bounds{
+				MaxWakes:         1,
+				MaxWakeWallTime:  "1m",
+				MaxTotalWallTime: "5m",
+				MaxInputTokens:   1024,
+				MaxOutputTokens:  512,
+				MaxWakeDepth:     1,
+				CoalesceWindow:   "500ms",
+			},
+		}
+		if err := participation.ValidateSpec(liveSpec); err != nil {
+			t.Fatalf("ValidateSpec() error = %v", err)
+		}
+		liveJSON, err := json.Marshal(liveSpec)
+		if err != nil {
+			t.Fatalf("json.Marshal(live spec) error = %v", err)
+		}
 		row := db.QueryRowContext(context.Background(), `
 		SELECT
 			'sess-scan',
@@ -32,10 +58,10 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'coder',
 			'claude',
 			'ws-1',
-			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
-			'local',
-			NULL,
-			'built_in_local',
+			?,
+			'live',
+			'builders',
+			'explicit_request',
 			'user',
 			NULL,
 			NULL,
@@ -74,6 +100,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'sync failed',
 			?,
 			?`,
+			string(liveJSON),
 			formatTimestamp(subprocessStartedAt),
 			formatTimestamp(lastUpdateAt),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 4, 30, 0, time.UTC)),
@@ -103,8 +130,8 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		if got, want := info.Provider, "claude"; got != want {
 			t.Fatalf("info.Provider = %q, want %q", got, want)
 		}
-		if got, want := info.Channel, ""; got != want {
-			t.Fatalf("info.Channel = %q, want %q", got, want)
+		if got, want := info.NetworkSpecSnapshot(), liveSpec; got != want {
+			t.Fatalf("info Network participation = %#v, want %#v", got, want)
 		}
 		if info.ACPSessionID == nil || *info.ACPSessionID != "acp-123" {
 			t.Fatalf("info.ACPSessionID = %#v, want acp-123", info.ACPSessionID)
@@ -225,8 +252,8 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		if info.Provider != "" {
 			t.Fatalf("info.Provider = %q, want empty", info.Provider)
 		}
-		if info.Channel != "" {
-			t.Fatalf("info.Channel = %q, want empty", info.Channel)
+		if channel := info.NetworkSpecSnapshot().ChannelID; channel != "" {
+			t.Fatalf("info Network channel = %q, want empty", channel)
 		}
 		if info.ACPSessionID != nil {
 			t.Fatalf("info.ACPSessionID = %#v, want nil", info.ACPSessionID)
@@ -497,6 +524,73 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 			t.Fatalf("sessions[0].TranscriptEpoch = %d, want 3", sessions[0].TranscriptEpoch)
 		}
 	})
+}
+
+func TestGlobalDBRegisterSessionRejectsParticipationSnapshotChange(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"immutable-participation-workspace",
+		filepath.Join(t.TempDir(), "immutable-participation-workspace"),
+	)
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	session := store.SessionInfo{
+		ID:          "sess-immutable-participation",
+		Name:        "Immutable Participation",
+		AgentName:   "coder",
+		Provider:    "claude",
+		WorkspaceID: workspaceID,
+		SessionType: defaultSessionType,
+		State:       globalDBSessionStateActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	session.SetNetworkSpec(participation.LocalSpec())
+	if err := globalDB.RegisterSession(ctx, session); err != nil {
+		t.Fatalf("RegisterSession(Local) error = %v", err)
+	}
+
+	session.SetNetworkSpec(participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     workspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "immutable-builders",
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         4,
+			MaxWakeWallTime:  "30s",
+			MaxTotalWallTime: "2m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  4096,
+			MaxWakeDepth:     4,
+			CoalesceWindow:   "250ms",
+		},
+	})
+	session.State = globalDBSessionStateStopped
+	session.UpdatedAt = now.Add(time.Minute)
+	err := globalDB.RegisterSession(ctx, session)
+	if !errors.Is(err, store.ErrSessionParticipationMismatch) {
+		t.Fatalf("RegisterSession(Live refresh) error = %v, want participation mismatch", err)
+	}
+
+	stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: session.ID})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if len(stored) != 1 {
+		t.Fatalf("len(stored) = %d, want 1", len(stored))
+	}
+	if got, want := stored[0].NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
+		t.Fatalf("stored participation = %#v, want %#v", got, want)
+	}
+	if got, want := stored[0].State, globalDBSessionStateActive; got != want {
+		t.Fatalf("stored state = %q, want unchanged %q", got, want)
+	}
 }
 
 func TestGlobalDBDeleteSession(t *testing.T) {

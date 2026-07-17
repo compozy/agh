@@ -848,6 +848,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 			TaskActorContextResolver: func(*gin.Context, string) (taskpkg.ActorContext, error) {
 				return taskpkg.DeriveAgentSessionActorContextForOrigin(
 					"sess-author",
+					"ws-1",
 					taskpkg.OriginKindUDS,
 					"loop_approve",
 				)

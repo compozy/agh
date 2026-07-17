@@ -99,6 +99,29 @@ func (w *FileAuditWriter) RecordSent(ctx context.Context, sessionID string, enve
 	return w.record(ctx, sessionID, AuditDirectionSent, envelope, "")
 }
 
+// RecordCommittedSent appends the post-commit sent record only to the file
+// sink because atomic conversation acceptance already owns the durable row.
+func (w *FileAuditWriter) RecordCommittedSent(
+	ctx context.Context,
+	sessionID string,
+	envelope Envelope,
+) error {
+	if ctx == nil {
+		return errors.New("network: audit context is required")
+	}
+	if w == nil {
+		return errors.New("network: audit writer is required")
+	}
+	if w.path == "" {
+		return nil
+	}
+	entry, err := NormalizeAuditEntry(sessionID, AuditDirectionSent, envelope, "", w.now())
+	if err != nil {
+		return err
+	}
+	return w.appendFile(entry)
+}
+
 // RecordReceived stores a received network audit record.
 func (w *FileAuditWriter) RecordReceived(ctx context.Context, sessionID string, envelope Envelope) error {
 	return w.record(ctx, sessionID, AuditDirectionReceived, envelope, "")

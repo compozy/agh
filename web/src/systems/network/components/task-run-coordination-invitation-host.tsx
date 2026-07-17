@@ -1,52 +1,48 @@
+import { useRef } from "react";
+
 import { NetworkCoordinationInvitation } from "./coordination-invitation";
 import {
   useAcceptNetworkCoordinationInvitation,
   useDismissNetworkCoordinationInvitation,
   useNetworkCoordination,
 } from "../hooks/use-network-coordination";
-import { useNetworkPage } from "../hooks/use-network-page";
-import { shouldShowCoordinationInvitation } from "../lib/coordination-invitation-gates";
 
 export interface TaskRunCoordinationInvitationHostProps {
   taskId: string;
-  hasActiveRun: boolean;
-  isCoordinator: boolean;
-  workerCount: number;
+  runId: string;
 }
 
 export function TaskRunCoordinationInvitationHost({
   taskId,
-  hasActiveRun,
-  isCoordinator,
-  workerCount,
+  runId,
 }: TaskRunCoordinationInvitationHostProps) {
-  const page = useNetworkPage();
-  const coordination = useNetworkCoordination(taskId);
-  const accept = useAcceptNetworkCoordinationInvitation(taskId);
-  const dismiss = useDismissNetworkCoordinationInvitation("task", taskId);
+  const actionLocked = useRef(false);
+  const ref = { scope: "task" as const, taskId, runId };
+  const coordination = useNetworkCoordination(ref);
+  const accept = useAcceptNetworkCoordinationInvitation(ref);
+  const dismiss = useDismissNetworkCoordinationInvitation(ref);
 
-  const networkAvailable = Boolean(page.status?.enabled);
-  const invitation = coordination.data?.invitation;
-  const visible = shouldShowCoordinationInvitation({
-    hasActiveRun,
-    isCoordinator,
-    workerCount,
-    coordinationEnabled: Boolean(coordination.data?.enabled),
-    networkAvailable,
-    invitationDismissed: Boolean(invitation?.dismissed),
-  });
+  const revision = coordination.data?.revision;
+  const visible = Boolean(coordination.data?.eligibility.eligible);
+  const pending = accept.isPending || dismiss.isPending;
+  const unlock = () => {
+    actionLocked.current = false;
+  };
 
   return (
     <NetworkCoordinationInvitation
       accepting={accept.isPending}
       dismissing={dismiss.isPending}
+      errorMessage={accept.error?.message ?? dismiss.error?.message}
       onAccept={() => {
-        if (accept.isPending || dismiss.isPending) return;
-        void accept.mutateAsync();
+        if (actionLocked.current || pending || revision === undefined) return;
+        actionLocked.current = true;
+        accept.mutate(revision, { onSettled: unlock });
       }}
       onDismiss={() => {
-        if (accept.isPending || dismiss.isPending) return;
-        void dismiss.mutateAsync();
+        if (actionLocked.current || pending || revision === undefined) return;
+        actionLocked.current = true;
+        dismiss.mutate(revision, { onSettled: unlock });
       }}
       visible={visible}
     />

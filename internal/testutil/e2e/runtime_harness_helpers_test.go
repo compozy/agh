@@ -731,6 +731,10 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/api/bridges/health/stream":
+				if got := r.URL.Query().Get("bridge_ids"); got != "brg-1" {
+					http.Error(w, "bridge_ids is required", http.StatusBadRequest)
+					return
+				}
 				w.Header().Set("Content-Type", "text/event-stream")
 				if _, err := fmt.Fprint(w, "event: bridge_health\ndata: not-json\n\n"); err != nil {
 					t.Errorf("fmt.Fprint(bridge health stream) error = %v", err)
@@ -1088,8 +1092,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Directs: []aghcontract.NetworkDirectRoomPayload{{
 					Channel:            "builders",
 					DirectID:           harnessNetworkDirectID,
-					PeerA:              "coder.sess-1",
-					PeerB:              "reviewer.sess-2",
+					SessionA:           "sess-1",
+					SessionB:           "sess-2",
 					OpenedAt:           &now,
 					LastActivityAt:     &now,
 					MessageCount:       1,
@@ -1138,8 +1142,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			Direct: aghcontract.NetworkDirectRoomPayload{
 				Channel:        "builders",
 				DirectID:       harnessNetworkDirectID,
-				PeerA:          "coder.sess-1",
-				PeerB:          "reviewer.sess-2",
+				SessionA:       "sess-1",
+				SessionB:       "sess-2",
 				OpenedAt:       &now,
 				LastActivityAt: &now,
 			},
@@ -1153,8 +1157,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			Direct: aghcontract.NetworkDirectRoomPayload{
 				Channel:            "builders",
 				DirectID:           harnessNetworkDirectID,
-				PeerA:              "coder.sess-1",
-				PeerB:              "reviewer.sess-2",
+				SessionA:           "sess-1",
+				SessionB:           "sess-2",
 				OpenedAt:           &now,
 				LastActivityAt:     &now,
 				MessageCount:       1,
@@ -1197,9 +1201,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					Channel:         "builders",
 					Surface:         "thread",
 					ThreadID:        harnessNetworkThreadID,
-					OpenedByPeerID:  "coder.sess-1",
 					OpenedSessionID: "sess-1",
-					TargetPeerID:    "reviewer.sess-2",
+					TargetSessionID: "sess-2",
 					State:           "running",
 					OpenedAt:        &now,
 					LastActivityAt:  &now,
@@ -1269,13 +1272,12 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		}
 		writeJSON(w, aghcontract.NetworkChannelsResponse{
 			Channels: []aghcontract.NetworkChannelPayload{{
-				Channel:         "builders",
-				PeerCount:       1,
-				LocalPeerCount:  1,
-				RemotePeerCount: 0,
-				SessionCount:    1,
-				MessageCount:    1,
-				LastActivityAt:  &now,
+				Channel:        "builders",
+				PeerCount:      1,
+				LocalPeerCount: 1,
+				SessionCount:   1,
+				MessageCount:   1,
+				LastActivityAt: &now,
 			}},
 		})
 	})
@@ -1775,7 +1777,17 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/bridges/health/stream", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/bridges/health/stream", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("bridge_ids"); got != "brg-1" {
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"bridge_ids query = %q, want brg-1",
+				got,
+			)
+			return
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		payload, err := json.Marshal(aghcontract.BridgeHealthStreamPayload{
 			GeneratedAt: now,

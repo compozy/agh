@@ -570,6 +570,9 @@ func (r *reviewRouter) createRoute(
 	if len(review.AllowedPeerIDs) > 0 {
 		return nil, "review profile allows only explicit peers and no active eligible peer is available", nil
 	}
+	if len(review.AllowedChannelIDs) > 0 {
+		return nil, "review profile allows only explicit channels and no active eligible reviewer is available", nil
+	}
 	agentName, diagnostic, err := r.selectCreateAgent(ctx, review, original, requester, resolved)
 	if err != nil || diagnostic != "" {
 		return nil, diagnostic, err

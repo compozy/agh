@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/resources"
 )
 
@@ -47,6 +48,16 @@ func validateJobResourceSpec(_ context.Context, scope resources.ResourceScope, s
 	}
 
 	next := normalizeJobResourceSpec(spec)
+	if next.Task != nil {
+		request, err := NormalizeDirectTaskParticipation(next.Task.NetworkParticipation)
+		if err != nil {
+			return Job{}, fmt.Errorf("automation: normalize job task participation: %w", err)
+		}
+		next.Task.NetworkParticipation = request
+	}
+	if err := normalizeLoopTargetParticipation(next.LoopTarget); err != nil {
+		return Job{}, fmt.Errorf("automation: normalize job loop participation: %w", err)
+	}
 	if err := bindAutomationScope(&next.Scope, &next.WorkspaceID, normalizedScope, "job"); err != nil {
 		return Job{}, fmt.Errorf("automation: bind job resource scope: %w", err)
 	}
@@ -63,6 +74,9 @@ func validateTriggerResourceSpec(_ context.Context, scope resources.ResourceScop
 	}
 
 	next := normalizeTriggerResourceSpec(spec)
+	if err := normalizeLoopTargetParticipation(next.LoopTarget); err != nil {
+		return Trigger{}, fmt.Errorf("automation: normalize trigger loop participation: %w", err)
+	}
 	if err := bindAutomationScope(&next.Scope, &next.WorkspaceID, normalizedScope, "trigger"); err != nil {
 		return Trigger{}, fmt.Errorf("automation: bind trigger resource scope: %w", err)
 	}
@@ -70,6 +84,22 @@ func validateTriggerResourceSpec(_ context.Context, scope resources.ResourceScop
 		return Trigger{}, fmt.Errorf("automation: validate trigger resource spec: %w", err)
 	}
 	return next, nil
+}
+
+func normalizeLoopTargetParticipation(target *LoopTarget) error {
+	if target == nil || target.NetworkParticipation == nil {
+		return nil
+	}
+	normalized, err := participation.NormalizeIntent(*target.NetworkParticipation)
+	if err != nil {
+		return err
+	}
+	if normalized == (participation.Request{}) {
+		target.NetworkParticipation = nil
+		return nil
+	}
+	target.NetworkParticipation = &normalized
+	return nil
 }
 
 func normalizeJobResourceSpec(spec Job) Job {

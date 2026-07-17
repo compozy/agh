@@ -108,6 +108,13 @@ agh network coordination disable -o json
 An explicit execution request wins over its owning profile, then workspace coordination, then the
 built-in Local default. Existing resolved snapshots never change.
 
+## Participation hooks
+
+`network.participation.pre_resolve` can deny or narrow authored intent before resolution; the
+runtime rejects semantic widening. `network.participation.resolved` observes the immutable
+committed snapshot. Scope either event with `workspace_id`, `channel`, `participation_mode`, and
+`participation_source` matchers. Do not treat a hook patch as authority to enroll a Local run.
+
 ## Message rules
 
 - Chat uses `say` with non-empty `body.text`.

@@ -125,6 +125,48 @@ func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
 	}
 }
 
+func TestRedactClaimTokenJSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove token fields and redact token values recursively", func(t *testing.T) {
+		t.Parallel()
+
+		raw := json.RawMessage(
+			`{"keep":"safe","claim_token":"agh_claim_top-secret","nested":{"note":"uses agh_claim_nested-secret"},` +
+				`"items":[{"proof":"agh_claim_array-secret"}]}`,
+		)
+		redacted := RedactClaimTokenJSON(raw)
+		for _, secret := range []string{
+			"agh_claim_top-secret",
+			"agh_claim_nested-secret",
+			"agh_claim_array-secret",
+		} {
+			if strings.Contains(string(redacted), secret) {
+				t.Fatalf("RedactClaimTokenJSON() = %s, want raw token %q removed", redacted, secret)
+			}
+		}
+		if strings.Contains(string(redacted), `"claim_token"`) {
+			t.Fatalf("RedactClaimTokenJSON() = %s, want no raw claim token material", redacted)
+		}
+		if !strings.Contains(string(redacted), `"keep":"safe"`) {
+			t.Fatalf("RedactClaimTokenJSON() = %s, want safe metadata preserved", redacted)
+		}
+		raw[2] = 'X'
+		if !strings.Contains(string(redacted), `"keep":"safe"`) {
+			t.Fatalf("RedactClaimTokenJSON() aliased input: %s", redacted)
+		}
+	})
+
+	t.Run("Should redact tokens even when persisted JSON is malformed", func(t *testing.T) {
+		t.Parallel()
+
+		redacted := RedactClaimTokenJSON(json.RawMessage(`{"note":"agh_claim_malformed-secret"`))
+		if strings.Contains(string(redacted), "agh_claim_malformed-secret") {
+			t.Fatalf("RedactClaimTokenJSON(malformed) = %s, want raw token removed", redacted)
+		}
+	})
+}
+
 func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -351,9 +393,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
 	operator := validActorContext()
-	agent := validActorContext()
-	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-agent"}
-	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+	agent := agentActorContextForTest("sess-agent", "ws-agent")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope: ScopeGlobal,
@@ -608,7 +648,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 				workspaceID: "ws-same",
 				createClaim: func(t *testing.T, manager *Service, _ ActorContext) string {
 					t.Helper()
-					otherAgent := agentActorContextForTest("sess-other")
+					otherAgent := agentActorContextForTest("sess-other", "ws-same")
 					child, err := manager.CreateTask(context.Background(), CreateTask{
 						Scope:       ScopeWorkspace,
 						WorkspaceID: "ws-same",
@@ -625,11 +665,12 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 				workspaceID: "ws-home",
 				createClaim: func(t *testing.T, manager *Service, agent ActorContext) string {
 					t.Helper()
+					foreignWorkspaceAgent := agentActorContextForTest(agent.Actor.Ref, "ws-away")
 					child, err := manager.CreateTask(context.Background(), CreateTask{
 						Scope:       ScopeWorkspace,
 						WorkspaceID: "ws-away",
 						Title:       "Other workspace child",
-					}, agent)
+					}, foreignWorkspaceAgent)
 					if err != nil {
 						t.Fatalf("CreateTask(other workspace child) error = %v", err)
 					}
@@ -772,7 +813,11 @@ func setupCompletionLeaseForTest(
 	t.Helper()
 
 	operator := validActorContext()
-	agent := agentActorContextForTest(sessionID)
+	agentWorkspaceID := workspaceID
+	if agentWorkspaceID == "" {
+		agentWorkspaceID = "ws-agent-home"
+	}
+	agent := agentActorContextForTest(sessionID, agentWorkspaceID)
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope:       scope,
 		WorkspaceID: workspaceID,
@@ -797,10 +842,11 @@ func setupCompletionLeaseForTest(
 	return *taskRecord, claim, agent
 }
 
-func agentActorContextForTest(sessionID string) ActorContext {
+func agentActorContextForTest(sessionID string, workspaceID string) ActorContext {
 	actor := validActorContext()
 	actor.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: sessionID}
 	actor.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+	actor.Scope = CallerScope{SessionID: sessionID, WorkspaceID: workspaceID}
 	return actor
 }
 
@@ -863,9 +909,7 @@ func TestManagerBlockTaskAndReleaseRunParksActiveLease(t *testing.T) {
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
 	operator := validActorContext()
-	agent := validActorContext()
-	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-blocker"}
-	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+	agent := agentActorContextForTest("sess-blocker", "ws-blocker")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope: ScopeGlobal,
@@ -949,9 +993,7 @@ func TestManagerBlockTaskAndReleaseRunRejectsClaimTokenMismatch(t *testing.T) {
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
 	operator := validActorContext()
-	agent := validActorContext()
-	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-mismatch"}
-	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+	agent := agentActorContextForTest("sess-mismatch", "ws-mismatch")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope: ScopeGlobal,
@@ -1016,9 +1058,7 @@ func TestManagerBlockTaskAndReleaseRunSerializesDuplicateActiveCallers(t *testin
 		return prefix + "-race-" + strconv.Itoa(nextID)
 	}))
 	operator := validActorContext()
-	agent := validActorContext()
-	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-race"}
-	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+	agent := agentActorContextForTest("sess-race", "ws-race")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope: ScopeGlobal,
@@ -1300,9 +1340,7 @@ func TestManagerCompleteRunLeaseResetsBlockRecurrencesOnlyOnCompletion(t *testin
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		agent := validActorContext()
-		agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-reset"}
-		agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+		agent := agentActorContextForTest("sess-reset", "ws-reset")
 		claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
 			Scope:            ScopeGlobal,
@@ -1546,9 +1584,7 @@ func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
 	operator := validActorContext()
-	agent := validActorContext()
-	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-child"}
-	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "coder"}
+	agent := agentActorContextForTest("sess-child", "ws-child")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope: ScopeGlobal,

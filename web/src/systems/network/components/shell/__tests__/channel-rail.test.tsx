@@ -136,7 +136,7 @@ function Harness({ pinnedIds = ["alpha"], togglePinned = () => undefined }: Harn
       onTogglePinned={togglePinned}
       pinnedChannels={channels.filter(channel => pinnedSet.has(channel.channel))}
       recents={recents}
-      selfPeerId={null}
+      selfSessionId={null}
       unpinnedChannels={channels.filter(channel => !pinnedSet.has(channel.channel))}
     />
   );
@@ -230,7 +230,7 @@ describe("ChannelRail", () => {
         onTogglePinned={() => undefined}
         pinnedChannels={[]}
         recents={[]}
-        selfPeerId={null}
+        selfSessionId={null}
         unpinnedChannels={[]}
       />
     );

@@ -54,6 +54,7 @@ func hostAPINetworkSendRequestFromPayload(req apicontract.NetworkSendRequest) (n
 		Channel:     strings.TrimSpace(req.Channel),
 		Kind:        network.Kind(strings.TrimSpace(req.Kind)),
 		Body:        hostAPICloneRawMessage(req.Body),
+		Mentions:    hostAPICloneTrimmedStrings(req.Mentions),
 		ExpiresAt:   hostAPICloneInt64Ptr(req.ExpiresAt),
 		Ext:         hostAPICloneRawMap(req.Ext),
 	}

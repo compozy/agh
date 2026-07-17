@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -18,25 +19,35 @@ var _ workspacepkg.CoordinationInvitations = (*WorkspaceRepo)(nil)
 // GetInvitation returns one persisted dismissal. Absent rows are explicit not-dismissed.
 func (g *WorkspaceRepo) GetInvitation(
 	ctx context.Context,
+	workspaceID string,
 	scopeKind string,
 	scopeID string,
 ) (workspacepkg.CoordinationInvitation, error) {
 	if err := g.checkReady(ctx, "get network coordination invitation"); err != nil {
 		return workspacepkg.CoordinationInvitation{}, err
 	}
+	workspace := strings.TrimSpace(workspaceID)
 	kind := strings.TrimSpace(scopeKind)
 	id := strings.TrimSpace(scopeID)
-	if kind == "" || id == "" {
+	if workspace == "" || kind == "" || id == "" {
 		return workspacepkg.CoordinationInvitation{}, fmt.Errorf(
-			"store: invitation scope_kind and scope_id are required",
+			"store: invitation workspace_id, scope_kind, and scope_id are required",
 		)
 	}
+	if err := validateCoordinationInvitationScope(ctx, g.db, workspace, kind, id); err != nil {
+		return workspacepkg.CoordinationInvitation{}, err
+	}
 	row, err := g.queries.GetNetworkCoordinationInvitation(ctx, sqlcgen.GetNetworkCoordinationInvitationParams{
-		ScopeKind: kind,
-		ScopeID:   id,
+		WorkspaceID: workspace,
+		ScopeKind:   kind,
+		ScopeID:     id,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return workspacepkg.CoordinationInvitation{ScopeKind: kind, ScopeID: id}, nil
+		return workspacepkg.CoordinationInvitation{
+			WorkspaceID: workspace,
+			ScopeKind:   kind,
+			ScopeID:     id,
+		}, nil
 	}
 	if err != nil {
 		return workspacepkg.CoordinationInvitation{}, fmt.Errorf(
@@ -52,6 +63,7 @@ func (g *WorkspaceRepo) GetInvitation(
 // DismissInvitation upserts a dismissal row for the scope.
 func (g *WorkspaceRepo) DismissInvitation(
 	ctx context.Context,
+	workspaceID string,
 	scopeKind string,
 	scopeID string,
 	actor string,
@@ -59,12 +71,13 @@ func (g *WorkspaceRepo) DismissInvitation(
 	if err := g.checkReady(ctx, "dismiss network coordination invitation"); err != nil {
 		return workspacepkg.CoordinationInvitation{}, err
 	}
+	workspace := strings.TrimSpace(workspaceID)
 	kind := strings.TrimSpace(scopeKind)
 	id := strings.TrimSpace(scopeID)
 	dismissedBy := strings.TrimSpace(actor)
-	if kind == "" || id == "" {
+	if workspace == "" || kind == "" || id == "" {
 		return workspacepkg.CoordinationInvitation{}, fmt.Errorf(
-			"store: invitation scope_kind and scope_id are required",
+			"store: invitation workspace_id, scope_kind, and scope_id are required",
 		)
 	}
 	if dismissedBy == "" {
@@ -74,10 +87,14 @@ func (g *WorkspaceRepo) DismissInvitation(
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	err = store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
+		if validateErr := validateCoordinationInvitationScope(ctx, tx, workspace, kind, id); validateErr != nil {
+			return validateErr
+		}
 		queries := sqlcgen.New(tx)
 		row, upsertErr := queries.UpsertNetworkCoordinationInvitation(
 			ctx,
 			sqlcgen.UpsertNetworkCoordinationInvitationParams{
+				WorkspaceID: workspace,
 				ScopeKind:   kind,
 				ScopeID:     id,
 				DismissedAt: now,
@@ -108,24 +125,30 @@ func (g *WorkspaceRepo) DismissInvitation(
 // ResetInvitation deletes the dismissal row so the invitation may appear again.
 func (g *WorkspaceRepo) ResetInvitation(
 	ctx context.Context,
+	workspaceID string,
 	scopeKind string,
 	scopeID string,
 ) error {
 	if err := g.checkReady(ctx, "reset network coordination invitation"); err != nil {
 		return err
 	}
+	workspace := strings.TrimSpace(workspaceID)
 	kind := strings.TrimSpace(scopeKind)
 	id := strings.TrimSpace(scopeID)
-	if kind == "" || id == "" {
-		return fmt.Errorf("store: invitation scope_kind and scope_id are required")
+	if workspace == "" || kind == "" || id == "" {
+		return fmt.Errorf("store: invitation workspace_id, scope_kind, and scope_id are required")
 	}
 	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
+		if validateErr := validateCoordinationInvitationScope(ctx, tx, workspace, kind, id); validateErr != nil {
+			return validateErr
+		}
 		queries := sqlcgen.New(tx)
 		if delErr := queries.DeleteNetworkCoordinationInvitation(
 			ctx,
 			sqlcgen.DeleteNetworkCoordinationInvitationParams{
-				ScopeKind: kind,
-				ScopeID:   id,
+				WorkspaceID: workspace,
+				ScopeKind:   kind,
+				ScopeID:     id,
 			},
 		); delErr != nil {
 			return fmt.Errorf(
@@ -137,6 +160,43 @@ func (g *WorkspaceRepo) ResetInvitation(
 		}
 		return nil
 	})
+}
+
+func validateCoordinationInvitationScope(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	workspaceID string,
+	scopeKind string,
+	scopeID string,
+) error {
+	var exists int
+	var err error
+	switch scopeKind {
+	case workspacepkg.InvitationScopeWorkspace:
+		if scopeID != workspaceID {
+			return fmt.Errorf("%w: workspace invitation scope does not match workspace", taskpkg.ErrValidation)
+		}
+		err = exec.QueryRowContext(ctx, `SELECT 1 FROM workspaces WHERE id = ?`, workspaceID).Scan(&exists)
+		if errors.Is(err, sql.ErrNoRows) {
+			return workspacepkg.ErrWorkspaceNotFound
+		}
+	case workspacepkg.InvitationScopeTask:
+		err = exec.QueryRowContext(
+			ctx,
+			`SELECT 1 FROM tasks WHERE id = ? AND workspace_id = ?`,
+			scopeID,
+			workspaceID,
+		).Scan(&exists)
+		if errors.Is(err, sql.ErrNoRows) {
+			return taskpkg.ErrTaskNotFound
+		}
+	default:
+		return fmt.Errorf("%w: unsupported invitation scope_kind %q", taskpkg.ErrValidation, scopeKind)
+	}
+	if err != nil {
+		return fmt.Errorf("store: validate network coordination invitation scope: %w", err)
+	}
+	return nil
 }
 
 func invitationFromGenerated(row sqlcgen.NetworkCoordinationInvitation) (workspacepkg.CoordinationInvitation, error) {
@@ -151,6 +211,7 @@ func invitationFromGenerated(row sqlcgen.NetworkCoordinationInvitation) (workspa
 		}
 	}
 	return workspacepkg.CoordinationInvitation{
+		WorkspaceID: strings.TrimSpace(row.WorkspaceID),
 		ScopeKind:   strings.TrimSpace(row.ScopeKind),
 		ScopeID:     strings.TrimSpace(row.ScopeID),
 		Dismissed:   true,

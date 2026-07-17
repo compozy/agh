@@ -1,22 +1,40 @@
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldLabel,
   Input,
   NativeSelect,
   NativeSelectOption,
+  cn,
 } from "@agh/ui";
+import type { ComponentProps } from "react";
 
 import type {
   NetworkParticipationDraft,
   NetworkParticipationMode,
+  NetworkParticipationStrategy,
+} from "../lib/network-participation";
+import {
+  isNetworkParticipationStrategy,
+  networkParticipationValidationMessage,
 } from "../lib/network-participation";
 
-export interface NetworkParticipationFieldsProps {
+const STRATEGY_LABELS: Record<NetworkParticipationStrategy, string> = {
+  named: "Named channel",
+  run: "This task run",
+  loop_run: "This Loop run",
+};
+
+export interface NetworkParticipationFieldsProps extends Omit<
+  ComponentProps<"div">,
+  "children" | "onChange"
+> {
   value: NetworkParticipationDraft;
   onChange: (next: NetworkParticipationDraft) => void;
   disabled?: boolean;
   testIdPrefix?: string;
+  allowedStrategies: readonly [NetworkParticipationStrategy, ...NetworkParticipationStrategy[]];
 }
 
 /** Shared create/edit participation controls (UT-060). Local is the default. */
@@ -25,9 +43,18 @@ export function NetworkParticipationFields({
   onChange,
   disabled = false,
   testIdPrefix = "network-participation",
+  allowedStrategies,
+  className,
+  ...props
 }: NetworkParticipationFieldsProps) {
+  const currentStrategy =
+    value.mode === "live" && allowedStrategies.includes(value.channelStrategy)
+      ? value.channelStrategy
+      : allowedStrategies[0];
+  const validationMessage = networkParticipationValidationMessage(value, allowedStrategies);
+
   return (
-    <div className="flex flex-col gap-3" data-testid={testIdPrefix}>
+    <div {...props} className={cn("flex flex-col gap-3", className)} data-testid={testIdPrefix}>
       <Field>
         <FieldLabel htmlFor={`${testIdPrefix}-mode`}>Network participation</FieldLabel>
         <FieldDescription>
@@ -39,12 +66,18 @@ export function NetworkParticipationFields({
           id={`${testIdPrefix}-mode`}
           data-testid={`${testIdPrefix}-mode`}
           value={value.mode}
-          onChange={event =>
-            onChange({
-              ...value,
-              mode: event.target.value as NetworkParticipationMode,
-            })
-          }
+          onChange={event => {
+            const mode = event.target.value as NetworkParticipationMode;
+            onChange(
+              mode === "local"
+                ? { mode: "local", channelId: "", channelStrategy: "" }
+                : {
+                    mode: "live",
+                    channelId: currentStrategy === "named" ? value.channelId : "",
+                    channelStrategy: currentStrategy,
+                  }
+            );
+          }}
         >
           <NativeSelectOption value="local">Local</NativeSelectOption>
           <NativeSelectOption value="live">Live</NativeSelectOption>
@@ -53,27 +86,46 @@ export function NetworkParticipationFields({
       {value.mode === "live" ? (
         <>
           <Field>
-            <FieldLabel htmlFor={`${testIdPrefix}-channel`}>Channel</FieldLabel>
-            <Input
-              disabled={disabled}
-              id={`${testIdPrefix}-channel`}
-              data-testid={`${testIdPrefix}-channel`}
-              placeholder="channel id"
-              value={value.channelId}
-              onChange={event => onChange({ ...value, channelId: event.target.value })}
-            />
-          </Field>
-          <Field>
             <FieldLabel htmlFor={`${testIdPrefix}-strategy`}>Channel strategy</FieldLabel>
-            <Input
+            <NativeSelect
               disabled={disabled}
               id={`${testIdPrefix}-strategy`}
               data-testid={`${testIdPrefix}-strategy`}
-              placeholder="optional strategy"
-              value={value.channelStrategy}
-              onChange={event => onChange({ ...value, channelStrategy: event.target.value })}
-            />
+              value={currentStrategy}
+              onChange={event => {
+                if (!isNetworkParticipationStrategy(event.target.value)) return;
+                onChange({
+                  mode: "live",
+                  channelId: event.target.value === "named" ? value.channelId : "",
+                  channelStrategy: event.target.value,
+                });
+              }}
+            >
+              {allowedStrategies.map(strategy => (
+                <NativeSelectOption key={strategy} value={strategy}>
+                  {STRATEGY_LABELS[strategy]}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
           </Field>
+          {currentStrategy === "named" ? (
+            <Field>
+              <FieldLabel htmlFor={`${testIdPrefix}-channel`}>Channel</FieldLabel>
+              <Input
+                disabled={disabled}
+                id={`${testIdPrefix}-channel`}
+                data-testid={`${testIdPrefix}-channel`}
+                placeholder="channel id"
+                required
+                aria-invalid={validationMessage ? true : undefined}
+                value={value.channelId}
+                onChange={event =>
+                  onChange({ ...value, channelId: event.target.value, channelStrategy: "named" })
+                }
+              />
+              {validationMessage ? <FieldError>{validationMessage}</FieldError> : null}
+            </Field>
+          ) : null}
         </>
       ) : null}
     </div>

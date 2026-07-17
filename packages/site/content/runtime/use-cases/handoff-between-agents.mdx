@@ -20,14 +20,16 @@ agh network peers release -o json
 Start the local session that will send the request:
 
 ```bash
-agh session new --workspace project --agent coordinator --channel release --name release-coordinator -o json
+agh session new --workspace project --agent coordinator --name release-coordinator \
+  --network live --network-channel-strategy named --network-channel release -o json
 ```
 
 Start or identify the receiving session in the same channel. The examples below use `sess_receiver`
 as the returned session id.
 
 ```bash
-agh session new --workspace project --agent reviewer --channel release --name release-reviewer -o json
+agh session new --workspace project --agent reviewer --name release-reviewer \
+  --network live --network-channel-strategy named --network-channel release -o json
 agh network peers release -o json
 ```
 

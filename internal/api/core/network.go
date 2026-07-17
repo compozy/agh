@@ -379,9 +379,6 @@ func sortNetworkPeerPayloads(peers []contract.NetworkPeerPayload) {
 }
 
 func networkPeerSortTimestamp(peer contract.NetworkPeerPayload) *time.Time {
-	if peer.LastSeen != nil {
-		return peer.LastSeen
-	}
 	return peer.JoinedAt
 }
 
@@ -400,41 +397,28 @@ func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPaylo
 			displayName = trimmed
 		}
 	}
-	presenceState, lastSeenAgeSeconds := networkPresenceFields(peer)
 	return contract.NetworkPeerPayload{
-		WorkspaceID:        strings.TrimSpace(peer.WorkspaceID),
-		SessionID:          peer.SessionID,
-		PeerID:             peer.PeerID,
-		DisplayName:        displayName,
-		Channel:            peer.Channel,
-		Local:              peer.Local,
-		PeerCard:           networkPeerCardPayload(peer),
-		JoinedAt:           cloneTimePtr(peer.JoinedAt),
-		LastSeen:           cloneTimePtr(peer.LastSeen),
-		ExpiresAt:          cloneTimePtr(peer.ExpiresAt),
-		PresenceState:      presenceState,
-		LastSeenAgeSeconds: lastSeenAgeSeconds,
+		WorkspaceID:   strings.TrimSpace(peer.WorkspaceID),
+		SessionID:     peer.SessionID,
+		PeerID:        peer.PeerID,
+		DisplayName:   displayName,
+		Channel:       peer.Channel,
+		Local:         peer.Local,
+		PeerCard:      networkPeerCardPayload(peer),
+		JoinedAt:      cloneTimePtr(peer.JoinedAt),
+		PresenceState: networkPresenceState(peer),
 	}
 }
 
-func networkPresenceFields(peer network.PeerInfo) (string, *int64) {
+func networkPresenceState(peer network.PeerInfo) string {
 	state := string(peer.PresenceState)
-	if state == "" && peer.Local {
+	if state == "" {
 		state = contract.NetworkPresenceLocal
 	}
-	switch state {
-	case contract.NetworkPresenceLocal,
-		contract.NetworkPresenceActive,
-		contract.NetworkPresenceInactive,
-		contract.NetworkPresenceExpired,
-		contract.NetworkPresenceUnknown:
-	default:
-		state = contract.NetworkPresenceUnknown
+	if state != contract.NetworkPresenceLocal {
+		return contract.NetworkPresenceLocal
 	}
-	if state == contract.NetworkPresenceLocal || state == contract.NetworkPresenceUnknown {
-		return state, nil
-	}
-	return state, cloneInt64Ptr(peer.LastSeenAgeSeconds)
+	return state
 }
 
 func networkPeerCardPayload(peer network.PeerInfo) contract.NetworkPeerCardPayload {

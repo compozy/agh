@@ -179,11 +179,7 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	storedQueued.ClaimTokenHash = "sha256:" + strings.Repeat("b", 64)
 	storedQueued.LeaseUntil = storedQueued.ClaimedAt.Add(20 * time.Minute)
 	storedQueued.HeartbeatAt = storedQueued.ClaimedAt.Add(30 * time.Second)
-	storedQueued.NetworkSpec = participation.Spec{
-		Mode:      participation.ModeLive,
-		ChannelID: "coord-reopen-run",
-		Source:    participation.SourceExplicitRequest,
-	}
+	storedQueued.NetworkSpec = participation.LocalSpec()
 	storedQueued.RequiredCapabilities = []string{"golang", "sqlite"}
 	storedQueued.PreferredCapabilities = []string{"claude", "codex"}
 	if err := second.UpdateTaskRun(ctx, storedQueued); err != nil {

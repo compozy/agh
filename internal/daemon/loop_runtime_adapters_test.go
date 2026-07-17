@@ -637,6 +637,10 @@ type loopActionBinderSessionManager struct {
 	stopSawCanceledContexts  []bool
 }
 
+func (m *loopActionBinderSessionManager) Status(context.Context, string) (*session.Info, error) {
+	return nil, session.ErrSessionNotFound
+}
+
 func (m *loopActionBinderSessionManager) Create(
 	_ context.Context,
 	opts session.CreateOpts,
@@ -839,6 +843,10 @@ type loopPromptResultSessionManager struct {
 
 func (m loopPromptResultSessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {
 	return nil, errors.New("unexpected Create call")
+}
+
+func (m loopPromptResultSessionManager) Status(context.Context, string) (*session.Info, error) {
+	return nil, errors.New("unexpected Status call")
 }
 
 func (m loopPromptResultSessionManager) Prompt(

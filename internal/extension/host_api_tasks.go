@@ -10,6 +10,7 @@ import (
 
 	apicontract "github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	observepkg "github.com/compozy/agh/internal/observe"
 	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -17,7 +18,7 @@ import (
 
 func (h *HostAPIHandler) handleTasks(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params hostAPITasksParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
+	if err := decodeHostAPIParamsStrict(raw, &params); err != nil {
 		return nil, err
 	}
 
@@ -178,7 +179,7 @@ func (h *HostAPIHandler) handleTasksCreate(ctx context.Context, raw json.RawMess
 
 func (h *HostAPIHandler) handleTasksUpdate(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params hostAPITaskUpdateParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
+	if err := decodeHostAPIParamsStrict(raw, &params); err != nil {
 		return nil, err
 	}
 	taskID := strings.TrimSpace(params.ID)
@@ -276,7 +277,11 @@ func (h *HostAPIHandler) handleTasksRunsGet(ctx context.Context, raw json.RawMes
 	if err != nil {
 		return nil, mapTaskRPCError(runID, err)
 	}
-	return taskRunDetailPayloadFromView(view), nil
+	payload, err := h.taskRunDetailPayloadFromView(ctx, view)
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
 }
 
 func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -538,9 +543,10 @@ func taskTimelineQueryFromParams(params apicontract.TaskTimelineQuery) (taskpkg.
 
 func taskRunQueryFromParams(params apicontract.TaskRunListQuery) (taskpkg.RunQuery, error) {
 	query := taskpkg.RunQuery{
-		Status:    params.Status.Normalize(),
-		SessionID: strings.TrimSpace(params.SessionID),
-		Limit:     params.Limit,
+		Status:               params.Status.Normalize(),
+		SessionID:            strings.TrimSpace(params.SessionID),
+		ParticipationChannel: strings.TrimSpace(params.ParticipationChannel),
+		Limit:                params.Limit,
 	}
 	if err := query.Validate("task_run_query"); err != nil {
 		return taskpkg.RunQuery{}, invalidParamsRPCError(err)
@@ -645,19 +651,21 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 	}
 
 	spec := taskpkg.CreateTask{
-		ID:                 strings.TrimSpace(req.ID),
-		Identifier:         strings.TrimSpace(req.Identifier),
-		Scope:              scope,
-		WorkspaceID:        workspaceID,
-		Title:              strings.TrimSpace(req.Title),
-		Description:        strings.TrimSpace(req.Description),
-		Priority:           req.Priority.Normalize(),
-		MaxAttempts:        req.MaxAttempts,
-		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
-		Draft:              req.Draft,
-		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
-		Owner:              cloneOwnership(req.Owner),
-		Metadata:           cloneRawMessage(req.Metadata),
+		ID:                   strings.TrimSpace(req.ID),
+		Identifier:           strings.TrimSpace(req.Identifier),
+		Scope:                scope,
+		WorkspaceID:          workspaceID,
+		Title:                strings.TrimSpace(req.Title),
+		Description:          strings.TrimSpace(req.Description),
+		Priority:             req.Priority.Normalize(),
+		MaxAttempts:          req.MaxAttempts,
+		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
+		Draft:                req.Draft,
+		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
+		Owner:                cloneOwnership(req.Owner),
+		WakeCreator:          cloneBoolPointer(req.WakeCreator),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_task"); err != nil {
 		return taskpkg.CreateTask{}, invalidParamsRPCError(err)
@@ -667,15 +675,16 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 
 func taskPatchFromRequest(req apicontract.UpdateTaskRequest) (taskpkg.Patch, error) {
 	patch := taskpkg.Patch{
-		Title:              trimStringPtr(req.Title),
-		Description:        trimStringPtr(req.Description),
-		Priority:           normalizePriorityPtr(req.Priority),
-		MaxAttempts:        req.MaxAttempts,
-		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
-		ApprovalPolicy:     normalizeApprovalPolicyPtr(req.ApprovalPolicy),
-		Metadata:           cloneRawMessagePtr(req.Metadata),
-		Owner:              cloneOwnership(req.Owner),
-		ClearOwner:         req.ClearOwner,
+		Title:                trimStringPtr(req.Title),
+		Description:          trimStringPtr(req.Description),
+		Priority:             normalizePriorityPtr(req.Priority),
+		MaxAttempts:          req.MaxAttempts,
+		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
+		ApprovalPolicy:       normalizeApprovalPolicyPtr(req.ApprovalPolicy),
+		Metadata:             cloneRawMessagePtr(req.Metadata),
+		Owner:                cloneOwnership(req.Owner),
+		ClearOwner:           req.ClearOwner,
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
 	}
 	if err := patch.Validate("task_patch"); err != nil {
 		return taskpkg.Patch{}, invalidParamsRPCError(err)
@@ -696,9 +705,10 @@ func cancelTaskFromRequest(req apicontract.CancelTaskRequest) (taskpkg.CancelTas
 
 func enqueueTaskRunFromRequest(taskID string, req apicontract.EnqueueTaskRunRequest) (taskpkg.EnqueueRun, error) {
 	spec := taskpkg.EnqueueRun{
-		TaskID:         strings.TrimSpace(taskID),
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		Metadata:       cloneRawMessage(req.Metadata),
+		TaskID:               strings.TrimSpace(taskID),
+		IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("enqueue_run"); err != nil {
 		return taskpkg.EnqueueRun{}, invalidParamsRPCError(err)
@@ -891,14 +901,15 @@ func taskRunPayloadsFromRuns(runs []taskpkg.Run) []apicontract.TaskRunPayload {
 
 func taskReferencePayloadFromReference(record taskpkg.Reference) apicontract.TaskReferencePayload {
 	return apicontract.TaskReferencePayload{
-		ID:          record.ID,
-		Identifier:  record.Identifier,
-		Title:       record.Title,
-		Status:      record.Status,
-		Priority:    record.Priority,
-		Owner:       cloneOwnership(record.Owner),
-		Scope:       record.Scope,
-		WorkspaceID: record.WorkspaceID,
+		ID:             record.ID,
+		Identifier:     record.Identifier,
+		Title:          taskpkg.RedactClaimTokens(record.Title),
+		Status:         record.Status,
+		Priority:       record.Priority,
+		Owner:          cloneOwnership(record.Owner),
+		Scope:          record.Scope,
+		WorkspaceID:    record.WorkspaceID,
+		LatestEventSeq: record.LatestEventSeq,
 	}
 }
 
@@ -908,18 +919,19 @@ func taskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *apicontract.
 	}
 
 	return &apicontract.TaskRunSummaryPayload{
-		ID:          summary.ID,
-		TaskID:      summary.TaskID,
-		Status:      summary.Status,
-		Attempt:     summary.Attempt,
-		MaxAttempts: summary.MaxAttempts,
-		SessionID:   summary.SessionID,
-		ClaimedBy:   cloneActorIdentity(summary.ClaimedBy),
-		QueuedAt:    summary.QueuedAt,
-		ClaimedAt:   optionalTime(summary.ClaimedAt),
-		StartedAt:   optionalTime(summary.StartedAt),
-		EndedAt:     optionalTime(summary.EndedAt),
-		Error:       summary.Error,
+		ID:                           summary.ID,
+		TaskID:                       summary.TaskID,
+		Status:                       summary.Status,
+		Attempt:                      summary.Attempt,
+		MaxAttempts:                  summary.MaxAttempts,
+		SessionID:                    summary.SessionID,
+		ClaimedBy:                    cloneActorIdentity(summary.ClaimedBy),
+		ResolvedNetworkParticipation: cloneResolvedParticipation(summary.ResolvedNetworkParticipation),
+		QueuedAt:                     summary.QueuedAt,
+		ClaimedAt:                    optionalTime(summary.ClaimedAt),
+		StartedAt:                    optionalTime(summary.StartedAt),
+		EndedAt:                      optionalTime(summary.EndedAt),
+		Error:                        taskpkg.RedactClaimTokens(summary.Error),
 	}
 }
 
@@ -951,7 +963,7 @@ func taskEventPayloadsFromEvents(events []taskpkg.Event) []apicontract.TaskEvent
 			EventType: event.EventType,
 			Actor:     event.Actor,
 			Origin:    event.Origin,
-			Payload:   cloneRawMessage(event.Payload),
+			Payload:   taskpkg.RedactClaimTokenJSON(event.Payload),
 			Timestamp: event.Timestamp,
 		}
 	}
@@ -991,7 +1003,7 @@ func taskTimelineItemPayloadFromItem(item taskpkg.TimelineItem) apicontract.Task
 		EventType: item.EventType,
 		Actor:     item.Actor,
 		Origin:    item.Origin,
-		Payload:   cloneRawMessage(item.Payload),
+		Payload:   taskpkg.RedactClaimTokenJSON(item.Payload),
 		Timestamp: item.Timestamp,
 	}
 }
@@ -1209,12 +1221,13 @@ func taskDashboardActiveRunsPayload(
 		payload.Items = append(payload.Items, apicontract.TaskDashboardActiveRunPayload{
 			TaskID:                       item.TaskID,
 			TaskIdentifier:               item.TaskIdentifier,
-			TaskTitle:                    item.TaskTitle,
+			TaskTitle:                    taskpkg.RedactClaimTokens(strings.TrimSpace(item.TaskTitle)),
 			TaskStatus:                   item.TaskStatus,
 			TaskPriority:                 item.TaskPriority,
 			TaskOwner:                    cloneOwnership(item.TaskOwner),
 			Scope:                        item.Scope,
 			WorkspaceID:                  item.WorkspaceID,
+			LatestEventSeq:               item.LatestEventSeq,
 			RunID:                        item.RunID,
 			RunStatus:                    item.RunStatus,
 			Attempt:                      item.Attempt,
@@ -1225,7 +1238,7 @@ func taskDashboardActiveRunsPayload(
 			AgeMilli:                     item.AgeMilli,
 			HealthStatus:                 item.HealthStatus,
 			Stuck:                        item.Stuck,
-			Error:                        item.Error,
+			Error:                        taskpkg.RedactClaimTokens(strings.TrimSpace(item.Error)),
 		})
 	}
 	return payload
@@ -1287,7 +1300,7 @@ func taskInboxPayloadFromView(view observepkg.TaskInboxView) apicontract.TaskInb
 					Lane:             apicontract.TaskInboxLane(item.Lane),
 					ApprovalPolicy:   item.ApprovalPolicy,
 					ApprovalState:    item.ApprovalState,
-					BlockingReason:   item.BlockingReason,
+					BlockingReason:   taskpkg.RedactClaimTokens(strings.TrimSpace(item.BlockingReason)),
 					LatestActivityAt: item.LatestActivityAt,
 					Run:              apicontract.TaskCatalogRunPayloadFromSummary(item.Run),
 					Triage:           taskTriageStatePayloadFromState(item.Triage),

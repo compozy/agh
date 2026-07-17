@@ -81,6 +81,7 @@ export function AutomationTriggerForm({
               title="A workspace, or the whole runtime"
             >
               <ScopeStep
+                disabled={mode === "edit"}
                 isWebhook={form.isWebhook}
                 onScopeChange={form.onScopeChange}
                 onWorkspaceChange={form.onWorkspaceChange}

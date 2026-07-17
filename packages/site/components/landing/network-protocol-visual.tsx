@@ -25,7 +25,7 @@ const STEPS: Step[] = [
     to: "NET",
     kind: "greet",
     direction: "->",
-    payload: `{ agent: "coder", caps: ["code","review"] }`,
+    payload: `{ peer_card: { peer_id: "coder.session-a", profiles_supported: ["agh-network/v0"], capabilities: ["code","review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } }`,
     hint: "A Live coder announces itself inside the current daemon.",
   },
   {
@@ -33,15 +33,15 @@ const STEPS: Step[] = [
     to: "A",
     kind: "greet",
     direction: "<-",
-    payload: `{ local_agents: 2, channel: "release" }`,
-    hint: "The daemon returns the workspace-qualified local membership.",
+    payload: `{ peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["agh-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } }`,
+    hint: "The daemon relays a workspace-qualified peer card from local membership.",
   },
   {
     from: "A",
     to: "NET",
     kind: "whois",
     direction: "->",
-    payload: `{ need: "review release" }`,
+    payload: `{ type: "request", query: "review release" }`,
     hint: "Coder asks for a local session that can review the release.",
   },
   {
@@ -49,7 +49,7 @@ const STEPS: Step[] = [
     to: "A",
     kind: "whois",
     direction: "<-",
-    payload: `{ match: "reviewer@session-b" }`,
+    payload: `{ reply_to: "msg_whois_001", body: { type: "response", peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["agh-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } } }`,
     hint: "The daemon resolves an eligible Live session in-process.",
   },
   {
@@ -57,7 +57,7 @@ const STEPS: Step[] = [
     to: "B",
     kind: "say",
     direction: "->",
-    payload: `{ surface: "direct", direct_id: "direct_...", to: "reviewer", body: { text: "review release" } }`,
+    payload: `{ id: "msg_review_001", surface: "direct", direct_id: "direct_...", to: "reviewer.session-b", work_id: "work_release_review", body: { text: "review release" } }`,
     hint: "The direct message commits before the daemon wakes the addressed Live session.",
   },
   {
@@ -65,7 +65,7 @@ const STEPS: Step[] = [
     to: "A",
     kind: "trace",
     direction: "..",
-    payload: `{ status: "running", step: 2/4 }`,
+    payload: `{ surface: "direct", direct_id: "direct_...", work_id: "work_release_review", body: { state: "working", message: "step 2 of 4" } }`,
     hint: "Reviewer records progress without turning conversation into task authority.",
   },
   {
@@ -73,8 +73,8 @@ const STEPS: Step[] = [
     to: "A",
     kind: "receipt",
     direction: "<-",
-    payload: `{ ok: true, usage: { input: 1820, output: 306 } }`,
-    hint: "The collaboration closes with a durable receipt and truthful usage.",
+    payload: `{ surface: "direct", direct_id: "direct_...", work_id: "work_release_review", body: { for_id: "msg_review_001", status: "accepted" } }`,
+    hint: "The collaboration records a durable receipt; provider usage is stored separately.",
   },
 ];
 

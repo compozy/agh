@@ -3,13 +3,17 @@ package globaldb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type recordingTaskEventCommitObserver struct {
@@ -56,10 +60,9 @@ func TestGlobalDBTaskEventCommitObserverShouldPublishRecoveredAfterCommit(t *tes
 	globalDB.SetTaskEventCommitObserver(observer)
 	recoveryNote := "operator reviewed escalation"
 	if _, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
-		Origin:    operatorActorContextForTest("operator").Origin,
 		TaskID:    taskRecord.ID,
 		Note:      recoveryNote,
-		ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
+		Actor:     operatorActorContextForTest("operator"),
 		ClearedAt: markedAt.Add(time.Minute),
 	}); err != nil {
 		t.Fatalf("ClearTaskNeedsAttention() error = %v", err)
@@ -88,6 +91,64 @@ func TestGlobalDBTaskEventCommitObserverShouldPublishRecoveredAfterCommit(t *tes
 	}
 	if observer.tasks[0].NeedsAttention != nil {
 		t.Fatalf("observer task NeedsAttention = %#v, want committed nil", observer.tasks[0].NeedsAttention)
+	}
+}
+
+func TestTaskExecutionCommandShouldRollbackPublishWhenEnqueuedEventFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	manager, err := taskpkg.NewManager(taskpkg.WithStore(globalDB))
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	actor := operatorActorContextForTest("operator")
+	actor.Authority.CreateGlobal = true
+	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Atomic publish rollback",
+		Draft: true,
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	installTaskEventInsertFailureTriggerForType(t, globalDB, "task.run_enqueued")
+	_, err = manager.PublishTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
+		IdempotencyKey: "publish-rollback",
+	}, actor)
+	assertForcedTaskEventInsertError(t, err, "PublishTask()")
+
+	storedTask, err := globalDB.GetTask(ctx, taskRecord.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got, want := storedTask.Status, taskpkg.TaskStatusDraft; got != want {
+		t.Fatalf("stored task status = %q, want rollback to %q", got, want)
+	}
+	runs, err := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskRuns() error = %v", err)
+	}
+	if len(runs) != 0 {
+		t.Fatalf("len(ListTaskRuns()) = %d, want 0 after rollback", len(runs))
+	}
+	if _, err := globalDB.GetTaskRunByIdempotencyKey(
+		ctx,
+		"task.publish:"+taskRecord.ID+":publish-rollback",
+		actor.Origin,
+	); !errors.Is(err, taskpkg.ErrTaskRunIdempotencyNotFound) {
+		t.Fatalf("GetTaskRunByIdempotencyKey() error = %v, want %v", err, taskpkg.ErrTaskRunIdempotencyNotFound)
+	}
+	events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	for _, event := range events {
+		if event.EventType == "task.published" || event.EventType == "task.run_enqueued" {
+			t.Fatalf("rolled-back event persisted: %q", event.EventType)
+		}
 	}
 }
 
@@ -166,6 +227,101 @@ func TestGlobalDBCompleteRunLeaseShouldAppendRunCompletedWatchEvent(t *testing.T
 
 func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should roll back task and profile creation when task.created append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-definition-create-rollback")
+		profile := taskpkg.DefaultExecutionProfile(taskRecord.ID)
+		event := taskpkg.Event{
+			ID:        "event-definition-create-rollback",
+			TaskID:    taskRecord.ID,
+			EventType: "task.created",
+			Actor:     taskRecord.CreatedBy,
+			Origin:    taskRecord.Origin,
+			Payload:   json.RawMessage(`{"status":"pending"}`),
+			Timestamp: taskRecord.CreatedAt,
+		}
+		observer := &recordingTaskEventCommitObserver{db: globalDB}
+		globalDB.SetTaskEventCommitObserver(observer)
+		installTaskEventInsertFailureTriggerForType(t, globalDB, event.EventType)
+
+		err := globalDB.CreateTaskDefinition(ctx, taskpkg.CreateTaskDefinitionMutation{
+			Task: taskRecord, Profile: &profile, Events: []taskpkg.Event{event},
+		})
+		assertForcedTaskEventInsertError(t, err, "CreateTaskDefinition()")
+		if _, err = globalDB.GetTask(ctx, taskRecord.ID); !errors.Is(err, taskpkg.ErrTaskNotFound) {
+			t.Fatalf("GetTask() error = %v, want %v", err, taskpkg.ErrTaskNotFound)
+		}
+		if _, err = globalDB.GetExecutionProfile(ctx, taskRecord.ID); !errors.Is(
+			err,
+			taskpkg.ErrExecutionProfileNotFound,
+		) {
+			t.Fatalf("GetExecutionProfile() error = %v, want %v", err, taskpkg.ErrExecutionProfileNotFound)
+		}
+		if got := len(observer.records); got != 0 {
+			t.Fatalf("len(observer.records) after rollback = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should roll back task and profile updates when task.updated append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-definition-update-rollback")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		profile := taskpkg.DefaultExecutionProfile(taskRecord.ID)
+		if _, err := globalDB.UpsertExecutionProfile(ctx, &profile); err != nil {
+			t.Fatalf("UpsertExecutionProfile() error = %v", err)
+		}
+		updated := taskRecord
+		updated.Title = "This title must roll back"
+		updated.UpdatedAt = taskRecord.UpdatedAt.Add(time.Minute)
+		updatedParticipation := &participation.Request{
+			Mode:            new(participation.ModeLive),
+			ChannelStrategy: new(participation.StrategyNamed),
+			ChannelID:       new("ops"),
+		}
+		event := taskpkg.Event{
+			ID:        "event-definition-update-rollback",
+			TaskID:    taskRecord.ID,
+			EventType: "task.updated",
+			Actor:     taskRecord.CreatedBy,
+			Origin:    taskRecord.Origin,
+			Payload:   json.RawMessage(`{"changed_fields":["title","network_participation"]}`),
+			Timestamp: updated.UpdatedAt,
+		}
+		installTaskEventInsertFailureTriggerForType(t, globalDB, event.EventType)
+
+		_, err := globalDB.UpdateTaskDefinition(ctx, &taskpkg.UpdateTaskDefinitionMutation{
+			Task:                      updated,
+			UpdateTaskRow:             true,
+			PatchNetworkParticipation: true,
+			NetworkParticipation:      updatedParticipation,
+			Actor:                     operatorActorContextForTest("operator"),
+			Events:                    []taskpkg.Event{event},
+		})
+		assertForcedTaskEventInsertError(t, err, "UpdateTaskDefinition()")
+		storedTask, err := globalDB.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		if got, want := storedTask.Title, taskRecord.Title; got != want {
+			t.Fatalf("stored task title = %q, want rollback to %q", got, want)
+		}
+		storedProfile, err := globalDB.GetExecutionProfile(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetExecutionProfile() error = %v", err)
+		}
+		if storedProfile.NetworkParticipation != nil {
+			t.Fatalf("stored network participation = %#v, want rollback to nil", storedProfile.NetworkParticipation)
+		}
+	})
 
 	t.Run("Should roll back status update when status_changed append fails", func(t *testing.T) {
 		t.Parallel()
@@ -434,9 +590,8 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		installTaskEventInsertFailureTriggerForType(t, globalDB, string(hookspkg.HookTaskRecovered))
 
 		_, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
-			Origin:    operatorActorContextForTest("operator").Origin,
 			TaskID:    taskRecord.ID,
-			ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
+			Actor:     operatorActorContextForTest("operator"),
 			ClearedAt: markedAt.Add(time.Minute),
 		})
 		assertForcedTaskEventInsertError(t, err, "ClearTaskNeedsAttention()")
@@ -543,6 +698,167 @@ func assertForcedTaskEventInsertError(t *testing.T, err error, operation string)
 	if err == nil || !strings.Contains(err.Error(), "forced task event insert failure") {
 		t.Fatalf("%s error = %v, want forced task event insert failure", operation, err)
 	}
+}
+
+func TestTaskCoordinationCommandShouldCommitProfileAndEventsAtomically(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should commit task coordination profile events and preserve the active run snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "coordination-task", t.TempDir())
+		taskRecord := workspaceTaskRecordForTest("task-coordination-atomic", workspaceID)
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-coordination-active", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		observer := &recordingTaskEventCommitObserver{db: globalDB}
+		globalDB.SetTaskEventCommitObserver(observer)
+		ref := workspacepkg.CoordinationRef{
+			WorkspaceID: workspaceID,
+			ScopeKind:   workspacepkg.InvitationScopeTask,
+			TaskID:      taskRecord.ID,
+			RunID:       run.ID,
+		}
+		commands := workspacepkg.NewCoordinationService(globalDB)
+		view, err := commands.Set(ctx, workspacepkg.SetCoordination{
+			Ref: ref, Enabled: true, ExpectedRevision: 0,
+		}, operatorActorContextForTest("operator:coordination"))
+		if err != nil {
+			t.Fatalf("Set(task coordination) error = %v", err)
+		}
+		if !view.Setting.Enabled || view.Setting.Revision != 1 ||
+			view.Setting.UpdatedBy != "operator:coordination" {
+			t.Fatalf("coordination setting = %#v, want enabled revision one", view.Setting)
+		}
+		profile, err := globalDB.GetExecutionProfile(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetExecutionProfile() error = %v", err)
+		}
+		if profile.NetworkParticipation == nil || profile.NetworkParticipation.Mode == nil ||
+			*profile.NetworkParticipation.Mode != participation.ModeLive ||
+			profile.NetworkParticipation.ChannelStrategy == nil ||
+			*profile.NetworkParticipation.ChannelStrategy != participation.StrategyRun {
+			t.Fatalf(
+				"task network participation = %#v, want explicit Live/run future intent",
+				profile.NetworkParticipation,
+			)
+		}
+		storedRun, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if storedRun.RunNetworkState == nil || storedRun.NetworkSpec.Mode != participation.ModeLocal {
+			t.Fatalf("active run network state = %#v, want immutable Local snapshot", storedRun.RunNetworkState)
+		}
+		events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskRecord.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEvents() error = %v", err)
+		}
+		if len(events) != 1 || events[0].EventType != eventspkg.TaskExecutionProfileUpdated {
+			t.Fatalf("task events = %#v, want one execution profile event", events)
+		}
+		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
+			WorkspaceID: workspaceID,
+			TaskID:      taskRecord.ID,
+			Type:        eventspkg.NetworkCoordinationSettingChanged,
+		})
+		if err != nil {
+			t.Fatalf("ListEventSummaries() error = %v", err)
+		}
+		if len(summaries) != 1 || summaries[0].ActorID != "operator:coordination" {
+			t.Fatalf("coordination summaries = %#v, want committed operator event", summaries)
+		}
+		if len(observer.records) != 1 || observer.err != nil {
+			t.Fatalf("post-commit observer = %#v err=%v, want one committed event", observer.records, observer.err)
+		}
+	})
+
+	t.Run("Should reject a task from another workspace without writes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		ownerWorkspaceID := registerWorkspaceForGlobalTests(t, globalDB, "coordination-owner", t.TempDir())
+		otherWorkspaceID := registerWorkspaceForGlobalTests(t, globalDB, "coordination-other", t.TempDir())
+		taskRecord := workspaceTaskRecordForTest("task-coordination-scope", ownerWorkspaceID)
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		commands := workspacepkg.NewCoordinationService(globalDB)
+		_, err := commands.Set(ctx, workspacepkg.SetCoordination{
+			Ref: workspacepkg.CoordinationRef{
+				WorkspaceID: otherWorkspaceID,
+				ScopeKind:   workspacepkg.InvitationScopeTask,
+				TaskID:      taskRecord.ID,
+			},
+			Enabled:          true,
+			ExpectedRevision: 0,
+		}, operatorActorContextForTest("operator:scope"))
+		if !errors.Is(err, workspacepkg.ErrCoordinationScopeInvalid) {
+			t.Fatalf("Set(wrong workspace) error = %v, want %v", err, workspacepkg.ErrCoordinationScopeInvalid)
+		}
+		if _, err := globalDB.GetExecutionProfile(ctx, taskRecord.ID); !errors.Is(
+			err,
+			taskpkg.ErrExecutionProfileNotFound,
+		) {
+			t.Fatalf("GetExecutionProfile() error = %v, want no profile write", err)
+		}
+	})
+
+	t.Run("Should roll back setting profile and summaries when task event append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "coordination-rollback", t.TempDir())
+		taskRecord := workspaceTaskRecordForTest("task-coordination-rollback", workspaceID)
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		observer := &recordingTaskEventCommitObserver{db: globalDB}
+		globalDB.SetTaskEventCommitObserver(observer)
+		installTaskEventInsertFailureTriggerForType(t, globalDB, eventspkg.TaskExecutionProfileUpdated)
+		ref := workspacepkg.CoordinationRef{
+			WorkspaceID: workspaceID,
+			ScopeKind:   workspacepkg.InvitationScopeTask,
+			TaskID:      taskRecord.ID,
+		}
+		commands := workspacepkg.NewCoordinationService(globalDB)
+		_, err := commands.Set(ctx, workspacepkg.SetCoordination{
+			Ref: ref, Enabled: true, ExpectedRevision: 0,
+		}, operatorActorContextForTest("operator:rollback"))
+		assertForcedTaskEventInsertError(t, err, "SetCoordination(task)")
+		view, err := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
+		if err != nil {
+			t.Fatalf("GetCoordination() error = %v", err)
+		}
+		if view.Setting.Revision != 0 || view.Setting.Enabled {
+			t.Fatalf("coordination setting = %#v, want rolled-back absent row", view.Setting)
+		}
+		if _, err := globalDB.GetExecutionProfile(ctx, taskRecord.ID); !errors.Is(
+			err,
+			taskpkg.ErrExecutionProfileNotFound,
+		) {
+			t.Fatalf("GetExecutionProfile() error = %v, want rolled-back profile", err)
+		}
+		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
+			WorkspaceID: workspaceID,
+			TaskID:      taskRecord.ID,
+			Type:        eventspkg.NetworkCoordinationSettingChanged,
+		})
+		if err != nil {
+			t.Fatalf("ListEventSummaries() error = %v", err)
+		}
+		if len(summaries) != 0 || len(observer.records) != 0 {
+			t.Fatalf("summaries/observer = %d/%d, want no rolled-back events", len(summaries), len(observer.records))
+		}
+	})
 }
 
 func clearTaskBlockForRollbackTest(

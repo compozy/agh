@@ -151,10 +151,7 @@ type ActivateRequest struct {
 	ProfileName               string
 	Scope                     Scope
 	Workspace                 string
-	ExpectedVersion           int64
 	ConfirmNetworkRequirement bool
-	ConfirmedBy               string
-	ConfirmedAt               string
 }
 
 type UpdateActivationRequest struct {
@@ -234,13 +231,23 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
 	state, err := s.collectDesiredState(ctx, activations)
 	if err != nil {
 		return err
 	}
-	if err := s.reconcileNetworkRequirementDigests(ctx, activations); err != nil {
+	changed, err := s.reconcileNetworkRequirementDigests(ctx, activations)
+	if err != nil {
 		return err
+	}
+	if changed {
+		activations, err = s.store.ListBundleActivations(ctx)
+		if err != nil {
+			return err
+		}
+		state, err = s.collectDesiredState(ctx, activations)
+		if err != nil {
+			return err
+		}
 	}
 
 	owners := ownedResourceMaps(state.inventoryByActivation)

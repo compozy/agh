@@ -63,6 +63,13 @@ func buildEnvelope(input envelopeInput, now time.Time, maxReplayAge time.Duratio
 		if err != nil {
 			return Envelope{}, err
 		}
+		if envelope.DirectID != nil && strings.TrimSpace(*envelope.DirectID) != directID {
+			return Envelope{}, fmt.Errorf(
+				"%w: direct_id=%q does not belong to the sender and target sessions",
+				ErrDirectRoomCollision,
+				strings.TrimSpace(*envelope.DirectID),
+			)
+		}
 		envelope.DirectID = new(directID)
 	}
 	if err := ValidateEnvelope(envelope, ValidateOptions{Now: now, MaxReplayAge: maxReplayAge}); err != nil {

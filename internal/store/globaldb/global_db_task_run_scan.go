@@ -14,10 +14,12 @@ import (
 func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 	var run taskpkg.Run
 	var taskID sql.NullString
+	var workspaceID sql.NullString
 	var fields taskRunScanFields
 	if err := scanner.Scan(
 		&run.ID,
 		&taskID,
+		&workspaceID,
 		&fields.runKind,
 		&fields.loopRunID,
 		&fields.status,
@@ -64,6 +66,7 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		return taskpkg.Run{}, fmt.Errorf("store: scan task run: %w", err)
 	}
 	run.TaskID = taskNullStringValue(taskID)
+	run.WorkspaceID = taskNullStringValue(workspaceID)
 	return (&fields).record(run)
 }
 
@@ -129,6 +132,7 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 		fields.runErr,
 	)
 	networkSpec, err := decodeParticipationSnapshot(
+		run.WorkspaceID,
 		fields.networkSpecJSON,
 		fields.networkMode,
 		fields.networkChannel,

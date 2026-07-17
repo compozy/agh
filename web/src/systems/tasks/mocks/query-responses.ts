@@ -118,11 +118,11 @@ function matchesCatalogTask(task: TaskListItem, url: URL): boolean {
   if (parentTaskId !== "" && task.parent_task_id !== parentTaskId) {
     return false;
   }
-  if (
-    participationChannel !== "" &&
-    task.resolved_network_participation?.channel_id !== participationChannel
-  ) {
-    return false;
+  if (participationChannel !== "") {
+    const participation = task.resolved_network_participation;
+    if (participation?.mode !== "live" || participation.channel_id !== participationChannel) {
+      return false;
+    }
   }
   if (
     search !== "" &&

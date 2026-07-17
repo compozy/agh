@@ -11,14 +11,13 @@ const maxNetworkDurationSeconds = int64(1<<63-1) / int64(time.Second)
 
 const networkLiveLimitsMaxWakesPath = "network.live.limits.max_wakes"
 const networkLiveLimitsMinCoalesceWindowPath = "network.live.limits.min_coalesce_window"
+const defaultNetworkLiveTotalWallTime = "30m"
 
-// NetworkConfig controls Network availability, presence, and bounded Live participation defaults.
+// NetworkConfig controls Network availability and bounded Live participation defaults.
 type NetworkConfig struct {
-	Enabled       bool              `toml:"enabled"`
-	GreetInterval int               `toml:"greet_interval"`
-	MaxReplayAge  int               `toml:"max_replay_age"`
-	MaxQueueDepth int               `toml:"max_queue_depth"`
-	Live          NetworkLiveConfig `toml:"live"`
+	Enabled      bool              `toml:"enabled"`
+	MaxReplayAge int               `toml:"max_replay_age"`
+	Live         NetworkLiveConfig `toml:"live"`
 }
 
 // NetworkLiveConfig groups bounds that apply only after an execution explicitly selects Live mode.
@@ -53,15 +52,13 @@ type NetworkLiveLimitsConfig struct {
 // DefaultNetworkConfig returns built-in Network availability and Live-bound defaults.
 func DefaultNetworkConfig() NetworkConfig {
 	return NetworkConfig{
-		Enabled:       true,
-		GreetInterval: 30,
-		MaxReplayAge:  300,
-		MaxQueueDepth: 100,
+		Enabled:      true,
+		MaxReplayAge: 300,
 		Live: NetworkLiveConfig{
 			Defaults: NetworkLiveDefaultsConfig{
 				MaxWakes:         8,
 				MaxWakeWallTime:  "5m",
-				MaxTotalWallTime: "30m",
+				MaxTotalWallTime: defaultNetworkLiveTotalWallTime,
 				MaxInputTokens:   200_000,
 				MaxOutputTokens:  50_000,
 				MaxWakeDepth:     3,
@@ -83,22 +80,12 @@ func DefaultNetworkConfig() NetworkConfig {
 
 // Validate ensures availability and Live-bound configuration is internally consistent.
 func (c NetworkConfig) Validate() error {
-	if c.GreetInterval <= 0 || int64(c.GreetInterval) > maxNetworkDurationSeconds {
-		return fmt.Errorf(
-			"network.greet_interval must be between 1 and %d seconds: %d",
-			maxNetworkDurationSeconds,
-			c.GreetInterval,
-		)
-	}
 	if c.MaxReplayAge <= 0 || int64(c.MaxReplayAge) > maxNetworkDurationSeconds {
 		return fmt.Errorf(
 			"network.max_replay_age must be between 1 and %d seconds: %d",
 			maxNetworkDurationSeconds,
 			c.MaxReplayAge,
 		)
-	}
-	if c.MaxQueueDepth <= 0 {
-		return fmt.Errorf("network.max_queue_depth must be positive: %d", c.MaxQueueDepth)
 	}
 	limits := c.Live.Limits.ParticipationLimits()
 	if err := limits.Validate(); err != nil {
@@ -135,11 +122,6 @@ func (c NetworkLiveLimitsConfig) ParticipationLimits() participation.Limits {
 		MinCoalesceWindow: c.MinCoalesceWindow,
 		MaxCoalesceWindow: c.MaxCoalesceWindow,
 	}
-}
-
-// GreetIntervalDuration returns the configured heartbeat interval as a duration.
-func (c NetworkConfig) GreetIntervalDuration() time.Duration {
-	return time.Duration(c.GreetInterval) * time.Second
 }
 
 // MaxReplayAgeDuration returns the configured replay age window as a duration.

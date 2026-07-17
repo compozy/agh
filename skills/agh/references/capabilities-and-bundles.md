@@ -101,6 +101,11 @@ Skill-declared hooks are part of the skill contract. Keep hook declarations stru
 
 Loop lifecycle hooks use the `loop.*` family for generation, gate, node-terminal, and terminal call sites. `loop.generation.pre` and `loop.gate.pre` are sync control hooks; node and terminal wake behavior is daemon-owned and fail-open.
 
+Network participation exposes `network.participation.pre_resolve` for deny-or-narrow control and
+`network.participation.resolved` for post-commit observation. The runtime derives whether a patch
+widens intent; a hook cannot self-authorize enrollment. Match either event by `workspace_id`,
+`channel`, `participation_mode`, or `participation_source`.
+
 ## Config Lifecycle
 
 Any feature or refactor must state whether config.toml keys, defaults, docs, and examples are added, changed, or removed. In greenfield alpha, delete obsolete config paths instead of creating aliases or fallback bridges.

@@ -276,10 +276,10 @@ Wake gently.
 			wantCode: "heartbeat_forbidden_field",
 		},
 		{
-			name: "Should reject network greet frontmatter",
+			name: "Should reject network presence frontmatter",
 			content: `---
 network:
-  greet_interval: "1s"
+  presence: "active"
 ---
 Wake gently.
 `,

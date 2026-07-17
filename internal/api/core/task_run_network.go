@@ -17,15 +17,11 @@ func (h *BaseHandlers) taskRunNetworkPayload(
 	ctx context.Context,
 	run taskpkg.Run,
 ) (*contract.TaskRunNetworkPayload, error) {
-	spec := run.NetworkSpecSnapshot()
-	if spec.Mode != participation.ModeLive {
-		return nil, nil
+	conversation, err := taskRunConversationRefPayload(run)
+	if err != nil || conversation == nil {
+		return nil, err
 	}
-	workspaceID := strings.TrimSpace(spec.WorkspaceID)
-	channel := strings.TrimSpace(spec.ChannelID)
-	if workspaceID == "" || channel == "" {
-		return nil, errors.New("api: live task run requires workspace and channel identity")
-	}
+	workspaceID := conversation.WorkspaceID
 	if h.NetworkUsage == nil {
 		return nil, errors.New("api: network usage store is unavailable")
 	}
@@ -36,15 +32,29 @@ func (h *BaseHandlers) taskRunNetworkPayload(
 	if err != nil {
 		return nil, fmt.Errorf("api: load task run network usage: %w", err)
 	}
-	return &contract.TaskRunNetworkPayload{
-		Conversation: contract.TaskRunConversationRefPayload{
-			WorkspaceID: workspaceID,
-			Channel:     channel,
-			Surface:     store.NetworkSurfaceThread,
-			ThreadID:    agentChannelThreadID,
-			StreamURL: "/api/task-runs/" + url.PathEscape(strings.TrimSpace(run.ID)) +
-				"/conversation/stream",
-		},
-		Usage: NetworkUsageResponseFromReport(workspaceID, report),
+	usage, err := NetworkUsageResponseFromReport(workspaceID, report)
+	if err != nil {
+		return nil, fmt.Errorf("api: convert task run network usage: %w", err)
+	}
+	return &contract.TaskRunNetworkPayload{Conversation: *conversation, Usage: usage}, nil
+}
+
+func taskRunConversationRefPayload(run taskpkg.Run) (*contract.TaskRunConversationRefPayload, error) {
+	spec := run.NetworkSpecSnapshot()
+	if spec.Mode != participation.ModeLive {
+		return nil, nil
+	}
+	workspaceID := strings.TrimSpace(spec.WorkspaceID)
+	channel := strings.TrimSpace(spec.ChannelID)
+	if workspaceID == "" || channel == "" {
+		return nil, errors.New("api: live task run requires workspace and channel identity")
+	}
+	return &contract.TaskRunConversationRefPayload{
+		WorkspaceID: workspaceID,
+		Channel:     channel,
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    contract.TaskRunConversationThreadID,
+		StreamURL: "/api/task-runs/" + url.PathEscape(strings.TrimSpace(run.ID)) +
+			"/conversation/stream",
 	}, nil
 }

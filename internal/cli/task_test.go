@@ -50,6 +50,24 @@ func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
 			},
 			wantErr: "--clear-owner cannot be combined with --owner-kind or --owner-ref",
 		},
+		{
+			name: "Should reject unknown network bounds fields",
+			args: []string{
+				"task", "create", "--scope", "global", "--title", "Investigate",
+				"--network", "live", "--network-channel-strategy", "named",
+				"--network-channel", "builders", "--network-bounds", `{"max_waks":1}`,
+			},
+			wantErr: `json: unknown field "max_waks"`,
+		},
+		{
+			name: "Should reject trailing network bounds values",
+			args: []string{
+				"task", "create", "--scope", "global", "--title", "Investigate",
+				"--network", "live", "--network-channel-strategy", "named",
+				"--network-channel", "builders", "--network-bounds", `{"max_wakes":1} {}`,
+			},
+			wantErr: "expected exactly one JSON object",
+		},
 	}
 
 	for _, tt := range tests {
@@ -230,9 +248,9 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					t.Fatalf("task create error = %v", err)
 				}
 
+				assertLiveNamedParticipationRequest(t, createRequest.NetworkParticipation, "builders")
 				if createRequest.Scope != taskpkg.ScopeWorkspace ||
 					createRequest.Workspace != "alpha" ||
-					participationRequestChannelID(createRequest.NetworkParticipation) != "builders" ||
 					createRequest.Title != "Investigate flaky task runs" ||
 					createRequest.Priority != taskpkg.PriorityHigh ||
 					createRequest.Owner == nil ||
@@ -767,9 +785,9 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 			if _, _, err := executeRootCommand(t, newTestDeps(t, client), tt.args...); err != nil {
 				t.Fatalf("task %s error = %v", tt.wantAction, err)
 			}
-			if request.IdempotencyKey != "idem-"+tt.wantAction ||
-				participationRequestChannelID(request.NetworkParticipation) != "builders" {
-				t.Fatalf("request = %#v, want idempotency key and channel for %s", request, tt.wantAction)
+			assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
+			if request.IdempotencyKey != "idem-"+tt.wantAction {
+				t.Fatalf("request = %#v, want idempotency key for %s", request, tt.wantAction)
 			}
 		})
 	}
@@ -806,6 +824,8 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 					"running",
 					"--session",
 					"sess-1",
+					"--participation-channel",
+					"builders",
 					"--last",
 					"2",
 					"-o",
@@ -813,7 +833,9 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				); err != nil {
 					t.Fatalf("task run list error = %v", err)
 				}
-				if runListQuery.Status != taskpkg.TaskRunStatusRunning || runListQuery.SessionID != "sess-1" ||
+				if runListQuery.Status != taskpkg.TaskRunStatusRunning ||
+					runListQuery.SessionID != "sess-1" ||
+					runListQuery.ParticipationChannel != "builders" ||
 					runListQuery.Limit != 2 {
 					t.Fatalf("runListQuery = %#v, want parsed run filters", runListQuery)
 				}
@@ -880,9 +902,9 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				); err != nil {
 					t.Fatalf("task run enqueue error = %v", err)
 				}
-				if enqueueRequest.IdempotencyKey != "idem-1" ||
-					participationRequestChannelID(enqueueRequest.NetworkParticipation) != "builders" {
-					t.Fatalf("enqueueRequest = %#v, want idempotency key and channel", enqueueRequest)
+				assertLiveNamedParticipationRequest(t, enqueueRequest.NetworkParticipation, "builders")
+				if enqueueRequest.IdempotencyKey != "idem-1" {
+					t.Fatalf("enqueueRequest = %#v, want idempotency key", enqueueRequest)
 				}
 				if got, want := string(enqueueRequest.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
 					t.Fatalf("enqueueRequest.Metadata = %q, want %q", got, want)
@@ -1133,6 +1155,25 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 		}
 		if !output.Claimed || output.Claim == nil || output.Claim.Lease.ClaimTokenHash == "" {
 			t.Fatalf("task next output = %#v, want claimed session-bound response", output)
+		}
+	})
+
+	t.Run("Should reject an explicitly blank exact run selector", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newAgentCommandTestDeps(t, &stubClient{
+			agentTaskClaimNextFn: func(
+				context.Context,
+				AgentTaskClaimNextRequest,
+				agentidentity.Credentials,
+			) (AgentTaskNextRecord, error) {
+				t.Fatal("AgentTaskClaimNext should not be called for a blank exact run selector")
+				return AgentTaskNextRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "task", "next", "--run-id", "   ")
+		if err == nil || !strings.Contains(err.Error(), "--run-id cannot be blank") {
+			t.Fatalf("task next blank --run-id error = %v, want explicit blank rejection", err)
 		}
 	})
 
@@ -1609,6 +1650,9 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					"--owner-kind", "pool",
 					"--owner-ref", "triage",
 					"--metadata", `{"priority":"low"}`,
+					"--network", "live",
+					"--network-channel-strategy", "named",
+					"--network-channel", "builders",
 					"-o", "json",
 				); err != nil {
 					t.Fatalf("task update error = %v", err)
@@ -1617,12 +1661,12 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					updateRequest.Title == nil || *updateRequest.Title != "Retitle triage task" ||
 					updateRequest.Description == nil || *updateRequest.Description != "Refined scope" ||
 					updateRequest.Priority == nil || *updateRequest.Priority != taskpkg.PriorityUrgent ||
-					updateRequest.NetworkParticipation != nil ||
 					updateRequest.Owner == nil || updateRequest.Owner.Kind != taskpkg.OwnerKindPool || updateRequest.Owner.Ref != "triage" ||
 					updateRequest.ClearOwner ||
 					updateRequest.Metadata == nil || string(*updateRequest.Metadata) != `{"priority":"low"}` {
 					t.Fatalf("update request = %#v, want parsed task mutation payload", updateRequest)
 				}
+				assertLiveNamedParticipationRequest(t, updateRequest.NetworkParticipation, "builders")
 			},
 		},
 		{
@@ -1799,12 +1843,12 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 				); err != nil {
 					t.Fatalf("task child create error = %v", err)
 				}
+				assertLiveNamedParticipationRequest(t, childCreateRequest.NetworkParticipation, "builders")
 				if childParentID != "task-root" ||
 					childCreateRequest.ID != "task-child" ||
 					childCreateRequest.Identifier != "OPS-43" ||
 					childCreateRequest.Scope != taskpkg.ScopeWorkspace ||
 					childCreateRequest.Workspace != "alpha" ||
-					participationRequestChannelID(childCreateRequest.NetworkParticipation) != "builders" ||
 					childCreateRequest.Title != "Check runtime logs" ||
 					childCreateRequest.Description != "Focus on worker output" ||
 					childCreateRequest.Priority != taskpkg.PriorityUrgent ||
@@ -2636,8 +2680,8 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 		if !strings.Contains(
 			toonOut,
 			"tasks[1]{id,identifier,scope,workspace_id,parent_task_id,status,owner,participation_channel,title}:",
-		) {
-			t.Fatalf("task list toon output = %q, want tasks TOON array", toonOut)
+		) || !strings.Contains(toonOut, "builders") {
+			t.Fatalf("task list toon output = %q, want tasks TOON array with builders", toonOut)
 		}
 	})
 }
@@ -2659,8 +2703,9 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 				detailToon,
 				"task_runs[1]{id,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
 			) ||
-			!strings.Contains(detailToon, "task_events[1]{id,event_type,run_id,actor,origin,timestamp}:") {
-			t.Fatalf("task detail toon output = %q, want child/dependency/run/event sections", detailToon)
+			!strings.Contains(detailToon, "task_events[1]{id,event_type,run_id,actor,origin,timestamp}:") ||
+			!strings.Contains(detailToon, "builders") {
+			t.Fatalf("task detail toon output = %q, want child/dependency/run/event sections with builders", detailToon)
 		}
 	})
 
@@ -2702,8 +2747,29 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		if !strings.Contains(
 			runToon,
 			"task_runs[1]{id,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
-		) {
-			t.Fatalf("task run toon output = %q, want task run TOON array", runToon)
+		) || !strings.Contains(runToon, "builders") {
+			t.Fatalf("task run toon output = %q, want task run TOON array with builders", runToon)
+		}
+	})
+
+	t.Run("Should render taskless network wake detail without a fabricated task", func(t *testing.T) {
+		t.Parallel()
+
+		detail := sampleTaskRunDetailRecord(taskpkg.TaskRunStatusRunning)
+		detail.Task = nil
+		detail.Run.TaskID = ""
+		humanOut, err := taskRunDetailBundle(&detail).human()
+		if err != nil {
+			t.Fatalf("taskRunDetailBundle(taskless).human() error = %v", err)
+		}
+		toonOut, err := taskRunDetailBundle(&detail).toon()
+		if err != nil {
+			t.Fatalf("taskRunDetailBundle(taskless).toon() error = %v", err)
+		}
+		for format, output := range map[string]string{"human": humanOut, "toon": toonOut} {
+			if !strings.Contains(output, "run-1") || strings.Contains(output, "Investigate flaky task runs") {
+				t.Fatalf("taskless %s output = %q, want run without fabricated Task section", format, output)
+			}
 		}
 	})
 
@@ -2722,7 +2788,7 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 	})
 }
 
-func TestParseTaskListFiltersRejectsHalfSpecifiedOwnerFilter(t *testing.T) {
+func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -2746,6 +2812,18 @@ func TestParseTaskListFiltersRejectsHalfSpecifiedOwnerFilter(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should name the participation channel flag in validation errors", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := parseTaskListFilters(
+			"", "", "", "", "", "", "", "invalid channel!", "", "", "", 0,
+		)
+		if err == nil || !strings.Contains(err.Error(), "invalid --participation-channel value") ||
+			strings.Contains(err.Error(), "invalid --channel value") {
+			t.Fatalf("parseTaskListFilters() error = %v, want current participation-channel diagnostic", err)
+		}
+	})
 }
 
 func sampleTaskSummaryRecord() TaskSummaryRecord {

@@ -51,6 +51,7 @@ type inMemoryManagerStore struct {
 	coordinatorCompletionErr  error
 	coordinatorPublicationErr error
 	coordinatorCompleted      bool
+	settleNetworkWakeFn       func(NetworkWakeSettlement) (NetworkWakeSettlementResult, error)
 }
 
 type forceInputStore struct {
@@ -269,11 +270,7 @@ func (s *adjacentRecoveredEventStore) ClearTaskNeedsAttention(
 		result.Task.ID,
 		"",
 		taskWatchEventRecovered,
-		ActorContext{
-			Actor:     mutation.ClearedBy,
-			Origin:    mutation.Origin,
-			Authority: Authority{Write: true},
-		},
+		mutation.Actor,
 		map[string]any{"at": adjacentAt},
 		adjacentAt,
 	); err != nil {
@@ -1004,11 +1001,7 @@ func (s *inMemoryManagerStore) ClearTaskNeedsAttention(
 		taskRecord.ID,
 		"",
 		taskWatchEventRecovered,
-		ActorContext{
-			Actor:     mutation.ClearedBy,
-			Origin:    mutation.Origin,
-			Authority: Authority{Write: true},
-		},
+		mutation.Actor,
 		map[string]any{
 			"status": TaskStatusReady,
 			"note":   strings.TrimSpace(mutation.Note),
@@ -1380,6 +1373,80 @@ func (s *inMemoryManagerStore) DeleteExecutionProfile(_ context.Context, taskID 
 	return nil
 }
 
+func (s *inMemoryManagerStore) CreateTaskDefinition(
+	ctx context.Context,
+	mutation CreateTaskDefinitionMutation,
+) error {
+	if err := s.CreateTask(ctx, mutation.Task); err != nil {
+		return err
+	}
+	if mutation.Profile != nil {
+		if _, err := s.UpsertExecutionProfile(ctx, mutation.Profile); err != nil {
+			return err
+		}
+	}
+	for _, event := range mutation.Events {
+		if err := s.CreateTaskEvent(ctx, event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *inMemoryManagerStore) UpdateTaskDefinition(
+	ctx context.Context,
+	mutation *UpdateTaskDefinitionMutation,
+) (ExecutionProfile, error) {
+	if mutation.UpdateTaskRow {
+		if err := s.UpdateTask(ctx, mutation.Task, mutation.Actor); err != nil {
+			return ExecutionProfile{}, err
+		}
+	}
+	stored := ExecutionProfile{}
+	if mutation.PatchNetworkParticipation {
+		profile, ok := s.profiles[mutation.Task.ID]
+		if !ok {
+			profile = DefaultExecutionProfile(mutation.Task.ID)
+		}
+		profile.NetworkParticipation = participation.CloneRequest(mutation.NetworkParticipation)
+		var err error
+		stored, err = s.UpsertExecutionProfile(ctx, &profile)
+		if err != nil {
+			return ExecutionProfile{}, err
+		}
+	}
+	for _, event := range mutation.Events {
+		if err := s.CreateTaskEvent(ctx, event); err != nil {
+			return ExecutionProfile{}, err
+		}
+	}
+	return stored, nil
+}
+
+func (s *inMemoryManagerStore) SetTaskExecutionProfile(
+	ctx context.Context,
+	mutation *ExecutionProfileMutation,
+) (ExecutionProfile, error) {
+	stored, err := s.UpsertExecutionProfile(ctx, &mutation.Profile)
+	if err != nil {
+		return ExecutionProfile{}, err
+	}
+	if err := s.CreateTaskEvent(ctx, mutation.Event); err != nil {
+		return ExecutionProfile{}, err
+	}
+	return stored, nil
+}
+
+func (s *inMemoryManagerStore) DeleteTaskExecutionProfile(
+	ctx context.Context,
+	mutation ExecutionProfileDeleteMutation,
+) error {
+	if err := s.DeleteExecutionProfile(ctx, mutation.TaskID); err != nil {
+		return err
+	}
+	return s.CreateTaskEvent(ctx, mutation.Event)
+}
+
 func (s *inMemoryManagerStore) CountActiveSessionBindings(
 	_ context.Context,
 	sessionID string,
@@ -1441,6 +1508,20 @@ func (s *inMemoryManagerStore) ClaimNextRun(
 
 	candidates := make([]Run, 0)
 	for _, run := range s.runs {
+		if normalized.RunKind.Normalize() == RunKindNetworkWake {
+			_, targetSessionID, _ := run.NetworkWakeCorrelation()
+			if run.RunKind.Normalize() != RunKindNetworkWake ||
+				run.Status.Normalize() != TaskRunStatusQueued ||
+				strings.TrimSpace(run.WorkspaceID) != normalized.WorkspaceID ||
+				strings.TrimSpace(targetSessionID) != normalized.TargetSessionID {
+				continue
+			}
+			if normalized.RunID != "" && run.ID != normalized.RunID {
+				continue
+			}
+			candidates = append(candidates, cloneTaskRun(run))
+			continue
+		}
 		taskRecord, ok := s.tasks[run.TaskID]
 		if !ok || run.Status.Normalize() != TaskRunStatusQueued {
 			continue
@@ -1476,6 +1557,12 @@ func (s *inMemoryManagerStore) ClaimNextRun(
 		candidates = append(candidates, cloneTaskRun(run))
 	}
 	sort.Slice(candidates, func(i int, j int) bool {
+		if normalized.RunKind.Normalize() == RunKindNetworkWake {
+			if !candidates[i].QueuedAt.Equal(candidates[j].QueuedAt) {
+				return candidates[i].QueuedAt.Before(candidates[j].QueuedAt)
+			}
+			return candidates[i].ID < candidates[j].ID
+		}
 		leftTask := s.tasks[candidates[i].TaskID]
 		rightTask := s.tasks[candidates[j].TaskID]
 		if testTaskPriorityValue(leftTask.Priority) != testTaskPriorityValue(rightTask.Priority) {
@@ -1508,9 +1595,13 @@ func (s *inMemoryManagerStore) ClaimNextRun(
 	run.HeartbeatAt = normalized.Now
 	run.LeaseUntil = normalized.Now.Add(normalized.LeaseDuration)
 	s.runs[run.ID] = cloneTaskRun(run)
-	taskRecord := cloneTask(s.tasks[run.TaskID])
+	var taskRecord *Task
+	if strings.TrimSpace(run.TaskID) != "" {
+		cloned := cloneTask(s.tasks[run.TaskID])
+		taskRecord = &cloned
+	}
 	return ClaimResult{
-		Task:       &taskRecord,
+		Task:       taskRecord,
 		Run:        cloneTaskRun(run),
 		ClaimToken: token,
 		LeaseUntil: run.LeaseUntil,
@@ -1726,6 +1817,16 @@ func (s *inMemoryManagerStore) FailRunLease(_ context.Context, failure LeaseFail
 		return Run{}, err
 	}
 	return cloneTaskRun(run), nil
+}
+
+func (s *inMemoryManagerStore) SettleNetworkWake(
+	_ context.Context,
+	settlement NetworkWakeSettlement,
+) (NetworkWakeSettlementResult, error) {
+	if s.settleNetworkWakeFn == nil {
+		return NetworkWakeSettlementResult{}, ErrTaskRunNotFound
+	}
+	return s.settleNetworkWakeFn(settlement)
 }
 
 func (s *inMemoryManagerStore) CompleteCoordinatorAndEnqueueNext(
@@ -2288,28 +2389,31 @@ func TestDeriveActorContextsForSupportedSurfaces(t *testing.T) {
 				Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
 				Origin:    Origin{Kind: OriginKindCLI, Ref: "agh task create"},
 				Authority: FullAccessAuthority(),
+				Scope:     CallerScope{Operator: true},
 			},
 		},
 		{
 			name: "agent session",
 			derive: func() (ActorContext, error) {
-				return DeriveAgentSessionActorContext("sess-1")
+				return DeriveAgentSessionActorContext("sess-1", "ws-1")
 			},
 			want: ActorContext{
 				Actor:     ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-1"},
 				Origin:    Origin{Kind: OriginKindAgentSession, Ref: "sess-1"},
 				Authority: FullAccessAuthority(),
+				Scope:     CallerScope{SessionID: "sess-1", WorkspaceID: "ws-1"},
 			},
 		},
 		{
 			name: "automation-linked agent session",
 			derive: func() (ActorContext, error) {
-				return DeriveAutomationLinkedAgentSessionActorContext("sess-1", "run:run-1")
+				return DeriveAutomationLinkedAgentSessionActorContext("sess-1", "ws-1", "run:run-1")
 			},
 			want: ActorContext{
 				Actor:     ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-1"},
 				Origin:    Origin{Kind: OriginKindAutomation, Ref: "run:run-1"},
 				Authority: FullAccessAuthority(),
+				Scope:     CallerScope{SessionID: "sess-1", WorkspaceID: "ws-1"},
 			},
 		},
 		{
@@ -2756,38 +2860,120 @@ func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testi
 		}
 	})
 
-	t.Run("Should read a taskless network wake without inventing a task reference", func(t *testing.T) {
+	t.Run(
+		"Should let a local operator read a taskless network wake without inventing a task reference",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			store := newInMemoryManagerStore()
+			manager := newTaskManagerForTest(t, store)
+			actor := validActorContext()
+			run := Run{
+				ID:          "run-network-wake",
+				WorkspaceID: "ws-alpha",
+				RunKind:     RunKindNetworkWake,
+				Status:      TaskRunStatusCompleted,
+				Attempt:     1,
+				SessionID:   "sess-target",
+				Origin:      actor.Origin,
+				QueuedAt:    time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+			}
+			run.SetNetworkState(liveRunDetailSpec("ws-alpha"), "wake-1", "sess-target", "owner-1")
+			if err := store.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun() error = %v", err)
+			}
+
+			detail, err := manager.RunDetail(ctx, run.ID, actor)
+			if err != nil {
+				t.Fatalf("RunDetail(network wake) error = %v", err)
+			}
+			if detail.Run.ID != run.ID || detail.Run.RunKind != RunKindNetworkWake {
+				t.Fatalf("detail.Run = %#v, want network wake %q", detail.Run, run.ID)
+			}
+			if detail.Task != nil {
+				t.Fatalf("detail.Task = %#v, want nil for taskless network wake", detail.Task)
+			}
+		},
+	)
+
+	t.Run("Should fence a taskless network wake to its target session and workspace", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
 		store := newInMemoryManagerStore()
 		manager := newTaskManagerForTest(t, store)
-		actor := validActorContext()
+		operator := validActorContext()
 		run := Run{
-			ID:        "run-network-wake",
-			RunKind:   RunKindNetworkWake,
-			Status:    TaskRunStatusCompleted,
-			Attempt:   1,
-			SessionID: "sess-target",
-			Origin:    actor.Origin,
-			QueuedAt:  time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+			ID:          "run-network-wake-fenced",
+			WorkspaceID: "ws-alpha",
+			RunKind:     RunKindNetworkWake,
+			Status:      TaskRunStatusRunning,
+			Attempt:     1,
+			SessionID:   "sess-target",
+			Origin:      operator.Origin,
+			QueuedAt:    time.Date(2026, 4, 17, 12, 30, 0, 0, time.UTC),
 		}
-		run.SetNetworkState(participation.LocalSpec(), "wake-1", "sess-target", "owner-1")
+		run.SetNetworkState(liveRunDetailSpec("ws-alpha"), "wake-fenced", "sess-target", "owner-fenced")
 		if err := store.CreateTaskRun(ctx, run); err != nil {
 			t.Fatalf("CreateTaskRun() error = %v", err)
 		}
 
-		detail, err := manager.RunDetail(ctx, run.ID, actor)
-		if err != nil {
-			t.Fatalf("RunDetail(network wake) error = %v", err)
+		tests := []struct {
+			name    string
+			actor   ActorContext
+			wantErr error
+		}{
+			{
+				name:  "Should allow the exact target in the exact workspace",
+				actor: agentSessionActorContextForWorkspace("sess-target", "ws-alpha"),
+			},
+			{
+				name:    "Should deny another session in the same workspace",
+				actor:   agentSessionActorContextForWorkspace("sess-other", "ws-alpha"),
+				wantErr: ErrTaskRunNotFound,
+			},
+			{
+				name:    "Should deny the target-named session in another workspace",
+				actor:   agentSessionActorContextForWorkspace("sess-target", "ws-beta"),
+				wantErr: ErrTaskRunNotFound,
+			},
 		}
-		if detail.Run.ID != run.ID || detail.Run.RunKind != RunKindNetworkWake {
-			t.Fatalf("detail.Run = %#v, want network wake %q", detail.Run, run.ID)
-		}
-		if detail.Task != nil {
-			t.Fatalf("detail.Task = %#v, want nil for taskless network wake", detail.Task)
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				detail, err := manager.RunDetail(ctx, run.ID, tt.actor)
+				if tt.wantErr != nil {
+					if !errors.Is(err, tt.wantErr) {
+						t.Fatalf("RunDetail() error = %v, want %v", err, tt.wantErr)
+					}
+					if detail != nil {
+						t.Fatalf("RunDetail() detail = %#v, want nil", detail)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("RunDetail() error = %v", err)
+				}
+				if detail == nil || detail.Run.ID != run.ID {
+					t.Fatalf("RunDetail() detail = %#v, want run %q", detail, run.ID)
+				}
+			})
 		}
 	})
+}
+
+func liveRunDetailSpec(workspaceID string) participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     workspaceID,
+		ChannelStrategy: participation.StrategyRun,
+		ChannelID:       "coord-run-detail",
+		Source:          participation.SourceExplicitRequest,
+	}
 }
 
 func TestManagerTreeIncludesDescendantsActiveRunsAndLatestActivity(t *testing.T) {
@@ -3477,7 +3663,7 @@ func TestManagerCreateTaskUsesTrustedActorContext(t *testing.T) {
 
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
-	actor, err := DeriveAgentSessionActorContext("sess-123")
+	actor, err := DeriveAgentSessionActorContext("sess-123", "ws-1")
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 	}
@@ -3556,7 +3742,7 @@ func TestManagerCreateTaskRecordsIntentWithoutRuns(t *testing.T) {
 			name: "agent-created approval task",
 			actor: func(t *testing.T) ActorContext {
 				t.Helper()
-				actor, err := DeriveAgentSessionActorContext("sess-agent-create")
+				actor, err := DeriveAgentSessionActorContext("sess-agent-create", "ws-1")
 				if err != nil {
 					t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 				}
@@ -3940,6 +4126,7 @@ func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
 			actor: ActorContext{
 				Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
 				Origin:    Origin{Kind: OriginKindCLI, Ref: "agh task create"},
+				Scope:     CallerScope{Operator: true},
 				Authority: Authority{Read: true, Write: true, CreateWorkspace: true},
 			},
 		},
@@ -3949,6 +4136,7 @@ func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
 			actor: ActorContext{
 				Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
 				Origin:    Origin{Kind: OriginKindCLI, Ref: "agh task create"},
+				Scope:     CallerScope{WorkspaceID: "ws-1", Operator: true},
 				Authority: Authority{Read: true, Write: true, CreateGlobal: true},
 			},
 		},
@@ -6548,38 +6736,56 @@ func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 	}
 }
 
-func TestManagerExactClaimRespectsAutonomousOwners(t *testing.T) {
+func TestManagerClaimsTasklessNetworkWakeWithExactCorrelation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should exclude pool-owned runs from unmatched exact claims", func(t *testing.T) {
+	t.Run("Should claim a taskless wake and publish its durable correlation", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
-		manager := newTaskManagerForTest(t, store)
-		actor := validActorContext()
-		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Pool-owned work",
-			Owner: &Ownership{Kind: OwnerKindPool, Ref: "frontend-engineer-agent"},
-		}, actor)
-		if err != nil {
-			t.Fatalf("CreateTask() error = %v", err)
+		now := time.Date(2026, 7, 16, 21, 0, 0, 0, time.UTC)
+		run := Run{
+			ID:          "run-wake-claim",
+			RunKind:     RunKindNetworkWake,
+			WorkspaceID: "ws-wake",
+			Status:      TaskRunStatusQueued,
+			QueuedAt:    now,
 		}
-		run, err := manager.EnqueueRun(
-			context.Background(),
-			EnqueueRun{TaskID: taskRecord.ID},
-			actor,
-		)
-		if err != nil {
-			t.Fatalf("EnqueueRun() error = %v", err)
-		}
+		run.SetNetworkState(participation.LocalSpec(), "wake-claim", "sess-target", "task_run:owner")
+		store.runs[run.ID] = run
 
-		_, err = manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		var postClaim hookspkg.TaskRunPostClaimPayload
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			postClaim: func(
+				_ context.Context,
+				payload hookspkg.TaskRunPostClaimPayload,
+			) (hookspkg.TaskRunPostClaimPayload, error) {
+				postClaim = payload
+				return payload, nil
+			},
+		}))
+		actor := agentSessionActorContextForWorkspace("sess-target", "ws-wake")
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
 			RunID:            run.ID,
-			ClaimerSessionID: "unmatched-session",
+			RunKind:          RunKindNetworkWake,
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-wake",
+			TargetSessionID:  "sess-target",
+			ClaimerSessionID: "sess-target",
+			LeaseDuration:    time.Minute,
+			Now:              now,
 		}, actor)
-		if !errors.Is(err, ErrNoClaimableRun) {
-			t.Fatalf("ClaimNextRun(pool owner) error = %v, want %v", err, ErrNoClaimableRun)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(network wake) error = %v", err)
+		}
+		if claim.Task != nil || claim.Run.TaskID != "" || claim.Run.Status != TaskRunStatusClaimed ||
+			claim.Run.SessionID != "sess-target" || strings.TrimSpace(claim.ClaimToken) == "" {
+			t.Fatalf("network wake claim = %#v, want taskless token-fenced claim", claim)
+		}
+		if postClaim.RunID != run.ID || postClaim.TaskID != "" || postClaim.WakeID != "wake-claim" ||
+			postClaim.OwnerKey != "task_run:owner" || postClaim.TargetSessionID != "sess-target" ||
+			postClaim.WorkspaceID != "ws-wake" {
+			t.Fatalf("network wake post-claim hook = %#v, want exact durable correlation", postClaim.TaskRunContext)
 		}
 	})
 }
@@ -7677,7 +7883,7 @@ func TestManagerForceRunOperations(t *testing.T) {
 			WithForceRecoveryOptions(ForceRecoveryOptions{AllowAgentForce: false}),
 		)
 		operator := validActorContext()
-		agent, err := DeriveAgentSessionActorContext("sess-force-agent")
+		agent, err := DeriveAgentSessionActorContext("sess-force-agent", "ws-1")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -8547,6 +8753,9 @@ func TestManagerStartRunPreservesResolvedParticipationSnapshot(t *testing.T) {
 	}
 	if got, want := len(executor.startCalls), 1; got != want {
 		t.Fatalf("len(executor.startCalls) = %d, want %d", got, want)
+	}
+	if got, want := executor.startCalls[0].Run.NetworkSpecSnapshot(), liveSpec; got != want {
+		t.Fatalf("executor run NetworkSpecSnapshot() = %#v, want %#v", got, want)
 	}
 	if got, want := resolver.calls, 1; got != want {
 		t.Fatalf("resolver calls = %d, want %d", got, want)
@@ -9576,7 +9785,8 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		}))
 		run := Run{
 			ID: "run-wake-recovery", RunKind: RunKindNetworkWake, Status: TaskRunStatusClaimed,
-			SessionID: "sess-target", ClaimTokenHash: "sha256:claimed", ClaimedAt: time.Now().UTC(),
+			WorkspaceID: "ws-wake",
+			SessionID:   "sess-target", ClaimTokenHash: "sha256:claimed", ClaimedAt: time.Now().UTC(),
 		}
 		run.SetNetworkState(participation.LocalSpec(), "wake-1", "sess-target", "owner-1")
 		store.runs[run.ID] = run
@@ -10333,10 +10543,18 @@ func TestManagerWakeCreatorSummarizesFailedRunsByTaskTerminalState(t *testing.T)
 }
 
 func agentSessionActorContext(sessionID string) ActorContext {
+	return agentSessionActorContextForWorkspace(sessionID, "ws-test")
+}
+
+func agentSessionActorContextForWorkspace(sessionID string, workspaceID string) ActorContext {
 	actor := validActorContext()
 	trimmedSessionID := strings.TrimSpace(sessionID)
 	actor.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: trimmedSessionID}
 	actor.Origin = Origin{Kind: OriginKindAgentSession, Ref: trimmedSessionID}
+	actor.Scope = CallerScope{
+		SessionID:   trimmedSessionID,
+		WorkspaceID: strings.TrimSpace(workspaceID),
+	}
 	return actor
 }
 

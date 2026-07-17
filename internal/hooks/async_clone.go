@@ -3,8 +3,6 @@ package hooks
 import (
 	"encoding/json"
 	"reflect"
-
-	"github.com/compozy/agh/internal/network/participation"
 )
 
 type asyncPayloadCloner[P any] interface {
@@ -267,28 +265,6 @@ func cloneSpawnLifecyclePayload(payload SpawnLifecyclePayload) SpawnLifecyclePay
 	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
 	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
 	return payload
-}
-
-func cloneCoordinatorContext(ctx CoordinatorContext) CoordinatorContext {
-	ctx.ResolvedNetworkParticipation = cloneParticipationSpec(ctx.ResolvedNetworkParticipation)
-	return ctx
-}
-
-func cloneLoopContext(ctx LoopContext) LoopContext {
-	ctx.ResolvedNetworkParticipation = cloneParticipationSpec(ctx.ResolvedNetworkParticipation)
-	return ctx
-}
-
-func cloneSpawnContext(ctx SpawnContext) SpawnContext {
-	ctx.ResolvedNetworkParticipation = cloneParticipationSpec(ctx.ResolvedNetworkParticipation)
-	return ctx
-}
-
-func cloneParticipationSpec(spec *participation.Spec) *participation.Spec {
-	if spec == nil {
-		return nil
-	}
-	return participation.CloneSpec(*spec)
 }
 
 func clonePermissionSet(src *PermissionSet) *PermissionSet {

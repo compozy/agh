@@ -25,7 +25,6 @@ type networkChannelAggregate struct {
 	metadata                   *store.NetworkChannelEntry
 	peerCount                  int
 	localPeerCount             int
-	remotePeerCount            int
 	sessionCount               int
 	messageCount               int
 	presenceCount              int
@@ -40,15 +39,12 @@ type networkChannelAggregate struct {
 }
 
 type networkTimelineMessageView struct {
-	entry              store.NetworkMessageEntry
-	presenceCount      int
-	presenceStartedAt  *time.Time
-	presenceLastSeenAt *time.Time
+	entry store.NetworkMessageEntry
 }
 
 type networkMessageHistorySummary struct {
 	conversation               []store.NetworkMessageEntry
-	presenceEpisodes           []networkTimelineMessageView
+	presenceMessages           []store.NetworkMessageEntry
 	presenceCount              int
 	lastPresenceAt             *time.Time
 	historicalParticipantCount int
@@ -61,18 +57,6 @@ type networkChannelMetadataFields struct {
 	coordinatorPeerID string
 	workspaceID       string
 	createdBy         string
-}
-
-type networkPresenceEpisodeKey struct {
-	workspaceID string
-	direction   string
-	channel     string
-	surface     string
-	threadID    string
-	directID    string
-	workID      string
-	peerFrom    string
-	peerTo      string
 }
 
 var errNetworkChannelNotFound = errors.New("api: network channel not found")
@@ -359,7 +343,6 @@ func (h *BaseHandlers) networkChannelMessagesResponse(
 		sessionInfoMapByID(sessions),
 		peerInfoMapByID(peers),
 		networkTimelinePayloadQuery(storeQuery),
-		h.networkPresenceWindow(),
 	)
 	if err != nil {
 		return contract.NetworkChannelMessagesResponse{}, err
@@ -488,7 +471,6 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 		sessionByID,
 		peerByID,
 		networkTimelinePayloadQuery(storeQuery),
-		h.networkPresenceWindow(),
 	)
 	if err != nil {
 		h.respondNetworkMessageError(c, err)
@@ -647,24 +629,6 @@ func normalizeNetworkChannelPurpose(purpose string) (string, error) {
 	return trimmed, nil
 }
 
-func rollbackCreatedNetworkSessions(ctx context.Context, sessions SessionManager, sessionIDs []string) error {
-	if len(sessionIDs) == 0 {
-		return nil
-	}
-
-	var rollbackErr error
-	for _, sessionID := range sessionIDs {
-		if strings.TrimSpace(sessionID) == "" {
-			continue
-		}
-		rollbackErr = errors.Join(
-			rollbackErr,
-			sessions.StopWithCause(ctx, sessionID, session.CauseFailed, "rollback network channel creation"),
-		)
-	}
-	return rollbackErr
-}
-
 func (h *BaseHandlers) networkChannelPayloads(
 	ctx context.Context,
 	service NetworkService,
@@ -779,9 +743,7 @@ func applyNetworkChannelPeers(
 		aggregate.peerCount++
 		if peer.Local {
 			aggregate.localPeerCount++
-			continue
 		}
-		aggregate.remotePeerCount++
 	}
 }
 
@@ -876,36 +838,13 @@ func (h *BaseHandlers) createNetworkChannelSessions(
 			Type:                 session.SessionTypeUser,
 		})
 		if err != nil {
-			if rollbackErr := rollbackCreatedNetworkSessions(ctx, h.Sessions, createdIDs); rollbackErr != nil {
-				err = errors.Join(err, rollbackErr)
-			}
-			return nil, err
+			return createdIDs, err
 		}
 		if sess != nil && sess.Info() != nil {
 			createdIDs = append(createdIDs, sess.Info().ID)
 		}
 	}
 	return createdIDs, nil
-}
-
-func rollbackCreatedNetworkChannel(
-	ctx context.Context,
-	sessions SessionManager,
-	networkStore NetworkStore,
-	ref store.NetworkChannelRef,
-	createdIDs []string,
-	baseErr error,
-	deleteChannel bool,
-) error {
-	if rollbackErr := rollbackCreatedNetworkSessions(ctx, sessions, createdIDs); rollbackErr != nil {
-		baseErr = errors.Join(baseErr, rollbackErr)
-	}
-	if deleteChannel {
-		if rollbackErr := networkStore.DeleteNetworkChannel(ctx, ref); rollbackErr != nil {
-			baseErr = errors.Join(baseErr, rollbackErr)
-		}
-	}
-	return baseErr
 }
 
 func (h *BaseHandlers) networkChannelDetailPayload(
@@ -969,7 +908,6 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 		CreatedAt:                  metadataFields.createdAt,
 		PeerCount:                  len(peers),
 		LocalPeerCount:             localPeerCount,
-		RemotePeerCount:            len(peers) - localPeerCount,
 		SessionCount:               len(filteredSessions),
 		MessageCount:               projection.MessageCount,
 		PresenceCount:              projection.PresenceCount,
@@ -1123,7 +1061,6 @@ func networkChannelPayloadFromAggregate(
 		WorkspaceID:                strings.TrimSpace(aggregate.workspaceID),
 		PeerCount:                  aggregate.peerCount,
 		LocalPeerCount:             aggregate.localPeerCount,
-		RemotePeerCount:            aggregate.remotePeerCount,
 		SessionCount:               aggregate.sessionCount,
 		MessageCount:               aggregate.messageCount,
 		PresenceCount:              aggregate.presenceCount,
@@ -1174,17 +1111,6 @@ func networkMessagePreview(entry store.NetworkMessageEntry) string {
 		return text
 	}
 	return network.PreviewTextForRawBody(network.Kind(strings.TrimSpace(entry.Kind)), entry.Body)
-}
-
-func (h *BaseHandlers) networkPresenceWindow() time.Duration {
-	if h == nil {
-		return 0
-	}
-	window := 2 * h.Config.Network.GreetIntervalDuration()
-	if window <= 0 {
-		return 0
-	}
-	return window
 }
 
 func (h *BaseHandlers) loadNetworkChannelMetadata(
@@ -1290,51 +1216,43 @@ func NetworkConversationMessagePayloadFromView(
 	}
 
 	return contract.NetworkConversationMessagePayload{
-		MessageID:          strings.TrimSpace(entry.MessageID),
-		WorkspaceID:        strings.TrimSpace(entry.WorkspaceID),
-		Channel:            strings.TrimSpace(entry.Channel),
-		Surface:            strings.TrimSpace(entry.Surface),
-		ThreadID:           strings.TrimSpace(entry.ThreadID),
-		DirectID:           strings.TrimSpace(entry.DirectID),
-		Kind:               strings.TrimSpace(entry.Kind),
-		Direction:          strings.TrimSpace(entry.Direction),
-		PeerFrom:           strings.TrimSpace(entry.PeerFrom),
-		PeerTo:             strings.TrimSpace(entry.PeerTo),
-		Mentions:           cloneTrimmedStrings(entry.Mentions),
-		DisplayName:        displayName,
-		SessionID:          payloadSessionID,
-		Local:              local,
-		WorkID:             strings.TrimSpace(entry.WorkID),
-		ReplyTo:            strings.TrimSpace(entry.ReplyTo),
-		TraceID:            strings.TrimSpace(entry.TraceID),
-		CausationID:        strings.TrimSpace(entry.CausationID),
-		Intent:             strings.TrimSpace(entry.Intent),
-		Text:               strings.TrimSpace(entry.Text),
-		PreviewText:        networkMessagePreview(entry),
-		SizeBytes:          entry.SizeBytes,
-		PresenceCount:      view.presenceCount,
-		PresenceStartedAt:  cloneTimePtr(view.presenceStartedAt),
-		PresenceLastSeenAt: cloneTimePtr(view.presenceLastSeenAt),
-		Body:               cloneRawMessage(entry.Body),
-		Timestamp:          entry.Timestamp.UTC(),
+		MessageID:   strings.TrimSpace(entry.MessageID),
+		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
+		Channel:     strings.TrimSpace(entry.Channel),
+		Surface:     strings.TrimSpace(entry.Surface),
+		ThreadID:    strings.TrimSpace(entry.ThreadID),
+		DirectID:    strings.TrimSpace(entry.DirectID),
+		Kind:        strings.TrimSpace(entry.Kind),
+		Direction:   strings.TrimSpace(entry.Direction),
+		PeerFrom:    strings.TrimSpace(entry.PeerFrom),
+		PeerTo:      strings.TrimSpace(entry.PeerTo),
+		Mentions:    cloneTrimmedStrings(entry.Mentions),
+		DisplayName: displayName,
+		SessionID:   payloadSessionID,
+		Local:       local,
+		WorkID:      strings.TrimSpace(entry.WorkID),
+		ReplyTo:     strings.TrimSpace(entry.ReplyTo),
+		TraceID:     strings.TrimSpace(entry.TraceID),
+		CausationID: strings.TrimSpace(entry.CausationID),
+		Intent:      strings.TrimSpace(entry.Intent),
+		Text:        strings.TrimSpace(entry.Text),
+		PreviewText: networkMessagePreview(entry),
+		SizeBytes:   entry.SizeBytes,
+		Body:        cloneRawMessage(entry.Body),
+		Timestamp:   entry.Timestamp.UTC(),
 	}
 }
 
-func summarizeNetworkMessageHistory(
-	messages []store.NetworkMessageEntry,
-	presenceWindow time.Duration,
-) networkMessageHistorySummary {
+func summarizeNetworkMessageHistory(messages []store.NetworkMessageEntry) networkMessageHistorySummary {
 	summary := networkMessageHistorySummary{
 		conversation:     make([]store.NetworkMessageEntry, 0, len(messages)),
-		presenceEpisodes: make([]networkTimelineMessageView, 0),
+		presenceMessages: make([]store.NetworkMessageEntry, 0),
 	}
 	if len(messages) == 0 {
 		return summary
 	}
 
 	participants := make(map[string]struct{})
-	openEpisodes := make(map[networkPresenceEpisodeKey]int)
-
 	for _, message := range messages {
 		recordNetworkMessageParticipants(func(peerID string) {
 			recordHistoricalParticipant(participants, peerID)
@@ -1342,23 +1260,9 @@ func summarizeNetworkMessageHistory(
 		if isPresenceMessage(message) {
 			summary.presenceCount++
 			summary.lastPresenceAt = laterTimePtr(summary.lastPresenceAt, message.Timestamp)
-			key := networkPresenceEpisodeKeyForMessage(message)
-			if index, ok := openEpisodes[key]; ok &&
-				canExtendPresenceEpisode(summary.presenceEpisodes[index], message, presenceWindow) {
-				extendPresenceEpisode(&summary.presenceEpisodes[index], message)
-				continue
-			}
-			currentEpisode := networkTimelineMessageView{
-				entry: cloneNetworkMessageEntry(message),
-			}
-			startedAt := message.Timestamp.UTC()
-			lastSeenAt := message.Timestamp.UTC()
-			currentEpisode.presenceCount = 1
-			currentEpisode.presenceStartedAt = &startedAt
-			currentEpisode.presenceLastSeenAt = &lastSeenAt
-			currentEpisode.entry.PreviewText = networkMessagePreview(currentEpisode.entry)
-			summary.presenceEpisodes = append(summary.presenceEpisodes, currentEpisode)
-			openEpisodes[key] = len(summary.presenceEpisodes) - 1
+			presenceMessage := cloneNetworkMessageEntry(message)
+			presenceMessage.PreviewText = networkMessagePreview(presenceMessage)
+			summary.presenceMessages = append(summary.presenceMessages, presenceMessage)
 			continue
 		}
 
@@ -1373,9 +1277,8 @@ func networkTimelinePayloads(
 	sessionByID map[string]*session.Info,
 	peerByID map[string]network.PeerInfo,
 	query store.NetworkMessageQuery,
-	presenceWindow time.Duration,
 ) ([]contract.NetworkConversationMessagePayload, error) {
-	history := summarizeNetworkMessageHistory(messages, presenceWindow)
+	history := summarizeNetworkMessageHistory(messages)
 	views, err := paginateNetworkTimelineViews(history.timelineViews(query.IncludePresence), query)
 	if err != nil {
 		return nil, err
@@ -1396,11 +1299,13 @@ func (s networkMessageHistorySummary) timelineViews(includePresence bool) []netw
 		return views
 	}
 
-	views := make([]networkTimelineMessageView, 0, len(s.conversation)+len(s.presenceEpisodes))
+	views := make([]networkTimelineMessageView, 0, len(s.conversation)+len(s.presenceMessages))
 	for _, entry := range s.conversation {
 		views = append(views, networkTimelineMessageView{entry: entry})
 	}
-	views = append(views, s.presenceEpisodes...)
+	for _, entry := range s.presenceMessages {
+		views = append(views, networkTimelineMessageView{entry: entry})
+	}
 	sort.SliceStable(views, func(i int, j int) bool {
 		left := views[i].entry.Timestamp.UTC()
 		right := views[j].entry.Timestamp.UTC()
@@ -1410,70 +1315,6 @@ func (s networkMessageHistorySummary) timelineViews(includePresence bool) []netw
 		return strings.TrimSpace(views[i].entry.MessageID) < strings.TrimSpace(views[j].entry.MessageID)
 	})
 	return views
-}
-
-func canExtendPresenceEpisode(
-	current networkTimelineMessageView,
-	next store.NetworkMessageEntry,
-	window time.Duration,
-) bool {
-	if current.presenceCount <= 0 || window <= 0 {
-		return false
-	}
-	if !isPresenceMessage(current.entry) || !isPresenceMessage(next) {
-		return false
-	}
-	if strings.TrimSpace(current.entry.Direction) != strings.TrimSpace(next.Direction) {
-		return false
-	}
-	if strings.TrimSpace(current.entry.Channel) != strings.TrimSpace(next.Channel) {
-		return false
-	}
-	if strings.TrimSpace(current.entry.Surface) != strings.TrimSpace(next.Surface) {
-		return false
-	}
-	if strings.TrimSpace(current.entry.ThreadID) != strings.TrimSpace(next.ThreadID) {
-		return false
-	}
-	if strings.TrimSpace(current.entry.DirectID) != strings.TrimSpace(next.DirectID) {
-		return false
-	}
-	if strings.TrimSpace(current.entry.WorkID) != strings.TrimSpace(next.WorkID) {
-		return false
-	}
-	if strings.TrimSpace(current.entry.PeerFrom) != strings.TrimSpace(next.PeerFrom) {
-		return false
-	}
-	if strings.TrimSpace(current.entry.PeerTo) != strings.TrimSpace(next.PeerTo) {
-		return false
-	}
-	return next.Timestamp.UTC().Sub(current.entry.Timestamp.UTC()) <= window
-}
-
-func networkPresenceEpisodeKeyForMessage(message store.NetworkMessageEntry) networkPresenceEpisodeKey {
-	return networkPresenceEpisodeKey{
-		workspaceID: strings.TrimSpace(message.WorkspaceID),
-		direction:   strings.TrimSpace(message.Direction),
-		channel:     strings.TrimSpace(message.Channel),
-		surface:     strings.TrimSpace(message.Surface),
-		threadID:    strings.TrimSpace(message.ThreadID),
-		directID:    strings.TrimSpace(message.DirectID),
-		workID:      strings.TrimSpace(message.WorkID),
-		peerFrom:    strings.TrimSpace(message.PeerFrom),
-		peerTo:      strings.TrimSpace(message.PeerTo),
-	}
-}
-
-func extendPresenceEpisode(current *networkTimelineMessageView, next store.NetworkMessageEntry) {
-	if current == nil {
-		return
-	}
-	nextCopy := cloneNetworkMessageEntry(next)
-	nextCopy.PreviewText = networkMessagePreview(nextCopy)
-	lastSeenAt := nextCopy.Timestamp.UTC()
-	current.entry = nextCopy
-	current.presenceCount++
-	current.presenceLastSeenAt = &lastSeenAt
 }
 
 func cloneNetworkMessageEntry(entry store.NetworkMessageEntry) store.NetworkMessageEntry {
@@ -1697,21 +1538,17 @@ func NetworkPeerDetailPayloadFromInfo(
 	sessionsByID map[string]*session.Info,
 	metrics contract.NetworkPeerMetricsPayload,
 ) contract.NetworkPeerDetailPayload {
-	presenceState, lastSeenAgeSeconds := networkPresenceFields(peer)
 	payload := contract.NetworkPeerDetailPayload{
-		SessionID:          peer.SessionID,
-		PeerID:             peer.PeerID,
-		DisplayName:        networkPeerDisplayName(peer, sessionsByID),
-		Channel:            peer.Channel,
-		Local:              peer.Local,
-		PeerCard:           NetworkPeerPayloadFromInfo(peer).PeerCard,
-		CapabilityCatalog:  networkCapabilityCatalogPayload(peer),
-		JoinedAt:           cloneTimePtr(peer.JoinedAt),
-		LastSeen:           cloneTimePtr(peer.LastSeen),
-		ExpiresAt:          cloneTimePtr(peer.ExpiresAt),
-		PresenceState:      presenceState,
-		LastSeenAgeSeconds: lastSeenAgeSeconds,
-		Metrics:            metrics,
+		SessionID:         peer.SessionID,
+		PeerID:            peer.PeerID,
+		DisplayName:       networkPeerDisplayName(peer, sessionsByID),
+		Channel:           peer.Channel,
+		Local:             peer.Local,
+		PeerCard:          NetworkPeerPayloadFromInfo(peer).PeerCard,
+		CapabilityCatalog: networkCapabilityCatalogPayload(peer),
+		JoinedAt:          cloneTimePtr(peer.JoinedAt),
+		PresenceState:     networkPresenceState(peer),
+		Metrics:           metrics,
 	}
 	return payload
 }

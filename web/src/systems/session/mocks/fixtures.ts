@@ -17,23 +17,10 @@ import {
   storyWorkspacePaths,
   storyWorkspaceSkillDir,
 } from "@/storybook/fintech-scenario";
+import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 
-function liveParticipation(channelId: string) {
-  return {
-    version: "network-participation/v1",
-    mode: "live",
-    source: "explicit",
-    channel_id: channelId,
-    bounds: {
-      coalesce_window: "0s",
-      max_input_tokens: 0,
-      max_output_tokens: 0,
-      max_total_wall_time: "0s",
-      max_wake_depth: 0,
-      max_wake_wall_time: "0s",
-      max_wakes: 0,
-    },
-  };
+function liveParticipation(workspaceId: string, channelId: string) {
+  return buildLiveNetworkParticipationFixture({ workspaceId, channelId });
 }
 
 export const sessionFixtures: SessionPayload[] = [
@@ -48,7 +35,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.landingPage),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.product,
+      storyChannels.landingPage
+    ),
     lineage: {
       parent_session_id: storySessionIds.product,
       root_session_id: storySessionIds.product,
@@ -88,7 +78,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.execSignal),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.hq,
+      storyChannels.execSignal
+    ),
     created_at: "2026-04-17T10:10:00Z",
     updated_at: "2026-04-17T18:11:00Z",
   },
@@ -103,7 +96,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.financeWatch),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.finance,
+      storyChannels.financeWatch
+    ),
     created_at: "2026-04-17T10:30:00Z",
     updated_at: "2026-04-17T18:13:00Z",
   },
@@ -118,7 +114,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.launchWarRoom),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.hq,
+      storyChannels.launchWarRoom
+    ),
     created_at: "2026-04-17T11:20:00Z",
     updated_at: "2026-04-17T18:14:00Z",
   },
@@ -133,7 +132,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "stopped",
     attachable: false,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.growthLaunch),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.growth,
+      storyChannels.growthLaunch
+    ),
     created_at: "2026-04-17T09:45:00Z",
     updated_at: "2026-04-17T17:58:00Z",
   },
@@ -148,7 +150,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.landingPage),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.growth,
+      storyChannels.landingPage
+    ),
     created_at: "2026-04-17T14:05:00Z",
     updated_at: "2026-04-17T18:06:00Z",
   },
@@ -163,7 +168,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.supportSwarm),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.support,
+      storyChannels.supportSwarm
+    ),
     created_at: "2026-04-17T13:00:00Z",
     updated_at: "2026-04-17T18:08:00Z",
   },
@@ -178,7 +186,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.riskOps),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.risk,
+      storyChannels.riskOps
+    ),
     created_at: "2026-04-17T10:45:00Z",
     updated_at: "2026-04-17T18:07:00Z",
   },
@@ -193,7 +204,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.launchWarRoom),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.risk,
+      storyChannels.launchWarRoom
+    ),
     created_at: "2026-04-17T12:25:00Z",
     updated_at: "2026-04-17T18:04:00Z",
   },
@@ -208,7 +222,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.releaseControl),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.platform,
+      storyChannels.releaseControl
+    ),
     created_at: "2026-04-17T09:15:00Z",
     updated_at: "2026-04-17T18:03:00Z",
   },
@@ -223,7 +240,10 @@ export const sessionFixtures: SessionPayload[] = [
     badge: "running",
     attachable: true,
     available_commands: [],
-    resolved_network_participation: liveParticipation(storyChannels.partnerSync),
+    resolved_network_participation: liveParticipation(
+      storyWorkspaceIds.platform,
+      storyChannels.partnerSync
+    ),
     created_at: "2026-04-17T09:05:00Z",
     updated_at: "2026-04-17T18:01:00Z",
   },

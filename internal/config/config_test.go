@@ -149,9 +149,7 @@ check_interval = "45m"
 
 [network]
 enabled = true
-greet_interval = 45
 max_replay_age = 600
-max_queue_depth = 250
 
 [network.live.defaults]
 max_wakes = 12
@@ -333,14 +331,8 @@ max_wakes = 80
 	if !cfg.Network.Enabled {
 		t.Fatal("Load() Network.Enabled = false, want true")
 	}
-	if got, want := cfg.Network.GreetInterval, 45; got != want {
-		t.Fatalf("Load() Network.GreetInterval = %d, want %d", got, want)
-	}
 	if got, want := cfg.Network.MaxReplayAge, 600; got != want {
 		t.Fatalf("Load() Network.MaxReplayAge = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.MaxQueueDepth, 250; got != want {
-		t.Fatalf("Load() Network.MaxQueueDepth = %d, want %d", got, want)
 	}
 	if got, want := cfg.Network.Live.Defaults.MaxWakes, 12; got != want {
 		t.Fatalf("Load() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
@@ -2434,25 +2426,11 @@ func TestNetworkConfigValidateRejectsInvalidValues(t *testing.T) {
 			wantErr: networkLiveLimitsMinCoalesceWindowPath,
 		},
 		{
-			name: "Should reject invalid greet interval",
-			mutate: func(cfg *Config) {
-				cfg.Network.GreetInterval = 0
-			},
-			wantErr: "network.greet_interval",
-		},
-		{
 			name: "Should reject invalid replay age",
 			mutate: func(cfg *Config) {
 				cfg.Network.MaxReplayAge = 0
 			},
 			wantErr: "network.max_replay_age",
-		},
-		{
-			name: "Should reject invalid queue depth",
-			mutate: func(cfg *Config) {
-				cfg.Network.MaxQueueDepth = 0
-			},
-			wantErr: "network.max_queue_depth",
 		},
 	}
 

@@ -149,17 +149,6 @@ const (
 	HookSpawnParentStopped HookEvent = "spawn.parent_stopped"
 	HookSpawnTTLExpired    HookEvent = "spawn.ttl_expired"
 	HookSpawnReaped        HookEvent = "spawn.reaped"
-
-	HookNetworkThreadOpened            HookEvent = "network.thread.opened"
-	HookNetworkDirectRoomOpened        HookEvent = "network.direct_room.opened"
-	HookNetworkMessagePersisted        HookEvent = "network.message.persisted"
-	HookNetworkWorkOpened              HookEvent = "network.work.opened"
-	HookNetworkWorkTransitioned        HookEvent = "network.work.transitioned"
-	HookNetworkWorkClosed              HookEvent = "network.work.closed"
-	HookNetworkPeerJoined              HookEvent = "network.peer.joined"
-	HookNetworkPeerLeft                HookEvent = "network.peer.left"
-	HookNetworkParticipationPreResolve HookEvent = "network.participation.pre_resolve"
-	HookNetworkParticipationResolved   HookEvent = "network.participation.resolved"
 )
 
 type hookEventSpec struct {
@@ -167,7 +156,7 @@ type hookEventSpec struct {
 	syncEligible bool
 }
 
-var hookEventSpecs = map[HookEvent]hookEventSpec{
+var hookEventSpecs = mergeHookEventSpecs(map[HookEvent]hookEventSpec{
 	HookSessionPreCreate:  {family: HookEventFamilySession, syncEligible: true},
 	HookSessionPostCreate: {family: HookEventFamilySession, syncEligible: true},
 	HookSessionPreResume:  {family: HookEventFamilySession, syncEligible: true},
@@ -388,49 +377,9 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
 	},
-	HookNetworkThreadOpened: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: false,
-	},
-	HookNetworkDirectRoomOpened: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: false,
-	},
-	HookNetworkMessagePersisted: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: false,
-	},
-	HookNetworkWorkOpened: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: false,
-	},
-	HookNetworkWorkTransitioned: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: false,
-	},
-	HookNetworkWorkClosed: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: false,
-	},
-	HookNetworkPeerJoined: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: false,
-	},
-	HookNetworkPeerLeft: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: false,
-	},
-	HookNetworkParticipationPreResolve: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: true,
-	},
-	HookNetworkParticipationResolved: {
-		family:       HookEventFamilyNetwork,
-		syncEligible: false,
-	},
-}
+}, networkHookEventSpecs())
 
-var allHookEvents = []HookEvent{
+var allHookEvents = append([]HookEvent{
 	HookSessionPreCreate,
 	HookSessionPostCreate,
 	HookSessionPreResume,
@@ -507,17 +456,7 @@ var allHookEvents = []HookEvent{
 	HookSpawnParentStopped,
 	HookSpawnTTLExpired,
 	HookSpawnReaped,
-	HookNetworkThreadOpened,
-	HookNetworkDirectRoomOpened,
-	HookNetworkMessagePersisted,
-	HookNetworkWorkOpened,
-	HookNetworkWorkTransitioned,
-	HookNetworkWorkClosed,
-	HookNetworkPeerJoined,
-	HookNetworkPeerLeft,
-	HookNetworkParticipationPreResolve,
-	HookNetworkParticipationResolved,
-}
+}, networkHookEvents()...)
 
 var _ = func() bool {
 	if err := validateHookEventSpecsConsistency(); err != nil {

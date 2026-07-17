@@ -13,53 +13,55 @@ import (
 const forceUpdateTaskRunSnapshot = `-- name: ForceUpdateTaskRunSnapshot :execrows
 UPDATE task_runs
 SET task_id = ?1,
-    status = ?2,
-    attempt = ?3,
-    previous_run_id = ?4,
-    failure_kind = ?5,
-    claimed_by_kind = ?6,
-    claimed_by_ref = ?7,
-    session_id = ?8,
-    origin_kind = ?9,
-    origin_ref = ?10,
-    idempotency_key = ?11,
-    network_spec_json = ?12,
-    network_mode = ?13,
-    network_channel = ?14,
-    network_source = ?15,
+    workspace_id = ?2,
+    status = ?3,
+    attempt = ?4,
+    previous_run_id = ?5,
+    failure_kind = ?6,
+    claimed_by_kind = ?7,
+    claimed_by_ref = ?8,
+    session_id = ?9,
+    origin_kind = ?10,
+    origin_ref = ?11,
+    idempotency_key = ?12,
+    network_spec_json = ?13,
+    network_mode = ?14,
+    network_channel = ?15,
+    network_source = ?16,
     claim_token = NULL,
-    claim_token_hash = ?16,
-    lease_until = ?17,
-    heartbeat_at = ?18,
-    queued_at = ?19,
-    claimed_at = ?20,
-    started_at = ?21,
-    ended_at = ?22,
-    error = ?23,
-    metadata_json = ?24,
-    result_json = ?25,
-    review_required = ?26,
-    review_request_round = ?27,
-    review_policy_snapshot = ?28,
-    review_request_id = ?29,
-    parent_run_id = ?30,
-    review_id = ?31,
-    review_round = ?32,
-    continuation_reason = ?33,
-    missing_work_json = ?34,
-    next_round_guidance = ?35,
-    network_wake_id = ?36,
-    network_target_session_id = ?37,
-    network_owner_key = ?38
-WHERE id = ?39
-  AND status = ?40
-  AND COALESCE(session_id, '') = ?41
-  AND COALESCE(claim_token_hash, '') = ?42
-  AND COALESCE(lease_until, '') = ?43
+    claim_token_hash = ?17,
+    lease_until = ?18,
+    heartbeat_at = ?19,
+    queued_at = ?20,
+    claimed_at = ?21,
+    started_at = ?22,
+    ended_at = ?23,
+    error = ?24,
+    metadata_json = ?25,
+    result_json = ?26,
+    review_required = ?27,
+    review_request_round = ?28,
+    review_policy_snapshot = ?29,
+    review_request_id = ?30,
+    parent_run_id = ?31,
+    review_id = ?32,
+    review_round = ?33,
+    continuation_reason = ?34,
+    missing_work_json = ?35,
+    next_round_guidance = ?36,
+    network_wake_id = ?37,
+    network_target_session_id = ?38,
+    network_owner_key = ?39
+WHERE id = ?40
+  AND status = ?41
+  AND COALESCE(session_id, '') = ?42
+  AND COALESCE(claim_token_hash, '') = ?43
+  AND COALESCE(lease_until, '') = ?44
 `
 
 type ForceUpdateTaskRunSnapshotParams struct {
 	TaskID                 sql.NullString `json:"task_id"`
+	WorkspaceID            sql.NullString `json:"workspace_id"`
 	Status                 string         `json:"status"`
 	Attempt                int64          `json:"attempt"`
 	PreviousRunID          sql.NullString `json:"previous_run_id"`
@@ -107,6 +109,7 @@ type ForceUpdateTaskRunSnapshotParams struct {
 func (q *Queries) ForceUpdateTaskRunSnapshot(ctx context.Context, arg ForceUpdateTaskRunSnapshotParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, forceUpdateTaskRunSnapshot,
 		arg.TaskID,
+		arg.WorkspaceID,
 		arg.Status,
 		arg.Attempt,
 		arg.PreviousRunID,

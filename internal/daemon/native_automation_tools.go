@@ -136,9 +136,9 @@ func (n *daemonNativeTools) automationJobsCreate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	job := core.AutomationJobFromCreateRequest(input.request())
-	if err := job.Validate(nativeAutomationToolsJobKey); err != nil {
-		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
+	job, err := nativeAutomationJobFromCreateRequest(req.ToolID, input.request())
+	if err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	created, err := n.automationManager().CreateJob(ctx, job)
 	if err != nil {
@@ -180,9 +180,9 @@ func (n *daemonNativeTools) automationJobsUpdate(
 		}
 		updated, err = n.automationManager().SetJobEnabled(ctx, current.ID, *patch.Enabled)
 	default:
-		next := core.ApplyAutomationJobPatch(current, patch)
-		if err := next.Validate(nativeAutomationToolsJobKey); err != nil {
-			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
+		next, patchErr := nativeAutomationJobFromPatch(req.ToolID, current, patch)
+		if patchErr != nil {
+			return toolspkg.ToolResult{}, patchErr
 		}
 		updated, err = n.automationManager().UpdateJob(ctx, next)
 	}

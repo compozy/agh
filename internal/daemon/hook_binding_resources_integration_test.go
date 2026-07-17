@@ -252,13 +252,33 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 	if _, err := h.notifier.DispatchTaskRunEnqueued(testutil.Context(t), hookspkg.TaskRunEnqueuedPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskRunEnqueued,
+			Timestamp: time.Date(2026, 4, 15, 11, 59, 0, 0, time.UTC),
+		},
+		TaskRunContext: hookspkg.TaskRunContext{
+			TaskID:                       "task-1",
+			RunID:                        "run-mismatched-channel",
+			WorkspaceID:                  "ws-1",
+			ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("ws-1", "other-channel"),
+		},
+	}); err != nil {
+		t.Fatalf("DispatchTaskRunEnqueued(mismatched channel) error = %v", err)
+	}
+	select {
+	case payload := <-taskRunPayloads:
+		t.Fatalf("mismatched participation dispatched payload %#v", payload.TaskRunContext)
+	default:
+	}
+
+	if _, err := h.notifier.DispatchTaskRunEnqueued(testutil.Context(t), hookspkg.TaskRunEnqueuedPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookTaskRunEnqueued,
 			Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
 		},
 		TaskRunContext: hookspkg.TaskRunContext{
 			TaskID:                       "task-1",
 			RunID:                        "run-1",
 			WorkspaceID:                  "ws-1",
-			ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("", "coord-ch-1"),
+			ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("ws-1", "coord-ch-1"),
 		},
 	}); err != nil {
 		t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)
@@ -267,6 +287,8 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 	select {
 	case payload := <-taskRunPayloads:
 		if payload.RunID != "run-1" ||
+			payload.ResolvedNetworkParticipation == nil ||
+			payload.ResolvedNetworkParticipation.WorkspaceID != "ws-1" ||
 			resolvedParticipationChannelID(payload.ResolvedNetworkParticipation) != "coord-ch-1" {
 			t.Fatalf("task-run payload = %#v, want run and participation channel metadata", payload.TaskRunContext)
 		}

@@ -7,6 +7,17 @@ type NetworkChannelsParams struct {
 	WorkspaceID string `json:"workspace_id"`
 }
 
+// NetworkUsageParams filters one bounded workspace usage page.
+type NetworkUsageParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	OwnerKind   string `json:"owner_kind,omitempty"`
+	OwnerID     string `json:"owner_id,omitempty"`
+	RunID       string `json:"run_id,omitempty"`
+	Channel     string `json:"channel,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
+	Limit       *int   `json:"limit,omitempty"`
+}
+
 // NetworkPeersParams filters visible peers by workspace and channel.
 type NetworkPeersParams struct {
 	WorkspaceID string `json:"workspace_id"`

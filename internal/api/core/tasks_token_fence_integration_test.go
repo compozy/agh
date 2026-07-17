@@ -229,11 +229,11 @@ func TestTaskRunTokenFenceHandlersHonorImmutableParticipationOwnershipIntegratio
 				t.Fatalf("payload.Run.SessionID = %q, want %q", payload.Run.SessionID, "sess-history-mixed")
 			}
 			if payload.Run.ResolvedNetworkParticipation == nil ||
-				payload.Run.ResolvedNetworkParticipation.ChannelID != "scope-direct-history" {
+				*payload.Run.ResolvedNetworkParticipation != networkSpec {
 				t.Fatalf(
-					"payload.Run.ResolvedNetworkParticipation = %#v, want channel %q",
+					"payload.Run.ResolvedNetworkParticipation = %#v, want %#v",
 					payload.Run.ResolvedNetworkParticipation,
-					"scope-direct-history",
+					networkSpec,
 				)
 			}
 			if payload.Run.Origin.Ref != "tasks.cancel_run" {

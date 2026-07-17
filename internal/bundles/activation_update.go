@@ -65,3 +65,12 @@ func (s *Service) UpdateActivation(ctx context.Context, req UpdateActivationRequ
 	}
 	return s.GetActivation(ctx, next.ID)
 }
+
+func (s *Service) restoreBundleActivation(ctx context.Context, desired Activation) error {
+	current, err := s.store.GetBundleActivation(ctx, desired.ID)
+	if err != nil {
+		return err
+	}
+	desired.Version = current.Version
+	return s.store.UpdateBundleActivation(ctx, desired)
+}

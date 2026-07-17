@@ -3984,9 +3984,6 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 	memoryConfig.Dream.MinHours = 12
 	memoryConfig.Dream.MinSessions = 3
 	memoryConfig.Dream.CheckInterval = 15 * time.Minute
-	networkConfig := aghconfig.DefaultNetworkConfig()
-	networkConfig.Live.Defaults.MaxWakes = 12
-
 	tests := []struct {
 		name    string
 		request SectionUpdateRequest
@@ -4038,9 +4035,8 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			name: "network",
 			request: SectionUpdateRequest{
 				SectionRequest: SectionRequest{Section: SectionNetwork},
-				Network:        &networkConfig,
 			},
-			want: `max_wakes = 12`,
+			want: `max_wakes = 13`,
 		},
 		{
 			name: "observability",
@@ -4101,8 +4097,18 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			service := testService(t, homePaths, Dependencies{
 				SkillsRuntime: newFakeSkillsRuntime(testSkill("alpha", false), testSkill("beta", false)),
 			})
+			request := tt.request
+			if request.Section == SectionNetwork {
+				current, err := aghconfig.LoadForHome(homePaths)
+				if err != nil {
+					t.Fatalf("LoadForHome(network fixture) error = %v", err)
+				}
+				networkConfig := current.Network
+				networkConfig.Live.Defaults.MaxWakes = 13
+				request.Network = &networkConfig
+			}
 
-			result, err := service.UpdateSection(ctx, tt.request)
+			result, err := service.UpdateSection(ctx, request)
 			if err != nil {
 				t.Fatalf("UpdateSection(%s) error = %v", tt.name, err)
 			}
@@ -4118,6 +4124,15 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			payload := readFile(t, homePaths.ConfigFile)
 			if !strings.Contains(payload, tt.want) {
 				t.Fatalf("config payload missing %q:\n%s", tt.want, payload)
+			}
+			if request.Section == SectionNetwork {
+				reloaded, err := aghconfig.LoadForHome(homePaths)
+				if err != nil {
+					t.Fatalf("LoadForHome(updated network) error = %v", err)
+				}
+				if got, want := reloaded.Network.Live.Defaults.MaxWakes, 13; got != want {
+					t.Fatalf("reloaded Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
+				}
 			}
 		})
 	}
@@ -5052,9 +5067,7 @@ backend = "local"
 
 [network]
 enabled = true
-greet_interval = 15
 max_replay_age = 60
-max_queue_depth = 10
 
 [network.live.defaults]
 max_wakes = 12

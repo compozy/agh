@@ -311,18 +311,18 @@ func (r *coordinatorRuntime) bootstrapRun(
 	preflightConfig := defaultEnabledCoordinatorConfig()
 	preflight := coordinator.DecideBootstrap(taskRecord, run, preflightConfig)
 	if !preflight.ShouldBootstrap {
-		r.dispatchDecision(ctx, preflight, reason, "")
+		r.dispatchDecision(ctx, preflight, nil, reason, "")
 		return nil, false, nil
 	}
 
 	cfg, err := r.config.ResolveCoordinatorConfig(ctx, preflight.WorkspaceID)
 	if err != nil {
-		r.dispatchFailed(ctx, preflight, reason, err)
+		r.dispatchFailed(ctx, preflight, nil, reason, err)
 		return nil, false, fmt.Errorf("daemon: resolve coordinator config: %w", err)
 	}
 	decision := coordinator.DecideBootstrap(taskRecord, run, cfg)
 	if !decision.ShouldBootstrap {
-		r.dispatchDecision(ctx, decision, reason, "")
+		r.dispatchDecision(ctx, decision, nil, reason, "")
 		return nil, false, nil
 	}
 
@@ -330,15 +330,16 @@ func (r *coordinatorRuntime) bootstrapRun(
 	existing, err := r.activeCoordinator(ctx, decision.WorkspaceID)
 	if err != nil {
 		r.mu.Unlock()
-		r.dispatchFailed(ctx, decision, reason, err)
+		r.dispatchFailed(ctx, decision, nil, reason, err)
 		return nil, false, err
 	}
 	if existing != nil {
 		shouldPrompt := r.beginCoordinatorWakeLocked(existing, decision)
 		r.mu.Unlock()
-		r.dispatchDecision(ctx, decision, reason, coordinator.DecisionExisting)
+		existingParticipation := participation.CloneSpec(existing.NetworkParticipation)
+		r.dispatchDecision(ctx, decision, existingParticipation, reason, coordinator.DecisionExisting)
 		if err := r.wakeCoordinatorIfNeeded(ctx, existing, decision, reason, shouldPrompt); err != nil {
-			r.dispatchFailed(ctx, decision, reason, err)
+			r.dispatchFailed(ctx, decision, existingParticipation, reason, err)
 			return existing, false, err
 		}
 		return existing, false, nil
@@ -377,13 +378,14 @@ func (r *coordinatorRuntime) reconcileCreatedCoordinator(
 		if cleanupErr != nil {
 			err = errors.Join(err, cleanupErr)
 		}
-		r.dispatchFailed(ctx, decision, reason, err)
+		r.dispatchFailed(ctx, decision, participation.CloneSpec(info.NetworkParticipation), reason, err)
 		return nil, false, err
 	}
 	if existing != nil && strings.TrimSpace(existing.ID) != strings.TrimSpace(info.ID) {
 		shouldPrompt := r.beginCoordinatorWakeLocked(existing, decision)
 		r.mu.Unlock()
-		r.dispatchDecision(ctx, decision, reason, coordinator.DecisionExisting)
+		existingParticipation := participation.CloneSpec(existing.NetworkParticipation)
+		r.dispatchDecision(ctx, decision, existingParticipation, reason, coordinator.DecisionExisting)
 		if err := r.cleanupCreatedCoordinatorSession(
 			ctx,
 			info,
@@ -392,11 +394,11 @@ func (r *coordinatorRuntime) reconcileCreatedCoordinator(
 			if shouldPrompt {
 				r.finishCoordinatorWake(existing, decision)
 			}
-			r.dispatchFailed(ctx, decision, reason, err)
+			r.dispatchFailed(ctx, decision, participation.CloneSpec(info.NetworkParticipation), reason, err)
 			return existing, false, err
 		}
 		if err := r.wakeCoordinatorIfNeeded(ctx, existing, decision, reason, shouldPrompt); err != nil {
-			r.dispatchFailed(ctx, decision, reason, err)
+			r.dispatchFailed(ctx, decision, existingParticipation, reason, err)
 			return existing, false, err
 		}
 		return existing, false, nil
@@ -404,7 +406,7 @@ func (r *coordinatorRuntime) reconcileCreatedCoordinator(
 	shouldPrompt := r.beginCoordinatorWakeLocked(info, decision)
 	r.mu.Unlock()
 	if err := r.wakeCoordinatorIfNeeded(ctx, info, decision, reason, shouldPrompt); err != nil {
-		r.dispatchFailed(ctx, decision, reason, err)
+		r.dispatchFailed(ctx, decision, participation.CloneSpec(info.NetworkParticipation), reason, err)
 		return nil, false, err
 	}
 	r.dispatchSpawned(ctx, decision, info, createdCfg, reason)
@@ -457,27 +459,32 @@ func (r *coordinatorRuntime) createCoordinatorSession(
 	cfg aghconfig.CoordinatorConfig,
 	reason string,
 ) (*session.Info, aghconfig.CoordinatorConfig, bool, error) {
-	preSpawn := r.preSpawnPayload(decision, cfg, reason)
-	preSpawn, err := r.dispatchPreSpawn(ctx, preSpawn)
+	coordinatorParticipation, err := bindCoordinatorParticipation(decision)
+	if err != nil {
+		r.dispatchFailed(ctx, decision, nil, reason, err)
+		return nil, cfg, false, err
+	}
+	preSpawn := r.preSpawnPayload(decision, cfg, coordinatorParticipation, reason)
+	preSpawn, err = r.dispatchPreSpawn(ctx, preSpawn)
 	if err != nil {
 		if preSpawn.Denied {
-			r.dispatchDecision(ctx, decision, reason, coordinator.DecisionDenied)
+			r.dispatchDecision(ctx, decision, &coordinatorParticipation, reason, coordinator.DecisionDenied)
 			return nil, cfg, false, nil
 		}
-		r.dispatchFailed(ctx, decision, reason, err)
+		r.dispatchFailed(ctx, decision, &coordinatorParticipation, reason, err)
 		return nil, cfg, false, err
 	}
 	if preSpawn.Denied {
-		r.dispatchDecision(ctx, decision, reason, coordinator.DecisionDenied)
+		r.dispatchDecision(ctx, decision, &coordinatorParticipation, reason, coordinator.DecisionDenied)
 		return nil, cfg, false, nil
 	}
 
 	cfg.AgentName = firstNonEmpty(preSpawn.AgentName, cfg.AgentName)
 	cfg.Provider = firstNonEmpty(preSpawn.Provider, cfg.Provider)
 	cfg.Model = firstNonEmpty(preSpawn.Model, cfg.Model)
-	info, err := r.startCoordinatorSession(ctx, decision, cfg)
+	info, err := r.startCoordinatorSession(ctx, decision, cfg, coordinatorParticipation)
 	if err != nil {
-		r.dispatchFailed(ctx, decision, reason, err)
+		r.dispatchFailed(ctx, decision, &coordinatorParticipation, reason, err)
 		return nil, cfg, false, err
 	}
 	return info, cfg, true, nil
@@ -651,8 +658,8 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 	ctx context.Context,
 	decision coordinator.Decision,
 	cfg aghconfig.CoordinatorConfig,
+	coordinatorParticipation participation.Spec,
 ) (*session.Info, error) {
-	coordinatorParticipation := participation.LocalSpec()
 	policy := coordinator.PermissionPolicy(coordinatorParticipation)
 	now := r.now().UTC()
 	promptOverlay := coordinator.PromptOverlay(coordinator.PromptInput{
@@ -715,153 +722,6 @@ func (r *coordinatorRuntime) activeCoordinator(ctx context.Context, workspaceID 
 		}
 	}
 	return nil, nil
-}
-
-func (r *coordinatorRuntime) dispatchPreSpawn(
-	ctx context.Context,
-	payload hookspkg.CoordinatorPreSpawnPayload,
-) (hookspkg.CoordinatorPreSpawnPayload, error) {
-	if r.hooks == nil {
-		return payload, nil
-	}
-	result, err := r.hooks.DispatchCoordinatorPreSpawn(ctx, payload)
-	if err != nil {
-		return result, fmt.Errorf("daemon: dispatch coordinator pre-spawn hook: %w", err)
-	}
-	return result, nil
-}
-
-func (r *coordinatorRuntime) dispatchSpawned(
-	ctx context.Context,
-	decision coordinator.Decision,
-	info *session.Info,
-	cfg aghconfig.CoordinatorConfig,
-	reason string,
-) {
-	if r.hooks == nil || info == nil {
-		return
-	}
-	_, err := r.hooks.DispatchCoordinatorSpawned(ctx, hookspkg.CoordinatorSpawnedPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorSpawned, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			WorkspaceID:                  decision.WorkspaceID,
-			Workspace:                    info.Workspace,
-			AgentName:                    info.AgentName,
-			CoordinatorSessionID:         info.ID,
-			TaskID:                       decision.TaskID,
-			RunID:                        decision.RunID,
-			WorkflowID:                   decision.WorkflowID,
-			ResolvedNetworkParticipation: participation.CloneSpec(decision.NetworkParticipation),
-			Provider:                     cfg.Provider,
-			Model:                        cfg.Model,
-		},
-		DecisionKind: "lifecycle",
-		Decision:     reason,
-	})
-	if err != nil {
-		r.logger.Warn("daemon: dispatch coordinator spawned hook failed", "error", err)
-	}
-}
-
-func (r *coordinatorRuntime) dispatchStopped(ctx context.Context, info *session.Info) {
-	if r.hooks == nil || info == nil {
-		return
-	}
-	_, err := r.hooks.DispatchCoordinatorStopped(ctx, hookspkg.CoordinatorStoppedPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorStopped, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			WorkspaceID:                  info.WorkspaceID,
-			Workspace:                    info.Workspace,
-			AgentName:                    info.AgentName,
-			CoordinatorSessionID:         info.ID,
-			ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
-			Provider:                     info.Provider,
-		},
-		DecisionKind: "lifecycle",
-		Decision:     coordinator.ReasonCoordinatorStopped,
-		StopReason:   string(info.StopReason),
-	})
-	if err != nil {
-		r.logger.Warn("daemon: dispatch coordinator stopped hook failed", "error", err)
-	}
-}
-
-func (r *coordinatorRuntime) dispatchFailed(
-	ctx context.Context,
-	decision coordinator.Decision,
-	reason string,
-	failed error,
-) {
-	if r.hooks == nil || failed == nil {
-		return
-	}
-	_, err := r.hooks.DispatchCoordinatorFailed(ctx, hookspkg.CoordinatorFailedPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorFailed, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			WorkspaceID:                  decision.WorkspaceID,
-			TaskID:                       decision.TaskID,
-			RunID:                        decision.RunID,
-			WorkflowID:                   decision.WorkflowID,
-			ResolvedNetworkParticipation: participation.CloneSpec(decision.NetworkParticipation),
-		},
-		DecisionKind: "bootstrap",
-		Decision:     reason,
-		Error:        failed.Error(),
-	})
-	if err != nil {
-		r.logger.Warn("daemon: dispatch coordinator failed hook failed", "error", err)
-	}
-}
-
-func (r *coordinatorRuntime) dispatchDecision(
-	ctx context.Context,
-	decision coordinator.Decision,
-	reason string,
-	override string,
-) {
-	if r.hooks == nil {
-		return
-	}
-	value := decision.Reason
-	if strings.TrimSpace(override) != "" {
-		value = strings.TrimSpace(override)
-	}
-	_, err := r.hooks.DispatchCoordinatorDecision(ctx, hookspkg.CoordinatorDecisionPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorDecision, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			WorkspaceID:                  decision.WorkspaceID,
-			TaskID:                       decision.TaskID,
-			RunID:                        decision.RunID,
-			WorkflowID:                   decision.WorkflowID,
-			ResolvedNetworkParticipation: participation.CloneSpec(decision.NetworkParticipation),
-		},
-		DecisionKind: "bootstrap",
-		Decision:     firstNonEmpty(value, reason),
-	})
-	if err != nil {
-		r.logger.Warn("daemon: dispatch coordinator decision hook failed", "error", err)
-	}
-}
-
-func (r *coordinatorRuntime) preSpawnPayload(
-	decision coordinator.Decision,
-	cfg aghconfig.CoordinatorConfig,
-	reason string,
-) hookspkg.CoordinatorPreSpawnPayload {
-	return hookspkg.CoordinatorPreSpawnPayload{
-		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookCoordinatorPreSpawn, Timestamp: r.now().UTC()},
-		CoordinatorContext: hookspkg.CoordinatorContext{
-			WorkspaceID:                  decision.WorkspaceID,
-			AgentName:                    cfg.AgentName,
-			TaskID:                       decision.TaskID,
-			RunID:                        decision.RunID,
-			WorkflowID:                   decision.WorkflowID,
-			ResolvedNetworkParticipation: participation.CloneSpec(decision.NetworkParticipation),
-			Provider:                     cfg.Provider,
-			Model:                        cfg.Model,
-		},
-		Reason: reason,
-	}
 }
 
 func defaultEnabledCoordinatorConfig() aghconfig.CoordinatorConfig {

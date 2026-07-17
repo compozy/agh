@@ -90,6 +90,7 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized := run
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
+	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.RunKind = normalized.RunKind.Normalize()
 	if normalized.RunKind == taskpkg.RunKindUnknown {
 		normalized.RunKind = taskpkg.RunKindWorker
@@ -253,6 +254,7 @@ func normalizeTaskRunQuery(query taskpkg.RunQuery) taskpkg.RunQuery {
 	normalized.Status = normalized.Status.Normalize()
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
+	normalized.ParticipationChannel = strings.TrimSpace(normalized.ParticipationChannel)
 	return normalized
 }
 

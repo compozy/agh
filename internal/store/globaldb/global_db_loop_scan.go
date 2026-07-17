@@ -172,6 +172,7 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		run.StartMetadata = map[string]any{}
 	}
 	networkSpec, err := decodeParticipationSnapshot(
+		string(run.WorkspaceID),
 		v.networkSpecJSON,
 		v.networkMode,
 		v.networkChannel,

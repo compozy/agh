@@ -43,6 +43,7 @@ var phaseCWatchEvents = []WatchEventsContract{
 		PayloadFields: []string{
 			watchEventsPayloadAgentName,
 			watchEventsPayloadCoordinatorSessionID,
+			watchEventsPayloadResolvedNetworkParticipation,
 			watchEventsPayloadProvider,
 			watchEventsPayloadDecisionKind,
 			watchEventsPayloadDecision,

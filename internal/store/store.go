@@ -176,13 +176,13 @@ type NetworkAcceptanceStore interface {
 		ctx context.Context,
 		req AcceptNetworkMessageRequest,
 	) (AcceptNetworkMessageResult, error)
-	SettleNetworkWake(ctx context.Context, reservation WakeReservation, outcome NetworkWakeOutcome) error
 }
 
 // NetworkInboxStore reads immutable delivered dispositions by durable session identity.
 type NetworkInboxStore interface {
 	ListNetworkInbox(
 		ctx context.Context,
+		workspaceID string,
 		sessionID string,
 		channel string,
 		limit int,
@@ -206,6 +206,7 @@ type NetworkWakeQueueStore interface {
 	) ([]CommittedNetworkNotification, error)
 	LoadNetworkWake(
 		ctx context.Context,
+		workspaceID string,
 		wakeID string,
 	) (WakeReservation, []NetworkMessageEntry, error)
 }
@@ -218,6 +219,11 @@ type NetworkUsageStore interface {
 // NetworkPreferenceStore manages network delivery preferences and network-task links.
 type NetworkPreferenceStore interface {
 	PutNetworkSubscription(ctx context.Context, entry NetworkSubscriptionEntry) error
+	PutNetworkSubscriptionWithChannel(
+		ctx context.Context,
+		channel NetworkChannelEntry,
+		entry NetworkSubscriptionEntry,
+	) error
 	ListNetworkSubscriptions(ctx context.Context, query NetworkSubscriptionQuery) ([]NetworkSubscriptionEntry, error)
 	DeleteNetworkSubscription(ctx context.Context, ref NetworkSubscriptionRef) error
 	PutNetworkTaskThreadOrigin(ctx context.Context, origin NetworkTaskThreadOrigin) error

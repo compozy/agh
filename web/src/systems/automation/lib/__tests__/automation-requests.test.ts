@@ -4,8 +4,16 @@
 // Boundary OUT: transport and daemon validation, owned by API suites.
 import { describe, expect, it } from "vitest";
 
-import { createAutomationJobDraft, setJobTargetMode } from "../automation-drafts";
-import { buildAutomationJobRequest } from "../automation-requests";
+import {
+  createAutomationJobDraft,
+  createAutomationTriggerDraft,
+  setJobTargetMode,
+} from "../automation-drafts";
+import {
+  buildAutomationJobRequest,
+  projectAutomationJobRequest,
+  projectAutomationTriggerRequest,
+} from "../automation-requests";
 
 function loopJobDraft() {
   return {
@@ -38,5 +46,32 @@ describe("automation request normalization", () => {
     };
 
     expect(buildAutomationJobRequest(draft).loop_target?.workspace_id).toBe("ws_stale");
+  });
+
+  it("Should project Job edits onto the exact mutable PATCH contract", () => {
+    const projection = projectAutomationJobRequest(loopJobDraft(), "edit");
+
+    expect(projection.method).toBe("PATCH");
+    expect(projection.path).toBe("/api/automation/jobs/{id}");
+    expect(projection.payload).not.toHaveProperty("scope");
+    expect(projection.payload).toMatchObject({ name: "daily-loop", workspace_id: "ws_alpha" });
+  });
+
+  it("Should project Trigger edits onto the exact mutable PATCH contract", () => {
+    const projection = projectAutomationTriggerRequest(
+      {
+        ...createAutomationTriggerDraft("ws_alpha"),
+        name: "review-completions",
+      },
+      "edit"
+    );
+
+    expect(projection.method).toBe("PATCH");
+    expect(projection.path).toBe("/api/automation/triggers/{id}");
+    expect(projection.payload).not.toHaveProperty("scope");
+    expect(projection.payload).toMatchObject({
+      name: "review-completions",
+      workspace_id: "ws_alpha",
+    });
   });
 });

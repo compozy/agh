@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 )
 
@@ -147,12 +148,7 @@ func TestSessionNewPassesNetworkParticipationFlags(t *testing.T) {
 
 	deps := newTestDeps(t, &stubClient{
 		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-			if participationRequestChannelID(request.NetworkParticipation) != "builders" {
-				t.Fatalf(
-					"CreateSession() NetworkParticipation = %#v, want channel builders",
-					request.NetworkParticipation,
-				)
-			}
+			assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
 			return SessionRecord{
 				ID:                           "sess-1",
 				AgentName:                    "general",
@@ -188,11 +184,49 @@ func TestSessionNewPassesNetworkParticipationFlags(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(session new --network*) error = %v", err)
 	}
-	if resolvedParticipationChannelID(decoded.ResolvedNetworkParticipation) != "builders" {
-		t.Fatalf(
-			"decoded.ResolvedNetworkParticipation = %#v, want channel builders",
-			decoded.ResolvedNetworkParticipation,
-		)
+	assertResolvedParticipation(t, decoded.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
+}
+
+func TestSessionNewAdvertisesAndAcceptsOnlyNamedChannelStrategy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should advertise only the named channel strategy", func(t *testing.T) {
+		t.Parallel()
+
+		stdout, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), "session", "new", "--help")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session new --help) error = %v", err)
+		}
+		if !strings.Contains(stdout, "Live channel strategy: named") ||
+			strings.Contains(stdout, "named, run, or loop_run") {
+			t.Fatalf("session new help = %q, want named-only channel strategy", stdout)
+		}
+	})
+
+	for _, strategy := range []participation.ChannelStrategy{
+		participation.StrategyRun,
+		participation.StrategyLoopRun,
+	} {
+		t.Run("Should reject unsupported "+string(strategy)+" strategy", func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t, &stubClient{
+				createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+					t.Fatal("CreateSession should not be called for an unsupported session strategy")
+					return SessionRecord{}, nil
+				},
+			})
+			_, _, err := executeRootCommand(
+				t,
+				deps,
+				"session", "new",
+				"--network", "live",
+				"--network-channel-strategy", string(strategy),
+			)
+			if err == nil || !strings.Contains(err.Error(), "must be named for session creation") {
+				t.Fatalf("session new %s strategy error = %v, want named-only rejection", strategy, err)
+			}
+		})
 	}
 }
 

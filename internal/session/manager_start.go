@@ -43,6 +43,9 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: resolve resume workspace for %q: %w", meta.ID, err)
 	}
+	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), resolvedWorkspace.ID); err != nil {
+		return sessionStartSpec{}, fmt.Errorf("session: validate resume participation for %q: %w", meta.ID, err)
+	}
 
 	return sessionStartSpec{
 		sessionID:               meta.ID,
@@ -157,6 +160,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	); err != nil {
 		return nil, fmt.Errorf("session: activate %s session %q: %w", spec.startAction, spec.sessionID, err)
 	}
+	m.observeCommittedParticipation(ctx, spec.participationObservation)
 
 	return session, nil
 }

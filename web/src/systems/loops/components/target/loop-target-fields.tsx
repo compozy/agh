@@ -8,11 +8,17 @@ import {
   NativeSelectOption,
   Spinner,
 } from "@agh/ui";
+import {
+  NetworkParticipationFields,
+  networkParticipationDraftFromPayload,
+  serializeNetworkParticipation,
+} from "@/systems/network";
 
 import {
   setLoopTargetInput,
   setLoopTargetLoop,
   setLoopTargetMapping,
+  setLoopTargetNetworkParticipation,
   type LoopTargetDraft,
 } from "../../lib/loop-target";
 import {
@@ -118,6 +124,15 @@ export function LoopTargetFields({
           </Button>
         ) : null}
       </Field>
+
+      <NetworkParticipationFields
+        allowedStrategies={["named", "loop_run"]}
+        onChange={next =>
+          onChange(setLoopTargetNetworkParticipation(value, serializeNetworkParticipation(next)))
+        }
+        testIdPrefix="loop-target-participation"
+        value={networkParticipationDraftFromPayload(value.network_participation)}
+      />
 
       {selected && inputNames.length > 0 ? (
         <div className="space-y-3" data-testid="loop-target-inputs">

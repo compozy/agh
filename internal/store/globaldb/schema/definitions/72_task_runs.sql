@@ -74,6 +74,7 @@ CREATE TABLE task_run_starvation (
 CREATE TABLE "task_runs" (
 		id              TEXT PRIMARY KEY,
 		task_id         TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+		workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 		status          TEXT NOT NULL,
 		attempt         INTEGER NOT NULL CHECK (attempt > 0),
 		previous_run_id TEXT,
@@ -150,12 +151,16 @@ CREATE TABLE "task_runs" (
 		CHECK (status <> 'queued' OR session_id IS NULL),
 		CHECK (run_kind = 'network_wake' OR task_id IS NOT NULL),
 		CHECK (run_kind <> 'network_wake' OR task_id IS NULL),
+		CHECK (run_kind <> 'network_wake' OR workspace_id IS NOT NULL),
 		CHECK (
 			(run_kind = 'network_wake' AND network_wake_id IS NOT NULL
 				AND network_target_session_id IS NOT NULL AND network_owner_key IS NOT NULL) OR
 			(run_kind <> 'network_wake' AND network_wake_id IS NULL
 				AND network_target_session_id IS NULL AND network_owner_key IS NULL)
-		)
+		),
+		FOREIGN KEY (workspace_id, network_target_session_id)
+			REFERENCES sessions(workspace_id, id) ON DELETE CASCADE,
+		UNIQUE (workspace_id, id)
 	);
 
 CREATE INDEX idx_task_run_idempotency_run ON task_run_idempotency(run_id);

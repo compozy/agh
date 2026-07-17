@@ -99,7 +99,7 @@ export interface UpsertNetworkSubscriptionInput {
 export interface DeleteNetworkSubscriptionInput {
   workspaceId: string;
   channel: string;
-  peerId: string;
+  sessionId: string;
   threadId?: string;
 }
 

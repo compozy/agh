@@ -33,12 +33,9 @@ func TestAgentContractNormalizationAndJSONShape(t *testing.T) {
 			Status:         taskpkg.TaskRunStatusRunning,
 			SessionID:      "sess-child",
 			ClaimTokenHash: "sha256:abc",
-			ResolvedNetworkParticipation: &participation.Spec{
-				Version:   participation.SpecVersion,
-				Mode:      participation.ModeLive,
-				ChannelID: channel.ID,
-				Source:    participation.SourceExplicitRequest,
-			},
+			ResolvedNetworkParticipation: participation.CloneSpec(
+				contractTestLiveParticipation("ws-1", channel.ID),
+			),
 			CoordinationChannel: &channel,
 		}
 		lineage := &SessionLineagePayload{

@@ -12,6 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import {
   buildCreatedTaskFixture,
   buildDetailFixture,
+  buildTaskExecutionProfileFixture,
   buildTaskRunRecordFixture,
   buildTaskTreeNodeFixture,
   buildTaskTreeFixture,
@@ -22,6 +23,7 @@ import { useTask, useTasks } from "@/systems/tasks";
 import type {
   CreateTaskRequest,
   TaskDetailView,
+  TaskExecutionProfile,
   TaskListItem,
   TaskRecord,
   TaskRun,
@@ -34,6 +36,7 @@ import {
   useUserHomeDirStore,
 } from "@/systems/workspace/hooks/use-user-home-dir-store";
 import { createMswFetch, createStatefulMswStore } from "@/test/msw-fetch";
+import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { routeComponent } from "@/test/route-options";
 
 const { navigateMock, toast } = vi.hoisted(() => ({
@@ -114,6 +117,7 @@ const workspaces: WorkspacePayload[] = [
 let handlers: HttpHandler[] = [];
 type StatefulTask = TaskRecord & TaskListItem;
 let taskStore = createStatefulMswStore<StatefulTask>([]);
+let taskExecutionProfiles = new Map<string, TaskExecutionProfile>();
 let taskRuns: TaskRun[] = [];
 let createTaskRequests: CreateTaskRequest[] = [];
 let updateTaskRequests: UpdateTaskRequest[] = [];
@@ -243,6 +247,14 @@ function createdTaskFromBody(body: CreateTaskRequest): StatefulTask {
     workspace_id: body.scope === "workspace" ? body.workspace : undefined,
   };
 
+  taskExecutionProfiles.set(
+    id,
+    buildTaskExecutionProfileFixture({
+      task_id: id,
+      network_participation: body.network_participation,
+    })
+  );
+
   return task as StatefulTask;
 }
 
@@ -279,6 +291,15 @@ function taskCreateHandlers(): HttpHandler[] {
       }
 
       return HttpResponse.json({ task: detailForTask(task) });
+    }),
+    http.get("/api/tasks/:id/execution-profile", ({ params }) => {
+      const taskId = String(params.id);
+      if (!taskStore.get(taskId)) {
+        return HttpResponse.json({ error: `Task not found: ${taskId}` }, { status: 404 });
+      }
+      const profile =
+        taskExecutionProfiles.get(taskId) ?? buildTaskExecutionProfileFixture({ task_id: taskId });
+      return HttpResponse.json({ profile });
     }),
     http.get("/api/tasks/:id/runs", ({ params }) =>
       HttpResponse.json({ runs: taskRuns.filter(run => run.task_id === String(params.id)) })
@@ -336,16 +357,25 @@ function taskCreateHandlers(): HttpHandler[] {
         owner: body.clear_owner ? undefined : (body.owner ?? task.owner),
         updated_at: "2026-04-17T10:05:00Z",
       } as Partial<StatefulTask>);
+      if (body.network_participation) {
+        const currentProfile =
+          taskExecutionProfiles.get(task.id) ??
+          buildTaskExecutionProfileFixture({ task_id: task.id });
+        taskExecutionProfiles.set(task.id, {
+          ...currentProfile,
+          network_participation: body.network_participation,
+          updated_at: "2026-04-17T10:05:00Z",
+        });
+      }
 
       return HttpResponse.json({ task: updated }, { status: 200 });
     }),
     http.delete("/api/tasks/:id", ({ params }) => {
-      if (!taskStore.delete(String(params.id))) {
-        return HttpResponse.json(
-          { error: `Task not found: ${String(params.id)}` },
-          { status: 404 }
-        );
+      const taskId = String(params.id);
+      if (!taskStore.delete(taskId)) {
+        return HttpResponse.json({ error: `Task not found: ${taskId}` }, { status: 404 });
       }
+      taskExecutionProfiles.delete(taskId);
 
       return new HttpResponse(null, { status: 204 });
     }),
@@ -405,6 +435,7 @@ afterAll(() => {
 beforeEach(() => {
   vi.spyOn(useActiveWorkspaceStore.persist, "hasHydrated").mockReturnValue(true);
   taskStore.reset([]);
+  taskExecutionProfiles = new Map();
   taskRuns = [];
   handlers = taskCreateHandlers();
   createTaskRequests = [];
@@ -857,28 +888,21 @@ describe("TaskCreateRoute create modal", () => {
       description: "Preserve every mutable field while clearing ownership.",
       draft: false,
       max_attempts: 3,
-      network_participation: { mode: "live", channel_id: "launch-room" },
+      network_participation: {
+        mode: "live",
+        channel_id: "launch-room",
+        channel_strategy: "named",
+      },
       owner: { kind: "agent_session", ref: "sess-exact-owner" },
       priority: "urgent",
       scope: "workspace",
       title: "Release exact owner",
       workspace: "ws_alpha",
     });
-    task.resolved_network_participation = {
-      version: "network-participation/v1",
-      mode: "live",
-      source: "explicit",
-      channel_id: "launch-room",
-      bounds: {
-        coalesce_window: "0s",
-        max_input_tokens: 0,
-        max_output_tokens: 0,
-        max_total_wall_time: "0s",
-        max_wake_depth: 0,
-        max_wake_wall_time: "0s",
-        max_wakes: 0,
-      },
-    };
+    task.resolved_network_participation = buildLiveNetworkParticipationFixture({
+      workspaceId: "ws_alpha",
+      channelId: "launch-room",
+    });
     taskStore.reset([task]);
 
     const edit = renderTaskEditPage(task.id);
@@ -901,7 +925,11 @@ describe("TaskCreateRoute create modal", () => {
       clear_owner: true,
       description: "Preserve every mutable field while clearing ownership.",
       max_attempts: 3,
-      network_participation: { mode: "live", channel_id: "launch-room" },
+      network_participation: {
+        mode: "live",
+        channel_id: "launch-room",
+        channel_strategy: "named",
+      },
       priority: "urgent",
       title: "Release exact owner",
     });

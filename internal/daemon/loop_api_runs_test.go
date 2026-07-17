@@ -107,6 +107,7 @@ func mustLoopApprovalActor(t *testing.T, sessionID string) task.ActorContext {
 	t.Helper()
 	actor, err := task.DeriveAgentSessionActorContextForOrigin(
 		sessionID,
+		"ws-1",
 		task.OriginKindUDS,
 		"loop_approve",
 	)

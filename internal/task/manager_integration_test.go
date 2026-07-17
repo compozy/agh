@@ -47,7 +47,7 @@ func claimExactRunIntegration(
 	claimStore exactRunClaimStore,
 	runID string,
 	actor taskpkg.ActorContext,
-) (*taskpkg.Run, error) {
+) (*taskpkg.ClaimResult, error) {
 	run, err := claimStore.GetTaskRun(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -56,20 +56,34 @@ func claimExactRunIntegration(
 	if err != nil {
 		return nil, err
 	}
-	result, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		RunID:                run.ID,
-		WorkspaceID:          taskRecord.WorkspaceID,
-		ClaimerSessionID:     "integration-claim:" + run.ID,
-		RequiredCapabilities: append([]string(nil), run.RequiredCapabilities...),
-	}, actor)
+	claimerSessionID := "integration-claim:" + run.ID
+	claimerWorkspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	if claimerWorkspaceID == "" {
+		claimerWorkspaceID = strings.TrimSpace(actor.Scope.WorkspaceID)
+	}
+	if claimerWorkspaceID == "" {
+		claimerWorkspaceID = "workspace-integration-claim"
+	}
+	claimActor, err := taskpkg.DeriveAgentSessionActorContext(claimerSessionID, claimerWorkspaceID)
 	if err != nil {
 		return nil, err
 	}
-	return &result.Run, nil
+	result, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:                run.ID,
+		WorkspaceID:          taskRecord.WorkspaceID,
+		ClaimerSessionID:     claimerSessionID,
+		RequiredCapabilities: append([]string(nil), run.RequiredCapabilities...),
+		LeaseDuration:        time.Hour,
+	}, claimActor)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func seedNonLeasedClaimedRunIntegration(
 	ctx context.Context,
+	_ *taskpkg.Service,
 	claimStore exactRunClaimStore,
 	runID string,
 	actor taskpkg.ActorContext,
@@ -78,12 +92,14 @@ func seedNonLeasedClaimedRunIntegration(
 	if err != nil {
 		return nil, err
 	}
+	claimedBy := actor.Actor
 	run.Status = taskpkg.TaskRunStatusClaimed
-	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref}
+	run.ClaimedBy = &claimedBy
 	run.ClaimedAt = time.Now().UTC()
 	run.SessionID = ""
 	run.ClaimTokenHash = ""
 	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
 	if err := claimStore.UpdateTaskRun(ctx, run); err != nil {
 		return nil, err
 	}
@@ -133,9 +149,20 @@ func (s *rollupPublicationFailureStore) ListDependents(
 }
 
 type countingParticipationResolver struct {
-	inner participation.Resolver
-	mu    sync.Mutex
-	calls int
+	inner        participation.Resolver
+	mu           sync.Mutex
+	calls        int
+	observations []participation.ResolvedObservation
+}
+
+func (r *countingParticipationResolver) ObserveParticipationResolved(
+	_ context.Context,
+	observation participation.ResolvedObservation,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.observations = append(r.observations, observation)
+	return nil
 }
 
 func (r *countingParticipationResolver) Resolve(
@@ -152,6 +179,21 @@ func (r *countingParticipationResolver) CallCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.calls
+}
+
+func (r *countingParticipationResolver) ObservationCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.observations)
+}
+
+func (r *countingParticipationResolver) LastObservation() participation.ResolvedObservation {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.observations) == 0 {
+		return participation.ResolvedObservation{}
+	}
+	return r.observations[len(r.observations)-1]
 }
 
 func (e *integrationSessionExecutor) StartTaskSession(
@@ -253,7 +295,7 @@ func TestTaskManagerCreateTaskPersistsAgentSessionIdentity(t *testing.T) {
 	db := openTaskManagerGlobalDB(t)
 	manager := newTaskManagerIntegration(t, db)
 
-	actor, err := taskpkg.DeriveAgentSessionActorContext("sess-agent-1")
+	actor, err := taskpkg.DeriveAgentSessionActorContext("sess-agent-1", "ws-test")
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 	}
@@ -372,7 +414,11 @@ func TestTaskManagerCreateTaskPersistsAutomationLinkedAgentOrigin(t *testing.T) 
 	db := openTaskManagerGlobalDB(t)
 	manager := newTaskManagerIntegration(t, db)
 
-	actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext("sess-agent-2", "run:run-2")
+	actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext(
+		"sess-agent-2",
+		"ws-test",
+		"run:run-2",
+	)
 	if err != nil {
 		t.Fatalf("DeriveAutomationLinkedAgentSessionActorContext() error = %v", err)
 	}
@@ -457,7 +503,7 @@ func TestTaskManagerPublishTaskReconcilesDraftLifecycleIntegration(t *testing.T)
 	if err != nil {
 		t.Fatalf("EnqueueRun(blocker) error = %v", err)
 	}
-	blockerRun, err = seedNonLeasedClaimedRunIntegration(ctx, db, blockerRun.ID, actor)
+	blockerRun, err = seedNonLeasedClaimedRunIntegration(ctx, manager, db, blockerRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(blocker) error = %v", err)
 	}
@@ -552,7 +598,7 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 	if err != nil {
 		t.Fatalf("EnqueueRun(blocker) error = %v", err)
 	}
-	blockerRun, err = seedNonLeasedClaimedRunIntegration(ctx, first, blockerRun.ID, actor)
+	blockerRun, err = seedNonLeasedClaimedRunIntegration(ctx, firstManager, first, blockerRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(blocker) error = %v", err)
 	}
@@ -751,7 +797,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 	}
 
 	run := approved.Run
-	claimedRun, err := seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
+	claimedRun, err := seedNonLeasedClaimedRunIntegration(ctx, manager, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(approved) error = %v", err)
 	}
@@ -845,7 +891,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 			t.Fatalf("runs after approval = %d, want %d", got, want)
 		}
 
-		worker, err := taskpkg.DeriveAgentSessionActorContext("sess-approval-worker")
+		worker, err := taskpkg.DeriveAgentSessionActorContext("sess-approval-worker", "ws-test")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -931,7 +977,7 @@ func TestTaskManagerPlainWorkspaceStartPersistsLocalParticipationIntegration(t *
 		t.Fatalf("network conversation rows = %d, want 0", conversationRows)
 	}
 
-	claimActor, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
+	claimActor, err := taskpkg.DeriveAgentSessionActorContext("sess-worker", workspaceID)
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 	}
@@ -1000,6 +1046,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 		}
 
 		callsBefore := resolver.CallCount()
+		observationsBefore := resolver.ObservationCount()
 		first, startErr := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
 			IdempotencyKey:       "explicit-live-override",
 			NetworkParticipation: liveRequest,
@@ -1019,6 +1066,14 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 		}
 		if got, want := resolver.CallCount()-callsBefore, 1; got != want {
 			t.Fatalf("resolver calls = %d, want %d", got, want)
+		}
+		if got, want := resolver.ObservationCount()-observationsBefore, 1; got != want {
+			t.Fatalf("committed participation observations = %d, want %d", got, want)
+		}
+		observation := resolver.LastObservation()
+		if observation.Owner.ID != first.Run.ID || observation.Owner.WorkspaceID != workspaceID ||
+			observation.Spec != first.Run.NetworkSpecSnapshot() {
+			t.Fatalf("committed participation observation = %#v, want first persisted run", observation)
 		}
 		spec := first.Run.NetworkSpecSnapshot()
 		if got, want := spec.Mode, participation.ModeLive; got != want {
@@ -1110,8 +1165,8 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 	})
 
 	t.Run("Should apply workspace coordination only to future runs", func(t *testing.T) {
-		if _, setErr := db.Set(ctx, workspaceID, true, "operator:enable"); setErr != nil {
-			t.Fatalf("CoordinationSettings.Set(true) error = %v", setErr)
+		if setErr := setWorkspaceCoordinationIntegration(ctx, db, workspaceID, true, actor); setErr != nil {
+			t.Fatalf("CoordinationCommands.Set(true) error = %v", setErr)
 		}
 		firstTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
 			Scope:       taskpkg.ScopeWorkspace,
@@ -1158,8 +1213,8 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 			t.Fatalf("profile source = %q, want %q", got, want)
 		}
 
-		if _, setErr := db.Set(ctx, workspaceID, false, "operator:disable"); setErr != nil {
-			t.Fatalf("CoordinationSettings.Set(false) error = %v", setErr)
+		if setErr := setWorkspaceCoordinationIntegration(ctx, db, workspaceID, false, actor); setErr != nil {
+			t.Fatalf("CoordinationCommands.Set(false) error = %v", setErr)
 		}
 		secondTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
 			Scope:       taskpkg.ScopeWorkspace,
@@ -1188,8 +1243,8 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 	})
 
 	t.Run("Should share one derived conversation across a designated fan-out group", func(t *testing.T) {
-		if _, setErr := db.Set(ctx, workspaceID, true, "operator:enable-fanout"); setErr != nil {
-			t.Fatalf("CoordinationSettings.Set(true) error = %v", setErr)
+		if setErr := setWorkspaceCoordinationIntegration(ctx, db, workspaceID, true, actor); setErr != nil {
+			t.Fatalf("CoordinationCommands.Set(true) error = %v", setErr)
 		}
 		fanOutTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
 			Scope:       taskpkg.ScopeWorkspace,
@@ -1253,6 +1308,30 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 	}
 }
 
+func setWorkspaceCoordinationIntegration(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	enabled bool,
+	actor taskpkg.ActorContext,
+) error {
+	commands := aghworkspace.NewCoordinationService(db)
+	ref := aghworkspace.CoordinationRef{
+		WorkspaceID: workspaceID,
+		ScopeKind:   aghworkspace.InvitationScopeWorkspace,
+	}
+	current, err := commands.Get(ctx, ref, actor)
+	if err != nil {
+		return err
+	}
+	_, err = commands.Set(ctx, aghworkspace.SetCoordination{
+		Ref:              ref,
+		Enabled:          enabled,
+		ExpectedRevision: current.Setting.Revision,
+	}, actor)
+	return err
+}
+
 func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t *testing.T) {
 	t.Parallel()
 	t.Run(
@@ -1309,7 +1388,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 			if err != nil {
 				t.Fatalf("EnqueueRun(blocker) error = %v", err)
 			}
-			worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
+			worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker", "ws-test")
 			if err != nil {
 				t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 			}
@@ -1415,7 +1494,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 					t.Fatalf("EnqueueRun(%s) error = %v", blockerID, err)
 				}
 				session := "sess-worker-" + strconv.Itoa(i)
-				worker, err := taskpkg.DeriveAgentSessionActorContext(session)
+				worker, err := taskpkg.DeriveAgentSessionActorContext(session, "ws-test")
 				if err != nil {
 					t.Fatalf("DeriveAgentSessionActorContext(%s) error = %v", session, err)
 				}
@@ -1521,7 +1600,7 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun(%s) error = %v", child.ID, err)
 			}
-			worker, err := taskpkg.DeriveAgentSessionActorContext(sessionID)
+			worker, err := taskpkg.DeriveAgentSessionActorContext(sessionID, "ws-test")
 			if err != nil {
 				t.Fatalf("DeriveAgentSessionActorContext(%s) error = %v", sessionID, err)
 			}
@@ -1588,7 +1667,7 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 			t.Fatalf("parent task.status_changed event count = %d, want 1", statusChangedCount)
 		}
 
-		worker, err := taskpkg.DeriveAgentSessionActorContext("sess-parent-rollup-b")
+		worker, err := taskpkg.DeriveAgentSessionActorContext("sess-parent-rollup-b", "ws-test")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(replay) error = %v", err)
 		}
@@ -1862,9 +1941,9 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun(%s) error = %v", title, err)
 			}
-			run, err = claimExactRunIntegration(ctx, manager, db, run.ID, actor)
+			run, err = seedNonLeasedClaimedRunIntegration(ctx, manager, db, run.ID, actor)
 			if err != nil {
-				t.Fatalf("claimExactRunIntegration(%s) error = %v", title, err)
+				t.Fatalf("seedNonLeasedClaimedRunIntegration(%s) error = %v", title, err)
 			}
 			run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
 			if err != nil {
@@ -1999,7 +2078,7 @@ func claimTaskRunForRollupIntegration(
 	if err != nil {
 		t.Fatalf("EnqueueRun(%s) error = %v", taskID, err)
 	}
-	worker, err := taskpkg.DeriveAgentSessionActorContext(sessionID)
+	worker, err := taskpkg.DeriveAgentSessionActorContext(sessionID, "ws-test")
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext(%s) error = %v", sessionID, err)
 	}
@@ -2027,7 +2106,7 @@ func TestTaskManagerAgentCreatedTaskApprovesThenClaimsIntegration(t *testing.T) 
 	workspaceID := registerTaskManagerWorkspace(t, db, "approval-boundary", filepath.Join(t.TempDir(), "workspace"))
 	manager := newTaskManagerIntegration(t, db)
 
-	agentActor, err := taskpkg.DeriveAgentSessionActorContext("sess-author")
+	agentActor, err := taskpkg.DeriveAgentSessionActorContext("sess-author", workspaceID)
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext(author) error = %v", err)
 	}
@@ -2066,7 +2145,7 @@ func TestTaskManagerAgentCreatedTaskApprovesThenClaimsIntegration(t *testing.T) 
 		t.Fatalf("ApproveTask().Run.NetworkSpecSnapshot().Source = %q, want %q", got, want)
 	}
 
-	worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
+	worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker", workspaceID)
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext(worker) error = %v", err)
 	}
@@ -2403,10 +2482,11 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 		t.Fatalf("queued run status = %q, want %q", got, want)
 	}
 
-	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
+	claim, err := claimExactRunIntegration(ctx, manager, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
+	run = &claim.Run
 	if got, want := run.Status, taskpkg.TaskRunStatusClaimed; got != want {
 		t.Fatalf("claimed run status = %q, want %q", got, want)
 	}
@@ -2436,11 +2516,16 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 		t.Fatalf("task status after start = %q, want %q", got, want)
 	}
 
-	run, err = manager.CompleteRun(ctx, run.ID, taskpkg.RunResult{
-		Value: json.RawMessage(`{"result":"ok"}`),
+	run, err = manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		RunID:      run.ID,
+		ClaimToken: claim.ClaimToken,
+		Result: taskpkg.RunResult{
+			Value: json.RawMessage(`{"result":"ok"}`),
+		},
+		Now: claim.LeaseUntil.Add(-time.Second),
 	}, actor)
 	if err != nil {
-		t.Fatalf("CompleteRun() error = %v", err)
+		t.Fatalf("CompleteRunLease() error = %v", err)
 	}
 	if got, want := run.Status, taskpkg.TaskRunStatusCompleted; got != want {
 		t.Fatalf("completed run status = %q, want %q", got, want)
@@ -2459,8 +2544,8 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 	}
 	wantTypes := []string{
 		"task.created",
+		"task.run.completed",
 		"task.run_claimed",
-		"task.run_completed",
 		"task.run_enqueued",
 		"task.run_session_bound",
 		"task.run_started",
@@ -2486,7 +2571,7 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
-		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-stale-boot")
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-stale-boot", "ws-test")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -2627,7 +2712,7 @@ func TestTaskManagerCancelTaskTreePersistsCancellationAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(active child) error = %v", err)
 	}
-	activeRun, err = seedNonLeasedClaimedRunIntegration(ctx, db, activeRun.ID, actor)
+	activeRun, err = seedNonLeasedClaimedRunIntegration(ctx, manager, db, activeRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(active child) error = %v", err)
 	}
@@ -2736,18 +2821,24 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
+	claim, err := claimExactRunIntegration(ctx, manager, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
+	run = &claim.Run
 	run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}
-	if _, err := manager.CompleteRun(ctx, run.ID, taskpkg.RunResult{
-		Value: json.RawMessage(`{"ok":true}`),
+	if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		RunID:      run.ID,
+		ClaimToken: claim.ClaimToken,
+		Result: taskpkg.RunResult{
+			Value: json.RawMessage(`{"ok":true}`),
+		},
+		Now: claim.LeaseUntil.Add(-time.Second),
 	}, actor); err != nil {
-		t.Fatalf("CompleteRun() error = %v", err)
+		t.Fatalf("CompleteRunLease() error = %v", err)
 	}
 
 	pageOne, err := manager.Timeline(ctx, taskRecord.ID, taskpkg.TimelineQuery{Limit: 3}, actor)
@@ -2801,8 +2892,8 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 		"task.run_starting",
 		"task.run_session_bound",
 		"task.run_started",
+		"task.run.completed",
 		"task.status_changed",
-		"task.run_completed",
 	}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("pageTwo event types = %#v, want %#v", got, want)
 	}
@@ -2810,7 +2901,7 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 		if got, want := item.Sequence, int64(idx+4); got != want {
 			t.Fatalf("pageTwo[%d].Sequence = %d, want %d", idx, got, want)
 		}
-		if idx == 0 || idx == 4 {
+		if idx == 0 || idx == 5 {
 			if item.Run != nil {
 				t.Fatalf("pageTwo[%d].Run = %#v, want nil for task status event", idx, item.Run)
 			}
@@ -2860,7 +2951,7 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
+	run, err = seedNonLeasedClaimedRunIntegration(ctx, manager, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -3066,7 +3157,7 @@ func TestTaskManagerTreeLiveViewIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
+	run, err = seedNonLeasedClaimedRunIntegration(ctx, manager, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -3198,10 +3289,11 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 		t.Fatalf("liveEnqueued.Type = %q, want %q", got, want)
 	}
 
-	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
+	claim, err := claimExactRunIntegration(ctx, manager, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
+	run = &claim.Run
 	liveClaimed := awaitIntegrationTaskStreamEvent(t, stream)
 	if got, want := liveClaimed.Type, "task.run_claimed"; got != want {
 		t.Fatalf("liveClaimed.Type = %q, want %q", got, want)
@@ -3239,14 +3331,19 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 	}
 	assertNoIntegrationTaskStreamEvent(t, reconnected, 150*time.Millisecond)
 
-	if _, err := manager.CompleteRun(ctx, run.ID, taskpkg.RunResult{
-		Value: json.RawMessage(`{"ok":true}`),
+	if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		RunID:      run.ID,
+		ClaimToken: claim.ClaimToken,
+		Result: taskpkg.RunResult{
+			Value: json.RawMessage(`{"ok":true}`),
+		},
+		Now: claim.LeaseUntil.Add(-time.Second),
 	}, actor); err != nil {
-		t.Fatalf("CompleteRun() error = %v", err)
+		t.Fatalf("CompleteRunLease() error = %v", err)
 	}
+	liveCompleted := awaitIntegrationTaskStreamEvent(t, reconnected)
 	liveStatusCompleted := awaitIntegrationTaskStreamEvent(t, reconnected)
 	liveParentStatusCompleted := awaitIntegrationTaskStreamEvent(t, reconnected)
-	liveCompleted := awaitIntegrationTaskStreamEvent(t, reconnected)
 	if got, want := liveStatusCompleted.Type, "task.status_changed"; got != want {
 		t.Fatalf("liveStatusCompleted.Type = %q, want %q", got, want)
 	}
@@ -3259,18 +3356,18 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 	if got, want := liveParentStatusCompleted.Timeline.Task.ID, root.ID; got != want {
 		t.Fatalf("liveParentStatusCompleted.Timeline.Task.ID = %q, want %q", got, want)
 	}
-	if liveStatusCompleted.Sequence <= lastSequence || liveCompleted.Sequence <= liveStatusCompleted.Sequence {
+	if liveCompleted.Sequence <= lastSequence || liveStatusCompleted.Sequence <= liveCompleted.Sequence {
 		t.Fatalf(
-			"completion sequences = status:%d completed:%d, want both after %d in order",
-			liveStatusCompleted.Sequence,
+			"completion sequences = completed:%d status:%d, want both after %d in order",
 			liveCompleted.Sequence,
+			liveStatusCompleted.Sequence,
 			lastSequence,
 		)
 	}
 	if got, want := liveCompleted.Timeline.Task.ID, child.ID; got != want {
 		t.Fatalf("liveCompleted.Timeline.Task.ID = %q, want %q", got, want)
 	}
-	if got, want := liveCompleted.Type, "task.run_completed"; got != want {
+	if got, want := liveCompleted.Type, "task.run.completed"; got != want {
 		t.Fatalf("liveCompleted.Type = %q, want %q", got, want)
 	}
 
@@ -3378,7 +3475,7 @@ func TestTaskManagerBlockReleaseUnblockClaimableCycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
-		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-block-cycle")
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-block-cycle", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -3500,7 +3597,7 @@ func TestTaskManagerGlobalBlockReleaseUnblockClaimableCycleIntegration(t *testin
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
-		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-global-block-cycle")
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-global-block-cycle", "ws-test")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -3748,14 +3845,13 @@ func createIntegrationClaimedRun(
 	manager *taskpkg.Service,
 	creator taskpkg.ActorContext,
 	claimer taskpkg.ActorContext,
-	workspaceName string,
+	workspaceID string,
 	title string,
 	claimerSessionID string,
 	now time.Time,
 ) (*taskpkg.Task, *taskpkg.Run, *taskpkg.ClaimResult) {
 	t.Helper()
 
-	workspaceID := registerTaskManagerWorkspace(t, db, workspaceName, filepath.Join(t.TempDir(), workspaceName))
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: workspaceID,
@@ -4128,7 +4224,7 @@ func TestTaskManagerBlockBreakerRecoverAndCompletionResetIntegration(t *testing.
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-reset")
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-reset", "ws-test")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -4248,7 +4344,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
-		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-observability-worker")
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-observability-worker", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -4562,7 +4658,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 			manager,
 			operator,
 			agent,
-			"coverage-blocked-hallucination",
+			workspaceID,
 			"Coverage matrix blocked hallucination",
 			"sess-observability-worker",
 			now.Add(2*time.Minute),
@@ -4602,7 +4698,10 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		assertIntegrationPayloadHasString(t, blockedPayload, "claim_token_hash")
 		assertIntegrationPayloadOmitsRawValue(t, blockedEvent, blockedClaim.ClaimToken)
 
-		advisoryAgent, err := taskpkg.DeriveAgentSessionActorContext("sess-observability-advisory")
+		advisoryAgent, err := taskpkg.DeriveAgentSessionActorContext(
+			"sess-observability-advisory",
+			workspaceID,
+		)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(advisory) error = %v", err)
 		}
@@ -4613,7 +4712,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 			manager,
 			operator,
 			advisoryAgent,
-			"coverage-suspected-hallucination",
+			workspaceID,
 			"Coverage matrix suspected hallucination",
 			"sess-observability-advisory",
 			now.Add(4*time.Minute),
@@ -4649,7 +4748,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		assertIntegrationPayloadHasString(t, suspectedPayload, "claim_token_hash")
 		assertIntegrationPayloadOmitsRawValue(t, suspectedEvent, suspectedClaim.ClaimToken)
 
-		creator, err := taskpkg.DeriveAgentSessionActorContext("sess-task-creator")
+		creator, err := taskpkg.DeriveAgentSessionActorContext("sess-task-creator", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(creator) error = %v", err)
 		}
@@ -4791,7 +4890,7 @@ func TestTaskManagerNeedsAttentionDurableAcrossRestartIntegration(t *testing.T) 
 		if reopened.NeedsAttention == nil {
 			t.Fatal("reopened NeedsAttention = nil, want durable metadata")
 		}
-		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-after-restart")
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-after-restart", "ws-test")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}

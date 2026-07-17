@@ -1297,7 +1297,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 				{Label: automationTargetValue, Value: stringOrDash(displayRunTarget(item))},
 				{Label: "Job ID", Value: stringOrDash(item.JobID)},
 				{Label: "Trigger ID", Value: stringOrDash(item.TriggerID)},
-				{Label: "Session ID", Value: stringOrDash(item.SessionID)},
+				{Label: sessionIDLabel, Value: stringOrDash(item.SessionID)},
 				{Label: "Fire ID", Value: stringOrDash(item.FireID)},
 				{Label: automationStatusValue, Value: stringOrDash(string(item.Status))},
 				{Label: automationAttemptValue, Value: strconv.Itoa(item.Attempt)},

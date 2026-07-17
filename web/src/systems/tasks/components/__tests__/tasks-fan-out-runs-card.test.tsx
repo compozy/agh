@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TasksFanOutRunsCard } from "../tasks-fan-out-runs-card";
 
 describe("TasksFanOutRunsCard", () => {
-  it("submits one designation per non-empty line without network_channel", async () => {
+  it("Should submit one designation per non-empty line with explicit Local participation", async () => {
     const user = userEvent.setup();
     const onFanOut = vi.fn().mockResolvedValue({ designation_group_id: "desig_test", runs: [] });
 
@@ -22,11 +22,34 @@ describe("TasksFanOutRunsCard", () => {
 
     expect(onFanOut).toHaveBeenCalledWith({
       designations: [{ brief: "Investigate data path" }, { brief: "Validate UI" }],
+      network_participation: { mode: "local" },
     });
     expect(onFanOut.mock.calls[0]?.[0]).not.toHaveProperty("network_channel");
   });
 
-  it("keeps the dialog open when no assignment is provided", async () => {
+  it("Should serialize one valid Live participation override for every sibling", async () => {
+    const user = userEvent.setup();
+    const onFanOut = vi.fn().mockResolvedValue({ designation_group_id: "desig_test", runs: [] });
+
+    render(<TasksFanOutRunsCard onFanOut={onFanOut} />);
+
+    await user.click(screen.getByTestId("tasks-fan-out-runs-trigger"));
+    await user.selectOptions(screen.getByTestId("tasks-fan-out-network-mode"), "live");
+    await user.type(screen.getByTestId("tasks-fan-out-network-channel"), "release-room");
+    await user.click(screen.getByTestId("tasks-fan-out-runs-submit"));
+
+    expect(onFanOut).toHaveBeenCalledWith(
+      expect.objectContaining({
+        network_participation: {
+          mode: "live",
+          channel_id: "release-room",
+          channel_strategy: "named",
+        },
+      })
+    );
+  });
+
+  it("Should keep the dialog open when no assignment is provided", async () => {
     const user = userEvent.setup();
     const onFanOut = vi.fn();
 

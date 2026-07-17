@@ -63,10 +63,10 @@ export function TaskRunDetailHeader({
   };
 
   const record = run.run;
-  const task = run.task;
+  const task = run.task ?? null;
   const session = run.session;
-  const taskID = task?.id ?? record.task_id;
-  const identifier = task?.identifier ?? taskID;
+  const taskID = normalizeText(task?.id ?? record.task_id);
+  const identifier = normalizeText(task?.identifier) || taskID || "Network wake";
   const canCancel =
     record.status === "queued" ||
     record.status === "claimed" ||
@@ -74,8 +74,8 @@ export function TaskRunDetailHeader({
     record.status === "running";
   const canForceRelease = record.status === "claimed";
   const canForceFail = record.status === "queued" || record.status === "claimed";
-  const canRecover = taskRunCanRecover(record, maxAttempts);
-  const canRetry = record.status === "failed";
+  const canRecover = Boolean(task) && taskRunCanRecover(record, maxAttempts);
+  const canRetry = Boolean(task) && record.status === "failed";
   const signal = taskStatusSignal(record.status);
   const elapsedLabel = computeElapsedLabel(record.started_at, record.ended_at);
   const linkedSessionID = normalizeText(session?.session_id ?? record.session_id);
@@ -87,7 +87,7 @@ export function TaskRunDetailHeader({
       <DetailHeader
         data-testid="task-run-detail-header"
         back={handleBack}
-        backLabel="Back to task"
+        backLabel={taskID ? "Back to task" : "Back"}
         crumbs={
           <span
             data-testid="task-run-detail-breadcrumb"
@@ -103,21 +103,25 @@ export function TaskRunDetailHeader({
             <span aria-hidden="true" className="text-faint">
               ·
             </span>
-            <Link
-              data-testid="task-run-detail-breadcrumb-task"
-              params={{ id: taskID }}
-              to="/tasks/$id"
-              className="transition-colors duration-base ease-out hover:text-fg"
-            >
-              {identifier}
-            </Link>
+            {taskID ? (
+              <Link
+                data-testid="task-run-detail-breadcrumb-task"
+                params={{ id: taskID }}
+                to="/tasks/$id"
+                className="transition-colors duration-base ease-out hover:text-fg"
+              >
+                {identifier}
+              </Link>
+            ) : (
+              <span data-testid="task-run-detail-breadcrumb-taskless">{identifier}</span>
+            )}
             <span aria-hidden="true" className="text-faint">
               ·
             </span>
             <span>{record.id}</span>
           </span>
         }
-        preTitle="Task run"
+        preTitle={taskID ? "Task run" : "Network wake"}
         title={
           <span
             data-testid="task-run-detail-title"

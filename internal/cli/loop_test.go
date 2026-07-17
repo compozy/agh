@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
@@ -56,6 +57,10 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			"--input", "target=prod",
 			"--input", "enabled=true",
 			"--input", "retries=3",
+			"--network", "live",
+			"--network-channel-strategy", "named",
+			"--network-channel", "builders",
+			"--network-bounds", `{"max_wakes":3}`,
 			"--dry-run",
 			"-o", "json",
 		)
@@ -74,6 +79,16 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 		if got, ok := capturedRequest.Inputs["retries"].(json.Number); !ok || got.String() != "3" {
 			t.Fatalf("RunLoop retries = %#v, want json.Number(3)", capturedRequest.Inputs["retries"])
+		}
+		participationRequest := capturedRequest.NetworkParticipation
+		if participationRequest == nil ||
+			participationRequest.Mode == nil || *participationRequest.Mode != participation.ModeLive ||
+			participationRequest.ChannelStrategy == nil ||
+			*participationRequest.ChannelStrategy != participation.StrategyNamed ||
+			participationRequest.ChannelID == nil || *participationRequest.ChannelID != "builders" ||
+			participationRequest.Bounds == nil || participationRequest.Bounds.MaxWakes == nil ||
+			*participationRequest.Bounds.MaxWakes != 3 {
+			t.Fatalf("RunLoop network participation = %#v, want bounded Live builders request", participationRequest)
 		}
 		var response contract.RunLoopResponse
 		if err := json.Unmarshal([]byte(stdout), &response); err != nil {

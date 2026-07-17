@@ -32,7 +32,7 @@ func TaskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *contract.Tas
 		ClaimedAt:                    optionalTime(summary.ClaimedAt),
 		StartedAt:                    optionalTime(summary.StartedAt),
 		EndedAt:                      optionalTime(summary.EndedAt),
-		Error:                        summary.Error,
+		Error:                        taskpkg.RedactClaimTokens(summary.Error),
 	}
 }
 

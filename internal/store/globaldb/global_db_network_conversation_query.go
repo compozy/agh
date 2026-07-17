@@ -31,7 +31,12 @@ func (g *NetworkRepo) lookupNetworkConversationMessageCursor(
 		store.AppendWhere(`SELECT sequence FROM network_timeline_log`, where),
 		args...,
 	).Scan(&cursor.Sequence); err != nil {
-		return networkMessageCursor{}, fmt.Errorf("store: network conversation message cursor not found: %w", err)
+		return networkMessageCursor{}, fmt.Errorf(
+			"%w: network conversation message %q not found: %w",
+			store.ErrNetworkCursorInvalid,
+			strings.TrimSpace(messageID),
+			err,
+		)
 	}
 	return cursor, nil
 }

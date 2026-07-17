@@ -9,9 +9,7 @@ export type TaskRecord = TaskDetailView["task"];
 export type TaskChildSummary = NonNullable<TaskDetailView["children"]>[number];
 export type TaskRun = OperationResponse<"listTaskRuns", 200>["runs"][number];
 type TaskRunDetailResponseView = OperationResponse<"getTaskRun", 200>["run"];
-export type TaskRunDetailView = Omit<TaskRunDetailResponseView, "task"> & {
-  task: NonNullable<TaskRunDetailResponseView["task"]>;
-};
+export type TaskRunDetailView = TaskRunDetailResponseView;
 export type BulkForceTaskRunResult = OperationResponse<"bulkForceReleaseTaskRuns", 200>;
 export type TaskInspectView = OperationResponse<"inspectTask", 200>["inspect"];
 export type TaskRunInspectView = OperationResponse<"inspectRun", 200>["inspect"];

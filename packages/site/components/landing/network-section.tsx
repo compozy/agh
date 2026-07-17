@@ -3,6 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import { NetworkProtocolVisual } from "./network-protocol-visual";
 import { LandingCodeBlock } from "./primitives/code-block";
 import { FeatureCard } from "./primitives/feature-card";
+import { NETWORK_KIND_COUNT } from "./primitives/network-kinds";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
@@ -40,7 +41,7 @@ export function NetworkSection() {
         }
         description={
           <>
-            Six message kinds with commit-first delivery:{" "}
+            {NETWORK_KIND_COUNT} message kinds with commit-first delivery:{" "}
             <code className="font-mono text-accent">greet</code>,{" "}
             <code className="font-mono text-accent">whois</code>,{" "}
             <code className="font-mono text-accent">say</code>,{" "}

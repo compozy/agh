@@ -381,8 +381,8 @@ describe("useResolveNetworkDirectRoom", () => {
     resolveNetworkDirectRoomMock.mockResolvedValue({
       channel: "ops",
       direct_id: "direct-x",
-      peer_a: "a",
-      peer_b: "b",
+      session_a: "sess-1",
+      session_b: "sess-2",
       message_count: 0,
       open_work_count: 0,
     });

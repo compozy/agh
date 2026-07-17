@@ -54,8 +54,11 @@ func TestNetworkParticipationHooks(t *testing.T) {
 		}
 	})
 
-	t.Run("Should deny widen attempts on pre_resolve", func(t *testing.T) {
+	t.Run("Should derive and reject semantic widening without a caller supplied flag", func(t *testing.T) {
 		t.Parallel()
+		live := participation.ModeLive
+		named := participation.StrategyNamed
+		channel := "ops"
 
 		hooks := newTestHooks(
 			t,
@@ -73,7 +76,11 @@ func TestNetworkParticipationHooks(t *testing.T) {
 						_ RegisteredHook,
 						_ NetworkParticipationPreResolvePayload,
 					) (NetworkParticipationPreResolvePatch, error) {
-						return NetworkParticipationPreResolvePatch{Widen: true}, nil
+						return NetworkParticipationPreResolvePatch{Request: &participation.Request{
+							Mode:            &live,
+							ChannelStrategy: &named,
+							ChannelID:       &channel,
+						}}, nil
 					},
 				),
 			})),
@@ -82,15 +89,19 @@ func TestNetworkParticipationHooks(t *testing.T) {
 			t.Fatalf("Rebuild() error = %v", err)
 		}
 
-		_, err := hooks.DispatchNetworkParticipationPreResolve(
+		local := participation.ModeLocal
+		got, err := hooks.DispatchNetworkParticipationPreResolve(
 			t.Context(),
-			NetworkParticipationPreResolvePayload{WorkspaceID: "ws-alpha"},
+			NetworkParticipationPreResolvePayload{
+				WorkspaceID: "ws-alpha",
+				Request:     &participation.Request{Mode: &local},
+			},
 		)
-		if err == nil {
-			t.Fatal("expected widen deny error")
+		if err != nil {
+			t.Fatalf("DispatchNetworkParticipationPreResolve() error = %v", err)
 		}
-		if !strings.Contains(err.Error(), "denied") {
-			t.Fatalf("error = %v, want denied diagnostic", err)
+		if got.Request == nil || got.Request.Mode == nil || *got.Request.Mode != participation.ModeLocal {
+			t.Fatalf("request = %#v, want original local mode", got.Request)
 		}
 	})
 
@@ -125,11 +136,17 @@ func TestNetworkParticipationHooks(t *testing.T) {
 		}
 
 		live := participation.ModeLive
+		named := participation.StrategyNamed
+		channel := "ops"
 		got, err := hooks.DispatchNetworkParticipationPreResolve(
 			t.Context(),
 			NetworkParticipationPreResolvePayload{
 				WorkspaceID: "ws-alpha",
-				Request:     &participation.Request{Mode: &live},
+				Request: &participation.Request{
+					Mode:            &live,
+					ChannelStrategy: &named,
+					ChannelID:       &channel,
+				},
 			},
 		)
 		if err != nil {
@@ -137,6 +154,82 @@ func TestNetworkParticipationHooks(t *testing.T) {
 		}
 		if got.Request == nil || got.Request.Mode == nil || *got.Request.Mode != participation.ModeLocal {
 			t.Fatalf("request = %#v, want local mode", got.Request)
+		}
+	})
+
+	t.Run("Should match participation events by workspace mode channel and source", func(t *testing.T) {
+		t.Parallel()
+
+		matcher := HookMatcher{
+			WorkspaceID: "ws-alpha",
+			NetworkMatcher: &NetworkMatcher{
+				Channel:             "ops",
+				ParticipationMode:   "live",
+				ParticipationSource: "explicit_request",
+			},
+		}
+		live := participation.ModeLive
+		named := participation.StrategyNamed
+		channel := "ops"
+		preResolve := NetworkParticipationPreResolvePayload{
+			WorkspaceID: "ws-alpha",
+			Request: &participation.Request{
+				Mode:            &live,
+				ChannelStrategy: &named,
+				ChannelID:       &channel,
+			},
+			Source: participation.SourceExplicitRequest,
+		}
+		resolved := NetworkParticipationResolvedPayload{
+			WorkspaceID: "ws-alpha",
+			Spec: participation.Spec{
+				Version:         participation.SpecVersion,
+				Mode:            participation.ModeLive,
+				WorkspaceID:     "ws-alpha",
+				ChannelStrategy: participation.StrategyNamed,
+				ChannelID:       "ops",
+				Source:          participation.SourceExplicitRequest,
+			},
+		}
+		if !matchNetworkParticipationPreResolve(matcher, preResolve) {
+			t.Fatal("matchNetworkParticipationPreResolve() = false, want true")
+		}
+		if !matchNetworkParticipationResolved(matcher, resolved) {
+			t.Fatal("matchNetworkParticipationResolved() = false, want true")
+		}
+
+		mismatches := []struct {
+			name   string
+			mutate func(*HookMatcher)
+		}{
+			{name: "Should reject another workspace", mutate: func(candidate *HookMatcher) {
+				candidate.WorkspaceID = "ws-other"
+			}},
+			{name: "Should reject another mode", mutate: func(candidate *HookMatcher) {
+				candidate.ParticipationMode = "local"
+			}},
+			{name: "Should reject another channel", mutate: func(candidate *HookMatcher) {
+				candidate.Channel = "other"
+			}},
+			{name: "Should reject another source", mutate: func(candidate *HookMatcher) {
+				candidate.ParticipationSource = "task_profile"
+			}},
+		}
+		for _, testCase := range mismatches {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				candidate := matcher
+				network := *matcher.NetworkMatcher
+				candidate.NetworkMatcher = &network
+				testCase.mutate(&candidate)
+				if matchNetworkParticipationPreResolve(candidate, preResolve) {
+					t.Fatal("matchNetworkParticipationPreResolve() = true, want false")
+				}
+				if matchNetworkParticipationResolved(candidate, resolved) {
+					t.Fatal("matchNetworkParticipationResolved() = true, want false")
+				}
+			})
 		}
 	})
 

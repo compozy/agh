@@ -221,7 +221,8 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if query.Resumable && !AttachableForInfo(info, now) {
 		return false
 	}
-	if query.Search == "" {
+	search := strings.ToLower(strings.TrimSpace(query.Search))
+	if search == "" {
 		return true
 	}
 	for _, value := range []string{
@@ -231,7 +232,7 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 		info.Provider,
 		info.NetworkParticipation.ChannelID,
 	} {
-		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), query.Search) {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), search) {
 			return true
 		}
 	}

@@ -186,9 +186,6 @@ func networkPayloadForPeerLifecycle(event PeerLifecycleEvent) (hookspkg.NetworkP
 }
 
 func peerLifecycleLastSeenAt(event PeerLifecycleEvent, timestamp time.Time) *time.Time {
-	if event.Peer.LastSeen != nil && !event.Peer.LastSeen.IsZero() {
-		return cloneHookTimePtr(event.Peer.LastSeen)
-	}
 	if event.Kind == PeerLifecycleJoined && event.Peer.JoinedAt != nil && !event.Peer.JoinedAt.IsZero() {
 		return cloneHookTimePtr(event.Peer.JoinedAt)
 	}

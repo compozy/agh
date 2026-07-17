@@ -114,39 +114,22 @@ describe("getPeerDisplayName + getPeerRecencyAt", () => {
     ).toBe("Reviewer");
   });
 
-  it("returns the freshest of last_seen and joined_at", () => {
-    expect(
-      getPeerRecencyAt({
-        joined_at: "2026-04-28T06:00:00Z",
-        last_seen: "2026-04-28T07:00:00Z",
-      })
-    ).toBe("2026-04-28T07:00:00Z");
+  it("returns the local join timestamp", () => {
     expect(
       getPeerRecencyAt({
         joined_at: "2026-04-28T07:00:00Z",
-        last_seen: undefined,
       })
     ).toBe("2026-04-28T07:00:00Z");
   });
 });
 
 describe("network presence formatting", () => {
-  it.each([
-    ["local", "local"],
-    ["active", "active"],
-    ["inactive", "inactive"],
-    ["expired", "expired"],
-    ["legacy", "unknown"],
-    [null, "unknown"],
-  ] as const)("normalizes %s to %s", (input, state) => {
-    expect(toNetworkPresenceState(input)).toBe(state);
+  it.each(["local", "legacy", null] as const)("projects %s as local", input => {
+    expect(toNetworkPresenceState(input)).toBe("local");
   });
 
-  it("formats activity-derived labels without online/offline language", () => {
-    expect(formatNetworkPresenceLabel("active", 12)).toBe("active 12s ago");
-    expect(formatNetworkPresenceLabel("inactive", 125)).toBe("inactive 2m ago");
-    expect(formatNetworkPresenceLabel("expired", 7200)).toBe("expired 2h ago");
-    expect(formatNetworkPresenceLabel("unknown", null)).toBe("no recent greet");
+  it("formats daemon-local membership", () => {
+    expect(formatNetworkPresenceLabel("local")).toBe("local");
   });
 });
 

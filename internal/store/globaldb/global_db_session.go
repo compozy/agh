@@ -322,7 +322,14 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 	if err != nil {
 		return err
 	}
-	return sqlcgen.New(exec).UpsertSession(ctx, params)
+	affected, err := sqlcgen.New(exec).UpsertSession(ctx, params)
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return fmt.Errorf("%w: %s", store.ErrSessionParticipationMismatch, session.ID)
+	}
+	return nil
 }
 
 type sessionCatalogRecord struct {

@@ -142,7 +142,7 @@ func (m *Manager) prepareSandboxForStart(
 		return acp.StartOpts{}, err
 	}
 
-	return sandboxStartOpts(opts, prepared, state), nil
+	return sandboxStartOpts(opts, prepared, state)
 }
 
 func (m *Manager) initializeSandboxMetaForStart(

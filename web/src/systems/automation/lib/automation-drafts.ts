@@ -175,7 +175,13 @@ export function automationTargetMode(
 
 /** A blank loop target bound to the automation's own workspace. */
 export function emptyLoopTarget(workspaceId?: string | null, loopName = ""): AutomationLoopTarget {
-  return { loop_name: loopName, workspace_id: workspaceId ?? "", inputs: {}, input_mapping: {} };
+  return {
+    loop_name: loopName,
+    workspace_id: workspaceId ?? "",
+    inputs: {},
+    input_mapping: {},
+    network_participation: { mode: "local" },
+  };
 }
 
 /** Resolves the concrete workspace that owns an Automation Loop target. */

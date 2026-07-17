@@ -18,6 +18,7 @@ func TestRunOnceIgnoresCoordinationChannel(t *testing.T) {
 
 		base := time.Date(2026, 4, 26, 13, 30, 0, 0, time.UTC)
 		work := workSnapshot("task-1", "run-1", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		setRunParticipationChannel(t, &work.Run, "ws-1", "finance")
 		source := &fakeTaskSource{pending: []RunSnapshot{work}}
 		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
 			{
@@ -62,6 +63,7 @@ func TestRunOnceIgnoresCoordinationChannel(t *testing.T) {
 
 		base := time.Date(2026, 4, 26, 13, 45, 0, 0, time.UTC)
 		work := workSnapshot("task-1", "run-1", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		setRunParticipationChannel(t, &work.Run, "ws-1", "finance")
 		source := &fakeTaskSource{pending: []RunSnapshot{work}}
 		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
 			{
@@ -95,6 +97,7 @@ func TestRunOnceIgnoresCoordinationChannel(t *testing.T) {
 
 			base := time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)
 			work := workSnapshot("task-1", "run-1", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+			setRunParticipationChannel(t, &work.Run, "ws-1", "finance")
 			source := &fakeTaskSource{pending: []RunSnapshot{work}}
 			sessions := &fakeSessionSource{sessions: []SessionSnapshot{
 				{
@@ -123,12 +126,28 @@ func TestRunOnceIgnoresCoordinationChannel(t *testing.T) {
 	)
 }
 
-func setRunParticipationChannel(run *taskpkg.Run, channelID string) {
-	run.SetNetworkState(participation.Spec{
+func setRunParticipationChannel(t *testing.T, run *taskpkg.Run, workspaceID string, channelID string) {
+	t.Helper()
+
+	spec := participation.Spec{
 		Version:         participation.SpecVersion,
 		Mode:            participation.ModeLive,
+		WorkspaceID:     workspaceID,
 		ChannelStrategy: participation.StrategyNamed,
 		ChannelID:       channelID,
 		Source:          participation.SourceExplicitRequest,
-	}, "", "", "")
+		Bounds: participation.Bounds{
+			MaxWakes:         1,
+			MaxWakeWallTime:  "1m",
+			MaxTotalWallTime: "5m",
+			MaxInputTokens:   1024,
+			MaxOutputTokens:  512,
+			MaxWakeDepth:     1,
+			CoalesceWindow:   "500ms",
+		},
+	}
+	if err := participation.ValidateSpec(spec); err != nil {
+		t.Fatalf("ValidateSpec() error = %v", err)
+	}
+	run.SetNetworkState(spec, "", "", "")
 }

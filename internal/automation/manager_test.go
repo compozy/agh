@@ -620,7 +620,11 @@ func TestManagerSessionTaskActorLifecycle(t *testing.T) {
 			DefaultFireLimit:  DefaultFireLimitConfig(),
 		})
 
-		actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext("sess-actor-1", "run:run-1")
+		actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext(
+			"sess-actor-1",
+			"ws-1",
+			"run:run-1",
+		)
 		if err != nil {
 			t.Fatalf("DeriveAutomationLinkedAgentSessionActorContext() error = %v", err)
 		}

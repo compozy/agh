@@ -1,13 +1,18 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
+import { HttpResponse } from "msw";
 
 import {
   storyAgentNames,
   storyWorkspaceIds,
   storyWorkspaceNames,
 } from "@/storybook/fintech-scenario";
+import { storybookMswParameters } from "@/storybook/msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 import { CenteredSurface } from "@/storybook/story-layout";
 import type { CreateAutomationJobRequest } from "@/systems/automation";
+import { loopCatalogFixtures } from "@/systems/loops/mocks/fixtures";
 
 import { createAutomationJobDraft, setJobOutputMode } from "../../lib/automation-drafts";
 
@@ -67,7 +72,7 @@ function JobFormHarness({
 
   return (
     <CenteredSurface className="items-start justify-center p-6">
-      <div className="grid h-(--height-modal-xl) max-h-[90vh] w-full max-w-(--width-modal-xl) grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-line bg-canvas-soft">
+      <div className="grid h-(--height-modal-xl) max-h-[90vh] w-full max-w-(--width-modal-xl) grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-line bg-canvas-soft">
         <AutomationJobForm
           activeWorkspaceId={storyWorkspaceIds.hq}
           agents={storyAgents}
@@ -100,6 +105,11 @@ export const TaskDelegation: Story = {
             title: "Reconcile settlement ledger",
             description: "Diff the settlement ledger against the gateway and open a task per gap.",
             owner: { kind: "pool", ref: "finance-ops" },
+            network_participation: {
+              mode: "live",
+              channel_strategy: "named",
+              channel_id: "release-room",
+            },
           },
         }),
         "task"
@@ -149,19 +159,66 @@ export const ReliabilityExpanded: Story = {
   ),
 };
 
-export const EditMode: Story = {
+export const WorkspaceLoopTarget: Story = {
   args: {},
+  parameters: storybookMswParameters({
+    loops: [
+      aghApiMock.get("/api/workspaces/{workspace_id}/loops", () => {
+        const reviewsWatch = loopCatalogFixtures.find(loop => loop.name === "reviews-watch");
+        if (!reviewsWatch) {
+          return HttpResponse.json(
+            { error: "reviews-watch fixture is unavailable" },
+            { status: 500 }
+          );
+        }
+
+        const loop = {
+          ...reviewsWatch,
+          inputs: { pr: { type: "number" as const, required: true } },
+          start: [{ kind: "schedule" as const }],
+        };
+        return HttpResponse.json({
+          facets: { categories: { watch: 1 }, kinds: {}, statuses: {} },
+          loops: [loop],
+          page: { has_more: false, limit: 50, total: 1 },
+        });
+      }),
+    ],
+  }),
   render: () => (
     <JobFormHarness
       initialDraft={baseDraft({
-        name: "weekly-digest",
-        agent_name: storyAgentNames.support,
-        prompt: "Compile the weekly support digest and rank the top recurring escalations.",
+        name: "reviews-watch-daily",
+        agent_name: "",
+        prompt: "",
         schedule: { mode: "cron", expr: "0 8 * * 1" },
+        target_kind: "loop",
+        loop_target: {
+          workspace_id: storyWorkspaceIds.hq,
+          loop_name: "reviews-watch",
+          inputs: { pr: 312 },
+          input_mapping: {},
+          network_participation: {
+            mode: "live",
+            channel_strategy: "named",
+            channel_id: "release-room",
+            bounds: { max_wakes: 3 },
+          },
+        },
       })}
       mode="edit"
     />
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const participation = await canvas.findByTestId("loop-target-participation");
+    participation.scrollIntoView({ block: "center" });
+    await expect(canvas.getByTestId("loop-target-participation-mode")).toHaveValue("live");
+    await expect(canvas.getByTestId("loop-target-participation-channel")).toHaveValue(
+      "release-room"
+    );
+    await expect(canvas.getByTestId("submit-job-form")).toBeEnabled();
+  },
 };
 
 /** A saved Job keeps an incompatible Loop visible while blocking the request and save action. */

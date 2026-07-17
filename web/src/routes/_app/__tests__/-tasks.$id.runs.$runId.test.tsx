@@ -137,6 +137,7 @@ const taskFixture = {
 
 describe("TaskRunDetailRoute", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     routeParams = { id: "task_abc", runId: "run_001" };
     vi.mocked(getTaskRun).mockResolvedValue(runFixture as never);
     vi.mocked(getTask).mockResolvedValue(taskFixture as never);
@@ -234,8 +235,32 @@ describe("TaskRunDetailRoute", () => {
     expect(screen.queryByTestId("tasks-run-conversation-empty")).not.toBeInTheDocument();
     expect(screen.getByTestId("tasks-run-bounds-label")).toHaveTextContent("0/4 wakes");
     expect(screen.getByTestId("tasks-run-usage-summary")).toHaveTextContent(
-      "Run usage (actual): 1 wakes"
+      "Run usage: 1 actual · 0 reserved · 0 unavailable · 12 charged in / 5 charged out"
     );
+  });
+
+  it("renders a taskless network wake without loading a fabricated Task", async () => {
+    routeParams = { id: "network", runId: "run_wake" };
+    vi.mocked(getTaskRun).mockResolvedValue({
+      ...runFixture,
+      run: {
+        ...runFixture.run,
+        id: "run_wake",
+        kind: "network_wake",
+        task_id: undefined,
+      },
+      task: null,
+    } as never);
+
+    renderRoute();
+
+    await waitFor(() => expect(screen.getByTestId("tasks-run-detail-content")).toBeInTheDocument());
+    expect(screen.getByTestId("task-run-detail-breadcrumb-taskless")).toHaveTextContent(
+      "Network wake"
+    );
+    expect(screen.queryByTestId("task-run-detail-breadcrumb-task")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("run_wake");
+    expect(getTask).not.toHaveBeenCalled();
   });
 
   it("renders a not-found state when the run cannot be fetched", async () => {

@@ -69,7 +69,7 @@ SET status = sqlc.arg(status), lease_until = NULL, heartbeat_at = NULL, claim_to
 WHERE id = sqlc.arg(id) AND claim_token_hash = sqlc.arg(claim_token_hash);
 
 -- name: ListAutonomyLeaseHandles :many
-SELECT tr.id, tr.task_id, tr.run_kind, COALESCE(t.workspace_id, '') AS task_workspace_id,
+SELECT tr.id, tr.task_id, tr.run_kind, COALESCE(tr.workspace_id, t.workspace_id, '') AS workspace_id,
        tr.network_spec_json, tr.network_mode, tr.network_channel, tr.network_source,
        COALESCE(tr.network_target_session_id, '') AS target_session_id,
        COALESCE(tr.network_owner_key, '') AS owner_key, tr.status,

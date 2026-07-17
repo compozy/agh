@@ -88,7 +88,6 @@ func validateKindEnvelopeRules(env Envelope) error {
 		if typed.PeerCard.PeerID != env.From {
 			return fmt.Errorf("%w: greet peer_card.peer_id must match from", ErrInvalidBody)
 		}
-		return validatePeerCardPrivilegedCapabilities(typed.PeerCard, env.Proof)
 	case WhoisBody:
 		if typed.Type == WhoisTypeResponse {
 			if env.ReplyTo == nil {
@@ -100,7 +99,6 @@ func validateKindEnvelopeRules(env Envelope) error {
 			if typed.PeerCard.PeerID != env.From {
 				return fmt.Errorf("%w: whois response peer_card.peer_id must match from", ErrInvalidBody)
 			}
-			return validatePeerCardPrivilegedCapabilities(*typed.PeerCard, env.Proof)
 		}
 	case ReceiptBody:
 		if env.WorkID == nil {
@@ -110,20 +108,6 @@ func validateKindEnvelopeRules(env Envelope) error {
 		if env.WorkID == nil {
 			return fmt.Errorf("%w: trace work_id is required", ErrMissingField)
 		}
-	}
-	return nil
-}
-
-func validatePeerCardPrivilegedCapabilities(card PeerCard, proof *Proof) error {
-	if !containsString(card.Capabilities, networkTaskWriteCapability) {
-		return nil
-	}
-	if proof == nil || len(*proof) == 0 {
-		return fmt.Errorf(
-			"%w: peer_card capability %q requires proof",
-			ErrVerificationFailed,
-			networkTaskWriteCapability,
-		)
 	}
 	return nil
 }

@@ -374,17 +374,6 @@ func (n *daemonNativeTools) extensionDependency() core.ExtensionService {
 	return n.deps.Extensions()
 }
 
-func nativeExtensionActorContext(req toolspkg.CallRequest) (taskpkg.ActorContext, error) {
-	if sessionID := strings.TrimSpace(req.SessionID); sessionID != "" {
-		return taskpkg.DeriveAgentSessionActorContextForOrigin(
-			sessionID,
-			taskpkg.OriginKindAgentSession,
-			strings.TrimSpace(string(req.ToolID)),
-		)
-	}
-	return taskpkg.DeriveDaemonActorContext("native-tools", strings.TrimSpace(string(req.ToolID)))
-}
-
 func defaultDaemonExtensionMarketplaceSourceLoader(
 	_ context.Context,
 	cfg aghconfig.ExtensionsMarketplaceConfig,

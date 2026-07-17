@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -52,7 +51,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	networkParticipation, networkOwnerKey, err := m.prepareCreateParticipation(
+	networkParticipation, networkOwnerKey, participationObservation, err := m.prepareCreateParticipation(
 		ctx, opts, resolvedWorkspace.ID, sessionID,
 	)
 	if err != nil {
@@ -60,33 +59,34 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	}
 
 	return sessionStartSpec{
-		sessionID:               sessionID,
-		sandboxID:               sandboxID,
-		sessionName:             strings.TrimSpace(opts.Name),
-		agentName:               strings.TrimSpace(agentName),
-		provider:                strings.TrimSpace(opts.Provider),
-		model:                   strings.TrimSpace(opts.Model),
-		reasoningEffort:         strings.TrimSpace(opts.ReasoningEffort),
-		permissions:             opts.Permissions,
-		sandboxDisabled:         sandboxDisabled,
-		workspace:               resolvedWorkspace,
-		cwd:                     cwd,
-		networkParticipation:    networkParticipation,
-		networkOwnerKey:         networkOwnerKey,
-		promptOverlay:           strings.TrimSpace(opts.PromptOverlay),
-		contractOverlay:         strings.TrimSpace(opts.ContractOverlay),
-		runtimeMode:             strings.TrimSpace(opts.RuntimeMode),
-		sessionType:             sessionType,
-		lineage:                 lineage,
-		allowedToolsOverride:    append([]string(nil), opts.AllowedToolsOverride...),
-		creationProfile:         cloneCreationProfile(opts.CreationProfile),
-		creationIdentity:        cloneCreationIdentity(opts.CreationIdentity),
-		creationIdentityPinned:  opts.CreationProfile != nil || opts.CreationIdentity != nil,
-		creationIdentityEnabled: true,
-		parentSoulDigest:        strings.TrimSpace(opts.ParentSoulDigest),
-		postEvent:               hookspkg.HookSessionPostCreate,
-		startAction:             sessionStartActionCreate,
-		cleanupSessionDir:       true,
+		sessionID:                sessionID,
+		sandboxID:                sandboxID,
+		sessionName:              strings.TrimSpace(opts.Name),
+		agentName:                strings.TrimSpace(agentName),
+		provider:                 strings.TrimSpace(opts.Provider),
+		model:                    strings.TrimSpace(opts.Model),
+		reasoningEffort:          strings.TrimSpace(opts.ReasoningEffort),
+		permissions:              opts.Permissions,
+		sandboxDisabled:          sandboxDisabled,
+		workspace:                resolvedWorkspace,
+		cwd:                      cwd,
+		networkParticipation:     networkParticipation,
+		networkOwnerKey:          networkOwnerKey,
+		participationObservation: participationObservation,
+		promptOverlay:            strings.TrimSpace(opts.PromptOverlay),
+		contractOverlay:          strings.TrimSpace(opts.ContractOverlay),
+		runtimeMode:              strings.TrimSpace(opts.RuntimeMode),
+		sessionType:              sessionType,
+		lineage:                  lineage,
+		allowedToolsOverride:     append([]string(nil), opts.AllowedToolsOverride...),
+		creationProfile:          cloneCreationProfile(opts.CreationProfile),
+		creationIdentity:         cloneCreationIdentity(opts.CreationIdentity),
+		creationIdentityPinned:   opts.CreationProfile != nil || opts.CreationIdentity != nil,
+		creationIdentityEnabled:  true,
+		parentSoulDigest:         strings.TrimSpace(opts.ParentSoulDigest),
+		postEvent:                hookspkg.HookSessionPostCreate,
+		startAction:              sessionStartActionCreate,
+		cleanupSessionDir:        true,
 	}, nil
 }
 
@@ -95,8 +95,8 @@ func (m *Manager) prepareCreateParticipation(
 	opts CreateOpts,
 	workspaceID string,
 	sessionID string,
-) (participation.Spec, string, error) {
-	spec, err := m.resolveCreateParticipation(
+) (participation.Spec, string, *participation.ResolvedObservation, error) {
+	spec, observation, err := m.resolveCreateParticipation(
 		ctx,
 		workspaceID,
 		sessionID,
@@ -105,7 +105,7 @@ func (m *Manager) prepareCreateParticipation(
 		opts.NetworkAuthority,
 	)
 	if err != nil {
-		return participation.Spec{}, "", err
+		return participation.Spec{}, "", nil, err
 	}
 	ownerKey := strings.TrimSpace(opts.NetworkOwnerKey)
 	if ownerKey == "" {
@@ -115,9 +115,9 @@ func (m *Manager) prepareCreateParticipation(
 		})
 	}
 	if err := participation.ValidateOwnerKey(ownerKey); err != nil {
-		return participation.Spec{}, "", fmt.Errorf("session: validate network owner key: %w", err)
+		return participation.Spec{}, "", nil, fmt.Errorf("session: validate network owner key: %w", err)
 	}
-	return spec, ownerKey, nil
+	return spec, ownerKey, observation, nil
 }
 
 func (m *Manager) createSessionID(desired string) (string, error) {
@@ -137,27 +137,13 @@ func (m *Manager) createSessionID(desired string) (string, error) {
 
 // ResolveSessionCWD normalizes a creation CWD and rejects workspace escape.
 func ResolveSessionCWD(root string, requested string) (string, error) {
-	root = filepath.Clean(strings.TrimSpace(root))
-	if root == "." || root == "" {
-		return "", fmt.Errorf("%w: resolved workspace root is required", ErrValidation)
-	}
-	target := strings.TrimSpace(requested)
-	if target == "" {
-		target = root
-	} else if !filepath.IsAbs(target) {
-		target = filepath.Join(root, target)
-	}
-	target = filepath.Clean(target)
-	rel, err := filepath.Rel(root, target)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("%w: session cwd must remain within the workspace", ErrValidation)
-	}
-	info, err := os.Stat(target)
+	target, err := resolveContainedDirectory(root, requested)
 	if err != nil {
-		return "", fmt.Errorf("%w: inspect session cwd %q: %w", ErrValidation, target, err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("%w: session cwd %q is not a directory", ErrValidation, target)
+		return "", fmt.Errorf(
+			"%w: session cwd must remain within the workspace: %w",
+			ErrValidation,
+			err,
+		)
 	}
 	return target, nil
 }

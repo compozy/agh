@@ -42,9 +42,16 @@ func startupSessionPayload(startup session.StartupPromptContext) contract.AgentS
 		Name:                         strings.TrimSpace(startup.SessionName),
 		Type:                         startup.SessionType,
 		State:                        session.StateStarting,
-		ResolvedNetworkParticipation: participation.CloneSpec(startup.NetworkParticipation),
+		ResolvedNetworkParticipation: normalizedSessionParticipation(startup.NetworkParticipation),
 		CreatedAt:                    startup.CreatedAt.UTC(),
 		UpdatedAt:                    startup.UpdatedAt.UTC(),
 	}
 	return payload
+}
+
+func normalizedSessionParticipation(spec participation.Spec) *participation.Spec {
+	if spec == (participation.Spec{}) {
+		spec = participation.LocalSpec()
+	}
+	return participation.CloneSpec(spec)
 }

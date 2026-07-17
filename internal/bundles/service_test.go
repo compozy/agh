@@ -1205,6 +1205,9 @@ func TestServiceMaterializesExternalBridgeProviderPlatform(t *testing.T) {
 	store := newMemoryStore()
 	consumer := &extensionpkg.Extension{
 		Info: extensionpkg.ExtensionInfo{Name: "consumer-team"},
+		Manifest: &extensionpkg.Manifest{
+			Name: "consumer-team",
+		},
 		Bundles: []extensionpkg.BundleSpec{{
 			Name: "consumer",
 			Profiles: []extensionpkg.BundleProfile{{

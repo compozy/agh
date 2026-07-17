@@ -108,8 +108,8 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(task create) error = %v", err)
 	}
-	if created.ID == "" || resolvedParticipationChannelID(created.ResolvedNetworkParticipation) != channel {
-		t.Fatalf("created = %#v, want historical channel task", created)
+	if created.ID == "" {
+		t.Fatalf("created = %#v, want historical task id", created)
 	}
 
 	enqueueOut := mustExecuteRoot(
@@ -158,7 +158,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 
 	// Intentionally serial: each subtest advances the same historical run lifecycle.
 	t.Run("Should keep the channel historical before restart", func(t *testing.T) {
-		record := readCLIHistoricalChannel(t, h.deps, channel)
+		record := readCLIHistoricalChannel(t, h.deps, "alpha", channel)
 		if got, want := record.PeerCount, 0; got != want {
 			t.Fatalf("record.PeerCount = %d, want %d", got, want)
 		}

@@ -503,6 +503,9 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		}, now) {
 			t.Fatal("sessionMatchesListQuery() = false, want exact filters to match")
 		}
+		if !sessionMatchesListQuery(base, ListQuery{Search: "BUILDERS"}, now) {
+			t.Fatal("sessionMatchesListQuery(BUILDERS) = false, want case-insensitive participation-channel match")
+		}
 		for _, query := range []ListQuery{
 			{WorkspaceID: "ws-foreign"},
 			{State: "stopped"},
@@ -1435,12 +1438,15 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 		ReasoningEffort:      "  high  ",
 		WorkspaceID:          "ws-1",
 		NetworkParticipation: testLocalParticipationPtr(),
-		State:                string(StateStopped),
-		StopReason:           &stopReason,
-		StopDetail:           "deadline exceeded",
-		ACPSessionID:         &acpID,
-		CreatedAt:            createdAt,
-		UpdatedAt:            updatedAt,
+		CreationOptions: &store.SessionCreationOptions{
+			NetworkOwnerKey: " session:sess-1 ",
+		},
+		State:        string(StateStopped),
+		StopReason:   &stopReason,
+		StopDetail:   "deadline exceeded",
+		ACPSessionID: &acpID,
+		CreatedAt:    createdAt,
+		UpdatedAt:    updatedAt,
 	})
 	if got := info.ACPSessionID; got != "acp-123" {
 		t.Fatalf("sessionInfoFromMeta().ACPSessionID = %q, want %q", got, "acp-123")
@@ -1453,6 +1459,9 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	}
 	if got := info.ReasoningEffort; got != "high" {
 		t.Fatalf("sessionInfoFromMeta().ReasoningEffort = %q, want %q", got, "high")
+	}
+	if got := info.NetworkOwnerKey; got != "session:sess-1" {
+		t.Fatalf("sessionInfoFromMeta().NetworkOwnerKey = %q, want %q", got, "session:sess-1")
 	}
 	if got := info.State; got != StateStopped {
 		t.Fatalf("sessionInfoFromMeta().State = %q, want %q", got, StateStopped)

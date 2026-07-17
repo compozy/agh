@@ -1,9 +1,12 @@
 package core
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -21,9 +24,118 @@ import (
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
 
 const networkCoreTestWorkspaceID = "ws-network-core"
+
+type strictBundleHandlerService struct {
+	activateCalls int
+	updateCalls   int
+}
+
+func (s *strictBundleHandlerService) Catalog(context.Context) ([]bundlepkg.CatalogEntry, error) {
+	return nil, nil
+}
+
+func (s *strictBundleHandlerService) PreviewActivation(
+	context.Context,
+	bundlepkg.ActivateRequest,
+) (bundlepkg.ActivationPreview, error) {
+	return bundlepkg.ActivationPreview{}, nil
+}
+
+func (s *strictBundleHandlerService) Activate(
+	context.Context,
+	bundlepkg.ActivateRequest,
+) (bundlepkg.ActivationPreview, error) {
+	s.activateCalls++
+	return bundlepkg.ActivationPreview{}, nil
+}
+
+func (s *strictBundleHandlerService) ListActivations(context.Context) ([]bundlepkg.ActivationPreview, error) {
+	return nil, nil
+}
+
+func (s *strictBundleHandlerService) GetActivation(
+	context.Context,
+	string,
+) (bundlepkg.ActivationPreview, error) {
+	return bundlepkg.ActivationPreview{}, nil
+}
+
+func (s *strictBundleHandlerService) UpdateActivation(
+	context.Context,
+	bundlepkg.UpdateActivationRequest,
+) (bundlepkg.ActivationPreview, error) {
+	s.updateCalls++
+	return bundlepkg.ActivationPreview{}, nil
+}
+
+func (s *strictBundleHandlerService) Deactivate(context.Context, string) error { return nil }
+
+func (s *strictBundleHandlerService) NetworkSettings(context.Context) (bundlepkg.NetworkSettings, error) {
+	return bundlepkg.NetworkSettings{}, nil
+}
+
+func TestBundleHandlersRejectUnknownFields(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		call   func(*BaseHandlers, *gin.Context)
+	}{
+		{
+			name:   "Should reject removed activation input",
+			method: http.MethodPost,
+			path:   "/api/bundles/activations",
+			body:   `{"extension_name":"ext","bundle_name":"bundle","profile_name":"default","bind_primary_channel_as_default":true}`,
+			call:   (*BaseHandlers).ActivateBundle,
+		},
+		{
+			name:   "Should reject removed confirmation input",
+			method: http.MethodPatch,
+			path:   "/api/bundles/activations/act-1",
+			body:   `{"expected_version":1,"confirm_network_requirement":true,"confirmed_by":"caller"}`,
+			call:   (*BaseHandlers).UpdateBundleActivation,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &strictBundleHandlerService{}
+			handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "core-test", Bundles: service})
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequestWithContext(
+				t.Context(),
+				testCase.method,
+				testCase.path,
+				bytes.NewBufferString(testCase.body),
+			)
+			ctx.Request.Header.Set("Content-Type", "application/json")
+			if testCase.method == http.MethodPatch {
+				ctx.Params = gin.Params{{Key: "id", Value: "act-1"}}
+			}
+
+			testCase.call(handlers, ctx)
+
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, body = %s, want 400", recorder.Code, recorder.Body.String())
+			}
+			if service.activateCalls != 0 || service.updateCalls != 0 {
+				t.Fatalf(
+					"service calls = activate:%d update:%d, want zero",
+					service.activateCalls,
+					service.updateCalls,
+				)
+			}
+		})
+	}
+}
 
 func TestBundleCatalogPayloadsAndDeclaredChannels(t *testing.T) {
 	t.Parallel()
@@ -381,38 +493,6 @@ func TestSortedNetworkPeerPayloads(t *testing.T) {
 			t.Fatalf("peers[1].peer_id = %q, want %q", got, want)
 		}
 	})
-
-	t.Run("Should keep local peers ahead of newer remotes", func(t *testing.T) {
-		t.Parallel()
-
-		localJoinedAt := time.Date(2026, 4, 28, 7, 17, 11, 0, time.UTC)
-		remoteLastSeen := localJoinedAt.Add(2 * time.Minute)
-		peers := []contract.NetworkPeerPayload{
-			{
-				PeerID:      "remote.sess-newer",
-				DisplayName: "Remote",
-				Channel:     "builders",
-				Local:       false,
-				LastSeen:    &remoteLastSeen,
-			},
-			{
-				PeerID:      "local.sess-older",
-				DisplayName: "Local",
-				Channel:     "builders",
-				Local:       true,
-				JoinedAt:    &localJoinedAt,
-			},
-		}
-
-		sortNetworkPeerPayloads(peers)
-
-		if got, want := peers[0].PeerID, "local.sess-older"; got != want {
-			t.Fatalf("peers[0].peer_id = %q, want %q", got, want)
-		}
-		if got, want := peers[1].PeerID, "remote.sess-newer"; got != want {
-			t.Fatalf("peers[1].peer_id = %q, want %q", got, want)
-		}
-	})
 }
 
 func TestNetworkPayloadHelpersCloneAndNormalize(t *testing.T) {
@@ -422,19 +502,15 @@ func TestNetworkPayloadHelpersCloneAndNormalize(t *testing.T) {
 		t.Parallel()
 
 		joinedAt := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
-		lastSeen := joinedAt.Add(5 * time.Minute)
-		expiresAt := joinedAt.Add(10 * time.Minute)
 		displayName := " Support Bot "
 		sessionID := "sess-1"
-		ageSeconds := int64(42)
 		ext := map[string]json.RawMessage{"role": json.RawMessage(`"support"`)}
 		peerPayloads := NetworkPeerPayloadsFromInfos([]network.PeerInfo{{
-			SessionID:          &sessionID,
-			PeerID:             "peer-1",
-			Channel:            "builders",
-			Local:              false,
-			PresenceState:      network.PresenceStateActive,
-			LastSeenAgeSeconds: &ageSeconds,
+			SessionID:     &sessionID,
+			PeerID:        "peer-1",
+			Channel:       "builders",
+			Local:         true,
+			PresenceState: network.PresenceStateLocal,
 			PeerCard: network.PeerCard{
 				PeerID:              "peer-1",
 				DisplayName:         &displayName,
@@ -444,9 +520,7 @@ func TestNetworkPayloadHelpersCloneAndNormalize(t *testing.T) {
 				TrustModesSupported: []string{"strict"},
 				Ext:                 ext,
 			},
-			JoinedAt:  &joinedAt,
-			LastSeen:  &lastSeen,
-			ExpiresAt: &expiresAt,
+			JoinedAt: &joinedAt,
 		}})
 
 		if got, want := len(peerPayloads), 1; got != want {
@@ -458,20 +532,14 @@ func TestNetworkPayloadHelpersCloneAndNormalize(t *testing.T) {
 		if peerPayloads[0].PeerCard.Ext["role"] == nil {
 			t.Fatalf("PeerCard.Ext = %#v, want copied metadata", peerPayloads[0].PeerCard.Ext)
 		}
-		if got := peerPayloads[0].PresenceState; got != contract.NetworkPresenceActive {
-			t.Fatalf("PresenceState = %q, want %q", got, contract.NetworkPresenceActive)
-		}
-		if peerPayloads[0].LastSeenAgeSeconds == nil || *peerPayloads[0].LastSeenAgeSeconds != 42 {
-			t.Fatalf("LastSeenAgeSeconds = %#v, want 42", peerPayloads[0].LastSeenAgeSeconds)
+		if got := peerPayloads[0].PresenceState; got != contract.NetworkPresenceLocal {
+			t.Fatalf("PresenceState = %q, want %q", got, contract.NetworkPresenceLocal)
 		}
 
 		displayName = "mutated"
-		ageSeconds = 99
 		ext["role"][0] = '['
 		if peerPayloads[0].DisplayName != "Support Bot" ||
-			string(peerPayloads[0].PeerCard.Ext["role"]) != `"support"` ||
-			peerPayloads[0].LastSeenAgeSeconds == nil ||
-			*peerPayloads[0].LastSeenAgeSeconds != 42 {
+			string(peerPayloads[0].PeerCard.Ext["role"]) != `"support"` {
 			t.Fatalf("peer payload mutated with source data = %#v", peerPayloads[0])
 		}
 

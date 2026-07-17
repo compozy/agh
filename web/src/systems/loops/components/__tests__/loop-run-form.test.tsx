@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch } from "@/test/msw-fetch";
+import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { LoopRunForm } from "../run-form/loop-run-form";
 import { handlers } from "../../mocks";
 import { loopDetailByName, loopEffectiveConfigFixture } from "../../mocks/fixtures";
@@ -116,6 +117,64 @@ describe("LoopRunForm", () => {
     await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_running"));
     await expect(runRequestBody()).resolves.toMatchObject({
       network_participation: { mode: "local" },
+    });
+  });
+
+  it("Should return canonical immutable snapshots from dry-run and run mock responses", async () => {
+    const dryResponse = await fetch(
+      `http://localhost/api/workspaces/${WS}/loops/software-delivery/run?dry=true`,
+      {
+        body: JSON.stringify({ network_participation: { mode: "local" } }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+    const dryBody = (await dryResponse.json()) as {
+      dry_run: {
+        resolved_network_participation: {
+          bounds: { max_wakes: number };
+          mode: string;
+          source: string;
+        };
+      };
+    };
+    expect(dryBody.dry_run.resolved_network_participation).toEqual(
+      buildLocalNetworkParticipationFixture()
+    );
+
+    const runResponse = await fetch(
+      `http://localhost/api/workspaces/${WS}/loops/software-delivery/run`,
+      {
+        body: JSON.stringify({
+          network_participation: {
+            channel_id: " release-room ",
+            channel_strategy: "named",
+            mode: "live",
+          },
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+    const runBody = (await runResponse.json()) as {
+      run: {
+        resolved_network_participation: {
+          bounds: { max_wakes: number };
+          channel_id: string;
+          channel_strategy: string;
+          mode: string;
+          source: string;
+          workspace_id: string;
+        };
+      };
+    };
+    expect(runBody.run.resolved_network_participation).toMatchObject({
+      bounds: { max_wakes: 8 },
+      channel_id: "release-room",
+      channel_strategy: "named",
+      mode: "live",
+      source: "explicit_request",
+      workspace_id: WS,
     });
   });
 

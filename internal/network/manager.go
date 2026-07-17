@@ -68,7 +68,6 @@ type managerOptions struct {
 	acceptance    store.NetworkAcceptanceStore
 	inbox         store.NetworkInboxStore
 	causation     store.NetworkCausationStore
-	tasks         TaskService
 	wakeNotifier  WakeNotifier
 	hooks         HookDispatcher
 }
@@ -97,7 +96,6 @@ type Manager struct {
 	acceptance    store.NetworkAcceptanceStore
 	inbox         store.NetworkInboxStore
 	causation     store.NetworkCausationStore
-	tasks         TaskService
 	wakeNotifier  WakeNotifier
 	hooks         HookDispatcher
 	stats         *runtimeStats
@@ -161,7 +159,6 @@ func NewManager(
 		lifecycleCtx: lifecycleCtx, cancel: cancel,
 		auditor: options.auditor, conversations: options.conversations,
 		acceptance: options.acceptance, inbox: options.inbox, causation: options.causation,
-		tasks:        options.tasks,
 		wakeNotifier: options.wakeNotifier, hooks: options.hooks,
 		stats: newRuntimeStats(), sessions: make(map[string]*managedSession), enabled: cfg.Enabled,
 		waiters: make(map[string]map[chan struct{}]struct{}),
@@ -194,7 +191,7 @@ func resolveManagerOptions(opts ...ManagerOption) managerOptions {
 }
 
 func (m *Manager) initialize(cfg aghconfig.NetworkConfig, auditPath string, auditStore AuditStore) error {
-	peers, err := NewPeerRegistry(cfg.GreetIntervalDuration(), WithPeerRegistryClock(m.now))
+	peers, err := NewPeerRegistry(WithPeerRegistryClock(m.now))
 	if err != nil {
 		return err
 	}

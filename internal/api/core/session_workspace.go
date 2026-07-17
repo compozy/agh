@@ -13,6 +13,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/diagnosticcontract"
 	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/transcript"
@@ -154,6 +155,9 @@ func statusForWorkspaceError(err error) int {
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func statusForSessionError(err error) int {
+	if status, ok := statusForSessionParticipationError(err); ok {
+		return status
+	}
 	switch {
 	case errors.Is(err, context.Canceled):
 		return statusClientClosedRequest
@@ -201,6 +205,22 @@ func statusForSessionError(err error) int {
 		return http.StatusInternalServerError
 	default:
 		return http.StatusInternalServerError
+	}
+}
+
+func statusForSessionParticipationError(err error) (int, bool) {
+	switch {
+	case errors.Is(err, participation.ErrStrategyInvalid),
+		errors.Is(err, participation.ErrStrategyChannelConflict):
+		return http.StatusBadRequest, true
+	case errors.Is(err, participation.ErrChannelUnknown):
+		return http.StatusNotFound, true
+	case errors.Is(err, participation.ErrUnavailable):
+		return http.StatusConflict, true
+	case errors.Is(err, participation.ErrLiveUnsupported):
+		return http.StatusUnprocessableEntity, true
+	default:
+		return 0, false
 	}
 }
 

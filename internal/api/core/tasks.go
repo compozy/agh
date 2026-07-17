@@ -222,17 +222,6 @@ func (h *BaseHandlers) CreateTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	if err := applyTaskNetworkParticipation(
-		c.Request.Context(),
-		manager,
-		record.ID,
-		req.NetworkParticipation,
-		actor,
-	); err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
 	c.JSON(http.StatusCreated, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
 }
 
@@ -589,34 +578,13 @@ func (h *BaseHandlers) UpdateTask(c *gin.Context) {
 		return
 	}
 
-	var record *taskpkg.Task
-	if taskUpdateHasRowFields(req) {
-		patch, err := taskPatchFromRequest(req)
-		if err != nil {
-			h.respondError(c, StatusForTaskError(err), err)
-			return
-		}
-		record, err = manager.UpdateTask(c.Request.Context(), taskID, patch, actor)
-		if err != nil {
-			h.respondError(c, StatusForTaskError(err), err)
-			return
-		}
-	} else {
-		view, err := manager.GetTask(c.Request.Context(), taskID, actor)
-		if err != nil {
-			h.respondError(c, StatusForTaskError(err), err)
-			return
-		}
-		taskCopy := view.Task
-		record = &taskCopy
+	patch, err := taskPatchFromRequest(req)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
 	}
-	if err := applyTaskNetworkParticipation(
-		c.Request.Context(),
-		manager,
-		taskID,
-		req.NetworkParticipation,
-		actor,
-	); err != nil {
+	record, err := manager.UpdateTask(c.Request.Context(), taskID, patch, actor)
+	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
@@ -895,17 +863,6 @@ func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	if err := applyTaskNetworkParticipation(
-		c.Request.Context(),
-		manager,
-		record.ID,
-		req.NetworkParticipation,
-		actor,
-	); err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
 	c.JSON(http.StatusCreated, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
 }
 
@@ -1470,67 +1427,6 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 	})
 }
 
-type preparedFanOutDesignation struct {
-	idempotencyKey string
-	metadata       json.RawMessage
-}
-
-func prepareFanOutTaskRunsRequest(
-	req contract.FanOutTaskRunsRequest,
-	maxDesignations int,
-) ([]preparedFanOutDesignation, error) {
-	if len(req.Designations) == 0 {
-		return nil, NewTaskValidationError(errors.New("designations are required"))
-	}
-	if len(req.Designations) > maxDesignations {
-		return nil, NewTaskValidationError(fmt.Errorf("designations cannot exceed %d", maxDesignations))
-	}
-	prepared := make([]preparedFanOutDesignation, 0, len(req.Designations))
-	for index, designation := range req.Designations {
-		metadata, err := fanOutDesignationMetadata(index, designation)
-		if err != nil {
-			return nil, err
-		}
-		idempotencyKey := fanOutDesignationIdempotencyKey(req.IdempotencyKey, designation, index)
-		if idempotencyKey == "" {
-			return nil, NewTaskValidationError(fmt.Errorf(
-				"designations[%d].idempotency_key is required when fan_out_runs.idempotency_key is empty",
-				index,
-			))
-		}
-		prepared = append(prepared, preparedFanOutDesignation{
-			idempotencyKey: idempotencyKey,
-			metadata:       metadata,
-		})
-	}
-	return prepared, nil
-}
-
-func enqueueFanOutTaskRuns(
-	ctx context.Context,
-	manager TaskService,
-	actor taskpkg.ActorContext,
-	taskID string,
-	groupID string,
-	req contract.FanOutTaskRunsRequest,
-	prepared []preparedFanOutDesignation,
-) ([]taskpkg.Run, error) {
-	runs := make([]taskpkg.Run, 0, len(req.Designations))
-	for index := range req.Designations {
-		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
-			TaskID:             taskID,
-			IdempotencyKey:     prepared[index].idempotencyKey,
-			DesignationGroupID: groupID,
-			Metadata:           prepared[index].metadata,
-		}, actor)
-		if err != nil {
-			return nil, err
-		}
-		runs = append(runs, *run)
-	}
-	return runs, nil
-}
-
 // StartTaskRun starts one claimed run.
 func (h *BaseHandlers) StartTaskRun(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
@@ -2023,20 +1919,21 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 	}
 
 	spec := taskpkg.CreateTask{
-		ID:                 strings.TrimSpace(req.ID),
-		Identifier:         strings.TrimSpace(req.Identifier),
-		Scope:              scope,
-		WorkspaceID:        workspaceID,
-		Title:              strings.TrimSpace(req.Title),
-		Description:        strings.TrimSpace(req.Description),
-		Priority:           req.Priority.Normalize(),
-		MaxAttempts:        req.MaxAttempts,
-		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
-		Draft:              req.Draft,
-		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
-		Owner:              cloneOwnership(req.Owner),
-		WakeCreator:        cloneBoolPtr(req.WakeCreator),
-		Metadata:           cloneRawMessage(req.Metadata),
+		ID:                   strings.TrimSpace(req.ID),
+		Identifier:           strings.TrimSpace(req.Identifier),
+		Scope:                scope,
+		WorkspaceID:          workspaceID,
+		Title:                strings.TrimSpace(req.Title),
+		Description:          strings.TrimSpace(req.Description),
+		Priority:             req.Priority.Normalize(),
+		MaxAttempts:          req.MaxAttempts,
+		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
+		Draft:                req.Draft,
+		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
+		Owner:                cloneOwnership(req.Owner),
+		WakeCreator:          cloneBoolPtr(req.WakeCreator),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_task"); err != nil {
 		return taskpkg.CreateTask{}, err
@@ -2055,20 +1952,21 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 	}
 
 	spec := taskpkg.CreateTask{
-		ID:                 strings.TrimSpace(req.ID),
-		Identifier:         strings.TrimSpace(req.Identifier),
-		Scope:              scope,
-		WorkspaceID:        workspaceID,
-		Title:              strings.TrimSpace(req.Title),
-		Description:        strings.TrimSpace(req.Description),
-		Priority:           req.Priority.Normalize(),
-		MaxAttempts:        req.MaxAttempts,
-		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
-		Draft:              req.Draft,
-		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
-		Owner:              cloneOwnership(req.Owner),
-		WakeCreator:        cloneBoolPtr(req.WakeCreator),
-		Metadata:           cloneRawMessage(req.Metadata),
+		ID:                   strings.TrimSpace(req.ID),
+		Identifier:           strings.TrimSpace(req.Identifier),
+		Scope:                scope,
+		WorkspaceID:          workspaceID,
+		Title:                strings.TrimSpace(req.Title),
+		Description:          strings.TrimSpace(req.Description),
+		Priority:             req.Priority.Normalize(),
+		MaxAttempts:          req.MaxAttempts,
+		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
+		Draft:                req.Draft,
+		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
+		Owner:                cloneOwnership(req.Owner),
+		WakeCreator:          cloneBoolPtr(req.WakeCreator),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_child_task"); err != nil {
 		return taskpkg.CreateTask{}, err
@@ -2078,15 +1976,16 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 
 func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error) {
 	patch := taskpkg.Patch{
-		Title:              trimStringPtr(req.Title),
-		Description:        trimStringPtr(req.Description),
-		Priority:           normalizePriorityPtr(req.Priority),
-		MaxAttempts:        req.MaxAttempts,
-		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
-		ApprovalPolicy:     normalizeApprovalPolicyPtr(req.ApprovalPolicy),
-		Metadata:           cloneRawMessagePtr(req.Metadata),
-		Owner:              cloneOwnership(req.Owner),
-		ClearOwner:         req.ClearOwner,
+		Title:                trimStringPtr(req.Title),
+		Description:          trimStringPtr(req.Description),
+		Priority:             normalizePriorityPtr(req.Priority),
+		MaxAttempts:          req.MaxAttempts,
+		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
+		ApprovalPolicy:       normalizeApprovalPolicyPtr(req.ApprovalPolicy),
+		Metadata:             cloneRawMessagePtr(req.Metadata),
+		Owner:                cloneOwnership(req.Owner),
+		ClearOwner:           req.ClearOwner,
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
 	}
 	if err := patch.Validate("task_patch"); err != nil {
 		return taskpkg.Patch{}, err
@@ -2503,7 +2402,7 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		CreatedAt:            record.CreatedAt,
 		UpdatedAt:            record.UpdatedAt,
 		ClosedAt:             optionalTime(record.ClosedAt),
-		Metadata:             redactRawClaimTokenFields(record.Metadata),
+		Metadata:             taskpkg.RedactClaimTokenJSON(record.Metadata),
 	}
 }
 
@@ -2565,7 +2464,7 @@ func TaskBlockPayloadFromBlock(block taskpkg.TaskBlock) contract.TaskBlockPayloa
 		WorkspaceID: strings.TrimSpace(block.WorkspaceID),
 		Kind:        block.Kind.Normalize(),
 		Reason:      taskpkg.RedactClaimTokens(strings.TrimSpace(block.Reason)),
-		Details:     redactRawClaimTokenFields(block.Details),
+		Details:     taskpkg.RedactClaimTokenJSON(block.Details),
 		CreatedAt:   block.CreatedAt,
 		CreatedBy:   block.CreatedBy,
 		ExpiresAt:   optionalTime(block.ExpiresAt),
@@ -2645,9 +2544,9 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		ClaimedAt:                    optionalTime(run.ClaimedAt),
 		StartedAt:                    optionalTime(run.StartedAt),
 		EndedAt:                      optionalTime(run.EndedAt),
-		Error:                        run.Error,
-		Metadata:                     redactRawClaimTokenFields(run.Metadata),
-		Result:                       redactRawClaimTokenFields(run.Result),
+		Error:                        taskpkg.RedactClaimTokens(run.Error),
+		Metadata:                     taskpkg.RedactClaimTokenJSON(run.Metadata),
+		Result:                       taskpkg.RedactClaimTokenJSON(run.Result),
 	}
 }
 
@@ -2691,57 +2590,6 @@ func optionalTaskRunPayload(run *taskpkg.Run) *contract.TaskRunPayload {
 	return &payload
 }
 
-func redactRawClaimTokenFields(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	var decoded any
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return cloneRawMessage(raw)
-	}
-	redacted, changed := redactRawClaimTokenValue(decoded)
-	if !changed {
-		return cloneRawMessage(raw)
-	}
-	encoded, err := json.Marshal(redacted)
-	if err != nil {
-		return nil
-	}
-	return encoded
-}
-
-func redactRawClaimTokenValue(value any) (any, bool) {
-	switch typed := value.(type) {
-	case map[string]any:
-		changed := false
-		redacted := make(map[string]any, len(typed))
-		for key, nested := range typed {
-			if strings.EqualFold(strings.TrimSpace(key), "claim_token") {
-				changed = true
-				continue
-			}
-			next, nestedChanged := redactRawClaimTokenValue(nested)
-			redacted[key] = next
-			changed = changed || nestedChanged
-		}
-		return redacted, changed
-	case []any:
-		changed := false
-		redacted := make([]any, len(typed))
-		for idx, nested := range typed {
-			next, nestedChanged := redactRawClaimTokenValue(nested)
-			redacted[idx] = next
-			changed = changed || nestedChanged
-		}
-		return redacted, changed
-	case string:
-		redacted := taskpkg.RedactClaimTokens(typed)
-		return redacted, redacted != typed
-	default:
-		return value, false
-	}
-}
-
 // TaskEventPayloadsFromEvents converts task events into shared payloads.
 func TaskEventPayloadsFromEvents(events []taskpkg.Event) []contract.TaskEventPayload {
 	payloads := make([]contract.TaskEventPayload, 0, len(events))
@@ -2753,7 +2601,7 @@ func TaskEventPayloadsFromEvents(events []taskpkg.Event) []contract.TaskEventPay
 			EventType: event.EventType,
 			Actor:     event.Actor,
 			Origin:    event.Origin,
-			Payload:   cloneRawMessage(event.Payload),
+			Payload:   taskpkg.RedactClaimTokenJSON(event.Payload),
 			Timestamp: event.Timestamp,
 		})
 	}
@@ -2795,7 +2643,7 @@ func TaskDesignationRollupPayloadsFromStore(
 		payloads = append(payloads, contract.TaskDesignationRollupPayload{
 			DesignationGroupID: strings.TrimSpace(rollup.DesignationGroupID),
 			TaskID:             strings.TrimSpace(rollup.TaskID),
-			Summary:            cloneRawMessage(rollup.SummaryJSON),
+			Summary:            taskpkg.RedactClaimTokenJSON(rollup.SummaryJSON),
 			CreatedAt:          rollup.CreatedAt,
 		})
 	}
@@ -2836,7 +2684,7 @@ func TaskInspectRunPayloadFromSummary(summary *taskpkg.InspectRunSummary) *contr
 		HeartbeatAt:             optionalTime(summary.HeartbeatAt),
 		HeartbeatAgeSeconds:     cloneInt64Ptr(summary.HeartbeatAgeSeconds),
 		Retries:                 summary.Retries,
-		LastErrorSummary:        summary.LastErrorSummary,
+		LastErrorSummary:        taskpkg.RedactClaimTokens(strings.TrimSpace(summary.LastErrorSummary)),
 		FailureKind:             summary.FailureKind,
 		BoundSessionID:          summary.BoundSessionID,
 		StartedAt:               optionalTime(summary.StartedAt),
@@ -2876,7 +2724,7 @@ func TaskInspectSessionPayloadFromSummary(
 		WorkspaceID:    summary.WorkspaceID,
 		StartedAt:      optionalTime(summary.StartedAt),
 		LastActivityAt: optionalTime(summary.LastActivityAt),
-		StopReason:     summary.StopReason,
+		StopReason:     taskpkg.RedactClaimTokens(strings.TrimSpace(summary.StopReason)),
 		FailureKind:    summary.FailureKind,
 	}
 }
@@ -2894,7 +2742,7 @@ func TaskInspectEventPayloadsFromSummaries(
 			TaskID:    summary.TaskID,
 			RunID:     summary.RunID,
 			Outcome:   summary.Outcome,
-			Summary:   summary.Summary,
+			Summary:   taskpkg.RedactClaimTokens(strings.TrimSpace(summary.Summary)),
 			Timestamp: summary.Timestamp,
 		})
 	}
@@ -2907,7 +2755,7 @@ func TaskInspectSchedulerPayloadFromState(state taskpkg.InspectSchedulerState) c
 		Paused:    state.Paused,
 		PausedBy:  state.PausedBy,
 		PausedAt:  optionalTime(state.PausedAt),
-		Reason:    state.Reason,
+		Reason:    taskpkg.RedactClaimTokens(strings.TrimSpace(state.Reason)),
 		UpdatedAt: optionalTime(state.UpdatedAt),
 	}
 }

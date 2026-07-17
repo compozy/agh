@@ -46,9 +46,7 @@ function buildMetaSegments({
 
   const totalCount = agentCount + humanCount;
   const fallbackPeerCount =
-    detail?.peer_count ??
-    channel.peer_count ??
-    (channel.local_peer_count ?? 0) + (channel.remote_peer_count ?? 0);
+    detail?.peer_count ?? channel.peer_count ?? channel.local_peer_count ?? 0;
 
   if (totalCount > 0) {
     if (agentCount > 0) {

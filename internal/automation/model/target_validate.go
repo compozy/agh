@@ -331,5 +331,6 @@ func hasLoopTarget(target *LoopTarget) bool {
 	return strings.TrimSpace(target.WorkspaceID) != "" ||
 		strings.TrimSpace(target.LoopName) != "" ||
 		len(target.Inputs) > 0 ||
-		len(target.InputMapping) > 0
+		len(target.InputMapping) > 0 ||
+		target.NetworkParticipation != nil
 }

@@ -122,6 +122,23 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("beta");
   });
 
+  it("Should keep scope immutable and omit it from the Job edit preview", () => {
+    const { onChange } = renderJobForm({
+      draft: {
+        ...createAutomationJobDraft(WORKSPACE_ID),
+        name: "nightly-docs",
+      },
+      mode: "edit",
+    });
+
+    expect(screen.getByTestId("job-scope-global")).toBeDisabled();
+    expect(screen.getByTestId("job-scope-workspace")).toBeDisabled();
+    expect(screen.getByTestId("job-workspace-select")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("job-scope-global"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent('"scope"');
+  });
+
   it("Should switch output mode to task, reveal task fields, set draft.task, and hide the agent prompt", () => {
     const { onChange } = renderJobForm({
       draft: {
@@ -199,6 +216,8 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
       /"channel"|"network_channel"|"coordination_channel_id"/
     );
+    expect(screen.getByTestId("job-preview-task-participation")).toHaveTextContent("Live");
+    expect(screen.getByTestId("job-preview-task-channel")).toHaveTextContent("release-room");
   });
 
   it("Should switch the target to Run loop with a static input form and no payload mapping (§9.14)", () => {
@@ -208,7 +227,10 @@ describe("AutomationJobForm", () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         target_kind: "loop",
-        loop_target: expect.objectContaining({ loop_name: "" }),
+        loop_target: expect.objectContaining({
+          loop_name: "",
+          network_participation: { mode: "local" },
+        }),
         task: undefined,
       })
     );
@@ -226,6 +248,25 @@ describe("AutomationJobForm", () => {
     // Jobs fire on a schedule, not an event, so there is no payload mapping table.
     expect(screen.queryByTestId("loop-input-mapping")).not.toBeInTheDocument();
     expect(screen.getAllByTestId("loop-input-control").length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByTestId("loop-target-participation-mode"), {
+      target: { value: "live" },
+    });
+    expect(screen.getByTestId("submit-job-form")).toBeDisabled();
+    fireEvent.change(screen.getByTestId("loop-target-participation-channel"), {
+      target: { value: "loop-release-room" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        loop_target: expect.objectContaining({
+          network_participation: {
+            mode: "live",
+            channel_id: "loop-release-room",
+            channel_strategy: "named",
+          },
+        }),
+      })
+    );
   });
 
   it("Should offer only Loops that declare schedule starts", () => {

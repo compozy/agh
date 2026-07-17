@@ -830,7 +830,7 @@ func sessionPayload(info *session.Info) contract.AgentSessionPayload {
 		Name:                         strings.TrimSpace(info.Name),
 		Type:                         info.Type,
 		State:                        info.State,
-		ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
+		ResolvedNetworkParticipation: normalizedSessionParticipation(info.NetworkParticipation),
 		Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
 		CreatedAt:                    info.CreatedAt.UTC(),
 		UpdatedAt:                    info.UpdatedAt.UTC(),

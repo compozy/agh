@@ -424,7 +424,7 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistory(t *testing.T) {
 	h := newHarness(t)
 
-	session := createSession(t, h)
+	session := createLiveNetworkSession(t, h)
 	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
 	if err != nil {
 		t.Fatalf("Prompt(user) error = %v", err)

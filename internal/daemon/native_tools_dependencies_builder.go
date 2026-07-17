@@ -30,6 +30,7 @@ func (d *Daemon) nativeToolsDeps(
 		Settings:                   func() core.SettingsService { return state.deps.Settings },
 		Network:                    state.deps.Network,
 		NetworkStore:               state.registry,
+		NetworkUsage:               state.registry,
 		Tasks:                      state.deps.Tasks,
 		MemoryStore:                state.memoryStore,
 		MemoryToolWrites:           state.memoryExtractor,

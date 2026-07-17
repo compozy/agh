@@ -17,6 +17,7 @@ import {
   Spinner,
   Textarea,
 } from "@agh/ui";
+import { NetworkParticipationFields } from "@/systems/network";
 
 import { useTasksFanOutRunsCard } from "../hooks/use-tasks-fan-out-runs-card";
 import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
@@ -91,6 +92,13 @@ export function TasksFanOutRunsCard({ isPending = false, onFanOut }: TasksFanOut
                   variant="mono"
                 />
               </Field>
+
+              <NetworkParticipationFields
+                allowedStrategies={state.networkStrategies}
+                onChange={state.setNetworkParticipation}
+                testIdPrefix="tasks-fan-out-network"
+                value={state.networkParticipation}
+              />
             </div>
 
             <DialogFooter className="border-t border-line bg-canvas-soft px-5 py-3">

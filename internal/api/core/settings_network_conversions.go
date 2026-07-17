@@ -10,10 +10,8 @@ import (
 
 func settingsNetworkConfigPayload(value aghconfig.NetworkConfig) contract.SettingsNetworkConfigPayload {
 	return contract.SettingsNetworkConfigPayload{
-		Enabled:       value.Enabled,
-		GreetInterval: value.GreetInterval,
-		MaxReplayAge:  value.MaxReplayAge,
-		MaxQueueDepth: value.MaxQueueDepth,
+		Enabled:      value.Enabled,
+		MaxReplayAge: value.MaxReplayAge,
 		Live: contract.SettingsNetworkLiveConfigPayload{
 			Defaults: contract.SettingsNetworkLiveDefaultsPayload{
 				MaxWakes:         value.Live.Defaults.MaxWakes,
@@ -54,9 +52,7 @@ func settingsNetworkRuntimePayload(value settingspkg.NetworkRuntimeStatus) contr
 func networkConfigFromPayload(payload contract.SettingsNetworkConfigPayload) (aghconfig.NetworkConfig, error) {
 	value := aghconfig.DefaultNetworkConfig()
 	value.Enabled = payload.Enabled
-	value.GreetInterval = payload.GreetInterval
 	value.MaxReplayAge = payload.MaxReplayAge
-	value.MaxQueueDepth = payload.MaxQueueDepth
 	value.Live = aghconfig.NetworkLiveConfig{
 		Defaults: aghconfig.NetworkLiveDefaultsConfig{
 			MaxWakes:         payload.Live.Defaults.MaxWakes,

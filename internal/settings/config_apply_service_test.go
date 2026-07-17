@@ -145,6 +145,115 @@ release_date = "2026-07-10"
 			t.Fatalf("second session_mcp = %#v, want true", provider.SessionMCP)
 		}
 	})
+
+	t.Run(
+		"Should preserve pending restart-required Network fields while applying availability live",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := WithMutationSource(context.Background(), "http")
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+			db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(ctx); err != nil {
+					t.Fatalf("Close() error = %v", err)
+				}
+			})
+
+			applier := &fakeConfigRuntimeApplier{}
+			service := testService(t, homePaths, Dependencies{
+				RuntimeApplier: applier,
+				ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+			})
+			initialActive, err := service.ActiveConfig(ctx)
+			if err != nil {
+				t.Fatalf("ActiveConfig(initial) error = %v", err)
+			}
+
+			pendingNetwork := initialActive.Network
+			pendingNetwork.MaxReplayAge++
+			pending, err := service.ApplySection(ctx, SectionUpdateRequest{
+				SectionRequest: SectionRequest{Section: SectionNetwork},
+				Network:        &pendingNetwork,
+			})
+			if err != nil {
+				t.Fatalf("ApplySection(pending Network config) error = %v", err)
+			}
+			if pending.Applied || !pending.RestartRequired || pending.Record.Status != lifecycle.StatusBlocked {
+				t.Fatalf("pending Network apply = %#v, want blocked restart-required result", pending)
+			}
+
+			desired, err := aghconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatalf("LoadForHome(pending) error = %v", err)
+			}
+			desired.Network.Enabled = !initialActive.Network.Enabled
+			live, err := service.ApplySection(ctx, SectionUpdateRequest{
+				SectionRequest: SectionRequest{Section: SectionNetwork},
+				Network:        &desired.Network,
+			})
+			if err != nil {
+				t.Fatalf("ApplySection(Network availability) error = %v", err)
+			}
+			if !live.Applied || live.RestartRequired || live.Record.Lifecycle != lifecycle.Live {
+				t.Fatalf("Network availability apply = %#v, want live applied result", live)
+			}
+			if live.Record.DesiredHash == live.Record.ActiveHash {
+				t.Fatalf(
+					"Network hashes = desired %q active %q, want pending restart drift",
+					live.Record.DesiredHash,
+					live.Record.ActiveHash,
+				)
+			}
+			if got, want := applier.calls, 1; got != want {
+				t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+			}
+			if got, want := len(applier.snapshots), 1; got != want {
+				t.Fatalf("runtime snapshots = %d, want %d", got, want)
+			}
+			runtimeNetwork := applier.snapshots[0].Network
+			if runtimeNetwork.Enabled == initialActive.Network.Enabled {
+				t.Fatalf("runtime Network enabled = %t, want toggled value", runtimeNetwork.Enabled)
+			}
+			if runtimeNetwork.MaxReplayAge != initialActive.Network.MaxReplayAge {
+				t.Fatalf(
+					"runtime Network max replay age = %d, want prior active %d",
+					runtimeNetwork.MaxReplayAge,
+					initialActive.Network.MaxReplayAge,
+				)
+			}
+
+			active, err := service.ActiveConfig(ctx)
+			if err != nil {
+				t.Fatalf("ActiveConfig(after live toggle) error = %v", err)
+			}
+			if active.Network != runtimeNetwork {
+				t.Fatalf("active Network = %#v, want runtime projection %#v", active.Network, runtimeNetwork)
+			}
+			desired, err = aghconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatalf("LoadForHome(after live toggle) error = %v", err)
+			}
+			if desired.Network.MaxReplayAge != pendingNetwork.MaxReplayAge {
+				t.Fatalf(
+					"desired Network max replay age = %d, want pending %d",
+					desired.Network.MaxReplayAge,
+					pendingNetwork.MaxReplayAge,
+				)
+			}
+			reload, err := service.Reload(ctx)
+			if err != nil {
+				t.Fatalf("Reload() error = %v", err)
+			}
+			if reload.Applied || !reload.RestartRequired || reload.Record.Status != lifecycle.StatusBlocked {
+				t.Fatalf("Reload() = %#v, want pending restart-required result", reload)
+			}
+		},
+	)
 }
 
 func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *testing.T) {
@@ -1108,8 +1217,9 @@ func TestConfigApplyServiceFailedRecordsPreserveLifecycleIntent(t *testing.T) {
 }
 
 type fakeConfigRuntimeApplier struct {
-	failures []ApplyFailure
-	calls    int
+	failures  []ApplyFailure
+	calls     int
+	snapshots []aghconfig.Config
 }
 
 type providerModelCurationRuntimeApplier struct {
@@ -1263,8 +1373,11 @@ func providerModelCurationTestService(
 
 func (f *fakeConfigRuntimeApplier) ApplyActiveConfig(
 	_ context.Context,
-	_ *aghconfig.Config,
+	cfg *aghconfig.Config,
 ) []ApplyFailure {
 	f.calls++
+	if cfg != nil {
+		f.snapshots = append(f.snapshots, cloneActiveConfig(cfg))
+	}
 	return append([]ApplyFailure(nil), f.failures...)
 }

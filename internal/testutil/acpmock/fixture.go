@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/compozy/agh/internal/acp"
 )
@@ -578,6 +580,9 @@ func validateDriverControlStep(path string, step Step) error {
 func (d DriverControlStep) Validate(path string) error {
 	if d.DelayMS < 0 {
 		return fmt.Errorf("acpmock: %s.delay_ms must be >= 0", path)
+	}
+	if int64(d.DelayMS) > math.MaxInt64/int64(time.Millisecond) {
+		return fmt.Errorf("acpmock: %s.delay_ms exceeds duration capacity", path)
 	}
 	switch d.Action {
 	case DriverControlDisconnect, DriverControlBlockUntilCancel, DriverControlDelay:

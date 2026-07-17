@@ -15,6 +15,12 @@ export interface TaskRunConversationPanelProps {
   boundsLabel?: string | null;
 }
 
+const TASK_RUN_CONVERSATION_EMPTY_STATE = (
+  <p className="text-sm text-muted" data-testid="tasks-run-conversation-empty">
+    No coordination messages yet. Silence is normal until workers post updates on this run.
+  </p>
+);
+
 /** Run-scoped conversation, bound consumption, and truthful usage surface (UT-057). */
 export function TaskRunConversationPanel({
   messages,
@@ -28,12 +34,6 @@ export function TaskRunConversationPanel({
   boundsLabel,
 }: TaskRunConversationPanelProps) {
   const total = usage.total;
-  const usageLabel = total.unavailable_wake_count > 0 ? "usage_unavailable" : "actual";
-  const emptyState = (
-    <p className="text-sm text-muted" data-testid="tasks-run-conversation-empty">
-      No coordination messages yet. Silence is normal until workers post updates on this run.
-    </p>
-  );
 
   return (
     <section
@@ -66,7 +66,7 @@ export function TaskRunConversationPanel({
             asScrollContainer={false}
             className="rounded-md border border-border"
             density="overlay"
-            emptyState={emptyState}
+            emptyState={TASK_RUN_CONVERSATION_EMPTY_STATE}
             hasOlder={hasMoreMessages}
             isLoading={conversationLoading}
             isLoadingOlder={isFetchingMore}
@@ -86,8 +86,9 @@ export function TaskRunConversationPanel({
         className="border-t border-border pt-2 text-xs text-muted"
         data-testid="tasks-run-usage-summary"
       >
-        Run usage ({usageLabel}): {total.wake_count} wakes · {total.input_tokens} in /{" "}
-        {total.output_tokens} out
+        Run usage: {total.actual_wake_count} actual · {total.reserved_wake_count} reserved ·{" "}
+        {total.unavailable_wake_count} unavailable · {total.input_tokens} charged in /{" "}
+        {total.output_tokens} charged out
       </div>
     </section>
   );

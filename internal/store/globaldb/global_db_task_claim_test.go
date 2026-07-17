@@ -391,15 +391,14 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 13, 22, 0, 0, 0, time.UTC)
+		registerNetworkWakeRunSessionsForClaimTest(t, globalDB, now, "sess-target")
 		anchor := taskRecordForTest("task-wake-anchor")
 		anchor.Status = taskpkg.TaskStatusReady
 		if err := globalDB.CreateTask(ctx, anchor); err != nil {
 			t.Fatalf("CreateTask(anchor) error = %v", err)
 		}
 		wake := networkWakeRunForClaimTest("run-network-wake", "wake-1", "sess-target", "owner-1", now)
-		if err := globalDB.CreateTaskRun(ctx, wake); err != nil {
-			t.Fatalf("CreateTaskRun(network wake) error = %v", err)
-		}
+		createNetworkWakeRunForClaimTest(t, globalDB, wake, now)
 		queued, err := globalDB.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
 		if err != nil {
 			t.Fatalf("ListTaskRunsByStatus(network wake) error = %v", err)
@@ -410,12 +409,14 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 
 		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 			RunID: wake.ID, RunKind: taskpkg.RunKindNetworkWake,
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-wake",
 			TargetSessionID: "sess-foreign", ClaimerSessionID: "sess-foreign", Now: now,
 		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
 			t.Fatalf("ClaimNextRun(foreign wake) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
 		}
 		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 			RunID: wake.ID, RunKind: taskpkg.RunKindNetworkWake,
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-wake",
 			TargetSessionID: "sess-target", ClaimerSessionID: "sess-target", Now: now,
 		})
 		if err != nil {
@@ -438,6 +439,7 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 			t.Fatalf("network wake autonomy handle = %#v, want taskless wake correlation", handle)
 		}
 		if _, err := globalDB.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
+			Actor: coordinatorActorContextForTest(),
 			RunID: wake.ID, ClaimToken: claim.ClaimToken, LeaseDuration: time.Minute,
 			Now: now.Add(time.Second), TokensUsed: 17,
 		}); err != nil {
@@ -473,19 +475,26 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 13, 22, 30, 0, 0, time.UTC)
+		registerNetworkWakeRunSessionsForClaimTest(
+			t,
+			globalDB,
+			now,
+			"sess-release",
+			"sess-fail",
+			"sess-expire",
+		)
 		for _, run := range []taskpkg.Run{
 			networkWakeRunForClaimTest("run-wake-release", "wake-release", "sess-release", "owner-release", now),
 			networkWakeRunForClaimTest("run-wake-fail", "wake-fail", "sess-fail", "owner-fail", now),
 			networkWakeRunForClaimTest("run-wake-expire", "wake-expire", "sess-expire", "owner-expire", now),
 		} {
-			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-				t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
-			}
+			createNetworkWakeRunForClaimTest(t, globalDB, run, now)
 		}
 		claimWake := func(runID, sessionID string, at time.Time) taskpkg.ClaimResult {
 			t.Helper()
 			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 				RunID: runID, RunKind: taskpkg.RunKindNetworkWake,
+				Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-wake",
 				TargetSessionID: sessionID, ClaimerSessionID: sessionID,
 				LeaseDuration: time.Minute, Now: at,
 			})
@@ -496,6 +505,7 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 		}
 		releaseClaim := claimWake("run-wake-release", "sess-release", now)
 		released, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
+			Actor: coordinatorActorContextForTest(),
 			RunID: releaseClaim.Run.ID, ClaimToken: releaseClaim.ClaimToken,
 			Reason: "handoff", Now: now.Add(time.Second),
 		})
@@ -563,7 +573,8 @@ func networkWakeRunForClaimTest(
 ) taskpkg.Run {
 	run := taskpkg.Run{
 		ID: runID, RunKind: taskpkg.RunKindNetworkWake, Status: taskpkg.TaskRunStatusQueued,
-		Attempt: 1, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
+		WorkspaceID: "ws-wake",
+		Attempt:     1, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
 		QueuedAt: queuedAt,
 	}
 	run.SetNetworkState(participation.Spec{
@@ -584,6 +595,62 @@ func networkWakeRunForClaimTest(
 		},
 	}, wakeID, targetSessionID, ownerKey)
 	return run
+}
+
+func createNetworkWakeRunForClaimTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	run taskpkg.Run,
+	now time.Time,
+) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+	}
+	wakeID, _, ownerKey := run.NetworkWakeCorrelation()
+	if _, err := globalDB.db.ExecContext(ctx, `
+INSERT INTO network_live_wakes (
+  wake_id, task_run_id, owner_key, workspace_id, channel, root_id, depth,
+  state, coalesce_until, reserved_wall_ms, reserved_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		wakeID,
+		run.ID,
+		ownerKey,
+		run.WorkspaceID,
+		run.NetworkSpecSnapshot().ChannelID,
+		wakeID,
+		0,
+		"open",
+		store.FormatTimestamp(now.Add(250*time.Millisecond)),
+		int64(30_000),
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("insert network_live_wakes(%q) error = %v", wakeID, err)
+	}
+}
+
+func registerNetworkWakeRunSessionsForClaimTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	now time.Time,
+	sessionIDs ...string,
+) {
+	t.Helper()
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"wake",
+		filepath.Join(t.TempDir(), "wake"),
+	)
+	for _, sessionID := range sessionIDs {
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID: sessionID, AgentName: "coder", Provider: "claude",
+			WorkspaceID: workspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
+		}
+	}
 }
 
 func TestGlobalDBClaimNextRunFiltersByCapabilitiesAndScope(t *testing.T) {
@@ -681,106 +748,110 @@ func TestGlobalDBClaimNextRunFiltersByCapabilitiesAndScope(t *testing.T) {
 func TestGlobalDBClaimNextRunScopesCoordinationMetadataToRunWorkspace(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
-	ctx := testutil.Context(t)
-	workspaceA := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"claim-channel-scope-a",
-		filepath.Join(t.TempDir(), "claim-channel-scope-a"),
-	)
-	workspaceB := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"claim-channel-scope-b",
-		filepath.Join(t.TempDir(), "claim-channel-scope-b"),
-	)
-	now := time.Date(2026, 7, 13, 17, 0, 0, 0, time.UTC)
-	for _, channel := range []store.NetworkChannelEntry{
-		{
-			Channel:     "operations",
-			WorkspaceID: workspaceA,
-			Purpose:     "Workspace A operations",
-			CreatedBy:   "agent-a",
-			CreatedAt:   now,
-			UpdatedAt:   now,
-		},
-		{
-			Channel:     "operations",
-			WorkspaceID: workspaceB,
-			Purpose:     "Workspace B operations",
-			CreatedBy:   "agent-b",
-			CreatedAt:   now,
-			UpdatedAt:   now,
-		},
-	} {
-		if err := globalDB.WriteNetworkChannel(ctx, channel); err != nil {
-			t.Fatalf("WriteNetworkChannel(%q) error = %v", channel.WorkspaceID, err)
-		}
-	}
+	t.Run("Should scope coordination metadata to the claimed run workspace", func(t *testing.T) {
+		t.Parallel()
 
-	createRun := func(taskID, runID, workspaceID string) {
-		t.Helper()
-		taskRecord := taskRecordForTest(taskID)
-		taskRecord.Scope = taskpkg.ScopeWorkspace
-		taskRecord.WorkspaceID = workspaceID
-		taskRecord.Status = taskpkg.TaskStatusReady
-		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-			t.Fatalf("CreateTask(%q) error = %v", workspaceID, err)
-		}
-		run := taskRunForTest(runID, taskID)
-		run.SetNetworkState(participation.Spec{
-			Version:         participation.SpecVersion,
-			Mode:            participation.ModeLive,
-			WorkspaceID:     workspaceID,
-			ChannelStrategy: participation.StrategyNamed,
-			ChannelID:       "operations",
-			Source:          participation.SourceExplicitRequest,
-			Bounds: participation.Bounds{
-				MaxWakes:         4,
-				MaxWakeWallTime:  "30s",
-				MaxTotalWallTime: "2m",
-				MaxInputTokens:   4096,
-				MaxOutputTokens:  4096,
-				MaxWakeDepth:     4,
-				CoalesceWindow:   "250ms",
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		workspaceA := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"claim-channel-scope-a",
+			filepath.Join(t.TempDir(), "claim-channel-scope-a"),
+		)
+		workspaceB := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"claim-channel-scope-b",
+			filepath.Join(t.TempDir(), "claim-channel-scope-b"),
+		)
+		now := time.Date(2026, 7, 13, 17, 0, 0, 0, time.UTC)
+		for _, channel := range []store.NetworkChannelEntry{
+			{
+				Channel:     "operations",
+				WorkspaceID: workspaceA,
+				Purpose:     "Workspace A operations",
+				CreatedBy:   "agent-a",
+				CreatedAt:   now,
+				UpdatedAt:   now,
 			},
-		}, "", "", "")
-		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-			t.Fatalf("CreateTaskRun(%q) error = %v", workspaceID, err)
+			{
+				Channel:     "operations",
+				WorkspaceID: workspaceB,
+				Purpose:     "Workspace B operations",
+				CreatedBy:   "agent-b",
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+		} {
+			if err := globalDB.WriteNetworkChannel(ctx, channel); err != nil {
+				t.Fatalf("WriteNetworkChannel(%q) error = %v", channel.WorkspaceID, err)
+			}
 		}
-	}
-	createRun("task-channel-scope-a", "run-channel-scope-a", workspaceA)
-	createRun("task-channel-scope-b", "run-channel-scope-b", workspaceB)
 
-	for index, expected := range []struct {
-		workspaceID string
-		purpose     string
-	}{
-		{workspaceID: workspaceA, purpose: "Workspace A operations"},
-		{workspaceID: workspaceB, purpose: "Workspace B operations"},
-	} {
-		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                taskpkg.ScopeWorkspace,
-			WorkspaceID:          expected.workspaceID,
-			ClaimerSessionID:     fmt.Sprintf("sess-channel-scope-%d", index),
-			ParticipationChannel: "operations",
-			LeaseDuration:        time.Minute,
-			Now:                  now.Add(time.Duration(index) * time.Second),
-		})
-		if err != nil {
-			t.Fatalf("ClaimNextRun(%q) error = %v", expected.workspaceID, err)
+		createRun := func(taskID, runID, workspaceID string) {
+			t.Helper()
+			taskRecord := taskRecordForTest(taskID)
+			taskRecord.Scope = taskpkg.ScopeWorkspace
+			taskRecord.WorkspaceID = workspaceID
+			taskRecord.Status = taskpkg.TaskStatusReady
+			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask(%q) error = %v", workspaceID, err)
+			}
+			run := taskRunForTest(runID, taskID)
+			run.SetNetworkState(participation.Spec{
+				Version:         participation.SpecVersion,
+				Mode:            participation.ModeLive,
+				WorkspaceID:     workspaceID,
+				ChannelStrategy: participation.StrategyNamed,
+				ChannelID:       "operations",
+				Source:          participation.SourceExplicitRequest,
+				Bounds: participation.Bounds{
+					MaxWakes:         4,
+					MaxWakeWallTime:  "30s",
+					MaxTotalWallTime: "2m",
+					MaxInputTokens:   4096,
+					MaxOutputTokens:  4096,
+					MaxWakeDepth:     4,
+					CoalesceWindow:   "250ms",
+				},
+			}, "", "", "")
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(%q) error = %v", workspaceID, err)
+			}
 		}
-		if claim.CoordinationChannel == nil {
-			t.Fatalf("ClaimNextRun(%q) coordination metadata = nil", expected.workspaceID)
+		createRun("task-channel-scope-a", "run-channel-scope-a", workspaceA)
+		createRun("task-channel-scope-b", "run-channel-scope-b", workspaceB)
+
+		for index, expected := range []struct {
+			workspaceID string
+			purpose     string
+		}{
+			{workspaceID: workspaceA, purpose: "Workspace A operations"},
+			{workspaceID: workspaceB, purpose: "Workspace B operations"},
+		} {
+			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				Scope:                taskpkg.ScopeWorkspace,
+				WorkspaceID:          expected.workspaceID,
+				ClaimerSessionID:     fmt.Sprintf("sess-channel-scope-%d", index),
+				ParticipationChannel: "operations",
+				LeaseDuration:        time.Minute,
+				Now:                  now.Add(time.Duration(index) * time.Second),
+			})
+			if err != nil {
+				t.Fatalf("ClaimNextRun(%q) error = %v", expected.workspaceID, err)
+			}
+			if claim.CoordinationChannel == nil {
+				t.Fatalf("ClaimNextRun(%q) coordination metadata = nil", expected.workspaceID)
+			}
+			if got := claim.CoordinationChannel.WorkspaceID; got != expected.workspaceID {
+				t.Fatalf("coordination workspace = %q, want %q", got, expected.workspaceID)
+			}
+			if got := claim.CoordinationChannel.Purpose; got != expected.purpose {
+				t.Fatalf("coordination purpose = %q, want %q", got, expected.purpose)
+			}
 		}
-		if got := claim.CoordinationChannel.WorkspaceID; got != expected.workspaceID {
-			t.Fatalf("coordination workspace = %q, want %q", got, expected.workspaceID)
-		}
-		if got := claim.CoordinationChannel.Purpose; got != expected.purpose {
-			t.Fatalf("coordination purpose = %q, want %q", got, expected.purpose)
-		}
-	}
+	})
 }
 
 func TestGlobalDBClaimNextRunRespectsSchedulerPause(t *testing.T) {
@@ -3180,9 +3251,23 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 5, 15, 39, 0, 0, time.UTC)
+	liveSpec := participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "ws-1",
+		ChannelStrategy: participation.StrategyLoopRun,
+		ChannelID:       "looprun-coordinator-watch-ready",
+		Source:          participation.SourceLoopDefinition,
+		Bounds: participation.Bounds{
+			MaxWakes: 2, MaxWakeWallTime: "1s", MaxTotalWallTime: "2s",
+			MaxInputTokens: 100, MaxOutputTokens: 100, MaxWakeDepth: 2, CoalesceWindow: "100ms",
+		},
+	}
+	loopSeed := testLoopRun("looprun-coordinator-watch-ready", now, looppkg.StatusWatching)
+	loopSeed.SetNetworkSpec(liveSpec)
 	loopRun, err := globalDB.CreateLoopRunForStart(
 		ctx,
-		testLoopRun("looprun-coordinator-watch-ready", now, looppkg.StatusWatching),
+		loopSeed,
 		dsl.ConcurrencyAllow,
 	)
 	if err != nil {
@@ -3206,6 +3291,9 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 		"run-coordinator-watch-ready",
 		now,
 	)
+	if got := claim.Run.NetworkSpecSnapshot(); got != liveSpec {
+		t.Fatalf("coordinator participation = %#v, want %#v", got, liveSpec)
+	}
 	nodeTaskID := "loop." + string(loopRun.ID) + ".g1.node.fix_review.0"
 	nodeRunID := "run.loop." + string(loopRun.ID) + ".g1.node.fix_review.0"
 
@@ -3261,8 +3349,12 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 	if storedLoop.Status != looppkg.StatusRunning {
 		t.Fatalf("stored loop status = %q, want running", storedLoop.Status)
 	}
-	if _, err := globalDB.GetTaskRun(ctx, nodeRunID); err != nil {
+	storedNodeRun, err := globalDB.GetTaskRun(ctx, nodeRunID)
+	if err != nil {
 		t.Fatalf("GetTaskRun(node) error = %v", err)
+	}
+	if got := storedNodeRun.NetworkSpecSnapshot(); got != liveSpec {
+		t.Fatalf("node participation = %#v, want inherited %#v", got, liveSpec)
 	}
 }
 
@@ -5289,6 +5381,7 @@ func operatorActorContextForTest(ref string) taskpkg.ActorContext {
 	return taskpkg.ActorContext{
 		Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: ref},
 		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "test"},
+		Scope:     taskpkg.CallerScope{Operator: true},
 		Authority: taskpkg.Authority{Read: true, Write: true},
 	}
 }

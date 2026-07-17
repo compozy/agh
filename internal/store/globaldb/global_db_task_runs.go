@@ -24,8 +24,13 @@ func (g *TaskRepo) CreateTaskRun(ctx context.Context, run taskpkg.Run) error {
 
 	return g.withTaskImmediateTransaction(ctx, "create task run", func(exec taskSQLExecutor) error {
 		if normalized.IsTaskAnchored() {
-			if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-				return err
+			taskRecord, loadErr := g.getTaskWithExecutor(ctx, exec, normalized.TaskID)
+			if loadErr != nil {
+				return loadErr
+			}
+			normalized, loadErr = bindTaskRunWorkspace(normalized, taskRecord)
+			if loadErr != nil {
+				return loadErr
 			}
 		}
 		if err := insertTaskRunWithExecutor(ctx, exec, normalized); err != nil {
@@ -33,6 +38,37 @@ func (g *TaskRepo) CreateTaskRun(ctx context.Context, run taskpkg.Run) error {
 		}
 		return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
 	})
+}
+
+func bindTaskRunWorkspace(run taskpkg.Run, taskRecord taskpkg.Task) (taskpkg.Run, error) {
+	taskWorkspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	specWorkspaceID := strings.TrimSpace(run.NetworkSpecSnapshot().WorkspaceID)
+	if taskWorkspaceID != "" && specWorkspaceID != "" && taskWorkspaceID != specWorkspaceID {
+		return taskpkg.Run{}, fmt.Errorf(
+			"%w: task run workspace %q conflicts with task workspace %q",
+			taskpkg.ErrInvalidScopeBinding,
+			specWorkspaceID,
+			taskWorkspaceID,
+		)
+	}
+	authoritativeWorkspaceID := taskWorkspaceID
+	if authoritativeWorkspaceID == "" {
+		authoritativeWorkspaceID = specWorkspaceID
+	}
+	if run.WorkspaceID == "" {
+		run.WorkspaceID = authoritativeWorkspaceID
+	} else if authoritativeWorkspaceID != "" && run.WorkspaceID != authoritativeWorkspaceID {
+		return taskpkg.Run{}, fmt.Errorf(
+			"%w: task run workspace %q conflicts with authoritative workspace %q",
+			taskpkg.ErrInvalidScopeBinding,
+			run.WorkspaceID,
+			authoritativeWorkspaceID,
+		)
+	}
+	if err := run.Validate(); err != nil {
+		return taskpkg.Run{}, err
+	}
+	return run, nil
 }
 
 // UpdateTaskRun replaces the persisted canonical task-run record.
@@ -105,6 +141,9 @@ func (g *TaskRepo) updateTaskRunWithExecutor(
 ) error {
 	current, err := g.getTaskRunWithExecutor(ctx, exec, normalized.ID)
 	if err != nil {
+		return err
+	}
+	if err := taskpkg.ValidateImmutableRunFields(current, normalized); err != nil {
 		return err
 	}
 	currentSessionID := strings.TrimSpace(current.SessionID)
@@ -229,6 +268,7 @@ func (g *TaskRepo) listTaskRunsWithExecutor(
 		store.StringClause("status", normalized.Status.String()),
 		store.StringClause("session_id", normalized.SessionID),
 		store.StringClause("designation_group_id", normalized.DesignationGroupID),
+		store.StringClause("network_channel", normalized.ParticipationChannel),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY queued_at DESC, id DESC"

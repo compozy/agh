@@ -99,9 +99,9 @@ func (m *Service) taskRunHookContext(
 	soulSnapshotID, soulDigest := taskRunSoulMetadata(run.Metadata)
 	runKind := run.RunKind.Normalize().String()
 	networkSpec := run.NetworkSpecSnapshot()
-	workspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	workspaceID := strings.TrimSpace(run.WorkspaceID)
 	if workspaceID == "" {
-		workspaceID = strings.TrimSpace(networkSpec.WorkspaceID)
+		workspaceID = strings.TrimSpace(taskRecord.WorkspaceID)
 	}
 	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
 	return hookspkg.TaskRunContext{

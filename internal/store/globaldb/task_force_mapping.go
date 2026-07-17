@@ -14,13 +14,14 @@ func forceTaskRunSnapshotParams(
 	next taskpkg.Run,
 ) (sqlcgen.ForceUpdateTaskRunSnapshotParams, error) {
 	lineage := taskRunReviewLineage(next)
-	network, err := encodeParticipationSnapshot(next.NetworkSpecSnapshot())
+	network, err := encodeParticipationSnapshot(next.WorkspaceID, next.NetworkSpecSnapshot())
 	if err != nil {
 		return sqlcgen.ForceUpdateTaskRunSnapshotParams{}, err
 	}
 	wakeID, targetSessionID, ownerKey := next.NetworkWakeCorrelation()
 	return sqlcgen.ForceUpdateTaskRunSnapshotParams{
 		TaskID:                 nullableTaskString(next.TaskID),
+		WorkspaceID:            nullableTaskString(next.WorkspaceID),
 		Status:                 next.Status.String(),
 		Attempt:                int64(next.Attempt),
 		PreviousRunID:          nullableTaskString(next.PreviousRunID),

@@ -103,6 +103,7 @@ const (
 	HostAPIMethodTasksRunsFail               = extensionprotocol.HostAPIMethodTasksRunsFail
 	HostAPIMethodTasksRunsCancel             = extensionprotocol.HostAPIMethodTasksRunsCancel
 	HostAPIMethodNetworkStatus               = extensionprotocol.HostAPIMethodNetworkStatus
+	HostAPIMethodNetworkUsage                = extensionprotocol.HostAPIMethodNetworkUsage
 	HostAPIMethodNetworkChannels             = extensionprotocol.HostAPIMethodNetworkChannels
 	HostAPIMethodNetworkPeers                = extensionprotocol.HostAPIMethodNetworkPeers
 	HostAPIMethodNetworkThreads              = extensionprotocol.HostAPIMethodNetworkThreads
@@ -638,19 +639,6 @@ type SkillSummary struct {
 // ObserveHealth is the host-visible daemon health payload.
 type ObserveHealth = observepkg.Health
 
-// ResourceRecord is the generic Host API desired-state shape exposed to extensions.
-type ResourceRecord struct {
-	Kind      resources.ResourceKind   `json:"kind"`
-	ID        string                   `json:"id"`
-	Version   int64                    `json:"version"`
-	Scope     resources.ResourceScope  `json:"scope"`
-	Owner     resources.ResourceOwner  `json:"owner"`
-	Source    resources.ResourceSource `json:"source"`
-	Spec      json.RawMessage          `json:"spec"`
-	CreatedAt time.Time                `json:"created_at"`
-	UpdatedAt time.Time                `json:"updated_at"`
-}
-
 // BridgesMessagesIngestResult reports the resolved session association for one inbound message.
 type BridgesMessagesIngestResult = bridgepkg.BridgesMessagesIngestResult
 
@@ -1015,6 +1003,11 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Params:         NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
 		Result:         NamedType{Name: "NetworkStatusPayload", Value: apicontract.NetworkStatusPayload{}},
 		OptionalParams: true,
+	},
+	{
+		Method: HostAPIMethodNetworkUsage,
+		Params: NamedType{Name: "NetworkUsageParams", Value: NetworkUsageParams{}},
+		Result: NamedType{Name: "NetworkUsageResponse", Value: apicontract.NetworkUsageResponse{}},
 	},
 	{
 		Method: HostAPIMethodNetworkChannels,

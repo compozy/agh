@@ -168,7 +168,7 @@ Rules:
 - `direct_id` is scoped by `workspace_id` and `channel`.
 - `direct_id` MUST match `^direct_[a-f0-9]{32}$`.
 - A direct room has exactly two peers in this version.
-- The room identity is derived from `(workspace_id, channel, sorted(peer_a, peer_b))` using a domain-separated SHA-256 hash.
+- The room identity is derived by sorting the peers' stable session IDs and hashing `agh-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>` with SHA-256.
 - Direct-room visibility is a routing and runtime access rule. It is not cryptographic privacy.
 
 ### 3.6 Work

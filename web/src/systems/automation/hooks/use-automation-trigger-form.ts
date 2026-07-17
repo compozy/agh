@@ -6,6 +6,10 @@ import {
   type LoopAutomationStartKind,
   type LoopTargetDraft,
 } from "@/systems/loops";
+import {
+  isNetworkParticipationDraftValid,
+  networkParticipationDraftFromPayload,
+} from "@/systems/network";
 
 import {
   automationTargetMode,
@@ -59,7 +63,13 @@ function computeCanSubmit(
     (draft.scope === "global" || loopWorkspaceId === (draft.workspace_id ?? ""));
   const targetValid =
     automationTargetMode(draft) === "loop"
-      ? Boolean(draft.loop_target?.loop_name.trim()) && loopTargetCompatible && loopWorkspaceValid
+      ? Boolean(draft.loop_target?.loop_name.trim()) &&
+        loopTargetCompatible &&
+        loopWorkspaceValid &&
+        isNetworkParticipationDraftValid(
+          networkParticipationDraftFromPayload(draft.loop_target?.network_participation),
+          ["named", "loop_run"]
+        )
       : draft.agent_name.trim() !== "" && draft.prompt.trim() !== "";
   const baseValid =
     draft.name.trim() !== "" &&

@@ -239,12 +239,20 @@ describe("automation target mode helpers", () => {
   it("Should share target-mode switching for trigger and job drafts", () => {
     const trigger = setTriggerTargetMode(createAutomationTriggerDraft("ws_alpha"), "loop");
     expect(trigger.target_kind).toBe("loop");
-    expect(trigger.loop_target).toMatchObject({ workspace_id: "ws_alpha", loop_name: "" });
+    expect(trigger.loop_target).toMatchObject({
+      workspace_id: "ws_alpha",
+      loop_name: "",
+      network_participation: { mode: "local" },
+    });
     expect(setTriggerTargetMode(trigger, "agent").loop_target).toBeUndefined();
 
     const job = setJobTargetMode(createAutomationJobDraft("ws_alpha"), "loop");
     expect(job.target_kind).toBe("loop");
-    expect(job.loop_target).toMatchObject({ workspace_id: "ws_alpha", loop_name: "" });
+    expect(job.loop_target).toMatchObject({
+      workspace_id: "ws_alpha",
+      loop_name: "",
+      network_participation: { mode: "local" },
+    });
     expect(setJobTargetMode(job, "agent").loop_target).toBeUndefined();
   });
 

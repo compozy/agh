@@ -118,15 +118,6 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(
 		newNetworkSubscriptionModeCommand(deps, &workspaceRef, "mute", "mute", "Mute one peer's network delivery"),
 	)
-	cmd.AddCommand(
-		newNetworkSubscriptionModeCommand(
-			deps,
-			&workspaceRef,
-			"digest-mode",
-			"digest",
-			"Set one peer to digest delivery",
-		),
-	)
 	cmd.AddCommand(newNetworkUnmuteCommand(deps, &workspaceRef))
 	registerNetworkPublicSurfaceCommands(cmd, deps, &workspaceRef)
 	return cmd
@@ -148,7 +139,7 @@ func resolveNetworkWorkspaceRef(
 func newNetworkStatusCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   networkStatusKey,
-		Short: "Show network runtime status and queue metrics",
+		Short: "Show Network availability, Live participation, and runtime metrics",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
@@ -167,7 +158,7 @@ func newNetworkStatusCommand(deps commandDeps) *cobra.Command {
 func newNetworkPeersCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "peers [channel]",
-		Short: "List visible local and remote peers with derived presence",
+		Short: "List visible local peers and their capability cards",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -396,17 +387,17 @@ func resolveNetworkCreateChannelName(args []string, channelFlag string) (string,
 }
 
 type networkThreadsFlags struct {
-	channel  string
-	threadID string
-	query    string
-	peerID   string
-	sort     string
-	hasWork  bool
-	limit    int
-	before   string
-	after    string
-	kind     string
-	workID   string
+	channel              string
+	threadID             string
+	query                string
+	participantSessionID string
+	sort                 string
+	hasWork              bool
+	limit                int
+	before               string
+	after                string
+	kind                 string
+	workID               string
 }
 
 func newNetworkThreadsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
@@ -574,18 +565,19 @@ func parseOptionalNetworkMetadata(cmd *cobra.Command, raw string) (json.RawMessa
 }
 
 type networkDirectsFlags struct {
-	channel  string
-	directID string
-	query    string
-	peerID   string
-	sort     string
-	hasWork  bool
-	session  string
-	limit    int
-	before   string
-	after    string
-	kind     string
-	workID   string
+	channel              string
+	directID             string
+	peerID               string
+	query                string
+	participantSessionID string
+	sort                 string
+	hasWork              bool
+	session              string
+	limit                int
+	before               string
+	after                string
+	kind                 string
+	workID               string
 }
 
 func newNetworkDirectsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
@@ -941,11 +933,10 @@ func newNetworkInboxCommand(deps commandDeps, workspaceRef *string) *cobra.Comma
 }
 
 type networkSubscriptionFlags struct {
-	channel        string
-	threadID       string
-	peerID         string
-	keywordFilters []string
-	limit          int
+	channel   string
+	threadID  string
+	sessionID string
+	limit     int
 }
 
 func newNetworkSubscriptionsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
@@ -975,7 +966,7 @@ func newNetworkSubscriptionsListCommand(deps commandDeps, workspaceRef *string) 
 				WorkspaceRef: workspace,
 				Channel:      strings.TrimSpace(flags.channel),
 				ThreadID:     strings.TrimSpace(flags.threadID),
-				PeerID:       strings.TrimSpace(flags.peerID),
+				SessionID:    strings.TrimSpace(flags.sessionID),
 				Limit:        flags.limit,
 			})
 			if err != nil {
@@ -986,7 +977,7 @@ func newNetworkSubscriptionsListCommand(deps commandDeps, workspaceRef *string) 
 	}
 	cmd.Flags().StringVar(&flags.channel, networkChannelKey, "", "Target channel")
 	cmd.Flags().StringVar(&flags.threadID, networkSurfaceThread, "", "Optional thread id")
-	cmd.Flags().StringVar(&flags.peerID, "peer", "", "Optional peer id filter")
+	cmd.Flags().StringVar(&flags.sessionID, "session", "", "Optional session id filter")
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Maximum number of preferences to return")
 	mustMarkFlagRequired(cmd, networkChannelKey)
 	return cmd
@@ -1017,10 +1008,9 @@ func newNetworkSubscriptionModeCommand(
 				workspace,
 				strings.TrimSpace(flags.channel),
 				NetworkSubscriptionRequest{
-					ThreadID:       strings.TrimSpace(flags.threadID),
-					PeerID:         strings.TrimSpace(flags.peerID),
-					Mode:           mode,
-					KeywordFilters: trimSpawnAtoms(flags.keywordFilters),
+					ThreadID:  strings.TrimSpace(flags.threadID),
+					SessionID: strings.TrimSpace(flags.sessionID),
+					Mode:      mode,
 				},
 			)
 			if err != nil {
@@ -1029,7 +1019,7 @@ func newNetworkSubscriptionModeCommand(
 			return writeCommandOutput(cmd, networkSubscriptionBundle(subscription))
 		},
 	}
-	registerNetworkSubscriptionMutationFlags(cmd, &flags, true)
+	registerNetworkSubscriptionMutationFlags(cmd, &flags)
 	return cmd
 }
 
@@ -1051,36 +1041,30 @@ func newNetworkUnmuteCommand(deps commandDeps, workspaceRef *string) *cobra.Comm
 				cmd.Context(),
 				workspace,
 				strings.TrimSpace(flags.channel),
-				strings.TrimSpace(flags.peerID),
+				strings.TrimSpace(flags.sessionID),
 				strings.TrimSpace(flags.threadID),
 			); err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, networkSubscriptionDeleteBundle(flags.channel, flags.threadID, flags.peerID))
+			return writeCommandOutput(
+				cmd,
+				networkSubscriptionDeleteBundle(flags.channel, flags.threadID, flags.sessionID),
+			)
 		},
 	}
-	registerNetworkSubscriptionMutationFlags(cmd, &flags, false)
+	registerNetworkSubscriptionMutationFlags(cmd, &flags)
 	return cmd
 }
 
 func registerNetworkSubscriptionMutationFlags(
 	cmd *cobra.Command,
 	flags *networkSubscriptionFlags,
-	withKeywords bool,
 ) {
 	cmd.Flags().StringVar(&flags.channel, networkChannelKey, "", "Target channel")
 	cmd.Flags().StringVar(&flags.threadID, networkSurfaceThread, "", "Optional thread id")
-	cmd.Flags().StringVar(&flags.peerID, "peer", "", "Target peer id")
-	if withKeywords {
-		cmd.Flags().StringArrayVar(
-			&flags.keywordFilters,
-			"keyword",
-			nil,
-			"Keyword filter for this preference (repeatable)",
-		)
-	}
+	cmd.Flags().StringVar(&flags.sessionID, "session", "", "Target session id")
 	mustMarkFlagRequired(cmd, networkChannelKey)
-	mustMarkFlagRequired(cmd, "peer")
+	mustMarkFlagRequired(cmd, "session")
 }
 
 func networkStatusBundle(status NetworkStatusRecord) outputBundle {
@@ -1152,8 +1136,6 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 			networkPresenceValue,
 			"Local",
 			"Joined",
-			"Last Seen",
-			"Expires",
 		},
 		"network_peers",
 		[]string{
@@ -1164,8 +1146,6 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 			"presence_state",
 			networkLocalKey,
 			"joined_at",
-			"last_seen",
-			mcpAuthExpiresAtKey,
 		},
 		func(peer NetworkPeerRecord) []string {
 			return []string{
@@ -1176,8 +1156,6 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 				stringOrDash(networkPeerPresenceLabel(peer)),
 				strconv.FormatBool(peer.Local),
 				stringOrDash(formatTimePtr(peer.JoinedAt)),
-				stringOrDash(formatTimePtr(peer.LastSeen)),
-				stringOrDash(formatTimePtr(peer.ExpiresAt)),
 			}
 		},
 		func(peer NetworkPeerRecord) []string {
@@ -1189,8 +1167,6 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 				peer.PresenceState,
 				strconv.FormatBool(peer.Local),
 				formatTimePtr(peer.JoinedAt),
-				formatTimePtr(peer.LastSeen),
-				formatTimePtr(peer.ExpiresAt),
 			}
 		},
 	)
@@ -1201,10 +1177,7 @@ func networkPeerPresenceLabel(peer NetworkPeerRecord) string {
 	if state == "" {
 		return ""
 	}
-	if peer.LastSeenAgeSeconds == nil {
-		return state
-	}
-	return fmt.Sprintf("%s %ds ago", state, *peer.LastSeenAgeSeconds)
+	return state
 }
 
 func networkChannelsBundle(channels []NetworkChannelRecord) outputBundle {
@@ -1275,25 +1248,23 @@ func networkSubscriptionsBundle(subscriptions []NetworkSubscriptionRecord) outpu
 		contract.NetworkSubscriptionsResponse{Subscriptions: subscriptions},
 		subscriptions,
 		"Network Subscriptions",
-		[]string{networkChannelValue, taskThreadValue, taskPeerValue, networkModeValue, "Keywords"},
+		[]string{networkChannelValue, taskThreadValue, sessionIDLabel, networkModeValue},
 		"network_subscriptions",
-		[]string{networkChannelKey, networkThreadIDKey, networkPeerIDKey, networkModeKey, "keyword_filters"},
+		[]string{networkChannelKey, networkThreadIDKey, taskSessionIDKey, networkModeKey},
 		func(subscription NetworkSubscriptionRecord) []string {
 			return []string{
 				stringOrDash(subscription.Channel),
 				stringOrDash(subscription.ThreadID),
-				stringOrDash(subscription.PeerID),
+				stringOrDash(subscription.SessionID),
 				stringOrDash(subscription.Mode),
-				stringOrDash(strings.Join(subscription.KeywordFilters, ", ")),
 			}
 		},
 		func(subscription NetworkSubscriptionRecord) []string {
 			return []string{
 				subscription.Channel,
 				subscription.ThreadID,
-				subscription.PeerID,
+				subscription.SessionID,
 				subscription.Mode,
-				strings.Join(subscription.KeywordFilters, ","),
 			}
 		},
 	)
@@ -1306,32 +1277,30 @@ func networkSubscriptionBundle(subscription NetworkSubscriptionRecord) outputBun
 			return renderHumanSection("Network Subscription", []keyValue{
 				{Label: networkChannelValue, Value: stringOrDash(subscription.Channel)},
 				{Label: taskThreadValue, Value: stringOrDash(subscription.ThreadID)},
-				{Label: taskPeerValue, Value: stringOrDash(subscription.PeerID)},
+				{Label: sessionIDLabel, Value: stringOrDash(subscription.SessionID)},
 				{Label: networkModeValue, Value: stringOrDash(subscription.Mode)},
-				{Label: "Keywords", Value: stringOrDash(strings.Join(subscription.KeywordFilters, ", "))},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"network_subscription",
-				[]string{networkChannelKey, networkThreadIDKey, networkPeerIDKey, networkModeKey, "keyword_filters"},
+				[]string{networkChannelKey, networkThreadIDKey, taskSessionIDKey, networkModeKey},
 				[]string{
 					subscription.Channel,
 					subscription.ThreadID,
-					subscription.PeerID,
+					subscription.SessionID,
 					subscription.Mode,
-					strings.Join(subscription.KeywordFilters, ","),
 				},
 			), nil
 		},
 	}
 }
 
-func networkSubscriptionDeleteBundle(channel string, threadID string, peerID string) outputBundle {
+func networkSubscriptionDeleteBundle(channel string, threadID string, sessionID string) outputBundle {
 	payload := map[string]any{
 		networkChannelKey:  strings.TrimSpace(channel),
 		networkThreadIDKey: strings.TrimSpace(threadID),
-		networkPeerIDKey:   strings.TrimSpace(peerID),
+		taskSessionIDKey:   strings.TrimSpace(sessionID),
 		networkDeletedKey:  true,
 	}
 	return outputBundle{
@@ -1340,18 +1309,18 @@ func networkSubscriptionDeleteBundle(channel string, threadID string, peerID str
 			return renderHumanSection("Network Subscription", []keyValue{
 				{Label: networkChannelValue, Value: stringOrDash(strings.TrimSpace(channel))},
 				{Label: taskThreadValue, Value: stringOrDash(strings.TrimSpace(threadID))},
-				{Label: taskPeerValue, Value: stringOrDash(strings.TrimSpace(peerID))},
+				{Label: sessionIDLabel, Value: stringOrDash(strings.TrimSpace(sessionID))},
 				{Label: "Deleted", Value: networkDeletedValue},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"network_subscription",
-				[]string{networkChannelKey, networkThreadIDKey, networkPeerIDKey, networkDeletedKey},
+				[]string{networkChannelKey, networkThreadIDKey, taskSessionIDKey, networkDeletedKey},
 				[]string{
 					strings.TrimSpace(channel),
 					strings.TrimSpace(threadID),
-					strings.TrimSpace(peerID),
+					strings.TrimSpace(sessionID),
 					networkDeletedValue,
 				},
 			), nil
@@ -1476,8 +1445,8 @@ func networkDirectsBundle(response contract.NetworkDirectRoomsResponse) outputBu
 		"Network Direct Rooms",
 		[]string{
 			"Direct",
-			"Peer A",
-			"Peer B",
+			"Session A",
+			"Session B",
 			networkMessagesValue,
 			networkOpenWorkValue,
 			networkLastActivityValue,
@@ -1487,8 +1456,8 @@ func networkDirectsBundle(response contract.NetworkDirectRoomsResponse) outputBu
 		[]string{
 			networkChannelKey,
 			networkDirectIDKey,
-			"peer_a",
-			"peer_b",
+			"session_a",
+			"session_b",
 			networkMessageCountKey,
 			networkOpenWorkCountKey,
 			networkLastActivityAtKey,
@@ -1511,8 +1480,8 @@ func networkDirectBundle(direct NetworkDirectRoomRecord) outputBundle {
 				[]string{
 					networkChannelKey,
 					networkDirectIDKey,
-					"peer_a",
-					"peer_b",
+					"session_a",
+					"session_b",
 					networkOpenedAtKey,
 					networkLastActivityAtKey,
 					networkMessageCountKey,
@@ -1522,8 +1491,8 @@ func networkDirectBundle(direct NetworkDirectRoomRecord) outputBundle {
 				[]string{
 					direct.Channel,
 					direct.DirectID,
-					direct.PeerA,
-					direct.PeerB,
+					direct.SessionA,
+					direct.SessionB,
 					formatTimePtr(direct.OpenedAt),
 					formatTimePtr(direct.LastActivityAt),
 					strconv.Itoa(direct.MessageCount),
@@ -1587,9 +1556,8 @@ func networkWorkBundle(work NetworkWorkRecord) outputBundle {
 				{Label: networkSurfaceValue, Value: stringOrDash(work.Surface)},
 				{Label: networkThreadIDValue, Value: stringOrDash(work.ThreadID)},
 				{Label: networkDirectIDValue, Value: stringOrDash(work.DirectID)},
-				{Label: networkOpenedByValue, Value: stringOrDash(work.OpenedByPeerID)},
 				{Label: "Opened Session", Value: stringOrDash(work.OpenedSessionID)},
-				{Label: "Target Peer", Value: stringOrDash(work.TargetPeerID)},
+				{Label: "Target Session", Value: stringOrDash(work.TargetSessionID)},
 				{Label: networkStateValue, Value: stringOrDash(work.State)},
 				{Label: networkOpenedAtValue, Value: stringOrDash(formatTimePtr(work.OpenedAt))},
 				{Label: networkLastActivityValue, Value: stringOrDash(formatTimePtr(work.LastActivityAt))},
@@ -1605,9 +1573,8 @@ func networkWorkBundle(work NetworkWorkRecord) outputBundle {
 					networkSurfaceKey,
 					networkThreadIDKey,
 					networkDirectIDKey,
-					networkOpenedByPeerIDKey,
 					"opened_session_id",
-					"target_peer_id",
+					"target_session_id",
 					networkStateKey,
 					networkOpenedAtKey,
 					networkLastActivityAtKey,
@@ -1619,9 +1586,8 @@ func networkWorkBundle(work NetworkWorkRecord) outputBundle {
 					work.Surface,
 					work.ThreadID,
 					work.DirectID,
-					work.OpenedByPeerID,
 					work.OpenedSessionID,
-					work.TargetPeerID,
+					work.TargetSessionID,
 					work.State,
 					formatTimePtr(work.OpenedAt),
 					formatTimePtr(work.LastActivityAt),
@@ -1808,8 +1774,8 @@ func networkThreadKeyValues(thread NetworkThreadRecord) []keyValue {
 func networkDirectHumanRow(direct NetworkDirectRoomRecord) []string {
 	return []string{
 		stringOrDash(direct.DirectID),
-		stringOrDash(direct.PeerA),
-		stringOrDash(direct.PeerB),
+		stringOrDash(direct.SessionA),
+		stringOrDash(direct.SessionB),
 		strconv.Itoa(direct.MessageCount),
 		strconv.Itoa(direct.OpenWorkCount),
 		stringOrDash(formatTimePtr(direct.LastActivityAt)),
@@ -1821,8 +1787,8 @@ func networkDirectToonRow(direct NetworkDirectRoomRecord) []string {
 	return []string{
 		direct.Channel,
 		direct.DirectID,
-		direct.PeerA,
-		direct.PeerB,
+		direct.SessionA,
+		direct.SessionB,
 		strconv.Itoa(direct.MessageCount),
 		strconv.Itoa(direct.OpenWorkCount),
 		formatTimePtr(direct.LastActivityAt),
@@ -1834,8 +1800,8 @@ func networkDirectKeyValues(direct NetworkDirectRoomRecord) []keyValue {
 	return []keyValue{
 		{Label: networkChannelValue, Value: stringOrDash(direct.Channel)},
 		{Label: networkDirectIDValue, Value: stringOrDash(direct.DirectID)},
-		{Label: "Peer A", Value: stringOrDash(direct.PeerA)},
-		{Label: "Peer B", Value: stringOrDash(direct.PeerB)},
+		{Label: "Session A", Value: stringOrDash(direct.SessionA)},
+		{Label: "Session B", Value: stringOrDash(direct.SessionB)},
 		{Label: networkOpenedAtValue, Value: stringOrDash(formatTimePtr(direct.OpenedAt))},
 		{Label: networkLastActivityValue, Value: stringOrDash(formatTimePtr(direct.LastActivityAt))},
 		{Label: networkMessagesValue, Value: strconv.Itoa(direct.MessageCount)},

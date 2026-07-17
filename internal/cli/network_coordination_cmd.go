@@ -30,7 +30,9 @@ func newNetworkCoordinationCommand(deps commandDeps, workspaceRef *string) *cobr
 }
 
 func newNetworkCoordinationStatusCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
+	var scope string
 	var taskID string
+	var runID string
 	cmd := &cobra.Command{
 		Use:   configStatusKey,
 		Short: "Show workspace network coordination and invitation state",
@@ -43,14 +45,18 @@ func newNetworkCoordinationStatusCommand(deps commandDeps, workspaceRef *string)
 			if err != nil {
 				return err
 			}
-			payload, err := client.GetNetworkCoordination(cmd.Context(), workspaceID, taskID)
+			ref, err := normalizeNetworkCoordinationRef(scope, taskID, runID)
+			if err != nil {
+				return err
+			}
+			payload, err := client.GetNetworkCoordination(cmd.Context(), workspaceID, ref)
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, coordinationOutputBundle(payload))
 		},
 	}
-	cmd.Flags().StringVar(&taskID, "task-id", "", "Optional task scope for invitation state")
+	addNetworkCoordinationScopeFlags(cmd, &scope, &taskID, &runID)
 	return cmd
 }
 
@@ -81,7 +87,9 @@ func newNetworkCoordinationToggleCommand(
 	use string,
 	short string,
 ) *cobra.Command {
+	var scope string
 	var taskID string
+	var runID string
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: short,
@@ -94,11 +102,24 @@ func newNetworkCoordinationToggleCommand(
 			if err != nil {
 				return err
 			}
+			ref, err := normalizeNetworkCoordinationRef(scope, taskID, runID)
+			if err != nil {
+				return err
+			}
+			current, err := client.GetNetworkCoordination(cmd.Context(), workspaceID, ref)
+			if err != nil {
+				return err
+			}
 			payload, err := client.PutNetworkCoordination(
 				cmd.Context(),
 				workspaceID,
-				PutNetworkCoordinationRequest{Enabled: enabled},
-				taskID,
+				PutNetworkCoordinationRequest{
+					Scope:            ref.Scope,
+					TaskID:           ref.TaskID,
+					RunID:            ref.RunID,
+					Enabled:          &enabled,
+					ExpectedRevision: &current.Revision,
+				},
 			)
 			if err != nil {
 				return err
@@ -106,7 +127,7 @@ func newNetworkCoordinationToggleCommand(
 			return writeCommandOutput(cmd, coordinationOutputBundle(payload))
 		},
 	}
-	cmd.Flags().StringVar(&taskID, "task-id", "", "Optional task scope for invitation state")
+	addNetworkCoordinationScopeFlags(cmd, &scope, &taskID, &runID)
 	return cmd
 }
 
@@ -149,6 +170,7 @@ func newNetworkInvitationMutationCommand(
 ) *cobra.Command {
 	var scope string
 	var taskID string
+	var runID string
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: short,
@@ -161,21 +183,23 @@ func newNetworkInvitationMutationCommand(
 			if err != nil {
 				return err
 			}
-			normalizedScope := strings.TrimSpace(strings.ToLower(scope))
-			if normalizedScope == "" {
-				normalizedScope = networkInvitationScopeWorkspace
+			ref, err := normalizeNetworkCoordinationRef(scope, taskID, runID)
+			if err != nil {
+				return err
 			}
-			if normalizedScope != networkInvitationScopeWorkspace &&
-				normalizedScope != networkInvitationScopeTask {
-				return fmt.Errorf("cli: --scope must be workspace or task")
+			current, err := client.GetNetworkCoordination(cmd.Context(), workspaceID, ref)
+			if err != nil {
+				return err
 			}
 			payload, err := client.PutNetworkCoordinationInvitation(
 				cmd.Context(),
 				workspaceID,
 				PutNetworkCoordinationInvitationRequest{
-					Scope:     normalizedScope,
-					TaskID:    strings.TrimSpace(taskID),
-					Dismissed: dismissed,
+					Scope:            ref.Scope,
+					TaskID:           ref.TaskID,
+					RunID:            ref.RunID,
+					Dismissed:        &dismissed,
+					ExpectedRevision: &current.Revision,
 				},
 			)
 			if err != nil {
@@ -184,12 +208,35 @@ func newNetworkInvitationMutationCommand(
 			return writeCommandOutput(cmd, coordinationOutputBundle(payload))
 		},
 	}
-	cmd.Flags().StringVar(
-		&scope,
-		"scope",
-		networkInvitationScopeWorkspace,
-		"Invitation scope: workspace or task",
-	)
-	cmd.Flags().StringVar(&taskID, "task-id", "", "Task id when --scope=task")
+	addNetworkCoordinationScopeFlags(cmd, &scope, &taskID, &runID)
 	return cmd
+}
+
+func addNetworkCoordinationScopeFlags(
+	cmd *cobra.Command,
+	scope *string,
+	taskID *string,
+	runID *string,
+) {
+	cmd.Flags().StringVar(scope, "scope", networkInvitationScopeWorkspace, "Coordination scope: workspace or task")
+	cmd.Flags().StringVar(taskID, "task-id", "", "Task id when --scope=task")
+	cmd.Flags().StringVar(runID, "run-id", "", "Task run id for server-owned invitation eligibility")
+}
+
+func normalizeNetworkCoordinationRef(scope string, taskID string, runID string) (NetworkCoordinationRef, error) {
+	normalized := NetworkCoordinationRef{
+		Scope:  strings.TrimSpace(strings.ToLower(scope)),
+		TaskID: strings.TrimSpace(taskID),
+		RunID:  strings.TrimSpace(runID),
+	}
+	if normalized.Scope != networkInvitationScopeWorkspace && normalized.Scope != networkInvitationScopeTask {
+		return NetworkCoordinationRef{}, fmt.Errorf("cli: --scope must be workspace or task")
+	}
+	if normalized.Scope == networkInvitationScopeWorkspace && normalized.TaskID != "" {
+		return NetworkCoordinationRef{}, fmt.Errorf("cli: --task-id requires --scope=task")
+	}
+	if normalized.Scope == networkInvitationScopeTask && normalized.TaskID == "" {
+		return NetworkCoordinationRef{}, fmt.Errorf("cli: --task-id is required when --scope=task")
+	}
+	return normalized, nil
 }

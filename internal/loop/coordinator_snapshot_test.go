@@ -118,6 +118,7 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 
 		definition := pinnedSnapshotDefinition()
 		definition.DefinitionExtensionState = nil
+		definition.Contract.StopWhen = ""
 		resolved, err := NewCompiler().Compile(definition)
 		if err != nil {
 			t.Fatalf("Compile() error = %v", err)
@@ -135,6 +136,12 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		}
 		if got := len(hydrated.Definition.Start); got != 0 {
 			t.Fatalf("hydrated start bindings = %d, want 0", got)
+		}
+		if got := len(hydrated.Templates); got != 0 {
+			t.Fatalf("hydrated templates = %d, want 0", got)
+		}
+		if got := len(hydrated.Conditions); got != 0 {
+			t.Fatalf("hydrated conditions = %d, want 0", got)
 		}
 	})
 

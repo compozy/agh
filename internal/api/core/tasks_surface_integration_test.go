@@ -102,7 +102,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 					Origin:   actor.Origin,
 					QueuedAt: now.Add(-5 * time.Minute),
 				},
-				Task: taskpkg.Reference{
+				Task: &taskpkg.Reference{
 					ID:          "task-1",
 					Identifier:  "TASK-1",
 					Title:       "Review handlers",

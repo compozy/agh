@@ -24,7 +24,11 @@ import {
   type TaskTemplateId,
 } from "../lib/task-templates";
 import type { TaskRecord } from "../types";
-import { NetworkParticipationFields } from "@/systems/network";
+import {
+  NetworkParticipationFields,
+  isNetworkParticipationDraftValid,
+  networkParticipationDraftFromValues,
+} from "@/systems/network";
 import { ContractSection } from "./task-form/contract-section";
 import { ExecutionCollapsible } from "./task-form/execution-collapsible";
 import { IngressIdentitySection } from "./task-form/ingress-identity-section";
@@ -110,6 +114,16 @@ export function TaskEditorModal({
 
   const advanced = isNewMode && formMode === "advanced";
   const submitLabel = resolveSubmitLabel(mode, draft.saveAsDraft);
+  const networkParticipation = networkParticipationDraftFromValues(
+    draft.networkParticipationMode,
+    draft.networkChannelId,
+    draft.networkChannelStrategy
+  );
+  const participationValid = isNetworkParticipationDraftValid(networkParticipation, [
+    "named",
+    "run",
+  ]);
+  const submitAllowed = canSubmit && participationValid;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -138,7 +152,13 @@ export function TaskEditorModal({
         <form
           className="flex min-h-0 flex-col"
           data-testid="task-editor-modal-form"
-          onSubmit={form.submitForm}
+          onSubmit={event => {
+            if (!participationValid) {
+              event.preventDefault();
+              return;
+            }
+            form.submitForm(event);
+          }}
         >
           {isNewMode ? (
             <ModeToolbar
@@ -193,10 +213,11 @@ export function TaskEditorModal({
 
             <NumberedSection
               index={isNewMode ? "04" : "03"}
-              subtitle="Local by default. Live requires an explicit channel."
+              subtitle="Local by default. Live requires an explicit channel strategy."
               title="Network participation"
             >
               <NetworkParticipationFields
+                allowedStrategies={["named", "run"]}
                 onChange={next =>
                   onDraftChange(current => ({
                     ...current,
@@ -206,11 +227,7 @@ export function TaskEditorModal({
                   }))
                 }
                 testIdPrefix="task-editor-participation"
-                value={{
-                  mode: draft.networkParticipationMode,
-                  channelId: draft.networkChannelId,
-                  channelStrategy: draft.networkChannelStrategy,
-                }}
+                value={networkParticipation}
               />
             </NumberedSection>
 
@@ -310,7 +327,7 @@ export function TaskEditorModal({
             <Button
               className="min-w-32"
               data-testid="task-editor-modal-submit"
-              disabled={!canSubmit || isSubmitting}
+              disabled={!submitAllowed || isSubmitting}
               type="submit"
             >
               {isSubmitting ? (

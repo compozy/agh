@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -19,33 +18,19 @@ func (r *networkWakeRunner) terminalizeWake(
 ) error {
 	terminalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
 	defer cancel()
-	tokensUsed := outcome.ActualInputTokens + outcome.ActualOutputTokens
-	var runErr error
-	if outcome.State == store.NetworkWakeStateSucceeded {
-		payload, err := json.Marshal(map[string]string{"network_wake_id": reservation.WakeID})
-		if err != nil {
-			return fmt.Errorf("daemon: encode network wake result: %w", err)
-		}
-		_, runErr = r.tasks.CompleteRunLease(terminalCtx, taskpkg.LeaseCompletion{
-			RunID:      claim.Run.ID,
-			ClaimToken: claim.ClaimToken,
-			Result:     taskpkg.RunResult{Value: payload, TokensUsed: tokensUsed},
-			TokensUsed: tokensUsed,
-			Now:        r.now().UTC(),
-			Actor:      actor,
-		}, actor)
-	} else {
-		_, runErr = r.tasks.FailRunLease(terminalCtx, taskpkg.LeaseFailure{
-			RunID:      claim.Run.ID,
-			ClaimToken: claim.ClaimToken,
-			Failure:    taskpkg.RunFailure{Error: outcome.Reason},
-			TokensUsed: tokensUsed,
-			Now:        r.now().UTC(),
-			Actor:      actor,
-		}, actor)
-	}
-	if runErr != nil {
-		terminalErr := fmt.Errorf("daemon: terminalize network wake task run: %w", runErr)
+	wakeID, targetSessionID, ownerKey := claim.Run.NetworkWakeCorrelation()
+	_, settlementErr := r.tasks.SettleNetworkWake(terminalCtx, taskpkg.NetworkWakeSettlement{
+		WorkspaceID:     reservation.WorkspaceID,
+		WakeID:          wakeID,
+		TaskRunID:       claim.Run.ID,
+		ClaimToken:      claim.ClaimToken,
+		TargetSessionID: targetSessionID,
+		OwnerKey:        ownerKey,
+		Outcome:         outcome,
+		Now:             r.now().UTC(),
+	}, actor)
+	if settlementErr != nil {
+		terminalErr := fmt.Errorf("daemon: terminalize network wake task run: %w", settlementErr)
 		if releaseErr := r.releaseClaimedWake(
 			ctx,
 			actor,
@@ -55,9 +40,6 @@ func (r *networkWakeRunner) terminalizeWake(
 			return errors.Join(terminalErr, releaseErr)
 		}
 		return terminalErr
-	}
-	if err := r.store.SettleNetworkWake(terminalCtx, reservation, outcome); err != nil {
-		return fmt.Errorf("daemon: settle network wake ledger: %w", err)
 	}
 	return nil
 }

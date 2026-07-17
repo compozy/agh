@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/network"
 )
 
 // Info is the persisted daemon discovery record written to daemon.json.
@@ -45,8 +47,21 @@ func (i Info) Validate() error {
 
 // Validate ensures the persisted network diagnostics remain usable.
 func (n NetworkInfo) Validate() error {
-	if strings.TrimSpace(n.Status) == "" {
+	status := strings.TrimSpace(n.Status)
+	if status == "" {
 		return errors.New("daemon: network status is required")
+	}
+	switch status {
+	case network.StatusDisabled:
+		if n.Enabled {
+			return errors.New("daemon: disabled network status requires enabled=false")
+		}
+	case network.StatusReady, network.StatusActive:
+		if !n.Enabled {
+			return fmt.Errorf("daemon: network status %q requires enabled=true", status)
+		}
+	default:
+		return fmt.Errorf("daemon: unsupported network status %q", status)
 	}
 	return nil
 }

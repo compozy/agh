@@ -6,4 +6,7 @@ var mcpAuthRegistryEntries = []Metadata{
 	global(info(MCPAuthLogout, "mcp.auth", ComponentMCP)),
 }
 
-var registryEntries = append(append([]Metadata{}, baseRegistryEntries...), mcpAuthRegistryEntries...)
+var registryEntries = append(
+	append(append([]Metadata{}, baseRegistryEntries...), mcpAuthRegistryEntries...),
+	networkCoordinationRegistryEntries...,
+)

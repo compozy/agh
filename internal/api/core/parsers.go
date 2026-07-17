@@ -257,9 +257,10 @@ func ParseTaskRunListQuery(c *gin.Context) (contract.TaskRunListQuery, error) {
 	}
 
 	return contract.TaskRunListQuery{
-		Status:    taskpkg.ParseRunStatus(c.Query("status")).Normalize(),
-		SessionID: strings.TrimSpace(c.Query("session_id")),
-		Limit:     limit,
+		Status:               taskpkg.ParseRunStatus(c.Query("status")).Normalize(),
+		SessionID:            strings.TrimSpace(c.Query("session_id")),
+		ParticipationChannel: strings.TrimSpace(c.Query("participation_channel")),
+		Limit:                limit,
 	}, nil
 }
 
@@ -322,9 +323,10 @@ func validateParsedTaskDashboardQuery(query contract.TaskDashboardQuery) error {
 
 func taskRunListDomainQuery(query contract.TaskRunListQuery) (taskpkg.RunQuery, error) {
 	domainQuery := taskpkg.RunQuery{
-		Status:    query.Status.Normalize(),
-		SessionID: strings.TrimSpace(query.SessionID),
-		Limit:     query.Limit,
+		Status:               query.Status.Normalize(),
+		SessionID:            strings.TrimSpace(query.SessionID),
+		ParticipationChannel: strings.TrimSpace(query.ParticipationChannel),
+		Limit:                query.Limit,
 	}
 	if err := domainQuery.Validate("task_run_query"); err != nil {
 		return taskpkg.RunQuery{}, err

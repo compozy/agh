@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "@agh/ui";
 import {
   networkParticipationDraftFromPayload,
+  isNetworkParticipationDraftValid,
   serializeNetworkParticipation,
   type NetworkParticipationDraft,
 } from "@/systems/network";
@@ -57,7 +58,9 @@ export function useLoopRunForm({
   const runMutation = useRunLoop();
   const dryMutation = useRunLoop();
   const missing = new Set(missingRequiredInputs(schema, inputs));
-  const valid = isRunFormValid(schema, inputs);
+  const valid =
+    isRunFormValid(schema, inputs) &&
+    isNetworkParticipationDraftValid(networkParticipation, ["named", "loop_run"]);
   const busy = runMutation.isPending || dryMutation.isPending;
   const configOverrides = buildConfigOverrides(overrides, effectiveConfig);
 

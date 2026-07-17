@@ -18,20 +18,20 @@ export interface DirectsListProps {
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void | Promise<void>;
-  /** Local peer id used to identify which side of `peer_a/peer_b` is "the other peer". */
-  selfPeerId?: string;
+  /** Local session id used to identify which side of the direct room is remote. */
+  selfSessionId?: string;
   members?: ReadonlyArray<ChannelMember>;
   onNewDirect?: () => void;
 }
 
-function pickOtherPeerId(direct: NetworkDirectRoomSummary, selfPeerId?: string): string {
-  if (!selfPeerId) {
-    return direct.peer_a;
+function pickOtherSessionId(direct: NetworkDirectRoomSummary, selfSessionId?: string): string {
+  if (!selfSessionId) {
+    return direct.session_a;
   }
-  if (direct.peer_a === selfPeerId) {
-    return direct.peer_b;
+  if (direct.session_a === selfSessionId) {
+    return direct.session_b;
   }
-  return direct.peer_a;
+  return direct.session_a;
 }
 
 interface DirectsListRowProps {
@@ -39,8 +39,8 @@ interface DirectsListRowProps {
   channel: string;
   direct: NetworkDirectRoomSummary;
   active: boolean;
-  selfPeerId?: string;
-  role?: ChannelMemberRole;
+  selfSessionId?: string;
+  member?: ChannelMember;
 }
 
 function DirectsListRow({
@@ -48,10 +48,12 @@ function DirectsListRow({
   channel,
   direct,
   active,
-  selfPeerId,
-  role,
+  selfSessionId,
+  member,
 }: DirectsListRowProps) {
-  const otherPeerId = pickOtherPeerId(direct, selfPeerId);
+  const otherSessionId = pickOtherSessionId(direct, selfSessionId);
+  const otherPeerId = member?.peerId ?? otherSessionId;
+  const role: ChannelMemberRole | undefined = member?.role;
   const lastActivity = formatNetworkRelativeTime(direct.last_activity_at ?? null);
   const avatarRole = role === "human" ? "human" : "agent";
   const preview = direct.last_message_preview ?? "No messages yet.";
@@ -121,15 +123,17 @@ function DirectsListSkeleton() {
   );
 }
 
-function buildRoleLookup(
+function buildMemberLookup(
   members: ReadonlyArray<ChannelMember> | undefined
-): Map<string, ChannelMemberRole> {
-  const map = new Map<string, ChannelMemberRole>();
+): Map<string, ChannelMember> {
+  const map = new Map<string, ChannelMember>();
   if (!members) {
     return map;
   }
   for (const member of members) {
-    map.set(member.peerId, member.role);
+    if (member.sessionId) {
+      map.set(member.sessionId, member);
+    }
   }
   return map;
 }
@@ -144,7 +148,7 @@ export function DirectsList({
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
-  selfPeerId,
+  selfSessionId,
   members,
   onNewDirect,
 }: DirectsListProps) {
@@ -160,7 +164,7 @@ export function DirectsList({
     );
   }
 
-  const roleByPeerId = buildRoleLookup(members);
+  const memberBySessionId = buildMemberLookup(members);
 
   return (
     <div
@@ -170,15 +174,15 @@ export function DirectsList({
       data-testid="network-direct-list"
     >
       {directs.map(direct => {
-        const otherPeerId = pickOtherPeerId(direct, selfPeerId);
+        const otherSessionId = pickOtherSessionId(direct, selfSessionId);
         return (
           <DirectsListRow
             active={direct.direct_id === activeDirectId}
             channel={channel}
             direct={direct}
             key={direct.direct_id}
-            role={roleByPeerId.get(otherPeerId)}
-            selfPeerId={selfPeerId}
+            member={memberBySessionId.get(otherSessionId)}
+            selfSessionId={selfSessionId}
             workspaceId={workspaceId}
           />
         );

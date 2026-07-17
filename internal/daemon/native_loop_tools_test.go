@@ -191,7 +191,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-caller"},
+			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input: json.RawMessage(
@@ -262,7 +262,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-author"},
+			toolspkg.Scope{SessionID: "sess-author", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopApprove,
 				Input: json.RawMessage(

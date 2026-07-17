@@ -48,14 +48,6 @@ function OperationalLinksSection() {
           <ExternalLink className="size-3 text-subtle" />
           Open Network
         </Link>
-        <Link
-          to="/network"
-          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
-          data-testid="settings-page-network-link-usage"
-        >
-          <ExternalLink className="size-3 text-subtle" />
-          View usage
-        </Link>
       </div>
     </Section>
   );
@@ -86,7 +78,7 @@ function RuntimeStatusSection({ runtime }: { runtime: NetworkRuntime }) {
           data-testid="settings-page-network-runtime-messages-received"
         />
         <Metric
-          label="Wakes delivered"
+          label="Messages delivered"
           value={String(runtime.messages_delivered)}
           data-testid="settings-page-network-runtime-messages-delivered"
         />
@@ -131,58 +123,26 @@ function ProtocolSafetySection({
   validationErrors,
   setValidationError,
 }: NetworkSettingsSectionsProps) {
-  const fields = [
-    {
-      key: "greetInterval",
-      label: "Presence cadence",
-      suffix: "sec",
-      testId: "settings-page-network-greet-interval",
-      value: draft.greet_interval,
-      update: (value: number) => ({ greet_interval: value }),
-    },
-    {
-      key: "maxReplayAge",
-      label: "Replay window",
-      suffix: "sec",
-      testId: "settings-page-network-max-replay-age",
-      value: draft.max_replay_age,
-      update: (value: number) => ({ max_replay_age: value }),
-    },
-    {
-      key: "maxQueueDepth",
-      label: "Inbox depth",
-      suffix: "messages",
-      testId: "settings-page-network-max-queue-depth",
-      value: draft.max_queue_depth,
-      update: (value: number) => ({ max_queue_depth: value }),
-    },
-  ];
-
   return (
-    <Section divided label="Protocol safety" note="presence, replay, and durable inbox bounds">
-      <div className="grid gap-4 md:grid-cols-3">
-        {fields.map(field => (
-          <SettingsFieldRow
-            key={field.key}
-            label={field.label}
-            description={field.suffix}
-            error={validationErrors[field.key] ?? undefined}
-            control={
-              <SettingsNumberInput
-                aria-label={field.label}
-                className="w-32"
-                data-testid={field.testId}
-                min={1}
-                value={field.value}
-                onValidityChange={setValidationError(field.key)}
-                onValueChange={value =>
-                  setDraft(current => ({ ...(current ?? draft), ...field.update(value) }))
-                }
-              />
+    <Section divided label="Protocol safety" note="replay protection">
+      <SettingsFieldRow
+        label="Replay window"
+        description="seconds"
+        error={validationErrors.maxReplayAge ?? undefined}
+        control={
+          <SettingsNumberInput
+            aria-label="Replay window"
+            className="w-32"
+            data-testid="settings-page-network-max-replay-age"
+            min={1}
+            value={draft.max_replay_age}
+            onValidityChange={setValidationError("maxReplayAge")}
+            onValueChange={maxReplayAge =>
+              setDraft(current => ({ ...(current ?? draft), max_replay_age: maxReplayAge }))
             }
           />
-        ))}
-      </div>
+        }
+      />
     </Section>
   );
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // AutomationResourceStatusPayload reports total and enabled counts for one
@@ -149,23 +150,24 @@ func cloneTriggerFilter(source map[string]string) map[string]string {
 
 // RunPayload is the shared automation run response payload.
 type RunPayload struct {
-	ID              string                  `json:"id"`
-	JobID           string                  `json:"job_id,omitempty"`
-	TriggerID       string                  `json:"trigger_id,omitempty"`
-	SessionID       string                  `json:"session_id,omitempty"`
-	TaskID          string                  `json:"task_id,omitempty"`
-	TaskRunID       string                  `json:"task_run_id,omitempty"`
-	LoopRunID       string                  `json:"loop_run_id,omitempty"`
-	FireID          string                  `json:"fire_id,omitempty"`
-	Status          automationpkg.RunStatus `json:"status"`
-	Attempt         int                     `json:"attempt"`
-	ScheduledAt     *time.Time              `json:"scheduled_at,omitempty"`
-	StartedAt       *time.Time              `json:"started_at,omitempty"`
-	EndedAt         *time.Time              `json:"ended_at,omitempty"`
-	Error           string                  `json:"error,omitempty"`
-	DeliveryError   string                  `json:"delivery_error,omitempty"`
-	DeliveryErrorAt *time.Time              `json:"delivery_error_at,omitempty"`
-	Metadata        map[string]any          `json:"metadata,omitempty"`
+	ID                   string                  `json:"id"`
+	JobID                string                  `json:"job_id,omitempty"`
+	TriggerID            string                  `json:"trigger_id,omitempty"`
+	SessionID            string                  `json:"session_id,omitempty"`
+	TaskID               string                  `json:"task_id,omitempty"`
+	TaskRunID            string                  `json:"task_run_id,omitempty"`
+	LoopRunID            string                  `json:"loop_run_id,omitempty"`
+	FireID               string                  `json:"fire_id,omitempty"`
+	Status               automationpkg.RunStatus `json:"status"`
+	Attempt              int                     `json:"attempt"`
+	NetworkParticipation *participation.Request  `json:"network_participation,omitempty"`
+	ScheduledAt          *time.Time              `json:"scheduled_at,omitempty"`
+	StartedAt            *time.Time              `json:"started_at,omitempty"`
+	EndedAt              *time.Time              `json:"ended_at,omitempty"`
+	Error                string                  `json:"error,omitempty"`
+	DeliveryError        string                  `json:"delivery_error,omitempty"`
+	DeliveryErrorAt      *time.Time              `json:"delivery_error_at,omitempty"`
+	Metadata             map[string]any          `json:"metadata,omitempty"`
 }
 
 // WebhookDeliveryPayload is the shared webhook dispatch response payload.

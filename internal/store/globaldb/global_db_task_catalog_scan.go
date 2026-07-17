@@ -39,6 +39,7 @@ type taskCatalogScanFields struct {
 	lastActivityAt           string
 	priorityRank             int
 	activeRunID              sql.NullString
+	activeRunWorkspaceID     sql.NullString
 	activeRunStatus          sql.NullString
 	activeRunAttempt         sql.NullInt64
 	activeRunPreviousRunID   sql.NullString
@@ -96,6 +97,7 @@ func scanTaskCatalogSummary(scanner rowScanner) (taskpkg.Summary, error) {
 		&fields.lastActivityAt,
 		&fields.priorityRank,
 		&fields.activeRunID,
+		&fields.activeRunWorkspaceID,
 		&fields.activeRunStatus,
 		&fields.activeRunAttempt,
 		&fields.activeRunPreviousRunID,
@@ -209,6 +211,7 @@ func taskCatalogRunSummary(
 		return nil, nil
 	}
 	networkSpec, err := decodeParticipationSnapshot(
+		taskNullStringValue(fields.activeRunWorkspaceID),
 		fields.activeRunNetworkSpecJSON.String,
 		fields.activeRunNetworkMode.String,
 		fields.activeRunNetworkChannel,

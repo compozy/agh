@@ -262,7 +262,6 @@ var baseRegistryEntries = []Metadata{
 	warning(TaskCompletionHallucinationSuspected, "task.completion", ComponentTask),
 	info(TaskWakeDelivered, "task.wake", ComponentTask),
 	warning(TaskWakeSuppressed, "task.wake", ComponentTask),
-
 	global(info(SettingsChanged, "settings", ComponentConfig)),
 	global(warning(SkillShadowed, "skill", ComponentSkill)),
 	global(failure(SkillLoadFailed, "skills", ComponentSkill)),

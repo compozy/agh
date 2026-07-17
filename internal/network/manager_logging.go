@@ -10,6 +10,7 @@ import (
 )
 
 func (m *Manager) recordAcceptedMessage(
+	ctx context.Context,
 	senderSessionID string,
 	envelope Envelope,
 	dispositions []store.NetworkMessageDisposition,
@@ -20,6 +21,7 @@ func (m *Manager) recordAcceptedMessage(
 	if m.stats != nil {
 		m.stats.recordSent(envelope)
 	}
+	m.recordProtocolAudit(ctx, AuditDirectionSent, senderSessionID, envelope, "")
 	m.logger.Info(
 		"network.message.accepted",
 		networkLogFields(envelope, "session_id", senderSessionID)...,
@@ -32,6 +34,8 @@ func (m *Manager) recordAcceptedMessage(
 			m.stats.recordReceived(envelope)
 			m.stats.recordDelivered(envelope)
 		}
+		m.recordProtocolAudit(ctx, AuditDirectionReceived, disposition.RecipientSessionID, envelope, "")
+		m.recordProtocolAudit(ctx, AuditDirectionDelivered, disposition.RecipientSessionID, envelope, "")
 		m.logger.Info(
 			"network.message.dispatched",
 			networkLogFields(
@@ -44,7 +48,7 @@ func (m *Manager) recordAcceptedMessage(
 }
 
 func (m *Manager) recordAuditRejected(
-	_ context.Context,
+	ctx context.Context,
 	sessionID string,
 	envelope Envelope,
 	reason string,
@@ -55,9 +59,52 @@ func (m *Manager) recordAuditRejected(
 	if m.stats != nil {
 		m.stats.recordRejected(envelope)
 	}
+	m.recordProtocolAudit(ctx, AuditDirectionRejected, sessionID, envelope, reason)
 	fields := networkLogFields(envelope, "session_id", sessionID)
 	fields = append(fields, "reason", strings.TrimSpace(reason))
 	m.logger.Info("network.message.rejected", fields...)
+}
+
+type committedSentAuditWriter interface {
+	RecordCommittedSent(context.Context, string, Envelope) error
+}
+
+func (m *Manager) recordProtocolAudit(
+	ctx context.Context,
+	direction string,
+	sessionID string,
+	envelope Envelope,
+	reason string,
+) {
+	if m == nil || m.auditor == nil {
+		return
+	}
+	var err error
+	switch direction {
+	case AuditDirectionSent:
+		if writer, ok := m.auditor.(committedSentAuditWriter); ok {
+			err = writer.RecordCommittedSent(ctx, sessionID, envelope)
+		} else {
+			err = m.auditor.RecordSent(ctx, sessionID, envelope)
+		}
+	case AuditDirectionReceived:
+		err = m.auditor.RecordReceived(ctx, sessionID, envelope)
+	case AuditDirectionRejected:
+		err = m.auditor.RecordRejected(ctx, sessionID, envelope, reason)
+	case AuditDirectionDelivered:
+		err = m.auditor.RecordDelivered(ctx, sessionID, envelope)
+	default:
+		return
+	}
+	if err == nil {
+		return
+	}
+	m.logger.Warn(
+		"network.audit.record_"+direction+"_failed",
+		"session_id", strings.TrimSpace(sessionID),
+		"envelope_id", strings.TrimSpace(envelope.ID),
+		"error", err,
+	)
 }
 
 func networkLogFields(envelope Envelope, extra ...any) []any {

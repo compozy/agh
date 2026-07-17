@@ -2,6 +2,7 @@ package acpmock
 
 import (
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -38,6 +39,9 @@ func (u TurnUsage) Validate(path string) error {
 	}
 	if u.OutputTokens < 0 {
 		return fmt.Errorf("acpmock: %s.output_tokens must be >= 0", path)
+	}
+	if u.InputTokens > math.MaxInt-u.OutputTokens {
+		return fmt.Errorf("acpmock: %s total tokens exceed int capacity", path)
 	}
 	return nil
 }

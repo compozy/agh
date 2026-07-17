@@ -179,12 +179,14 @@ func (g *TaskRunRepo) selectClaimableNetworkWakeRunID(
 	where := []string{
 		"run_kind = ?",
 		"status = ?",
+		"workspace_id = ?",
 		"network_target_session_id = ?",
 		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
 	}
 	args := []any{
 		taskpkg.RunKindNetworkWake.String(),
 		taskpkg.TaskRunStatusQueued.String(),
+		strings.TrimSpace(criteria.WorkspaceID),
 		strings.TrimSpace(criteria.TargetSessionID),
 	}
 	if runID := strings.TrimSpace(criteria.RunID); runID != "" {

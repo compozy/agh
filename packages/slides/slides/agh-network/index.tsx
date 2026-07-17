@@ -252,8 +252,7 @@ const Definition: Page = () => (
 const KINDS: { name: string; role: string }[] = [
   { name: "greet", role: "Peer announces presence" },
   { name: "whois", role: "Identity lookup" },
-  { name: "say", role: "Channel broadcast" },
-  { name: "direct", role: "Targeted message" },
+  { name: "say", role: "Thread or direct-room message" },
   { name: "capability", role: "Offer or request" },
   { name: "receipt", role: "Proof of delivery" },
   { name: "trace", role: "Audit identifier" },
@@ -287,7 +286,7 @@ const Kinds: Page = () => (
           margin: 0,
         }}
       >
-        Seven message kinds.
+        Six message kinds.
       </h2>
 
       <div
@@ -295,11 +294,11 @@ const Kinds: Page = () => (
         style={{
           marginTop: 64,
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(3, 1fr)",
           gap: 24,
         }}
       >
-        {KINDS.map(({ name, role }, i) => (
+        {KINDS.map(({ name, role }) => (
           <div
             key={name}
             style={{
@@ -307,7 +306,6 @@ const Kinds: Page = () => (
               border: `1px solid ${border}`,
               borderRadius: "var(--osd-radius)",
               background: surface,
-              gridColumn: i === 6 ? "span 2" : "span 1",
               display: "flex",
               flexDirection: "column",
               gap: 16,

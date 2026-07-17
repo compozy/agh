@@ -381,11 +381,15 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, e
 	}
 
 	attempt := 1
+	reservedDispatch := req.ReservedRun != nil
 	var lastRun *Run
 	for {
 		run, err := d.dispatchAttempt(ctx, req, attempt)
 		if run != nil {
 			lastRun = cloneRun(run)
+			if reservedDispatch {
+				req.ReservedRun = cloneRun(run)
+			}
 		}
 		if run != nil && d.hooks != nil {
 			willRetry := err != nil && shouldRetry(req.retryConfig(), run, attempt, err)
@@ -473,7 +477,11 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	if err != nil {
 		return cloneRun(scheduledRun), err
 	}
-	if err := d.recordAutomationSessionTaskActor(createdSession.ID, runningRun); err != nil {
+	if err := d.recordAutomationSessionTaskActor(
+		createdSession.ID,
+		createdSession.WorkspaceID,
+		runningRun,
+	); err != nil {
 		return d.finishRunAfterSessionStop(ctx, runningRun, createdSession.ID, RunFailed, err)
 	}
 
@@ -546,18 +554,7 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 		return nil, errors.New("automation: reserved run trigger_id does not match dispatch trigger")
 	}
 	requestedParticipation := req.networkParticipation()
-	if reserved.NetworkParticipation == nil && requestedParticipation != nil {
-		reserved.NetworkParticipation = requestedParticipation
-		updated, err := d.runs.UpdateRun(persistenceContext(ctx), *reserved)
-		if err != nil {
-			return reserved, fmt.Errorf(
-				"automation: persist reserved run network participation %q: %w",
-				reserved.ID,
-				err,
-			)
-		}
-		reserved = &updated
-	} else if !reflect.DeepEqual(reserved.NetworkParticipation, requestedParticipation) {
+	if !reflect.DeepEqual(reserved.NetworkParticipation, requestedParticipation) {
 		return reserved, errors.New("automation: reserved run network participation does not match definition")
 	}
 
@@ -1024,11 +1021,15 @@ func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
 	return opts
 }
 
-func (d *Dispatcher) recordAutomationSessionTaskActor(sessionID string, run *Run) error {
+func (d *Dispatcher) recordAutomationSessionTaskActor(
+	sessionID string,
+	workspaceID string,
+	run *Run,
+) error {
 	if d == nil || d.taskActors == nil {
 		return nil
 	}
-	actor, err := automationSessionTaskActorContext(sessionID, run)
+	actor, err := automationSessionTaskActorContext(sessionID, workspaceID, run)
 	if err != nil {
 		return err
 	}
@@ -1171,12 +1172,17 @@ func directTaskActorContext(job *Job, runID string) (taskpkg.ActorContext, error
 	return taskpkg.DeriveAutomationActorContext(strings.TrimSpace(job.ID), automationTaskOriginRef(runID))
 }
 
-func automationSessionTaskActorContext(sessionID string, run *Run) (taskpkg.ActorContext, error) {
+func automationSessionTaskActorContext(
+	sessionID string,
+	workspaceID string,
+	run *Run,
+) (taskpkg.ActorContext, error) {
 	if run == nil {
 		return taskpkg.ActorContext{}, errors.New("automation: run is required for session task actor context")
 	}
 	return taskpkg.DeriveAutomationLinkedAgentSessionActorContext(
 		strings.TrimSpace(sessionID),
+		strings.TrimSpace(workspaceID),
 		automationTaskOriginRef(run.ID),
 	)
 }

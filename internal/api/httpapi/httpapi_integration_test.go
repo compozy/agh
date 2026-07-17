@@ -21,11 +21,13 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
+	apitestutil "github.com/compozy/agh/internal/api/testutil"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/resources"
 	sandboxlocal "github.com/compozy/agh/internal/sandbox/local"
@@ -536,7 +538,7 @@ func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 
 func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
-	sessionID := createIntegrationSession(t, runtime)
+	sessionID := createLiveIntegrationSession(t, runtime)
 
 	const promptTimeout = 5 * time.Second
 
@@ -916,7 +918,7 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 
 func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
-	enableIntegrationLiveNetwork(t, runtime.registry)
+	apitestutil.EnableIntegrationLiveNetwork(t, runtime.registry)
 
 	createResp := mustHTTPRequest(
 		t,
@@ -942,7 +944,13 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, createResp, &created)
-	assertResolvedParticipationChannel(t, created.Session.ResolvedNetworkParticipation, "builders")
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		created.Session.ResolvedNetworkParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 
 	listResp := mustHTTPRequest(
 		t,
@@ -964,7 +972,13 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
 	}
-	assertResolvedParticipationChannel(t, listed.Sessions[0].ResolvedNetworkParticipation, "builders")
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		listed.Sessions[0].ResolvedNetworkParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 
 	stopIntegrationSession(t, runtime, created.Session.ID)
 
@@ -985,7 +999,13 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, statusResp, &stopped)
-	assertResolvedParticipationChannel(t, stopped.Session.ResolvedNetworkParticipation, "builders")
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		stopped.Session.ResolvedNetworkParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 	if stopped.Session.State != session.StateStopped {
 		t.Fatalf("stopped session state = %q, want %q", stopped.Session.State, session.StateStopped)
 	}
@@ -997,9 +1017,14 @@ func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 	if got, want := len(indexed), 1; got != want {
 		t.Fatalf("len(indexed stopped sessions) = %d, want %d", got, want)
 	}
-	if indexed[0].Channel != "builders" {
-		t.Fatalf("indexed[0].Channel = %q, want %q", indexed[0].Channel, "builders")
-	}
+	indexedParticipation := indexed[0].NetworkSpecSnapshot()
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		&indexedParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 
 	resumeResp := mustHTTPRequest(
 		t,
@@ -1890,7 +1915,12 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 	if created.Scope != taskpkg.ScopeGlobal {
 		t.Fatalf("created scope = %q, want %q", created.Scope, taskpkg.ScopeGlobal)
 	}
-	assertLocalResolvedParticipation(t, created.ResolvedNetworkParticipation)
+	if created.ResolvedNetworkParticipation != nil {
+		t.Fatalf(
+			"created resolved_network_participation = %#v, want nil without an active run",
+			created.ResolvedNetworkParticipation,
+		)
+	}
 	if created.Owner == nil || created.Owner.Kind != taskpkg.OwnerKindPool || created.Owner.Ref != "ops" {
 		t.Fatalf("created owner = %#v, want pool/ops", created.Owner)
 	}
@@ -1974,7 +2004,12 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 	if updated.Task.Description != "Expose the task and run transports everywhere" {
 		t.Fatalf("updated description = %q", updated.Task.Description)
 	}
-	assertLocalResolvedParticipation(t, updated.Task.ResolvedNetworkParticipation)
+	if updated.Task.ResolvedNetworkParticipation != nil {
+		t.Fatalf(
+			"updated resolved_network_participation = %#v, want nil without an active run",
+			updated.Task.ResolvedNetworkParticipation,
+		)
+	}
 	if updated.Task.Owner != nil {
 		t.Fatalf("updated owner = %#v, want nil", updated.Task.Owner)
 	}
@@ -2009,7 +2044,11 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		t.Parallel()
 
 		runtime := newIntegrationRuntime(t)
-		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+		created := createIntegrationTask(
+			t,
+			runtime,
+			[]byte(`{"scope":"workspace","workspace":"ws-workspace","title":"Run task routes"}`),
+		)
 
 		enqueueResp := mustHTTPRequest(
 			t,
@@ -2034,7 +2073,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		if queued.Run.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("queued status = %q, want %q", queued.Run.Status, taskpkg.TaskRunStatusQueued)
 		}
-		assertLocalResolvedParticipation(t, queued.Run.ResolvedNetworkParticipation)
+		apitestutil.AssertLocalResolvedParticipation(t, queued.Run.ResolvedNetworkParticipation)
 
 		listQueuedResp := mustHTTPRequest(
 			t,
@@ -2119,7 +2158,11 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		t.Parallel()
 
 		runtime := newIntegrationRuntime(t)
-		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+		created := createIntegrationTask(
+			t,
+			runtime,
+			[]byte(`{"scope":"workspace","workspace":"ws-workspace","title":"Run task routes"}`),
+		)
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
 		seedIntegrationTaskRunClaimed(t, runtime, run.ID)
 
@@ -2174,7 +2217,11 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		t.Parallel()
 
 		runtime := newIntegrationRuntime(t)
-		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+		created := createIntegrationTask(
+			t,
+			runtime,
+			[]byte(`{"scope":"workspace","workspace":"ws-workspace","title":"Run task routes"}`),
+		)
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-3"}`)
 
 		cancelResp := mustHTTPRequest(
@@ -3323,7 +3370,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("local.NewRegistry() error = %v", err)
 	}
-	participationResolver := newIntegrationParticipationResolver(t, registry)
+	participationResolver := apitestutil.NewIntegrationParticipationResolver(t, registry)
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
@@ -3604,16 +3651,38 @@ func mustIntegrationJSON(value any) json.RawMessage {
 
 func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 	t.Helper()
+	return createIntegrationSessionFromRequest(t, runtime, map[string]any{
+		"agent_name":     "coder",
+		"workspace_path": runtime.workspace,
+	})
+}
+
+func createLiveIntegrationSession(t *testing.T, runtime integrationRuntime) string {
+	t.Helper()
+	return createIntegrationSessionFromRequest(t, runtime, map[string]any{
+		"agent_name":     "coder",
+		"workspace_path": runtime.workspace,
+		"network_participation": map[string]any{
+			"mode":             "live",
+			"channel_strategy": "named",
+			"channel_id":       "builders",
+		},
+	})
+}
+
+func createIntegrationSessionFromRequest(
+	t *testing.T,
+	runtime integrationRuntime,
+	request map[string]any,
+) string {
+	t.Helper()
 
 	resp := mustHTTPRequest(
 		t,
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/sessions"),
-		mustIntegrationJSON(map[string]any{
-			"agent_name":     "coder",
-			"workspace_path": runtime.workspace,
-		}),
+		mustIntegrationJSON(request),
 		nil,
 	)
 	if resp.StatusCode != http.StatusCreated {

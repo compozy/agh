@@ -13,6 +13,7 @@ func newService(options managerOptions) *Service {
 		generationFinalizer:   options.generationFinalizer,
 		wakeNotifier:          defaultWakeNotifier(options.wakeNotifier),
 		participationResolver: options.participationResolver,
+		runReadAuthorizer:     taskRunReadAuthorizer{},
 		coordinatorStatusOK:   options.coordinatorStatusOK,
 		coordinatorHookOK:     options.coordinatorHookOK,
 		profileValidation:     options.profileValidation,

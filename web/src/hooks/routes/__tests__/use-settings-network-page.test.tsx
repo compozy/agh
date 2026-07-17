@@ -74,7 +74,7 @@ describe("useSettingsNetworkPage", () => {
     await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
-      result.current.setDraft({ ...networkEnvelope.config, greet_interval: 45 });
+      result.current.setDraft({ ...networkEnvelope.config, max_replay_age: 450 });
     });
     expect(result.current.isDirty).toBe(true);
 

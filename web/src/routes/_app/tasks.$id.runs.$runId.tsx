@@ -28,8 +28,9 @@ export const Route = createFileRoute("/_app/tasks/$id/runs/$runId")({
 function TaskRunDetailRoute() {
   const { id, runId } = Route.useParams();
   const page = useTaskRunPage(id, runId);
-  const timelineQuery = useTaskTimeline(id, {}, { enabled: Boolean(id) });
-  const conversation = useTaskRunConversation(page.run?.network);
+  const taskId = page.run?.task?.id ?? "";
+  const timelineQuery = useTaskTimeline(taskId, {}, { enabled: Boolean(taskId) });
+  const conversation = useTaskRunConversation(runId, page.run?.network);
 
   if (page.runLoading) {
     return (
@@ -71,8 +72,6 @@ function TaskRunDetailRoute() {
   const timelineItems = timelineQuery.data ?? [];
   const record = run.run;
   const participation = record.resolved_network_participation;
-  const designation = record.designation;
-  const workerCount = record.designation_group_id ? 2 : designation ? 1 : 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-run-detail-content">
@@ -109,14 +108,9 @@ function TaskRunDetailRoute() {
           data-testid="tasks-run-participation-chip"
         >
           Participation: {participation?.mode ?? "local"}
-          {participation?.channel_id ? ` · ${participation.channel_id}` : ""}
+          {participation?.mode === "live" ? ` · ${participation.channel_id}` : ""}
         </div>
-        <TaskRunCoordinationInvitationHost
-          hasActiveRun={record.status === "running" || record.status === "starting"}
-          isCoordinator={Boolean(designation && designation.index === 0)}
-          taskId={id}
-          workerCount={workerCount}
-        />
+        {taskId ? <TaskRunCoordinationInvitationHost runId={record.id} taskId={taskId} /> : null}
         {conversation && run.network ? (
           <TaskRunConversationPanel
             boundsLabel={formatTaskRunBounds(record, run.network)}

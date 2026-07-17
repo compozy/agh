@@ -34,6 +34,7 @@ type EventRecordQuery struct {
 	AfterSequence int64  `json:"after_sequence,omitempty"`
 	Limit         int    `json:"limit,omitempty"`
 	Descending    bool   `json:"descending,omitempty"`
+	AllTasks      bool   `json:"-"`
 }
 
 // EventRecord is one immutable task event plus its stable stream sequence.

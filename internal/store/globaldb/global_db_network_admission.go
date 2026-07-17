@@ -29,7 +29,12 @@ type openNetworkWake struct {
 	rootID      string
 }
 
-const networkWakeExhaustionMaxWakes = "max_wakes"
+const (
+	networkWakeExhaustionMaxWakes         = "max_wakes"
+	networkWakeExhaustionMaxTotalWallTime = "max_total_wall_time"
+	networkWakeExhaustionMaxInputTokens   = "max_input_tokens"
+	networkWakeExhaustionMaxOutputTokens  = "max_output_tokens"
+)
 
 func (g *NetworkRepo) admitNetworkWake(
 	ctx context.Context,
@@ -46,6 +51,7 @@ func (g *NetworkRepo) admitNetworkWake(
 	if existingWakeID, exists, err := findNetworkWakeSource(
 		ctx,
 		exec,
+		message.WorkspaceID,
 		input.OwnerKey,
 		message.MessageID,
 	); err != nil {
@@ -60,7 +66,7 @@ func (g *NetworkRepo) admitNetworkWake(
 		return skippedNetworkWake(input, store.NetworkWakeSkipDepthExceeded, ""), nil
 	}
 
-	openWake, exists, err := findOpenNetworkWake(ctx, exec, input.OwnerKey)
+	openWake, exists, err := findOpenNetworkWake(ctx, exec, message.WorkspaceID, input.OwnerKey)
 	if err != nil {
 		return networkWakeDecision{}, err
 	}
@@ -99,6 +105,7 @@ func admitAgainstOpenNetworkWake(
 		if err := insertNetworkWakeSource(
 			ctx,
 			exec,
+			message.WorkspaceID,
 			input.OwnerKey,
 			message.MessageID,
 			openWake.reservation.WakeID,
@@ -115,6 +122,7 @@ func admitAgainstOpenNetworkWake(
 		budget, _, exhaustedReason, err := evaluateNetworkWakeBudget(
 			ctx,
 			exec,
+			message.WorkspaceID,
 			input.OwnerKey,
 			input.Spec.Bounds,
 		)
@@ -125,6 +133,7 @@ func admitAgainstOpenNetworkWake(
 			if err := writeNetworkWakeBudgetExhaustion(
 				ctx,
 				exec,
+				message.WorkspaceID,
 				input.OwnerKey,
 				budget,
 				exhaustedReason,
@@ -175,6 +184,7 @@ func (g *NetworkRepo) reserveNetworkWake(
 	budget, wakeWall, reason, err := evaluateNetworkWakeBudget(
 		ctx,
 		exec,
+		message.WorkspaceID,
 		input.OwnerKey,
 		input.Spec.Bounds,
 	)
@@ -186,7 +196,15 @@ func (g *NetworkRepo) reserveNetworkWake(
 		return store.WakeReservation{}, "", fmt.Errorf("store: parse network coalesce window: %w", err)
 	}
 	if reason != "" {
-		if err := writeNetworkWakeBudgetExhaustion(ctx, exec, input.OwnerKey, budget, reason, now); err != nil {
+		if err := writeNetworkWakeBudgetExhaustion(
+			ctx,
+			exec,
+			message.WorkspaceID,
+			input.OwnerKey,
+			budget,
+			reason,
+			now,
+		); err != nil {
 			return store.WakeReservation{}, "", err
 		}
 		return store.WakeReservation{}, reason, nil
@@ -195,39 +213,21 @@ func (g *NetworkRepo) reserveNetworkWake(
 	reservation := store.WakeReservation{
 		WakeID:           input.WakeID,
 		TaskRunID:        input.TaskRunID,
+		WorkspaceID:      message.WorkspaceID,
 		OwnerKey:         input.OwnerKey,
 		EnvelopeIDs:      []string{message.MessageID},
 		ReservedWallTime: wakeWall.String(),
 		CoalesceUntil:    now.Add(coalesceWindow),
 	}
-	if err := g.insertNetworkWakeRun(ctx, exec, message, input, acceptanceSeq, now); err != nil {
-		return store.WakeReservation{}, "", err
-	}
-	reservedInput := input.Spec.Bounds.MaxInputTokens - budget.inputTokensUsed
-	reservedOutput := input.Spec.Bounds.MaxOutputTokens - budget.outputTokensUsed
-	if err := insertNetworkWakeLedger(
+	if err := g.persistNetworkWakeReservation(
 		ctx,
 		exec,
-		message,
-		input,
-		reservation,
-		durationMillisecondsCeil(wakeWall),
-		reservedInput,
-		reservedOutput,
-		now,
-	); err != nil {
-		return store.WakeReservation{}, "", err
-	}
-	if err := insertNetworkWakeSource(ctx, exec, input.OwnerKey, message.MessageID, input.WakeID); err != nil {
-		return store.WakeReservation{}, "", err
-	}
-	if err := reserveNetworkWakeBudget(
-		ctx,
-		exec,
-		input.OwnerKey,
-		durationMillisecondsCeil(wakeWall),
-		reservedInput,
-		reservedOutput,
+		&message,
+		&input,
+		&reservation,
+		budget,
+		wakeWall,
+		acceptanceSeq,
 		now,
 	); err != nil {
 		return store.WakeReservation{}, "", err
@@ -235,9 +235,73 @@ func (g *NetworkRepo) reserveNetworkWake(
 	return reservation, "", nil
 }
 
+func (g *NetworkRepo) persistNetworkWakeReservation(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	message *store.NetworkConversationMessage,
+	input *store.NetworkWakeAdmissionInput,
+	reservation *store.WakeReservation,
+	budget networkWakeBudget,
+	wakeWall time.Duration,
+	acceptanceSeq int64,
+	now time.Time,
+) error {
+	if err := g.insertNetworkWakeRun(ctx, exec, *message, *input, acceptanceSeq, now); err != nil {
+		return err
+	}
+	reservedInput := input.Spec.Bounds.MaxInputTokens - budget.inputTokensUsed
+	reservedOutput := input.Spec.Bounds.MaxOutputTokens - budget.outputTokensUsed
+	if err := insertNetworkWakeLedger(
+		ctx,
+		exec,
+		*message,
+		*input,
+		*reservation,
+		durationMillisecondsCeil(wakeWall),
+		reservedInput,
+		reservedOutput,
+		now,
+	); err != nil {
+		return err
+	}
+	if err := insertNetworkWakeSource(
+		ctx,
+		exec,
+		message.WorkspaceID,
+		input.OwnerKey,
+		message.MessageID,
+		input.WakeID,
+	); err != nil {
+		return err
+	}
+	if err := reserveNetworkWakeBudget(
+		ctx,
+		exec,
+		message.WorkspaceID,
+		input.OwnerKey,
+		durationMillisecondsCeil(wakeWall),
+		reservedInput,
+		reservedOutput,
+		now,
+	); err != nil {
+		return err
+	}
+	if err := appendNetworkWakeEventWithExecutor(ctx, exec, networkWakeEvent{
+		workspaceID: message.WorkspaceID, wakeID: input.WakeID, taskRunID: input.TaskRunID,
+		ownerKey: input.OwnerKey, targetSessionID: input.RecipientSessionID,
+		eventType: networkWakeEventAdmitted, state: taskpkg.TaskRunStatusQueued.String(),
+		actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindNetworkPeer, Ref: message.PeerFrom},
+		at:    now,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func evaluateNetworkWakeBudget(
 	ctx context.Context,
 	exec networkSQLExecutor,
+	workspaceID string,
 	ownerKey string,
 	bounds participation.Bounds,
 ) (networkWakeBudget, time.Duration, string, error) {
@@ -249,7 +313,7 @@ func evaluateNetworkWakeBudget(
 	if err != nil {
 		return networkWakeBudget{}, 0, "", fmt.Errorf("store: parse network total wall time: %w", err)
 	}
-	budget, err := getNetworkWakeBudget(ctx, exec, ownerKey)
+	budget, err := getNetworkWakeBudget(ctx, exec, workspaceID, ownerKey)
 	if err != nil {
 		return networkWakeBudget{}, 0, "", err
 	}
@@ -280,6 +344,7 @@ func (g *NetworkRepo) insertNetworkWakeRun(
 	run := taskpkg.Run{
 		ID: input.TaskRunID, RunKind: taskpkg.RunKindNetworkWake,
 		Status: taskpkg.TaskRunStatusQueued, Attempt: 1,
+		WorkspaceID:    strings.TrimSpace(message.WorkspaceID),
 		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept:" + message.MessageID},
 		IdempotencyKey: fmt.Sprintf("network:%s:%s:%d", input.OwnerKey, message.MessageID, acceptanceSeq),
 		QueuedAt:       now,
@@ -305,11 +370,11 @@ func exhaustedNetworkWakeBudgetReason(
 	case budget.wakesUsed >= bounds.MaxWakes:
 		return networkWakeExhaustionMaxWakes
 	case budget.wallMSUsed+reservedWallMS > totalWallMS:
-		return "max_total_wall_time"
+		return networkWakeExhaustionMaxTotalWallTime
 	case budget.inputTokensUsed >= bounds.MaxInputTokens:
-		return "max_input_tokens"
+		return networkWakeExhaustionMaxInputTokens
 	case budget.outputTokensUsed >= bounds.MaxOutputTokens:
-		return "max_output_tokens"
+		return networkWakeExhaustionMaxOutputTokens
 	default:
 		return ""
 	}

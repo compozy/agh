@@ -60,7 +60,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			},
 		},
 		{
-			name: "local user session plus network provenance turn resolves without live network section",
+			name: "Should resolve local user session plus network provenance turn without live network section",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{
@@ -92,7 +92,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			},
 		},
 		{
-			name: "channel-bound user session plus network turn resolves network-aware policy",
+			name: "Should resolve channel-bound user session plus network turn with network-aware policy",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{
@@ -194,7 +194,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			},
 		},
 		{
-			name: "system session plus synthetic turn requires metadata and resolves reentry policy",
+			name: "Should require metadata and resolve reentry policy for a system session plus synthetic turn",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{
@@ -388,7 +388,7 @@ func TestHarnessContextResolverValidation(t *testing.T) {
 			wantErr: "synthetic harness turns require runtime metadata",
 		},
 		{
-			name: "synthetic turn on non-system session fails validation",
+			name: "Should reject a synthetic turn on a non-system session",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{Type: session.SessionTypeUser},

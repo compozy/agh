@@ -39,7 +39,16 @@ func (m *Manager) WaitInbox(
 	case <-m.lifecycleCtx.Done():
 		return nil, m.lifecycleCtx.Err()
 	case <-waiter:
-		return m.listInbox(ctx, sessionID, channel)
+		if err := m.lifecycleCtx.Err(); err != nil {
+			return nil, err
+		}
+		messages, err := m.listInbox(ctx, sessionID, channel)
+		if err != nil {
+			if lifecycleErr := m.lifecycleCtx.Err(); lifecycleErr != nil {
+				return nil, lifecycleErr
+			}
+		}
+		return messages, err
 	}
 }
 
@@ -57,8 +66,13 @@ func (m *Manager) listInbox(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	runtime, ok := m.sessionSnapshot(sessionID)
+	if !ok || strings.TrimSpace(runtime.workspaceID) == "" {
+		return nil, fmt.Errorf("network: inbox session %q is not managed", strings.TrimSpace(sessionID))
+	}
 	entries, err := m.inbox.ListNetworkInbox(
 		ctx,
+		runtime.workspaceID,
 		strings.TrimSpace(sessionID),
 		strings.TrimSpace(channel),
 		store.NetworkMessageDefaultLimit,

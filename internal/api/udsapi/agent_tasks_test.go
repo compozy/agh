@@ -105,10 +105,19 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 		seenCriteria.WorkspaceID != "ws-1" ||
 		seenCriteria.ClaimerSessionID != "sess-agent" ||
 		seenCriteria.AgentName != "coder" ||
-		seenCriteria.ParticipationChannel != "builders" ||
+		seenCriteria.ParticipationChannel != "" ||
 		seenCriteria.PriorityMin != 2 ||
 		seenCriteria.LeaseDuration != 120*time.Second {
-		t.Fatalf("criteria = %#v, want exact run plus caller workspace/session/agent/channel and flags", seenCriteria)
+		t.Fatalf("criteria = %#v, want exact run plus caller workspace/session/agent and flags", seenCriteria)
+	}
+	wantParticipation := udsTestLiveParticipation("ws-1", "builders")
+	if seenCriteria.CallerNetworkParticipation == nil ||
+		*seenCriteria.CallerNetworkParticipation != wantParticipation {
+		t.Fatalf(
+			"criteria.CallerNetworkParticipation = %#v, want %#v",
+			seenCriteria.CallerNetworkParticipation,
+			wantParticipation,
+		)
 	}
 	if !containsString(seenCriteria.RequiredCapabilities, "manual") ||
 		!containsString(seenCriteria.RequiredCapabilities, "go") {

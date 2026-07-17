@@ -616,9 +616,7 @@ agent_name = "general"
 
 [network]
 enabled = true
-greet_interval = 30
 max_replay_age = 300
-max_queue_depth = 100
 
 [network.live.defaults]
 max_wakes = 8
@@ -1666,12 +1664,10 @@ context.post_compact
 Network config controls administrative availability, protocol-safety windows, and the defaults and
 ceilings used only after an execution explicitly selects Live. It never selects participation.
 
-| Field             | Type            | Default | Valid values              | Description                                                                                  |
-| ----------------- | --------------- | ------- | ------------------------- | -------------------------------------------------------------------------------------------- |
-| `enabled`         | boolean         | `true`  | `true` or `false`         | Live availability kill switch. Does not opt any execution in.                                |
-| `greet_interval`  | integer seconds | `30`    | Positive integer seconds. | Local peer-presence cadence.                                                                 |
-| `max_replay_age`  | integer seconds | `300`   | Positive integer seconds. | Replay/freshness window for accepted envelopes.                                              |
-| `max_queue_depth` | integer         | `100`   | Positive integer.         | Per-session accepted-delivery safety bound; it is not a participation or wake-count default. |
+| Field            | Type            | Default | Valid values              | Description                                                   |
+| ---------------- | --------------- | ------- | ------------------------- | ------------------------------------------------------------- |
+| `enabled`        | boolean         | `true`  | `true` or `false`         | Live availability kill switch. Does not opt any execution in. |
+| `max_replay_age` | integer seconds | `300`   | Positive integer seconds. | Replay/freshness window for accepted envelopes.               |
 
 ### `[network.live.defaults]`
 

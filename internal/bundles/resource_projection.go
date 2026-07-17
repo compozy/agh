@@ -66,6 +66,8 @@ func (s *Service) Build(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 
 	activations := make([]Activation, 0, len(activationRecords))
 	var revision int64
@@ -79,6 +81,9 @@ func (s *Service) Build(
 		if record.Version > revision {
 			revision = record.Version
 		}
+	}
+	if _, err := s.reconcileNetworkRequirementDigests(ctx, activations); err != nil {
+		return nil, err
 	}
 
 	state, err := s.collectDesiredStateFromBundleRecords(ctx, activations, bundleRecords)

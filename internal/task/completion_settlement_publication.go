@@ -52,7 +52,7 @@ func (m *Service) publishCompletedRunSettlement(
 	defer publicationCancel()
 
 	for _, transition := range settlement.StatusTransitions {
-		m.dispatchTaskStatusChanged(
+		m.dispatchTaskStatusChangedAfterWrite(
 			publicationCtx,
 			transition.Task,
 			transition.PreviousStatus,

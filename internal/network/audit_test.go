@@ -97,6 +97,42 @@ func TestAuditWriterNormalizesRecordsConsistentlyAcrossSinks(t *testing.T) {
 	}
 }
 
+func TestAuditWriterCommittedSentUsesOnlyTheFileSink(t *testing.T) {
+	t.Parallel()
+
+	auditPath := filepath.Join(t.TempDir(), "logs", "network.audit")
+	storeSink := &recordingAuditStore{}
+	writer, err := NewAuditWriter(auditPath, storeSink)
+	if err != nil {
+		t.Fatalf("NewAuditWriter() error = %v", err)
+	}
+	writer.now = func() time.Time {
+		return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	}
+
+	if err := writer.RecordCommittedSent(
+		context.Background(),
+		"sess-audit",
+		testAuditEnvelope(t),
+	); err != nil {
+		t.Fatalf("RecordCommittedSent() error = %v", err)
+	}
+	if got := len(storeSink.entries); got != 0 {
+		t.Fatalf("store entries = %d, want 0 because atomic acceptance owns the durable sent row", got)
+	}
+	data, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", auditPath, err)
+	}
+	var entry store.NetworkAuditEntry
+	if err := json.Unmarshal(data, &entry); err != nil {
+		t.Fatalf("json.Unmarshal(file entry) error = %v", err)
+	}
+	if entry.Direction != AuditDirectionSent {
+		t.Fatalf("file direction = %q, want %q", entry.Direction, AuditDirectionSent)
+	}
+}
+
 func TestAuditWriterRecordSentAndRejected(t *testing.T) {
 	t.Parallel()
 
@@ -290,7 +326,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 
 		if err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
 			WorkspaceID: testWorkspaceID,
-			Action:      networkTaskActionEnqueue,
+			Action:      "task.enqueue",
 			Direction:   AuditDirectionRejected,
 			PeerID:      "reviewer.sess-ops",
 			Channel:     "ops",
@@ -310,7 +346,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		if got, want := entry.SessionID, "netpeer:reviewer.sess-ops"; got != want {
 			t.Fatalf("entry.SessionID = %q, want %q", got, want)
 		}
-		if got, want := entry.Kind, networkTaskActionEnqueue; got != want {
+		if got, want := entry.Kind, "task.enqueue"; got != want {
 			t.Fatalf("entry.Kind = %q, want %q", got, want)
 		}
 		if got, want := entry.Direction, AuditDirectionRejected; got != want {
@@ -329,7 +365,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 
 		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
 			WorkspaceID: testWorkspaceID,
-			Action:      networkTaskActionEnqueue,
+			Action:      "task.enqueue",
 			Direction:   AuditDirectionRejected,
 			PeerID:      "reviewer.sess-ops",
 			Channel:     "ops",
@@ -347,7 +383,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 
 		if err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
 			WorkspaceID: testWorkspaceID,
-			Action:      networkTaskActionEnqueue,
+			Action:      "task.enqueue",
 			Direction:   AuditDirectionRejected,
 			PeerID:      "reviewer.sess-ops",
 			Channel:     "ops",
@@ -397,7 +433,7 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 
 		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
 			WorkspaceID: testWorkspaceID,
-			Action:      networkTaskActionEnqueue,
+			Action:      "task.enqueue",
 			Direction:   AuditDirectionRejected,
 			PeerID:      "reviewer.sess-ops",
 			Channel:     "ops",

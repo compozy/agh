@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => {
     const { params: _params, to: _to, ...domRest } = rest as Record<string, unknown>;
@@ -106,12 +108,10 @@ describe("TasksDetailOverviewPanel", () => {
     const detail = buildDetail();
     detail.summary!.active_run = {
       ...detail.summary!.active_run!,
-      resolved_network_participation: {
-        version: "network-participation/v1",
-        mode: "live",
-        source: "explicit",
-        channel_id: "coord-task-001",
-      },
+      resolved_network_participation: buildLiveNetworkParticipationFixture({
+        workspaceId: "ws_storybook",
+        channelId: "coord-task-001",
+      }),
       coordination_channel: {
         id: "coord-task-001",
         display_name: "TASK-42 coordination",

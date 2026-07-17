@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -55,9 +56,11 @@ func (h *BaseHandlers) agentTaskClaimCriteria(
 		AgentName:            strings.TrimSpace(caller.Session.AgentName),
 		RequiredCapabilities: capabilities,
 		PriorityMin:          req.PriorityMin,
-		ParticipationChannel: strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID),
-		Soul:                 soulClaimProvenanceFromCaller(caller),
-		LeaseDuration:        leaseDuration,
+		CallerNetworkParticipation: participation.CloneSpec(
+			caller.Session.NetworkSpecSnapshot(),
+		),
+		Soul:          soulClaimProvenanceFromCaller(caller),
+		LeaseDuration: leaseDuration,
 	}, nil
 }
 

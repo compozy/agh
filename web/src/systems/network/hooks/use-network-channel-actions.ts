@@ -94,8 +94,8 @@ export function useUpsertNetworkSubscription() {
 export function useDeleteNetworkSubscription() {
   const queryClient = useQueryClient();
   return useMutation<void, Error, DeleteNetworkSubscriptionInput>({
-    mutationFn: ({ workspaceId, channel, peerId, threadId }) =>
-      deleteNetworkSubscription(workspaceId, channel, peerId, { thread_id: threadId }),
+    mutationFn: ({ workspaceId, channel, sessionId, threadId }) =>
+      deleteNetworkSubscription(workspaceId, channel, sessionId, { thread_id: threadId }),
     onSuccess: (_result, { workspaceId, channel }) => {
       toast.success("Thread delivery reset.");
       return queryClient.invalidateQueries({

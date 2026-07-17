@@ -139,6 +139,9 @@ func validateSessionCreationMetadata(meta SessionMeta) error {
 	if meta.CreationProfile == nil || meta.CreationOptions == nil {
 		return fmt.Errorf("store: session creation profile and options are required with identity")
 	}
+	if meta.NetworkSpecSnapshot() != meta.CreationOptions.NetworkParticipation {
+		return fmt.Errorf("store: session network participation does not match creation options")
+	}
 	if err := identity.Validate(); err != nil {
 		return err
 	}

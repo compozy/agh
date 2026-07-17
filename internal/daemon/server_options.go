@@ -4,6 +4,7 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/httpapi"
 	"github.com/compozy/agh/internal/api/udsapi"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
@@ -18,8 +19,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithNetworkService(deps.Network),
 		httpapi.WithNetworkStore(deps.Registry),
 		httpapi.WithNetworkUsageStore(deps.Registry),
-		httpapi.WithCoordinationSettings(deps.Registry),
-		httpapi.WithCoordinationInvitations(deps.Registry),
+		httpapi.WithCoordinationService(workspacepkg.NewCoordinationService(deps.Registry)),
 		httpapi.WithOnboardingStore(deps.Registry),
 		httpapi.WithObserver(deps.Observer),
 		httpapi.WithSchemaStreamStatusReader(deps.SchemaStreams),
@@ -82,8 +82,7 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithNetworkService(deps.Network),
 		udsapi.WithNetworkStore(deps.Registry),
 		udsapi.WithNetworkUsageStore(deps.Registry),
-		udsapi.WithCoordinationSettings(deps.Registry),
-		udsapi.WithCoordinationInvitations(deps.Registry),
+		udsapi.WithCoordinationService(workspacepkg.NewCoordinationService(deps.Registry)),
 		udsapi.WithOnboardingStore(deps.Registry),
 		udsapi.WithObserver(deps.Observer),
 		udsapi.WithSchemaStreamStatusReader(deps.SchemaStreams),

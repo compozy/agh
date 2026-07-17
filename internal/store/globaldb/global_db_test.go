@@ -704,7 +704,7 @@ func assertOwnerTableCanonicalLocal(t *testing.T, db *sql.DB, table string) {
 				source,
 			)
 		}
-		decoded, err := decodeParticipationSnapshot(rawSnapshot, mode, channel, source)
+		decoded, err := decodeParticipationSnapshot("", rawSnapshot, mode, channel, source)
 		if err != nil {
 			t.Fatalf("decode %s network snapshot error = %v", table, err)
 		}
@@ -1393,28 +1393,43 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 
 	t.Run("Should persist revisioned network coordination with availability fencing", func(t *testing.T) {
 		ctx := testutil.Context(t)
-		initial, getErr := globalDB.Get(ctx, updated.ID)
+		ref := aghworkspace.CoordinationRef{
+			WorkspaceID: updated.ID,
+			ScopeKind:   aghworkspace.InvitationScopeWorkspace,
+		}
+		commands := aghworkspace.NewCoordinationService(globalDB)
+		initialView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
 		if getErr != nil {
 			t.Fatalf("Get(initial coordination) error = %v", getErr)
 		}
+		initial := initialView.Setting
 		if initial.Enabled || initial.Revision != 0 || initial.WorkspaceID != updated.ID {
 			t.Fatalf("Get(initial coordination) = %#v, want disabled revision zero", initial)
+		}
+		if !initial.UpdatedAt.IsZero() || initial.UpdatedBy != "" {
+			t.Fatalf("Get(initial coordination) = %#v, absent row must not invent provenance", initial)
 		}
 
 		firstTime := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
 		globalDB.now = func() time.Time { return firstTime }
-		first, setErr := globalDB.Set(ctx, updated.ID, true, "operator:first")
+		firstView, setErr := commands.Set(ctx, aghworkspace.SetCoordination{
+			Ref: ref, Enabled: true, ExpectedRevision: 0,
+		}, operatorActorContextForTest("operator:first"))
 		if setErr != nil {
 			t.Fatalf("Set(first coordination) error = %v", setErr)
 		}
+		first := firstView.Setting
 		if !first.Enabled || first.Revision != 1 || first.UpdatedBy != "operator:first" {
 			t.Fatalf("Set(first coordination) = %#v, want enabled revision one", first)
 		}
 
-		second, setErr := globalDB.Set(ctx, updated.ID, false, "operator:second")
+		secondView, setErr := commands.Set(ctx, aghworkspace.SetCoordination{
+			Ref: ref, Enabled: false, ExpectedRevision: 1,
+		}, operatorActorContextForTest("operator:second"))
 		if setErr != nil {
 			t.Fatalf("Set(second coordination) error = %v", setErr)
 		}
+		second := secondView.Setting
 		if second.Enabled || second.Revision != 2 || second.UpdatedBy != "operator:second" {
 			t.Fatalf("Set(second coordination) = %#v, want disabled revision two", second)
 		}
@@ -1425,21 +1440,30 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		if _, disableErr := globalDB.SetNetworkAvailability(ctx, false, "operator:disable"); disableErr != nil {
 			t.Fatalf("SetNetworkAvailability(false) error = %v", disableErr)
 		}
-		if _, setErr = globalDB.Set(ctx, updated.ID, true, "operator:blocked"); !errors.Is(
+		if _, setErr = commands.Set(ctx, aghworkspace.SetCoordination{
+			Ref: ref, Enabled: true, ExpectedRevision: 2,
+		}, operatorActorContextForTest("operator:blocked")); !errors.Is(
 			setErr,
 			participation.ErrUnavailable,
 		) {
 			t.Fatalf("Set(while unavailable) error = %v, want %v", setErr, participation.ErrUnavailable)
 		}
-		unchanged, getErr := globalDB.Get(ctx, updated.ID)
+		unchangedView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
 		if getErr != nil {
 			t.Fatalf("Get(after blocked Set) error = %v", getErr)
 		}
+		unchanged := unchangedView.Setting
 		if unchanged.Revision != second.Revision || unchanged.UpdatedBy != second.UpdatedBy {
 			t.Fatalf("Get(after blocked Set) = %#v, want unchanged %#v", unchanged, second)
 		}
 		if _, enableErr := globalDB.SetNetworkAvailability(ctx, true, "operator:enable"); enableErr != nil {
 			t.Fatalf("SetNetworkAvailability(true) error = %v", enableErr)
+		}
+		thirdView, setErr := commands.Set(ctx, aghworkspace.SetCoordination{
+			Ref: ref, Enabled: true, ExpectedRevision: 2,
+		}, operatorActorContextForTest("operator:third"))
+		if setErr != nil || thirdView.Setting.Revision != 3 {
+			t.Fatalf("Set(third coordination) = %#v, error = %v, want revision three", thirdView, setErr)
 		}
 
 		var clockCalls atomic.Int64
@@ -1454,35 +1478,70 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 			return firstTime.Add(time.Duration(call) * time.Minute)
 		}
 		type setResult struct {
-			setting aghworkspace.CoordinationSetting
-			err     error
+			view aghworkspace.CoordinationView
+			err  error
 		}
 		firstResult := make(chan setResult, 1)
 		secondResult := make(chan setResult, 1)
+		waitForSetResult := func(name string, results <-chan setResult) setResult {
+			t.Helper()
+			select {
+			case result := <-results:
+				return result
+			case <-time.After(5 * time.Second):
+				t.Fatalf("timed out waiting for %s coordination result", name)
+				return setResult{}
+			}
+		}
 		go func() {
-			setting, callErr := globalDB.Set(ctx, updated.ID, true, "operator:concurrent-first")
-			firstResult <- setResult{setting: setting, err: callErr}
+			view, callErr := commands.Set(ctx, aghworkspace.SetCoordination{
+				Ref: ref, Enabled: true, ExpectedRevision: 3,
+			}, operatorActorContextForTest("operator:concurrent-first"))
+			firstResult <- setResult{view: view, err: callErr}
 		}()
-		<-firstHasWriteLock
+		select {
+		case <-firstHasWriteLock:
+		case result := <-firstResult:
+			t.Fatalf("first coordination writer returned before holding the write lock: %v", result.err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for first coordination writer to hold the write lock")
+		}
 		go func() {
-			setting, callErr := globalDB.Set(ctx, updated.ID, false, "operator:concurrent-second")
-			secondResult <- setResult{setting: setting, err: callErr}
+			view, callErr := commands.Set(ctx, aghworkspace.SetCoordination{
+				Ref: ref, Enabled: false, ExpectedRevision: 3,
+			}, operatorActorContextForTest("operator:concurrent-second"))
+			secondResult <- setResult{view: view, err: callErr}
 		}()
 		close(releaseFirst)
-		firstConcurrent := <-firstResult
+		firstConcurrent := waitForSetResult("first", firstResult)
 		if firstConcurrent.err != nil {
 			t.Fatalf("Set(concurrent first) error = %v", firstConcurrent.err)
 		}
-		secondConcurrent := <-secondResult
-		if secondConcurrent.err != nil {
-			t.Fatalf("Set(concurrent second) error = %v", secondConcurrent.err)
+		secondConcurrent := waitForSetResult("second", secondResult)
+		if !errors.Is(secondConcurrent.err, aghworkspace.ErrCoordinationConflict) {
+			t.Fatalf("Set(concurrent second) error = %v, want revision conflict", secondConcurrent.err)
 		}
-		winner, getErr := globalDB.Get(ctx, updated.ID)
+		winnerView, getErr := commands.Get(ctx, ref, operatorActorContextForTest("operator:reader"))
 		if getErr != nil {
 			t.Fatalf("Get(concurrent winner) error = %v", getErr)
 		}
-		if winner.Enabled || winner.UpdatedBy != "operator:concurrent-second" || winner.Revision != 4 {
-			t.Fatalf("Get(concurrent winner) = %#v, want second writer at revision four", winner)
+		winner := winnerView.Setting
+		if !winner.Enabled || winner.UpdatedBy != "operator:concurrent-first" || winner.Revision != 4 {
+			t.Fatalf("Get(concurrent winner) = %#v, want sole first writer at revision four", winner)
+		}
+		summaries, summaryErr := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
+			WorkspaceID: updated.ID,
+			Type:        "network.coordination.setting_changed",
+		})
+		if summaryErr != nil {
+			t.Fatalf("ListEventSummaries(coordination) error = %v", summaryErr)
+		}
+		if len(summaries) != 4 {
+			t.Fatalf("len(coordination summaries) = %d, want four committed winners", len(summaries))
+		}
+		latestSummary := summaries[len(summaries)-1]
+		if latestSummary.ActorID != "operator:concurrent-first" {
+			t.Fatalf("latest coordination actor = %q, want committed CAS winner", latestSummary.ActorID)
 		}
 	})
 
@@ -2067,8 +2126,8 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	if got, want := sessions[0].WorkspaceID, workspaceID; got != want {
 		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", got, want)
 	}
-	if got, want := sessions[0].Channel, ""; got != want {
-		t.Fatalf("sessions[0].Channel = %q, want %q", got, want)
+	if got, want := sessions[0].NetworkSpecSnapshot().ChannelID, ""; got != want {
+		t.Fatalf("sessions[0] Network channel = %q, want %q", got, want)
 	}
 	if got, want := sessions[0].NetworkSpec, participation.LocalSpec(); got != want {
 		t.Fatalf("sessions[0].NetworkSpec = %#v, want %#v", got, want)

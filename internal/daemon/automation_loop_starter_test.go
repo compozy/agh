@@ -76,47 +76,51 @@ func TestAutomationLoopStartMetadataShouldIncludeCatchUpEvidence(t *testing.T) {
 func TestAutomationLoopStarterShouldForwardDefinitionParticipationAsAutomationIntent(t *testing.T) {
 	t.Parallel()
 
-	service := &recordingAutomationLoopService{}
-	starter := &automationLoopStarter{
-		service: service,
-		resolver: looppkg.DefinitionResolverFunc(
-			func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
-				return &looppkg.ResolvedDefinition{Definition: loopdsl.Definition{
-					DefinitionExtensionState: &loopdsl.DefinitionExtensionState{
-						Start: []loopdsl.StartBinding{{Kind: loopdsl.StartWebhook}},
-					},
-				}}, nil
-			},
-		),
-	}
-	request := automationLoopNamedParticipation("deployments")
-	actor, err := taskpkg.DeriveAutomationActorContext("trigger-1", "run:autorun-1")
-	if err != nil {
-		t.Fatalf("DeriveAutomationActorContext() error = %v", err)
-	}
+	t.Run("Should forward definition participation as Automation intent", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := starter.StartLoop(context.Background(), automationpkg.LoopStartRequest{
-		WorkspaceID:          "ws-1",
-		LoopName:             "deploy",
-		Kind:                 automationpkg.LoopStartKindWebhook,
-		Actor:                actor,
-		AutomationRunID:      "autorun-1",
-		NetworkParticipation: request,
+		service := &recordingAutomationLoopService{}
+		starter := &automationLoopStarter{
+			service: service,
+			resolver: looppkg.DefinitionResolverFunc(
+				func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
+					return &looppkg.ResolvedDefinition{Definition: loopdsl.Definition{
+						DefinitionExtensionState: &loopdsl.DefinitionExtensionState{
+							Start: []loopdsl.StartBinding{{Kind: loopdsl.StartWebhook}},
+						},
+					}}, nil
+				},
+			),
+		}
+		request := automationLoopNamedParticipation("deployments")
+		actor, err := taskpkg.DeriveAutomationActorContext("trigger-1", "run:autorun-1")
+		if err != nil {
+			t.Fatalf("DeriveAutomationActorContext() error = %v", err)
+		}
+
+		result, err := starter.StartLoop(context.Background(), automationpkg.LoopStartRequest{
+			WorkspaceID:          "ws-1",
+			LoopName:             "deploy",
+			Kind:                 automationpkg.LoopStartKindWebhook,
+			Actor:                actor,
+			AutomationRunID:      "autorun-1",
+			NetworkParticipation: request,
+		})
+		if err != nil {
+			t.Fatalf("StartLoop() error = %v", err)
+		}
+		if got, want := result.RunID, "looprun-automation"; got != want {
+			t.Fatalf("StartLoop().RunID = %q, want %q", got, want)
+		}
+		if service.inputs.NetworkParticipationSource != participation.SourceAutomationJob {
+			t.Fatalf(
+				"Start().NetworkParticipationSource = %q, want %q",
+				service.inputs.NetworkParticipationSource,
+				participation.SourceAutomationJob,
+			)
+		}
+		assertAutomationLoopNamedParticipation(t, service.inputs.NetworkParticipation, "deployments")
 	})
-	if err != nil {
-		t.Fatalf("StartLoop() error = %v", err)
-	}
-	if got, want := result.RunID, "looprun-automation"; got != want {
-		t.Fatalf("StartLoop().RunID = %q, want %q", got, want)
-	}
-	if service.inputs.NetworkParticipationSource != participation.SourceAutomationJob {
-		t.Fatalf(
-			"Start().NetworkParticipationSource = %q, want %q",
-			service.inputs.NetworkParticipationSource,
-			participation.SourceAutomationJob,
-		)
-	}
-	assertAutomationLoopNamedParticipation(t, service.inputs.NetworkParticipation, "deployments")
 }
 
 type recordingAutomationLoopService struct {

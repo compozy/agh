@@ -30,16 +30,21 @@ func (g *NetworkRepo) ListQueuedNetworkWakes(
 	}
 	rows, err := g.db.QueryContext(
 		ctx,
-		`SELECT run.network_target_session_id, run.id,
+		`SELECT run.workspace_id, run.network_target_session_id, run.id,
 			COALESCE(MAX(disposition.acceptance_seq), 0)
 		 FROM task_runs AS run
-		 JOIN network_live_wakes AS wake ON wake.task_run_id = run.id
-		 LEFT JOIN network_wake_sources AS source ON source.wake_id = wake.wake_id
+		 JOIN network_live_wakes AS wake
+			ON wake.workspace_id = run.workspace_id
+			AND wake.task_run_id = run.id
+		 LEFT JOIN network_wake_sources AS source
+			ON source.workspace_id = wake.workspace_id
+			AND source.wake_id = wake.wake_id
 		 LEFT JOIN network_message_dispositions AS disposition
-			ON disposition.message_id = source.envelope_id
+			ON disposition.workspace_id = source.workspace_id
+			AND disposition.message_id = source.envelope_id
 			AND disposition.recipient_session_id = run.network_target_session_id
 		 WHERE run.run_kind = ? AND run.status = ? AND wake.state = 'open'
-		 GROUP BY run.network_target_session_id, run.id, run.queued_at
+		 GROUP BY run.workspace_id, run.network_target_session_id, run.id, run.queued_at
 		 ORDER BY run.queued_at ASC, run.id ASC
 		 LIMIT ?`,
 		taskpkg.RunKindNetworkWake.String(),
@@ -63,6 +68,7 @@ func (g *NetworkRepo) ListQueuedNetworkWakes(
 	for rows.Next() {
 		var notification store.CommittedNetworkNotification
 		if err := rows.Scan(
+			&notification.WorkspaceID,
 			&notification.RecipientSessionID,
 			&notification.TaskRunID,
 			&notification.AcceptanceSeq,
@@ -80,17 +86,21 @@ func (g *NetworkRepo) ListQueuedNetworkWakes(
 // LoadNetworkWake loads one reservation and its causally ordered source messages.
 func (g *NetworkRepo) LoadNetworkWake(
 	ctx context.Context,
+	workspaceID string,
 	wakeID string,
 ) (store.WakeReservation, []store.NetworkMessageEntry, error) {
 	if err := g.checkReady(ctx, "load network wake"); err != nil {
 		return store.WakeReservation{}, nil, err
 	}
 	targetWakeID := strings.TrimSpace(wakeID)
+	targetWorkspaceID := strings.TrimSpace(workspaceID)
+	if targetWorkspaceID == "" {
+		return store.WakeReservation{}, nil, fmt.Errorf("store: network wake workspace_id is required")
+	}
 	if targetWakeID == "" {
 		return store.WakeReservation{}, nil, fmt.Errorf("store: network wake id is required")
 	}
 	var reservation store.WakeReservation
-	var workspaceID string
 	var channel string
 	var reservedWallMS int64
 	var coalesceUntilRaw string
@@ -99,13 +109,14 @@ func (g *NetworkRepo) LoadNetworkWake(
 		`SELECT wake_id, task_run_id, owner_key, workspace_id, channel,
 			reserved_wall_ms, coalesce_until
 		 FROM network_live_wakes
-		 WHERE wake_id = ?`,
+		 WHERE workspace_id = ? AND wake_id = ?`,
+		targetWorkspaceID,
 		targetWakeID,
 	).Scan(
 		&reservation.WakeID,
 		&reservation.TaskRunID,
 		&reservation.OwnerKey,
-		&workspaceID,
+		&reservation.WorkspaceID,
 		&channel,
 		&reservedWallMS,
 		&coalesceUntilRaw,
@@ -121,7 +132,7 @@ func (g *NetworkRepo) LoadNetworkWake(
 		return store.WakeReservation{}, nil, fmt.Errorf("store: parse network wake coalesce_until: %w", err)
 	}
 	reservation.ReservedWallTime = (time.Duration(reservedWallMS) * time.Millisecond).String()
-	envelopeIDs, err := g.listNetworkWakeSourceIDs(ctx, targetWakeID)
+	envelopeIDs, err := g.listNetworkWakeSourceIDs(ctx, targetWorkspaceID, targetWakeID)
 	if err != nil {
 		return store.WakeReservation{}, nil, err
 	}
@@ -129,7 +140,7 @@ func (g *NetworkRepo) LoadNetworkWake(
 	messages := make([]store.NetworkMessageEntry, 0, len(envelopeIDs))
 	for _, envelopeID := range envelopeIDs {
 		entries, listErr := g.ListNetworkMessages(ctx, store.NetworkMessageQuery{
-			WorkspaceID: workspaceID,
+			WorkspaceID: targetWorkspaceID,
 			Channel:     channel,
 			MessageID:   envelopeID,
 			Limit:       1,
@@ -150,15 +161,19 @@ func (g *NetworkRepo) LoadNetworkWake(
 
 func (g *NetworkRepo) listNetworkWakeSourceIDs(
 	ctx context.Context,
+	workspaceID string,
 	wakeID string,
 ) (ids []string, err error) {
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT source.envelope_id
 		 FROM network_wake_sources AS source
-		 JOIN network_timeline_log AS message ON message.message_id = source.envelope_id
-		 WHERE source.wake_id = ?
+		 JOIN network_timeline_log AS message
+			ON message.workspace_id = source.workspace_id
+			AND message.message_id = source.envelope_id
+		 WHERE source.workspace_id = ? AND source.wake_id = ?
 		 ORDER BY message.sequence ASC`,
+		workspaceID,
 		wakeID,
 	)
 	if err != nil {

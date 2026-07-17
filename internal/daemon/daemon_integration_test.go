@@ -3799,7 +3799,9 @@ func seedDetachedHarnessSessionIndex(
 			Name:        info.Name,
 			AgentName:   agentName,
 			WorkspaceID: workspaceID,
-			Channel:     strings.TrimSpace(info.NetworkParticipation.ChannelID),
+			SessionNetworkState: &store.SessionNetworkState{
+				NetworkSpec: info.NetworkParticipation,
+			},
 			SessionType: string(info.Type),
 			State:       string(info.State),
 			CreatedAt:   time.Now().UTC(),

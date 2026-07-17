@@ -648,6 +648,10 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{})
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
 	workspaceRoot := t.TempDir()
 	deps.getwd = func() (string, error) {
 		return workspaceRoot, nil
@@ -675,6 +679,16 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	}
 	if !strings.Contains(string(contents), "max_wakes = 12") {
 		t.Fatalf("workspace config = %s, want network Live max_wakes 12", string(contents))
+	}
+	loaded, err := aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	if got, want := loaded.Network.Live.Defaults.MaxWakes, 12; got != want {
+		t.Fatalf("Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
+	}
+	if got, want := loaded.Network.Live.Limits.MaxWakes, aghconfig.DefaultNetworkConfig().Live.Limits.MaxWakes; got != want {
+		t.Fatalf("Network.Live.Limits.MaxWakes = %d, want default %d", got, want)
 	}
 
 	before := string(contents)

@@ -20,7 +20,6 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	extensiontest "github.com/compozy/agh/internal/extensiontest"
-	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/sandbox"
 	sessionpkg "github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -49,17 +48,6 @@ const (
 	nightlyBridgeAssistantPrefix    = "Bridge tool summary: "
 	nightlyBridgeSideEffectRelative = "toolhost/nightly-bridge-summary.txt"
 )
-
-func daemonTestNamedParticipationIntent(channelID string) *participation.Request {
-	mode := participation.ModeLive
-	strategy := participation.StrategyNamed
-	trimmedChannelID := strings.TrimSpace(channelID)
-	return &participation.Request{
-		Mode:            &mode,
-		ChannelStrategy: &strategy,
-		ChannelID:       &trimmedChannelID,
-	}
-}
 
 func TestDaemonNightlyCombinedACPHelperProcess(t *testing.T) {
 	if os.Getenv(nightlyCombinedHelperEnvKey) != "1" {
@@ -124,7 +112,7 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 			Task: &automationpkg.JobTaskConfig{
 				Title:                "Nightly delegated regression follow-up",
 				Description:          "Resume the delegated regression and post the result to the shared channel.",
-				NetworkParticipation: daemonTestNamedParticipationIntent("ops-nightly"),
+				NetworkParticipation: daemonTestNamedParticipationRequest("ops-nightly"),
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  "job:nightly-triage",

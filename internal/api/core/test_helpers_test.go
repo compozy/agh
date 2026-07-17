@@ -27,6 +27,15 @@ func testLiveParticipation(workspaceID string, channelID string) participation.S
 		ChannelStrategy: participation.StrategyNamed,
 		ChannelID:       channelID,
 		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         4,
+			MaxWakeWallTime:  "30s",
+			MaxTotalWallTime: "2m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  4096,
+			MaxWakeDepth:     4,
+			CoalesceWindow:   "250ms",
+		},
 	}
 }
 
@@ -375,7 +384,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/workspaces/:workspace_id/network/channels/:channel/subscriptions", handlers.NetworkSubscriptions)
 	engine.PUT("/workspaces/:workspace_id/network/channels/:channel/subscriptions", handlers.UpsertNetworkSubscription)
 	engine.DELETE(
-		"/workspaces/:workspace_id/network/channels/:channel/subscriptions/:peer_id",
+		"/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
 		handlers.DeleteNetworkSubscription,
 	)
 	engine.GET("/workspaces/:workspace_id/network/channels/:channel/messages", handlers.NetworkChannelMessages)

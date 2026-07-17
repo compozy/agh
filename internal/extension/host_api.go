@@ -1,7 +1,6 @@
 package extensionpkg
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -108,6 +107,7 @@ type HostAPIHandler struct {
 	tasks            hostAPITaskManager
 	network          hostAPINetworkService
 	networkStore     store.NetworkConversationStore
+	networkUsage     store.NetworkUsageStore
 	memory           *memory.Store
 	observer         hostAPIObserver
 	skills           hostAPISkillsRegistry
@@ -325,6 +325,13 @@ func WithHostAPINetworkService(service hostAPINetworkService) HostAPIOption {
 func WithHostAPINetworkStore(networkStore store.NetworkConversationStore) HostAPIOption {
 	return func(handler *HostAPIHandler) {
 		handler.networkStore = networkStore
+	}
+}
+
+// WithHostAPINetworkUsageStore injects the bounded Network usage reader.
+func WithHostAPINetworkUsageStore(networkUsage store.NetworkUsageStore) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.networkUsage = networkUsage
 	}
 }
 
@@ -2419,32 +2426,6 @@ func hostAPISessionStatusFromInfo(info *session.Info) hostAPISessionStatus {
 		CreatedAt:    info.CreatedAt,
 		UpdatedAt:    info.UpdatedAt,
 	}
-}
-
-func decodeHostAPIParams(raw json.RawMessage, target any) error {
-	return decodeHostAPIParamsWithUnknownFields(raw, target, false)
-}
-
-func decodeHostAPIParamsStrict(raw json.RawMessage, target any) error {
-	return decodeHostAPIParamsWithUnknownFields(raw, target, true)
-}
-
-func decodeHostAPIParamsWithUnknownFields(raw json.RawMessage, target any, disallowUnknown bool) error {
-	if target == nil {
-		return errors.New("extension: host api params target is required")
-	}
-	payload := bytes.TrimSpace(raw)
-	if len(payload) == 0 || bytes.Equal(payload, []byte("null")) {
-		payload = json.RawMessage(`{}`)
-	}
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	if disallowUnknown {
-		decoder.DisallowUnknownFields()
-	}
-	if err := decoder.Decode(target); err != nil {
-		return invalidParamsRPCError(fmt.Errorf("decode params: %w", err))
-	}
-	return nil
 }
 
 func decodeJSONValue(raw string) any {

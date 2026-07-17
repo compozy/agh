@@ -304,26 +304,12 @@ var (
 		"agents.heartbeat.wake_event_retention":             configSetDuration,
 		"agents.heartbeat.session_health_stale_after":       configSetDuration,
 		"agents.heartbeat.session_health_hook_min_interval": configSetDuration,
-		"network.enabled":                                   configSetBool,
-		"network.greet_interval":                            configSetInt,
-		"network.max_replay_age":                            configSetInt,
-		"network.max_queue_depth":                           configSetInt,
-		"network.live.defaults.max_wakes":                   configSetInt,
-		"network.live.defaults.max_wake_wall_time":          configSetString,
-		"network.live.defaults.max_total_wall_time":         configSetString,
-		"network.live.defaults.max_input_tokens":            configSetInt64,
-		"network.live.defaults.max_output_tokens":           configSetInt64,
-		"network.live.defaults.max_wake_depth":              configSetInt,
-		"network.live.defaults.coalesce_window":             configSetString,
-		"network.live.limits.max_wakes":                     configSetInt,
-		"network.live.limits.max_wake_wall_time":            configSetString,
-		"network.live.limits.max_total_wall_time":           configSetString,
-		"network.live.limits.max_input_tokens":              configSetInt64,
-		"network.live.limits.max_output_tokens":             configSetInt64,
-		"network.live.limits.max_wake_depth":                configSetInt,
-		"network.live.limits.min_coalesce_window":           configSetString,
-		"network.live.limits.max_coalesce_window":           configSetString,
-	}, loopAndGoalConfigSetPathKinds(), extensionConfigSetPathKinds(), marketplaceConfigSetPathKinds())
+	},
+		networkConfigSetPathKinds(),
+		loopAndGoalConfigSetPathKinds(),
+		extensionConfigSetPathKinds(),
+		marketplaceConfigSetPathKinds(),
+	)
 )
 
 func newConfigCommand(deps commandDeps) *cobra.Command {

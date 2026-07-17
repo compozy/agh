@@ -46,8 +46,8 @@ Receivers MUST NOT treat a capability claim as authorization or trust evidence.
 
 ## Announcing with `greet`
 
-A peer SHOULD send `greet` when it joins a channel or reconnects. In long-running channels, a peer
-SHOULD re-announce before its presence expires.
+A peer SHOULD send `greet` when it joins a channel. AGH records each announcement as a discrete
+protocol message; `greet` is not a keepalive or membership lease.
 
 <Mermaid
   chart={`sequenceDiagram
@@ -56,10 +56,10 @@ SHOULD re-announce before its presence expires.
     participant O as ops-coordinator
 
     W->>C: greet with Peer Card
-    C-->>O: remote presence refreshed
-    Note over O: Peer is now discoverable in builders`}
+    C-->>O: local announcement recorded
+    Note over O: Peer is discoverable while its session remains joined`}
 
-caption="A greet message refreshes channel-scoped peer presence."
+caption="A greet message advertises a daemon-local peer without creating an expiry lease."
 />
 
 ### Example
@@ -167,25 +167,15 @@ artifact type, or trust mode.
 A directed `whois` request SHOULD be answered by the addressed peer when it is present, even when
 the query text would not otherwise match. This lets callers refresh a known peer's Peer Card.
 
-## Presence and expiry
+## Runtime membership
 
-Peer presence is channel-scoped and runtime-local. A runtime SHOULD expire remote peers that stop
-announcing themselves. In the AGH reference implementation:
+AGH peer membership is channel-scoped and daemon-local. A Live execution becomes visible when its
+session joins a channel and is removed when that session leaves. The runtime does not cache,
+refresh, or expire peers announced by another daemon.
 
-| Setting            | Default                                                     |
-| ------------------ | ----------------------------------------------------------- |
-| Greet interval     | 30 seconds                                                  |
-| Remote peer expiry | `last_seen + 2 * greet_interval`, normally about 60 seconds |
-| Default channel    | `default`                                                   |
-
-Local peers take precedence over remote peers with the same `(channel, peer_id)`. This avoids a
-stale remote announcement shadowing the local peer that owns the ID.
-
-AGH Runtime projects this registry state as `presence_state` on peer-list payloads. The state is
-derived from the peer's `last_seen` timestamp and `[network].greet_interval`: `active` within one
-interval, `inactive` after one interval but before expiry, and `expired` only during expiry
-lifecycle handling. Local peers project as `local`; peers without a recent `greet` timestamp project
-as `unknown`. There is no separate presence window or session-derived fallback.
+Peer-list payloads therefore project `presence_state: "local"` and the session's `joined_at`
+timestamp. `greet` and `whois` remain durable protocol messages, but neither changes membership or
+creates a presence window.
 
 ## Capability claims
 

@@ -66,8 +66,6 @@ export const settingsNetworkSectionFixture: SettingsNetworkSection = {
   available_scopes: ["global"],
   config: {
     enabled: true,
-    greet_interval: 30,
-    max_queue_depth: 100,
     max_replay_age: 300,
     live: {
       defaults: {

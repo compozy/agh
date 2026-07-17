@@ -65,9 +65,10 @@ func taskRunFromGenerated(row *sqlcgen.GetTaskRunRow) (taskpkg.Run, error) {
 		return taskpkg.Run{}, err
 	}
 	run := taskpkg.Run{
-		ID:      row.ID,
-		TaskID:  taskNullStringValue(row.TaskID),
-		Attempt: attempt,
+		ID:          row.ID,
+		TaskID:      taskNullStringValue(row.TaskID),
+		WorkspaceID: taskNullStringValue(row.WorkspaceID),
+		Attempt:     attempt,
 		Origin: taskpkg.Origin{
 			Ref: row.OriginRef,
 		},
@@ -123,10 +124,11 @@ func taskRunFromStatusGenerated(row *sqlcgen.ListTaskRunsByStatusRow) (taskpkg.R
 		return taskpkg.Run{}, err
 	}
 	run := taskpkg.Run{
-		ID:      row.ID,
-		TaskID:  taskNullStringValue(row.TaskID),
-		Attempt: attempt,
-		Origin:  taskpkg.Origin{Ref: row.OriginRef},
+		ID:          row.ID,
+		TaskID:      taskNullStringValue(row.TaskID),
+		WorkspaceID: taskNullStringValue(row.WorkspaceID),
+		Attempt:     attempt,
+		Origin:      taskpkg.Origin{Ref: row.OriginRef},
 	}
 	fields := taskRunScanFields{
 		status:                 row.Status,
@@ -252,7 +254,7 @@ func updateTaskParams(record taskpkg.Task) sqlcgen.UpdateTaskParams {
 
 func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 	lineage := taskRunReviewLineage(run)
-	network, err := encodeParticipationSnapshot(run.NetworkSpecSnapshot())
+	network, err := encodeParticipationSnapshot(run.WorkspaceID, run.NetworkSpecSnapshot())
 	if err != nil {
 		return sqlcgen.InsertTaskRunParams{}, err
 	}
@@ -260,6 +262,7 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 	return sqlcgen.InsertTaskRunParams{
 		ID:                     run.ID,
 		TaskID:                 nullableTaskString(run.TaskID),
+		WorkspaceID:            nullableTaskString(run.WorkspaceID),
 		RunKind:                run.RunKind.String(),
 		LoopRunID:              nullableTaskString(run.LoopRunID),
 		Status:                 run.Status.String(),
@@ -311,6 +314,7 @@ func updateTaskRunParams(run taskpkg.Run) (sqlcgen.UpdateTaskRunParams, error) {
 	}
 	return sqlcgen.UpdateTaskRunParams{
 		TaskID:                 insert.TaskID,
+		WorkspaceID:            insert.WorkspaceID,
 		RunKind:                insert.RunKind,
 		LoopRunID:              insert.LoopRunID,
 		Status:                 insert.Status,

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/task"
 )
 
@@ -18,6 +19,8 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 
 		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(2, 1, 2))
 		loopRun := controlLoopRun("looprun-fanout-barrier", map[string]any{})
+		liveSpec := coordinatorLiveParticipationForTest(loopRun)
+		loopRun.SetNetworkSpec(liveSpec)
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
 		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
 		runner := newCoordinatorRunnerForControlTest(
@@ -51,6 +54,9 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		}
 		if got, want := plan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 0); got != want {
 			t.Fatalf("queued task = %q, want %q", got, want)
+		}
+		if got := plan.NodeRuns[0].ResolvedNetworkParticipation; got == nil || *got != liveSpec {
+			t.Fatalf("queued participation = %#v, want %#v", got, liveSpec)
 		}
 		var metadata map[string]any
 		if err := json.Unmarshal(plan.NodeRuns[0].Metadata, &metadata); err != nil {
@@ -1019,6 +1025,21 @@ func controlLoopRun(id string, inputs map[string]any) Run {
 		ReattemptStrategy: ReattemptFailedOnly,
 		IterationCap:      3,
 		Inputs:            inputs,
+	}
+}
+
+func coordinatorLiveParticipationForTest(run Run) participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     string(run.WorkspaceID),
+		ChannelStrategy: participation.StrategyLoopRun,
+		ChannelID:       string(run.ID),
+		Source:          participation.SourceLoopDefinition,
+		Bounds: participation.Bounds{
+			MaxWakes: 2, MaxWakeWallTime: "1s", MaxTotalWallTime: "2s",
+			MaxInputTokens: 100, MaxOutputTokens: 100, MaxWakeDepth: 2, CoalesceWindow: "100ms",
+		},
 	}
 }
 

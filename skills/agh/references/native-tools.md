@@ -72,7 +72,7 @@ Memory admin tools include health, scope, reindex, promote, reset, reload, decis
 
 ## Network Tools
 
-Coordination tools: `agh__network_status`, `agh__network_channels`, `agh__network_channel_create`, `agh__network_channel_update`, `agh__network_inbox`, `agh__network_peers`, `agh__network_send`, `agh__network_threads`, `agh__network_thread_messages`, `agh__task_promote_from_thread`, `agh__network_subscriptions`, `agh__network_subscribe`, `agh__network_digest_mode`, `agh__network_mute`, `agh__network_unmute`, `agh__network_directs`, `agh__network_direct_resolve`, `agh__network_direct_messages`, `agh__network_work`.
+Coordination tools: `agh__network_status`, `agh__network_channels`, `agh__network_channel_create`, `agh__network_channel_update`, `agh__network_inbox`, `agh__network_peers`, `agh__network_send`, `agh__network_threads`, `agh__network_thread_messages`, `agh__task_promote_from_thread`, `agh__network_subscriptions`, `agh__network_subscribe`, `agh__network_mute`, `agh__network_unmute`, `agh__network_directs`, `agh__network_direct_resolve`, `agh__network_direct_messages`, `agh__network_work`.
 
 Channel create/update are mutating. Channel names are lowercase `[a-z0-9][a-z0-9_-]{0,63}`;
 coordinator routing metadata requires `coordinator_peer_id`. Routing metadata never enrolls or wakes

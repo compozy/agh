@@ -76,10 +76,9 @@ describe("DirectRoom headerless layout", () => {
     listNetworkPeersMock.mockResolvedValue([
       {
         channel: "ops",
-        display_name: "Remote Peer",
-        last_seen: "2026-04-17T18:00:00Z",
-        last_seen_age_seconds: 12,
-        local: false,
+        display_name: "Local Peer",
+        joined_at: "2026-04-17T18:00:00Z",
+        local: true,
         peer_card: {
           peer_id: "peer-remote",
           profiles_supported: [],
@@ -88,7 +87,8 @@ describe("DirectRoom headerless layout", () => {
           trust_modes_supported: [],
         },
         peer_id: "peer-remote",
-        presence_state: "active",
+        presence_state: "local",
+        session_id: "sess-remote",
       },
     ]);
     directDetailMock.mockReturnValue({
@@ -101,8 +101,8 @@ describe("DirectRoom headerless layout", () => {
         message_count: 0,
         open_work_count: 0,
         opened_at: "2026-04-17T17:00:00Z",
-        peer_a: "peer-self",
-        peer_b: "peer-remote",
+        session_a: "sess-self",
+        session_b: "sess-remote",
       },
       isLoading: false,
       error: null,
@@ -118,18 +118,18 @@ describe("DirectRoom headerless layout", () => {
         <DirectRoom
           channel="ops"
           directId="direct_test"
-          selfPeerId="peer-self"
+          selfSessionId="sess-self"
           workspaceId="ws_test"
         />
       </QueryClientProvider>
     );
   }
 
-  it("Should render no #channel name and no member count", () => {
+  it("Should render no #channel name and no member count", async () => {
     renderRoom();
     expect(screen.queryByText("#ops")).toBeNull();
     expect(screen.queryByText(/members/i)).toBeNull();
-    expect(screen.getByText("@peer-remote")).toBeInTheDocument();
+    expect(await screen.findByText("@peer-remote")).toBeInTheDocument();
   });
 
   it("Should scope direct detail, history, and loaded work to the URL workspace", () => {
@@ -143,12 +143,13 @@ describe("DirectRoom headerless layout", () => {
     }
   });
 
-  it("Should render the identity header via <DetailHeader> (24 px H1)", () => {
+  it("Should render the identity header via <DetailHeader> (24 px H1)", async () => {
     renderRoom();
     const header = screen.getByTestId("network-direct-identity-row");
     expect(header).toHaveAttribute("data-slot", "detail-header");
     const title = header.querySelector('[data-slot="detail-header-title"]');
     expect(title).not.toBeNull();
+    await screen.findByText("@peer-remote");
     expect(title?.textContent).toContain("@peer-remote");
   });
 
@@ -159,11 +160,11 @@ describe("DirectRoom headerless layout", () => {
 
   it("Should render the daemon-derived direct peer presence", async () => {
     renderRoom();
-    await screen.findByText("active 12s ago");
+    await screen.findByText("local");
     const badge = screen.getByTestId("network-direct-presence");
-    expect(badge).toHaveAttribute("data-state", "active");
-    expect(badge).toHaveAttribute("aria-label", "peer presence active 12s ago");
-    expect(badge).toHaveTextContent("active 12s ago");
+    expect(badge).toHaveAttribute("data-state", "local");
+    expect(badge).toHaveAttribute("aria-label", "peer presence local");
+    expect(badge).toHaveTextContent("local");
   });
 
   it("Should render an unavailable state without composer when the direct detail fails", () => {

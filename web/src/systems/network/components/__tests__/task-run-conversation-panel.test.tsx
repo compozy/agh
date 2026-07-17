@@ -8,10 +8,10 @@ const usage: TaskRunNetworkUsage = {
   workspace_id: "ws-fixture",
   details: [],
   total: {
-    wake_count: 2,
-    reserved_wake_count: 0,
+    wake_count: 4,
+    reserved_wake_count: 1,
     actual_wake_count: 2,
-    unavailable_wake_count: 0,
+    unavailable_wake_count: 1,
     charged_wall_time: "1s",
     input_tokens: 10,
     output_tokens: 4,
@@ -42,7 +42,7 @@ describe("TaskRunConversationPanel", () => {
       /Silence is normal/i
     );
     expect(screen.getByTestId("tasks-run-usage-summary")).toHaveTextContent(
-      "Run usage (actual): 2 wakes"
+      "Run usage: 2 actual · 1 reserved · 1 unavailable · 10 charged in / 4 charged out"
     );
   });
 

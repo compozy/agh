@@ -27,13 +27,13 @@ func (h *BaseHandlers) provisionNetworkChannel(
 		agentNames,
 	)
 	if err != nil {
-		err = rollbackCreatedNetworkChannel(ctx, h.Sessions, networkStore, ref, nil, err, true)
+		err = rollbackCreatedNetworkChannel(ctx, h.Sessions, networkStore, ref, createdIDs, err)
 		return contract.NetworkChannelDetailPayload{}, StatusForSessionError(err), err
 	}
 
 	detail, err := h.networkChannelDetailPayload(ctx, service, entry.WorkspaceID, entry.Channel)
 	if err != nil {
-		err = rollbackCreatedNetworkChannel(ctx, h.Sessions, networkStore, ref, createdIDs, err, true)
+		err = rollbackCreatedNetworkChannel(ctx, h.Sessions, networkStore, ref, createdIDs, err)
 		return contract.NetworkChannelDetailPayload{}, http.StatusInternalServerError, err
 	}
 	return detail, http.StatusCreated, nil

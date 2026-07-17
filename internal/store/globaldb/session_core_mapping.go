@@ -12,7 +12,7 @@ import (
 func upsertSessionParams(record sessionCatalogRecord) (sqlcgen.UpsertSessionParams, error) {
 	session := record.session
 	lineage := record.lineage
-	network, err := encodeParticipationSnapshot(session.NetworkSpecSnapshot())
+	network, err := encodeParticipationSnapshot(session.WorkspaceID, session.NetworkSpecSnapshot())
 	if err != nil {
 		return sqlcgen.UpsertSessionParams{}, err
 	}

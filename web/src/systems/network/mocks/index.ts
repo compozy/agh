@@ -8,7 +8,7 @@ export {
   networkDirectRoomsFixture,
   networkPeerFixture,
   networkPeersFixture,
-  networkRemotePeerFixture,
+  networkSettlementPeerFixture,
   networkStatusFixture,
   networkThreadDetailFixture,
   networkThreadMessagesFixture,

@@ -44,6 +44,7 @@ func (s *service) Start(
 	if err != nil {
 		return nil, err
 	}
+	s.observeCommittedRunParticipation(ctx, created)
 	s.dispatchLoopStarted(ctx, created, actor)
 	return &created, nil
 }
@@ -75,6 +76,7 @@ func (s *service) StartInline(
 	if err != nil {
 		return nil, err
 	}
+	s.observeCommittedRunParticipation(ctx, created)
 	s.dispatchLoopStarted(ctx, created, actor)
 	return &created, nil
 }
@@ -116,6 +118,7 @@ func (s *service) ReplaceInline(
 	if err != nil {
 		return InlineReplaceResult{}, err
 	}
+	s.observeCommittedRunParticipation(ctx, committed.Run)
 	s.revokeGoalPromptLeases(ctx, committed.RevokedPromptLeases, TransitionCauseGoalReplace)
 	s.dispatchCoordinatorTerminal(ctx, committed.ReplacedRun, TransitionCauseGoalReplace, replacedAt)
 	s.dispatchLoopStarted(ctx, committed.Run, actor)

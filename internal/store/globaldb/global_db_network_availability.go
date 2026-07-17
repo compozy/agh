@@ -45,6 +45,10 @@ func (g *NetworkRepo) SetNetworkAvailability(
 	}
 	updatedAt := g.now().UTC()
 	err = g.withNetworkImmediateTransaction(ctx, "set network availability", func(exec networkSQLExecutor) error {
+		previous, readErr := getNetworkAvailabilityWithExecutor(ctx, exec)
+		if readErr != nil {
+			return readErr
+		}
 		row, updateErr := sqlcgen.New(exec).UpdateNetworkAvailability(
 			ctx,
 			sqlcgen.UpdateNetworkAvailabilityParams{
@@ -62,7 +66,13 @@ func (g *NetworkRepo) SetNetworkAvailability(
 			row.UpdatedAt,
 			row.UpdatedBy,
 		)
-		return updateErr
+		if updateErr != nil {
+			return updateErr
+		}
+		if previous.Enabled == availability.Enabled {
+			return nil
+		}
+		return appendNetworkAvailabilityEventSummary(ctx, exec, previous, availability)
 	})
 	if err != nil {
 		return store.NetworkAvailability{}, err

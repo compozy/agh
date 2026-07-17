@@ -47,7 +47,7 @@ export function ThreadOverlay({
         channel={channel}
         detail={overlay.detail}
         rootMessageId={overlay.rootMessage?.message_id ?? null}
-        selfPeerId={session?.peerId ?? null}
+        selfSessionId={session?.sessionId ?? null}
         threadId={threadId}
       />
       <ThreadTaskLinks links={overlay.detail?.task_links ?? []} />

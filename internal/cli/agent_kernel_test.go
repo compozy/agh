@@ -511,11 +511,13 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 
 		client := &stubClient{}
 		deps := newAgentCommandTestDeps(t, client)
+		replyCalls := 0
 		client.agentChannelReplyFn = func(
 			_ context.Context,
 			request AgentChannelReplyRequest,
 			credentials agentidentity.Credentials,
 		) (AgentChannelMessageRecord, error) {
+			replyCalls++
 			assertAgentCredentials(t, credentials)
 			if request.ReplyToMessageID != "msg-source" {
 				t.Fatalf("reply_to_message_id = %q, want msg-source", request.ReplyToMessageID)
@@ -523,8 +525,21 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 			if string(request.Body) != `{"text":"ack"}` {
 				t.Fatalf("body = %s, want ack JSON", request.Body)
 			}
-			if !zeroCLICoordinationMetadata(request.Metadata) {
-				t.Fatalf("metadata = %#v, want zero metadata for server-side source resolution", request.Metadata)
+			switch replyCalls {
+			case 1:
+				if !zeroCLICoordinationMetadata(request.Metadata) {
+					t.Fatalf("metadata = %#v, want zero metadata for server-side source resolution", request.Metadata)
+				}
+			case 2:
+				if request.Metadata.TaskID != "task-1" ||
+					request.Metadata.RunID != "run-1" ||
+					request.Metadata.ChannelID != "builders" ||
+					request.Metadata.CorrelationID != "corr-1" ||
+					request.Metadata.MessageKind != contract.CoordinationMessageReply {
+					t.Fatalf("metadata = %#v, want task/run/channel/correlation reply metadata", request.Metadata)
+				}
+			default:
+				t.Fatalf("reply callback calls = %d, want at most 2", replyCalls)
 			}
 			return AgentChannelMessageRecord{
 				MessageID: "msg-reply",
@@ -550,6 +565,20 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 			"-o", "json",
 		); err != nil {
 			t.Fatalf("agh ch reply error = %v", err)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"ch", "reply",
+			"--to-message", "msg-source",
+			"--body", `{"text":"ack"}`,
+			"--task-id", "task-1",
+			"--run-id", "run-1",
+			"--channel-id", "builders",
+			"--correlation-id", "corr-1",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("agh ch reply with metadata error = %v", err)
 		}
 
 		_, _, err := executeRootCommand(

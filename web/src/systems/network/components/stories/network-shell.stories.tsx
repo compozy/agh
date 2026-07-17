@@ -102,7 +102,7 @@ function NetworkShellHarness({
           recents={recentsList}
           rightRailMode="thread"
           rightRailOpen={rightRailOpen}
-          selfPeerId={null}
+          selfSessionId={null}
           threadCount={networkThreadsFixture.length}
           unpinnedChannels={unpinned}
         >

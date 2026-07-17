@@ -5,6 +5,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let routeParams = { id: "task_abc" };
 const navigateMock = vi.fn();
 const updateMutateAsync = vi.fn();
+const taskExecutionProfileFixture = {
+  task_id: "task_abc",
+  coordinator: { mode: "inherit" as const },
+  worker: { mode: "inherit" as const },
+  review: {},
+  sandbox: { mode: "inherit" as const },
+  participants: {},
+  runtime: { mode: "default" as const },
+  network_participation: {
+    mode: "live",
+    channel_id: "authored-future-room",
+    channel_strategy: "named",
+  },
+  created_at: "2026-04-11T08:00:00Z",
+  updated_at: "2026-04-11T08:30:00Z",
+};
+let taskProfileQuery: {
+  data: typeof taskExecutionProfileFixture | undefined;
+  isLoading: boolean;
+} = {
+  data: taskExecutionProfileFixture,
+  isLoading: false,
+};
 const taskDetailFixture = {
   task: {
     id: "task_abc",
@@ -17,6 +40,11 @@ const taskDetailFixture = {
     updated_at: "2026-04-11T09:00:00Z",
     created_by: { kind: "human", ref: "pedro@" },
     workspace_id: "ws_alpha",
+    resolved_network_participation: {
+      mode: "live",
+      channel_id: "resolved-run-room",
+      channel_strategy: "named",
+    },
   },
 };
 
@@ -36,6 +64,7 @@ vi.mock("@/systems/tasks", () => ({
     data: taskDetailFixture,
     isLoading: false,
   }),
+  useTaskExecutionProfile: () => taskProfileQuery,
   useUpdateTask: () => ({
     isPending: false,
     mutateAsync: updateMutateAsync,
@@ -49,6 +78,9 @@ vi.mock("@/systems/tasks/components/task-editor-modal", () => ({
       <span data-testid="task-editor-open">{String(props.open)}</span>
       <span data-testid="task-editor-task-title">
         {String((props.task as { title: string }).title)}
+      </span>
+      <span data-testid="task-editor-network-channel">
+        {String((props.draft as { networkChannelId: string }).networkChannelId)}
       </span>
       <button
         data-testid="task-editor-close-trigger"
@@ -83,6 +115,7 @@ describe("TaskEditRoute", () => {
     navigateMock.mockReset();
     updateMutateAsync.mockReset();
     updateMutateAsync.mockResolvedValue({ id: "task_abc" });
+    taskProfileQuery = { data: taskExecutionProfileFixture, isLoading: false };
   });
 
   it("renders the editor modal in edit mode with the resolved task", async () => {
@@ -93,6 +126,18 @@ describe("TaskEditRoute", () => {
     expect(screen.getByTestId("task-editor-task-title")).toHaveTextContent(
       "Summarize review feedback"
     );
+    expect(screen.getByTestId("task-editor-network-channel")).toHaveTextContent(
+      "authored-future-room"
+    );
+  });
+
+  it("Should wait for the authoritative execution profile before opening the editor", () => {
+    taskProfileQuery = { data: undefined, isLoading: true };
+
+    render(<TaskEditRoute />);
+
+    expect(screen.getByTestId("task-edit-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("task-editor-modal")).not.toBeInTheDocument();
   });
 
   it("navigates back to the detail page when the modal closes", () => {
@@ -106,6 +151,16 @@ describe("TaskEditRoute", () => {
     fireEvent.click(screen.getByTestId("task-editor-submit-trigger"));
 
     await waitFor(() => expect(updateMutateAsync).toHaveBeenCalled());
+    expect(updateMutateAsync).toHaveBeenCalledWith({
+      id: "task_abc",
+      data: expect.objectContaining({
+        network_participation: {
+          mode: "live",
+          channel_id: "authored-future-room",
+          channel_strategy: "named",
+        },
+      }),
+    });
     expect(navigateMock).toHaveBeenCalledWith({ params: { id: "task_abc" }, to: "/tasks/$id" });
   });
 });

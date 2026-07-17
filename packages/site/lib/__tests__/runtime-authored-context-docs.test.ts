@@ -111,7 +111,7 @@ describe("authored context runtime docs", () => {
       "agh session status",
       "agh session inspect",
       "include_health=true",
-      "AGH Network presence",
+      "AGH Network membership",
     ]);
   });
 

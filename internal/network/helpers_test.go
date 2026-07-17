@@ -1,13 +1,205 @@
 package network
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 const testWorkspaceID = "wks_test"
+
+func TestPreviewTextForRawBodyShouldBoundUTF8(t *testing.T) {
+	t.Parallel()
+
+	const wantRunes = 160
+	preview := PreviewTextForRawBody(
+		KindSay,
+		mustRawJSON(t, SayBody{Text: strings.Repeat("界", wantRunes+20)}),
+	)
+	if !utf8.ValidString(preview) {
+		t.Fatalf("PreviewTextForRawBody() = %q, want valid UTF-8", preview)
+	}
+	if got := utf8.RuneCountInString(preview); got != wantRunes {
+		t.Fatalf("PreviewTextForRawBody() runes = %d, want %d", got, wantRunes)
+	}
+}
+
+func TestPreviewForBodyVariants(t *testing.T) {
+	t.Parallel()
+
+	detail := "receipt detail"
+	tests := []struct {
+		name string
+		body Body
+		want string
+	}{
+		{name: "use a greet summary", body: GreetBody{Summary: "hello"}, want: "hello"},
+		{name: "use a whois request query", body: WhoisBody{Type: WhoisTypeRequest, Query: "review"}, want: "review"},
+		{name: "hide a whois response query", body: WhoisBody{Type: WhoisTypeResponse, Query: "review"}, want: ""},
+		{name: "use say text", body: SayBody{Text: "broadcast"}, want: "broadcast"},
+		{
+			name: "prefer a capability summary",
+			body: CapabilityBody{Capability: CapabilityEnvelopePayload{
+				ID: "capability-id", Summary: "summary", Outcome: "outcome",
+			}},
+			want: "summary",
+		},
+		{
+			name: "fall back to a capability outcome",
+			body: CapabilityBody{Capability: CapabilityEnvelopePayload{
+				ID: "capability-id", Outcome: "outcome",
+			}},
+			want: "outcome",
+		},
+		{
+			name: "fall back to a capability id",
+			body: CapabilityBody{Capability: CapabilityEnvelopePayload{ID: "capability-id"}},
+			want: "capability-id",
+		},
+		{name: "use receipt detail", body: ReceiptBody{Detail: &detail}, want: "receipt detail"},
+		{name: "leave an empty receipt blank", body: ReceiptBody{}, want: ""},
+		{name: "use a trace message", body: TraceBody{Message: "working"}, want: "working"},
+		{name: "leave an empty trace blank", body: TraceBody{}, want: ""},
+	}
+	for _, test := range tests {
+		t.Run("Should "+test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := previewForBody(test.body); got != test.want {
+				t.Fatalf("previewForBody() = %q, want %q", got, test.want)
+			}
+		})
+	}
+
+	t.Run("Should decode a valid public body", func(t *testing.T) {
+		t.Parallel()
+		if got := PreviewTextForRawBody(KindSay, mustRawJSON(t, SayBody{Text: "safe"})); got != "safe" {
+			t.Fatalf("PreviewTextForRawBody() = %q, want safe", got)
+		}
+	})
+	for _, test := range []struct {
+		name string
+		kind Kind
+		raw  json.RawMessage
+	}{
+		{name: "reject malformed JSON", kind: KindSay, raw: json.RawMessage(`{"text":`)},
+		{name: "reject a body from another kind", kind: KindSay, raw: json.RawMessage(`{"summary":"wrong"}`)},
+		{name: "reject an unknown kind", kind: Kind("unknown"), raw: json.RawMessage(`{}`)},
+	} {
+		t.Run("Should "+test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := PreviewTextForRawBody(test.kind, test.raw); got != "" {
+				t.Fatalf("PreviewTextForRawBody() = %q, want empty", got)
+			}
+		})
+	}
+}
+
+func TestResolveGreetSummaryUsesDeterministicFallbacks(t *testing.T) {
+	t.Parallel()
+
+	displayName := "Review Agent"
+	tests := []struct {
+		name    string
+		card    PeerCard
+		summary string
+		want    string
+	}{
+		{
+			name: "prefer an explicit summary",
+			card: PeerCard{PeerID: "reviewer.sess-a"}, summary: "  Custom presence  ",
+			want: "Custom presence",
+		},
+		{
+			name: "use display name and rich capability brief",
+			card: PeerCard{
+				PeerID: "reviewer.sess-a", DisplayName: &displayName,
+				Ext: ExtensionMap{capabilityBriefExtKey: mustRawJSON(t, []capabilityBrief{
+					{ID: "review-pr", Summary: "Review pull requests"},
+					{ID: "draft-spec", Summary: "Draft specifications"},
+				})},
+			},
+			want: "Review Agent ready for Review pull requests +1 more",
+		},
+		{
+			name: "fall back from an empty brief summary to its id",
+			card: PeerCard{
+				PeerID: "reviewer.sess-a",
+				Ext: ExtensionMap{capabilityBriefExtKey: mustRawJSON(t, []capabilityBrief{{
+					ID: "review-pr",
+				}})},
+			},
+			want: "reviewer.sess-a ready for review-pr",
+		},
+		{
+			name: "ignore malformed briefs and use declared capabilities",
+			card: PeerCard{
+				PeerID: "reviewer.sess-a", Capabilities: []string{"", "review-pr", "draft-spec"},
+				Ext: ExtensionMap{capabilityBriefExtKey: json.RawMessage(`{`)},
+			},
+			want: "reviewer.sess-a ready for review-pr +1 more",
+		},
+		{
+			name: "report plain presence when no capability is available",
+			card: PeerCard{}, want: "Peer is present",
+		},
+	}
+	for _, test := range tests {
+		t.Run("Should "+test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ResolveGreetSummary(test.card, test.summary); got != test.want {
+				t.Fatalf("ResolveGreetSummary() = %q, want %q", got, test.want)
+			}
+		})
+	}
+
+	t.Run("Should ignore empty capability brief entries", func(t *testing.T) {
+		t.Parallel()
+		raw := mustRawJSON(t, []capabilityBrief{{}, {ID: "review-pr", Summary: " Review "}})
+		if got := decodeCapabilityBriefs(raw); len(got) != 1 ||
+			got[0].ID != "review-pr" || got[0].Summary != "Review" {
+			t.Fatalf("decodeCapabilityBriefs() = %#v, want one normalized brief", got)
+		}
+	})
+}
+
+func TestConversationRefHelpersExposeValidatedContainerIdentity(t *testing.T) {
+	t.Parallel()
+
+	thread := ConversationRef{
+		WorkspaceID: testWorkspaceID, Channel: "builders", Surface: SurfaceThread,
+		ThreadID: "thread_helpers",
+	}
+	if err := ValidateConversationRef(thread); err != nil {
+		t.Fatalf("ValidateConversationRef(thread) error = %v", err)
+	}
+	if !thread.IsThread() || thread.IsDirect() {
+		t.Fatalf("thread helpers = IsThread:%t IsDirect:%t", thread.IsThread(), thread.IsDirect())
+	}
+	if got, want := thread.ContainerKey(), testWorkspaceID+"\x00builders\x00thread\x00thread_helpers"; got != want {
+		t.Fatalf("thread ContainerKey() = %q, want %q", got, want)
+	}
+
+	direct := ConversationRef{
+		WorkspaceID: testWorkspaceID, Channel: "builders", Surface: SurfaceDirect,
+		DirectID: "direct_0123456789abcdef0123456789abcdef",
+	}
+	if err := ValidateConversationRef(direct); err != nil {
+		t.Fatalf("ValidateConversationRef(direct) error = %v", err)
+	}
+	if !direct.IsDirect() || direct.IsThread() {
+		t.Fatalf("direct helpers = IsThread:%t IsDirect:%t", direct.IsThread(), direct.IsDirect())
+	}
+	if err := ValidateSurface(SurfaceThread); err != nil {
+		t.Fatalf("ValidateSurface(thread) error = %v", err)
+	}
+	if err := ValidateSurface(Surface("unknown")); !errors.Is(err, ErrInvalidField) {
+		t.Fatalf("ValidateSurface(unknown) error = %v, want ErrInvalidField", err)
+	}
+}
 
 func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 	t.Parallel()

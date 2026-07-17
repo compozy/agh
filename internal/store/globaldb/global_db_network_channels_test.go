@@ -40,6 +40,10 @@ func TestNetworkChannels(t *testing.T) {
 			run:  assertGlobalDBNetworkSubscriptionsRemainDeterministic,
 		},
 		{
+			name: "Should create channel and subscription atomically without replacing channel metadata",
+			run:  assertGlobalDBNetworkSubscriptionChannelCommandIsAtomic,
+		},
+		{
 			name: "Should patch network channels without replacing unspecified fields",
 			run:  assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields,
 		},
@@ -70,6 +74,81 @@ func TestNetworkChannels(t *testing.T) {
 			t.Parallel()
 			tt.run(t)
 		})
+	}
+}
+
+func assertGlobalDBNetworkSubscriptionChannelCommandIsAtomic(t *testing.T) {
+	t.Helper()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"ws-network-subscription-command",
+		filepath.Join(t.TempDir(), "ws-network-subscription-command"),
+	)
+	recordedAt := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+		ID:          "sess-subscription-command",
+		AgentName:   "worker",
+		Provider:    "codex",
+		WorkspaceID: workspaceID,
+		State:       "active",
+		CreatedAt:   recordedAt,
+		UpdatedAt:   recordedAt,
+	}); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
+	}
+	original := store.NetworkChannelEntry{
+		WorkspaceID: workspaceID,
+		Channel:     "coord.atomic",
+		Purpose:     "Original authority",
+		CreatedBy:   "operator:first",
+		CreatedAt:   recordedAt,
+		UpdatedAt:   recordedAt,
+	}
+	if err := globalDB.CreateNetworkChannel(ctx, original); err != nil {
+		t.Fatalf("CreateNetworkChannel() error = %v", err)
+	}
+	replacement := original
+	replacement.Purpose = "Must not replace"
+	replacement.CreatedBy = "operator:second"
+	entry := store.NetworkSubscriptionEntry{
+		WorkspaceID: workspaceID,
+		Channel:     original.Channel,
+		SessionID:   "sess-subscription-command",
+		Mode:        store.NetworkSubscriptionModeFull,
+		CreatedAt:   recordedAt,
+		UpdatedAt:   recordedAt,
+	}
+	if err := globalDB.PutNetworkSubscriptionWithChannel(ctx, replacement, entry); err != nil {
+		t.Fatalf("PutNetworkSubscriptionWithChannel(existing) error = %v", err)
+	}
+	stored, err := globalDB.GetNetworkChannel(ctx, store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     original.Channel,
+	})
+	if err != nil {
+		t.Fatalf("GetNetworkChannel() error = %v", err)
+	}
+	if stored.Purpose != original.Purpose || stored.CreatedBy != original.CreatedBy {
+		t.Fatalf("stored channel = %#v, want original metadata", stored)
+	}
+
+	missingChannel := replacement
+	missingChannel.Channel = "coord.rollback"
+	invalidEntry := entry
+	invalidEntry.Channel = missingChannel.Channel
+	invalidEntry.SessionID = "sess-missing"
+	if err := globalDB.PutNetworkSubscriptionWithChannel(ctx, missingChannel, invalidEntry); err == nil {
+		t.Fatal("PutNetworkSubscriptionWithChannel(missing session) error = nil, want rollback")
+	}
+	if _, err := globalDB.GetNetworkChannel(ctx, store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     missingChannel.Channel,
+	}); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("GetNetworkChannel(rolled back) error = %v, want %v", err, sql.ErrNoRows)
 	}
 }
 
@@ -259,7 +338,7 @@ func assertGlobalDBNetworkSubscriptionsRemainDeterministic(t *testing.T) {
 			Channel:     "coord.core",
 			ThreadID:    "thread_alpha",
 			SessionID:   "sess-subscription-b",
-			Mode:        store.NetworkSubscriptionModeDigest,
+			Mode:        store.NetworkSubscriptionModeFull,
 		},
 		{
 			WorkspaceID: workspaceID,
@@ -300,6 +379,21 @@ func assertGlobalDBNetworkSubscriptionsRemainDeterministic(t *testing.T) {
 	}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("subscription order = %#v, want %#v", got, want)
+	}
+	fallback, err := globalDB.ListNetworkSubscriptions(ctx, store.NetworkSubscriptionQuery{
+		WorkspaceID: workspaceID,
+		Channel:     "coord.core",
+		ThreadID:    "",
+		SessionID:   "sess-subscription-b",
+		ExactThread: true,
+		Limit:       1,
+	})
+	if err != nil {
+		t.Fatalf("ListNetworkSubscriptions(exact channel fallback) error = %v", err)
+	}
+	if len(fallback) != 1 || fallback[0].ThreadID != "" ||
+		fallback[0].SessionID != "sess-subscription-b" {
+		t.Fatalf("exact channel fallback = %#v, want sess-subscription-b channel row", fallback)
 	}
 }
 

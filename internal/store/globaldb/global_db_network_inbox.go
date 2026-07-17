@@ -18,6 +18,7 @@ var (
 // ListNetworkInbox returns immutable delivered decisions in acceptance order.
 func (g *NetworkRepo) ListNetworkInbox(
 	ctx context.Context,
+	workspaceID string,
 	sessionID string,
 	channel string,
 	limit int,
@@ -26,6 +27,10 @@ func (g *NetworkRepo) ListNetworkInbox(
 		return nil, err
 	}
 	targetSessionID := strings.TrimSpace(sessionID)
+	targetWorkspaceID := strings.TrimSpace(workspaceID)
+	if targetWorkspaceID == "" {
+		return nil, fmt.Errorf("store: network inbox workspace_id is required")
+	}
 	if targetSessionID == "" {
 		return nil, fmt.Errorf("store: network inbox session_id is required")
 	}
@@ -35,7 +40,7 @@ func (g *NetworkRepo) ListNetworkInbox(
 	if limit > store.NetworkMessageMaxLimit {
 		limit = store.NetworkMessageMaxLimit
 	}
-	query, args := networkInboxQuery(targetSessionID, channel, limit)
+	query, args := networkInboxQuery(targetWorkspaceID, targetSessionID, channel, limit)
 	rows, err := g.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query network inbox: %w", err)
@@ -58,7 +63,7 @@ func (g *NetworkRepo) ListNetworkInbox(
 	return entries, nil
 }
 
-func networkInboxQuery(sessionID string, channel string, limit int) (string, []any) {
+func networkInboxQuery(workspaceID string, sessionID string, channel string, limit int) (string, []any) {
 	// dynamic-sql: only the optional, internally selected channel predicate changes the statement shape.
 	query := `SELECT
 		n.sequence,
@@ -91,13 +96,16 @@ func networkInboxQuery(sessionID string, channel string, limit int) (string, []a
 		), 0),
 		n.timestamp
 	FROM network_message_dispositions AS d
-	JOIN network_timeline_log AS n ON n.message_id = d.message_id
+	JOIN network_timeline_log AS n
+		ON n.workspace_id = d.workspace_id
+		AND n.message_id = d.message_id
 	JOIN sessions AS s
 		ON s.id = d.recipient_session_id
-		AND s.workspace_id = n.workspace_id
+		AND s.workspace_id = d.workspace_id
 	WHERE d.recipient_session_id = ?
+		AND d.workspace_id = ?
 		AND d.decision = ?`
-	args := []any{sessionID, store.NetworkDispositionDeliver}
+	args := []any{sessionID, workspaceID, store.NetworkDispositionDeliver}
 	if targetChannel := strings.TrimSpace(channel); targetChannel != "" {
 		query += " AND n.channel = ?"
 		args = append(args, targetChannel)
@@ -130,8 +138,10 @@ func (g *NetworkRepo) ResolveNetworkCausation(
 		ctx,
 		`SELECT wake.root_id, wake.depth + 1
 		 FROM network_wake_sources AS source
-		 JOIN network_live_wakes AS wake ON wake.wake_id = source.wake_id
-		 WHERE wake.workspace_id = ? AND source.envelope_id = ?`,
+		 JOIN network_live_wakes AS wake
+			ON wake.workspace_id = source.workspace_id
+			AND wake.wake_id = source.wake_id
+		 WHERE source.workspace_id = ? AND source.envelope_id = ?`,
 		targetWorkspaceID,
 		targetCausationID,
 	).Scan(&rootID, &depth)

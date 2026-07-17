@@ -78,6 +78,12 @@ func TestResourceSpecShouldProjectMetadataAndRejectInvalidDefinitions(t *testing
 			"      kind: agh__network_send",
 			1,
 		)
+		body = strings.Replace(
+			body,
+			"concurrency: queue\n",
+			"network_participation:\n  mode: live\n  channel_strategy: named\n  channel_id: builders\nconcurrency: queue\n",
+			1,
+		)
 		_, _, err := loop.ParseResource([]byte(body), loop.ResourceParseOptions{
 			Source:   loop.SourceUser,
 			FilePath: "/tmp/loops/tool-action-loop/loop.yaml",

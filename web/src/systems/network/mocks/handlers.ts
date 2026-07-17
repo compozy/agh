@@ -10,13 +10,14 @@ import {
   networkDirectRoomsFixture,
   networkPeerFixture,
   networkPeersFixture,
-  networkRemotePeerFixture,
+  networkSettlementPeerFixture,
   networkStatusFixture,
   networkThreadDetailFixture,
   networkThreadMessagesFixture,
   networkThreadsFixture,
   networkWorkFixture,
 } from "./fixtures";
+import { coordinationHandlers } from "./coordination-handlers";
 
 function readRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -63,47 +64,7 @@ function readTaskPriority(record: Record<string, unknown> | null) {
 
 export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/network/status", () => HttpResponse.json({ network: networkStatusFixture })),
-  aghApiMock.get("/api/workspaces/{workspace_id}/network-coordination", () =>
-    HttpResponse.json({
-      coordination: {
-        workspace_id: "ws-fixture",
-        enabled: false,
-        revision: 1,
-        invitation: { scope: "workspace", dismissed: false },
-        updated_at: "2026-04-17T10:00:00Z",
-      },
-    })
-  ),
-  aghApiMock.put("/api/workspaces/{workspace_id}/network-coordination", async ({ request }) => {
-    const body = (await request.json()) as { enabled?: boolean };
-    return HttpResponse.json({
-      coordination: {
-        workspace_id: "ws-fixture",
-        enabled: Boolean(body.enabled),
-        revision: 2,
-        invitation: { scope: "workspace", dismissed: false },
-        updated_at: "2026-04-17T10:05:00Z",
-      },
-    });
-  }),
-  aghApiMock.put(
-    "/api/workspaces/{workspace_id}/network-coordination/invitation",
-    async ({ request }) => {
-      const body = (await request.json()) as { dismissed?: boolean; scope?: string };
-      return HttpResponse.json({
-        coordination: {
-          workspace_id: "ws-fixture",
-          enabled: false,
-          revision: 1,
-          invitation: {
-            scope: body.scope ?? "workspace",
-            dismissed: Boolean(body.dismissed),
-          },
-          updated_at: "2026-04-17T10:10:00Z",
-        },
-      });
-    }
-  ),
+  ...coordinationHandlers,
   aghApiMock.get("/api/workspaces/{workspace_id}/network/usage", () =>
     HttpResponse.json({
       workspace_id: "ws-fixture",
@@ -168,8 +129,8 @@ export const handlers: HttpHandler[] = [
           {
             channel: String(params.channel),
             created_at: "2026-04-17T18:10:00Z",
-            mode: "digest",
-            peer_id: "peer_northstar_launch_control",
+            mode: "full",
+            session_id: "session_launch_coordination",
             thread_id: "thread_launch_command",
             updated_at: "2026-04-17T18:12:00Z",
             workspace_id: String(params.workspace_id),
@@ -181,20 +142,19 @@ export const handlers: HttpHandler[] = [
     "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
     async ({ params, request }) => {
       const body = readRecord(await request.json());
-      const peerId = readRequiredString(body, "peer_id");
+      const sessionId = readRequiredString(body, "session_id");
       const mode = readRequiredString(body, "mode");
 
-      if (!peerId || !mode) {
-        return HttpResponse.json({ error: "peer_id and mode are required." }, { status: 400 });
+      if (!sessionId || !mode) {
+        return HttpResponse.json({ error: "session_id and mode are required." }, { status: 400 });
       }
 
       return HttpResponse.json({
         subscription: {
           channel: String(params.channel),
           created_at: "2026-04-17T18:10:00Z",
-          keyword_filters: readStringArray(body, "keyword_filters"),
           mode,
-          peer_id: peerId,
+          session_id: sessionId,
           thread_id: readOptionalString(body, "thread_id"),
           updated_at: "2026-04-17T18:12:00Z",
           workspace_id: String(params.workspace_id),
@@ -203,7 +163,7 @@ export const handlers: HttpHandler[] = [
     }
   ),
   aghApiMock.delete(
-    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{peer_id}",
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{session_id}",
     () => new HttpResponse(null, { status: 204 })
   ),
   aghApiMock.get(
@@ -282,21 +242,7 @@ export const handlers: HttpHandler[] = [
               "Task promoted from an AGH Network thread.",
             id: taskId,
             latest_event_seq: 1,
-            resolved_network_participation: {
-              version: "network-participation/v1",
-              mode: "live",
-              source: "explicit",
-              channel_id: channel,
-              bounds: {
-                coalesce_window: "0s",
-                max_input_tokens: 0,
-                max_output_tokens: 0,
-                max_total_wall_time: "0s",
-                max_wake_depth: 0,
-                max_wake_wall_time: "0s",
-                max_wakes: 0,
-              },
-            },
+            resolved_network_participation: null,
             origin: { kind: "network", ref: `${channel}/${threadId}` },
             priority: readTaskPriority(body),
             scope: "workspace",
@@ -443,14 +389,16 @@ export const handlers: HttpHandler[] = [
       return HttpResponse.json({ error: `Peer not found: ${peerId}` }, { status: 404 });
     }
 
-    const baseDetail = peerSummary.local ? networkPeerFixture : networkRemotePeerFixture;
+    const baseDetail =
+      peerSummary.peer_id === networkPeerFixture.peer_id
+        ? networkPeerFixture
+        : networkSettlementPeerFixture;
 
     return HttpResponse.json({
       peer: {
         ...baseDetail,
         channel: peerSummary.channel,
         joined_at: peerSummary.joined_at,
-        last_seen: peerSummary.last_seen,
         local: peerSummary.local,
         peer_id: peerId,
         display_name: peerSummary.display_name ?? baseDetail.display_name,

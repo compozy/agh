@@ -33,8 +33,6 @@ const (
 
 	// NetworkSubscriptionModeMute suppresses unmentioned matching traffic.
 	NetworkSubscriptionModeMute = "mute"
-	// NetworkSubscriptionModeDigest converts matching traffic to compact digests.
-	NetworkSubscriptionModeDigest = "digest"
 	// NetworkSubscriptionModeFull preserves full prompt injection.
 	NetworkSubscriptionModeFull = "full"
 
@@ -343,14 +341,13 @@ func (r NetworkSubscriptionRef) Validate() error {
 
 // NetworkSubscriptionEntry stores one session delivery preference.
 type NetworkSubscriptionEntry struct {
-	WorkspaceID    string
-	Channel        string
-	ThreadID       string
-	SessionID      string
-	Mode           string
-	KeywordFilters []string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	WorkspaceID string
+	Channel     string
+	ThreadID    string
+	SessionID   string
+	Mode        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Validate ensures one subscription row is usable by zero-token routing.
@@ -366,11 +363,6 @@ func (e NetworkSubscriptionEntry) Validate() error {
 	if err := ValidateNetworkSubscriptionMode(e.Mode); err != nil {
 		return err
 	}
-	for _, filter := range e.KeywordFilters {
-		if strings.TrimSpace(filter) == "" {
-			return fmt.Errorf("store: network subscription keyword filter cannot be blank")
-		}
-	}
 	return nil
 }
 
@@ -380,6 +372,7 @@ type NetworkSubscriptionQuery struct {
 	Channel     string
 	ThreadID    string
 	SessionID   string
+	ExactThread bool
 	Limit       int
 }
 
@@ -404,7 +397,7 @@ func (q NetworkSubscriptionQuery) Validate() error {
 // ValidateNetworkSubscriptionMode checks one delivery preference mode.
 func ValidateNetworkSubscriptionMode(mode string) error {
 	switch strings.TrimSpace(mode) {
-	case NetworkSubscriptionModeMute, NetworkSubscriptionModeDigest, NetworkSubscriptionModeFull:
+	case NetworkSubscriptionModeMute, NetworkSubscriptionModeFull:
 		return nil
 	default:
 		return fmt.Errorf("store: unsupported network subscription mode %q", mode)

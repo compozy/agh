@@ -55,7 +55,7 @@ func Resolve(ctx context.Context, opts ResolveOptions) (Caller, error) {
 	if err := validateWorkspace(snapshot, opts.ExpectedWorkspaceID, creds.WorkspaceID); err != nil {
 		return Caller{}, err
 	}
-	actor, err := deriveActorContext(snapshot.ID, opts.OriginKind, opts.OriginRef)
+	actor, err := deriveActorContext(snapshot.ID, snapshot.WorkspaceID, opts.OriginKind, opts.OriginRef)
 	if err != nil {
 		return Caller{}, fmt.Errorf("agent identity: derive actor context: %w", err)
 	}
@@ -186,6 +186,7 @@ func validateWorkspace(snapshot SessionSnapshot, expectedWorkspaceID string, cre
 
 func deriveActorContext(
 	sessionID string,
+	workspaceID string,
 	originKind taskpkg.OriginKind,
 	originRef string,
 ) (taskpkg.ActorContext, error) {
@@ -197,7 +198,7 @@ func deriveActorContext(
 	if originRef == "" {
 		originRef = originRefForKind(originKind)
 	}
-	return taskpkg.DeriveAgentSessionActorContextForOrigin(sessionID, originKind, originRef)
+	return taskpkg.DeriveAgentSessionActorContextForOrigin(sessionID, workspaceID, originKind, originRef)
 }
 
 func originRefForKind(kind taskpkg.OriginKind) string {

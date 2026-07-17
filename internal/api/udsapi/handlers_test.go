@@ -315,6 +315,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/scheduler",
 		"GET /api/scheduler/backlog",
 		"GET /api/task-runs/:id",
+		"GET /api/task-runs/:id/conversation/stream",
 		"GET /api/task-runs/:id/reviews",
 		"GET /api/runs/:id/inspect",
 		"GET /api/task-reviews/:id",
@@ -509,7 +510,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PUT /api/vault/secrets",
 		"DELETE /api/workspaces/:workspace_id/loops/:name",
 		"DELETE /api/agents/:name",
-		"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:peer_id",
+		"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
 	}
 	sort.Strings(want)
 
@@ -1015,6 +1016,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"POST /api/runs/bulk/fail":                                     "BulkForceFailTaskRuns",
 		"POST /api/runs/bulk/release":                                  "BulkForceReleaseTaskRuns",
 		"GET /api/task-runs/:id":                                       "GetTaskRun",
+		"GET /api/task-runs/:id/conversation/stream":                   "StreamTaskRunConversation",
 		"GET /api/task-runs/:id/reviews":                               "ListTaskRunReviews",
 		"GET /api/task-reviews/:id":                                    "GetTaskRunReview",
 		"GET /api/tasks/:id/execution-profile":                         "GetTaskExecutionProfile",

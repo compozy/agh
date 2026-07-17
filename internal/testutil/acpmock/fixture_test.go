@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -439,6 +442,14 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			want: "input_tokens must be >= 0",
 		},
 		{
+			name: "Should reject scripted usage whose total exceeds int capacity",
+			raw: fmt.Sprintf(
+				`{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"usage":{"input_tokens":%d,"output_tokens":1},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+				math.MaxInt,
+			),
+			want: "total tokens exceed int capacity",
+		},
+		{
 			name: "Should reject invalid permission decision",
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"permission","tool_call_id":"perm-1","tool_kind":"edit","expect_decision":"maybe"}]}]}]}`,
 			want: "expect_decision",
@@ -452,6 +463,14 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			name: "Should reject driver control without payload",
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"driver_control"}]}]}]}`,
 			want: "driver_control is required",
+		},
+		{
+			name: "Should reject driver delay that exceeds duration capacity",
+			raw: fmt.Sprintf(
+				`{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"driver_control","driver_control":{"action":"delay","delay_ms":%d}}]}]}]}`,
+				math.MaxInt64/int64(time.Millisecond)+1,
+			),
+			want: "delay_ms exceeds duration capacity",
 		},
 	}
 
@@ -469,23 +488,27 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 func TestParseFixtureAcceptsScriptedUsage(t *testing.T) {
 	t.Parallel()
 
-	fixture, err := ParseFixture([]byte(
-		`{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{` +
-			`"match":{"turn_source":"user","user_text":"hi"},` +
-			`"usage":{"input_tokens":13,"output_tokens":5},` +
-			`"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
-	))
-	if err != nil {
-		t.Fatalf("ParseFixture(scripted usage) error = %v", err)
-	}
-	agent, err := fixture.Agent("alpha")
-	if err != nil {
-		t.Fatalf("Fixture.Agent(alpha) error = %v", err)
-	}
-	if agent.Turns[0].Usage == nil || agent.Turns[0].Usage.InputTokens != 13 ||
-		agent.Turns[0].Usage.OutputTokens != 5 {
-		t.Fatalf("scripted usage = %#v, want input=13 output=5", agent.Turns[0].Usage)
-	}
+	t.Run("Should accept scripted input and output token usage", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, err := ParseFixture([]byte(
+			`{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{` +
+				`"match":{"turn_source":"user","user_text":"hi"},` +
+				`"usage":{"input_tokens":13,"output_tokens":5},` +
+				`"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+		))
+		if err != nil {
+			t.Fatalf("ParseFixture(scripted usage) error = %v", err)
+		}
+		agent, err := fixture.Agent("alpha")
+		if err != nil {
+			t.Fatalf("Fixture.Agent(alpha) error = %v", err)
+		}
+		if agent.Turns[0].Usage == nil || agent.Turns[0].Usage.InputTokens != 13 ||
+			agent.Turns[0].Usage.OutputTokens != 5 {
+			t.Fatalf("scripted usage = %#v, want input=13 output=5", agent.Turns[0].Usage)
+		}
+	})
 }
 
 func TestParseFixtureAcceptsACPStopReasonVocabulary(t *testing.T) {
@@ -1156,11 +1179,13 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		if (DriverControlStep{Action: DriverControlBlockUntilCancel, Async: true}).Validate("driver_control") == nil {
 			t.Fatal("DriverControlStep.Validate(async block_until_cancel) error = nil, want non-nil")
 		}
-		if (DriverControlStep{Action: DriverControlDelay}).Validate("driver_control") == nil {
-			t.Fatal("DriverControlStep.Validate(delay without delay_ms) error = nil, want non-nil")
+		err := (DriverControlStep{Action: DriverControlDelay}).Validate("driver_control")
+		if err == nil || !strings.Contains(err.Error(), "delay_ms must be > 0 for delay") {
+			t.Fatalf("DriverControlStep.Validate(delay without delay_ms) error = %v, want delay_ms diagnostic", err)
 		}
-		if (DriverControlStep{Action: DriverControlDelay, DelayMS: 1, Async: true}).Validate("driver_control") == nil {
-			t.Fatal("DriverControlStep.Validate(async delay) error = nil, want non-nil")
+		err = (DriverControlStep{Action: DriverControlDelay, DelayMS: 1, Async: true}).Validate("driver_control")
+		if err == nil || !strings.Contains(err.Error(), "async is invalid for delay") {
+			t.Fatalf("DriverControlStep.Validate(async delay) error = %v, want async diagnostic", err)
 		}
 		if err := (DriverControlStep{Action: DriverControlDelay, DelayMS: 1}).Validate("driver_control"); err != nil {
 			t.Fatalf("DriverControlStep.Validate(delay) error = %v", err)

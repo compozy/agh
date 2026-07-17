@@ -60,39 +60,48 @@ func (g *TaskRepo) UpsertExecutionProfile(
 	}
 
 	if err := g.withTaskImmediateTransaction(ctx, "upsert task execution profile", func(exec taskSQLExecutor) error {
-		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-			return err
-		}
-
-		now := g.now().UTC()
-		existing, found, loadErr := loadExecutionProfile(ctx, exec, normalized.TaskID)
-		if loadErr != nil {
-			return loadErr
-		}
-		if found {
-			normalized.CreatedAt = existing.CreatedAt
-		}
-		if normalized.CreatedAt.IsZero() {
-			normalized.CreatedAt = now
-		}
-		normalized.UpdatedAt = now
-
-		if err := upsertExecutionProfileRow(ctx, exec, &normalized); err != nil {
-			return err
-		}
-		if err := replaceExecutionProfileSelectors(ctx, exec, &normalized); err != nil {
-			return err
-		}
-		reloaded, reloadErr := reloadExecutionProfile(ctx, exec, normalized.TaskID)
-		if reloadErr != nil {
-			return reloadErr
-		}
-		stored = reloaded
-		return nil
+		var storeErr error
+		stored, storeErr = g.upsertExecutionProfileWithExecutor(ctx, exec, &normalized)
+		return storeErr
 	}); err != nil {
 		return taskpkg.ExecutionProfile{}, err
 	}
 	return stored, nil
+}
+
+func (g *TaskRepo) upsertExecutionProfileWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	profile *taskpkg.ExecutionProfile,
+) (taskpkg.ExecutionProfile, error) {
+	normalized, err := profile.Normalize(taskpkg.DefaultExecutionProfileValidationOptions())
+	if err != nil {
+		return taskpkg.ExecutionProfile{}, err
+	}
+	if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
+		return taskpkg.ExecutionProfile{}, err
+	}
+
+	now := g.now().UTC()
+	existing, found, err := loadExecutionProfile(ctx, exec, normalized.TaskID)
+	if err != nil {
+		return taskpkg.ExecutionProfile{}, err
+	}
+	if found {
+		normalized.CreatedAt = existing.CreatedAt
+	}
+	if normalized.CreatedAt.IsZero() {
+		normalized.CreatedAt = now
+	}
+	normalized.UpdatedAt = now
+
+	if err := upsertExecutionProfileRow(ctx, exec, &normalized); err != nil {
+		return taskpkg.ExecutionProfile{}, err
+	}
+	if err := replaceExecutionProfileSelectors(ctx, exec, &normalized); err != nil {
+		return taskpkg.ExecutionProfile{}, err
+	}
+	return reloadExecutionProfile(ctx, exec, normalized.TaskID)
 }
 
 // DeleteExecutionProfile removes one profile and its selector rows.
@@ -106,22 +115,26 @@ func (g *TaskRepo) DeleteExecutionProfile(ctx context.Context, taskID string) er
 	}
 
 	return g.withTaskImmediateTransaction(ctx, "delete task execution profile", func(exec taskSQLExecutor) error {
-		if err := deleteExecutionProfileSelectors(ctx, exec, trimmedID); err != nil {
-			return err
-		}
-		affected, err := sqlcgen.New(exec).DeleteTaskExecutionProfile(ctx, trimmedID)
-		if err != nil {
-			return fmt.Errorf("store: delete task execution profile %q: %w", trimmedID, err)
-		}
-		if affected == 0 {
-			return fmt.Errorf(
-				"store: task execution profile %q: %w",
-				trimmedID,
-				taskpkg.ErrExecutionProfileNotFound,
-			)
-		}
-		return nil
+		return deleteExecutionProfileWithExecutor(ctx, exec, trimmedID)
 	})
+}
+
+func deleteExecutionProfileWithExecutor(ctx context.Context, exec taskSQLExecutor, taskID string) error {
+	if err := deleteExecutionProfileSelectors(ctx, exec, taskID); err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).DeleteTaskExecutionProfile(ctx, taskID)
+	if err != nil {
+		return fmt.Errorf("store: delete task execution profile %q: %w", taskID, err)
+	}
+	if affected == 0 {
+		return fmt.Errorf(
+			"store: task execution profile %q: %w",
+			taskID,
+			taskpkg.ErrExecutionProfileNotFound,
+		)
+	}
+	return nil
 }
 
 func loadExecutionProfile(

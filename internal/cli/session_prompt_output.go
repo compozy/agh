@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const goalLiveField = "live"
+const goalLiveKey = "live"
 
 func sessionPromptBundle(record SessionPromptRecord) outputBundle {
 	if record.Goal != nil {
@@ -67,8 +67,8 @@ func goalCommandRows(result contract.GoalCommandResult) []keyValue {
 
 func goalCommandFields() []string {
 	return []string{
-		"outcome", "reason_code", "replaced_run_id", "run_id", sessionStatusKey,
-		"objective", "turns_used", "turn_limit", goalLiveField,
+		"outcome", "reason_code", "replaced_run_id", agentKernelRunIDKey, sessionStatusKey,
+		"objective", "turns_used", "turn_limit", goalLiveKey,
 	}
 }
 

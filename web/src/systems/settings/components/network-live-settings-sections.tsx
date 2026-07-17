@@ -231,7 +231,7 @@ function TextField(props: TextFieldProps) {
         className="font-mono"
         data-testid={props.testId}
         value={props.value}
-        onChange={event => props.onChange(event.target.value)}
+        onChange={event => props.onChange(event.target.value.trim())}
       />
     </div>
   );

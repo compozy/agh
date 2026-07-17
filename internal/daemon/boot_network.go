@@ -24,11 +24,19 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 	if !ok {
 		return errors.New("daemon: registry does not implement the network wake store")
 	}
-	runner, err := newNetworkWakeRunner(state.deps.Tasks, bindable, wakeStore, state.logger)
+	runner, err := newNetworkWakeRunner(
+		state.deps.Tasks,
+		bindable,
+		wakeStore,
+		state.logger,
+		state.cfg.Limits.MaxConcurrentAgents,
+	)
 	if err != nil {
 		return err
 	}
-	runner.SetNetworkEnabled(state.cfg.Network.Enabled)
+	if err := runner.SetEnabled(ctx, state.cfg.Network.Enabled); err != nil {
+		return fmt.Errorf("daemon: configure network wake runner availability: %w", err)
+	}
 
 	manager, err := network.NewManager(
 		ctx,
@@ -36,7 +44,6 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 		d.homePaths.NetworkAuditFile,
 		state.registry,
 		network.WithManagerLogger(state.logger),
-		network.WithManagerTaskService(state.deps.Tasks),
 		network.WithManagerHookDispatcher(state.notifier),
 		network.WithManagerWakeNotifier(runner),
 	)
@@ -49,15 +56,25 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 	cleanup.add(func(ctx context.Context) error {
 		return manager.Shutdown(ctx)
 	})
-	if err := runner.Start(ctx); err != nil {
-		return fmt.Errorf("daemon: start network wake runner: %w", err)
-	}
-	cleanup.add(func(ctx context.Context) error {
-		return runner.Shutdown(ctx)
-	})
-
 	state.networkWakeRunner = runner
 	state.network = manager
 	state.deps.Network = manager
+	return nil
+}
+
+func (d *Daemon) startNetworkWakeRunner(
+	ctx context.Context,
+	state *bootState,
+	cleanup *bootCleanup,
+) error {
+	if state == nil || state.networkWakeRunner == nil {
+		return errors.New("daemon: network wake runner is required before start")
+	}
+	if err := state.networkWakeRunner.Start(ctx); err != nil {
+		return fmt.Errorf("daemon: start network wake runner: %w", err)
+	}
+	cleanup.add(func(ctx context.Context) error {
+		return state.networkWakeRunner.Drain(ctx)
+	})
 	return nil
 }

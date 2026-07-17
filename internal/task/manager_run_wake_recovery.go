@@ -15,7 +15,9 @@ func (m *Service) recoverNetworkWakeOnBoot(
 	previousSessionID := run.SessionID
 	switch recovery.Action.Normalize() {
 	case RunBootRecoveryRequeue:
-		if previousStatus != TaskRunStatusClaimed {
+		switch previousStatus {
+		case TaskRunStatusClaimed, TaskRunStatusStarting, TaskRunStatusRunning:
+		default:
 			return nil, invalidRunRecoveryTransition(run, previousStatus, recovery.Action)
 		}
 		run = requeueSessionRunLease(run)

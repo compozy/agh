@@ -79,6 +79,7 @@ function runRecordFromActiveRun(task: TaskListItem): TaskRun | null {
     claimed_by: task.active_run.claimed_by,
     error: task.active_run.error,
     session_id: task.active_run.session_id,
+    resolved_network_participation: task.active_run.resolved_network_participation,
   });
 }
 

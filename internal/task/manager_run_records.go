@@ -36,15 +36,23 @@ func (m *Service) loadRun(ctx context.Context, runID string) (Run, error) {
 }
 
 func (m *Service) ensureTaskExecutable(ctx context.Context, record Task) error {
-	dependencies, err := m.store.ListDependencies(ctx, record.ID)
+	return m.ensureTaskExecutableWithStore(ctx, m.store, record)
+}
+
+func (m *Service) ensureTaskExecutableWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	record Task,
+) error {
+	dependencies, err := store.ListDependencies(ctx, record.ID)
 	if err != nil {
 		return err
 	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
+	runs, err := store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
 	if err != nil {
 		return err
 	}
-	status, err := m.canonicalTaskStatus(ctx, record, dependencies, runs)
+	status, err := m.canonicalTaskStatusWithStore(ctx, store, record, dependencies, runs)
 	if err != nil {
 		return err
 	}

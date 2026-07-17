@@ -142,11 +142,13 @@ func (o HookRunOutcome) Validate() error {
 
 // NetworkMatcher narrows network observation hooks by low-cardinality fields.
 type NetworkMatcher struct {
-	Channel   string `json:"channel,omitempty"    yaml:"channel,omitempty"`
-	Surface   string `json:"surface,omitempty"    yaml:"surface,omitempty"`
-	Kind      string `json:"kind,omitempty"       yaml:"kind,omitempty"`
-	Direction string `json:"direction,omitempty"  yaml:"direction,omitempty"`
-	WorkState string `json:"work_state,omitempty" yaml:"work_state,omitempty"`
+	Channel             string `json:"channel,omitempty"              yaml:"channel,omitempty"`
+	Surface             string `json:"surface,omitempty"              yaml:"surface,omitempty"`
+	Kind                string `json:"kind,omitempty"                 yaml:"kind,omitempty"`
+	Direction           string `json:"direction,omitempty"            yaml:"direction,omitempty"`
+	WorkState           string `json:"work_state,omitempty"           yaml:"work_state,omitempty"`
+	ParticipationMode   string `json:"participation_mode,omitempty"   yaml:"participation_mode,omitempty"`
+	ParticipationSource string `json:"participation_source,omitempty" yaml:"participation_source,omitempty"`
 }
 
 // CompactionMatcher narrows context-compaction hooks by compaction metadata.

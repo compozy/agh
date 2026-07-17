@@ -22,7 +22,6 @@ const MODES: ReadonlyArray<{
   label: string;
 }> = [
   { value: "full", label: "Full delivery" },
-  { value: "digest", label: "Digest" },
   { value: "mute", label: "Mute" },
 ];
 
@@ -30,15 +29,13 @@ interface ThreadSubscriptionControlProps {
   workspaceId: string;
   channel: string;
   threadId: string;
-  peerId?: string | null;
+  sessionId?: string | null;
 }
 
 function modeLabel(mode?: string | null): string {
   switch (mode) {
     case "full":
       return "Full";
-    case "digest":
-      return "Digest";
     case "mute":
       return "Muted";
     default:
@@ -50,9 +47,9 @@ export function ThreadSubscriptionControl({
   workspaceId,
   channel,
   threadId,
-  peerId,
+  sessionId,
 }: ThreadSubscriptionControlProps) {
-  const enabled = workspaceId !== "" && channel !== "" && threadId !== "" && Boolean(peerId);
+  const enabled = workspaceId !== "" && channel !== "" && threadId !== "" && Boolean(sessionId);
   const {
     data: subscriptions = [],
     isError: hasSubscriptionError,
@@ -61,7 +58,7 @@ export function ThreadSubscriptionControl({
     networkSubscriptionsOptions(
       workspaceId,
       channel,
-      { peer_id: peerId ?? undefined, thread_id: threadId },
+      { session_id: sessionId ?? undefined, thread_id: threadId },
       enabled
     )
   );
@@ -76,14 +73,14 @@ export function ThreadSubscriptionControl({
     : "Thread delivery mode";
 
   const setMode = (mode: NetworkSubscriptionMode) => {
-    if (!peerId) {
+    if (!sessionId) {
       return;
     }
     void upsert.mutateAsync({
       workspaceId,
       channel,
       data: {
-        peer_id: peerId,
+        session_id: sessionId,
         thread_id: threadId,
         mode,
       },
@@ -91,10 +88,10 @@ export function ThreadSubscriptionControl({
   };
 
   const resetMode = () => {
-    if (!peerId) {
+    if (!sessionId) {
       return;
     }
-    void remove.mutateAsync({ workspaceId, channel, peerId, threadId });
+    void remove.mutateAsync({ workspaceId, channel, sessionId, threadId });
   };
 
   return (

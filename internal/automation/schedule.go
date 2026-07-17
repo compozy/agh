@@ -2,8 +2,6 @@ package automation
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -664,14 +662,15 @@ func (s *Scheduler) claimScheduledJob(
 	claimedAt := s.now()
 	nextRun := nextRunAfter(job, scheduledAt, s.location)
 	claim := SchedulerClaim{
-		JobID:        job.ID,
-		RunID:        scheduledRunID(job.ID, scheduledAt),
-		FireID:       scheduledFireID(job.ID, scheduledAt),
-		ScheduledAt:  scheduledAt,
-		NextRunAt:    cloneTimePointer(nextRun),
-		ClaimedAt:    claimedAt,
-		ScheduleHash: scheduleHash(job.Schedule),
-		CatchUp:      scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),
+		JobID:                job.ID,
+		RunID:                scheduledRunID(job.ID, scheduledAt),
+		FireID:               scheduledFireID(job.ID, scheduledAt),
+		ScheduledAt:          scheduledAt,
+		NextRunAt:            cloneTimePointer(nextRun),
+		ClaimedAt:            claimedAt,
+		ScheduleHash:         scheduleHash(job.Schedule),
+		CatchUp:              scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),
+		NetworkParticipation: (DispatchRequest{Job: &job}).networkParticipation(),
 	}
 	if s.store != nil {
 		result, err := s.store.ClaimScheduledRun(persistenceContext(ctx), claim)
@@ -1040,32 +1039,6 @@ func latestMissedRunAt(job Job, missedAt time.Time, now time.Time, location *tim
 		latest = *next
 	}
 	return latest
-}
-
-func scheduledFireID(jobID string, scheduledAt time.Time) string {
-	return stableSchedulerID("fire", jobID, scheduledAt)
-}
-
-func scheduledRunID(jobID string, scheduledAt time.Time) string {
-	return stableSchedulerID("run", jobID, scheduledAt)
-}
-
-func stableSchedulerID(prefix string, jobID string, scheduledAt time.Time) string {
-	hash := sha256.Sum256([]byte(strings.TrimSpace(jobID) + "|" + scheduledAt.UTC().Format(time.RFC3339Nano)))
-	return prefix + "_" + hex.EncodeToString(hash[:12])
-}
-
-func scheduleHash(schedule *ScheduleSpec) string {
-	if schedule == nil {
-		return ""
-	}
-	hash := sha256.Sum256([]byte(strings.Join([]string{
-		string(schedule.Mode),
-		strings.TrimSpace(schedule.Expr),
-		strings.TrimSpace(schedule.Interval),
-		strings.TrimSpace(schedule.Time),
-	}, "|")))
-	return hex.EncodeToString(hash[:])
 }
 
 func schedulerCatchUpPolicyOrDefault(

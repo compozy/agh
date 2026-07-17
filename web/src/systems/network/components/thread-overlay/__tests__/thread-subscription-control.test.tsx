@@ -72,47 +72,48 @@ describe("ThreadSubscriptionControl", () => {
     deleteNetworkSubscriptionMock.mockReset();
   });
 
-  it("shows the current mode and upserts a thread-scoped mode", async () => {
+  it("Should show a surviving mode and upsert it for the current session", async () => {
     const user = userEvent.setup();
     listNetworkSubscriptionsMock.mockResolvedValue([
       {
         channel: "ops",
-        mode: "digest",
-        peer_id: "peer-self",
+        mode: "mute",
+        session_id: "session-self",
         thread_id: "thread_ops",
       },
     ]);
     upsertNetworkSubscriptionMock.mockResolvedValue({
       channel: "ops",
       mode: "full",
-      peer_id: "peer-self",
+      session_id: "session-self",
       thread_id: "thread_ops",
     });
 
     renderWithClient(
       <ThreadSubscriptionControl
         channel="ops"
-        peerId="peer-self"
+        sessionId="session-self"
         threadId="thread_ops"
         workspaceId="ws_1"
       />
     );
 
     await waitFor(() =>
-      expect(screen.getByTestId("network-thread-subscription-trigger")).toHaveTextContent("Digest")
+      expect(screen.getByTestId("network-thread-subscription-trigger")).toHaveTextContent("Muted")
     );
+    expect(screen.queryByTestId("network-thread-subscription-digest")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("network-thread-subscription-trigger"));
     await user.click(screen.getByTestId("network-thread-subscription-full"));
 
     await waitFor(() => expect(upsertNetworkSubscriptionMock).toHaveBeenCalledTimes(1));
     expect(upsertNetworkSubscriptionMock).toHaveBeenCalledWith("ws_1", "ops", {
       mode: "full",
-      peer_id: "peer-self",
+      session_id: "session-self",
       thread_id: "thread_ops",
     });
   });
 
-  it("deletes the thread-scoped row for default routing", async () => {
+  it("Should delete the thread-scoped row for default routing", async () => {
     const user = userEvent.setup();
     listNetworkSubscriptionsMock.mockResolvedValue([]);
     deleteNetworkSubscriptionMock.mockResolvedValue(undefined);
@@ -120,7 +121,7 @@ describe("ThreadSubscriptionControl", () => {
     renderWithClient(
       <ThreadSubscriptionControl
         channel="ops"
-        peerId="peer-self"
+        sessionId="session-self"
         threadId="thread_ops"
         workspaceId="ws_1"
       />
@@ -133,18 +134,18 @@ describe("ThreadSubscriptionControl", () => {
     await user.click(screen.getByTestId("network-thread-subscription-default"));
 
     await waitFor(() => expect(deleteNetworkSubscriptionMock).toHaveBeenCalledTimes(1));
-    expect(deleteNetworkSubscriptionMock).toHaveBeenCalledWith("ws_1", "ops", "peer-self", {
+    expect(deleteNetworkSubscriptionMock).toHaveBeenCalledWith("ws_1", "ops", "session-self", {
       thread_id: "thread_ops",
     });
   });
 
-  it("shows an unavailable disabled state when subscriptions cannot load", async () => {
+  it("Should show an unavailable disabled state when subscriptions cannot load", async () => {
     listNetworkSubscriptionsMock.mockRejectedValue(new Error("subscription lookup failed"));
 
     renderWithClient(
       <ThreadSubscriptionControl
         channel="ops"
-        peerId="peer-self"
+        sessionId="session-self"
         threadId="thread_ops"
         workspaceId="ws_1"
       />

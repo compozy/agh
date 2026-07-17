@@ -105,6 +105,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		creationOptions := store.SessionCreationOptions{
 			SessionID:            childID,
 			Name:                 "Child",
+			NetworkOwnerKey:      "session:" + childID,
 			NetworkParticipation: participation.LocalSpec(),
 			SessionType:          "worker",
 		}

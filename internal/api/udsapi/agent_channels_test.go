@@ -368,10 +368,23 @@ func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 		var seen network.SendRequest
 		source := agentChannelEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
 		source.From = "reviewer.sess-peer"
+		peerSessionID := "sess-peer"
 		directID := "direct_reply_01"
 		source.Surface = new(network.SurfaceDirect)
 		source.DirectID = &directID
 		handlers := newAgentChannelHandlers(t, stubNetworkService{
+			ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
+				if workspaceID != "ws-1" || channel != "builders" {
+					t.Fatalf("ListPeers() = %q/%q, want ws-1/builders", workspaceID, channel)
+				}
+				return []network.PeerInfo{{
+					SessionID:   &peerSessionID,
+					PeerID:      "reviewer.sess-peer",
+					WorkspaceID: "ws-1",
+					Channel:     "builders",
+					Local:       true,
+				}}, nil
+			},
 			InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
 				if sessionID != "sess-agent" {
 					t.Fatalf("Inbox() sessionID = %q, want sess-agent", sessionID)

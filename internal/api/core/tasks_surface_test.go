@@ -3,6 +3,8 @@ package core_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -516,6 +518,8 @@ func TestTaskRunConversationStreamSurface(t *testing.T) {
 			nil,
 			nil,
 		)
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{}
+		fixture.Handlers.NetworkUsage = &stubNetworkUsageStore{}
 
 		resp := performRequest(
 			t,
@@ -526,6 +530,162 @@ func TestTaskRunConversationStreamSurface(t *testing.T) {
 		)
 		if resp.Code != http.StatusConflict || !strings.Contains(resp.Body.String(), "local task run") {
 			t.Fatalf("local stream status/body = %d/%s, want 409 diagnostic", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("Should deny before SSE headers and Network reads", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &testutil.StubTaskManager{
+			RunDetailFn: func(
+				_ context.Context,
+				_ string,
+				_ taskpkg.ActorContext,
+			) (*taskpkg.RunDetailView, error) {
+				return nil, taskpkg.ErrTaskRunNotFound
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListConversationMessagesFn: func(
+				context.Context,
+				store.NetworkConversationRef,
+				store.NetworkConversationMessageQuery,
+			) ([]store.NetworkConversationMessage, error) {
+				t.Fatal("ListConversationMessages() called for denied stream")
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkUsage = &stubNetworkUsageStore{}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/task-runs/run-foreign/conversation/stream",
+			nil,
+		)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("stream status = %d, want %d; body=%s", resp.Code, http.StatusNotFound, resp.Body.String())
+		}
+		if got := resp.Header().Get("Content-Type"); got == "text/event-stream" {
+			t.Fatalf("stream content type = %q, want denial before SSE headers", got)
+		}
+	})
+
+	t.Run("Should reject an invalid conversation cursor before SSE headers", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &testutil.StubTaskManager{
+			RunDetailFn: func(
+				_ context.Context,
+				runID string,
+				_ taskpkg.ActorContext,
+			) (*taskpkg.RunDetailView, error) {
+				return &taskpkg.RunDetailView{Run: taskpkg.Run{
+					ID:     runID,
+					TaskID: "task-1",
+					Status: taskpkg.TaskRunStatusRunning,
+					RunNetworkState: &taskpkg.RunNetworkState{
+						NetworkSpec: testLiveParticipation("ws-alpha", "coord-shared"),
+					},
+					QueuedAt: time.Date(2026, 7, 15, 9, 0, 0, 0, time.UTC),
+				}}, nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListConversationMessagesFn: func(
+				context.Context,
+				store.NetworkConversationRef,
+				store.NetworkConversationMessageQuery,
+			) ([]store.NetworkConversationMessage, error) {
+				return nil, fmt.Errorf("%w: missing cursor", store.ErrNetworkCursorInvalid)
+			},
+		}
+		fixture.Handlers.NetworkUsage = &stubNetworkUsageStore{}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/task-runs/run-1/conversation/stream?after=msg-missing",
+			nil,
+		)
+		if resp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf(
+				"stream status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusUnprocessableEntity,
+				resp.Body.String(),
+			)
+		}
+		if got := resp.Header().Get("Content-Type"); got == "text/event-stream" {
+			t.Fatalf("stream content type = %q, want cursor rejection before SSE headers", got)
+		}
+	})
+
+	t.Run("Should reject a missing usage service before loading the run or SSE headers", func(t *testing.T) {
+		t.Parallel()
+
+		runDetailCalls := 0
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			&testutil.StubTaskManager{
+				RunDetailFn: func(
+					context.Context,
+					string,
+					taskpkg.ActorContext,
+				) (*taskpkg.RunDetailView, error) {
+					runDetailCalls++
+					return nil, errors.New("run detail should not be loaded without Network usage")
+				},
+			},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{}
+		fixture.Handlers.NetworkUsage = nil
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/task-runs/run-1/conversation/stream",
+			nil,
+		)
+		if resp.Code != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"stream status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusServiceUnavailable,
+				resp.Body.String(),
+			)
+		}
+		if runDetailCalls != 0 {
+			t.Fatalf("RunDetail() calls = %d, want 0", runDetailCalls)
+		}
+		if got := resp.Header().Get("Content-Type"); got == "text/event-stream" {
+			t.Fatalf("stream content type = %q, want service rejection before SSE headers", got)
 		}
 	})
 }

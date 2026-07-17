@@ -77,6 +77,7 @@ func TestAllHostAPIMethodsReturnsCanonicalWireOrder(t *testing.T) {
 			HostAPIMethodTasksRunsFail,
 			HostAPIMethodTasksRunsCancel,
 			HostAPIMethodNetworkStatus,
+			HostAPIMethodNetworkUsage,
 			HostAPIMethodNetworkChannels,
 			HostAPIMethodNetworkPeers,
 			HostAPIMethodNetworkThreads,

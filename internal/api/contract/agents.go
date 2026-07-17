@@ -423,7 +423,7 @@ func (p *CoordinationMessageMetadataPayload) UnmarshalJSON(data []byte) error {
 
 	type metadataAlias CoordinationMessageMetadataPayload
 	var decoded metadataAlias
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictContractJSON(data, &decoded); err != nil {
 		return err
 	}
 	*p = CoordinationMessageMetadataPayload(decoded)

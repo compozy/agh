@@ -17,7 +17,7 @@ func (r *NetworkSendRequest) UnmarshalJSON(data []byte) error {
 	if _, ok := raw["interaction_id"]; ok {
 		return errors.New("network send request rejects interaction_id; use work_id")
 	}
-	if err := rejectCallerSuppliedNetworkIdentity(raw, "network send request"); err != nil {
+	if err := ValidateNoCallerSuppliedNetworkIdentity(raw, "network send request"); err != nil {
 		return err
 	}
 
@@ -39,12 +39,12 @@ func (r *AgentChannelSendRequest) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	if err := rejectCallerSuppliedNetworkIdentity(raw, "agent channel send request"); err != nil {
+	if err := ValidateNoCallerSuppliedNetworkIdentity(raw, "agent channel send request"); err != nil {
 		return err
 	}
 
 	var decoded agentChannelSendRequestAlias
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictContractJSON(data, &decoded); err != nil {
 		return err
 	}
 	*r = AgentChannelSendRequest(decoded)
@@ -59,7 +59,8 @@ func decodeNetworkSendObject(data []byte) (map[string]json.RawMessage, error) {
 	return raw, nil
 }
 
-func rejectCallerSuppliedNetworkIdentity(raw map[string]json.RawMessage, requestName string) error {
+// ValidateNoCallerSuppliedNetworkIdentity rejects caller-authored sender identity and proof fields.
+func ValidateNoCallerSuppliedNetworkIdentity(raw map[string]json.RawMessage, requestName string) error {
 	for key := range raw {
 		normalized := strings.TrimSpace(key)
 		if !strings.EqualFold(normalized, "from") && !strings.EqualFold(normalized, "proof") {

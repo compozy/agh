@@ -1954,7 +1954,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks",
 		[]byte(
-			`{"scope":"workspace","workspace":"alpha","title":"Review task API","description":"Check handler wiring","owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
+			`{"scope":"workspace","workspace":"alpha","title":"Review task API","description":"Check handler wiring","owner":{"kind":"pool","ref":"reviewers"},"network_participation":{"mode":"live","channel_strategy":"run","bounds":{"max_wakes":4}},"metadata":{"priority":"high"}}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -2050,7 +2050,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs/fan-out",
 		[]byte(
-			`{"idempotency_key":"fanout-key","designations":[{"brief":"Review API handlers","metadata":{"lane":"api"}},{"brief":"Review web wiring","metadata":{"lane":"web"}}]}`,
+			`{"idempotency_key":"fanout-key","network_participation":{"mode":"live","channel_strategy":"named","channel_id":"release-room"},"designations":[{"brief":"Review API handlers","metadata":{"lane":"api"}},{"brief":"Review web wiring","metadata":{"lane":"web"}}]}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -2335,6 +2335,19 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		createdSpec.Owner.Ref != "reviewers" {
 		t.Fatalf("created spec = %#v", createdSpec)
 	}
+	if createdSpec.NetworkParticipation == nil ||
+		createdSpec.NetworkParticipation.Mode == nil ||
+		*createdSpec.NetworkParticipation.Mode != participation.ModeLive ||
+		createdSpec.NetworkParticipation.ChannelStrategy == nil ||
+		*createdSpec.NetworkParticipation.ChannelStrategy != participation.StrategyRun ||
+		createdSpec.NetworkParticipation.Bounds == nil ||
+		createdSpec.NetworkParticipation.Bounds.MaxWakes == nil ||
+		*createdSpec.NetworkParticipation.Bounds.MaxWakes != 4 {
+		t.Fatalf(
+			"created network participation = %#v, want bounded Live/run",
+			createdSpec.NetworkParticipation,
+		)
+	}
 	if childSpec.WorkspaceID != "ws-alpha" || childSpec.Title != "Child task" {
 		t.Fatalf("child spec = %#v", childSpec)
 	}
@@ -2370,9 +2383,17 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	for idx, run := range fanoutEnqueues {
 		if run.TaskID != "task-1" ||
-			run.NetworkParticipation != nil ||
 			run.DesignationGroupID != fanoutRollup.DesignationGroupID {
 			t.Fatalf("fanout enqueue %d = %#v", idx, run)
+		}
+		if run.NetworkParticipation == nil ||
+			run.NetworkParticipation.Mode == nil ||
+			*run.NetworkParticipation.Mode != participation.ModeLive ||
+			run.NetworkParticipation.ChannelStrategy == nil ||
+			*run.NetworkParticipation.ChannelStrategy != participation.StrategyNamed ||
+			run.NetworkParticipation.ChannelID == nil ||
+			*run.NetworkParticipation.ChannelID != "release-room" {
+			t.Fatalf("fanout enqueue %d participation = %#v", idx, run.NetworkParticipation)
 		}
 		if !strings.Contains(string(run.Metadata), `"designation"`) {
 			t.Fatalf("fanout enqueue %d metadata = %s, want designation payload", idx, run.Metadata)
@@ -2710,10 +2731,8 @@ func TestBaseHandlersUpdateTaskNetworkParticipation(t *testing.T) {
 
 		const taskID = "task-np-update"
 		var (
-			gotSetProfile *taskpkg.ExecutionProfile
-			getCalls      int
-			setCalls      int
-			updateCalls   int
+			gotPatch    taskpkg.Patch
+			updateCalls int
 		)
 		tasks := &testutil.StubTaskManager{
 			GetTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
@@ -2729,35 +2748,18 @@ func TestBaseHandlersUpdateTaskNetworkParticipation(t *testing.T) {
 					},
 				}, nil
 			},
-			UpdateTaskFn: func(context.Context, string, taskpkg.Patch, taskpkg.ActorContext) (*taskpkg.Task, error) {
-				updateCalls++
-				t.Fatal("UpdateTask must not run for network_participation-only patches")
-				return nil, nil
-			},
-			GetExecutionProfileFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (taskpkg.ExecutionProfile, error) {
-				getCalls++
-				if id != taskID {
-					t.Fatalf("GetExecutionProfile id = %q, want %q", id, taskID)
-				}
-				return taskpkg.DefaultExecutionProfile(taskID), nil
-			},
-			SetExecutionProfileFn: func(
+			UpdateTaskFn: func(
 				_ context.Context,
 				id string,
-				profile *taskpkg.ExecutionProfile,
+				patch taskpkg.Patch,
 				_ taskpkg.ActorContext,
-			) (taskpkg.ExecutionProfile, error) {
-				setCalls++
+			) (*taskpkg.Task, error) {
+				updateCalls++
 				if id != taskID {
-					t.Fatalf("SetExecutionProfile id = %q, want %q", id, taskID)
+					t.Fatalf("UpdateTask id = %q, want %q", id, taskID)
 				}
-				if profile == nil {
-					t.Fatal("SetExecutionProfile profile = nil")
-					return taskpkg.ExecutionProfile{}, nil
-				}
-				cloned := *profile
-				gotSetProfile = &cloned
-				return cloned, nil
+				gotPatch = patch
+				return &taskpkg.Task{ID: taskID, Title: "Draft handoff", Scope: taskpkg.ScopeWorkspace}, nil
 			},
 		}
 		fixture := newHandlerFixtureWithTasks(
@@ -2779,24 +2781,21 @@ func TestBaseHandlersUpdateTaskNetworkParticipation(t *testing.T) {
 		if resp.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
-		if updateCalls != 0 {
-			t.Fatalf("UpdateTask calls = %d, want 0", updateCalls)
+		if updateCalls != 1 {
+			t.Fatalf("UpdateTask calls = %d, want 1", updateCalls)
 		}
-		if getCalls != 1 || setCalls != 1 {
-			t.Fatalf("profile get/set calls = %d/%d, want 1/1", getCalls, setCalls)
+		if gotPatch.NetworkParticipation == nil {
+			t.Fatalf("UpdateTask patch = %#v, want network_participation", gotPatch)
 		}
-		if gotSetProfile == nil || gotSetProfile.NetworkParticipation == nil {
-			t.Fatalf("SetExecutionProfile profile = %#v, want network_participation", gotSetProfile)
+		if gotPatch.NetworkParticipation.Mode == nil ||
+			*gotPatch.NetworkParticipation.Mode != participation.ModeLive {
+			t.Fatalf("mode = %#v, want %q", gotPatch.NetworkParticipation.Mode, participation.ModeLive)
 		}
-		if gotSetProfile.NetworkParticipation.Mode == nil ||
-			*gotSetProfile.NetworkParticipation.Mode != participation.ModeLive {
-			t.Fatalf("mode = %#v, want %q", gotSetProfile.NetworkParticipation.Mode, participation.ModeLive)
-		}
-		if gotSetProfile.NetworkParticipation.ChannelStrategy == nil ||
-			*gotSetProfile.NetworkParticipation.ChannelStrategy != participation.StrategyRun {
+		if gotPatch.NetworkParticipation.ChannelStrategy == nil ||
+			*gotPatch.NetworkParticipation.ChannelStrategy != participation.StrategyRun {
 			t.Fatalf(
 				"channel_strategy = %#v, want %q",
-				gotSetProfile.NetworkParticipation.ChannelStrategy,
+				gotPatch.NetworkParticipation.ChannelStrategy,
 				participation.StrategyRun,
 			)
 		}

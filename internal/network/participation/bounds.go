@@ -6,14 +6,16 @@ import (
 	"time"
 )
 
+const maxMillisecondCeilingDuration = time.Duration(1<<63-1) - (time.Millisecond - 1)
+
 type Bounds struct {
-	MaxWakes         int    `json:"max_wakes"`
-	MaxWakeWallTime  string `json:"max_wake_wall_time"`
-	MaxTotalWallTime string `json:"max_total_wall_time"`
-	MaxInputTokens   int64  `json:"max_input_tokens"`
-	MaxOutputTokens  int64  `json:"max_output_tokens"`
-	MaxWakeDepth     int    `json:"max_wake_depth"`
-	CoalesceWindow   string `json:"coalesce_window"`
+	MaxWakes         int    `json:"max_wakes"           yaml:"max_wakes"`
+	MaxWakeWallTime  string `json:"max_wake_wall_time"  yaml:"max_wake_wall_time"`
+	MaxTotalWallTime string `json:"max_total_wall_time" yaml:"max_total_wall_time"`
+	MaxInputTokens   int64  `json:"max_input_tokens"    yaml:"max_input_tokens"`
+	MaxOutputTokens  int64  `json:"max_output_tokens"   yaml:"max_output_tokens"`
+	MaxWakeDepth     int    `json:"max_wake_depth"      yaml:"max_wake_depth"`
+	CoalesceWindow   string `json:"coalesce_window"     yaml:"coalesce_window"`
 }
 
 func (b Bounds) IsZero() bool {
@@ -21,13 +23,13 @@ func (b Bounds) IsZero() bool {
 }
 
 type BoundsRequest struct {
-	MaxWakes         *int    `json:"max_wakes,omitempty"`
-	MaxWakeWallTime  *string `json:"max_wake_wall_time,omitempty"`
-	MaxTotalWallTime *string `json:"max_total_wall_time,omitempty"`
-	MaxInputTokens   *int64  `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens  *int64  `json:"max_output_tokens,omitempty"`
-	MaxWakeDepth     *int    `json:"max_wake_depth,omitempty"`
-	CoalesceWindow   *string `json:"coalesce_window,omitempty"`
+	MaxWakes         *int    `json:"max_wakes,omitempty"           yaml:"max_wakes,omitempty"`
+	MaxWakeWallTime  *string `json:"max_wake_wall_time,omitempty"  yaml:"max_wake_wall_time,omitempty"`
+	MaxTotalWallTime *string `json:"max_total_wall_time,omitempty" yaml:"max_total_wall_time,omitempty"`
+	MaxInputTokens   *int64  `json:"max_input_tokens,omitempty"    yaml:"max_input_tokens,omitempty"`
+	MaxOutputTokens  *int64  `json:"max_output_tokens,omitempty"   yaml:"max_output_tokens,omitempty"`
+	MaxWakeDepth     *int    `json:"max_wake_depth,omitempty"      yaml:"max_wake_depth,omitempty"`
+	CoalesceWindow   *string `json:"coalesce_window,omitempty"     yaml:"coalesce_window,omitempty"`
 }
 
 type Limits struct {
@@ -102,19 +104,24 @@ func validateBounds(bounds Bounds) error {
 			return newContractError(ErrBoundsExceedCeiling, candidate.field, "bounds_required: value must be positive")
 		}
 	}
-	for _, candidate := range []struct {
-		field string
-		value string
-	}{
-		{field: "bounds.max_wake_wall_time", value: bounds.MaxWakeWallTime},
-		{field: "bounds.max_total_wall_time", value: bounds.MaxTotalWallTime},
-		{field: "bounds.coalesce_window", value: bounds.CoalesceWindow},
-	} {
-		if _, err := parsePositiveDuration(candidate.field, candidate.value); err != nil {
-			return err
-		}
+	wakeWall, err := parsePositiveDuration("bounds.max_wake_wall_time", bounds.MaxWakeWallTime)
+	if err != nil {
+		return err
 	}
-	return nil
+	totalWall, err := parsePositiveDuration("bounds.max_total_wall_time", bounds.MaxTotalWallTime)
+	if err != nil {
+		return err
+	}
+	if wakeWall > totalWall {
+		return exceedsLimit(
+			"bounds.max_wake_wall_time",
+			bounds.MaxWakeWallTime,
+			"bounds.max_total_wall_time",
+			bounds.MaxTotalWallTime,
+		)
+	}
+	_, err = parsePositiveDuration("bounds.coalesce_window", bounds.CoalesceWindow)
+	return err
 }
 
 func validateBoundsLimits(bounds Bounds, limits Limits) error {
@@ -229,6 +236,14 @@ func parsePositiveDuration(field, value string) (time.Duration, error) {
 	}
 	if duration <= 0 {
 		return 0, newContractError(ErrBoundsExceedCeiling, field, "duration must be positive: %q", value)
+	}
+	if duration > maxMillisecondCeilingDuration {
+		return 0, newContractError(
+			ErrBoundsExceedCeiling,
+			field,
+			"duration %q exceeds the safe millisecond ceiling",
+			value,
+		)
 	}
 	return duration, nil
 }

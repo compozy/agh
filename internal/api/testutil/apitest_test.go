@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -215,7 +216,7 @@ func TestStubNetworkServiceWaitInboxFallback(t *testing.T) {
 	})
 }
 
-func TestStubTaskManagerEnqueueRunFallback(t *testing.T) {
+func TestStubTaskManagerFallbacks(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should report a missing task before any run exists", func(t *testing.T) {
@@ -228,6 +229,66 @@ func TestStubTaskManagerEnqueueRunFallback(t *testing.T) {
 		)
 		if !errors.Is(err, taskpkg.ErrTaskNotFound) {
 			t.Fatalf("EnqueueRun() error = %v, want %v", err, taskpkg.ErrTaskNotFound)
+		}
+	})
+
+	t.Run("Should preserve filtered catalog continuation metadata", func(t *testing.T) {
+		t.Parallel()
+
+		liveSpec := participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     "ws-catalog",
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "builders",
+			Source:          participation.SourceExplicitRequest,
+			Bounds: participation.Bounds{
+				MaxWakes:         1,
+				MaxWakeWallTime:  "30s",
+				MaxTotalWallTime: "1m",
+				MaxInputTokens:   1024,
+				MaxOutputTokens:  512,
+				MaxWakeDepth:     1,
+				CoalesceWindow:   "250ms",
+			},
+		}
+		now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+		stub := &StubTaskManager{ListTasksFn: func(
+			context.Context,
+			taskpkg.Query,
+			taskpkg.ActorContext,
+		) ([]taskpkg.Summary, error) {
+			return []taskpkg.Summary{
+				{
+					ID: "task-1", Priority: taskpkg.PriorityHigh, LastActivityAt: now,
+					ActiveRun: &taskpkg.RunSummary{ResolvedNetworkParticipation: &liveSpec},
+				},
+				{
+					ID: "task-2", Priority: taskpkg.PriorityMedium, LastActivityAt: now.Add(-time.Minute),
+					ActiveRun: &taskpkg.RunSummary{ResolvedNetworkParticipation: &liveSpec},
+				},
+			}, nil
+		}}
+		query := taskpkg.CatalogQuery{
+			Scope:                taskpkg.CatalogScopeGlobal,
+			Sort:                 taskpkg.CatalogSortRecent,
+			Limit:                1,
+			ParticipationChannel: "builders",
+		}
+		page, err := stub.ListTaskCatalog(context.Background(), query, taskpkg.ActorContext{})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog() error = %v", err)
+		}
+		if got, want := len(page.Tasks), 1; got != want {
+			t.Fatalf("len(page.Tasks) = %d, want %d", got, want)
+		}
+		if page.Total != 2 || !page.HasMore || page.NextCursor == "" {
+			t.Fatalf("page metadata = %#v, want total two with continuation", page)
+		}
+		cursorQuery := query
+		cursorQuery.Cursor = page.NextCursor
+		if _, err := taskpkg.DecodeCatalogCursor(cursorQuery); err != nil {
+			t.Fatalf("DecodeCatalogCursor() error = %v", err)
 		}
 	})
 }

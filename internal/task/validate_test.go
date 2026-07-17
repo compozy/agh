@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestValidateScopeBinding(t *testing.T) {
@@ -131,6 +133,90 @@ func TestValidateImmutableTaskFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateImmutableRunFields(t *testing.T) {
+	t.Parallel()
+
+	current := validRun()
+	current.WorkspaceID = "ws-1"
+	current.LoopRunID = "loop-run-1"
+	current.PreviousRunID = "run-0"
+	current.IdempotencyKey = "idem-1"
+	current.DesignationGroupID = "group-1"
+	current.SetNetworkState(participation.LocalSpec(), "", "", "")
+	tests := []struct {
+		name      string
+		mutate    func(*Run)
+		wantField string
+	}{
+		{name: "mutable lifecycle fields", mutate: func(next *Run) { next.Status = TaskRunStatusRunning }},
+		{name: "task id", mutate: func(next *Run) { next.TaskID = "task-2" }, wantField: runFieldTaskID},
+		{name: "workspace id", mutate: func(next *Run) { next.WorkspaceID = "ws-2" }, wantField: runFieldWorkspaceID},
+		{name: "attempt", mutate: func(next *Run) { next.Attempt++ }, wantField: runFieldAttempt},
+		{name: "run kind", mutate: func(next *Run) { next.RunKind = RunKindCoordinator }, wantField: runFieldRunKind},
+		{name: "loop run id", mutate: func(next *Run) { next.LoopRunID = "loop-run-2" }, wantField: runFieldLoopRunID},
+		{
+			name:      "previous run id",
+			mutate:    func(next *Run) { next.PreviousRunID = "run-other" },
+			wantField: runFieldPreviousRunID,
+		},
+		{name: "origin", mutate: func(next *Run) { next.Origin.Ref = "http:api" }, wantField: runFieldOrigin},
+		{
+			name:      "idempotency key",
+			mutate:    func(next *Run) { next.IdempotencyKey = "idem-2" },
+			wantField: runFieldIdempotencyKey,
+		},
+		{
+			name: "network spec",
+			mutate: func(next *Run) {
+				next.SetNetworkState(participation.Spec{
+					Version: participation.SpecVersion,
+					Mode:    participation.ModeLive,
+					Source:  participation.SourceExplicitRequest,
+				}, "", "", "")
+			},
+			wantField: runFieldNetworkSpec,
+		},
+		{
+			name:      "designation group",
+			mutate:    func(next *Run) { next.DesignationGroupID = "group-2" },
+			wantField: runFieldDesignationGroupID,
+		},
+		{
+			name:      "network wake correlation",
+			mutate:    func(next *Run) { next.SetNetworkState(next.NetworkSpecSnapshot(), "wake-1", "sess-1", "owner-1") },
+			wantField: runFieldNetworkWake,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("Should preserve "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			next := current
+			next.RunNetworkState = cloneRunNetworkStateForImmutabilityTest(current.RunNetworkState)
+			tt.mutate(&next)
+			err := ValidateImmutableRunFields(current, next)
+			if tt.wantField == "" {
+				if err != nil {
+					t.Fatalf("ValidateImmutableRunFields() error = %v", err)
+				}
+				return
+			}
+			if !errors.Is(err, ErrImmutableField) || !strings.Contains(err.Error(), tt.wantField) {
+				t.Fatalf("ValidateImmutableRunFields() error = %v, want ErrImmutableField for %q", err, tt.wantField)
+			}
+		})
+	}
+}
+
+func cloneRunNetworkStateForImmutabilityTest(state *RunNetworkState) *RunNetworkState {
+	if state == nil {
+		return nil
+	}
+	cloned := *state
+	return &cloned
 }
 
 func TestPayloadSizeGuards(t *testing.T) {
@@ -768,6 +854,7 @@ func validActorContext() ActorContext {
 	return ActorContext{
 		Actor:  ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
 		Origin: Origin{Kind: OriginKindCLI, Ref: "agh task run start"},
+		Scope:  CallerScope{Operator: true},
 		Authority: Authority{
 			Read:            true,
 			Write:           true,
@@ -1124,8 +1211,19 @@ func TestRequestAndQueryValidation(t *testing.T) {
 		{
 			name: "task run query valid",
 			run: func() error {
-				return RunQuery{Status: TaskRunStatusRunning, Limit: 2}.Validate("runs")
+				return RunQuery{
+					Status:               TaskRunStatusRunning,
+					ParticipationChannel: "builders",
+					Limit:                2,
+				}.Validate("runs")
 			},
+		},
+		{
+			name: "Should reject invalid task run participation channel",
+			run: func() error {
+				return RunQuery{ParticipationChannel: "invalid channel"}.Validate("runs")
+			},
+			wantErr: ErrValidation,
 		},
 		{
 			name: "Should reject unsupported task run query status",
@@ -1287,6 +1385,25 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 		err := event.Validate()
 		if err == nil || !errors.Is(err, ErrValidation) {
 			t.Fatalf("Event.Validate() error = %v, want ErrValidation", err)
+		}
+	})
+
+	t.Run("Should require task scope unless an internal all-task replay is explicit", func(t *testing.T) {
+		t.Parallel()
+
+		if err := (EventRecordQuery{}).Validate("task_event_record_query"); !errors.Is(err, ErrValidation) {
+			t.Fatalf("EventRecordQuery(empty).Validate() error = %v, want %v", err, ErrValidation)
+		}
+		if err := (EventRecordQuery{AllTasks: true}).Validate("task_event_record_query"); err != nil {
+			t.Fatalf("EventRecordQuery(AllTasks).Validate() error = %v", err)
+		}
+		if err := (EventRecordQuery{TaskID: "task-1", AllTasks: true}).Validate(
+			"task_event_record_query",
+		); !errors.Is(
+			err,
+			ErrValidation,
+		) {
+			t.Fatalf("EventRecordQuery(conflicting scope).Validate() error = %v, want %v", err, ErrValidation)
 		}
 	})
 

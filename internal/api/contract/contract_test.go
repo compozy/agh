@@ -1223,12 +1223,11 @@ func TestNetworkPeerPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		payload := contract.NetworkPeerPayload{
-			PeerID:             "reviewer.sess-a",
-			DisplayName:        "Reviewer",
-			Channel:            "builders",
-			Local:              false,
-			PresenceState:      contract.NetworkPresenceActive,
-			LastSeenAgeSeconds: new(int64),
+			PeerID:        "reviewer.sess-a",
+			DisplayName:   "Reviewer",
+			Channel:       "builders",
+			Local:         true,
+			PresenceState: contract.NetworkPresenceLocal,
 			PeerCard: contract.NetworkPeerCardPayload{
 				PeerID: "reviewer.sess-a",
 				Capabilities: []contract.NetworkCapabilityBriefPayload{{
@@ -1246,11 +1245,8 @@ func TestNetworkPeerPayloadJSONShape(t *testing.T) {
 
 		var got map[string]any
 		marshalJSON(t, payload, &got)
-		if got["presence_state"] != contract.NetworkPresenceActive {
-			t.Fatalf("presence_state = %#v, want active", got["presence_state"])
-		}
-		if got["last_seen_age_seconds"] != float64(0) {
-			t.Fatalf("last_seen_age_seconds = %#v, want zero", got["last_seen_age_seconds"])
+		if got["presence_state"] != contract.NetworkPresenceLocal {
+			t.Fatalf("presence_state = %#v, want local", got["presence_state"])
 		}
 
 		peerCard, ok := got["peer_card"].(map[string]any)
@@ -1281,12 +1277,11 @@ func TestNetworkPeerDetailPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		payload := contract.NetworkPeerDetailPayload{
-			PeerID:             "reviewer.sess-a",
-			DisplayName:        "Reviewer",
-			Channel:            "builders",
-			Local:              true,
-			PresenceState:      contract.NetworkPresenceLocal,
-			LastSeenAgeSeconds: nil,
+			PeerID:        "reviewer.sess-a",
+			DisplayName:   "Reviewer",
+			Channel:       "builders",
+			Local:         true,
+			PresenceState: contract.NetworkPresenceLocal,
 			PeerCard: contract.NetworkPeerCardPayload{
 				PeerID: "reviewer.sess-a",
 				Capabilities: []contract.NetworkCapabilityBriefPayload{{

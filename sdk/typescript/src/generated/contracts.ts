@@ -52,6 +52,7 @@ export type HostAPIMethod =
   | "network/thread/get"
   | "network/thread/messages"
   | "network/threads"
+  | "network/usage"
   | "network/work/get"
   | "observe/health"
   | "resources/get"
@@ -1983,6 +1984,8 @@ export interface HookMatcher {
   kind?: string;
   direction?: string;
   work_state?: string;
+  participation_mode?: string;
+  participation_source?: string;
   compaction_reason?: string;
   compaction_strategy?: string;
   autonomy?: AutonomyMatcher;
@@ -2718,7 +2721,6 @@ export interface NetworkChannelPayload {
   created_at?: ISODateTime;
   peer_count: number;
   local_peer_count?: number;
-  remote_peer_count?: number;
   session_count?: number;
   message_count?: number;
   presence_count?: number;
@@ -2773,9 +2775,6 @@ export interface NetworkConversationMessagePayload {
   text?: string;
   preview_text?: string;
   size_bytes?: number;
-  presence_count?: number;
-  presence_started_at?: ISODateTime;
-  presence_last_seen_at?: ISODateTime;
   body: JSONValue;
   timestamp: ISODateTime;
 }
@@ -2817,8 +2816,8 @@ export interface NetworkDirectRoomPayload {
   workspace_id?: string;
   channel: string;
   direct_id: string;
-  peer_a: string;
-  peer_b: string;
+  session_a: string;
+  session_b: string;
   opened_at?: ISODateTime;
   last_activity_at?: ISODateTime;
   message_count: number;
@@ -2848,6 +2847,8 @@ export interface NetworkMatcher {
   kind?: string;
   direction?: string;
   work_state?: string;
+  participation_mode?: string;
+  participation_source?: string;
 }
 
 export interface NetworkMessagePersistedPayload {
@@ -2880,10 +2881,10 @@ export interface NetworkParticipationPreResolvePatch {
   deny?: boolean;
   deny_reason?: string;
   request?: Request;
-  widen?: boolean;
 }
 
 export interface OwnerRef {
+  workspace_id: string;
   kind: OwnerKind;
   id: string;
 }
@@ -2892,6 +2893,7 @@ export interface NetworkParticipationPreResolvePayload {
   workspace_id: string;
   owner: OwnerRef;
   request?: Request;
+  source?: Source;
   owner_key?: string;
 }
 
@@ -2994,10 +2996,7 @@ export interface NetworkPeerPayload {
   local: boolean;
   peer_card: NetworkPeerCardPayload;
   joined_at?: ISODateTime;
-  last_seen?: ISODateTime;
-  expires_at?: ISODateTime;
   presence_state: string;
-  last_seen_age_seconds?: number;
 }
 
 export interface NetworkPeersParams {
@@ -3167,6 +3166,62 @@ export interface NetworkThreadsResponse {
   page: CountedCursorPagePayload;
 }
 
+export interface NetworkUsageParams {
+  workspace_id: string;
+  owner_kind?: string;
+  owner_id?: string;
+  run_id?: string;
+  channel?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface NetworkUsageDetailPayload {
+  wake_id: string;
+  task_run_id: string;
+  owner_key: string;
+  workspace_id: string;
+  channel: string;
+  root_id: string;
+  depth: number;
+  state: string;
+  usage_state: string;
+  charged_wall_time: string;
+  input_tokens: number;
+  output_tokens: number;
+  reserved_at: ISODateTime;
+  settled_at?: ISODateTime;
+  reason?: string;
+}
+
+export interface NetworkUsageSummaryPayload {
+  wake_count: number;
+  reserved_wake_count: number;
+  actual_wake_count: number;
+  unavailable_wake_count: number;
+  charged_wall_time: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface NetworkBudgetUsagePayload {
+  owner_key: string;
+  wakes_used: number;
+  wall_time_used: string;
+  input_tokens_used: number;
+  output_tokens_used: number;
+  exhausted_reason?: string;
+  updated_at: ISODateTime;
+}
+
+export interface NetworkUsageResponse {
+  workspace_id: string;
+  details: NetworkUsageDetailPayload[];
+  total: NetworkUsageSummaryPayload;
+  budget?: NetworkBudgetUsagePayload;
+  next_cursor?: string;
+}
+
 export interface NetworkWorkClosedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
@@ -3223,9 +3278,8 @@ export interface NetworkWorkPayload {
   surface: string;
   thread_id?: string;
   direct_id?: string;
-  opened_by_peer_id?: string;
   opened_session_id?: string;
-  target_peer_id?: string;
+  target_session_id?: string;
   state: string;
   opened_at?: ISODateTime;
   last_activity_at?: ISODateTime;
@@ -5290,51 +5344,6 @@ export interface TaskRunConversationRefPayload {
   stream_url: string;
 }
 
-export interface NetworkUsageDetailPayload {
-  wake_id: string;
-  task_run_id: string;
-  owner_key: string;
-  workspace_id: string;
-  channel: string;
-  root_id: string;
-  depth: number;
-  state: string;
-  usage_state: string;
-  charged_wall_time: string;
-  input_tokens: number;
-  output_tokens: number;
-  reserved_at: ISODateTime;
-  settled_at?: ISODateTime;
-  reason?: string;
-}
-
-export interface NetworkUsageSummaryPayload {
-  wake_count: number;
-  reserved_wake_count: number;
-  actual_wake_count: number;
-  unavailable_wake_count: number;
-  charged_wall_time: string;
-  input_tokens: number;
-  output_tokens: number;
-}
-
-export interface NetworkBudgetUsagePayload {
-  owner_key: string;
-  wakes_used: number;
-  wall_time_used: string;
-  input_tokens_used: number;
-  output_tokens_used: number;
-  exhausted_reason?: string;
-  updated_at: ISODateTime;
-}
-
-export interface NetworkUsageResponse {
-  workspace_id: string;
-  details: NetworkUsageDetailPayload[];
-  total: NetworkUsageSummaryPayload;
-  budget?: NetworkBudgetUsagePayload;
-}
-
 export interface TaskRunNetworkPayload {
   conversation: TaskRunConversationRefPayload;
   usage: NetworkUsageResponse;
@@ -5675,6 +5684,7 @@ export interface TaskRunsParams {
   id: string;
   status?: RunStatus;
   session_id?: string;
+  participation_channel?: string;
   limit?: number;
 }
 
@@ -6543,6 +6553,10 @@ export interface HostAPIMethodMap {
   "network/status": {
     params: undefined;
     result: NetworkStatusPayload;
+  };
+  "network/usage": {
+    params: NetworkUsageParams;
+    result: NetworkUsageResponse;
   };
   "network/channels": {
     params: NetworkChannelsParams;

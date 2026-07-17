@@ -61,24 +61,12 @@ type DaemonClient interface {
 	ListProviders(ctx context.Context) (contract.ProviderListResponse, error)
 	ProbeProviderAuth(ctx context.Context, providerID string) (contract.ProviderAuthProbeResponse, error)
 	ProviderModelClient
+	NetworkCoordinationClient
 	ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error)
 	GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error)
 	PutVaultSecret(ctx context.Context, request PutVaultSecretRequest) (VaultRecord, error)
 	DeleteVaultSecret(ctx context.Context, ref string) error
 	NetworkStatus(ctx context.Context) (NetworkStatusRecord, error)
-	GetNetworkCoordination(ctx context.Context, workspaceRef string, taskID string) (NetworkCoordinationRecord, error)
-	PutNetworkCoordination(
-		ctx context.Context,
-		workspaceRef string,
-		request PutNetworkCoordinationRequest,
-		taskID string,
-	) (NetworkCoordinationRecord, error)
-	PutNetworkCoordinationInvitation(
-		ctx context.Context,
-		workspaceRef string,
-		request PutNetworkCoordinationInvitationRequest,
-	) (NetworkCoordinationRecord, error)
-	GetNetworkUsage(ctx context.Context, workspaceRef string) (NetworkUsageRecord, error)
 	NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	NetworkChannels(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error)
 	CreateNetworkChannel(
@@ -106,7 +94,7 @@ type DaemonClient interface {
 		ctx context.Context,
 		workspaceRef string,
 		channel string,
-		peerID string,
+		sessionID string,
 		threadID string,
 	) error
 	NetworkThreads(ctx context.Context, query NetworkThreadsQuery) (contract.NetworkThreadsResponse, error)
@@ -1883,14 +1871,14 @@ func (c *unixSocketClient) DeleteNetworkSubscription(
 	ctx context.Context,
 	workspaceRef string,
 	channel string,
-	peerID string,
+	sessionID string,
 	threadID string,
 ) error {
 	channel, err := requireNetworkPathValue("channel", channel)
 	if err != nil {
 		return err
 	}
-	peerID, err = requireNetworkPathValue("peer_id", peerID)
+	sessionID, err = requireNetworkPathValue("session_id", sessionID)
 	if err != nil {
 		return err
 	}
@@ -1902,7 +1890,7 @@ func (c *unixSocketClient) DeleteNetworkSubscription(
 	if trimmed := strings.TrimSpace(threadID); trimmed != "" {
 		values.Set("thread_id", trimmed)
 	}
-	path += "/subscriptions/" + url.PathEscape(peerID)
+	path += "/subscriptions/" + url.PathEscape(sessionID)
 	return c.doJSON(ctx, http.MethodDelete, path, values, nil, nil)
 }
 
@@ -5385,8 +5373,8 @@ func networkSubscriptionsValues(query NetworkSubscriptionsQuery) url.Values {
 	if trimmed := strings.TrimSpace(query.ThreadID); trimmed != "" {
 		values.Set("thread_id", trimmed)
 	}
-	if trimmed := strings.TrimSpace(query.PeerID); trimmed != "" {
-		values.Set("peer_id", trimmed)
+	if trimmed := strings.TrimSpace(query.SessionID); trimmed != "" {
+		values.Set("session_id", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
@@ -5742,6 +5730,9 @@ func taskRunValues(query TaskRunListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.SessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ParticipationChannel); trimmed != "" {
+		values.Set("participation_channel", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))

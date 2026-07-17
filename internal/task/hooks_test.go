@@ -407,9 +407,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 			},
 		}))
 		actor := validActorContext()
-		agent := validActorContext()
-		agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-hooks"}
-		agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+		agent := agentActorContextForTest("sess-hooks", "ws-hooks")
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
@@ -564,9 +562,7 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 			},
 		}))
 		operator := validActorContext()
-		agent := validActorContext()
-		agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-task-hooks"}
-		agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+		agent := agentActorContextForTest("sess-task-hooks", "ws-task-hooks")
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-task-hooks",
@@ -622,9 +618,10 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 				blocked.TaskContext,
 			)
 		}
-		if blocked.ResolvedNetworkParticipation != nil {
+		if blocked.ResolvedNetworkParticipation == nil ||
+			*blocked.ResolvedNetworkParticipation != participation.LocalSpec() {
 			t.Fatalf(
-				"blocked.ResolvedNetworkParticipation = %#v, want nil for local default correlation",
+				"blocked.ResolvedNetworkParticipation = %#v, want canonical Local snapshot",
 				blocked.ResolvedNetworkParticipation,
 			)
 		}
@@ -828,9 +825,10 @@ func TestTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 
 		manager := newTaskManagerForTest(t, newInMemoryManagerStore())
 		run := Run{
-			ID:      "run-wake",
-			RunKind: RunKindNetworkWake,
-			Status:  TaskRunStatusRunning,
+			ID:          "run-wake",
+			WorkspaceID: "ws-wake",
+			RunKind:     RunKindNetworkWake,
+			Status:      TaskRunStatusRunning,
 		}
 		liveSpec := participation.Spec{
 			Version:         participation.SpecVersion,
@@ -860,36 +858,60 @@ func TestTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 func TestTaskRunPreClaimCriteriaCarriesExactWakeIdentity(t *testing.T) {
 	t.Parallel()
 
-	var got hookspkg.TaskRunPreClaimPayload
-	manager := newTaskManagerForTestWithOptions(t, newInMemoryManagerStore(), WithTaskRunHooks(recordingTaskRunHooks{
-		preClaim: func(
-			_ context.Context,
-			payload hookspkg.TaskRunPreClaimPayload,
-		) (hookspkg.TaskRunPreClaimPayload, error) {
-			got = payload
-			return payload, nil
-		},
-	}))
-	criteria := ClaimCriteria{
-		RunID: "run-wake", RunKind: RunKindNetworkWake, Scope: ScopeWorkspace,
-		WorkspaceID: "ws-wake", TargetSessionID: "sess-target", ClaimerSessionID: "sess-target",
-		Now: time.Date(2026, 7, 13, 23, 0, 0, 0, time.UTC),
-	}
-	if _, err := manager.dispatchTaskRunPreClaimCriteria(
-		context.Background(),
-		criteria,
-		validActorContext(),
-	); err != nil {
-		t.Fatalf("dispatchTaskRunPreClaimCriteria() error = %v", err)
-	}
-	if got.TaskRunContext == nil || got.RunID != "run-wake" || got.RunKind == nil ||
-		*got.RunKind != RunKindNetworkWake.String() || got.TargetSessionID != "sess-target" {
-		t.Fatalf("pre-claim wake context = %#v, want exact wake identity", got.TaskRunContext)
-	}
-	if got.Criteria.RunID != "run-wake" || got.Criteria.RunKind != RunKindNetworkWake.String() ||
-		got.Criteria.TargetSessionID != "sess-target" {
-		t.Fatalf("pre-claim wake criteria = %#v, want exact wake identity", got.Criteria)
-	}
+	t.Run("Should carry exact wake identity through pre-claim criteria", func(t *testing.T) {
+		t.Parallel()
+
+		var got hookspkg.TaskRunPreClaimPayload
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			newInMemoryManagerStore(),
+			WithTaskRunHooks(recordingTaskRunHooks{
+				preClaim: func(
+					_ context.Context,
+					payload hookspkg.TaskRunPreClaimPayload,
+				) (hookspkg.TaskRunPreClaimPayload, error) {
+					got = payload
+					return payload, nil
+				},
+			}),
+		)
+		criteria := ClaimCriteria{
+			RunID: "run-wake", RunKind: RunKindNetworkWake, Scope: ScopeWorkspace,
+			WorkspaceID: "ws-wake", TargetSessionID: "sess-target", ClaimerSessionID: "sess-target",
+			CallerNetworkParticipation: participation.CloneSpec(participation.Spec{
+				Version: participation.SpecVersion, Mode: participation.ModeLive, WorkspaceID: "ws-wake",
+				ChannelStrategy: participation.StrategyNamed, ChannelID: "wake-channel",
+				Source: participation.SourceExplicitRequest, Bounds: participation.Bounds{
+					MaxWakes: 1, MaxWakeWallTime: "1s", MaxTotalWallTime: "1s",
+					MaxInputTokens: 10, MaxOutputTokens: 10, MaxWakeDepth: 1, CoalesceWindow: "100ms",
+				},
+			}),
+			Now: time.Date(2026, 7, 13, 23, 0, 0, 0, time.UTC),
+		}
+		if _, err := manager.dispatchTaskRunPreClaimCriteria(
+			context.Background(),
+			criteria,
+			validActorContext(),
+		); err != nil {
+			t.Fatalf("dispatchTaskRunPreClaimCriteria() error = %v", err)
+		}
+		if got.TaskRunContext == nil || got.RunID != "run-wake" || got.RunKind == nil ||
+			*got.RunKind != RunKindNetworkWake.String() || got.TargetSessionID != "sess-target" {
+			t.Fatalf("pre-claim wake context = %#v, want exact wake identity", got.TaskRunContext)
+		}
+		if got.Criteria.RunID != "run-wake" || got.Criteria.RunKind != RunKindNetworkWake.String() ||
+			got.Criteria.TargetSessionID != "sess-target" {
+			t.Fatalf("pre-claim wake criteria = %#v, want exact wake identity", got.Criteria)
+		}
+		if got.ResolvedNetworkParticipation == nil ||
+			*got.ResolvedNetworkParticipation != *criteria.CallerNetworkParticipation {
+			t.Fatalf(
+				"pre-claim participation = %#v, want trusted caller snapshot %#v",
+				got.ResolvedNetworkParticipation,
+				criteria.CallerNetworkParticipation,
+			)
+		}
+	})
 }
 
 func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
@@ -932,6 +954,14 @@ func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 	}
 	if got := payload.ResolvedNetworkParticipation; got == nil || *got != liveSpec {
 		t.Fatalf("ResolvedNetworkParticipation = %#v, want %#v", got, liveSpec)
+	}
+
+	taskPayload := manager.taskHookContext(taskRecord, actor, &BlockTaskAndReleaseRunResult{
+		Run:           run,
+		ReleaseReason: "blocked",
+	})
+	if got := taskPayload.ResolvedNetworkParticipation; got == nil || *got != liveSpec {
+		t.Fatalf("TaskContext.ResolvedNetworkParticipation = %#v, want %#v", got, liveSpec)
 	}
 }
 

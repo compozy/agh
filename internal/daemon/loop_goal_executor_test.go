@@ -439,6 +439,8 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 			LoopName: "goal-judge-usage", Status: looppkg.StatusRunning,
 			CreatedAt: now, StartedAt: now, Inputs: map[string]any{},
 		}
+		wantParticipation := daemonTestLiveParticipation(string(run.WorkspaceID), "goal-judge")
+		run.SetNetworkSpec(wantParticipation)
 		applyLoopRunPinningForTest(t, &run, now)
 		storeStub := goalJudgeLoopStore{
 			run: run,
@@ -491,6 +493,13 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 		}
 		if got, want := gotJudgeReq.LoopRunID, string(run.ID); got != want {
 			t.Fatalf("JudgeRequest.LoopRunID = %q, want %q", got, want)
+		}
+		if gotJudgeReq.NetworkParticipation == nil || *gotJudgeReq.NetworkParticipation != wantParticipation {
+			t.Fatalf(
+				"JudgeRequest.NetworkParticipation = %#v, want %#v",
+				gotJudgeReq.NetworkParticipation,
+				wantParticipation,
+			)
 		}
 		if result.Verdict.Outcome != gate.VerdictOutcomeApproved ||
 			result.TokensUsed != 9 || !result.TokensReported {

@@ -40,6 +40,9 @@ func NewResolver(options ResolverOptions) (Resolver, error) {
 }
 
 func (r *resolver) Resolve(ctx context.Context, in ResolveInput) (Spec, error) {
+	if err := validateResolveOwner(in); err != nil {
+		return Spec{}, err
+	}
 	request, source, err := r.selectRequest(ctx, in)
 	if err != nil {
 		return Spec{}, err
@@ -97,6 +100,24 @@ func (r *resolver) Resolve(ctx context.Context, in ResolveInput) (Spec, error) {
 		}
 	}
 	return spec, nil
+}
+
+func validateResolveOwner(in ResolveInput) error {
+	if err := ValidateOwner(in.Owner); err != nil {
+		return fmt.Errorf("resolve participation owner: %w", err)
+	}
+	workspaceID := strings.TrimSpace(in.WorkspaceID)
+	if workspaceID == "" {
+		return fmt.Errorf("resolve participation: workspace_id is required")
+	}
+	if strings.TrimSpace(in.Owner.WorkspaceID) != workspaceID {
+		return fmt.Errorf(
+			"resolve participation: owner workspace_id %q does not match workspace_id %q",
+			in.Owner.WorkspaceID,
+			workspaceID,
+		)
+	}
+	return nil
 }
 
 func delegatedAuthorityAllows(authority *AuthorityScope, channelID string) bool {

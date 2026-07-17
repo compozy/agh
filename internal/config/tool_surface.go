@@ -36,7 +36,6 @@ const (
 	toolSurfaceMemoryDreamGatesMinScorePath                       = "memory.dream.gates.min_score"
 	toolSurfaceMemoryProviderTimeoutPath                          = "memory.provider.timeout"
 	toolSurfaceMemoryRecallWeightsBm25UnicodePath                 = "memory.recall.weights.bm25_unicode"
-	toolSurfaceNetworkGreetIntervalPath                           = "network.greet_interval"
 	toolSurfaceNetworkMaxReplayAgePath                            = "network.max_replay_age"
 	toolSurfacePermissionsKey                                     = "permissions"
 	toolSurfaceTaskOrchestrationContextBodyMaxBytesPath           = "task.orchestration.context_body_max_bytes"
@@ -233,9 +232,7 @@ var (
 		"automation.timezone":                                         ConfigValueString,
 		"automation.max_concurrent_jobs":                              ConfigValueInt,
 		"network.enabled":                                             ConfigValueBool,
-		toolSurfaceNetworkGreetIntervalPath:                           ConfigValueInt,
 		toolSurfaceNetworkMaxReplayAgePath:                            ConfigValueInt,
-		"network.max_queue_depth":                                     ConfigValueInt,
 		"network.live.defaults.max_wakes":                             ConfigValueInt,
 		"network.live.defaults.max_wake_wall_time":                    ConfigValueString,
 		"network.live.defaults.max_total_wall_time":                   ConfigValueString,

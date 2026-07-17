@@ -88,7 +88,7 @@ export const storyHeroNetworkChannel = storyChannels.launchWarRoom;
 
 export const storyPeerIds = {
   local: "peer_northstar_launch",
-  remote: "peer_partner_bank",
+  partner: "peer_partner_bank",
   finance: "peer_northstar_finance",
   growth: "peer_northstar_growth",
   support: "peer_northstar_support",

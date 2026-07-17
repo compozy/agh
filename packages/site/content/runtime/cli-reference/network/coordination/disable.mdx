@@ -15,7 +15,9 @@ agh network coordination disable [flags]
 
 ```
   -h, --help             help for disable
-      --task-id string   Optional task scope for invitation state
+      --run-id string    Task run id for server-owned invitation eligibility
+      --scope string     Coordination scope: workspace or task (default "workspace")
+      --task-id string   Task id when --scope=task
 ```
 
 ### Options inherited from parent commands

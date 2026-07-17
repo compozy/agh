@@ -1,13 +1,16 @@
 package bundles
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestActivationResourceSpecNetworkRequirementFields(t *testing.T) {
@@ -89,8 +92,11 @@ func TestActivationResourceSpecNetworkRequirementFields(t *testing.T) {
 		oldDigest := activated.Activation.NetworkRequirementDigest
 
 		ext.Manifest.NetworkParticipation.ChannelScopes = []string{"operators"}
-		if err := service.Reconcile(testutil.Context(t)); err != nil {
-			t.Fatalf("Reconcile(changed digest) error = %v", err)
+		if err := service.Reconcile(testutil.Context(t)); !errors.Is(err, ErrNetworkRequirementConfirmationRequired) {
+			t.Fatalf(
+				"Reconcile(changed digest) error = %v, want ErrNetworkRequirementConfirmationRequired",
+				err,
+			)
 		}
 		changed, err := service.GetActivation(testutil.Context(t), activated.Activation.ID)
 		if err != nil {
@@ -120,8 +126,169 @@ func TestActivationResourceSpecNetworkRequirementFields(t *testing.T) {
 			t.Fatalf("ConfirmNetworkRequirement(current) error = %v", err)
 		}
 		if confirmed.Activation.Version <= changed.Activation.Version ||
-			confirmed.Activation.ConfirmedBy != networkRequirementConfirmedByOperator {
+			confirmed.Activation.ConfirmedBy != networkRequirementConfirmedByOperator ||
+			confirmed.Activation.ConfirmedAt != "2026-04-14T22:00:00Z" {
 			t.Fatalf("confirmed activation = %#v", confirmed.Activation)
+		}
+	})
+
+	t.Run("Should reject duplicate activation instead of updating without CAS", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		ext := newMarketingExtension()
+		ext.Manifest.NetworkParticipation = &extensionpkg.NetworkParticipationRequirement{
+			Required: true,
+			Mode:     string(participation.ModeLive),
+		}
+		service := newServiceForExtensions(store, []*extensionpkg.Extension{ext})
+		request := ActivateRequest{
+			ExtensionName:             ext.Info.Name,
+			BundleName:                "marketing",
+			ProfileName:               "default",
+			Scope:                     ScopeGlobal,
+			ConfirmNetworkRequirement: true,
+		}
+		created, err := service.Activate(testutil.Context(t), request)
+		if err != nil {
+			t.Fatalf("Activate(create) error = %v", err)
+		}
+		if _, err := service.Activate(testutil.Context(t), request); !errors.Is(err, resources.ErrConflict) {
+			t.Fatalf("Activate(duplicate) error = %v, want ErrConflict", err)
+		}
+		current, err := service.GetActivation(testutil.Context(t), created.Activation.ID)
+		if err != nil {
+			t.Fatalf("GetActivation() error = %v", err)
+		}
+		if current.Activation.Version != created.Activation.Version {
+			t.Fatalf(
+				"duplicate activation version = %d, want unchanged %d",
+				current.Activation.Version,
+				created.Activation.Version,
+			)
+		}
+	})
+
+	t.Run("Should reject missing confirmation before registering a workspace", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		ext := newMarketingExtension()
+		ext.Manifest.NetworkParticipation = &extensionpkg.NetworkParticipationRequirement{
+			Required: true,
+			Mode:     string(participation.ModeLive),
+		}
+		registerCalls := 0
+		service := newServiceForExtensions(
+			store,
+			[]*extensionpkg.Extension{ext},
+			WithWorkspaceResolver(memoryWorkspaceResolver{
+				resolveOrRegisterFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					registerCalls++
+					return workspacepkg.ResolvedWorkspace{}, nil
+				},
+			}),
+		)
+		_, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName: ext.Info.Name,
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeWorkspace,
+			Workspace:     t.TempDir(),
+		})
+		if !errors.Is(err, ErrNetworkRequirementConfirmationRequired) {
+			t.Fatalf("Activate() error = %v, want ErrNetworkRequirementConfirmationRequired", err)
+		}
+		if registerCalls != 0 {
+			t.Fatalf("ResolveOrRegister calls = %d, want 0", registerCalls)
+		}
+	})
+
+	t.Run("Should fail closed when the extension manifest is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		ext := newMarketingExtension()
+		ext.Manifest = nil
+		service := newServiceForExtensions(store, []*extensionpkg.Extension{ext})
+		_, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName: ext.Info.Name,
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		})
+		if err == nil || !strings.Contains(err.Error(), "manifest is unavailable") {
+			t.Fatalf("Activate() error = %v, want unavailable manifest failure", err)
+		}
+		if len(store.activations) != 0 {
+			t.Fatalf("activations = %#v, want no persisted activation", store.activations)
+		}
+	})
+
+	t.Run("Should invalidate changed digest before projector materialization", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		ext := newMarketingExtension()
+		ext.Manifest.NetworkParticipation = &extensionpkg.NetworkParticipationRequirement{
+			Required:      true,
+			Mode:          string(participation.ModeLive),
+			ChannelScopes: []string{"builders"},
+		}
+		service := newServiceForExtensions(store, []*extensionpkg.Extension{ext})
+		created, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName:             ext.Info.Name,
+			BundleName:                "marketing",
+			ProfileName:               "default",
+			Scope:                     ScopeGlobal,
+			ConfirmNetworkRequirement: true,
+		})
+		if err != nil {
+			t.Fatalf("Activate() error = %v", err)
+		}
+		stale := resources.Record[ActivationResourceSpec]{
+			Kind:    BundleActivationResourceKind,
+			ID:      created.Activation.ID,
+			Version: created.Activation.Version,
+			Scope:   resourceScopeForActivation(created.Activation),
+			Spec:    activationResourceSpecFromActivation(created.Activation),
+		}
+		ext.Manifest.NetworkParticipation.ChannelScopes = []string{"operators"}
+
+		if _, err := service.Build(
+			testutil.Context(t),
+			[]resources.Record[ActivationResourceSpec]{stale},
+			store.bundles,
+		); !errors.Is(
+			err,
+			ErrNetworkRequirementConfirmationRequired,
+		) {
+			t.Fatalf("Build(changed digest) error = %v, want confirmation required", err)
+		}
+		invalidated, err := store.GetBundleActivation(testutil.Context(t), created.Activation.ID)
+		if err != nil {
+			t.Fatalf("GetBundleActivation() error = %v", err)
+		}
+		if invalidated.Version <= stale.Version || invalidated.ConfirmedBy != "" || invalidated.ConfirmedAt != "" {
+			t.Fatalf("invalidated activation = %#v, want advanced unconfirmed state", invalidated)
+		}
+
+		if _, err := service.Build(
+			testutil.Context(t),
+			[]resources.Record[ActivationResourceSpec]{stale},
+			store.bundles,
+		); !errors.Is(
+			err,
+			resources.ErrConflict,
+		) {
+			t.Fatalf("Build(stale replay) error = %v, want ErrConflict", err)
+		}
+		current, err := store.GetBundleActivation(testutil.Context(t), created.Activation.ID)
+		if err != nil {
+			t.Fatalf("GetBundleActivation(stale replay) error = %v", err)
+		}
+		if current.Version != invalidated.Version || current.ConfirmedBy != "" || current.ConfirmedAt != "" {
+			t.Fatalf("stale projector restored confirmation: %#v", current)
 		}
 	})
 }

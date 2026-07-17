@@ -251,7 +251,7 @@ func (q *Queries) HeartbeatTaskRunLease(ctx context.Context, arg HeartbeatTaskRu
 }
 
 const listAutonomyLeaseHandles = `-- name: ListAutonomyLeaseHandles :many
-SELECT tr.id, tr.task_id, tr.run_kind, COALESCE(t.workspace_id, '') AS task_workspace_id,
+SELECT tr.id, tr.task_id, tr.run_kind, COALESCE(tr.workspace_id, t.workspace_id, '') AS workspace_id,
        tr.network_spec_json, tr.network_mode, tr.network_channel, tr.network_source,
        COALESCE(tr.network_target_session_id, '') AS target_session_id,
        COALESCE(tr.network_owner_key, '') AS owner_key, tr.status,
@@ -269,7 +269,7 @@ type ListAutonomyLeaseHandlesRow struct {
 	ID              string         `json:"id"`
 	TaskID          sql.NullString `json:"task_id"`
 	RunKind         string         `json:"run_kind"`
-	TaskWorkspaceID string         `json:"task_workspace_id"`
+	WorkspaceID     string         `json:"workspace_id"`
 	NetworkSpecJson string         `json:"network_spec_json"`
 	NetworkMode     string         `json:"network_mode"`
 	NetworkChannel  sql.NullString `json:"network_channel"`
@@ -299,7 +299,7 @@ func (q *Queries) ListAutonomyLeaseHandles(ctx context.Context, sessionID sql.Nu
 			&i.ID,
 			&i.TaskID,
 			&i.RunKind,
-			&i.TaskWorkspaceID,
+			&i.WorkspaceID,
 			&i.NetworkSpecJson,
 			&i.NetworkMode,
 			&i.NetworkChannel,

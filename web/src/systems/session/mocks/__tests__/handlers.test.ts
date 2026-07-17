@@ -1,6 +1,8 @@
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+
 import { handlers } from "../handlers";
 import { sessionFixtures } from "../fixtures";
 
@@ -20,6 +22,70 @@ afterAll(() => {
 });
 
 describe("session MSW handlers", () => {
+  it("Should resolve omitted or Local participation to the canonical Local snapshot", async () => {
+    const response = await fetch(`${API}/api/sessions`, {
+      body: JSON.stringify({
+        agent_name: "codex",
+        network_participation: { mode: "local" },
+        workspace: "workspace_local",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const body = (await response.json()) as {
+      session: {
+        resolved_network_participation: {
+          bounds: { max_wakes: number };
+          mode: string;
+          source: string;
+        };
+      };
+    };
+
+    expect(response.status).toBe(201);
+    expect(body.session.resolved_network_participation).toEqual(
+      buildLocalNetworkParticipationFixture()
+    );
+  });
+
+  it("Should resolve a valid named Live request to a workspace-owned bounded snapshot", async () => {
+    const response = await fetch(`${API}/api/sessions`, {
+      body: JSON.stringify({
+        agent_name: "codex",
+        network_participation: {
+          channel_id: " release-room ",
+          channel_strategy: "named",
+          mode: "live",
+        },
+        workspace: "workspace_live",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const body = (await response.json()) as {
+      session: {
+        resolved_network_participation: {
+          bounds: { max_wakes: number };
+          channel_id: string;
+          channel_strategy: string;
+          mode: string;
+          source: string;
+          workspace_id: string;
+        };
+      };
+    };
+
+    expect(response.status).toBe(201);
+    expect(body.session.resolved_network_participation).toMatchObject({
+      bounds: { max_wakes: 8 },
+      channel_id: "release-room",
+      channel_strategy: "named",
+      mode: "live",
+      source: "explicit_request",
+      workspace_id: "workspace_live",
+    });
+  });
+
   it("Should filter listSessions by workspace and agent", async () => {
     const sample = sessionFixtures[0]!;
     const workspace = sample.workspace_id!;

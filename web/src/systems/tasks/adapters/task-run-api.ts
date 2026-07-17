@@ -35,11 +35,7 @@ export async function getTaskRun(id: string, signal?: AbortSignal): Promise<Task
       response.status
     );
   }
-  const run = requireResponseData(data, response, `Failed to fetch task run "${id}"`).run;
-  if (!run.task) {
-    throw new TasksApiError(`Task run is not task-backed: ${id}`, 409);
-  }
-  return { ...run, task: run.task };
+  return requireResponseData(data, response, `Failed to fetch task run "${id}"`).run;
 }
 
 export async function inspectRun(id: string, signal?: AbortSignal): Promise<TaskRunInspectView> {

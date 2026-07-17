@@ -36,8 +36,11 @@ var (
 	ErrDirectRoomCollision = errors.New("network: direct room collision")
 )
 
-// DefaultMaxReplayAge is the maximum receiver replay age when expires_at is absent.
-const DefaultMaxReplayAge = 5 * time.Minute
+const (
+	// DefaultMaxReplayAge is the maximum receiver replay age when expires_at is absent.
+	DefaultMaxReplayAge      = 5 * time.Minute
+	maxProtocolEnvelopeBytes = 1 << 20
+)
 
 // ValidateOptions configures envelope validation and normalization.
 type ValidateOptions struct {
@@ -73,7 +76,26 @@ func NormalizeEnvelope(env Envelope, opts ValidateOptions) (Envelope, error) {
 	if err := validateEnvelopeBodyAndFreshness(normalized, opts); err != nil {
 		return Envelope{}, err
 	}
+	if err := validateEnvelopeEncodedSize(normalized); err != nil {
+		return Envelope{}, err
+	}
 	return normalized, nil
+}
+
+func validateEnvelopeEncodedSize(env Envelope) error {
+	encoded, err := json.Marshal(env)
+	if err != nil {
+		return fmt.Errorf("%w: encode envelope: %w", ErrInvalidEnvelope, err)
+	}
+	if len(encoded) > maxProtocolEnvelopeBytes {
+		return fmt.Errorf(
+			"%w: encoded_bytes=%d max_bytes=%d",
+			ErrEnvelopeTooLarge,
+			len(encoded),
+			maxProtocolEnvelopeBytes,
+		)
+	}
+	return nil
 }
 
 // ValidateEnvelope validates one envelope without returning a normalized copy.

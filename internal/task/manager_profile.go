@@ -90,18 +90,23 @@ func (m *Service) SetExecutionProfile(
 		normalized.CreatedAt = normalized.UpdatedAt
 	}
 
-	stored, err := m.store.UpsertExecutionProfile(ctx, &normalized)
+	event, err := m.newTaskEvent(trimmedID, "", taskEventProfileUpdated, actor, profileMutationEventPayload{
+		TaskID:          trimmedID,
+		CoordinatorMode: normalized.Coordinator.Mode,
+		WorkerMode:      normalized.Worker.Mode,
+		SandboxMode:     normalized.Sandbox.Mode,
+	})
 	if err != nil {
 		return ExecutionProfile{}, err
 	}
-	if err := m.recordTaskEvent(ctx, trimmedID, "", taskEventProfileUpdated, actor, profileMutationEventPayload{
-		TaskID:          trimmedID,
-		CoordinatorMode: stored.Coordinator.Mode,
-		WorkerMode:      stored.Worker.Mode,
-		SandboxMode:     stored.Sandbox.Mode,
-	}); err != nil {
+	stored, err := m.store.SetTaskExecutionProfile(ctx, &ExecutionProfileMutation{
+		Profile: normalized,
+		Event:   event,
+	})
+	if err != nil {
 		return ExecutionProfile{}, err
 	}
+	m.publishTaskEventsAfterCommand(ctx, []Event{event})
 	return stored, nil
 }
 
@@ -130,12 +135,20 @@ func (m *Service) DeleteExecutionProfile(
 			record.CurrentRunID,
 		)
 	}
-	if err := m.store.DeleteExecutionProfile(ctx, trimmedID); err != nil {
-		return err
-	}
-	return m.recordTaskEvent(ctx, trimmedID, "", taskEventProfileDeleted, actor, profileMutationEventPayload{
+	event, err := m.newTaskEvent(trimmedID, "", taskEventProfileDeleted, actor, profileMutationEventPayload{
 		TaskID: trimmedID,
 	})
+	if err != nil {
+		return err
+	}
+	if err := m.store.DeleteTaskExecutionProfile(ctx, ExecutionProfileDeleteMutation{
+		TaskID: trimmedID,
+		Event:  event,
+	}); err != nil {
+		return err
+	}
+	m.publishTaskEventsAfterCommand(ctx, []Event{event})
+	return nil
 }
 
 func defaultExecutionProfile(taskID string) ExecutionProfile {

@@ -84,8 +84,7 @@ CREATE TABLE network_subscriptions (
 			channel               TEXT NOT NULL,
 			thread_id             TEXT NOT NULL DEFAULT '',
 			session_id            TEXT NOT NULL,
-			mode                  TEXT NOT NULL CHECK (mode IN ('mute', 'digest', 'full')),
-			keyword_filters_json  TEXT NOT NULL DEFAULT '[]',
+			mode                  TEXT NOT NULL CHECK (mode IN ('mute', 'full')),
 			created_at            TEXT NOT NULL,
 			updated_at            TEXT NOT NULL,
 			PRIMARY KEY (workspace_id, channel, thread_id, session_id),
@@ -242,12 +241,26 @@ CREATE TABLE workspace_network_coordination (
 	updated_by TEXT NOT NULL CHECK (length(trim(updated_by)) > 0)
 );
 
+CREATE TABLE task_network_coordination (
+	task_id TEXT NOT NULL PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+	revision INTEGER NOT NULL CHECK (revision >= 1),
+	updated_at TEXT NOT NULL,
+	updated_by TEXT NOT NULL CHECK (length(trim(updated_by)) > 0)
+);
+
+CREATE INDEX idx_task_network_coordination_workspace
+	ON task_network_coordination(workspace_id, task_id);
+
 CREATE TABLE network_coordination_invitations (
+	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 	scope_kind TEXT NOT NULL CHECK (scope_kind IN ('workspace', 'task')),
 	scope_id TEXT NOT NULL CHECK (length(trim(scope_id)) > 0),
 	dismissed_at TEXT NOT NULL,
 	dismissed_by TEXT NOT NULL CHECK (length(trim(dismissed_by)) > 0),
-	PRIMARY KEY (scope_kind, scope_id)
+	PRIMARY KEY (workspace_id, scope_kind, scope_id),
+	CHECK (scope_kind <> 'workspace' OR scope_id = workspace_id)
 );
 
 CREATE TABLE network_availability (
@@ -259,16 +272,21 @@ CREATE TABLE network_availability (
 );
 
 CREATE TABLE network_message_dispositions (
+	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 	message_id TEXT NOT NULL,
-	recipient_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+	recipient_session_id TEXT NOT NULL,
 	decision TEXT NOT NULL,
 	decided_at TEXT NOT NULL,
 	acceptance_seq INTEGER NOT NULL CHECK (acceptance_seq >= 1),
-	PRIMARY KEY (message_id, recipient_session_id)
+	PRIMARY KEY (workspace_id, message_id, recipient_session_id),
+	FOREIGN KEY (workspace_id, recipient_session_id)
+		REFERENCES sessions(workspace_id, id) ON DELETE CASCADE,
+	FOREIGN KEY (workspace_id, message_id)
+		REFERENCES network_timeline_log(workspace_id, message_id) ON DELETE CASCADE
 );
 
 CREATE TABLE network_live_wakes (
-	wake_id TEXT PRIMARY KEY,
+	wake_id TEXT NOT NULL,
 	task_run_id TEXT NOT NULL UNIQUE REFERENCES task_runs(id) ON DELETE CASCADE,
 	owner_key TEXT NOT NULL CHECK (length(trim(owner_key)) > 0),
 	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -284,24 +302,61 @@ CREATE TABLE network_live_wakes (
 	input_tokens INTEGER CHECK (input_tokens IS NULL OR input_tokens >= 0),
 	output_tokens INTEGER CHECK (output_tokens IS NULL OR output_tokens >= 0),
 	usage_state TEXT NOT NULL DEFAULT '' CHECK (usage_state IN ('', 'actual', 'usage_unavailable')),
-	reason TEXT NOT NULL DEFAULT ''
+	reason TEXT NOT NULL DEFAULT '',
+	PRIMARY KEY (workspace_id, wake_id),
+	UNIQUE (workspace_id, wake_id, owner_key),
+	FOREIGN KEY (workspace_id, task_run_id)
+		REFERENCES task_runs(workspace_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE network_wake_sources (
+	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 	owner_key TEXT NOT NULL,
 	envelope_id TEXT NOT NULL,
-	wake_id TEXT NOT NULL REFERENCES network_live_wakes(wake_id) ON DELETE CASCADE,
-	PRIMARY KEY (owner_key, envelope_id)
+	wake_id TEXT NOT NULL,
+	PRIMARY KEY (workspace_id, owner_key, envelope_id),
+	FOREIGN KEY (workspace_id, wake_id, owner_key)
+		REFERENCES network_live_wakes(workspace_id, wake_id, owner_key) ON DELETE CASCADE,
+	FOREIGN KEY (workspace_id, envelope_id)
+		REFERENCES network_timeline_log(workspace_id, message_id) ON DELETE CASCADE
 );
 
 CREATE TABLE network_participation_budgets (
-	owner_key TEXT PRIMARY KEY CHECK (length(trim(owner_key)) > 0),
+	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	owner_key TEXT NOT NULL CHECK (length(trim(owner_key)) > 0),
 	wakes_used INTEGER NOT NULL DEFAULT 0 CHECK (wakes_used >= 0),
 	wall_ms_used INTEGER NOT NULL DEFAULT 0 CHECK (wall_ms_used >= 0),
 	input_tokens_used INTEGER NOT NULL DEFAULT 0 CHECK (input_tokens_used >= 0),
 	output_tokens_used INTEGER NOT NULL DEFAULT 0 CHECK (output_tokens_used >= 0),
 	exhausted_reason TEXT NOT NULL DEFAULT '',
-	updated_at TEXT NOT NULL
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY (workspace_id, owner_key)
+);
+
+CREATE TABLE network_wake_events (
+	sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	wake_id TEXT NOT NULL,
+	task_run_id TEXT NOT NULL,
+	owner_key TEXT NOT NULL CHECK (length(trim(owner_key)) > 0),
+	target_session_id TEXT NOT NULL,
+	event_type TEXT NOT NULL CHECK (event_type IN ('admitted', 'claimed', 'heartbeat', 'released', 'settled')),
+	state TEXT NOT NULL,
+	claim_token_hash TEXT NOT NULL DEFAULT '',
+	usage_state TEXT NOT NULL DEFAULT '' CHECK (usage_state IN ('', 'actual', 'usage_unavailable')),
+	actual_wall_ms INTEGER CHECK (actual_wall_ms IS NULL OR actual_wall_ms >= 0),
+	input_tokens INTEGER CHECK (input_tokens IS NULL OR input_tokens >= 0),
+	output_tokens INTEGER CHECK (output_tokens IS NULL OR output_tokens >= 0),
+	reason TEXT NOT NULL DEFAULT '',
+	actor_kind TEXT NOT NULL,
+	actor_ref TEXT NOT NULL,
+	timestamp TEXT NOT NULL,
+	FOREIGN KEY (workspace_id, wake_id, owner_key)
+		REFERENCES network_live_wakes(workspace_id, wake_id, owner_key) ON DELETE CASCADE,
+	FOREIGN KEY (workspace_id, task_run_id)
+		REFERENCES task_runs(workspace_id, id) ON DELETE CASCADE,
+	FOREIGN KEY (workspace_id, target_session_id)
+		REFERENCES sessions(workspace_id, id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_net_audit_conversation
@@ -393,8 +448,11 @@ CREATE INDEX idx_network_work_state
 		ON network_work(workspace_id, state, last_activity_at DESC);
 
 CREATE UNIQUE INDEX uq_network_live_wakes_open_owner
-	ON network_live_wakes(owner_key)
+	ON network_live_wakes(workspace_id, owner_key)
 	WHERE state = 'open';
 
 CREATE INDEX idx_network_live_wakes_workspace_channel
 	ON network_live_wakes(workspace_id, channel, reserved_at DESC, wake_id);
+
+CREATE INDEX idx_network_wake_events_wake_sequence
+	ON network_wake_events(workspace_id, wake_id, sequence);

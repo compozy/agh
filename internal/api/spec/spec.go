@@ -1262,7 +1262,7 @@ var operationRegistry = append([]OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-			queryParam("peer_id", "Filter subscriptions by peer id", false),
+			queryParam("session_id", "Filter subscriptions by session id", false),
 			queryParam("thread_id", "Filter subscriptions by thread id", false),
 			intQueryParam("limit", "Maximum number of subscriptions to return"),
 		},
@@ -1294,7 +1294,7 @@ var operationRegistry = append([]OperationSpec{
 	},
 	{
 		Method:      httpMethodDelete,
-		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{peer_id}",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{session_id}",
 		OperationID: "deleteNetworkSubscription",
 		Summary:     "Delete one network delivery subscription",
 		Tags:        []string{specNetworkKey},
@@ -1302,8 +1302,8 @@ var operationRegistry = append([]OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-			pathParam("peer_id", "Network peer id"),
-			queryParam("thread_id", "Delete the thread-scoped subscription for this peer", false),
+			pathParam("session_id", "Network session id"),
+			queryParam("thread_id", "Delete the thread-scoped subscription for this session", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
@@ -3790,6 +3790,7 @@ var operationRegistry = append([]OperationSpec{
 			pathParam("id", "Task id"),
 			enumQueryParam("status", "Filter by run status", taskRunStatusValues()),
 			queryParam("session_id", "Filter by attached session id", false),
+			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			intQueryParam("limit", "Maximum number of records to return"),
 		},
 		Responses: []ResponseSpec{
@@ -3838,35 +3839,7 @@ var operationRegistry = append([]OperationSpec{
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
-	{
-		Method:      httpMethodGet,
-		Path:        "/api/task-runs/{id}/conversation/stream",
-		OperationID: "streamTaskRunConversation",
-		Summary:     "Stream one task run coordination conversation",
-		Tags:        []string{specTasksKey, specNetworkKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Task run id"),
-			queryParam("after", "Replay messages after this message id", false),
-		},
-		Responses: []ResponseSpec{
-			{
-				Status:      200,
-				Description: "Task run conversation stream",
-				Body:        contract.TaskRunConversationStreamPayload{},
-				ContentType: specContentTypeEventStream,
-			},
-			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      409,
-				Description: "Local task run has no coordination conversation",
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 422, Description: "Invalid task-run id or conversation cursor", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Task or Network service is not configured", Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
+	taskRunConversationStreamOperation(),
 	{
 		Method:      httpMethodGet,
 		Path:        specAPIRunsIDInspectPath,

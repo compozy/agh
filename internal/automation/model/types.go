@@ -248,14 +248,15 @@ type SchedulerState struct {
 // SchedulerClaim reserves one scheduled fire after the durable cursor has
 // been advanced.
 type SchedulerClaim struct {
-	JobID        string
-	RunID        string
-	FireID       string
-	ScheduledAt  time.Time
-	NextRunAt    *time.Time
-	ClaimedAt    time.Time
-	ScheduleHash string
-	CatchUp      bool
+	JobID                string
+	RunID                string
+	FireID               string
+	ScheduledAt          time.Time
+	NextRunAt            *time.Time
+	ClaimedAt            time.Time
+	ScheduleHash         string
+	CatchUp              bool
+	NetworkParticipation *participation.Request
 }
 
 // SchedulerClaimResult reports the state and pre-created run for one claimed

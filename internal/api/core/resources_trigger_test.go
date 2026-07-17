@@ -14,6 +14,7 @@ import (
 func TestResourceContractTriggerFailures(t *testing.T) {
 	t.Parallel()
 
+	const genericKind resources.ResourceKind = "test.resource"
 	now := time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
 	triggerErr := errors.New("reconcile trigger unavailable")
 
@@ -52,9 +53,9 @@ func TestResourceContractTriggerFailures(t *testing.T) {
 		ctx, recorder := newResourceRequestContext(
 			t,
 			http.MethodPut,
-			"/api/resources/bundle.activation/demo",
+			"/api/resources/test.resource/demo",
 			[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
-			gin.Params{{Key: "kind", Value: "bundle.activation"}, {Key: "id", Value: "demo"}},
+			gin.Params{{Key: "kind", Value: string(genericKind)}, {Key: "id", Value: "demo"}},
 		)
 
 		handlers.PutResource(ctx)
@@ -75,7 +76,7 @@ func TestResourceContractTriggerFailures(t *testing.T) {
 			RawStore: stubRawStore{
 				DeleteRawFn: func(_ context.Context, _ resources.MutationActor, kind resources.ResourceKind, id string, expectedVersion int64) error {
 					committed = true
-					if kind != resources.ResourceKind("bundle.activation") || id != "demo" || expectedVersion != 3 {
+					if kind != genericKind || id != "demo" || expectedVersion != 3 {
 						t.Fatalf("DeleteRaw() args = kind:%q id:%q expected_version:%d", kind, id, expectedVersion)
 					}
 					return nil
@@ -92,9 +93,9 @@ func TestResourceContractTriggerFailures(t *testing.T) {
 		ctx, recorder := newResourceRequestContext(
 			t,
 			http.MethodDelete,
-			"/api/resources/bundle.activation/demo",
+			"/api/resources/test.resource/demo",
 			[]byte(`{"expected_version":3}`),
-			gin.Params{{Key: "kind", Value: "bundle.activation"}, {Key: "id", Value: "demo"}},
+			gin.Params{{Key: "kind", Value: string(genericKind)}, {Key: "id", Value: "demo"}},
 		)
 
 		handlers.DeleteResource(ctx)

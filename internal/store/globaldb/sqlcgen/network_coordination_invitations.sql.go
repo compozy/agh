@@ -11,34 +11,41 @@ import (
 
 const deleteNetworkCoordinationInvitation = `-- name: DeleteNetworkCoordinationInvitation :exec
 DELETE FROM network_coordination_invitations
-WHERE scope_kind = ?1 AND scope_id = ?2
+WHERE workspace_id = ?1
+  AND scope_kind = ?2
+  AND scope_id = ?3
 `
 
 type DeleteNetworkCoordinationInvitationParams struct {
-	ScopeKind string `json:"scope_kind"`
-	ScopeID   string `json:"scope_id"`
+	WorkspaceID string `json:"workspace_id"`
+	ScopeKind   string `json:"scope_kind"`
+	ScopeID     string `json:"scope_id"`
 }
 
 func (q *Queries) DeleteNetworkCoordinationInvitation(ctx context.Context, arg DeleteNetworkCoordinationInvitationParams) error {
-	_, err := q.db.ExecContext(ctx, deleteNetworkCoordinationInvitation, arg.ScopeKind, arg.ScopeID)
+	_, err := q.db.ExecContext(ctx, deleteNetworkCoordinationInvitation, arg.WorkspaceID, arg.ScopeKind, arg.ScopeID)
 	return err
 }
 
 const getNetworkCoordinationInvitation = `-- name: GetNetworkCoordinationInvitation :one
-SELECT scope_kind, scope_id, dismissed_at, dismissed_by
+SELECT workspace_id, scope_kind, scope_id, dismissed_at, dismissed_by
 FROM network_coordination_invitations
-WHERE scope_kind = ?1 AND scope_id = ?2
+WHERE workspace_id = ?1
+  AND scope_kind = ?2
+  AND scope_id = ?3
 `
 
 type GetNetworkCoordinationInvitationParams struct {
-	ScopeKind string `json:"scope_kind"`
-	ScopeID   string `json:"scope_id"`
+	WorkspaceID string `json:"workspace_id"`
+	ScopeKind   string `json:"scope_kind"`
+	ScopeID     string `json:"scope_id"`
 }
 
 func (q *Queries) GetNetworkCoordinationInvitation(ctx context.Context, arg GetNetworkCoordinationInvitationParams) (NetworkCoordinationInvitation, error) {
-	row := q.db.QueryRowContext(ctx, getNetworkCoordinationInvitation, arg.ScopeKind, arg.ScopeID)
+	row := q.db.QueryRowContext(ctx, getNetworkCoordinationInvitation, arg.WorkspaceID, arg.ScopeKind, arg.ScopeID)
 	var i NetworkCoordinationInvitation
 	err := row.Scan(
+		&i.WorkspaceID,
 		&i.ScopeKind,
 		&i.ScopeID,
 		&i.DismissedAt,
@@ -49,6 +56,7 @@ func (q *Queries) GetNetworkCoordinationInvitation(ctx context.Context, arg GetN
 
 const upsertNetworkCoordinationInvitation = `-- name: UpsertNetworkCoordinationInvitation :one
 INSERT INTO network_coordination_invitations (
+  workspace_id,
   scope_kind,
   scope_id,
   dismissed_at,
@@ -57,15 +65,17 @@ INSERT INTO network_coordination_invitations (
   ?1,
   ?2,
   ?3,
-  ?4
+  ?4,
+  ?5
 )
-ON CONFLICT(scope_kind, scope_id) DO UPDATE SET
+ON CONFLICT(workspace_id, scope_kind, scope_id) DO UPDATE SET
   dismissed_at = excluded.dismissed_at,
   dismissed_by = excluded.dismissed_by
-RETURNING scope_kind, scope_id, dismissed_at, dismissed_by
+RETURNING workspace_id, scope_kind, scope_id, dismissed_at, dismissed_by
 `
 
 type UpsertNetworkCoordinationInvitationParams struct {
+	WorkspaceID string `json:"workspace_id"`
 	ScopeKind   string `json:"scope_kind"`
 	ScopeID     string `json:"scope_id"`
 	DismissedAt string `json:"dismissed_at"`
@@ -74,6 +84,7 @@ type UpsertNetworkCoordinationInvitationParams struct {
 
 func (q *Queries) UpsertNetworkCoordinationInvitation(ctx context.Context, arg UpsertNetworkCoordinationInvitationParams) (NetworkCoordinationInvitation, error) {
 	row := q.db.QueryRowContext(ctx, upsertNetworkCoordinationInvitation,
+		arg.WorkspaceID,
 		arg.ScopeKind,
 		arg.ScopeID,
 		arg.DismissedAt,
@@ -81,6 +92,7 @@ func (q *Queries) UpsertNetworkCoordinationInvitation(ctx context.Context, arg U
 	)
 	var i NetworkCoordinationInvitation
 	err := row.Scan(
+		&i.WorkspaceID,
 		&i.ScopeKind,
 		&i.ScopeID,
 		&i.DismissedAt,

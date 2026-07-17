@@ -8,7 +8,6 @@ const (
 	introspectionAutomationObservationPatchValue      = "AutomationObservationPatch"
 	introspectionCoordinatorObservationPatchValue     = "CoordinatorObservationPatch"
 	introspectionLoopObservationPatchValue            = "LoopObservationPatch"
-	introspectionNetworkObservationPatchValue         = "NetworkObservationPatch"
 	introspectionSpawnObservationPatchValue           = "SpawnObservationPatch"
 	introspectionTaskObservationPatchValue            = "TaskObservationPatch"
 	introspectionTaskRunObservationPatchValue         = "TaskRunObservationPatch"
@@ -55,7 +54,7 @@ type EventDescriptor struct {
 	PatchSchema   string
 }
 
-var hookEventDescriptors = map[HookEvent]EventDescriptor{
+var hookEventDescriptors = mergeHookEventDescriptors(map[HookEvent]EventDescriptor{
 	HookSessionPreCreate: {
 		Event:         HookSessionPreCreate,
 		Family:        HookEventFamilySession,
@@ -576,77 +575,7 @@ var hookEventDescriptors = map[HookEvent]EventDescriptor{
 		PayloadSchema: "SpawnReapedPayload",
 		PatchSchema:   introspectionSpawnObservationPatchValue,
 	},
-	HookNetworkPeerJoined: {
-		Event:         HookNetworkPeerJoined,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  false,
-		PayloadSchema: "NetworkPeerJoinedPayload",
-		PatchSchema:   introspectionNetworkObservationPatchValue,
-	},
-	HookNetworkPeerLeft: {
-		Event:         HookNetworkPeerLeft,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  false,
-		PayloadSchema: "NetworkPeerLeftPayload",
-		PatchSchema:   introspectionNetworkObservationPatchValue,
-	},
-	HookNetworkThreadOpened: {
-		Event:         HookNetworkThreadOpened,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  false,
-		PayloadSchema: "NetworkThreadOpenedPayload",
-		PatchSchema:   introspectionNetworkObservationPatchValue,
-	},
-	HookNetworkDirectRoomOpened: {
-		Event:         HookNetworkDirectRoomOpened,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  false,
-		PayloadSchema: "NetworkDirectRoomOpenedPayload",
-		PatchSchema:   introspectionNetworkObservationPatchValue,
-	},
-	HookNetworkMessagePersisted: {
-		Event:         HookNetworkMessagePersisted,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  false,
-		PayloadSchema: "NetworkMessagePersistedPayload",
-		PatchSchema:   introspectionNetworkObservationPatchValue,
-	},
-	HookNetworkWorkOpened: {
-		Event:         HookNetworkWorkOpened,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  false,
-		PayloadSchema: "NetworkWorkOpenedPayload",
-		PatchSchema:   introspectionNetworkObservationPatchValue,
-	},
-	HookNetworkWorkTransitioned: {
-		Event:         HookNetworkWorkTransitioned,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  false,
-		PayloadSchema: "NetworkWorkTransitionedPayload",
-		PatchSchema:   introspectionNetworkObservationPatchValue,
-	},
-	HookNetworkWorkClosed: {
-		Event:         HookNetworkWorkClosed,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  false,
-		PayloadSchema: "NetworkWorkClosedPayload",
-		PatchSchema:   introspectionNetworkObservationPatchValue,
-	},
-	HookNetworkParticipationPreResolve: {
-		Event:         HookNetworkParticipationPreResolve,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  true,
-		PayloadSchema: "NetworkParticipationPreResolvePayload",
-		PatchSchema:   "NetworkParticipationPreResolvePatch",
-	},
-	HookNetworkParticipationResolved: {
-		Event:         HookNetworkParticipationResolved,
-		Family:        HookEventFamilyNetwork,
-		SyncEligible:  false,
-		PayloadSchema: "NetworkParticipationResolvedPayload",
-		PatchSchema:   "NetworkParticipationResolvedPatch",
-	},
-}
+}, networkHookEventDescriptors())
 
 // Catalog returns the currently resolved hook catalog in deterministic pipeline order.
 func (h *Hooks) Catalog(filter CatalogFilter) ([]CatalogEntry, error) {

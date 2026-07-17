@@ -1,9 +1,16 @@
 import type { UpdateTaskRequest } from "../types";
+import {
+  networkParticipationDraftFromPayload,
+  networkParticipationDraftFromValues,
+  serializeNetworkParticipation,
+  type NetworkParticipationStrategy,
+} from "@/systems/network";
 import type { TaskTemplateId } from "./task-templates";
 import { applyTemplateToCreatePayload, getTaskTemplate } from "./task-templates";
 import type {
   CreateChildTaskRequest,
   CreateTaskRequest,
+  TaskExecutionProfile,
   TaskOwnerKind,
   TaskPriority,
   TaskRecord,
@@ -26,7 +33,7 @@ export interface TaskEditorDraft {
   saveAsDraft: boolean;
   networkParticipationMode: "local" | "live";
   networkChannelId: string;
-  networkChannelStrategy: string;
+  networkChannelStrategy: NetworkParticipationStrategy | "";
 }
 
 export const EMPTY_TASK_EDITOR_DRAFT: TaskEditorDraft = {
@@ -87,16 +94,11 @@ export function applyTaskTemplateToEditorDraft(
   };
 }
 
-export function taskEditorDraftFromTask(task: TaskRecord): TaskEditorDraft {
-  const participation = (
-    task as TaskRecord & {
-      resolved_network_participation?: {
-        mode?: string | null;
-        channel_id?: string | null;
-        channel_strategy?: string | null;
-      } | null;
-    }
-  ).resolved_network_participation;
+export function taskEditorDraftFromTask(
+  task: TaskRecord,
+  profile: TaskExecutionProfile
+): TaskEditorDraft {
+  const participationDraft = networkParticipationDraftFromPayload(profile.network_participation);
   return {
     title: task.title,
     description: task.description ?? "",
@@ -111,9 +113,9 @@ export function taskEditorDraftFromTask(task: TaskRecord): TaskEditorDraft {
     identifier: task.identifier ?? "",
     autoEnqueueOnReady: task.auto_enqueue_on_ready ?? false,
     saveAsDraft: task.draft ?? false,
-    networkParticipationMode: participation?.mode === "live" ? "live" : "local",
-    networkChannelId: participation?.channel_id ?? "",
-    networkChannelStrategy: participation?.channel_strategy ?? "",
+    networkParticipationMode: participationDraft.mode,
+    networkChannelId: participationDraft.channelId,
+    networkChannelStrategy: participationDraft.channelStrategy,
   };
 }
 
@@ -152,15 +154,13 @@ export function buildCreateTaskRequest(
     owner,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : undefined,
     identifier: draft.identifier.trim() || undefined,
-    network_participation: {
-      mode: draft.networkParticipationMode,
-      ...(draft.networkParticipationMode === "live" && draft.networkChannelId.trim()
-        ? { channel_id: draft.networkChannelId.trim() }
-        : {}),
-      ...(draft.networkParticipationMode === "live" && draft.networkChannelStrategy.trim()
-        ? { channel_strategy: draft.networkChannelStrategy.trim() }
-        : {}),
-    },
+    network_participation: serializeNetworkParticipation(
+      networkParticipationDraftFromValues(
+        draft.networkParticipationMode,
+        draft.networkChannelId,
+        draft.networkChannelStrategy
+      )
+    ),
   };
 
   return applyTemplateToCreatePayload(basePayload, options.templateId);
@@ -187,15 +187,13 @@ export function buildCreateChildTaskRequest(
     owner,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : undefined,
     identifier: draft.identifier.trim() || undefined,
-    network_participation: {
-      mode: draft.networkParticipationMode,
-      ...(draft.networkParticipationMode === "live" && draft.networkChannelId.trim()
-        ? { channel_id: draft.networkChannelId.trim() }
-        : {}),
-      ...(draft.networkParticipationMode === "live" && draft.networkChannelStrategy.trim()
-        ? { channel_strategy: draft.networkChannelStrategy.trim() }
-        : {}),
-    },
+    network_participation: serializeNetworkParticipation(
+      networkParticipationDraftFromValues(
+        draft.networkParticipationMode,
+        draft.networkChannelId,
+        draft.networkChannelStrategy
+      )
+    ),
   };
 
   return applyTemplateToCreatePayload(basePayload, options.templateId);
@@ -212,14 +210,12 @@ export function buildUpdateTaskRequest(draft: TaskEditorDraft): UpdateTaskReques
     max_attempts: draft.maxAttempts ?? null,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : "none",
     auto_enqueue_on_ready: draft.autoEnqueueOnReady,
-    network_participation: {
-      mode: draft.networkParticipationMode,
-      ...(draft.networkParticipationMode === "live" && draft.networkChannelId.trim()
-        ? { channel_id: draft.networkChannelId.trim() }
-        : {}),
-      ...(draft.networkParticipationMode === "live" && draft.networkChannelStrategy.trim()
-        ? { channel_strategy: draft.networkChannelStrategy.trim() }
-        : {}),
-    },
+    network_participation: serializeNetworkParticipation(
+      networkParticipationDraftFromValues(
+        draft.networkParticipationMode,
+        draft.networkChannelId,
+        draft.networkChannelStrategy
+      )
+    ),
   };
 }

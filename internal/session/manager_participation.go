@@ -15,15 +15,15 @@ func (m *Manager) resolveCreateParticipation(
 	request *participation.Request,
 	resolved *participation.Spec,
 	authority *participation.AuthorityScope,
-) (participation.Spec, error) {
+) (participation.Spec, *participation.ResolvedObservation, error) {
 	if request != nil && resolved != nil {
-		return participation.Spec{}, fmt.Errorf(
+		return participation.Spec{}, nil, fmt.Errorf(
 			"%w: network participation request and resolved binding are mutually exclusive",
 			ErrValidation,
 		)
 	}
 	if resolved != nil && authority != nil {
-		return participation.Spec{}, fmt.Errorf(
+		return participation.Spec{}, nil, fmt.Errorf(
 			"%w: resolved network participation cannot carry delegated authority",
 			ErrValidation,
 		)
@@ -31,35 +31,63 @@ func (m *Manager) resolveCreateParticipation(
 	if resolved != nil {
 		spec := *resolved
 		if err := validateSessionParticipationWorkspace(spec, workspaceID); err != nil {
-			return participation.Spec{}, err
+			return participation.Spec{}, nil, err
 		}
-		return spec, nil
+		return spec, nil, nil
 	}
 	if m == nil || m.participationResolver == nil {
 		if request != nil {
-			return participation.Spec{}, fmt.Errorf(
+			return participation.Spec{}, nil, fmt.Errorf(
 				"session: participation resolver is required for session %q with network intent",
 				sessionID,
 			)
 		}
-		return participation.LocalSpec(), nil
+		return participation.LocalSpec(), nil, nil
+	}
+	owner := participation.OwnerRef{
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		Kind:        participation.OwnerKindSession,
+		ID:          strings.TrimSpace(sessionID),
 	}
 	spec, err := m.participationResolver.Resolve(ctx, participation.ResolveInput{
 		WorkspaceID: strings.TrimSpace(workspaceID),
-		Owner: participation.OwnerRef{
-			Kind: participation.OwnerKindSession,
-			ID:   strings.TrimSpace(sessionID),
-		},
-		Request:   request,
-		Authority: authority,
+		Owner:       owner,
+		Request:     request,
+		Authority:   authority,
 	})
 	if err != nil {
-		return participation.Spec{}, err
+		return participation.Spec{}, nil, err
 	}
 	if err := validateSessionParticipationWorkspace(spec, workspaceID); err != nil {
-		return participation.Spec{}, err
+		return participation.Spec{}, nil, err
 	}
-	return spec, nil
+	return spec, &participation.ResolvedObservation{
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		Owner:       owner,
+		Spec:        spec,
+	}, nil
+}
+
+func (m *Manager) observeCommittedParticipation(
+	ctx context.Context,
+	observation *participation.ResolvedObservation,
+) {
+	if m == nil || observation == nil {
+		return
+	}
+	if err := participation.ObserveResolved(
+		context.WithoutCancel(ctx),
+		m.participationResolver,
+		*observation,
+	); err != nil {
+		m.logger.ErrorContext(
+			ctx,
+			"session: committed network participation observation failed",
+			"error", err,
+			"workspace_id", observation.WorkspaceID,
+			"owner_id", observation.Owner.ID,
+		)
+	}
 }
 
 func validateSessionParticipationWorkspace(spec participation.Spec, workspaceID string) error {

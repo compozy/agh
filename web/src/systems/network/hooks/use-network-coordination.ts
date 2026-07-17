@@ -1,97 +1,77 @@
-import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import {
-  getNetworkCoordination,
-  getNetworkUsage,
   putNetworkCoordination,
   putNetworkCoordinationInvitation,
+  type NetworkCoordinationRef,
 } from "../adapters/network-coordination-api";
+import { networkCoordinationOptions, networkUsageOptions } from "../lib/query-options";
 import { networkKeys } from "../lib/query-keys";
+import type { NetworkUsageFilters } from "../types";
 
-export function networkCoordinationOptions(
-  workspaceId: string,
-  taskId?: string | null,
-  enabled = true
-) {
-  return queryOptions({
-    queryKey: networkKeys.coordination(workspaceId, taskId),
-    queryFn: ({ signal }) =>
-      getNetworkCoordination(workspaceId, {
-        taskId: taskId?.trim() || undefined,
-        signal,
-      }),
-    enabled: Boolean(workspaceId) && enabled,
-  });
-}
-
-export function networkUsageOptions(workspaceId: string, enabled = true) {
-  return queryOptions({
-    queryKey: networkKeys.usage(workspaceId),
-    queryFn: ({ signal }) => getNetworkUsage(workspaceId, signal),
-    enabled: Boolean(workspaceId) && enabled,
-  });
-}
-
-export function useNetworkCoordination(taskId?: string | null) {
+export function useNetworkCoordination(ref: NetworkCoordinationRef) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
-  return useQuery(networkCoordinationOptions(workspaceId, taskId, Boolean(workspaceId)));
+  return useQuery(networkCoordinationOptions(workspaceId, ref, Boolean(workspaceId)));
 }
 
-export function useNetworkUsage() {
+export function useNetworkUsage(filters: NetworkUsageFilters = {}) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
-  return useQuery(networkUsageOptions(workspaceId, Boolean(workspaceId)));
+  return useInfiniteQuery(networkUsageOptions(workspaceId, filters, Boolean(workspaceId)));
 }
 
-export function useAcceptNetworkCoordinationInvitation(taskId?: string | null) {
+export function useAcceptNetworkCoordinationInvitation(ref: NetworkCoordinationRef) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (expectedRevision: number) => {
       if (!workspaceId) {
         throw new Error("workspace is required");
       }
-      return putNetworkCoordination(
-        workspaceId,
-        { enabled: true },
-        { taskId: taskId ?? undefined }
-      );
+      return putNetworkCoordination(workspaceId, {
+        scope: ref.scope,
+        task_id: ref.taskId,
+        run_id: ref.runId,
+        enabled: true,
+        expected_revision: expectedRevision,
+      });
     },
-    onSuccess: async () => {
+    onSuccess: async coordination => {
       if (!workspaceId) return;
+      queryClient.setQueryData(networkKeys.coordination(workspaceId, ref), coordination);
       await queryClient.invalidateQueries({
-        queryKey: networkKeys.coordination(workspaceId, taskId),
+        queryKey: networkKeys.coordinationRoot(workspaceId),
       });
     },
   });
 }
 
-export function useDismissNetworkCoordinationInvitation(
-  scope: "workspace" | "task",
-  taskId?: string
-) {
+export function useDismissNetworkCoordinationInvitation(ref: NetworkCoordinationRef) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (expectedRevision: number) => {
       if (!workspaceId) {
         throw new Error("workspace is required");
       }
       return putNetworkCoordinationInvitation(workspaceId, {
-        scope,
-        task_id: taskId,
+        scope: ref.scope,
+        task_id: ref.taskId,
+        run_id: ref.runId,
         dismissed: true,
+        expected_revision: expectedRevision,
       });
     },
-    onSuccess: async () => {
+    onSuccess: async coordination => {
       if (!workspaceId) return;
+      queryClient.setQueryData(networkKeys.coordination(workspaceId, ref), coordination);
       await queryClient.invalidateQueries({
-        queryKey: networkKeys.coordination(workspaceId, taskId),
+        queryKey: networkKeys.coordinationRoot(workspaceId),
       });
     },
   });

@@ -252,6 +252,7 @@ func (g *TaskRunRepo) insertRetryTaskRun(
 	run := taskpkg.Run{
 		ID:            args.newRunID,
 		TaskID:        taskRecord.ID,
+		WorkspaceID:   source.WorkspaceID,
 		Status:        taskpkg.TaskRunStatusQueued,
 		Attempt:       runAttempt,
 		PreviousRunID: source.ID,

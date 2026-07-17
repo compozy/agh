@@ -1,40 +1,66 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/network/participation"
+	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
-// GetNetworkCoordination returns the workspace coordination setting and invitation state.
+const (
+	coordinationActionRead          = "network_coordination.read"
+	coordinationActionSet           = "network_coordination.set"
+	coordinationActionSetInvitation = "network_coordination.set_invitation"
+)
+
+// GetNetworkCoordination returns one scope-explicit setting, invitation, and eligibility view.
 func (h *BaseHandlers) GetNetworkCoordination(c *gin.Context) {
 	workspaceID, ok := h.requireRouteWorkspaceID(c)
 	if !ok {
 		return
 	}
-	payload, err := h.networkCoordinationPayload(c.Request.Context(), workspaceID, c.Query("task_id"))
+	commands, ok := h.requireCoordinationCommands(c)
+	if !ok {
+		return
+	}
+	ref, err := coordinationRefFromValues(
+		workspaceID,
+		c.Query("scope"),
+		c.Query("task_id"),
+		c.Query("run_id"),
+	)
 	if err != nil {
 		h.respondError(c, statusForNetworkCoordinationError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.NetworkCoordinationResponse{Coordination: payload})
+	actor, err := h.taskActorContextForWorkspace(c, coordinationActionRead, workspaceID)
+	if err != nil {
+		h.respondError(c, statusForNetworkCoordinationError(err), err)
+		return
+	}
+	view, err := commands.Get(c.Request.Context(), ref, actor)
+	if err != nil {
+		h.respondError(c, statusForNetworkCoordinationError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.NetworkCoordinationResponse{Coordination: coordinationPayloadFromView(view)})
 }
 
-// PutNetworkCoordination enables or disables workspace coordination conversations.
+// PutNetworkCoordination compare-and-sets one future-run coordination scope.
 func (h *BaseHandlers) PutNetworkCoordination(c *gin.Context) {
 	workspaceID, ok := h.requireRouteWorkspaceID(c)
 	if !ok {
 		return
 	}
-	if h.CoordinationSettings == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: coordination settings are unavailable"))
+	commands, ok := h.requireCoordinationCommands(c)
+	if !ok {
 		return
 	}
 	var req contract.PutNetworkCoordinationRequest
@@ -46,29 +72,44 @@ func (h *BaseHandlers) PutNetworkCoordination(c *gin.Context) {
 		)
 		return
 	}
-	actor := coordinationActor(c)
-	setting, err := h.CoordinationSettings.Set(c.Request.Context(), workspaceID, req.Enabled, actor)
+	if req.Enabled == nil {
+		h.respondError(c, http.StatusBadRequest, errors.New("api: enabled is required"))
+		return
+	}
+	if req.ExpectedRevision == nil {
+		h.respondError(c, http.StatusBadRequest, errors.New("api: expected_revision is required"))
+		return
+	}
+	ref, err := coordinationRefFromValues(workspaceID, req.Scope, req.TaskID, req.RunID)
 	if err != nil {
 		h.respondError(c, statusForNetworkCoordinationError(err), err)
 		return
 	}
-	invitation, inviteErr := h.loadInvitationPayload(c.Request.Context(), workspaceID, c.Query("task_id"))
-	if inviteErr != nil {
-		h.respondError(c, statusForNetworkCoordinationError(inviteErr), inviteErr)
+	actor, err := h.taskActorContextForWorkspace(c, coordinationActionSet, workspaceID)
+	if err != nil {
+		h.respondError(c, statusForNetworkCoordinationError(err), err)
 		return
 	}
-	payload := coordinationPayloadFromSetting(setting, invitation)
-	c.JSON(http.StatusOK, contract.NetworkCoordinationResponse{Coordination: payload})
+	view, err := commands.Set(c.Request.Context(), workspacepkg.SetCoordination{
+		Ref:              ref,
+		Enabled:          *req.Enabled,
+		ExpectedRevision: *req.ExpectedRevision,
+	}, actor)
+	if err != nil {
+		h.respondError(c, statusForNetworkCoordinationError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.NetworkCoordinationResponse{Coordination: coordinationPayloadFromView(view)})
 }
 
-// PutNetworkCoordinationInvitation persists or resets invitation dismissal for one scope.
+// PutNetworkCoordinationInvitation compare-and-sets one durable invitation disposition.
 func (h *BaseHandlers) PutNetworkCoordinationInvitation(c *gin.Context) {
 	workspaceID, ok := h.requireRouteWorkspaceID(c)
 	if !ok {
 		return
 	}
-	if h.CoordinationInvitations == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: coordination invitations are unavailable"))
+	commands, ok := h.requireCoordinationCommands(c)
+	if !ok {
 		return
 	}
 	var req contract.PutNetworkCoordinationInvitationRequest
@@ -80,51 +121,58 @@ func (h *BaseHandlers) PutNetworkCoordinationInvitation(c *gin.Context) {
 		)
 		return
 	}
-	scopeKind, scopeID, err := workspacepkg.NormalizeInvitationScope(req.Scope, workspaceID, req.TaskID)
+	if req.Dismissed == nil {
+		h.respondError(c, http.StatusBadRequest, errors.New("api: dismissed is required"))
+		return
+	}
+	if req.ExpectedRevision == nil {
+		h.respondError(c, http.StatusBadRequest, errors.New("api: expected_revision is required"))
+		return
+	}
+	ref, err := coordinationRefFromValues(workspaceID, req.Scope, req.TaskID, req.RunID)
 	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
+		h.respondError(c, statusForNetworkCoordinationError(err), err)
 		return
 	}
-	actor := coordinationActor(c)
-	var invitation contract.NetworkCoordinationInvitationPayload
-	if req.Dismissed {
-		row, dismissErr := h.CoordinationInvitations.DismissInvitation(
-			c.Request.Context(),
-			scopeKind,
-			scopeID,
-			actor,
-		)
-		if dismissErr != nil {
-			h.respondError(c, statusForNetworkCoordinationError(dismissErr), dismissErr)
-			return
-		}
-		invitation = invitationPayloadFromRow(row)
-	} else {
-		if resetErr := h.CoordinationInvitations.ResetInvitation(
-			c.Request.Context(),
-			scopeKind,
-			scopeID,
-		); resetErr != nil {
-			h.respondError(c, statusForNetworkCoordinationError(resetErr), resetErr)
-			return
-		}
-		invitation = contract.NetworkCoordinationInvitationPayload{
-			Scope:     scopeKind,
-			TaskID:    invitationTaskID(scopeKind, scopeID),
-			Dismissed: false,
-		}
-	}
-	if h.CoordinationSettings == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: coordination settings are unavailable"))
+	actor, err := h.taskActorContextForWorkspace(c, coordinationActionSetInvitation, workspaceID)
+	if err != nil {
+		h.respondError(c, statusForNetworkCoordinationError(err), err)
 		return
 	}
-	setting, settingErr := h.CoordinationSettings.Get(c.Request.Context(), workspaceID)
-	if settingErr != nil {
-		h.respondError(c, statusForNetworkCoordinationError(settingErr), settingErr)
+	view, err := commands.SetInvitation(c.Request.Context(), workspacepkg.SetInvitation{
+		Ref:              ref,
+		Dismissed:        *req.Dismissed,
+		ExpectedRevision: *req.ExpectedRevision,
+	}, actor)
+	if err != nil {
+		h.respondError(c, statusForNetworkCoordinationError(err), err)
 		return
 	}
-	payload := coordinationPayloadFromSetting(setting, &invitation)
-	c.JSON(http.StatusOK, contract.NetworkCoordinationResponse{Coordination: payload})
+	c.JSON(http.StatusOK, contract.NetworkCoordinationResponse{Coordination: coordinationPayloadFromView(view)})
+}
+
+func (h *BaseHandlers) requireCoordinationCommands(
+	c *gin.Context,
+) (workspacepkg.CoordinationCommands, bool) {
+	if h.Coordination == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: coordination service is unavailable"))
+		return nil, false
+	}
+	return h.Coordination, true
+}
+
+func coordinationRefFromValues(
+	workspaceID string,
+	scope string,
+	taskID string,
+	runID string,
+) (workspacepkg.CoordinationRef, error) {
+	return workspacepkg.NormalizeCoordinationRef(workspacepkg.CoordinationRef{
+		WorkspaceID: workspaceID,
+		ScopeKind:   scope,
+		TaskID:      taskID,
+		RunID:       runID,
+	})
 }
 
 func (h *BaseHandlers) requireRouteWorkspaceID(c *gin.Context) (string, bool) {
@@ -149,73 +197,35 @@ func (h *BaseHandlers) requireRouteWorkspaceID(c *gin.Context) (string, bool) {
 	return workspaceRef, true
 }
 
-func (h *BaseHandlers) networkCoordinationPayload(
-	ctx context.Context,
-	workspaceID string,
-	taskID string,
-) (contract.NetworkCoordinationPayload, error) {
-	if h.CoordinationSettings == nil {
-		return contract.NetworkCoordinationPayload{}, errors.New("api: coordination settings are unavailable")
-	}
-	setting, err := h.CoordinationSettings.Get(ctx, workspaceID)
-	if err != nil {
-		return contract.NetworkCoordinationPayload{}, err
-	}
-	invitation, inviteErr := h.loadInvitationPayload(ctx, workspaceID, taskID)
-	if inviteErr != nil {
-		return contract.NetworkCoordinationPayload{}, inviteErr
-	}
-	return coordinationPayloadFromSetting(setting, invitation), nil
-}
-
-func (h *BaseHandlers) loadInvitationPayload(
-	ctx context.Context,
-	workspaceID string,
-	taskID string,
-) (*contract.NetworkCoordinationInvitationPayload, error) {
-	if h.CoordinationInvitations == nil {
-		return nil, nil
-	}
-	scope := workspacepkg.InvitationScopeWorkspace
-	if strings.TrimSpace(taskID) != "" {
-		scope = workspacepkg.InvitationScopeTask
-	}
-	scopeKind, scopeID, err := workspacepkg.NormalizeInvitationScope(scope, workspaceID, taskID)
-	if err != nil {
-		return nil, err
-	}
-	row, err := h.CoordinationInvitations.GetInvitation(ctx, scopeKind, scopeID)
-	if err != nil {
-		return nil, err
-	}
-	payload := invitationPayloadFromRow(row)
-	return &payload, nil
-}
-
-func coordinationActor(c *gin.Context) string {
-	actor := strings.TrimSpace(c.GetHeader("X-AGH-Actor"))
-	if actor == "" {
-		return "operator"
-	}
-	return actor
-}
-
-func coordinationPayloadFromSetting(
-	setting workspacepkg.CoordinationSetting,
-	invitation *contract.NetworkCoordinationInvitationPayload,
-) contract.NetworkCoordinationPayload {
-	return contract.NetworkCoordinationPayload{
+func coordinationPayloadFromView(view workspacepkg.CoordinationView) contract.NetworkCoordinationPayload {
+	setting := view.Setting
+	payload := contract.NetworkCoordinationPayload{
 		WorkspaceID: setting.WorkspaceID,
+		Scope:       setting.ScopeKind,
+		TaskID:      invitationTaskID(setting.ScopeKind, setting.ScopeID),
 		Enabled:     setting.Enabled,
 		Revision:    setting.Revision,
-		UpdatedAt:   setting.UpdatedAt,
 		UpdatedBy:   setting.UpdatedBy,
-		Invitation:  invitation,
+		Invitation:  invitationPayloadFromRow(view.Invitation),
+		Eligibility: contract.NetworkCoordinationEligibilityPayload{
+			Eligible:    view.Eligibility.Eligible,
+			Reason:      view.Eligibility.Reason,
+			RunID:       view.Eligibility.RunID,
+			Coordinator: view.Eligibility.Coordinator,
+			WorkerCount: view.Eligibility.WorkerCount,
+		},
 	}
+	if !setting.UpdatedAt.IsZero() {
+		updatedAt := setting.UpdatedAt.UTC()
+		payload.UpdatedAt = &updatedAt
+	}
+	return payload
 }
 
-func invitationPayloadFromRow(row workspacepkg.CoordinationInvitation) contract.NetworkCoordinationInvitationPayload {
-	payload := contract.NetworkCoordinationInvitationPayload{
+func invitationPayloadFromRow(
+	row workspacepkg.CoordinationInvitation,
+) *contract.NetworkCoordinationInvitationPayload {
+	payload := &contract.NetworkCoordinationInvitationPayload{
 		Scope:       row.ScopeKind,
 		TaskID:      invitationTaskID(row.ScopeKind, row.ScopeID),
 		Dismissed:   row.Dismissed,
@@ -239,17 +249,24 @@ func statusForNetworkCoordinationError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
-	case errors.Is(err, participation.ErrUnavailable):
+	case errors.Is(err, workspacepkg.ErrCoordinationScopeInvalid),
+		errors.Is(err, taskpkg.ErrValidation):
+		return http.StatusBadRequest
+	case errors.Is(err, taskpkg.ErrPermissionDenied),
+		errors.Is(err, agentidentity.ErrIdentityUnauthorized):
+		return http.StatusForbidden
+	case errors.Is(err, agentidentity.ErrIdentityRequired),
+		errors.Is(err, agentidentity.ErrIdentityMismatch),
+		errors.Is(err, agentidentity.ErrIdentityStale):
+		return http.StatusUnauthorized
+	case errors.Is(err, participation.ErrUnavailable),
+		errors.Is(err, workspacepkg.ErrCoordinationConflict):
 		return http.StatusConflict
-	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
+	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
+		errors.Is(err, taskpkg.ErrTaskNotFound),
+		errors.Is(err, taskpkg.ErrTaskRunNotFound):
 		return http.StatusNotFound
 	default:
-		msg := err.Error()
-		if strings.Contains(msg, "invitation scope") ||
-			strings.Contains(msg, "task_id") ||
-			strings.Contains(msg, "workspace_id is required") {
-			return http.StatusBadRequest
-		}
 		return http.StatusInternalServerError
 	}
 }

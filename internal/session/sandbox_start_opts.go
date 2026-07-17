@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -12,7 +13,7 @@ func sandboxStartOpts(
 	opts acp.StartOpts,
 	prepared envpkg.Prepared,
 	state envpkg.SessionState,
-) acp.StartOpts {
+) (acp.StartOpts, error) {
 	next := opts
 	if command := strings.TrimSpace(prepared.Launch.Command); command != "" {
 		next.Command = command
@@ -20,34 +21,58 @@ func sandboxStartOpts(
 	if prepared.Launch.Env != nil {
 		next.Env = append([]string(nil), prepared.Launch.Env...)
 	}
-	next.Cwd = sandboxRuntimeCWD(opts.Cwd, prepared, state)
+	cwd, err := sandboxRuntimeCWD(opts.Cwd, prepared, state)
+	if err != nil {
+		return acp.StartOpts{}, err
+	}
+	next.Cwd = cwd
 	next.AdditionalDirs = append([]string(nil), prepared.RuntimeAdditionalDirs...)
 	if next.AdditionalDirs == nil {
 		next.AdditionalDirs = append([]string(nil), state.RuntimeAdditionalDirs...)
 	}
 	next.Launcher = prepared.Launcher
 	next.ToolHost = prepared.ToolHost
-	return next
+	return next, nil
 }
 
 func sandboxRuntimeCWD(
 	requested string,
 	prepared envpkg.Prepared,
 	state envpkg.SessionState,
-) string {
+) (string, error) {
 	runtimeRoot := strings.TrimSpace(prepared.RuntimeRootDir)
 	if runtimeRoot == "" {
 		runtimeRoot = strings.TrimSpace(state.RuntimeRootDir)
 	}
 	requested = strings.TrimSpace(requested)
-	if state.Backend == envpkg.BackendLocal && requested != "" {
-		if runtimeRoot == "" {
-			return requested
+	if state.Backend == envpkg.BackendLocal {
+		canonicalRoot, err := canonicalDirectory(runtimeRoot)
+		if err != nil {
+			return "", fmt.Errorf("%w: resolve local sandbox root: %w", ErrValidation, err)
 		}
-		relative, err := filepath.Rel(runtimeRoot, requested)
-		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return requested
+		if requested == "" {
+			return canonicalRoot, nil
 		}
+		lexicalRoot, err := filepath.Abs(filepath.Clean(runtimeRoot))
+		if err != nil {
+			return "", fmt.Errorf("%w: resolve local sandbox root: %w", ErrValidation, err)
+		}
+		lexicalTarget, err := filepath.Abs(filepath.Clean(requested))
+		if err != nil {
+			return "", fmt.Errorf("%w: resolve local sandbox cwd: %w", ErrValidation, err)
+		}
+		contained, err := directoryContains(lexicalRoot, lexicalTarget)
+		if err != nil {
+			return "", fmt.Errorf("%w: compare local sandbox cwd: %w", ErrValidation, err)
+		}
+		if !contained {
+			return canonicalRoot, nil
+		}
+		cwd, err := resolveContainedDirectory(runtimeRoot, requested)
+		if err != nil {
+			return "", fmt.Errorf("%w: resolve local sandbox cwd: %w", ErrValidation, err)
+		}
+		return cwd, nil
 	}
-	return runtimeRoot
+	return runtimeRoot, nil
 }

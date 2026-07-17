@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func (m *Service) normalizeClaimCriteriaForActor(
@@ -24,6 +25,15 @@ func (m *Service) normalizeClaimCriteriaForActor(
 	}
 	if strings.TrimSpace(normalized.AgentName) == "" && actor.Actor.Kind.Normalize() == ActorKindAgentSession {
 		normalized.AgentName = strings.TrimSpace(actor.Actor.Ref)
+	}
+	if actor.Actor.Kind.Normalize() == ActorKindAgentSession {
+		if strings.TrimSpace(normalized.ClaimerSessionID) != strings.TrimSpace(actor.Scope.SessionID) {
+			return ClaimCriteria{}, fmt.Errorf("%w: claimer session does not match trusted caller", ErrPermissionDenied)
+		}
+		if normalized.Scope.Normalize() == ScopeWorkspace &&
+			strings.TrimSpace(normalized.WorkspaceID) != strings.TrimSpace(actor.Scope.WorkspaceID) {
+			return ClaimCriteria{}, fmt.Errorf("%w: claim workspace does not match trusted caller", ErrPermissionDenied)
+		}
 	}
 	return normalized.Normalize(m.now().UTC())
 }
@@ -49,6 +59,9 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 	if criteria.Soul != nil {
 		taskContext.SoulSnapshotID = strings.TrimSpace(criteria.Soul.SnapshotID)
 		taskContext.SoulDigest = strings.TrimSpace(criteria.Soul.Digest)
+	}
+	if criteria.CallerNetworkParticipation != nil {
+		taskContext.ResolvedNetworkParticipation = participation.CloneSpec(*criteria.CallerNetworkParticipation)
 	}
 	payload := hookspkg.TaskRunPreClaimPayload{
 		PayloadBase: hookspkg.PayloadBase{

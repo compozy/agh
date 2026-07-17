@@ -1,15 +1,132 @@
 package store
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 const networkConversationTestWorkspaceID = "ws_store_validation"
 
+func TestNetworkUsageQueryValidationAndCursor(t *testing.T) {
+	t.Parallel()
+
+	owner := &participation.OwnerRef{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Kind:        participation.OwnerKindTaskRun,
+		ID:          "run-1",
+	}
+	normalized, cursor, err := NormalizeNetworkUsageQuery(NetworkUsageQuery{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Owner:       owner,
+		Channel:     " builders ",
+	})
+	if err != nil {
+		t.Fatalf("NormalizeNetworkUsageQuery(default) error = %v", err)
+	}
+	if normalized.Limit != DefaultNetworkUsageLimit || normalized.Channel != "builders" || cursor != nil {
+		t.Fatalf("NormalizeNetworkUsageQuery(default) = %#v, cursor=%#v", normalized, cursor)
+	}
+
+	normalized, _, err = NormalizeNetworkUsageQuery(NetworkUsageQuery{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Limit:       MaxNetworkUsageLimit,
+		LimitSet:    true,
+	})
+	if err != nil || normalized.Limit != MaxNetworkUsageLimit {
+		t.Fatalf("NormalizeNetworkUsageQuery(max) = %#v, error = %v", normalized, err)
+	}
+
+	for _, limit := range []int{0, MaxNetworkUsageLimit + 1} {
+		_, _, err = NormalizeNetworkUsageQuery(NetworkUsageQuery{
+			WorkspaceID: networkConversationTestWorkspaceID,
+			Limit:       limit,
+			LimitSet:    true,
+		})
+		if !errors.Is(err, ErrNetworkUsageLimitInvalid) {
+			t.Fatalf("NormalizeNetworkUsageQuery(limit=%d) error = %v", limit, err)
+		}
+	}
+
+	_, _, err = NormalizeNetworkUsageQuery(NetworkUsageQuery{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Owner:       owner,
+		RunID:       "run-1",
+	})
+	if !errors.Is(err, ErrNetworkUsageQueryInvalid) {
+		t.Fatalf("NormalizeNetworkUsageQuery(owner+run) error = %v", err)
+	}
+
+	position := NetworkUsageCursorPosition{
+		ReservedAt: time.Date(2026, 7, 16, 18, 30, 0, 123, time.UTC),
+		WakeID:     "wake-050",
+	}
+	encoded, err := EncodeNetworkUsageCursor(normalized, position)
+	if err != nil {
+		t.Fatalf("EncodeNetworkUsageCursor() error = %v", err)
+	}
+	normalized.Cursor = encoded
+	_, decoded, err := NormalizeNetworkUsageQuery(normalized)
+	if err != nil {
+		t.Fatalf("NormalizeNetworkUsageQuery(cursor) error = %v", err)
+	}
+	if decoded == nil || !decoded.ReservedAt.Equal(position.ReservedAt) || decoded.WakeID != position.WakeID {
+		t.Fatalf("decoded cursor = %#v, want %#v", decoded, position)
+	}
+
+	normalized.Channel = "another-channel"
+	_, _, err = NormalizeNetworkUsageQuery(normalized)
+	if !errors.Is(err, ErrNetworkUsageCursorInvalid) {
+		t.Fatalf("NormalizeNetworkUsageQuery(reused cursor) error = %v", err)
+	}
+	_, _, err = NormalizeNetworkUsageQuery(NetworkUsageQuery{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Cursor:      "not-base64",
+	})
+	if !errors.Is(err, ErrNetworkUsageCursorInvalid) {
+		t.Fatalf("NormalizeNetworkUsageQuery(malformed cursor) error = %v", err)
+	}
+}
+
+func TestValidateJavaScriptSafeInteger(t *testing.T) {
+	t.Parallel()
+
+	if err := ValidateJavaScriptSafeInteger("tokens", MaxJavaScriptSafeInteger); err != nil {
+		t.Fatalf("ValidateJavaScriptSafeInteger(max) error = %v", err)
+	}
+	if err := ValidateJavaScriptSafeInteger("tokens", MaxJavaScriptSafeInteger+1); !errors.Is(
+		err,
+		ErrNetworkUsageUnsafeInteger,
+	) {
+		t.Fatalf("ValidateJavaScriptSafeInteger(max+1) error = %v", err)
+	}
+}
+
 func TestNetworkConversationRefValidation(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should derive the stable direct-room identity from the documented hash vector", func(t *testing.T) {
+		t.Parallel()
+
+		directID, sessionA, sessionB, err := NetworkDirectRoomIdentity(
+			networkConversationTestWorkspaceID,
+			"builders",
+			"sess-b",
+			"sess-a",
+		)
+		if err != nil {
+			t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
+		}
+		if got, want := directID, "direct_5101ac7ba31424a87228708e21b268bb"; got != want {
+			t.Fatalf("direct id = %q, want known vector %q", got, want)
+		}
+		if sessionA != "sess-a" || sessionB != "sess-b" {
+			t.Fatalf("ordered sessions = %q/%q, want sess-a/sess-b", sessionA, sessionB)
+		}
+	})
 
 	tests := []struct {
 		name    string

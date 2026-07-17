@@ -479,6 +479,15 @@ describe("useSessionCreateDialog", () => {
 
     expect(mockMutateAsync).not.toHaveBeenCalled();
     expect(result.current.submitError).toContain("not in the selected provider catalog");
+
+    act(() => {
+      result.current.onNetworkParticipationChange({
+        mode: "live",
+        channelId: "release-room",
+        channelStrategy: "named",
+      });
+    });
+    expect(result.current.submitError).toBeNull();
   });
 
   it("Should preserve a free-form model for a non-authoritative provider when the catalog is empty", async () => {

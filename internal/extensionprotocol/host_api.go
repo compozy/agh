@@ -105,6 +105,7 @@ const (
 	HostAPIMethodTasksRunsFail               HostAPIMethod = "tasks/runs/fail"
 	HostAPIMethodTasksRunsCancel             HostAPIMethod = "tasks/runs/cancel"
 	HostAPIMethodNetworkStatus               HostAPIMethod = "network/status"
+	HostAPIMethodNetworkUsage                HostAPIMethod = "network/usage"
 	HostAPIMethodNetworkChannels             HostAPIMethod = "network/channels"
 	HostAPIMethodNetworkPeers                HostAPIMethod = "network/peers"
 	HostAPIMethodNetworkThreads              HostAPIMethod = "network/threads"
@@ -215,6 +216,7 @@ func preNetworkHostAPIMethods() []HostAPIMethod {
 func networkHostAPIMethods() []HostAPIMethod {
 	return []HostAPIMethod{
 		HostAPIMethodNetworkStatus,
+		HostAPIMethodNetworkUsage,
 		HostAPIMethodNetworkChannels,
 		HostAPIMethodNetworkPeers,
 		HostAPIMethodNetworkThreads,

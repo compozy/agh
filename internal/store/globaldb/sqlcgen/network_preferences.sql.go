@@ -36,26 +36,24 @@ func (q *Queries) DeleteNetworkSubscription(ctx context.Context, arg DeleteNetwo
 
 const upsertNetworkSubscription = `-- name: UpsertNetworkSubscription :exec
 INSERT INTO network_subscriptions (
-  workspace_id, channel, thread_id, session_id, mode, keyword_filters_json, created_at, updated_at
+  workspace_id, channel, thread_id, session_id, mode, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8
+  ?5, ?6, ?7
 )
 ON CONFLICT(workspace_id, channel, thread_id, session_id) DO UPDATE SET
   mode = excluded.mode,
-  keyword_filters_json = excluded.keyword_filters_json,
   updated_at = excluded.updated_at
 `
 
 type UpsertNetworkSubscriptionParams struct {
-	WorkspaceID        string `json:"workspace_id"`
-	Channel            string `json:"channel"`
-	ThreadID           string `json:"thread_id"`
-	SessionID          string `json:"session_id"`
-	Mode               string `json:"mode"`
-	KeywordFiltersJson string `json:"keyword_filters_json"`
-	CreatedAt          string `json:"created_at"`
-	UpdatedAt          string `json:"updated_at"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id"`
+	SessionID   string `json:"session_id"`
+	Mode        string `json:"mode"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 func (q *Queries) UpsertNetworkSubscription(ctx context.Context, arg UpsertNetworkSubscriptionParams) error {
@@ -65,7 +63,6 @@ func (q *Queries) UpsertNetworkSubscription(ctx context.Context, arg UpsertNetwo
 		arg.ThreadID,
 		arg.SessionID,
 		arg.Mode,
-		arg.KeywordFiltersJson,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)

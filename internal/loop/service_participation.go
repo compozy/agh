@@ -29,14 +29,44 @@ func (s *service) resolveRunParticipation(
 	return s.participationResolver.Resolve(ctx, participation.ResolveInput{
 		WorkspaceID: strings.TrimSpace(string(workspaceID)),
 		Owner: participation.OwnerRef{
-			Kind: participation.OwnerKindLoopRun,
-			ID:   strings.TrimSpace(string(runID)),
+			WorkspaceID: strings.TrimSpace(string(workspaceID)),
+			Kind:        participation.OwnerKindLoopRun,
+			ID:          strings.TrimSpace(string(runID)),
 		},
 		Request:       request,
 		RequestSource: requestSource,
 		Definition:    definition,
 		LoopRunID:     strings.TrimSpace(string(runID)),
 	})
+}
+
+func (s *service) observeCommittedRunParticipation(ctx context.Context, run Run) {
+	if s == nil || s.participationResolver == nil {
+		return
+	}
+	observationCtx := context.WithoutCancel(ctx)
+	observation := participation.ResolvedObservation{
+		WorkspaceID: strings.TrimSpace(string(run.WorkspaceID)),
+		Owner: participation.OwnerRef{
+			WorkspaceID: strings.TrimSpace(string(run.WorkspaceID)),
+			Kind:        participation.OwnerKindLoopRun,
+			ID:          strings.TrimSpace(string(run.ID)),
+		},
+		Spec: run.NetworkSpecSnapshot(),
+	}
+	if err := participation.ObserveResolved(
+		observationCtx,
+		s.participationResolver,
+		observation,
+	); err != nil {
+		s.logger.ErrorContext(
+			observationCtx,
+			"loop: committed network participation observation failed",
+			"error", err,
+			"workspace_id", observation.WorkspaceID,
+			"owner_id", observation.Owner.ID,
+		)
+	}
 }
 
 func hasParticipationIntent(request *participation.Request) bool {

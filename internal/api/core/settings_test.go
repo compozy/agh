@@ -1181,11 +1181,9 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			Network: &settingspkg.NetworkSection{
 				Config: aghconfig.NetworkConfig{
-					Enabled:       true,
-					GreetInterval: 5,
-					MaxReplayAge:  10,
-					MaxQueueDepth: 32,
-					Live:          aghconfig.DefaultNetworkConfig().Live,
+					Enabled:      true,
+					MaxReplayAge: 10,
+					Live:         aghconfig.DefaultNetworkConfig().Live,
 				},
 				Runtime: settingspkg.NetworkRuntimeStatus{
 					Available:         true,
@@ -1489,7 +1487,7 @@ func TestUpdateSettingsGeneralRejectsInvalidPayload(t *testing.T) {
 	}
 }
 
-func TestUpdateSettingsSectionHandlersRejectMissingConfig(t *testing.T) {
+func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1525,6 +1523,29 @@ func TestUpdateSettingsSectionHandlersRejectMissingConfig(t *testing.T) {
 			decodeJSON(t, resp.Body.Bytes(), &payload)
 			if !strings.Contains(payload.Error, tc.want) {
 				t.Fatalf("payload.Error = %q, want substring %q", payload.Error, tc.want)
+			}
+		})
+	}
+
+	for _, field := range []string{"default_channel", "port"} {
+		t.Run("network removed field "+field, func(t *testing.T) {
+			t.Parallel()
+
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			body := fmt.Appendf(nil, `{"config":{%q:"removed"}}`, field)
+
+			resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/network", body)
+			if got, want := resp.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+			}
+			if service.UpdateSectionCalls != 0 {
+				t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+			}
+			var payload contract.ErrorPayload
+			decodeJSON(t, resp.Body.Bytes(), &payload)
+			if !strings.Contains(payload.Error, "unknown_field") || !strings.Contains(payload.Error, field) {
+				t.Fatalf("payload.Error = %q, want unknown_field naming %q", payload.Error, field)
 			}
 		})
 	}
@@ -1688,10 +1709,8 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			path: "/api/settings/network",
 			body: contract.UpdateSettingsNetworkRequest{
 				Config: contract.SettingsNetworkConfigPayload{
-					Enabled:       true,
-					GreetInterval: 5,
-					MaxReplayAge:  10,
-					MaxQueueDepth: 32,
+					Enabled:      true,
+					MaxReplayAge: 10,
 					Live: contract.SettingsNetworkLiveConfigPayload{
 						Defaults: contract.SettingsNetworkLiveDefaultsPayload{
 							MaxWakes:         8,
@@ -1717,7 +1736,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.Network == nil || req.Network.MaxQueueDepth != 32 {
+				if req.Network == nil || req.Network.MaxReplayAge != 10 {
 					t.Fatalf("req.Network = %#v, want populated network config", req.Network)
 				}
 			},

@@ -249,7 +249,7 @@ func (m *Service) persistCancelledTask(
 	if err := m.store.UpdateTask(ctx, record, actor); err != nil {
 		return Task{}, err
 	}
-	m.dispatchTaskStatusChanged(ctx, record, previousStatus, record.Status, actor)
+	m.dispatchTaskStatusChangedAfterWrite(ctx, record, previousStatus, record.Status, actor)
 	if err := m.recordTaskEvent(ctx, record.ID, "", taskEventCanceled, actor, cancelledTaskPayload{
 		Reason:               req.Reason,
 		Metadata:             cloneRawJSON(req.Metadata),

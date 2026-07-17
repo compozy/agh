@@ -293,6 +293,16 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		IdempotencyKey:  "idem-1",
 		QueuedAt:        h.now.Add(time.Minute),
 	})
+	createObserveRun(t, h, taskpkg.Run{
+		ID:              "run-net-current-eng",
+		TaskID:          "task-net",
+		Status:          taskpkg.TaskRunStatusQueued,
+		Attempt:         2,
+		Origin:          taskOrigin(taskpkg.OriginKindCLI, "agh task run"),
+		RunNetworkState: observeRunNetworkState(h.workspaceID, "eng"),
+		IdempotencyKey:  "idem-2",
+		QueuedAt:        h.now.Add(6 * time.Minute),
+	})
 	createObserveEvent(t, h, taskpkg.Event{
 		ID:        "evt-run-enqueued",
 		TaskID:    "task-net",

@@ -25,11 +25,12 @@ func directTaskSpec(job *Job, prompt string) taskpkg.CreateTask {
 	}
 
 	return taskpkg.CreateTask{
-		Scope:       taskScopeForAutomationScope(job.Scope),
-		WorkspaceID: strings.TrimSpace(job.WorkspaceID),
-		Title:       title,
-		Description: description,
-		Owner:       cloneTaskOwnership(job.Task.Owner),
+		Scope:                taskScopeForAutomationScope(job.Scope),
+		WorkspaceID:          strings.TrimSpace(job.WorkspaceID),
+		Title:                title,
+		Description:          description,
+		Owner:                cloneTaskOwnership(job.Task.Owner),
+		NetworkParticipation: cloneParticipationRequest(job.Task.NetworkParticipation),
 	}
 }
 

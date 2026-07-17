@@ -1,6 +1,9 @@
 package task
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // FullAccessAuthority returns the v1 broad task-domain authority granted to
 // authenticated first-class task surfaces after ingress-level authentication
@@ -17,6 +20,16 @@ func FullAccessAuthority() Authority {
 // DeriveHumanActorContext derives one trusted local-human actor context for
 // CLI, web, HTTP, or UDS task ingress.
 func DeriveHumanActorContext(actorRef string, originKind OriginKind, originRef string) (ActorContext, error) {
+	return DeriveHumanActorContextForWorkspace(actorRef, "", originKind, originRef)
+}
+
+// DeriveHumanActorContextForWorkspace derives a trusted local-human actor bound to an optional route workspace.
+func DeriveHumanActorContextForWorkspace(
+	actorRef string,
+	workspaceID string,
+	originKind OriginKind,
+	originRef string,
+) (ActorContext, error) {
 	switch originKind.Normalize() {
 	case OriginKindCLI, OriginKindWeb, OriginKindUDS, OriginKindHTTP:
 	default:
@@ -26,19 +39,32 @@ func DeriveHumanActorContext(actorRef string, originKind OriginKind, originRef s
 			originKind,
 		)
 	}
-	return deriveActorContext(ActorKindHuman, actorRef, originKind, originRef)
+	return deriveActorContext(
+		ActorKindHuman,
+		actorRef,
+		originKind,
+		originRef,
+		CallerScope{WorkspaceID: strings.TrimSpace(workspaceID), Operator: true},
+	)
 }
 
 // DeriveAgentSessionActorContext derives one trusted agent-session actor
 // context. The session ref becomes both the immutable actor ref and origin ref.
-func DeriveAgentSessionActorContext(sessionRef string) (ActorContext, error) {
-	return deriveActorContext(ActorKindAgentSession, sessionRef, OriginKindAgentSession, sessionRef)
+func DeriveAgentSessionActorContext(sessionRef string, workspaceID string) (ActorContext, error) {
+	return deriveActorContext(
+		ActorKindAgentSession,
+		sessionRef,
+		OriginKindAgentSession,
+		sessionRef,
+		agentCallerScope(sessionRef, workspaceID),
+	)
 }
 
 // DeriveAgentSessionActorContextForOrigin derives one trusted agent-session
 // actor context for an authenticated agent ingress operation.
 func DeriveAgentSessionActorContextForOrigin(
 	sessionRef string,
+	workspaceID string,
 	originKind OriginKind,
 	originRef string,
 ) (ActorContext, error) {
@@ -54,18 +80,34 @@ func DeriveAgentSessionActorContextForOrigin(
 	if originRef == "" {
 		originRef = sessionRef
 	}
-	return deriveActorContext(ActorKindAgentSession, sessionRef, originKind, originRef)
+	return deriveActorContext(
+		ActorKindAgentSession,
+		sessionRef,
+		originKind,
+		originRef,
+		agentCallerScope(sessionRef, workspaceID),
+	)
 }
 
 // DeriveAutomationLinkedAgentSessionActorContext derives one trusted
 // agent-session actor context for work created explicitly by an automation-
 // launched session. The session remains the immutable actor while the origin is
 // anchored to the automation activation that launched it.
-func DeriveAutomationLinkedAgentSessionActorContext(sessionRef string, originRef string) (ActorContext, error) {
+func DeriveAutomationLinkedAgentSessionActorContext(
+	sessionRef string,
+	workspaceID string,
+	originRef string,
+) (ActorContext, error) {
 	if originRef == "" {
 		originRef = sessionRef
 	}
-	return deriveActorContext(ActorKindAgentSession, sessionRef, OriginKindAutomation, originRef)
+	return deriveActorContext(
+		ActorKindAgentSession,
+		sessionRef,
+		OriginKindAutomation,
+		originRef,
+		agentCallerScope(sessionRef, workspaceID),
+	)
 }
 
 // DeriveAutomationActorContext derives one trusted automation actor context.
@@ -74,7 +116,7 @@ func DeriveAutomationActorContext(actorRef string, originRef string) (ActorConte
 	if originRef == "" {
 		originRef = actorRef
 	}
-	return deriveActorContext(ActorKindAutomation, actorRef, OriginKindAutomation, originRef)
+	return deriveActorContext(ActorKindAutomation, actorRef, OriginKindAutomation, originRef, CallerScope{})
 }
 
 // DeriveExtensionActorContext derives one trusted extension actor context. If
@@ -83,7 +125,7 @@ func DeriveExtensionActorContext(actorRef string, originRef string) (ActorContex
 	if originRef == "" {
 		originRef = actorRef
 	}
-	return deriveActorContext(ActorKindExtension, actorRef, OriginKindExtension, originRef)
+	return deriveActorContext(ActorKindExtension, actorRef, OriginKindExtension, originRef, CallerScope{})
 }
 
 // DeriveNetworkPeerActorContext derives one trusted network-peer actor
@@ -93,7 +135,7 @@ func DeriveNetworkPeerActorContext(actorRef string, originRef string) (ActorCont
 	if originRef == "" {
 		originRef = actorRef
 	}
-	return deriveActorContext(ActorKindNetworkPeer, actorRef, OriginKindNetwork, originRef)
+	return deriveActorContext(ActorKindNetworkPeer, actorRef, OriginKindNetwork, originRef, CallerScope{})
 }
 
 // DeriveDaemonActorContext derives one trusted daemon-owned actor context. If
@@ -102,7 +144,7 @@ func DeriveDaemonActorContext(actorRef string, originRef string) (ActorContext, 
 	if originRef == "" {
 		originRef = actorRef
 	}
-	return deriveActorContext(ActorKindDaemon, actorRef, OriginKindDaemon, originRef)
+	return deriveActorContext(ActorKindDaemon, actorRef, OriginKindDaemon, originRef, CallerScope{})
 }
 
 func deriveActorContext(
@@ -110,6 +152,7 @@ func deriveActorContext(
 	actorRef string,
 	originKind OriginKind,
 	originRef string,
+	scope CallerScope,
 ) (ActorContext, error) {
 	ctx := ActorContext{
 		Actor: ActorIdentity{
@@ -121,11 +164,19 @@ func deriveActorContext(
 			Ref:  originRef,
 		},
 		Authority: FullAccessAuthority(),
+		Scope:     scope,
 	}
 	if err := ctx.Validate(); err != nil {
 		return ActorContext{}, err
 	}
 	return ctx, nil
+}
+
+func agentCallerScope(sessionRef string, workspaceID string) CallerScope {
+	return CallerScope{
+		SessionID:   strings.TrimSpace(sessionRef),
+		WorkspaceID: strings.TrimSpace(workspaceID),
+	}
 }
 
 func validateActorOriginPair(actor ActorIdentity, origin Origin) error {

@@ -216,6 +216,7 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, name, parentRunID, configPath string
 	var inputs []string
 	var dry bool
+	var networkFlags networkParticipationFlags
 	cmd := &cobra.Command{
 		Use:   loopRunKey,
 		Short: "Start or dry-run one Loop",
@@ -245,10 +246,15 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			participationRequest, err := networkFlags.request()
+			if err != nil {
+				return err
+			}
 			response, err := client.RunLoop(cmd.Context(), workspaceID, loopName, contract.RunLoopRequest{
-				Inputs:          values,
-				ParentLoopRunID: strings.TrimSpace(parentRunID),
-				ConfigOverrides: configOverrides,
+				Inputs:               values,
+				ParentLoopRunID:      strings.TrimSpace(parentRunID),
+				ConfigOverrides:      configOverrides,
+				NetworkParticipation: participationRequest,
 			}, dry, agentCredentialsFromEnv(deps))
 			if err != nil {
 				return err
@@ -262,6 +268,7 @@ func newLoopRunCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&parentRunID, "parent-loop-run-id", "", "Parent Loop run ID")
 	cmd.Flags().StringVar(&configPath, loopConfigFileKey, "", "Per-run config override YAML or JSON file")
 	cmd.Flags().BoolVar(&dry, loopDryRunKey, false, "Preview the plan without creating a run")
+	bindNetworkParticipationFlags(cmd, &networkFlags)
 	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	mustMarkFlagRequired(cmd, loopNameKey)
 	return cmd

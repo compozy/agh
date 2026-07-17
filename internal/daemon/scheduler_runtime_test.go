@@ -19,6 +19,7 @@ import (
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
 	schedulerpkg "github.com/compozy/agh/internal/scheduler"
 	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
@@ -126,6 +127,12 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 		}); err != nil {
 			t.Fatalf("InsertWorkspace(ws-scheduler) error = %v", err)
 		}
+		if err := db.RegisterSession(ctx, store.SessionInfo{
+			ID: "sess-1", AgentName: "coder", Provider: "test",
+			WorkspaceID: "ws-scheduler", State: "active", CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(network wake target) error = %v", err)
+		}
 		normalTask := daemonTaskRecordForTest("task-normal-worker", now)
 		if err := db.CreateTask(ctx, normalTask); err != nil {
 			t.Fatalf("CreateTask(normal) error = %v", err)
@@ -172,7 +179,8 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 		}
 		wake := taskpkg.Run{
 			ID: "run-network-wake", RunKind: taskpkg.RunKindNetworkWake,
-			Status: taskpkg.TaskRunStatusQueued, Attempt: 1,
+			WorkspaceID: "ws-scheduler",
+			Status:      taskpkg.TaskRunStatusQueued, Attempt: 1,
 			Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
 			QueuedAt: now,
 		}
@@ -190,6 +198,31 @@ func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorker
 		}
 		if got, want := pending[0].Run.ID, "run-normal-worker"; got != want {
 			t.Fatalf("PendingRuns()[0].Run.ID = %q, want %q", got, want)
+		}
+
+		activeWake := taskpkg.Run{
+			ID: "run-network-wake-active", RunKind: taskpkg.RunKindNetworkWake,
+			WorkspaceID: "ws-scheduler", Status: taskpkg.TaskRunStatusClaimed, Attempt: 1,
+			Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
+			QueuedAt: now, ClaimedAt: now, HeartbeatAt: now, LeaseUntil: now.Add(time.Minute),
+			SessionID:      "sess-1",
+			ClaimTokenHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		}
+		activeWake.SetNetworkState(
+			daemonTestLiveParticipation("ws-scheduler", "operations"),
+			"wake-active",
+			"sess-1",
+			"owner-active",
+		)
+		if err := db.CreateTaskRun(ctx, activeWake); err != nil {
+			t.Fatalf("CreateTaskRun(active network wake) error = %v", err)
+		}
+		active, err := (schedulerTaskSource{store: db}).ActiveRuns(ctx)
+		if err != nil {
+			t.Fatalf("ActiveRuns() error = %v", err)
+		}
+		if len(active) != 1 || active[0].ID != activeWake.ID {
+			t.Fatalf("ActiveRuns() = %#v, want claimed taskless network wake", active)
 		}
 	})
 }

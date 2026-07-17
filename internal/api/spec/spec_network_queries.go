@@ -1,6 +1,6 @@
 package spec
 
-func networkConversationListQueryParams(label string, includePeer bool) []ParameterSpec {
+func networkConversationListQueryParams(label string, includeSession bool) []ParameterSpec {
 	parameters := []ParameterSpec{
 		queryParam("query", "Filter "+label+" by title, peer, or preview text", false),
 		boolQueryParam("has_work", "Filter by presence of open work"),
@@ -8,11 +8,11 @@ func networkConversationListQueryParams(label string, includePeer bool) []Parame
 		queryParam("after", "Return rows after the specified stable id cursor", false),
 		intQueryParam("limit", "Maximum number of "+label+" to return"),
 	}
-	if !includePeer {
+	if !includeSession {
 		return parameters
 	}
 	return append(
-		[]ParameterSpec{queryParam("peer_id", "Filter by participant peer id", false)},
+		[]ParameterSpec{queryParam("session_id", "Filter by participant session id", false)},
 		parameters...,
 	)
 }

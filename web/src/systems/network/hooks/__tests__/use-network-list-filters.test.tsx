@@ -48,7 +48,7 @@ describe("useNetworkListFilters", () => {
     });
   });
 
-  it("Should push URL workspace, search, work, self-peer, and sort to both server catalogs", async () => {
+  it("Should push URL workspace, search, work, self-session, and sort to both server catalogs", async () => {
     const { result } = renderHook(() =>
       useNetworkListFilters({ workspaceId: "ws-url", channel: "ops" })
     );
@@ -69,7 +69,7 @@ describe("useNetworkListFilters", () => {
         query: {
           query: "release",
           has_work: true,
-          peer_id: "peer-url",
+          session_id: "session-url",
           sort: "alphabetical",
         },
       });
@@ -80,7 +80,7 @@ describe("useNetworkListFilters", () => {
       query: {
         query: "release",
         has_work: true,
-        peer_id: "peer-url",
+        session_id: "session-url",
         sort: "alphabetical",
       },
     });

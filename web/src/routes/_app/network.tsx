@@ -115,7 +115,7 @@ function NetworkRouteShell() {
             recents={[]}
             rightRailMode="thread"
             rightRailOpen={false}
-            selfPeerId={null}
+            selfSessionId={null}
             threadCount={null}
             unpinnedChannels={[]}
           >
@@ -190,7 +190,7 @@ function NetworkRouteShell() {
           rightRailContent={rightRailContent}
           rightRailMode={view.showOverlayInRightRail ? "thread" : "inspector"}
           rightRailOpen={view.showOverlayInRightRail || showInspectorInRightRail}
-          selfPeerId={view.railView.session.session?.peerId ?? null}
+          selfSessionId={view.railView.session.session?.sessionId ?? null}
           threadCount={threadCount}
           unpinnedChannels={page.unpinnedChannels}
         >

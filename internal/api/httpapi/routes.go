@@ -309,7 +309,7 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceNetwork.PATCH("/channels/:channel", handlers.UpdateNetworkChannel)
 	workspaceNetwork.GET("/channels/:channel/subscriptions", handlers.NetworkSubscriptions)
 	workspaceNetwork.PUT("/channels/:channel/subscriptions", handlers.UpsertNetworkSubscription)
-	workspaceNetwork.DELETE("/channels/:channel/subscriptions/:peer_id", handlers.DeleteNetworkSubscription)
+	workspaceNetwork.DELETE("/channels/:channel/subscriptions/:session_id", handlers.DeleteNetworkSubscription)
 	workspaceNetwork.GET("/channels/:channel/threads", handlers.NetworkThreads)
 	workspaceNetwork.GET("/channels/:channel/threads/:thread_id", handlers.NetworkThread)
 	workspaceNetwork.POST("/channels/:channel/threads/:thread_id/promote-task", handlers.PromoteNetworkThreadTask)
@@ -330,14 +330,15 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerBundleRoutes(api gin.IRouter, handlers *Handlers) {
+	privileged := handlers.privilegedMutationGuard()
 	bundles := api.Group("/bundles")
 	bundles.GET("/catalog", handlers.ListBundleCatalog)
 	bundles.POST("/preview", handlers.PreviewBundleActivation)
 	bundles.GET("/activations", handlers.ListBundleActivations)
-	bundles.POST("/activations", handlers.ActivateBundle)
+	bundles.POST("/activations", privileged, handlers.ActivateBundle)
 	bundles.GET("/activations/:id", handlers.GetBundleActivation)
-	bundles.PATCH("/activations/:id", handlers.UpdateBundleActivation)
-	bundles.DELETE("/activations/:id", handlers.DeleteBundleActivation)
+	bundles.PATCH("/activations/:id", privileged, handlers.UpdateBundleActivation)
+	bundles.DELETE("/activations/:id", privileged, handlers.DeleteBundleActivation)
 	bundles.GET("/network/settings", handlers.BundleNetworkSettings)
 }
 

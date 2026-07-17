@@ -2290,7 +2290,7 @@ func TaskReferencePayloadFromReference(record taskpkg.Reference) contract.TaskRe
 	return contract.TaskReferencePayload{
 		ID:              record.ID,
 		Identifier:      record.Identifier,
-		Title:           record.Title,
+		Title:           taskpkg.RedactClaimTokens(record.Title),
 		Status:          record.Status,
 		Priority:        record.Priority,
 		Owner:           cloneOwnership(record.Owner),
@@ -2311,7 +2311,7 @@ func cloneRunDesignationSummary(
 	}
 	return &taskpkg.RunDesignationSummary{
 		Index: summary.Index,
-		Brief: strings.TrimSpace(summary.Brief),
+		Brief: taskpkg.RedactClaimTokens(strings.TrimSpace(summary.Brief)),
 	}
 }
 
@@ -2351,7 +2351,7 @@ func TaskTimelineItemPayloadFromItem(item taskpkg.TimelineItem) contract.TaskTim
 		EventType: item.EventType,
 		Actor:     item.Actor,
 		Origin:    item.Origin,
-		Payload:   cloneRawMessage(item.Payload),
+		Payload:   taskpkg.RedactClaimTokenJSON(item.Payload),
 		Timestamp: item.Timestamp,
 	}
 }
@@ -2593,7 +2593,7 @@ func taskDashboardActiveRunsPayload(
 		payload.Items = append(payload.Items, contract.TaskDashboardActiveRunPayload{
 			TaskID:                       item.TaskID,
 			TaskIdentifier:               item.TaskIdentifier,
-			TaskTitle:                    item.TaskTitle,
+			TaskTitle:                    taskpkg.RedactClaimTokens(strings.TrimSpace(item.TaskTitle)),
 			TaskStatus:                   item.TaskStatus,
 			TaskPriority:                 item.TaskPriority,
 			TaskOwner:                    cloneOwnership(item.TaskOwner),
@@ -2610,7 +2610,7 @@ func taskDashboardActiveRunsPayload(
 			AgeMilli:                     item.AgeMilli,
 			HealthStatus:                 item.HealthStatus,
 			Stuck:                        item.Stuck,
-			Error:                        item.Error,
+			Error:                        taskpkg.RedactClaimTokens(strings.TrimSpace(item.Error)),
 		})
 	}
 	return payload

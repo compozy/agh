@@ -15,6 +15,8 @@ type hookAwareParticipationResolver struct {
 	hooks atomic.Pointer[hookspkg.Hooks]
 }
 
+var _ participation.ResolvedObserver = (*hookAwareParticipationResolver)(nil)
+
 func wrapParticipationResolverWithHooks(
 	resolver participation.Resolver,
 	hooks *hookspkg.Hooks,
@@ -56,6 +58,7 @@ func (r *hookAwareParticipationResolver) Resolve(
 		WorkspaceID: strings.TrimSpace(in.WorkspaceID),
 		Owner:       in.Owner,
 		Request:     participation.CloneRequest(in.Request),
+		Source:      in.RequestSource,
 		OwnerKey:    participationOwnerKey(in.Owner),
 	}
 	patched, err := hooks.DispatchNetworkParticipationPreResolve(ctx, prePayload)
@@ -69,16 +72,30 @@ func (r *hookAwareParticipationResolver) Resolve(
 	if err != nil {
 		return participation.Spec{}, err
 	}
+	return spec, nil
+}
+
+func (r *hookAwareParticipationResolver) ObserveParticipationResolved(
+	ctx context.Context,
+	observation participation.ResolvedObservation,
+) error {
+	if r == nil {
+		return nil
+	}
+	hooks := r.hooks.Load()
+	if hooks == nil {
+		return nil
+	}
 	_, resolvedErr := hooks.DispatchNetworkParticipationResolved(ctx, hookspkg.NetworkParticipationResolvedPayload{
-		WorkspaceID: strings.TrimSpace(in.WorkspaceID),
-		Owner:       in.Owner,
-		OwnerKey:    participationOwnerKey(in.Owner),
-		Spec:        spec,
+		WorkspaceID: strings.TrimSpace(observation.WorkspaceID),
+		Owner:       observation.Owner,
+		OwnerKey:    participationOwnerKey(observation.Owner),
+		Spec:        observation.Spec,
 	})
 	if resolvedErr != nil {
-		return participation.Spec{}, fmt.Errorf("dispatch network.participation.resolved: %w", resolvedErr)
+		return fmt.Errorf("dispatch network.participation.resolved: %w", resolvedErr)
 	}
-	return spec, nil
+	return nil
 }
 
 func participationOwnerKey(owner participation.OwnerRef) string {

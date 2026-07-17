@@ -23,8 +23,8 @@ func insertNetworkMessageDispositions(
 	// dynamic-sql: immutable acceptance evidence is inserted from the pre-message snapshot.
 	const insertQuery = `
 INSERT INTO network_message_dispositions (
-  message_id, recipient_session_id, decision, decided_at, acceptance_seq
-) VALUES (?, ?, ?, ?, ?)`
+  workspace_id, message_id, recipient_session_id, decision, decided_at, acceptance_seq
+) VALUES (?, ?, ?, ?, ?, ?)`
 	for _, disposition := range dispositions {
 		var exists int
 		if err := exec.QueryRowContext(
@@ -45,6 +45,7 @@ INSERT INTO network_message_dispositions (
 		if _, err := exec.ExecContext(
 			ctx,
 			insertQuery,
+			message.WorkspaceID,
 			message.MessageID,
 			disposition.RecipientSessionID,
 			disposition.Decision,
@@ -60,15 +61,16 @@ INSERT INTO network_message_dispositions (
 func listNetworkMessageDispositions(
 	ctx context.Context,
 	exec networkSQLExecutor,
+	workspaceID string,
 	messageID string,
 ) (dispositions []store.NetworkMessageDisposition, err error) {
 	// dynamic-sql: duplicate acceptance reloads only immutable evidence for one message.
 	const query = `
 SELECT recipient_session_id, decision
 FROM network_message_dispositions
-WHERE message_id = ?
+WHERE workspace_id = ? AND message_id = ?
 ORDER BY recipient_session_id`
-	rows, err := exec.QueryContext(ctx, query, messageID)
+	rows, err := exec.QueryContext(ctx, query, workspaceID, messageID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list network message dispositions: %w", err)
 	}

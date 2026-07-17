@@ -63,8 +63,15 @@ func (s *StubTaskManager) ListTaskCatalog(
 		tasks = filtered
 	}
 	total := len(tasks)
-	if query.Limit > 0 && len(tasks) > query.Limit {
-		tasks = tasks[:query.Limit]
+	page := taskpkg.CatalogPage{Tasks: tasks, Total: total, Limit: query.Limit}
+	if query.Limit <= 0 || len(page.Tasks) <= query.Limit {
+		return page, nil
 	}
-	return taskpkg.CatalogPage{Tasks: tasks, Total: total, Limit: query.Limit}, nil
+	page.HasMore = true
+	page.Tasks = page.Tasks[:query.Limit]
+	page.NextCursor, err = taskpkg.EncodeCatalogCursor(query, &page.Tasks[len(page.Tasks)-1])
+	if err != nil {
+		return taskpkg.CatalogPage{}, err
+	}
+	return page, nil
 }

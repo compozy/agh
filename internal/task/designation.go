@@ -38,7 +38,7 @@ func DesignationFromRun(run Run) (RunDesignation, bool) {
 		return designation, true
 	}
 	designation.Index = payload.Designation.Index
-	designation.Brief = strings.TrimSpace(payload.Designation.Brief)
+	designation.Brief = RedactClaimTokens(strings.TrimSpace(payload.Designation.Brief))
 	return designation, true
 }
 
@@ -59,6 +59,6 @@ func ApplyRunDesignationSummary(summary *RunSummary, run Run) {
 func (d RunDesignation) Summary() *RunDesignationSummary {
 	return &RunDesignationSummary{
 		Index: d.Index,
-		Brief: strings.TrimSpace(d.Brief),
+		Brief: RedactClaimTokens(strings.TrimSpace(d.Brief)),
 	}
 }

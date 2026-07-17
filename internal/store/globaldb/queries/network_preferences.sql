@@ -1,13 +1,12 @@
 -- name: UpsertNetworkSubscription :exec
 INSERT INTO network_subscriptions (
-  workspace_id, channel, thread_id, session_id, mode, keyword_filters_json, created_at, updated_at
+  workspace_id, channel, thread_id, session_id, mode, created_at, updated_at
 ) VALUES (
   sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(thread_id), sqlc.arg(session_id),
-  sqlc.arg(mode), sqlc.arg(keyword_filters_json), sqlc.arg(created_at), sqlc.arg(updated_at)
+  sqlc.arg(mode), sqlc.arg(created_at), sqlc.arg(updated_at)
 )
 ON CONFLICT(workspace_id, channel, thread_id, session_id) DO UPDATE SET
   mode = excluded.mode,
-  keyword_filters_json = excluded.keyword_filters_json,
   updated_at = excluded.updated_at;
 
 -- name: DeleteNetworkSubscription :exec

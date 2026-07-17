@@ -347,7 +347,7 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceNetwork.PATCH("/channels/:channel", handlers.UpdateNetworkChannel)
 		workspaceNetwork.GET("/channels/:channel/subscriptions", handlers.NetworkSubscriptions)
 		workspaceNetwork.PUT("/channels/:channel/subscriptions", handlers.UpsertNetworkSubscription)
-		workspaceNetwork.DELETE("/channels/:channel/subscriptions/:peer_id", handlers.DeleteNetworkSubscription)
+		workspaceNetwork.DELETE("/channels/:channel/subscriptions/:session_id", handlers.DeleteNetworkSubscription)
 		workspaceNetwork.GET("/channels/:channel/threads", handlers.NetworkThreads)
 		workspaceNetwork.GET("/channels/:channel/threads/:thread_id", handlers.NetworkThread)
 		workspaceNetwork.POST("/channels/:channel/threads/:thread_id/promote-task", handlers.PromoteNetworkThreadTask)

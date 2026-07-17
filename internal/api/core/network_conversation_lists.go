@@ -167,7 +167,7 @@ func parseNetworkThreadQuery(c *gin.Context) (store.NetworkThreadQuery, error) {
 	}
 	query := store.NetworkThreadQuery{
 		Search:    strings.TrimSpace(c.Query("query")),
-		SessionID: strings.TrimSpace(c.Query("peer_id")),
+		SessionID: strings.TrimSpace(c.Query("session_id")),
 		Sort:      strings.TrimSpace(c.Query("sort")),
 		HasWork:   hasWork,
 		Limit:     limit,
@@ -190,7 +190,7 @@ func parseNetworkDirectRoomQuery(c *gin.Context) (store.NetworkDirectRoomQuery, 
 	}
 	query := store.NetworkDirectRoomQuery{
 		Search:    strings.TrimSpace(c.Query("query")),
-		SessionID: strings.TrimSpace(c.Query("peer_id")),
+		SessionID: strings.TrimSpace(c.Query("session_id")),
 		Sort:      strings.TrimSpace(c.Query("sort")),
 		HasWork:   hasWork,
 		Limit:     limit,

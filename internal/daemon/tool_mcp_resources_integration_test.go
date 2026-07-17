@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -84,7 +85,14 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 				},
 			},
 		}
-		syncer := newToolMCPSourceSyncer(
+		publishedConfig := aghconfig.Config{
+			MCPServers: []aghconfig.MCPServer{{
+				Name:    "git",
+				Command: "npx",
+				Args:    []string{"@modelcontextprotocol/server-git"},
+			}},
+		}
+		syncer := newToolMCPSourceSyncerWithConfigProvider(
 			kernel,
 			toolStore,
 			toolCodec,
@@ -95,13 +103,7 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 				return driver.Trigger(ctx, kind, reason)
 			},
-			daemonConfigMCPDeclarationProvider(&aghconfig.Config{
-				MCPServers: []aghconfig.MCPServer{{
-					Name:    "git",
-					Command: "npx",
-					Args:    []string{"@modelcontextprotocol/server-git"},
-				}},
-			}, nil, nil, discardLogger()),
+			daemonConfigMCPDeclarationProvider(&publishedConfig, nil, nil, discardLogger()),
 			extensionManifestToolMCPDeclarationProvider(
 				registry,
 				func() extensionRuntime { return runtime },
@@ -139,6 +141,35 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		if got, want := len(servers), 2; got != want {
 			t.Fatalf("len(mcpStore.List()) = %d, want %d", got, want)
 		}
+
+		candidateConfig := aghconfig.Config{
+			MCPServers: []aghconfig.MCPServer{{Name: "github", Command: "mcp-github"}},
+		}
+		if err := syncer.SyncConfig(testutil.Context(t), &candidateConfig); err != nil {
+			t.Fatalf("syncer.SyncConfig(candidate) error = %v", err)
+		}
+		servers, err = mcpStore.List(
+			testutil.Context(t),
+			toolMCPSyncActor(),
+			resources.ResourceFilter{Source: &source},
+		)
+		if err != nil {
+			t.Fatalf("mcpStore.List(candidate) error = %v", err)
+		}
+		if got, want := mcpServerNames(servers), []string{"github", "kubectl"}; !slices.Equal(got, want) {
+			t.Fatalf("candidate MCP servers = %#v, want %#v", got, want)
+		}
+		if got := publishedConfig.MCPServers[0].Name; got != "git" {
+			t.Fatalf("published config MCP name = %q, want unchanged git", got)
+		}
+		if err := syncer.SyncConfig(testutil.Context(t), &aghconfig.Config{}); err != nil {
+			t.Fatalf("syncer.SyncConfig(empty candidate) error = %v", err)
+		}
+		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 1)
+		if err := syncer.Sync(testutil.Context(t)); err != nil {
+			t.Fatalf("syncer.Sync(published config) error = %v", err)
+		}
+		assertToolMCPStoreCounts(t, toolStore, mcpStore, 1, 2)
 
 		rebuiltToolCatalog := newResourceCatalog(cloneToolSpec)
 		rebuiltMCPCatalog := newResourceCatalog(cloneDaemonMCPServer)
@@ -365,4 +396,13 @@ func syncAndAssertToolMCPStoreCounts(
 		t.Fatalf("syncer.Sync() error = %v", err)
 	}
 	assertToolMCPStoreCounts(t, toolStore, mcpStore, wantTools, wantMCPServers)
+}
+
+func mcpServerNames(records []resources.Record[aghconfig.MCPServer]) []string {
+	names := make([]string, 0, len(records))
+	for _, record := range records {
+		names = append(names, record.Spec.Name)
+	}
+	slices.Sort(names)
+	return names
 }

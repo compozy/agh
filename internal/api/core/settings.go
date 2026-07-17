@@ -803,7 +803,7 @@ func parseUpdateSettingsNetworkRequest(c *gin.Context) (settingspkg.SectionUpdat
 	var body struct {
 		Config *contract.SettingsNetworkConfigPayload `json:"config"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil {
+	if err := decodeStrictJSONBody(c, &body); err != nil {
 		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
 			fmt.Errorf("decode network settings request: %w", err),
 		)

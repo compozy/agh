@@ -69,16 +69,27 @@ type StubNetworkStore struct {
 		context.Context,
 		store.NetworkChannelRef,
 	) ([]store.NetworkChannelKindCount, error)
-	ListNetworkRecentsFn       func(context.Context, store.NetworkRecentQuery) ([]store.NetworkRecentSummary, error)
-	CreateNetworkChannelFn     func(context.Context, store.NetworkChannelEntry) error
-	WriteNetworkChannelFn      func(context.Context, store.NetworkChannelEntry) error
-	PatchNetworkChannelFn      func(context.Context, store.NetworkChannelRef, store.NetworkChannelPatch) error
-	DeleteNetworkChannelFn     func(context.Context, store.NetworkChannelRef) error
-	WriteNetworkAuditFn        func(context.Context, store.NetworkAuditEntry) error
-	ListNetworkAuditFn         func(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
-	WriteNetworkMessageFn      func(context.Context, store.NetworkMessageEntry) error
-	ListNetworkMessagesFn      func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
-	PutNetworkSubscriptionFn   func(context.Context, store.NetworkSubscriptionEntry) error
+	ListNetworkRecentsFn func(
+		context.Context,
+		store.NetworkRecentQuery,
+	) ([]store.NetworkRecentSummary, error)
+	CreateNetworkChannelFn func(context.Context, store.NetworkChannelEntry) error
+	WriteNetworkChannelFn  func(context.Context, store.NetworkChannelEntry) error
+	PatchNetworkChannelFn  func(context.Context, store.NetworkChannelRef, store.NetworkChannelPatch) error
+	DeleteNetworkChannelFn func(context.Context, store.NetworkChannelRef) error
+	WriteNetworkAuditFn    func(context.Context, store.NetworkAuditEntry) error
+	ListNetworkAuditFn     func(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
+	WriteNetworkMessageFn  func(context.Context, store.NetworkMessageEntry) error
+	ListNetworkMessagesFn  func(
+		context.Context,
+		store.NetworkMessageQuery,
+	) ([]store.NetworkMessageEntry, error)
+	PutNetworkSubscriptionFn            func(context.Context, store.NetworkSubscriptionEntry) error
+	PutNetworkSubscriptionWithChannelFn func(
+		context.Context,
+		store.NetworkChannelEntry,
+		store.NetworkSubscriptionEntry,
+	) error
 	ListNetworkSubscriptionsFn func(
 		context.Context,
 		store.NetworkSubscriptionQuery,
@@ -230,7 +241,7 @@ func (s StubNetworkStore) CreateNetworkChannel(
 	if s.CreateNetworkChannelFn != nil {
 		return s.CreateNetworkChannelFn(ctx, entry)
 	}
-	return s.WriteNetworkChannel(ctx, entry)
+	return nil
 }
 
 func (s StubNetworkStore) PatchNetworkChannel(
@@ -401,6 +412,17 @@ func (s StubNetworkStore) PutNetworkSubscription(
 		return s.PutNetworkSubscriptionFn(ctx, entry)
 	}
 	return nil
+}
+
+func (s StubNetworkStore) PutNetworkSubscriptionWithChannel(
+	ctx context.Context,
+	channel store.NetworkChannelEntry,
+	entry store.NetworkSubscriptionEntry,
+) error {
+	if s.PutNetworkSubscriptionWithChannelFn != nil {
+		return s.PutNetworkSubscriptionWithChannelFn(ctx, channel, entry)
+	}
+	return s.PutNetworkSubscription(ctx, entry)
 }
 
 func (s StubNetworkStore) ListNetworkSubscriptions(

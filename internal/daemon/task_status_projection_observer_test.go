@@ -3,12 +3,18 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/agh/internal/notifications"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -187,6 +193,153 @@ func TestTaskStatusProjectionObserver(t *testing.T) {
 			t.Fatalf("observer queue/timeout = %d/%s, want 7/2s", cap(observer.queue), observer.timeout)
 		}
 	})
+
+	t.Run(
+		"Should replay every durable rollup transition after a coalesced wake and retry before advancing",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			db := openDaemonTestGlobalDB(t)
+			now := time.Date(2026, 7, 1, 13, 0, 0, 0, time.UTC)
+			if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+				ID: "wks-replay", RootDir: t.TempDir(), Name: "status-replay",
+				CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatalf("InsertWorkspace() error = %v", err)
+			}
+			actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "daemon.projection.replay"}
+			origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "status-projection-replay"}
+			taskRecord := taskStatusProjectionTask("task-replay", now, actor, origin)
+			taskRecord.WorkspaceID = "wks-replay"
+			if err := db.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask() error = %v", err)
+			}
+			first := taskStatusProjectionRun("run-replay-a", taskRecord.ID, taskpkg.TaskRunStatusCompleted, now, origin)
+			second := taskStatusProjectionRun("run-replay-b", taskRecord.ID, taskpkg.TaskRunStatusFailed, now, origin)
+			for index, run := range []*taskpkg.Run{&first, &second} {
+				run.WorkspaceID = "wks-replay"
+				run.DesignationGroupID = "tdg-replay"
+				if err := db.CreateTaskRun(ctx, *run); err != nil {
+					t.Fatalf("CreateTaskRun(%d) error = %v", index, err)
+				}
+			}
+			events := []taskpkg.Event{
+				{
+					ID: "evt-replay-completed", TaskID: taskRecord.ID, RunID: first.ID,
+					EventType: eventspkg.TaskRunCompleted, Actor: actor, Origin: origin, Timestamp: now,
+				},
+				{
+					ID: "evt-replay-forced-fail", TaskID: taskRecord.ID, RunID: second.ID,
+					EventType: eventspkg.TaskRunOperatorForcedFail, Actor: actor, Origin: origin,
+					Timestamp: now.Add(time.Second),
+				},
+			}
+			records := make([]taskpkg.EventRecord, 0, len(events))
+			for _, event := range events {
+				if err := db.CreateTaskEvent(ctx, event); err != nil {
+					t.Fatalf("CreateTaskEvent(%q) error = %v", event.ID, err)
+				}
+				record, err := db.GetTaskEventRecord(ctx, event.ID)
+				if err != nil {
+					t.Fatalf("GetTaskEventRecord(%q) error = %v", event.ID, err)
+				}
+				records = append(records, record)
+			}
+
+			flakyStore := &flakyTaskStatusProjectionStore{
+				GlobalDB: db,
+				failed:   make(chan struct{}),
+			}
+			flakyStore.remainingFailures.Store(1)
+			publisher := &recordingTaskStatusProjectionPublisher{
+				ch: make(chan taskStatusProjection, len(records)),
+			}
+			observerCtx, cancel := context.WithCancel(context.Background())
+			observer := &taskStatusProjectionObserver{
+				tasks: flakyStore, prefs: flakyStore, availability: flakyStore,
+				events: flakyStore, cursors: flakyStore, publisher: publisher,
+				logger: discardLogger(), now: func() time.Time { return now.Add(time.Minute) },
+				ctx: observerCtx, cancel: cancel, queue: make(chan struct{}, 1), batchSize: 1,
+				timeout: time.Second, retryDelay: time.Millisecond,
+			}
+			firstReplayErr := observer.catchUpTaskStatusProjections(ctx)
+			if firstReplayErr == nil ||
+				!strings.Contains(firstReplayErr.Error(), "injected designation rollup write failure") {
+				t.Fatalf("catchUpTaskStatusProjections(first) error = %v, want injected write failure", firstReplayErr)
+			}
+			cursor, err := db.GetCursor(ctx, taskStatusProjectionCursorKey)
+			if err != nil && !errors.Is(err, notifications.ErrCursorNotFound) {
+				t.Fatalf("GetCursor(after failed projection) error = %v", err)
+			}
+			if err == nil && cursor.LastSequence != 0 {
+				t.Fatalf("cursor after failed projection = %d, want 0", cursor.LastSequence)
+			}
+			observer.OnTaskEvent(ctx, records[0])
+			observer.OnTaskEvent(ctx, records[1])
+			if got, want := len(observer.queue), 1; got != want {
+				t.Fatalf("coalesced projection wakeups = %d, want %d", got, want)
+			}
+			observer.start()
+			t.Cleanup(observer.shutdown)
+
+			for range records {
+				select {
+				case <-publisher.ch:
+				case <-time.After(5 * time.Second):
+					t.Fatal("timed out waiting for replayed projection")
+				}
+			}
+			deadline := time.After(5 * time.Second)
+			for {
+				cursor, err = db.GetCursor(ctx, taskStatusProjectionCursorKey)
+				if err == nil && cursor.LastSequence == records[len(records)-1].Sequence {
+					break
+				}
+				select {
+				case <-deadline:
+					t.Fatalf("task status projection cursor = %#v, error = %v", cursor, err)
+				case <-time.After(time.Millisecond):
+				}
+			}
+			rollups, err := db.ListTaskDesignationRollups(
+				ctx,
+				store.TaskDesignationRollupQuery{DesignationGroupID: "tdg-replay", Limit: 1},
+			)
+			if err != nil {
+				t.Fatalf("ListTaskDesignationRollups() error = %v", err)
+			}
+			if len(rollups) != 1 {
+				t.Fatalf("designation rollups = %#v, want one replayed rollup", rollups)
+			}
+			var rollup taskDesignationRollupStatus
+			if err := json.Unmarshal(rollups[0].SummaryJSON, &rollup); err != nil {
+				t.Fatalf("json.Unmarshal(replayed rollup) error = %v", err)
+			}
+			if !rollup.Complete || rollup.Completed != 1 || rollup.Failed != 1 ||
+				rollup.LatestEvent != eventspkg.TaskRunOperatorForcedFail {
+				t.Fatalf("replayed rollup = %#v, want complete operator-forced terminal truth", rollup)
+			}
+		},
+	)
+}
+
+type flakyTaskStatusProjectionStore struct {
+	*globaldb.GlobalDB
+	remainingFailures atomic.Int32
+	failed            chan struct{}
+	failureOnce       sync.Once
+}
+
+func (s *flakyTaskStatusProjectionStore) PutTaskDesignationRollup(
+	ctx context.Context,
+	rollup store.TaskDesignationRollup,
+) error {
+	if s.remainingFailures.Add(-1) >= 0 {
+		s.failureOnce.Do(func() { close(s.failed) })
+		return errors.New("injected designation rollup write failure")
+	}
+	return s.GlobalDB.PutTaskDesignationRollup(ctx, rollup)
 }
 
 type taskStatusProjectionFixture struct {
@@ -264,7 +417,10 @@ func newTaskStatusProjectionFixture(t *testing.T, networkAvailableAtCompletion b
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
-	actor := taskpkg.ActorContext{Actor: actorIdentity, Origin: origin, Authority: taskpkg.FullAccessAuthority()}
+	actor, err := taskpkg.DeriveAgentSessionActorContext("sess-worker", "wks_status")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+	}
 	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 		RunID: run.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "wks_status",
 		ClaimerSessionID: "sess-worker", ClaimedBy: &taskpkg.ActorIdentity{
@@ -299,12 +455,22 @@ func (f *taskStatusProjectionFixture) completeRun(t *testing.T) *taskpkg.Run {
 
 func (f *taskStatusProjectionFixture) nextProjection(t *testing.T) taskStatusProjection {
 	t.Helper()
-	select {
-	case projection := <-f.publisher.ch:
-		return projection
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for task status projection")
-		return taskStatusProjection{}
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case projection := <-f.publisher.ch:
+			if projection.EventType == taskEventRunCompleted {
+				return projection
+			}
+		case <-deadline:
+			cursorStore, ok := f.db.(notifications.CursorStore)
+			if !ok {
+				t.Fatal("timed out waiting for completed task status projection; cursor store unavailable")
+			}
+			cursor, err := cursorStore.GetCursor(f.ctx, taskStatusProjectionCursorKey)
+			t.Fatalf("timed out waiting for completed task status projection; cursor = %#v, error = %v", cursor, err)
+			return taskStatusProjection{}
+		}
 	}
 }
 

@@ -40,7 +40,7 @@ func (m *Service) reconcileTaskWithStore(
 	if err := store.UpdateTask(ctx, record, actor); err != nil {
 		return Task{}, err
 	}
-	m.dispatchTaskStatusChanged(ctx, record, previousStatus, record.Status, actor)
+	m.dispatchTaskStatusChangedAfterWrite(ctx, record, previousStatus, record.Status, actor)
 	return record, nil
 }
 

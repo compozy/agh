@@ -49,6 +49,19 @@ func (s *Service) applyNetworkRequirementConfirmation(
 	if err != nil {
 		return err
 	}
+	return s.applyNetworkRequirementConfirmationWithDigest(req, existing, activation, digest)
+}
+
+func (s *Service) applyNetworkRequirementConfirmationWithDigest(
+	req ActivateRequest,
+	existing *Activation,
+	activation *Activation,
+	digest string,
+) error {
+	if activation == nil {
+		return errors.New("bundles: activation is required for network requirement confirmation")
+	}
+	digest = strings.TrimSpace(digest)
 	activation.NetworkRequirementDigest = digest
 	if digest == "" {
 		activation.ConfirmedBy = ""
@@ -76,14 +89,8 @@ func (s *Service) applyNetworkRequirementConfirmation(
 	if req.ConfirmNetworkRequirement {
 		decision := networkRequirementDecision{
 			Digest:      digest,
-			ConfirmedBy: strings.TrimSpace(req.ConfirmedBy),
-			ConfirmedAt: strings.TrimSpace(req.ConfirmedAt),
-		}
-		if decision.ConfirmedBy == "" {
-			decision.ConfirmedBy = networkRequirementConfirmedByOperator
-		}
-		if decision.ConfirmedAt == "" {
-			decision.ConfirmedAt = s.now().UTC().Format(time.RFC3339Nano)
+			ConfirmedBy: networkRequirementConfirmedByOperator,
+			ConfirmedAt: s.now().UTC().Format(time.RFC3339Nano),
 		}
 		activation.NetworkRequirementDigest = decision.Digest
 		activation.ConfirmedBy = decision.ConfirmedBy
@@ -97,10 +104,14 @@ func (s *Service) applyNetworkRequirementConfirmation(
 		!digestChanged {
 		return nil
 	}
+	return networkRequirementConfirmationError(digest)
+}
+
+func networkRequirementConfirmationError(digest string) error {
 	return fmt.Errorf(
 		"%w: digest=%s",
 		ErrNetworkRequirementConfirmationRequired,
-		digest,
+		strings.TrimSpace(digest),
 	)
 }
 
@@ -116,8 +127,11 @@ func (s *Service) networkRequirementDigestForExtension(
 	if err != nil {
 		return "", err
 	}
-	if provider == nil || provider.Manifest == nil {
-		return "", nil
+	if provider == nil {
+		return "", fmt.Errorf("bundles: load extension %q network requirement: extension is unavailable", trimmed)
+	}
+	if provider.Manifest == nil {
+		return "", fmt.Errorf("bundles: load extension %q network requirement: manifest is unavailable", trimmed)
 	}
 	digest, err := extensionpkg.NetworkParticipationRequirementDigest(provider.Manifest.NetworkParticipation)
 	if err != nil {

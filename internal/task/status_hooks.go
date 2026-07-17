@@ -28,3 +28,16 @@ func (m *Service) dispatchTaskStatusChanged(
 	_, err := m.taskHooks.DispatchTaskStatusChanged(taskRunObservationHookContext(ctx), payload)
 	m.reportTaskHookFailure(hookspkg.HookTaskStatusChanged, err, taskRecord)
 }
+
+func (m *Service) dispatchTaskStatusChangedAfterWrite(
+	ctx context.Context,
+	taskRecord Task,
+	from Status,
+	to Status,
+	actor ActorContext,
+) {
+	if _, postCommit := m.store.(EventCommitObserverStore); postCommit {
+		return
+	}
+	m.dispatchTaskStatusChanged(ctx, taskRecord, from, to, actor)
+}

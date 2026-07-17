@@ -10,11 +10,11 @@ export type ChannelMemberRole = "agent" | "human";
 
 export interface ChannelMember {
   peerId: string;
+  sessionId: string;
   displayName: string;
   role: ChannelMemberRole;
   local: boolean;
   presenceState: NetworkPresenceState;
-  lastSeenAgeSeconds: number | null;
 }
 
 export interface UseChannelMembersResult {
@@ -49,11 +49,11 @@ export function useChannelMembers(
   const peers: ReadonlyArray<NetworkPeerSummary> = query.data ?? [];
   const members: ChannelMember[] = peers.map((peer: NetworkPeerSummary) => ({
     peerId: peer.peer_id,
+    sessionId: peer.session_id ?? "",
     displayName: (peer.display_name?.trim() || peer.peer_card?.display_name?.trim()) ?? "",
     role: classifyPeer(peer),
     local: Boolean(peer.local),
     presenceState: toNetworkPresenceState(peer.presence_state),
-    lastSeenAgeSeconds: peer.last_seen_age_seconds ?? null,
   }));
   members.sort((left, right) => {
     if (left.role !== right.role) {

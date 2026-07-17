@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/compozy/agh/internal/network/participation"
@@ -33,6 +34,11 @@ func bindNetworkParticipationFlags(cmd *cobra.Command, flags *networkParticipati
 	)
 }
 
+func bindNamedNetworkParticipationFlags(cmd *cobra.Command, flags *networkParticipationFlags) {
+	bindNetworkParticipationFlags(cmd, flags)
+	cmd.Flags().Lookup("network-channel-strategy").Usage = "Live channel strategy: named"
+}
+
 func (f networkParticipationFlags) request() (*participation.Request, error) {
 	mode := strings.TrimSpace(f.mode)
 	strategy := strings.TrimSpace(f.channelStrategy)
@@ -55,12 +61,34 @@ func (f networkParticipationFlags) request() (*participation.Request, error) {
 	}
 	if boundsRaw != "" {
 		var bounds participation.BoundsRequest
-		if err := json.Unmarshal([]byte(boundsRaw), &bounds); err != nil {
+		if !strings.HasPrefix(boundsRaw, "{") {
+			return nil, fmt.Errorf("cli: parse --network-bounds: expected a JSON object")
+		}
+		decoder := json.NewDecoder(strings.NewReader(boundsRaw))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&bounds); err != nil {
+			return nil, fmt.Errorf("cli: parse --network-bounds: %w", err)
+		}
+		if err := decoder.Decode(&struct{}{}); err != io.EOF {
+			if err == nil {
+				return nil, fmt.Errorf("cli: parse --network-bounds: expected exactly one JSON object")
+			}
 			return nil, fmt.Errorf("cli: parse --network-bounds: %w", err)
 		}
 		req.Bounds = &bounds
 	}
 	return req, nil
+}
+
+func (f networkParticipationFlags) namedRequest() (*participation.Request, error) {
+	request, err := f.request()
+	if err != nil || request == nil || request.ChannelStrategy == nil {
+		return request, err
+	}
+	if *request.ChannelStrategy != participation.StrategyNamed {
+		return nil, fmt.Errorf("cli: --network-channel-strategy must be named for session creation")
+	}
+	return request, nil
 }
 
 func bindConfirmNetworkRequirementFlag(cmd *cobra.Command, confirmed *bool) {

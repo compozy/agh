@@ -68,8 +68,17 @@ func testLiveParticipationPtr(workspaceID, channelID string) *participation.Spec
 }
 
 type recordingSessionParticipationResolver struct {
-	inner participation.Resolver
-	calls int
+	inner        participation.Resolver
+	calls        int
+	observations []participation.ResolvedObservation
+}
+
+func (r *recordingSessionParticipationResolver) ObserveParticipationResolved(
+	_ context.Context,
+	observation participation.ResolvedObservation,
+) error {
+	r.observations = append(r.observations, observation)
+	return nil
 }
 
 func (r *recordingSessionParticipationResolver) Resolve(
@@ -143,8 +152,12 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if meta := readMeta(t, session.MetaPath()); meta.WorkspaceID != h.workspaceID {
 		t.Fatalf("meta workspace id = %q, want %q", meta.WorkspaceID, h.workspaceID)
 	}
-	if got := h.driver.startCalls[0].Cwd; got != h.workspace {
-		t.Fatalf("start cwd = %q, want %q", got, h.workspace)
+	canonicalWorkspace, err := canonicalDirectory(h.workspace)
+	if err != nil {
+		t.Fatalf("canonicalDirectory(workspace) error = %v", err)
+	}
+	if got := h.driver.startCalls[0].Cwd; got != canonicalWorkspace {
+		t.Fatalf("start cwd = %q, want %q", got, canonicalWorkspace)
 	}
 	if got := session.Info().Type; got != SessionTypeUser {
 		t.Fatalf("Create() type = %q, want %q", got, SessionTypeUser)
@@ -613,7 +626,9 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 		t.Fatalf("Resume() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+			t.Errorf("Stop(resumed) error = %v", err)
+		}
 	})
 
 	if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
@@ -740,6 +755,14 @@ func TestCreateParticipationResolvesBeforeWritesAndResumeReusesSnapshot(t *testi
 		if got, want := readMeta(t, session.MetaPath()).NetworkSpecSnapshot(), createdSpec; got != want {
 			t.Fatalf("persisted snapshot = %#v, want %#v", got, want)
 		}
+		if got, want := len(resolver.observations), 1; got != want {
+			t.Fatalf("resolved observations after create = %d, want %d", got, want)
+		}
+		observation := resolver.observations[0]
+		if observation.Owner.ID != session.ID || observation.Owner.WorkspaceID != h.workspaceID ||
+			observation.Spec != createdSpec {
+			t.Fatalf("resolved observation = %#v, want committed session snapshot", observation)
+		}
 
 		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("Stop() error = %v", err)
@@ -749,13 +772,50 @@ func TestCreateParticipationResolvesBeforeWritesAndResumeReusesSnapshot(t *testi
 			t.Fatalf("Resume() error = %v", err)
 		}
 		t.Cleanup(func() {
-			_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+			if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Errorf("Stop(resumed) error = %v", err)
+			}
 		})
 		if got, want := resolver.calls, 1; got != want {
 			t.Fatalf("resolver calls after resume = %d, want %d", got, want)
 		}
 		if got, want := resumed.Info().NetworkParticipation, createdSpec; got != want {
 			t.Fatalf("resumed snapshot = %#v, want %#v", got, want)
+		}
+		if got, want := len(resolver.observations), 1; got != want {
+			t.Fatalf("resolved observations after resume = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should not observe a resolved snapshot when session creation rolls back", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		resolver := &recordingSessionParticipationResolver{
+			inner: newTestSessionParticipationResolver(t, true),
+		}
+		h.manager = newManagerWithHarness(t, h, WithParticipationResolver(resolver))
+		startErr := errors.New("provider start failed after participation resolution")
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			return nil, startErr
+		}
+		live := participation.ModeLive
+		named := participation.StrategyNamed
+		channelID := "builders"
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			NetworkParticipation: &participation.Request{
+				Mode:            &live,
+				ChannelStrategy: &named,
+				ChannelID:       &channelID,
+			},
+		})
+		if !errors.Is(err, startErr) {
+			t.Fatalf("Create() error = %v, want %v", err, startErr)
+		}
+		if got := len(resolver.observations); got != 0 {
+			t.Fatalf("resolved observations after rollback = %d, want 0", got)
 		}
 	})
 

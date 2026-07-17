@@ -42,13 +42,13 @@ func (s schedulerTaskSource) ActiveRuns(ctx context.Context) ([]taskpkg.Run, err
 	if err != nil {
 		return nil, err
 	}
-	anchored := make([]taskpkg.Run, 0, len(runs))
+	active := make([]taskpkg.Run, 0, len(runs))
 	for _, run := range runs {
-		if run.IsTaskAnchored() {
-			anchored = append(anchored, run)
+		if run.IsTaskAnchored() || run.IsNetworkWake() {
+			active = append(active, run)
 		}
 	}
-	return anchored, nil
+	return active, nil
 }
 
 func (s schedulerTaskSource) joinRunsWithTasks(

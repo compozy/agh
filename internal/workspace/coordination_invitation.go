@@ -16,20 +16,23 @@ const (
 type CoordinationInvitations interface {
 	GetInvitation(
 		ctx context.Context,
+		workspaceID string,
 		scopeKind string,
 		scopeID string,
 	) (CoordinationInvitation, error)
 	DismissInvitation(
 		ctx context.Context,
+		workspaceID string,
 		scopeKind string,
 		scopeID string,
 		actor string,
 	) (CoordinationInvitation, error)
-	ResetInvitation(ctx context.Context, scopeKind string, scopeID string) error
+	ResetInvitation(ctx context.Context, workspaceID string, scopeKind string, scopeID string) error
 }
 
 // CoordinationInvitation is one persisted dismissal row. Absent rows mean not dismissed.
 type CoordinationInvitation struct {
+	WorkspaceID string
 	ScopeKind   string
 	ScopeID     string
 	Dismissed   bool

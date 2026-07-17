@@ -16,8 +16,8 @@ function isNetworkSurface(value: string): value is NetworkSurface {
 
 function participantLabel(recent: EmbeddedRecent): string {
   if (recent.surface === "direct") {
-    const peers = [recent.peer_a, recent.peer_b].filter(Boolean);
-    return peers.length > 0 ? peers.join(" + ") : "two-party";
+    const sessions = [recent.session_a, recent.session_b].filter(Boolean);
+    return sessions.length > 0 ? sessions.join(" + ") : "two-party";
   }
   const count = recent.participant_count ?? 0;
   if (count <= 0) return "open";

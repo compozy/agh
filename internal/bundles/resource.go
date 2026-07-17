@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/agh/internal/resources"
 
@@ -127,7 +128,35 @@ func validateActivationResourceSpec(
 	if strings.TrimSpace(next.ProfileName) == "" {
 		return ActivationResourceSpec{}, errors.New("bundles: activation profile_name is required")
 	}
+	if err := validateNetworkRequirementConfirmation(next); err != nil {
+		return ActivationResourceSpec{}, err
+	}
 	return next, nil
+}
+
+func validateNetworkRequirementConfirmation(spec ActivationResourceSpec) error {
+	digest := strings.TrimSpace(spec.NetworkRequirementDigest)
+	confirmedBy := strings.TrimSpace(spec.ConfirmedBy)
+	confirmedAt := strings.TrimSpace(spec.ConfirmedAt)
+	if digest == "" {
+		if confirmedBy != "" || confirmedAt != "" {
+			return errors.New("bundles: activation confirmation requires a network requirement digest")
+		}
+		return nil
+	}
+	if (confirmedBy == "") != (confirmedAt == "") {
+		return errors.New("bundles: activation confirmation actor and time must be provided together")
+	}
+	if confirmedBy == "" {
+		return nil
+	}
+	if confirmedBy != networkRequirementConfirmedByOperator {
+		return errors.New("bundles: activation confirmation actor is invalid")
+	}
+	if _, err := time.Parse(time.RFC3339Nano, confirmedAt); err != nil {
+		return fmt.Errorf("bundles: activation confirmation time is invalid: %w", err)
+	}
+	return nil
 }
 
 func normalizeBundleResourceSpec(spec BundleResourceSpec) BundleResourceSpec {

@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -18,11 +17,12 @@ type bundleInfoInput struct {
 }
 
 type bundleActivateToolInput struct {
-	ExtensionName string `json:"extension_name"`
-	BundleName    string `json:"bundle_name"`
-	ProfileName   string `json:"profile_name"`
-	Scope         string `json:"scope"`
-	Workspace     string `json:"workspace"`
+	ExtensionName             string `json:"extension_name"`
+	BundleName                string `json:"bundle_name"`
+	ProfileName               string `json:"profile_name"`
+	Scope                     string `json:"scope"`
+	Workspace                 string `json:"workspace"`
+	ConfirmNetworkRequirement bool   `json:"confirm_network_requirement"`
 }
 
 type resourceFilterInput struct {
@@ -117,16 +117,20 @@ func (n *daemonNativeTools) bundlesActivate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if input.ConfirmNetworkRequirement && !scope.Operator {
+		return toolspkg.ToolResult{}, nativeBundleConfirmationDenied(req.ToolID)
+	}
 	activationScope, workspaceID, err := nativeBundleActivationScope(req.ToolID, input, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	activation, err := n.bundleService().Activate(ctx, bundlepkg.ActivateRequest{
-		ExtensionName: strings.TrimSpace(input.ExtensionName),
-		BundleName:    strings.TrimSpace(input.BundleName),
-		ProfileName:   strings.TrimSpace(input.ProfileName),
-		Scope:         activationScope,
-		Workspace:     workspaceID,
+		ExtensionName:             strings.TrimSpace(input.ExtensionName),
+		BundleName:                strings.TrimSpace(input.BundleName),
+		ProfileName:               strings.TrimSpace(input.ProfileName),
+		Scope:                     activationScope,
+		Workspace:                 workspaceID,
+		ConfirmNetworkRequirement: input.ConfirmNetworkRequirement,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
@@ -462,39 +466,4 @@ func nativeBundleToolError(id toolspkg.ToolID, err error) error {
 
 func nativeResourceToolError(id toolspkg.ToolID, err error) error {
 	return nativeHTTPStatusToolError(id, err, core.StatusForResourceError(err))
-}
-
-func nativeHTTPStatusToolError(id toolspkg.ToolID, err error, status int) error {
-	code := toolspkg.ErrorCodeBackendFailed
-	cause := toolspkg.ErrToolBackendFailed
-	reason := toolspkg.ReasonBackendUnhealthy
-	switch status {
-	case http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusRequestEntityTooLarge:
-		code = toolspkg.ErrorCodeInvalidInput
-		cause = toolspkg.ErrToolInvalidInput
-		reason = toolspkg.ReasonConfigValidationFailed
-	case http.StatusForbidden:
-		code = toolspkg.ErrorCodeDenied
-		cause = toolspkg.ErrToolDenied
-		reason = toolspkg.ReasonPolicyDenied
-	case http.StatusNotFound:
-		code = toolspkg.ErrorCodeNotFound
-		cause = toolspkg.ErrToolNotFound
-		reason = toolspkg.ReasonToolUnknown
-	case http.StatusConflict:
-		code = toolspkg.ErrorCodeConflict
-		cause = toolspkg.ErrToolConflict
-		reason = toolspkg.ReasonConflictedID
-	case http.StatusServiceUnavailable:
-		code = toolspkg.ErrorCodeUnavailable
-		cause = toolspkg.ErrToolUnavailable
-		reason = toolspkg.ReasonDependencyMissing
-	}
-	return toolspkg.NewToolError(
-		code,
-		id,
-		err.Error(),
-		fmt.Errorf("%w: %w", cause, err),
-		reason,
-	)
 }

@@ -183,7 +183,7 @@ func (q *Queries) GetTaskID(ctx context.Context, taskID string) (string, error) 
 
 const getTaskRun = `-- name: GetTaskRun :one
 SELECT
-  id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
   network_spec_json, network_mode, network_channel, network_source, designation_group_id,
   '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
@@ -198,6 +198,7 @@ WHERE id = ?1
 type GetTaskRunRow struct {
 	ID                     string         `json:"id"`
 	TaskID                 sql.NullString `json:"task_id"`
+	WorkspaceID            sql.NullString `json:"workspace_id"`
 	RunKind                string         `json:"run_kind"`
 	LoopRunID              sql.NullString `json:"loop_run_id"`
 	Status                 string         `json:"status"`
@@ -248,6 +249,7 @@ func (q *Queries) GetTaskRun(ctx context.Context, id string) (GetTaskRunRow, err
 	err := row.Scan(
 		&i.ID,
 		&i.TaskID,
+		&i.WorkspaceID,
 		&i.RunKind,
 		&i.LoopRunID,
 		&i.Status,
@@ -421,7 +423,7 @@ func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 
 const insertTaskRun = `-- name: InsertTaskRun :exec
 INSERT INTO task_runs (
-  id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
   network_spec_json, network_mode, network_channel, network_source, designation_group_id,
   claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
@@ -430,25 +432,26 @@ INSERT INTO task_runs (
   continuation_reason, missing_work_json, next_round_guidance,
   network_wake_id, network_target_session_id, network_owner_key
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8, ?9,
-  ?10, ?11, ?12, ?13,
-  ?14, ?15, ?16,
-  ?17, ?18, ?19,
-  NULL, ?20, ?21, ?22,
-  ?23, ?24, ?25, ?26,
-  ?27, ?28,
-  ?29, ?30, ?31,
-  ?32, ?33, ?34,
-  ?35, ?36, ?37,
-  ?38, ?39, ?40,
-  ?41, ?42, ?43
+  ?1, ?2, ?3, ?4, ?5, ?6,
+  ?7, ?8, ?9, ?10,
+  ?11, ?12, ?13, ?14,
+  ?15, ?16, ?17,
+  ?18, ?19, ?20,
+  NULL, ?21, ?22, ?23,
+  ?24, ?25, ?26, ?27,
+  ?28, ?29,
+  ?30, ?31, ?32,
+  ?33, ?34, ?35,
+  ?36, ?37, ?38,
+  ?39, ?40, ?41,
+  ?42, ?43, ?44
 )
 `
 
 type InsertTaskRunParams struct {
 	ID                     string         `json:"id"`
 	TaskID                 sql.NullString `json:"task_id"`
+	WorkspaceID            sql.NullString `json:"workspace_id"`
 	RunKind                string         `json:"run_kind"`
 	LoopRunID              sql.NullString `json:"loop_run_id"`
 	Status                 string         `json:"status"`
@@ -496,6 +499,7 @@ func (q *Queries) InsertTaskRun(ctx context.Context, arg InsertTaskRunParams) er
 	_, err := q.db.ExecContext(ctx, insertTaskRun,
 		arg.ID,
 		arg.TaskID,
+		arg.WorkspaceID,
 		arg.RunKind,
 		arg.LoopRunID,
 		arg.Status,
@@ -623,7 +627,7 @@ func (q *Queries) ListRequiredTaskRunCapabilities(ctx context.Context, runIds []
 
 const listTaskRunsByStatus = `-- name: ListTaskRunsByStatus :many
 SELECT
-  id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
   network_spec_json, network_mode, network_channel, network_source, designation_group_id,
   '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
@@ -639,6 +643,7 @@ ORDER BY queued_at ASC, id ASC
 type ListTaskRunsByStatusRow struct {
 	ID                     string         `json:"id"`
 	TaskID                 sql.NullString `json:"task_id"`
+	WorkspaceID            sql.NullString `json:"workspace_id"`
 	RunKind                string         `json:"run_kind"`
 	LoopRunID              sql.NullString `json:"loop_run_id"`
 	Status                 string         `json:"status"`
@@ -705,6 +710,7 @@ func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) (
 		if err := rows.Scan(
 			&i.ID,
 			&i.TaskID,
+			&i.WorkspaceID,
 			&i.RunKind,
 			&i.LoopRunID,
 			&i.Status,
@@ -873,53 +879,55 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, 
 const updateTaskRun = `-- name: UpdateTaskRun :execrows
 UPDATE task_runs
 SET task_id = ?1,
-    run_kind = ?2,
-    loop_run_id = ?3,
-    status = ?4,
-    attempt = ?5,
-    previous_run_id = ?6,
-    failure_kind = ?7,
-    claimed_by_kind = ?8,
-    claimed_by_ref = ?9,
-    session_id = ?10,
-    origin_kind = ?11,
-    origin_ref = ?12,
-    idempotency_key = ?13,
-    network_spec_json = ?14,
-    network_mode = ?15,
-    network_channel = ?16,
-    network_source = ?17,
-    designation_group_id = ?18,
-    claim_token = CASE WHEN ?19 IS NOT NULL AND claim_token_hash = ?19 THEN claim_token ELSE NULL END,
-    claim_token_hash = ?19,
-    lease_until = ?20,
-    heartbeat_at = ?21,
-    queued_at = ?22,
-    claimed_at = ?23,
-    started_at = ?24,
-    ended_at = ?25,
-    tokens_used = ?26,
-    error = ?27,
-    metadata_json = ?28,
-    result_json = ?29,
-    review_required = ?30,
-    review_request_round = ?31,
-    review_policy_snapshot = ?32,
-    review_request_id = ?33,
-    parent_run_id = ?34,
-    review_id = ?35,
-    review_round = ?36,
-    continuation_reason = ?37,
-    missing_work_json = ?38,
-    next_round_guidance = ?39,
-    network_wake_id = ?40,
-    network_target_session_id = ?41,
-    network_owner_key = ?42
-WHERE id = ?43
+    workspace_id = ?2,
+    run_kind = ?3,
+    loop_run_id = ?4,
+    status = ?5,
+    attempt = ?6,
+    previous_run_id = ?7,
+    failure_kind = ?8,
+    claimed_by_kind = ?9,
+    claimed_by_ref = ?10,
+    session_id = ?11,
+    origin_kind = ?12,
+    origin_ref = ?13,
+    idempotency_key = ?14,
+    network_spec_json = ?15,
+    network_mode = ?16,
+    network_channel = ?17,
+    network_source = ?18,
+    designation_group_id = ?19,
+    claim_token = CASE WHEN ?20 IS NOT NULL AND claim_token_hash = ?20 THEN claim_token ELSE NULL END,
+    claim_token_hash = ?20,
+    lease_until = ?21,
+    heartbeat_at = ?22,
+    queued_at = ?23,
+    claimed_at = ?24,
+    started_at = ?25,
+    ended_at = ?26,
+    tokens_used = ?27,
+    error = ?28,
+    metadata_json = ?29,
+    result_json = ?30,
+    review_required = ?31,
+    review_request_round = ?32,
+    review_policy_snapshot = ?33,
+    review_request_id = ?34,
+    parent_run_id = ?35,
+    review_id = ?36,
+    review_round = ?37,
+    continuation_reason = ?38,
+    missing_work_json = ?39,
+    next_round_guidance = ?40,
+    network_wake_id = ?41,
+    network_target_session_id = ?42,
+    network_owner_key = ?43
+WHERE id = ?44
 `
 
 type UpdateTaskRunParams struct {
 	TaskID                 sql.NullString `json:"task_id"`
+	WorkspaceID            sql.NullString `json:"workspace_id"`
 	RunKind                string         `json:"run_kind"`
 	LoopRunID              sql.NullString `json:"loop_run_id"`
 	Status                 string         `json:"status"`
@@ -967,6 +975,7 @@ type UpdateTaskRunParams struct {
 func (q *Queries) UpdateTaskRun(ctx context.Context, arg UpdateTaskRunParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateTaskRun,
 		arg.TaskID,
+		arg.WorkspaceID,
 		arg.RunKind,
 		arg.LoopRunID,
 		arg.Status,

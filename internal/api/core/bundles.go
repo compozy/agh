@@ -207,7 +207,6 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 	jobs := make([]contract.BundleJobPayload, 0, len(item.Profile.Jobs))
 	triggers := make([]contract.BundleTriggerPayload, 0, len(item.Profile.Triggers))
 	bridges := make([]contract.BundleBridgePayload, 0, len(item.Profile.Bridges))
-	inventory := make([]contract.BundleInventoryPayload, 0, len(item.Inventory))
 	for _, agent := range item.Profile.Agents {
 		agents = append(agents, contract.BundleAgentPayload{
 			ID:           bundlepkgStableID("agt", item.Activation.ID, agent.Agent.Name),
@@ -254,13 +253,6 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 			SecretSlots:   slots,
 		})
 	}
-	for _, item := range item.Inventory {
-		inventory = append(inventory, contract.BundleInventoryPayload{
-			ResourceKind: strings.TrimSpace(item.ResourceKind),
-			ResourceID:   strings.TrimSpace(item.ResourceID),
-			ResourceName: strings.TrimSpace(item.ResourceName),
-		})
-	}
 	return contract.BundleActivationPayload{
 		ID:                            strings.TrimSpace(item.Activation.ID),
 		Version:                       item.Activation.Version,
@@ -279,11 +271,23 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 		Jobs:                          jobs,
 		Triggers:                      triggers,
 		Bridges:                       bridges,
-		Inventory:                     inventory,
+		Inventory:                     bundleInventoryPayloads(item.Inventory),
 		SpecDrift:                     item.SpecDrift,
 		CreatedAt:                     item.Activation.CreatedAt,
 		UpdatedAt:                     item.Activation.UpdatedAt,
 	}
+}
+
+func bundleInventoryPayloads(items []bundlepkg.InventoryItem) []contract.BundleInventoryPayload {
+	payload := make([]contract.BundleInventoryPayload, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, contract.BundleInventoryPayload{
+			ResourceKind: strings.TrimSpace(item.ResourceKind),
+			ResourceID:   strings.TrimSpace(item.ResourceID),
+			ResourceName: strings.TrimSpace(item.ResourceName),
+		})
+	}
+	return payload
 }
 
 func DeclaredNetworkChannelPayloads(items []bundlepkg.DeclaredChannel) []contract.DeclaredNetworkChannelPayload {
@@ -333,7 +337,8 @@ func StatusForBundleError(err error) int {
 	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, bundlepkg.ErrWebhookUnsupported),
-		errors.Is(err, resources.ErrValidation):
+		errors.Is(err, resources.ErrValidation),
+		errors.Is(err, extensionpkg.ErrBundleInvalid):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):

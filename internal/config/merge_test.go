@@ -179,9 +179,7 @@ func TestApplyConfigOverlayFileAppliesNetworkOverlay(t *testing.T) {
 		writeFile(t, overlayPath, `
 [network]
 enabled = true
-greet_interval = 15
 max_replay_age = 90
-max_queue_depth = 12
 
 [network.live.defaults]
 max_wakes = 10
@@ -199,14 +197,8 @@ max_coalesce_window = "6s"
 		if !cfg.Network.Enabled {
 			t.Fatal("ApplyConfigOverlayFile() Network.Enabled = false, want true")
 		}
-		if got, want := cfg.Network.GreetInterval, 15; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.GreetInterval = %d, want %d", got, want)
-		}
 		if got, want := cfg.Network.MaxReplayAge, 90; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() Network.MaxReplayAge = %d, want %d", got, want)
-		}
-		if got, want := cfg.Network.MaxQueueDepth, 12; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.MaxQueueDepth = %d, want %d", got, want)
 		}
 		if got, want := cfg.Network.Live.Defaults.MaxWakes, 10; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
@@ -221,6 +213,41 @@ max_coalesce_window = "6s"
 			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Limits.MaxCoalesceWindow = %s, want %s", got, want)
 		}
 	})
+}
+
+func TestApplyConfigOverlayFileRejectsRemovedNetworkFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		field string
+		value string
+	}{
+		{name: "ShouldRejectRemovedGreetInterval", field: "greet_interval", value: "15"},
+		{name: "ShouldRejectRemovedMaxQueueDepth", field: "max_queue_depth", value: "12"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			cfg := DefaultWithHome(homePaths)
+			overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+			writeFile(t, overlayPath, "[network]\n"+tc.field+" = "+tc.value+"\n")
+
+			err = ApplyConfigOverlayFile(overlayPath, &cfg)
+			if err == nil {
+				t.Fatalf("ApplyConfigOverlayFile() error = nil, want %s rejection", tc.field)
+			}
+			if !strings.Contains(err.Error(), tc.field) {
+				t.Fatalf("ApplyConfigOverlayFile() error = %q, want %q", err, tc.field)
+			}
+		})
+	}
 }
 
 func TestApplyConfigOverlayFileMergesSandboxProfiles(t *testing.T) {
@@ -389,13 +416,6 @@ func TestValidateRejectsOverflowingNetworkDurations(t *testing.T) {
 		mutate func(*Config)
 		field  string
 	}{
-		{
-			name: "ShouldRejectOverflowingGreetInterval",
-			mutate: func(cfg *Config) {
-				cfg.Network.GreetInterval = int(maxNetworkDurationSeconds + 1)
-			},
-			field: "network.greet_interval",
-		},
 		{
 			name: "ShouldRejectOverflowingReplayAge",
 			mutate: func(cfg *Config) {

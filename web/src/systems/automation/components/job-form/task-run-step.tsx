@@ -84,6 +84,7 @@ export function TaskRunStep({
         />
       </Field>
       <NetworkParticipationFields
+        allowedStrategies={["named", "run"]}
         disabled={disabled}
         onChange={onNetworkParticipationChange}
         testIdPrefix="job-task-participation"

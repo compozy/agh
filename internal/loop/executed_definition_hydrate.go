@@ -20,12 +20,12 @@ func hydrateExecutedDefinitionSnapshot(
 		EffectiveConfig:      cloneEffectiveConfig(envelope.EffectiveConfig),
 		compiled:             true,
 	}
-	if len(envelope.TemplateSources) == 0 && len(envelope.ConditionSources) == 0 {
-		return resolved, nil
-	}
 	definition := resolved.Definition
 	definition.Normalize()
 	resolved.Definition = definition
+	if len(envelope.TemplateSources) == 0 && len(envelope.ConditionSources) == 0 {
+		return resolved, nil
+	}
 	context := newLintContext(definition, &DefinitionLinter{})
 	context.indexGraphTrusted()
 	if err := compileContract(resolved, definition, context, context.namespace(false, false)); err != nil {

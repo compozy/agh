@@ -75,7 +75,7 @@ Authoring and normalization rules:
 - `version` is optional, but if authored it must not normalize to blank.
 - `requirements` targets other `capability.id` values. AGH validates the list syntactically but
   does not require every referenced ID to exist in the same local catalog, because referenced
-  capabilities may live on a remote peer.
+  capabilities may belong to another daemon-local peer.
 - `requirements` entries must be non-empty and unique after normalization. AGH canonicalizes them
   before computing the runtime digest.
 - `digest` is runtime-owned. Authors do not write it in TOML or JSON files, and strict parsing

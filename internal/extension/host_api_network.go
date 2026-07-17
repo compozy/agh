@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	apicontract "github.com/compozy/agh/internal/api/contract"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
@@ -21,6 +20,7 @@ func registerHostAPINetworkMethodHandlers(
 	handlers map[string]hostAPIMethodFunc,
 ) {
 	handlers[string(extensioncontract.HostAPIMethodNetworkStatus)] = handler.handleNetworkStatus
+	handlers[string(extensioncontract.HostAPIMethodNetworkUsage)] = handler.handleNetworkUsage
 	handlers[string(extensioncontract.HostAPIMethodNetworkChannels)] = handler.handleNetworkChannels
 	handlers[string(extensioncontract.HostAPIMethodNetworkPeers)] = handler.handleNetworkPeers
 	handlers[string(extensioncontract.HostAPIMethodNetworkThreads)] = handler.handleNetworkThreads
@@ -31,21 +31,6 @@ func registerHostAPINetworkMethodHandlers(
 	handlers[string(extensioncontract.HostAPIMethodNetworkDirectMessages)] = handler.handleNetworkDirectMessages
 	handlers[string(extensioncontract.HostAPIMethodNetworkWorkGet)] = handler.handleNetworkWorkGet
 	handlers[string(extensioncontract.HostAPIMethodNetworkSend)] = handler.handleNetworkSend
-}
-
-func (h *HostAPIHandler) handleNetworkStatus(ctx context.Context, raw json.RawMessage) (any, error) {
-	if err := decodeHostAPIParams(raw, &struct{}{}); err != nil {
-		return nil, err
-	}
-	service, err := h.requireHostAPINetworkService()
-	if err != nil {
-		return nil, err
-	}
-	status, err := service.Status(ctx)
-	if err != nil {
-		return nil, mapHostAPINetworkRPCError(err)
-	}
-	return hostAPINetworkStatusPayload(status), nil
 }
 
 func (h *HostAPIHandler) handleNetworkChannels(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -510,9 +495,8 @@ func hostAPINetworkPeerPayload(peer network.PeerInfo) apicontract.NetworkPeerPay
 			TrustModesSupported: append([]string(nil), peer.PeerCard.TrustModesSupported...),
 			Ext:                 hostAPICloneRawMap(peer.PeerCard.Ext),
 		},
-		JoinedAt:  hostAPICloneTimePtr(peer.JoinedAt),
-		LastSeen:  hostAPICloneTimePtr(peer.LastSeen),
-		ExpiresAt: hostAPICloneTimePtr(peer.ExpiresAt),
+		JoinedAt:      hostAPICloneTimePtr(peer.JoinedAt),
+		PresenceState: apicontract.NetworkPresenceLocal,
 	}
 }
 
@@ -574,8 +558,8 @@ func hostAPINetworkDirectRoomPayload(direct store.NetworkDirectRoomSummary) apic
 		WorkspaceID:        strings.TrimSpace(direct.WorkspaceID),
 		Channel:            strings.TrimSpace(direct.Channel),
 		DirectID:           strings.TrimSpace(direct.DirectID),
-		PeerA:              strings.TrimSpace(direct.SessionA),
-		PeerB:              strings.TrimSpace(direct.SessionB),
+		SessionA:           strings.TrimSpace(direct.SessionA),
+		SessionB:           strings.TrimSpace(direct.SessionB),
 		OpenedAt:           hostAPITimeValuePtr(direct.OpenedAt),
 		LastActivityAt:     hostAPITimeValuePtr(direct.LastActivityAt),
 		MessageCount:       direct.MessageCount,
@@ -651,6 +635,7 @@ func hostAPINetworkSendPayloadFromRequest(
 		DirectID:    strings.TrimSpace(req.DirectID),
 		Kind:        strings.TrimSpace(req.Kind),
 		To:          strings.TrimSpace(req.To),
+		Mentions:    hostAPICloneTrimmedStrings(req.Mentions),
 		WorkID:      strings.TrimSpace(req.WorkID),
 		ReplyTo:     strings.TrimSpace(req.ReplyTo),
 		TraceID:     strings.TrimSpace(req.TraceID),
@@ -668,58 +653,4 @@ func hostAPINetworkMessagePreview(message store.NetworkConversationMessage) stri
 		return text
 	}
 	return strings.TrimSpace(string(message.Body))
-}
-
-func hostAPITimeValuePtr(value time.Time) *time.Time {
-	if value.IsZero() {
-		return nil
-	}
-	copyValue := value.UTC()
-	return &copyValue
-}
-
-func hostAPICloneTimePtr(value *time.Time) *time.Time {
-	if value == nil || value.IsZero() {
-		return nil
-	}
-	return hostAPITimeValuePtr(*value)
-}
-
-func hostAPICloneInt64Ptr(value *int64) *int64 {
-	if value == nil {
-		return nil
-	}
-	copyValue := *value
-	return &copyValue
-}
-
-func hostAPICloneStringPtr(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	copyValue := strings.TrimSpace(*value)
-	return &copyValue
-}
-
-func hostAPIPtrString(value string) *string {
-	copyValue := strings.TrimSpace(value)
-	return &copyValue
-}
-
-func hostAPICloneRawMessage(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	return append(json.RawMessage(nil), raw...)
-}
-
-func hostAPICloneRawMap[T ~map[string]json.RawMessage](source T) map[string]json.RawMessage {
-	if len(source) == 0 {
-		return nil
-	}
-	cloned := make(map[string]json.RawMessage, len(source))
-	for key, value := range source {
-		cloned[key] = hostAPICloneRawMessage(value)
-	}
-	return cloned
 }

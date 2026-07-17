@@ -174,6 +174,7 @@ var (
 		capabilityModelsRefreshPath:            capabilityModelWritePath,
 		capabilityModelsStatusPath:             capabilityModelReadPath,
 		"network/status":                       capabilityNetworkReadPath,
+		"network/usage":                        capabilityNetworkReadPath,
 		"network/channels":                     capabilityNetworkReadPath,
 		"network/peers":                        capabilityNetworkReadPath,
 		"network/threads":                      capabilityNetworkReadPath,

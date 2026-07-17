@@ -495,6 +495,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDBundlesActivate,
 				Input: json.RawMessage(
+					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","confirm_network_requirement":true}`,
+				),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonPolicyDenied)
+		if bundleService.activateCalls != 1 {
+			t.Fatalf(
+				"Activate calls = %d, want non-operator confirmation rejected before service",
+				bundleService.activateCalls,
+			)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBundlesActivate,
+				Input: json.RawMessage(
 					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","scope":"workspace","workspace":"ws-2"}`,
 				),
 			},
@@ -593,7 +611,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDBundlesActivate,
 				Input: json.RawMessage(
-					"{\"extension_name\":\"ext-bundle\",\"bundle_name\":\"starter\",\"profile_name\":\"default\"}",
+					"{\"extension_name\":\"ext-bundle\",\"bundle_name\":\"starter\",\"profile_name\":\"default\",\"confirm_network_requirement\":true}",
 				),
 			},
 		)
@@ -602,7 +620,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if bundleService.activateCalls != 1 ||
 			bundleService.lastActivate.Scope != bundlepkg.ScopeWorkspace ||
-			bundleService.lastActivate.Workspace != "ws-operator" {
+			bundleService.lastActivate.Workspace != "ws-operator" ||
+			!bundleService.lastActivate.ConfirmNetworkRequirement {
 			t.Fatalf(
 				"Activate request = %#v after %d calls, want workspace ws-operator",
 				bundleService.lastActivate,
@@ -2269,7 +2288,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			scope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskRunList,
-				Input:  json.RawMessage(`{"task_id":"task-run","status":"queued","limit":2}`),
+				Input: json.RawMessage(
+					`{"task_id":"task-run","status":"queued",` +
+						`"participation_channel":"builders","limit":2}`,
+				),
 			},
 		)
 		if err != nil {
@@ -2277,7 +2299,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if tasks.runListCalls != 1 ||
 			tasks.lastRunListTaskID != "task-run" ||
-			tasks.lastRunQuery.Status != taskpkg.TaskRunStatusQueued {
+			tasks.lastRunQuery.Status != taskpkg.TaskRunStatusQueued ||
+			tasks.lastRunQuery.ParticipationChannel != "builders" ||
+			tasks.lastRunQuery.Limit != 2 {
 			t.Fatalf(
 				"ListTaskRuns calls/query = %d/%q/%#v, want queued run query",
 				tasks.runListCalls,
@@ -2576,7 +2600,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-profile"},
+			toolspkg.Scope{SessionID: "sess-profile", WorkspaceID: "ws-1"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskExecutionProfileSet,
 				Input:  json.RawMessage(`{"task_id":"task-profile","profile":{"created_at":"bad"}}`),
@@ -2600,7 +2624,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-profile"},
+			toolspkg.Scope{SessionID: "sess-profile", WorkspaceID: "ws-1"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskExecutionProfileSet,
 				Input: json.RawMessage(
@@ -3410,10 +3434,17 @@ func TestDaemonNativeTools(t *testing.T) {
 				Body:    json.RawMessage(`{"text":"hello"}`),
 			}},
 		}
+		usageStore := &nativeNetworkUsageStub{
+			report: store.NetworkUsageReport{
+				Total:      store.NetworkUsageSummary{WakeCount: 3, ActualWakeCount: 2},
+				NextCursor: "cursor-next",
+			},
+		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network:    networkService,
-			Sessions:   nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Network:      networkService,
+			NetworkUsage: usageStore,
+			Sessions:     nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+			Workspaces:   nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		statusResult, err := registry.Call(
@@ -3425,6 +3456,27 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(network_status) error = %v", err)
 		}
 		requireNativeStructuredContains(t, statusResult, []byte(`"local_peers":2`))
+
+		usageResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkUsage,
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","owner_kind":"task_run","owner_id":"run-1","channel":"builders","limit":25}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(network_usage) error = %v", err)
+		}
+		requireNativeStructuredContains(t, usageResult, []byte(`"next_cursor":"cursor-next"`))
+		if usageStore.query.WorkspaceID != nativeNetworkTestWorkspaceID ||
+			usageStore.query.Owner == nil || usageStore.query.Owner.Kind != participation.OwnerKindTaskRun ||
+			usageStore.query.Owner.ID != "run-1" || usageStore.query.Channel != "builders" ||
+			usageStore.query.Limit != 25 {
+			t.Fatalf("network usage query = %#v", usageStore.query)
+		}
 
 		channelsResult, err := registry.Call(
 			t.Context(),
@@ -3728,7 +3780,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkDirects,
 				Input: json.RawMessage(
-					`{"workspace_id":"ws-native-network","channel":"builders","peer_id":"reviewer.sess-xyz","limit":3}`,
+					`{"workspace_id":"ws-native-network","channel":"builders","session_id":"sess-reviewer","limit":3}`,
 				),
 			},
 		)
@@ -4000,7 +4052,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkDirects,
 				Input: json.RawMessage(
-					`{"workspace_id":"ws-native-network","channel":"builders","peer_id":"reviewer.sess-xyz"}`,
+					`{"workspace_id":"ws-native-network","channel":"builders","session_id":"sess-reviewer"}`,
 				),
 			},
 		)
@@ -7996,6 +8048,19 @@ type nativeNetworkStub struct {
 	inboxSessionID      string
 }
 
+type nativeNetworkUsageStub struct {
+	report store.NetworkUsageReport
+	query  store.NetworkUsageQuery
+}
+
+func (s *nativeNetworkUsageStub) GetNetworkUsage(
+	_ context.Context,
+	query store.NetworkUsageQuery,
+) (store.NetworkUsageReport, error) {
+	s.query = query
+	return s.report, nil
+}
+
 func (n *nativeNetworkStub) Send(_ context.Context, req network.SendRequest) (string, error) {
 	n.sendCalls++
 	n.lastSend = req
@@ -9088,6 +9153,14 @@ func (unsupportedNativeTaskManager) FailRunLease(
 	taskpkg.LeaseFailure,
 	taskpkg.ActorContext,
 ) (*taskpkg.Run, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) SettleNetworkWake(
+	context.Context,
+	taskpkg.NetworkWakeSettlement,
+	taskpkg.ActorContext,
+) (*taskpkg.NetworkWakeSettlementResult, error) {
 	return nil, errUnexpectedNativeTaskCall
 }
 

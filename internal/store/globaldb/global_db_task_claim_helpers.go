@@ -125,7 +125,7 @@ func (g *TaskRunRepo) coordinationChannelMetadata(
 	metadata := &taskpkg.CoordinationChannelMetadata{
 		ID:          channelID,
 		DisplayName: channelID,
-		WorkspaceID: networkSpec.WorkspaceID,
+		WorkspaceID: run.WorkspaceID,
 		TaskID:      run.TaskID,
 		RunID:       run.ID,
 		WorkflowID:  taskRunMetadataString(run.Metadata, "workflow_id"),
@@ -141,7 +141,7 @@ func (g *TaskRunRepo) coordinationChannelMetadata(
 	}
 
 	entry, err := getNetworkChannel(ctx, exec, store.NetworkChannelRef{
-		WorkspaceID: networkSpec.WorkspaceID,
+		WorkspaceID: run.WorkspaceID,
 		Channel:     channelID,
 	})
 	if err != nil {

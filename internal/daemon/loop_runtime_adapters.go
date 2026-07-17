@@ -22,6 +22,7 @@ const loopRuntimeSessionPrefix = "loop"
 
 type loopPromptSessionManager interface {
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Status(ctx context.Context, id string) (*session.Info, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
 	CancelPrompt(ctx context.Context, id string) error
 }

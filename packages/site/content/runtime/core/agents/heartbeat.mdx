@@ -249,8 +249,8 @@ transcripts, and use workspace-relative paths.
   [Session Lifecycle → Runtime activity supervision](/runtime/core/sessions/lifecycle).
 - `HEARTBEAT.md` is **not** session health. Health is metadata-only and lives in
   `session_health`. `HEARTBEAT.md` consumes health; it never implements it.
-- `HEARTBEAT.md` is **not** AGH Network presence. Peer presence and `greet_interval` belong to
-  the [protocol model](/runtime/core/network/protocol). Network presence cannot make a session
+- `HEARTBEAT.md` is **not** AGH Network membership. Network membership is daemon-local and belongs
+  to the [protocol model](/runtime/core/network/protocol). Membership cannot make a session
   wake-eligible.
 - `HEARTBEAT.md` is **not** a scheduler. Scheduler eligibility runs first; the wake service is
   consulted afterward and never claims work.

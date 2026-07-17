@@ -635,24 +635,22 @@ type UpdateNetworkChannelRequest struct {
 	CoordinatorPeerID *string `json:"coordinator_peer_id,omitempty"`
 }
 
-// NetworkSubscriptionRequest captures one peer delivery preference mutation.
+// NetworkSubscriptionRequest captures one session delivery preference mutation.
 type NetworkSubscriptionRequest struct {
-	ThreadID       string   `json:"thread_id,omitempty"`
-	PeerID         string   `json:"peer_id"`
-	Mode           string   `json:"mode"`
-	KeywordFilters []string `json:"keyword_filters,omitempty"`
+	ThreadID  string `json:"thread_id,omitempty"`
+	SessionID string `json:"session_id"`
+	Mode      string `json:"mode"`
 }
 
-// NetworkSubscriptionPayload exposes one peer delivery preference.
+// NetworkSubscriptionPayload exposes one session delivery preference.
 type NetworkSubscriptionPayload struct {
-	WorkspaceID    string     `json:"workspace_id,omitempty"`
-	Channel        string     `json:"channel"`
-	ThreadID       string     `json:"thread_id,omitempty"`
-	PeerID         string     `json:"peer_id"`
-	Mode           string     `json:"mode"`
-	KeywordFilters []string   `json:"keyword_filters,omitempty"`
-	CreatedAt      *time.Time `json:"created_at,omitempty"`
-	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	Channel     string     `json:"channel"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	SessionID   string     `json:"session_id"`
+	Mode        string     `json:"mode"`
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
 }
 
 // PromoteNetworkThreadTaskRequest promotes a thread message into a durable task.
@@ -734,30 +732,19 @@ type NetworkPeerCardPayload struct {
 const (
 	// NetworkPresenceLocal identifies a daemon-local peer joined to a channel.
 	NetworkPresenceLocal = "local"
-	// NetworkPresenceActive identifies a remote peer seen within one greet interval.
-	NetworkPresenceActive = "active"
-	// NetworkPresenceInactive identifies a remote peer seen within the expiry window.
-	NetworkPresenceInactive = "inactive"
-	// NetworkPresenceExpired identifies a remote peer whose cleanup is due.
-	NetworkPresenceExpired = "expired"
-	// NetworkPresenceUnknown identifies a peer without a recent activity observation.
-	NetworkPresenceUnknown = "unknown"
 )
 
 // NetworkPeerPayload is the shared JSON representation of one visible peer.
 type NetworkPeerPayload struct {
-	WorkspaceID        string                 `json:"workspace_id,omitempty"`
-	SessionID          *string                `json:"session_id,omitempty"`
-	PeerID             string                 `json:"peer_id"`
-	DisplayName        string                 `json:"display_name,omitempty"`
-	Channel            string                 `json:"channel"`
-	Local              bool                   `json:"local"`
-	PeerCard           NetworkPeerCardPayload `json:"peer_card"`
-	JoinedAt           *time.Time             `json:"joined_at,omitempty"`
-	LastSeen           *time.Time             `json:"last_seen,omitempty"`
-	ExpiresAt          *time.Time             `json:"expires_at,omitempty"`
-	PresenceState      string                 `json:"presence_state"`
-	LastSeenAgeSeconds *int64                 `json:"last_seen_age_seconds,omitempty"`
+	WorkspaceID   string                 `json:"workspace_id,omitempty"`
+	SessionID     *string                `json:"session_id,omitempty"`
+	PeerID        string                 `json:"peer_id"`
+	DisplayName   string                 `json:"display_name,omitempty"`
+	Channel       string                 `json:"channel"`
+	Local         bool                   `json:"local"`
+	PeerCard      NetworkPeerCardPayload `json:"peer_card"`
+	JoinedAt      *time.Time             `json:"joined_at,omitempty"`
+	PresenceState string                 `json:"presence_state"`
 }
 
 // NetworkChannelPayload is the shared JSON representation of one active channel.
@@ -771,7 +758,6 @@ type NetworkChannelPayload struct {
 	CreatedAt                  *time.Time `json:"created_at,omitempty"`
 	PeerCount                  int        `json:"peer_count"`
 	LocalPeerCount             int        `json:"local_peer_count,omitempty"`
-	RemotePeerCount            int        `json:"remote_peer_count,omitempty"`
 	SessionCount               int        `json:"session_count,omitempty"`
 	MessageCount               int        `json:"message_count,omitempty"`
 	PresenceCount              int        `json:"presence_count,omitempty"`
@@ -817,7 +803,6 @@ type NetworkChannelDetailPayload struct {
 	CreatedAt                  *time.Time                       `json:"created_at,omitempty"`
 	PeerCount                  int                              `json:"peer_count"`
 	LocalPeerCount             int                              `json:"local_peer_count,omitempty"`
-	RemotePeerCount            int                              `json:"remote_peer_count,omitempty"`
 	SessionCount               int                              `json:"session_count,omitempty"`
 	MessageCount               int                              `json:"message_count,omitempty"`
 	PresenceCount              int                              `json:"presence_count,omitempty"`
@@ -838,33 +823,30 @@ type NetworkChannelKindCountPayload struct {
 
 // NetworkConversationMessagePayload is the shared network conversation timeline payload.
 type NetworkConversationMessagePayload struct {
-	MessageID          string          `json:"message_id"`
-	WorkspaceID        string          `json:"workspace_id,omitempty"`
-	Channel            string          `json:"channel"`
-	Surface            string          `json:"surface,omitempty"`
-	ThreadID           string          `json:"thread_id,omitempty"`
-	DirectID           string          `json:"direct_id,omitempty"`
-	Kind               string          `json:"kind"`
-	Direction          string          `json:"direction"`
-	PeerFrom           string          `json:"peer_from"`
-	PeerTo             string          `json:"peer_to,omitempty"`
-	Mentions           []string        `json:"mentions,omitempty"`
-	DisplayName        string          `json:"display_name,omitempty"`
-	SessionID          string          `json:"session_id,omitempty"`
-	Local              bool            `json:"local,omitempty"`
-	WorkID             string          `json:"work_id,omitempty"`
-	ReplyTo            string          `json:"reply_to,omitempty"`
-	TraceID            string          `json:"trace_id,omitempty"`
-	CausationID        string          `json:"causation_id,omitempty"`
-	Intent             string          `json:"intent,omitempty"`
-	Text               string          `json:"text,omitempty"`
-	PreviewText        string          `json:"preview_text,omitempty"`
-	SizeBytes          int64           `json:"size_bytes,omitempty"`
-	PresenceCount      int             `json:"presence_count,omitempty"`
-	PresenceStartedAt  *time.Time      `json:"presence_started_at,omitempty"`
-	PresenceLastSeenAt *time.Time      `json:"presence_last_seen_at,omitempty"`
-	Body               json.RawMessage `json:"body"`
-	Timestamp          time.Time       `json:"timestamp"`
+	MessageID   string          `json:"message_id"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Channel     string          `json:"channel"`
+	Surface     string          `json:"surface,omitempty"`
+	ThreadID    string          `json:"thread_id,omitempty"`
+	DirectID    string          `json:"direct_id,omitempty"`
+	Kind        string          `json:"kind"`
+	Direction   string          `json:"direction"`
+	PeerFrom    string          `json:"peer_from"`
+	PeerTo      string          `json:"peer_to,omitempty"`
+	Mentions    []string        `json:"mentions,omitempty"`
+	DisplayName string          `json:"display_name,omitempty"`
+	SessionID   string          `json:"session_id,omitempty"`
+	Local       bool            `json:"local,omitempty"`
+	WorkID      string          `json:"work_id,omitempty"`
+	ReplyTo     string          `json:"reply_to,omitempty"`
+	TraceID     string          `json:"trace_id,omitempty"`
+	CausationID string          `json:"causation_id,omitempty"`
+	Intent      string          `json:"intent,omitempty"`
+	Text        string          `json:"text,omitempty"`
+	PreviewText string          `json:"preview_text,omitempty"`
+	SizeBytes   int64           `json:"size_bytes,omitempty"`
+	Body        json.RawMessage `json:"body"`
+	Timestamp   time.Time       `json:"timestamp"`
 }
 
 // NetworkThreadSummaryPayload is the public-thread list/detail projection.
@@ -892,9 +874,9 @@ type NetworkCoordinationCostPayload struct {
 	EstimatedPromptTokens int64 `json:"estimated_prompt_tokens,omitempty"`
 }
 
-// NetworkThreadPeerCostPayload reports prompt delivery cost for one peer in a public thread.
-type NetworkThreadPeerCostPayload struct {
-	PeerID                string     `json:"peer_id"`
+// NetworkThreadSessionCostPayload reports prompt delivery cost for one session in a public thread.
+type NetworkThreadSessionCostPayload struct {
+	SessionID             string     `json:"session_id"`
 	DeliveredCount        int64      `json:"delivered_count,omitempty"`
 	PromptSizeBytes       int64      `json:"prompt_size_bytes,omitempty"`
 	EstimatedPromptTokens int64      `json:"estimated_prompt_tokens,omitempty"`
@@ -907,8 +889,8 @@ type NetworkDirectRoomPayload struct {
 	WorkspaceID        string     `json:"workspace_id,omitempty"`
 	Channel            string     `json:"channel"`
 	DirectID           string     `json:"direct_id"`
-	PeerA              string     `json:"peer_a"`
-	PeerB              string     `json:"peer_b"`
+	SessionA           string     `json:"session_a"`
+	SessionB           string     `json:"session_b"`
 	OpenedAt           *time.Time `json:"opened_at,omitempty"`
 	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
 	MessageCount       int        `json:"message_count"`
@@ -924,9 +906,8 @@ type NetworkWorkPayload struct {
 	Surface         string     `json:"surface"`
 	ThreadID        string     `json:"thread_id,omitempty"`
 	DirectID        string     `json:"direct_id,omitempty"`
-	OpenedByPeerID  string     `json:"opened_by_peer_id,omitempty"`
 	OpenedSessionID string     `json:"opened_session_id,omitempty"`
-	TargetPeerID    string     `json:"target_peer_id,omitempty"`
+	TargetSessionID string     `json:"target_session_id,omitempty"`
 	State           string     `json:"state"`
 	OpenedAt        *time.Time `json:"opened_at,omitempty"`
 	LastActivityAt  *time.Time `json:"last_activity_at,omitempty"`
@@ -954,19 +935,16 @@ type NetworkPeerMetricsPayload struct {
 
 // NetworkPeerDetailPayload is the shared selected-peer detail payload.
 type NetworkPeerDetailPayload struct {
-	SessionID          *string                          `json:"session_id,omitempty"`
-	PeerID             string                           `json:"peer_id"`
-	DisplayName        string                           `json:"display_name,omitempty"`
-	Channel            string                           `json:"channel,omitempty"`
-	Local              bool                             `json:"local,omitempty"`
-	PeerCard           NetworkPeerCardPayload           `json:"peer_card"`
-	CapabilityCatalog  *NetworkCapabilityCatalogPayload `json:"capability_catalog,omitempty"`
-	JoinedAt           *time.Time                       `json:"joined_at,omitempty"`
-	LastSeen           *time.Time                       `json:"last_seen,omitempty"`
-	ExpiresAt          *time.Time                       `json:"expires_at,omitempty"`
-	PresenceState      string                           `json:"presence_state"`
-	LastSeenAgeSeconds *int64                           `json:"last_seen_age_seconds,omitempty"`
-	Metrics            NetworkPeerMetricsPayload        `json:"metrics"`
+	SessionID         *string                          `json:"session_id,omitempty"`
+	PeerID            string                           `json:"peer_id"`
+	DisplayName       string                           `json:"display_name,omitempty"`
+	Channel           string                           `json:"channel,omitempty"`
+	Local             bool                             `json:"local,omitempty"`
+	PeerCard          NetworkPeerCardPayload           `json:"peer_card"`
+	CapabilityCatalog *NetworkCapabilityCatalogPayload `json:"capability_catalog,omitempty"`
+	JoinedAt          *time.Time                       `json:"joined_at,omitempty"`
+	PresenceState     string                           `json:"presence_state"`
+	Metrics           NetworkPeerMetricsPayload        `json:"metrics"`
 }
 
 // ErrorPayload is the shared error response payload.

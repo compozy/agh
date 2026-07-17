@@ -24,6 +24,7 @@ var networkTools = []toolspkg.Descriptor{
 		[]string{networkNetworkKey, descriptorKeywordStatus},
 		[]string{"network status", "network diagnostics"},
 	),
+	networkUsageDescriptor(),
 	nativeDescriptor(
 		toolspkg.ToolIDNetworkChannels,
 		"network_channels",
@@ -138,13 +139,13 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
 		[]string{networkNetworkKey, networkSubscriptionsKey, "subscribe"},
-		[]string{"subscribe network peer", "full delivery"},
+		[]string{"subscribe network session", "full delivery"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDNetworkMute,
 		"network_mute",
 		"Network Mute",
-		"Mute one AGH network channel or thread for a peer.",
+		"Mute one AGH network channel or thread for a session.",
 		networkSubscriptionInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -152,21 +153,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
 		[]string{networkNetworkKey, networkSubscriptionsKey, "mute"},
-		[]string{"mute network peer", "mute channel"},
-	),
-	nativeDescriptor(
-		toolspkg.ToolIDNetworkDigestMode,
-		"network_digest_mode",
-		"Network Digest Mode",
-		"Set one AGH network channel or thread to compact digest delivery for a peer.",
-		networkSubscriptionInputSchema,
-		toolspkg.RiskMutating,
-		false,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{networkNetworkKey, networkSubscriptionsKey, "digest"},
-		[]string{"digest network peer", "compact delivery"},
+		[]string{"mute network session", "mute channel"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDNetworkUnmute,
@@ -180,7 +167,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
 		[]string{networkNetworkKey, networkSubscriptionsKey, "unmute"},
-		[]string{"unmute network peer", "delete delivery preference"},
+		[]string{"unmute network session", "delete delivery preference"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDNetworkThreads,
@@ -340,7 +327,7 @@ const networkSubscriptionsInputSchema = `{
 		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"thread_id":{"type":"string"},
-		"peer_id":{"type":"string"},
+		"session_id":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false
@@ -348,25 +335,24 @@ const networkSubscriptionsInputSchema = `{
 
 const networkSubscriptionInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel","peer_id"],
+	"required":["workspace_id","channel","session_id"],
 	"properties":{
 		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"thread_id":{"type":"string"},
-		"peer_id":{"type":"string"},
-		"keyword_filters":{"type":"array","items":{"type":"string"}}
+		"session_id":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
 
 const networkSubscriptionDeleteInputSchema = `{
 	"type":"object",
-	"required":["workspace_id","channel","peer_id"],
+	"required":["workspace_id","channel","session_id"],
 	"properties":{
 		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"thread_id":{"type":"string"},
-		"peer_id":{"type":"string"}
+		"session_id":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
@@ -378,7 +364,7 @@ const networkThreadsInputSchema = `{
 		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"query":{"type":"string"},
-		"peer_id":{"type":"string"},
+		"session_id":{"type":"string"},
 		"sort":{"type":"string","enum":["recent_activity","created","alphabetical"]},
 		"has_work":{"type":"boolean"},
 		"limit":{"type":"integer","minimum":1,"maximum":200},
@@ -410,7 +396,7 @@ const networkDirectsInputSchema = `{
 		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
 		"query":{"type":"string"},
-		"peer_id":{"type":"string"},
+		"session_id":{"type":"string"},
 		"sort":{"type":"string","enum":["recent_activity","created","alphabetical"]},
 		"has_work":{"type":"boolean"},
 		"limit":{"type":"integer","minimum":1,"maximum":200},

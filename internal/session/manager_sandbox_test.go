@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -29,6 +30,13 @@ func TestSessionSandboxStartPrepareSyncAndLaunchSequence(t *testing.T) {
 	t.Parallel()
 
 	runtimeRoot := filepath.Join(t.TempDir(), "runtime-root")
+	if err := os.MkdirAll(runtimeRoot, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(runtime root) error = %v", err)
+	}
+	canonicalRuntimeRoot, err := filepath.EvalSymlinks(runtimeRoot)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(runtime root) error = %v", err)
+	}
 	runtimeAdditional := []string{filepath.Join(t.TempDir(), "runtime-extra")}
 	providerState := json.RawMessage(`{"prepared":true}`)
 	var (
@@ -79,7 +87,7 @@ func TestSessionSandboxStartPrepareSyncAndLaunchSequence(t *testing.T) {
 	h = newHarness(t, WithSandboxRegistry(registry), WithSandboxIDGenerator(sequentialIDGenerator("env")))
 	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
 		appendOrder("launch")
-		if got, want := opts.Cwd, runtimeRoot; got != want {
+		if got, want := opts.Cwd, canonicalRuntimeRoot; got != want {
 			t.Fatalf("StartOpts.Cwd = %q, want runtime root %q", got, want)
 		}
 		if !reflect.DeepEqual(opts.AdditionalDirs, runtimeAdditional) {
@@ -206,7 +214,11 @@ func TestSessionSandboxCreateAppliesRuntimeSandboxOverride(t *testing.T) {
 		if meta := readMeta(t, session.MetaPath()); meta.Sandbox != nil {
 			t.Fatalf("meta.Sandbox = %#v, want nil", meta.Sandbox)
 		}
-		if got, want := h.driver.startCalls[0].Cwd, h.workspace; got != want {
+		canonicalWorkspace, err := canonicalDirectory(h.workspace)
+		if err != nil {
+			t.Fatalf("canonicalDirectory(workspace) error = %v", err)
+		}
+		if got, want := h.driver.startCalls[0].Cwd, canonicalWorkspace; got != want {
 			t.Fatalf("StartOpts.Cwd = %q, want workspace root %q", got, want)
 		}
 	})
@@ -226,6 +238,33 @@ func TestSessionSandboxCreateAppliesRuntimeSandboxOverride(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "mutually exclusive") {
 			t.Fatalf("Create() error = %v, want mutually exclusive", err)
+		}
+	})
+}
+
+func TestSessionSandboxRejectsSymlinkCWDOutsideWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a workspace child symlink that resolves outside the workspace", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		outside := t.TempDir()
+		linkedProject := filepath.Join(h.workspace, "linked-project")
+		if err := os.Symlink(outside, linkedProject); err != nil {
+			t.Skipf("os.Symlink() unavailable: %v", err)
+		}
+
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			CWD:       linkedProject,
+		})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("Create(symlink escape) error = %v, want ErrValidation", err)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver Start() calls = %d, want 0", got)
 		}
 	})
 }
@@ -967,6 +1006,9 @@ func (p *recordingSandboxProvider) Prepare(
 	runtimeRoot := p.runtimeRoot
 	if runtimeRoot == "" {
 		runtimeRoot = req.LocalRootDir
+	}
+	if err := os.MkdirAll(runtimeRoot, 0o755); err != nil {
+		return sandbox.Prepared{}, fmt.Errorf("create fake runtime root: %w", err)
 	}
 	runtimeAdditional := append([]string(nil), p.runtimeAdditional...)
 	if runtimeAdditional == nil {

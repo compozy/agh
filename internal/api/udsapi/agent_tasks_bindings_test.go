@@ -114,9 +114,18 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 			t.Fatalf("claim response = %#v, want participation coordination metadata", response.Claim)
 		}
 		if seenCriteria.ClaimerSessionID != "sess-agent" ||
-			seenCriteria.ParticipationChannel != participationChannel ||
+			seenCriteria.ParticipationChannel != "" ||
 			seenCriteria.LeaseDuration != 90*time.Second {
 			t.Fatalf("criteria = %#v, want immutable participation caller fencing", seenCriteria)
+		}
+		wantParticipation := udsTestLiveParticipation("ws-1", participationChannel)
+		if seenCriteria.CallerNetworkParticipation == nil ||
+			*seenCriteria.CallerNetworkParticipation != wantParticipation {
+			t.Fatalf(
+				"criteria.CallerNetworkParticipation = %#v, want %#v",
+				seenCriteria.CallerNetworkParticipation,
+				wantParticipation,
+			)
 		}
 	})
 

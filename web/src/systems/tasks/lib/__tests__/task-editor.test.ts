@@ -10,8 +10,37 @@ import {
   buildCreateTaskRequest,
   buildUpdateTaskRequest,
   EMPTY_TASK_EDITOR_DRAFT,
+  taskEditorDraftFromTask,
 } from "../task-editor";
 import type { TaskOwnerKind } from "../../types";
+import { buildTaskExecutionProfileFixture, taskDetailFixture } from "../../mocks/fixtures";
+import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+
+describe("taskEditorDraftFromTask", () => {
+  it("Should hydrate future-run intent only from the authoritative execution profile", () => {
+    const task = {
+      ...taskDetailFixture.task,
+      resolved_network_participation: buildLiveNetworkParticipationFixture({
+        channelId: "resolved-run-room",
+        workspaceId: taskDetailFixture.task.workspace_id ?? "ws_test",
+      }),
+    };
+    const profile = buildTaskExecutionProfileFixture({
+      task_id: task.id,
+      network_participation: {
+        mode: "live",
+        channel_id: "authored-future-room",
+        channel_strategy: "named",
+      },
+    });
+
+    const draft = taskEditorDraftFromTask(task, profile);
+
+    expect(draft.networkParticipationMode).toBe("live");
+    expect(draft.networkChannelId).toBe("authored-future-room");
+    expect(draft.networkChannelStrategy).toBe("named");
+  });
+});
 
 describe("buildCreateTaskRequest", () => {
   it("builds the root-task payload without a parent task id", () => {

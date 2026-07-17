@@ -384,29 +384,6 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "max_replay_age",
 		},
 		{
-			name: "Should reject greet task write capabilities without proof",
-			mutate: func(env Envelope) Envelope {
-				env.Kind = KindGreet
-				env.Surface = nil
-				env.ThreadID = nil
-				env.DirectID = nil
-				env.To = nil
-				env.WorkID = nil
-				env.Body = mustRawJSON(t, map[string]any{
-					"peer_card": map[string]any{
-						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v0"},
-						"capabilities":          []string{networkTaskWriteCapability},
-						"artifacts_supported":   []string{"capability"},
-						"trust_modes_supported": []string{"unverified"},
-					},
-				})
-				return env
-			},
-			wantErr:   ErrVerificationFailed,
-			wantMatch: "requires proof",
-		},
-		{
 			name: "Should reject raw secrets in the body payload",
 			mutate: func(env Envelope) Envelope {
 				env.Body = mustRawJSON(t, map[string]any{

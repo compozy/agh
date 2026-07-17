@@ -6,6 +6,7 @@ import type { WorkspaceOption } from "../../lib/trigger-preview";
 import type { AutomationScope } from "../../types";
 
 interface ScopeStepProps {
+  disabled?: boolean;
   scope: AutomationScope;
   workspaceId: string | undefined;
   workspaces: ReadonlyArray<WorkspaceOption>;
@@ -16,6 +17,7 @@ interface ScopeStepProps {
 
 /** "For" step: global vs workspace scope, with the webhook-is-always-global rule. */
 export function ScopeStep({
+  disabled = false,
   scope,
   workspaceId,
   workspaces,
@@ -27,6 +29,7 @@ export function ScopeStep({
     <div>
       <ScopeSelector
         ariaLabel="Trigger scope"
+        disabled={disabled}
         onScopeChange={onScopeChange}
         onWorkspaceChange={onWorkspaceChange}
         scope={scope}

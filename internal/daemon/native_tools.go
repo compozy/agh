@@ -273,6 +273,7 @@ type nativeToolAvailabilitySet struct {
 	skills              toolspkg.NativeAvailabilityFunc
 	network             toolspkg.NativeAvailabilityFunc
 	networkRead         toolspkg.NativeAvailabilityFunc
+	networkUsage        toolspkg.NativeAvailabilityFunc
 	sessions            toolspkg.NativeAvailabilityFunc
 	sessionCatalog      toolspkg.NativeAvailabilityFunc
 	sessionHealth       toolspkg.NativeAvailabilityFunc
@@ -307,7 +308,10 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	bindings := make(map[toolspkg.ToolID]nativeToolBinding, 32)
 	addNativeToolBindings(bindings, n.registryToolBindings(availability.registry))
 	addNativeToolBindings(bindings, n.skillToolBindings(availability.skills))
-	addNativeToolBindings(bindings, n.networkToolBindings(availability.network, availability.networkRead))
+	addNativeToolBindings(
+		bindings,
+		n.networkToolBindings(availability.network, availability.networkRead, availability.networkUsage),
+	)
 	addNativeToolBindings(bindings, n.sessionToolBindings(availability.sessions, availability.sessionCatalog))
 	addNativeToolBindings(
 		bindings,
@@ -358,6 +362,9 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		network:  n.networkParticipationAvailability(func() bool { return n.deps.Network != nil }),
 		networkRead: n.networkParticipationAvailability(func() bool {
 			return n.deps.Network != nil && n.deps.NetworkStore != nil
+		}),
+		networkUsage: n.networkParticipationAvailability(func() bool {
+			return n.deps.Network != nil && n.deps.NetworkUsage != nil
 		}),
 		sessions: n.dependencyAvailability(func() bool { return n.deps.Sessions != nil }),
 		sessionCatalog: n.dependencyAvailability(func() bool {
@@ -482,86 +489,6 @@ func (n *daemonNativeTools) skillToolBindings(
 		toolspkg.ToolIDSkillView: {
 			call:         n.skillView,
 			availability: availability,
-		},
-	}
-}
-
-func (n *daemonNativeTools) networkToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
-	readAvailability toolspkg.NativeAvailabilityFunc,
-) map[toolspkg.ToolID]nativeToolBinding {
-	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDNetworkStatus: {
-			call:         n.networkStatus,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkChannels: {
-			call:         n.networkChannels,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkInbox: {
-			call:         n.networkInbox,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkPeers: {
-			call:         n.networkPeers,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkSend: {
-			call:         n.networkSend,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkChannelCreate: {
-			call:         n.networkChannelCreate,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkChannelUpdate: {
-			call:         n.networkChannelUpdate,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkSubscriptions: {
-			call:         n.networkSubscriptions,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkSubscribe: {
-			call:         n.networkSubscribe,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkMute: {
-			call:         n.networkMute,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkDigestMode: {
-			call:         n.networkDigestMode,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkUnmute: {
-			call:         n.networkUnmute,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkThreads: {
-			call:         n.networkThreads,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkThreadMessages: {
-			call:         n.networkThreadMessages,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkDirects: {
-			call:         n.networkDirects,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkDirectResolve: {
-			call:         n.networkDirectResolve,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkDirectMessages: {
-			call:         n.networkDirectMessages,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkWork: {
-			call:         n.networkWork,
-			availability: readAvailability,
 		},
 	}
 }
@@ -2340,7 +2267,6 @@ func (n *daemonNativeTools) taskRunList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	runs = input.filterRuns(runs)
 	return structuredResult(map[string]any{nativeToolsRunsKey: runs}, fmt.Sprintf("%d runs", len(runs)))
 }
 
@@ -3176,23 +3102,22 @@ type networkSubscriptionsInput struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
 	ThreadID    string `json:"thread_id,omitempty"`
-	PeerID      string `json:"peer_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 }
 
 type networkSubscriptionInput struct {
-	WorkspaceID    string   `json:"workspace_id"`
-	Channel        string   `json:"channel"`
-	ThreadID       string   `json:"thread_id,omitempty"`
-	PeerID         string   `json:"peer_id"`
-	KeywordFilters []string `json:"keyword_filters,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id,omitempty"`
+	SessionID   string `json:"session_id"`
 }
 
 type networkSubscriptionDeleteInput struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
 	ThreadID    string `json:"thread_id,omitempty"`
-	PeerID      string `json:"peer_id"`
+	SessionID   string `json:"session_id"`
 }
 
 type sessionIDInput struct {
@@ -3776,7 +3701,7 @@ func autonomyActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.Act
 			toolspkg.ReasonAutonomySessionRequired,
 		)
 	}
-	actor, err := taskpkg.DeriveAgentSessionActorContext(sessionID)
+	actor, err := taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
 	if err != nil {
 		return taskpkg.ActorContext{}, "", nativeAutonomyToolError(id, err)
 	}
@@ -4942,7 +4867,7 @@ func sessionHistoryPayload(history []store.TurnHistory, info *session.Info) []an
 
 func actorContextFromScope(scope toolspkg.Scope) (taskpkg.ActorContext, error) {
 	if sessionID := strings.TrimSpace(scope.SessionID); sessionID != "" {
-		return taskpkg.DeriveAgentSessionActorContext(sessionID)
+		return taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
 	}
 	return taskpkg.DeriveDaemonActorContext("native-tools", "tool.registry")
 }

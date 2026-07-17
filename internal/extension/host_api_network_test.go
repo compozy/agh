@@ -39,6 +39,12 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingCapabilities(t *testing.
 			security: []string{"network.write"},
 		},
 		{
+			name:     "ShouldRejectUsageWithoutNetworkRead",
+			method:   string(extensioncontract.HostAPIMethodNetworkUsage),
+			params:   json.RawMessage(`{"workspace_id":"ws-host-network"}`),
+			security: []string{"network.write"},
+		},
+		{
 			name:   "ShouldRejectSendWithoutNetworkWrite",
 			method: string(extensioncontract.HostAPIMethodNetworkSend),
 			params: json.RawMessage(`{
@@ -331,6 +337,7 @@ func TestHostAPIHandlerNetworkSendShouldForwardOptionalMetadata(t *testing.T) {
 			"direct_id":"direct_0123456789abcdef0123456789abcdef",
 			"kind":"receipt",
 			"to":"peer.remote",
+			"mentions":[" reviewer.sess-peer ","","observer.sess-peer"],
 			"work_id":"work-alpha",
 			"reply_to":"msg-parent",
 			"trace_id":"trace-alpha",
@@ -349,6 +356,9 @@ func TestHostAPIHandlerNetworkSendShouldForwardOptionalMetadata(t *testing.T) {
 	if payload.ID != "msg-direct-receipt" || payload.ExpiresAt == nil || *payload.ExpiresAt != expiresAt {
 		t.Fatalf("network/send optional payload = %#v, want assigned id and expires_at", payload)
 	}
+	if got, want := strings.Join(payload.Mentions, ","), "reviewer.sess-peer,observer.sess-peer"; got != want {
+		t.Fatalf("network/send payload mentions = %q, want %q", got, want)
+	}
 	sent := service.sentRequests()
 	if len(sent) != 1 {
 		t.Fatalf("network.Send calls = %d, want 1", len(sent))
@@ -361,6 +371,13 @@ func TestHostAPIHandlerNetworkSendShouldForwardOptionalMetadata(t *testing.T) {
 		req.ID == nil || *req.ID != "msg-client" ||
 		len(req.Ext) != 1 {
 		t.Fatalf("network.Send request = %#v, want optional metadata forwarded", req)
+	}
+	if got, want := strings.Join(req.Mentions, ","), "reviewer.sess-peer,observer.sess-peer"; got != want {
+		t.Fatalf("network.Send request mentions = %q, want %q", got, want)
+	}
+	req.Mentions[0] = "mutated-after-dispatch"
+	if payload.Mentions[0] != "reviewer.sess-peer" {
+		t.Fatalf("network/send payload mentions alias runtime request: %#v", payload.Mentions)
 	}
 }
 
@@ -378,7 +395,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		ThreadID:    "thread_alpha01",
 		Direction:   "sent",
 		PeerFrom:    "agent.local",
-		PeerTo:      "peer.remote",
+		PeerTo:      "sess-remote",
 		Kind:        store.NetworkKindSay,
 		WorkID:      "work-alpha",
 		Text:        "hello thread",
@@ -448,6 +465,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 				SessionID: hostAPINetworkStringPtr("sess-remote"),
 				PeerID:    "peer.remote",
 				Channel:   "builders",
+				Local:     true,
 				PeerCard: network.PeerCard{
 					PeerID:              "peer.remote",
 					DisplayName:         &displayName,
@@ -456,7 +474,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 					ArtifactsSupported:  []string{"patch"},
 					TrustModesSupported: []string{"signed"},
 				},
-				LastSeen: &baseTime,
+				JoinedAt: &baseTime,
 			},
 		},
 	}
@@ -466,6 +484,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		storeDB,
 		[]string{
 			string(extensioncontract.HostAPIMethodNetworkStatus),
+			string(extensioncontract.HostAPIMethodNetworkUsage),
 			string(extensioncontract.HostAPIMethodNetworkChannels),
 			string(extensioncontract.HostAPIMethodNetworkPeers),
 			string(extensioncontract.HostAPIMethodNetworkThreads),
@@ -486,6 +505,21 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	decodeResult(t, statusResult, &status)
 	if status.Status != network.StatusActive || len(status.KindMetrics) != 1 {
 		t.Fatalf("network/status = %#v, want active status with kind metrics", status)
+	}
+
+	usageResult, err := handler.Handle(
+		ctx,
+		"ext-network",
+		string(extensioncontract.HostAPIMethodNetworkUsage),
+		json.RawMessage(`{"workspace_id":"ws-host-network","owner_kind":"task_run","owner_id":"run-1","limit":25}`),
+	)
+	if err != nil {
+		t.Fatalf("Handle(network/usage) error = %v, want nil", err)
+	}
+	var usage apicontract.NetworkUsageResponse
+	decodeResult(t, usageResult, &usage)
+	if usage.WorkspaceID != hostAPINetworkWorkspaceID || usage.Total.WakeCount != 0 {
+		t.Fatalf("network/usage = %#v, want empty workspace-scoped usage", usage)
 	}
 
 	channelsResult, err := handler.Handle(
@@ -514,8 +548,8 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	}
 	var peers []apicontract.NetworkPeerPayload
 	decodeResult(t, peersResult, &peers)
-	if len(peers) != 2 || !peers[0].Local || peers[1].DisplayName != "Remote Agent" {
-		t.Fatalf("network/peers = %#v, want local first and remote display name", peers)
+	if len(peers) != 2 || !peers[0].Local || !peers[1].Local || peers[1].DisplayName != "Remote Agent" {
+		t.Fatalf("network/peers = %#v, want two local peers with display names", peers)
 	}
 
 	threadsResult, err := handler.Handle(
@@ -610,6 +644,7 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectInvalidReadParams(t *testing.T)
 		storeDB,
 		[]string{
 			string(extensioncontract.HostAPIMethodNetworkPeers),
+			string(extensioncontract.HostAPIMethodNetworkUsage),
 			string(extensioncontract.HostAPIMethodNetworkThreads),
 			string(extensioncontract.HostAPIMethodNetworkThreadGet),
 			string(extensioncontract.HostAPIMethodNetworkThreadMessages),
@@ -625,6 +660,16 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectInvalidReadParams(t *testing.T)
 		method string
 		params json.RawMessage
 	}{
+		{
+			name:   "ShouldRejectUsageLimit",
+			method: string(extensioncontract.HostAPIMethodNetworkUsage),
+			params: json.RawMessage(`{"workspace_id":"ws-host-network","limit":0}`),
+		},
+		{
+			name:   "ShouldRejectUsageTrailingJSON",
+			method: string(extensioncontract.HostAPIMethodNetworkUsage),
+			params: json.RawMessage(`{"workspace_id":"ws-host-network"}{"limit":25}`),
+		},
 		{
 			name:   "ShouldRejectPeerChannelTraversal",
 			method: string(extensioncontract.HostAPIMethodNetworkPeers),
@@ -719,6 +764,25 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingDependencies(t *testing.
 			"ext-network",
 			string(extensioncontract.HostAPIMethodNetworkThreads),
 			json.RawMessage(`{"workspace_id":"ws-host-network","channel":"builders"}`),
+		)
+		assertRPCErrorCode(t, err, HostAPIUnavailableCode)
+	})
+
+	t.Run("ShouldRejectUsageWithoutUsageStore", func(t *testing.T) {
+		t.Parallel()
+
+		handler, _ := newAuthorizedHostAPINetworkHandler(
+			t,
+			&hostAPINetworkServiceStub{},
+			nil,
+			[]string{string(extensioncontract.HostAPIMethodNetworkUsage)},
+			[]string{"network.read"},
+		)
+		_, err := handler.Handle(
+			testutil.Context(t),
+			"ext-network",
+			string(extensioncontract.HostAPIMethodNetworkUsage),
+			json.RawMessage(`{"workspace_id":"ws-host-network"}`),
 		)
 		assertRPCErrorCode(t, err, HostAPIUnavailableCode)
 	})
@@ -1039,6 +1103,9 @@ func newHostAPINetworkTestHandler(
 	}
 	if networkStore != nil {
 		options = append(options, WithHostAPINetworkStore(networkStore))
+		if usageStore, ok := networkStore.(store.NetworkUsageStore); ok {
+			options = append(options, WithHostAPINetworkUsageStore(usageStore))
+		}
 	}
 	sessions := promptSessionManagerStub{
 		statusFn: func(ctx context.Context, id string) (*session.Info, error) {

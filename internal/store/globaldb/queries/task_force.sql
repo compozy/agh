@@ -6,6 +6,7 @@ WHERE id = sqlc.arg(id) AND status = sqlc.arg(queued_status);
 -- name: ForceUpdateTaskRunSnapshot :execrows
 UPDATE task_runs
 SET task_id = sqlc.narg(task_id),
+    workspace_id = sqlc.narg(workspace_id),
     status = sqlc.arg(status),
     attempt = sqlc.arg(attempt),
     previous_run_id = sqlc.narg(previous_run_id),

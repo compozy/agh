@@ -5,6 +5,7 @@ package loop_test
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,35 @@ import (
 	"github.com/compozy/agh/internal/testutil"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
+
+type observingParticipationResolver struct {
+	inner        participation.Resolver
+	mu           sync.Mutex
+	observations []participation.ResolvedObservation
+}
+
+func (r *observingParticipationResolver) Resolve(
+	ctx context.Context,
+	in participation.ResolveInput,
+) (participation.Spec, error) {
+	return r.inner.Resolve(ctx, in)
+}
+
+func (r *observingParticipationResolver) ObserveParticipationResolved(
+	_ context.Context,
+	observation participation.ResolvedObservation,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.observations = append(r.observations, observation)
+	return nil
+}
+
+func (r *observingParticipationResolver) snapshot() []participation.ResolvedObservation {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]participation.ResolvedObservation(nil), r.observations...)
+}
 
 func TestServiceIntegrationShouldPersistConfigureAndReflectEffectiveConfig(t *testing.T) {
 	t.Parallel()
@@ -143,14 +173,21 @@ func TestServiceIntegrationParticipationShouldPersistOneSnapshotPerLoopRun(t *te
 			Mode:            &live,
 			ChannelStrategy: &loopRunStrategy,
 		}
+		resolver := &observingParticipationResolver{inner: loopTestParticipationResolver(t, true)}
 		svc := newIntegrationService(
 			t,
 			globalDB,
 			definition,
-			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
+			loop.WithParticipationResolver(resolver),
 		)
 		ctx := testutil.Context(t)
 		inputs := loop.Inputs{Values: map[string]any{"tasks": "task-ref"}}
+		if _, err := svc.DryRun(ctx, "ws-1", "valid-loop", inputs); err != nil {
+			t.Fatalf("DryRun() error = %v", err)
+		}
+		if got := len(resolver.snapshot()); got != 0 {
+			t.Fatalf("resolved observations after DryRun = %d, want 0", got)
+		}
 		first, err := svc.Start(ctx, "ws-1", "valid-loop", inputs, humanActor(t))
 		if err != nil {
 			t.Fatalf("Start(first) error = %v", err)
@@ -175,6 +212,14 @@ func TestServiceIntegrationParticipationShouldPersistOneSnapshotPerLoopRun(t *te
 		}
 		if storedFirst.NetworkSpecSnapshot() != firstSpec || storedSecond.NetworkSpecSnapshot() != secondSpec {
 			t.Fatalf("stored specs = %#v / %#v, want immutable start snapshots", storedFirst, storedSecond)
+		}
+		observations := resolver.snapshot()
+		if got, want := len(observations), 2; got != want {
+			t.Fatalf("resolved observations after committed starts = %d, want %d", got, want)
+		}
+		if observations[0].Owner.ID != string(first.ID) || observations[0].Spec != firstSpec ||
+			observations[1].Owner.ID != string(second.ID) || observations[1].Spec != secondSpec {
+			t.Fatalf("resolved observations = %#v, want committed loop-run snapshots", observations)
 		}
 	})
 }

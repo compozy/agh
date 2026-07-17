@@ -185,6 +185,7 @@ export function AutomationJobForm({
               title="A workspace, or the whole runtime"
             >
               <ScopeStep
+                disabled={mode === "edit"}
                 onScopeChange={form.onScopeChange}
                 onWorkspaceChange={form.onWorkspaceChange}
                 scope={draft.scope}

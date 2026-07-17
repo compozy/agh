@@ -40,7 +40,7 @@ func (h *BaseHandlers) NetworkThread(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	peerCosts, err := h.networkThreadPeerCosts(c.Request.Context(), scope.NetworkWorkspaceID(), channel, threadID)
+	sessionCosts, err := h.networkThreadSessionCosts(c.Request.Context(), scope.NetworkWorkspaceID(), channel, threadID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -51,9 +51,9 @@ func (h *BaseHandlers) NetworkThread(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.NetworkThreadResponse{
-		Thread:    NetworkThreadSummaryPayloadFromStore(thread),
-		PeerCosts: NetworkThreadPeerCostPayloadsFromStore(peerCosts),
-		TaskLinks: NetworkTaskThreadOriginPayloadsFromStore(taskLinks),
+		Thread:       NetworkThreadSummaryPayloadFromStore(thread),
+		SessionCosts: NetworkThreadSessionCostPayloadsFromStore(sessionCosts),
+		TaskLinks:    NetworkTaskThreadOriginPayloadsFromStore(taskLinks),
 	})
 }
 
@@ -263,7 +263,7 @@ func (h *BaseHandlers) NetworkSubscriptions(c *gin.Context) {
 		WorkspaceID: scope.NetworkWorkspaceID(),
 		Channel:     channel,
 		ThreadID:    strings.TrimSpace(c.Query("thread_id")),
-		SessionID:   strings.TrimSpace(c.Query("peer_id")),
+		SessionID:   strings.TrimSpace(c.Query("session_id")),
 		Limit:       limit,
 	}
 	if err := query.Validate(); err != nil {
@@ -305,14 +305,13 @@ func (h *BaseHandlers) UpsertNetworkSubscription(c *gin.Context) {
 	}
 	now := h.nowUTC()
 	entry := store.NetworkSubscriptionEntry{
-		WorkspaceID:    scope.NetworkWorkspaceID(),
-		Channel:        channel,
-		ThreadID:       strings.TrimSpace(req.ThreadID),
-		SessionID:      strings.TrimSpace(req.PeerID),
-		Mode:           strings.TrimSpace(req.Mode),
-		KeywordFilters: cloneTrimmedStrings(req.KeywordFilters),
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		WorkspaceID: scope.NetworkWorkspaceID(),
+		Channel:     channel,
+		ThreadID:    strings.TrimSpace(req.ThreadID),
+		SessionID:   strings.TrimSpace(req.SessionID),
+		Mode:        strings.TrimSpace(req.Mode),
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 	if err := entry.Validate(); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
@@ -327,11 +326,11 @@ func (h *BaseHandlers) UpsertNetworkSubscription(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	if err := h.NetworkStore.WriteNetworkChannel(c.Request.Context(), channelMetadata); err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	if err := h.NetworkStore.PutNetworkSubscription(c.Request.Context(), entry); err != nil {
+	if err := h.NetworkStore.PutNetworkSubscriptionWithChannel(
+		c.Request.Context(),
+		channelMetadata,
+		entry,
+	); err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
@@ -358,7 +357,7 @@ func (h *BaseHandlers) DeleteNetworkSubscription(c *gin.Context) {
 		WorkspaceID: scope.NetworkWorkspaceID(),
 		Channel:     channel,
 		ThreadID:    strings.TrimSpace(c.Query("thread_id")),
-		SessionID:   strings.TrimSpace(c.Param("peer_id")),
+		SessionID:   strings.TrimSpace(c.Param("session_id")),
 	}
 	if err := ref.Validate(); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
@@ -385,7 +384,7 @@ type networkThreadTaskLinkStore interface {
 	) ([]store.NetworkTaskThreadOrigin, error)
 }
 
-func (h *BaseHandlers) networkThreadPeerCosts(
+func (h *BaseHandlers) networkThreadSessionCosts(
 	ctx context.Context,
 	workspaceID string,
 	channel string,
@@ -425,114 +424,6 @@ func (h *BaseHandlers) networkThreadTaskLinks(
 	)
 }
 
-// ResolveNetworkDirectRoom creates or returns a deterministic two-party direct room.
-func (h *BaseHandlers) ResolveNetworkDirectRoom(c *gin.Context) {
-	service, ok := h.requireNetworkReadDependencies(c)
-	if !ok {
-		return
-	}
-	channel, err := normalizeNetworkChannel(c.Param("channel"))
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	scope, ok := h.resolveWorkspaceScope(c)
-	if !ok {
-		return
-	}
-
-	var req contract.NetworkDirectResolveRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
-			fmt.Errorf("%s: decode network direct resolve request: %w", h.transportName(), err),
-		)
-		return
-	}
-	sessionID := strings.TrimSpace(req.SessionID)
-	peerID := strings.TrimSpace(req.PeerID)
-	if sessionID == "" {
-		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("session_id is required")))
-		return
-	}
-	if err := network.ValidatePeerID(peerID); err != nil {
-		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
-		return
-	}
-
-	localPeer, remotePeer, err := h.resolveDirectRoomPeers(
-		c.Request.Context(),
-		service,
-		scope.NetworkWorkspaceID(),
-		channel,
-		sessionID,
-		peerID,
-	)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	networkWorkspaceID := scope.NetworkWorkspaceID()
-	directID, sessionA, sessionB, err := store.NetworkDirectRoomIdentity(
-		networkWorkspaceID,
-		channel,
-		*localPeer.SessionID,
-		*remotePeer.SessionID,
-	)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	now := h.nowUTC()
-	direct, err := h.NetworkStore.ResolveDirectRoom(c.Request.Context(), store.NetworkDirectRoomEntry{
-		WorkspaceID:    networkWorkspaceID,
-		Channel:        channel,
-		DirectID:       directID,
-		SessionA:       sessionA,
-		SessionB:       sessionB,
-		OpenedAt:       now,
-		LastActivityAt: now,
-	})
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.NetworkDirectRoomResponse{
-		Direct: NetworkDirectRoomPayloadFromStore(direct),
-	})
-}
-
-// NetworkDirectRoom returns one direct-room summary.
-func (h *BaseHandlers) NetworkDirectRoom(c *gin.Context) {
-	if _, ok := h.requireNetworkReadDependencies(c); !ok {
-		return
-	}
-	channel, err := normalizeNetworkChannel(c.Param("channel"))
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	scope, ok := h.resolveWorkspaceScope(c)
-	if !ok {
-		return
-	}
-	directID := strings.TrimSpace(c.Param("direct_id"))
-	if err := network.ValidateConversationID(directID, "direct_id"); err != nil {
-		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
-		return
-	}
-
-	direct, err := h.NetworkStore.GetDirectRoom(c.Request.Context(), scope.NetworkChannelRef(channel), directID)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.NetworkDirectRoomResponse{
-		Direct: NetworkDirectRoomPayloadFromStore(direct),
-	})
-}
-
 // NetworkWork returns one network work row by work_id.
 func (h *BaseHandlers) NetworkWork(c *gin.Context) {
 	if _, ok := h.requireNetworkReadDependencies(c); !ok {
@@ -566,58 +457,6 @@ func (h *BaseHandlers) requireNetworkReadDependencies(c *gin.Context) (NetworkSe
 		return nil, false
 	}
 	return service, true
-}
-
-func (h *BaseHandlers) resolveDirectRoomPeers(
-	ctx context.Context,
-	service NetworkService,
-	workspaceID string,
-	channel string,
-	sessionID string,
-	peerID string,
-) (network.PeerInfo, network.PeerInfo, error) {
-	peers, err := service.ListPeers(ctx, workspaceID, channel)
-	if err != nil {
-		return network.PeerInfo{}, network.PeerInfo{}, err
-	}
-	var local network.PeerInfo
-	localFound := false
-	remote, remoteFound := findPeerInfo(peers, peerID)
-	for _, peer := range peers {
-		if peer.SessionID == nil || strings.TrimSpace(*peer.SessionID) != sessionID {
-			continue
-		}
-		if !peer.Local {
-			continue
-		}
-		local = peer
-		localFound = true
-		break
-	}
-	if !localFound {
-		return network.PeerInfo{}, network.PeerInfo{}, fmt.Errorf(
-			"%w: session=%q channel=%q",
-			network.ErrLocalPeerNotFound,
-			sessionID,
-			channel,
-		)
-	}
-	if !remoteFound {
-		return network.PeerInfo{}, network.PeerInfo{}, fmt.Errorf(
-			"%w: peer_id=%q channel=%q",
-			network.ErrTargetPeerNotFound,
-			peerID,
-			channel,
-		)
-	}
-	if remote.SessionID == nil || strings.TrimSpace(*remote.SessionID) == "" {
-		return network.PeerInfo{}, network.PeerInfo{}, fmt.Errorf(
-			"%w: peer_id=%q has no participating session",
-			network.ErrTargetPeerNotFound,
-			peerID,
-		)
-	}
-	return local, remote, nil
 }
 
 func networkThreadPromotionDigest(
@@ -724,23 +563,23 @@ func NetworkCoordinationCostPayloadFromStore(
 	}
 }
 
-// NetworkThreadPeerCostPayloadsFromStore converts stored thread peer cost rows into public payloads.
-func NetworkThreadPeerCostPayloadsFromStore(
+// NetworkThreadSessionCostPayloadsFromStore converts stored thread session cost rows into public payloads.
+func NetworkThreadSessionCostPayloadsFromStore(
 	stats []store.NetworkThreadSessionTokenStats,
-) []contract.NetworkThreadPeerCostPayload {
-	payload := make([]contract.NetworkThreadPeerCostPayload, 0, len(stats))
+) []contract.NetworkThreadSessionCostPayload {
+	payload := make([]contract.NetworkThreadSessionCostPayload, 0, len(stats))
 	for _, stat := range stats {
-		payload = append(payload, NetworkThreadPeerCostPayloadFromStore(stat))
+		payload = append(payload, NetworkThreadSessionCostPayloadFromStore(stat))
 	}
 	return payload
 }
 
-// NetworkThreadPeerCostPayloadFromStore converts one stored thread peer cost row into a public payload.
-func NetworkThreadPeerCostPayloadFromStore(
+// NetworkThreadSessionCostPayloadFromStore converts one stored thread session cost row into a public payload.
+func NetworkThreadSessionCostPayloadFromStore(
 	stat store.NetworkThreadSessionTokenStats,
-) contract.NetworkThreadPeerCostPayload {
-	return contract.NetworkThreadPeerCostPayload{
-		PeerID:                strings.TrimSpace(stat.SessionID),
+) contract.NetworkThreadSessionCostPayload {
+	return contract.NetworkThreadSessionCostPayload{
+		SessionID:             strings.TrimSpace(stat.SessionID),
 		DeliveredCount:        stat.DeliveredCount,
 		PromptSizeBytes:       stat.PromptSizeBytes,
 		EstimatedPromptTokens: stat.EstimatedPromptTokens,
@@ -766,8 +605,8 @@ func NetworkDirectRoomPayloadFromStore(direct store.NetworkDirectRoomSummary) co
 		WorkspaceID:        strings.TrimSpace(direct.WorkspaceID),
 		Channel:            strings.TrimSpace(direct.Channel),
 		DirectID:           strings.TrimSpace(direct.DirectID),
-		PeerA:              strings.TrimSpace(direct.SessionA),
-		PeerB:              strings.TrimSpace(direct.SessionB),
+		SessionA:           strings.TrimSpace(direct.SessionA),
+		SessionB:           strings.TrimSpace(direct.SessionB),
 		OpenedAt:           cloneTimePtr(&direct.OpenedAt),
 		LastActivityAt:     cloneTimePtr(&direct.LastActivityAt),
 		MessageCount:       direct.MessageCount,
@@ -833,14 +672,13 @@ func NetworkSubscriptionPayloadFromStore(
 	subscription store.NetworkSubscriptionEntry,
 ) contract.NetworkSubscriptionPayload {
 	return contract.NetworkSubscriptionPayload{
-		WorkspaceID:    strings.TrimSpace(subscription.WorkspaceID),
-		Channel:        strings.TrimSpace(subscription.Channel),
-		ThreadID:       strings.TrimSpace(subscription.ThreadID),
-		PeerID:         strings.TrimSpace(subscription.SessionID),
-		Mode:           strings.TrimSpace(subscription.Mode),
-		KeywordFilters: cloneTrimmedStrings(subscription.KeywordFilters),
-		CreatedAt:      cloneTimePtr(&subscription.CreatedAt),
-		UpdatedAt:      cloneTimePtr(&subscription.UpdatedAt),
+		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
+		Channel:     strings.TrimSpace(subscription.Channel),
+		ThreadID:    strings.TrimSpace(subscription.ThreadID),
+		SessionID:   strings.TrimSpace(subscription.SessionID),
+		Mode:        strings.TrimSpace(subscription.Mode),
+		CreatedAt:   cloneTimePtr(&subscription.CreatedAt),
+		UpdatedAt:   cloneTimePtr(&subscription.UpdatedAt),
 	}
 }
 
@@ -882,6 +720,7 @@ func NetworkWorkPayloadFromStore(work store.NetworkWorkEntry) contract.NetworkWo
 		ThreadID:        strings.TrimSpace(work.ThreadID),
 		DirectID:        strings.TrimSpace(work.DirectID),
 		OpenedSessionID: strings.TrimSpace(work.OpenedBySessionID),
+		TargetSessionID: strings.TrimSpace(work.TargetSessionID),
 		State:           strings.TrimSpace(work.State),
 		OpenedAt:        cloneTimePtr(&work.OpenedAt),
 		LastActivityAt:  cloneTimePtr(&work.LastActivityAt),

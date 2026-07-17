@@ -2,8 +2,6 @@ package daemon
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -30,15 +28,11 @@ func (n *daemonNativeTools) networkSubscriptions(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID, err := n.resolveNativeNetworkPeerSessionID(ctx, workspaceID, channel, input.PeerID)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
 	query := store.NetworkSubscriptionQuery{
 		WorkspaceID: workspaceID,
 		Channel:     channel,
 		ThreadID:    strings.TrimSpace(input.ThreadID),
-		SessionID:   sessionID,
+		SessionID:   strings.TrimSpace(input.SessionID),
 		Limit:       input.Limit,
 	}
 	if query.Limit == 0 {
@@ -74,14 +68,6 @@ func (n *daemonNativeTools) networkMute(
 	return n.networkSetSubscription(ctx, scope, req, string(store.NetworkSubscriptionModeMute))
 }
 
-func (n *daemonNativeTools) networkDigestMode(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	return n.networkSetSubscription(ctx, scope, req, string(store.NetworkSubscriptionModeDigest))
-}
-
 func (n *daemonNativeTools) networkSetSubscription(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -100,53 +86,43 @@ func (n *daemonNativeTools) networkSetSubscription(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID, err := n.resolveNativeNetworkPeerSessionID(ctx, workspaceID, channel, input.PeerID)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
 	now := time.Now().UTC()
 	entry := store.NetworkSubscriptionEntry{
-		WorkspaceID:    workspaceID,
-		Channel:        channel,
-		ThreadID:       strings.TrimSpace(input.ThreadID),
-		SessionID:      sessionID,
-		Mode:           mode,
-		KeywordFilters: cloneTrimmedStrings(input.KeywordFilters),
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		WorkspaceID: workspaceID,
+		Channel:     channel,
+		ThreadID:    strings.TrimSpace(input.ThreadID),
+		SessionID:   strings.TrimSpace(input.SessionID),
+		Mode:        mode,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 	if err := entry.Validate(); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
-	if err := n.ensureNativeNetworkSubscriptionChannel(ctx, scope, entry); err != nil {
+	channelEntry, err := nativeNetworkSubscriptionChannel(scope, entry)
+	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
-	if err := n.deps.NetworkStore.PutNetworkSubscription(ctx, entry); err != nil {
+	if err := n.deps.NetworkStore.PutNetworkSubscriptionWithChannel(ctx, channelEntry, entry); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
 	payload := core.NetworkSubscriptionPayloadFromStore(entry)
 	return structuredNetworkResult(map[string]any{"subscription": payload}, payload.Mode)
 }
 
-func (n *daemonNativeTools) ensureNativeNetworkSubscriptionChannel(
-	ctx context.Context,
+func nativeNetworkSubscriptionChannel(
 	scope toolspkg.Scope,
 	entry store.NetworkSubscriptionEntry,
-) error {
+) (store.NetworkChannelEntry, error) {
 	ref := store.NetworkChannelRef{
 		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
 		Channel:     strings.TrimSpace(entry.Channel),
 	}
 	if err := ref.Validate(); err != nil {
-		return err
-	}
-	if _, err := n.deps.NetworkStore.GetNetworkChannel(ctx, ref); err == nil {
-		return nil
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return err
+		return store.NetworkChannelEntry{}, err
 	}
 	now := time.Now().UTC()
-	return n.deps.NetworkStore.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
+	return store.NetworkChannelEntry{
 		WorkspaceID:  ref.WorkspaceID,
 		Channel:      ref.Channel,
 		Purpose:      "network_channel",
@@ -154,7 +130,7 @@ func (n *daemonNativeTools) ensureNativeNetworkSubscriptionChannel(
 		CreatedBy:    strings.TrimSpace(scope.AgentName),
 		CreatedAt:    now,
 		UpdatedAt:    now,
-	})
+	}, nil
 }
 
 func (n *daemonNativeTools) networkUnmute(
@@ -174,15 +150,11 @@ func (n *daemonNativeTools) networkUnmute(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID, err := n.resolveNativeNetworkPeerSessionID(ctx, workspaceID, channel, input.PeerID)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
 	ref := store.NetworkSubscriptionRef{
 		WorkspaceID: workspaceID,
 		Channel:     channel,
 		ThreadID:    strings.TrimSpace(input.ThreadID),
-		SessionID:   sessionID,
+		SessionID:   strings.TrimSpace(input.SessionID),
 	}
 	if err := ref.Validate(); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)

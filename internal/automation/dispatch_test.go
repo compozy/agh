@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -183,6 +184,7 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	if got, want := createCall.spec.WorkspaceID, "ws_alpha"; got != want {
 		t.Fatalf("CreateTask().workspace_id = %q, want %q", got, want)
 	}
+	assertNamedParticipation(t, createCall.spec.NetworkParticipation, "ops-automation")
 	if got, want := len(tasks.enqueueCalls), 1; got != want {
 		t.Fatalf("len(EnqueueRun calls) = %d, want %d", got, want)
 	}
@@ -510,7 +512,10 @@ func TestDispatchNonTaskJobStillUsesSessionRuntimeAndRecordsAutomationSessionAct
 	t.Parallel()
 
 	store := newMemoryRunStore()
-	creator := newRecordingSessionCreator(sessionAttemptPlan{sessionID: "sess-automation-1"})
+	creator := newRecordingSessionCreator(sessionAttemptPlan{
+		sessionID:   "sess-automation-1",
+		workspaceID: "ws-automation-global",
+	})
 	recorder := &recordingTaskActorRecorder{}
 	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherTaskActorRecorder(recorder))
 
@@ -547,6 +552,12 @@ func TestDispatchNonTaskJobStillUsesSessionRuntimeAndRecordsAutomationSessionAct
 	}
 	if got, want := recordedActor.Origin.Ref, "run:"+run.ID; got != want {
 		t.Fatalf("recorded origin.ref = %q, want %q", got, want)
+	}
+	if got, want := recordedActor.Scope, (taskpkg.CallerScope{
+		SessionID:   "sess-automation-1",
+		WorkspaceID: "ws-automation-global",
+	}); got != want {
+		t.Fatalf("recorded scope = %#v, want %#v", got, want)
 	}
 	if got, want := len(recorder.deleted), 1; got != want {
 		t.Fatalf("len(deleted actors) = %d, want %d", got, want)
@@ -945,31 +956,39 @@ func TestDispatchReservedRunAdvancesAttemptAcrossRetry(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	store := newMemoryRunStore()
-	creator := newRecordingSessionCreator(
-		sessionAttemptPlan{
-			events: []acp.AgentEvent{{Error: "first reserved failure"}},
-		},
-		sessionAttemptPlan{},
-	)
+	starter := &recordingLoopStarter{
+		runID:       "looprun-reserved-retry",
+		startErrors: []error{errors.New("first reserved failure"), nil},
+	}
 	dispatcher := newTestDispatcher(
 		t,
-		creator,
+		newRecordingSessionCreator(),
 		store,
+		WithDispatcherLoopStarter(starter),
 		WithDispatcherSleep(func(context.Context, time.Duration) error { return nil }),
 	)
 
-	job := testJob(AutomationScopeGlobal, "job-reserved-retry", "")
+	job := testJob(AutomationScopeWorkspace, "job-reserved-retry", "ws_alpha")
+	job.AgentName = ""
+	job.Prompt = ""
+	job.TargetKind = TargetKindLoop
+	job.LoopTarget = &LoopTarget{
+		WorkspaceID:          "ws_alpha",
+		LoopName:             "triage",
+		NetworkParticipation: testNamedParticipation("reserved-retry"),
+	}
 	job.Retry = RetryConfig{
 		Strategy:   RetryStrategyBackoff,
 		MaxRetries: 1,
 		BaseDelay:  "1s",
 	}
 	reserved, err := store.CreateRun(ctx, Run{
-		ID:        "run-reserved-retry",
-		JobID:     job.ID,
-		Status:    RunScheduled,
-		Attempt:   1,
-		StartedAt: timePointer(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
+		ID:                   "run-reserved-retry",
+		JobID:                job.ID,
+		Status:               RunScheduled,
+		Attempt:              1,
+		StartedAt:            timePointer(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
+		NetworkParticipation: cloneParticipationRequest(job.LoopTarget.NetworkParticipation),
 	})
 	if err != nil {
 		t.Fatalf("CreateRun(reserved) error = %v", err)
@@ -1001,6 +1020,14 @@ func TestDispatchReservedRunAdvancesAttemptAcrossRetry(t *testing.T) {
 	}
 	if got, want := stored.Attempt, 2; got != want {
 		t.Fatalf("stored.Attempt = %d, want %d after retry", got, want)
+	}
+	updates := store.updateSnapshot()
+	statuses := make([]RunStatus, 0, len(updates))
+	for _, update := range updates {
+		statuses = append(statuses, update.Status)
+	}
+	if got, want := statuses, []RunStatus{RunFailed, RunDelegated}; !slices.Equal(got, want) {
+		t.Fatalf("reserved run update statuses = %#v, want %#v without stale rewrite", got, want)
 	}
 }
 
@@ -1504,9 +1531,10 @@ func (f failingAutomationHookDispatcher) DispatchAutomationRunFailed(
 }
 
 type memoryRunStore struct {
-	mu   sync.Mutex
-	seq  int
-	runs map[string]Run
+	mu      sync.Mutex
+	seq     int
+	runs    map[string]Run
+	updates []Run
 }
 
 func newMemoryRunStore() *memoryRunStore {
@@ -1528,8 +1556,40 @@ func (s *memoryRunStore) CreateRun(ctx context.Context, run Run) (Run, error) {
 	if created.ID == "" {
 		created.ID = fmt.Sprintf("run-%d", s.seq)
 	}
+	if _, exists := s.runs[created.ID]; exists {
+		return Run{}, ErrRunAlreadyExists
+	}
 	s.runs[created.ID] = *cloneRun(created)
 	return *cloneRun(created), nil
+}
+
+func (s *memoryRunStore) GetRun(ctx context.Context, id string) (Run, error) {
+	if err := ctx.Err(); err != nil {
+		return Run{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, ok := s.runs[strings.TrimSpace(id)]
+	if !ok {
+		return Run{}, ErrRunNotFound
+	}
+	return *cloneRun(&run), nil
+}
+
+func (s *memoryRunStore) DeleteRun(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	trimmedID := strings.TrimSpace(id)
+	if _, ok := s.runs[trimmedID]; !ok {
+		return ErrRunNotFound
+	}
+	delete(s.runs, trimmedID)
+	return nil
 }
 
 func (s *memoryRunStore) UpdateRun(ctx context.Context, run Run) (Run, error) {
@@ -1544,6 +1604,7 @@ func (s *memoryRunStore) UpdateRun(ctx context.Context, run Run) (Run, error) {
 		return Run{}, ErrRunNotFound
 	}
 	s.runs[run.ID] = *cloneRun(&run)
+	s.updates = append(s.updates, *cloneRun(&run))
 	return *cloneRun(&run), nil
 }
 
@@ -1594,6 +1655,17 @@ func (s *memoryRunStore) listRuns() []Run {
 	return runs
 }
 
+func (s *memoryRunStore) updateSnapshot() []Run {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	updates := make([]Run, 0, len(s.updates))
+	for idx := range s.updates {
+		updates = append(updates, *cloneRun(&s.updates[idx]))
+	}
+	return updates
+}
+
 func matchesRunQuery(run Run, query RunQuery) bool {
 	if query.JobID != "" && run.JobID != query.JobID {
 		return false
@@ -1624,6 +1696,7 @@ func matchesRunQuery(run Run, query RunQuery) bool {
 
 type sessionAttemptPlan struct {
 	sessionID     string
+	workspaceID   string
 	createErr     error
 	createStarted chan struct{}
 	createRelease chan struct{}
@@ -1887,7 +1960,7 @@ func (c *recordingSessionCreator) Create(ctx context.Context, opts session.Creat
 		return nil, plan.createErr
 	}
 
-	return &session.Session{ID: sessionID}, nil
+	return &session.Session{ID: sessionID, WorkspaceID: plan.workspaceID}, nil
 }
 
 func (c *recordingSessionCreator) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {

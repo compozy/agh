@@ -4,6 +4,7 @@ export interface NetworkCoordinationInvitationProps {
   visible: boolean;
   accepting?: boolean;
   dismissing?: boolean;
+  errorMessage?: string | null;
   onAccept: () => void;
   onDismiss: () => void;
   className?: string;
@@ -13,6 +14,7 @@ export function NetworkCoordinationInvitation({
   visible,
   accepting = false,
   dismissing = false,
+  errorMessage,
   onAccept,
   onDismiss,
   className,
@@ -29,9 +31,14 @@ export function NetworkCoordinationInvitation({
       aria-label="Coordination invitation"
     >
       <p className="text-sm text-foreground">
-        Turn on coordination conversations for future runs in this workspace? Accepting does not
-        change the active run.
+        Turn on coordination conversations for future runs of this task? Accepting does not change
+        the active run.
       </p>
+      {errorMessage ? (
+        <p className="mt-2 text-sm text-danger" role="alert">
+          {errorMessage} You can try again.
+        </p>
+      ) : null}
       <div className="mt-3 flex gap-2">
         <Button
           data-testid="network-coordination-invitation-accept"

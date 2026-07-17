@@ -259,11 +259,9 @@ type SettingsAutomationConfigPayload struct {
 }
 
 type SettingsNetworkConfigPayload struct {
-	Enabled       bool                             `json:"enabled"`
-	GreetInterval int                              `json:"greet_interval"`
-	MaxReplayAge  int                              `json:"max_replay_age"`
-	MaxQueueDepth int                              `json:"max_queue_depth"`
-	Live          SettingsNetworkLiveConfigPayload `json:"live"`
+	Enabled      bool                             `json:"enabled"`
+	MaxReplayAge int                              `json:"max_replay_age"`
+	Live         SettingsNetworkLiveConfigPayload `json:"live"`
 }
 
 type SettingsNetworkLiveConfigPayload struct {

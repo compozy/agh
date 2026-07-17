@@ -5,20 +5,10 @@ import (
 	"path"
 	"sort"
 	"strings"
-
-	"github.com/compozy/agh/internal/network/participation"
 )
-
-func resolvedParticipationChannel(spec *participation.Spec) string {
-	if spec == nil {
-		return ""
-	}
-	return strings.TrimSpace(spec.ChannelID)
-}
 
 const (
 	matcherAgentNameKey            = "agent_name"
-	matcherChannelKey              = "channel"
 	matcherParticipationChannelKey = "participation_channel"
 	matcherInputClassKey           = "input_class"
 	matcherLoopNameKey             = "loop_name"
@@ -27,7 +17,6 @@ const (
 	matcherReleaseReasonKey        = "release_reason"
 	matcherRunIDKey                = "run_id"
 	matcherTaskIDKey               = "task_id"
-	matcherWorkStateKey            = "work_state"
 	matcherWorkflowIDKey           = "workflow_id"
 	matcherWorkspaceIDKey          = "workspace_id"
 	matcherWorkspaceRootKey        = "workspace_root"
@@ -168,6 +157,18 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 }
 
 var allowedMatcherFieldsByEvent = map[HookEvent]map[string]struct{}{
+	HookNetworkParticipationPreResolve: {
+		matcherWorkspaceIDKey:         {},
+		matcherChannelKey:             {},
+		matcherParticipationModeKey:   {},
+		matcherParticipationSourceKey: {},
+	},
+	HookNetworkParticipationResolved: {
+		matcherWorkspaceIDKey:         {},
+		matcherChannelKey:             {},
+		matcherParticipationModeKey:   {},
+		matcherParticipationSourceKey: {},
+	},
 	HookAgentSoulSnapshotResolved: {
 		matcherAgentNameKey:   {},
 		matcherWorkspaceIDKey: {},
@@ -322,16 +323,6 @@ func (m HookMatcher) MatchesMessage(payload MessagePayload) bool {
 		matchStringField(m.MessageDeltaType, payload.DeltaType)
 }
 
-// MatchesNetwork matches network-family observation hooks.
-func (m HookMatcher) MatchesNetwork(payload NetworkPayload) bool {
-	network := m.network()
-	return matchStringField(network.Channel, payload.Channel) &&
-		matchStringField(network.Surface, payload.Surface) &&
-		matchStringField(network.Kind, payload.Kind) &&
-		matchStringField(network.Direction, payload.Direction) &&
-		matchStringField(network.WorkState, payload.WorkState)
-}
-
 // MatchesToolPreCall matches tool pre-call hooks.
 func (m HookMatcher) MatchesToolPreCall(payload ToolPreCallPayload) bool {
 	return m.matchSessionContext(payload.SessionContext, false) &&
@@ -478,15 +469,7 @@ func (m HookMatcher) MatchesSpawn(payload SpawnContext) bool {
 }
 
 var emptyAutonomyMatcher = &AutonomyMatcher{}
-var emptyNetworkMatcher = &NetworkMatcher{}
 var emptyCompactionMatcher = &CompactionMatcher{}
-
-func (m HookMatcher) network() *NetworkMatcher {
-	if m.NetworkMatcher == nil {
-		return emptyNetworkMatcher
-	}
-	return m.NetworkMatcher
-}
 
 func (m HookMatcher) compaction() *CompactionMatcher {
 	if m.CompactionMatcher == nil {
@@ -795,23 +778,6 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 	return normalized
 }
 
-func normalizeNetworkMatcher(matcher *NetworkMatcher) *NetworkMatcher {
-	if matcher == nil {
-		return nil
-	}
-	normalized := NetworkMatcher{
-		Channel:   strings.TrimSpace(matcher.Channel),
-		Surface:   strings.TrimSpace(matcher.Surface),
-		Kind:      strings.TrimSpace(matcher.Kind),
-		Direction: strings.TrimSpace(matcher.Direction),
-		WorkState: strings.TrimSpace(matcher.WorkState),
-	}
-	if normalized.empty() {
-		return nil
-	}
-	return &normalized
-}
-
 func normalizeCompactionMatcher(matcher *CompactionMatcher) *CompactionMatcher {
 	if matcher == nil {
 		return nil
@@ -849,14 +815,6 @@ func normalizeAutonomyMatcher(matcher *AutonomyMatcher) *AutonomyMatcher {
 		return nil
 	}
 	return &normalized
-}
-
-func (m *NetworkMatcher) empty() bool {
-	return m.Channel == "" &&
-		m.Surface == "" &&
-		m.Kind == "" &&
-		m.Direction == "" &&
-		m.WorkState == ""
 }
 
 func (m *CompactionMatcher) empty() bool {
@@ -918,20 +876,6 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	}
 
 	return fields
-}
-
-func appendNetworkMatcherFieldNames(fields *[]string, matcher *NetworkMatcher) {
-	appendIf := func(name string, present bool) {
-		if present {
-			*fields = append(*fields, name)
-		}
-	}
-
-	appendIf(matcherChannelKey, matcher.Channel != "")
-	appendIf("surface", matcher.Surface != "")
-	appendIf("kind", matcher.Kind != "")
-	appendIf("direction", matcher.Direction != "")
-	appendIf(matcherWorkStateKey, matcher.WorkState != "")
 }
 
 func appendCompactionMatcherFieldNames(fields *[]string, matcher *CompactionMatcher) {
@@ -1002,28 +946,6 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		return err
 	}
 	return validateAutonomyMatcherPatterns(matcher.Autonomy)
-}
-
-func validateNetworkMatcherPatterns(matcher *NetworkMatcher) error {
-	if matcher == nil {
-		return nil
-	}
-	patterns := []struct {
-		field   string
-		pattern string
-	}{
-		{field: matcherChannelKey, pattern: matcher.Channel},
-		{field: "surface", pattern: matcher.Surface},
-		{field: "kind", pattern: matcher.Kind},
-		{field: "direction", pattern: matcher.Direction},
-		{field: matcherWorkStateKey, pattern: matcher.WorkState},
-	}
-	for _, item := range patterns {
-		if err := validateMatcherPattern(item.field, item.pattern); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func validateCompactionMatcherPatterns(matcher *CompactionMatcher) error {

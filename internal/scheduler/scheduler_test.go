@@ -928,7 +928,7 @@ func TestRunOnceRequiresTaskOwnerMatch(t *testing.T) {
 		base := time.Date(2026, 5, 6, 10, 15, 0, 0, time.UTC)
 		work := workSnapshot("task-owner", "run-owner", taskpkg.ScopeWorkspace, "ws-1", nil, base)
 		work.Task.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-engineer-agent"}
-		setRunParticipationChannel(&work.Run, "design-review")
+		setRunParticipationChannel(t, &work.Run, "ws-1", "design-review")
 		wrongOwner := sessionSnapshot("sess-analytics", "ws-1", "active", false, nil, base)
 		wrongOwner.AgentName = "analytics-engineer-agent"
 		wrongOwner.Channel = "design-review"

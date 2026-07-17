@@ -86,7 +86,11 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 		return
 	}
 
-	job := jobFromCreateRequest(req)
+	job, err := jobFromCreateRequest(req)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		return
+	}
 	if err := job.Validate("job"); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
@@ -178,7 +182,11 @@ func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 		}
 		updated, err = manager.SetJobEnabled(c.Request.Context(), current.ID, *req.Enabled)
 	default:
-		next := applyJobPatch(current, req)
+		next, patchErr := applyJobPatch(current, req)
+		if patchErr != nil {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(patchErr))
+			return
+		}
 		if err := next.Validate("job"); err != nil {
 			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 			return
@@ -748,11 +756,11 @@ func decodeWebhookPayloadData(payload []byte) map[string]any {
 
 // AutomationJobFromCreateRequest converts the shared create payload into the
 // canonical automation job model.
-func AutomationJobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
+func AutomationJobFromCreateRequest(req contract.CreateJobRequest) (automationpkg.Job, error) {
 	return jobFromCreateRequest(req)
 }
 
-func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
+func jobFromCreateRequest(req contract.CreateJobRequest) (automationpkg.Job, error) {
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled
@@ -769,7 +777,10 @@ func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 	}
 
 	schedule := req.Schedule
-	taskConfig := cloneAutomationJobTaskConfig(req.Task)
+	taskConfig, err := cloneAutomationJobTaskConfig(req.Task)
+	if err != nil {
+		return automationpkg.Job{}, err
+	}
 	return automationpkg.Job{
 		Scope:       req.Scope,
 		Name:        strings.TrimSpace(req.Name),
@@ -784,15 +795,18 @@ func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 		Retry:       retry,
 		FireLimit:   fireLimit,
 		Source:      automationpkg.JobSourceDynamic,
-	}
+	}, nil
 }
 
 // ApplyAutomationJobPatch applies the shared patch payload to an automation job model.
-func ApplyAutomationJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) automationpkg.Job {
+func ApplyAutomationJobPatch(
+	current automationpkg.Job,
+	req contract.UpdateJobRequest,
+) (automationpkg.Job, error) {
 	return applyJobPatch(current, req)
 }
 
-func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) automationpkg.Job {
+func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) (automationpkg.Job, error) {
 	next := current
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
@@ -817,7 +831,11 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) aut
 		next.Schedule = &schedule
 	}
 	if req.Task != nil {
-		next.Task = cloneAutomationJobTaskConfig(req.Task)
+		taskConfig, err := cloneAutomationJobTaskConfig(req.Task)
+		if err != nil {
+			return automationpkg.Job{}, err
+		}
+		next.Task = taskConfig
 	}
 	if req.LoopTarget != nil {
 		next.LoopTarget = cloneAutomationLoopTarget(req.LoopTarget)
@@ -831,7 +849,7 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) aut
 	if req.FireLimit != nil {
 		next.FireLimit = *req.FireLimit
 	}
-	return next
+	return next, nil
 }
 
 // ValidateAutomationConfigJobUpdate enforces the config-backed job mutation policy.

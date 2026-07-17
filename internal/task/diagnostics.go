@@ -208,7 +208,7 @@ func inspectRunEvidence(snapshot *inspectDiagnosticSnapshot, extra map[string]an
 		taskEvidenceIDKey:            snapshot.Task.ID,
 		runEvidenceIDKey:             run.RunID,
 		leaseStatusKey:               run.Status.String(),
-		"attempt":                    run.Attempt,
+		runFieldAttempt:              run.Attempt,
 		"claim_token_hash_truncated": run.ClaimTokenHashTruncated,
 		"lease_until":                run.LeaseUntil,
 		"heartbeat_at":               run.HeartbeatAt,

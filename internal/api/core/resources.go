@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
+	bundlepkg "github.com/compozy/agh/internal/bundles"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/gin-gonic/gin"
 )
@@ -91,6 +92,9 @@ func (s *operatorResourceService) Put(
 	ctx context.Context,
 	draft resources.RawDraft,
 ) (resources.RawRecord, error) {
+	if err := validateGenericResourceMutationKind(draft.Kind); err != nil {
+		return resources.RawRecord{}, err
+	}
 	specJSON := append([]byte(nil), draft.SpecJSON...)
 	if s.codecRegistry != nil {
 		canonical, _, err := resources.ValidateAndCanonicalizeIfRegistered(
@@ -126,6 +130,9 @@ func (s *operatorResourceService) Delete(
 	id string,
 	expectedVersion int64,
 ) error {
+	if err := validateGenericResourceMutationKind(kind); err != nil {
+		return err
+	}
 	if err := s.rawStore.DeleteRaw(ctx, s.actor, kind, id, expectedVersion); err != nil {
 		return err
 	}
@@ -133,6 +140,17 @@ func (s *operatorResourceService) Delete(
 		if err := s.trigger(ctx, kind, resources.ReconcileReasonWrite); err != nil {
 			return nil
 		}
+	}
+	return nil
+}
+
+func validateGenericResourceMutationKind(kind resources.ResourceKind) error {
+	if kind.Normalize() == bundlepkg.BundleActivationResourceKind {
+		return fmt.Errorf(
+			"%w: resource kind %q must be mutated through the bundle activation service",
+			resources.ErrDirectMutationNotAllowed,
+			kind.Normalize(),
+		)
 	}
 	return nil
 }

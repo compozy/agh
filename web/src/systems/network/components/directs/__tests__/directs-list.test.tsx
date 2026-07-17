@@ -43,20 +43,32 @@ const directs: NetworkDirectRoomSummary[] = [
     message_count: 4,
     open_work_count: 0,
     opened_at: "2026-04-17T17:00:00Z",
-    peer_a: "peer-self",
-    peer_b: "peer-remote",
+    session_a: "sess-self",
+    session_b: "sess-remote",
+  },
+];
+
+const members = [
+  {
+    peerId: "peer-remote",
+    sessionId: "sess-remote",
+    displayName: "Remote",
+    role: "agent" as const,
+    local: true,
+    presenceState: "local" as const,
   },
 ];
 
 describe("DirectsList", () => {
-  it("Should render the row labelled with the OTHER party (peer_a/peer_b lex order is invisible)", () => {
+  it("Should resolve the other session to its peer identity", () => {
     render(
       <DirectsList
         activeDirectId={null}
         channel="ops"
         directs={directs}
         isLoading={false}
-        selfPeerId="peer-self"
+        members={members}
+        selfSessionId="sess-self"
         workspaceId={WORKSPACE_ID}
       />
     );
@@ -72,7 +84,8 @@ describe("DirectsList", () => {
         channel="ops"
         directs={directs}
         isLoading={false}
-        selfPeerId="peer-self"
+        members={members}
+        selfSessionId="sess-self"
         workspaceId={WORKSPACE_ID}
       />
     );

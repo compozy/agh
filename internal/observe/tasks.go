@@ -1084,9 +1084,9 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list task runs for summary: %w", err)
 	}
+	tasksByID, taskIDs := taskSummaryIndex(tasks)
 	taskChannels := taskParticipationChannels(tasks, runs)
 	tasks = filterTasksByNetworkChannel(tasks, taskChannels, query.ParticipationChannel)
-	tasksByID, taskIDs := taskSummaryIndex(tasks)
 	runs = filterRuns(runs, taskIDs, query)
 
 	runsByID := make(map[string]taskpkg.Run, len(runs))

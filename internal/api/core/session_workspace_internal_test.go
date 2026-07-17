@@ -12,6 +12,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/diagnosticcontract"
 	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -188,6 +189,45 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	}
 	if got := statusForSessionError(aghconfig.ErrProviderUnavailable); got != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(provider unavailable) = %d, want %d", got, http.StatusBadRequest)
+	}
+	for _, tc := range []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{
+			name:       "Should map invalid participation strategy to bad request",
+			err:        participation.ErrStrategyInvalid,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "Should map conflicting participation fields to bad request",
+			err:        participation.ErrStrategyChannelConflict,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "Should map an unknown participation channel to not found",
+			err:        participation.ErrChannelUnknown,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "Should map administratively disabled Live participation to conflict",
+			err:        participation.ErrUnavailable,
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:       "Should map unsupported Live participation to unprocessable entity",
+			err:        participation.ErrLiveUnsupported,
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := statusForSessionError(fmt.Errorf("wrapped: %w", tc.err)); got != tc.wantStatus {
+				t.Fatalf("statusForSessionError(%v) = %d, want %d", tc.err, got, tc.wantStatus)
+			}
+		})
 	}
 	t.Run("Should map negotiation errors to unprocessable entity", func(t *testing.T) {
 		t.Parallel()

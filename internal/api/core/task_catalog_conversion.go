@@ -1,6 +1,8 @@
 package core
 
 import (
+	"strings"
+
 	"github.com/compozy/agh/internal/api/contract"
 	observepkg "github.com/compozy/agh/internal/observe"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -82,7 +84,7 @@ func TaskInboxPayloadFromView(view observepkg.TaskInboxView) contract.TaskInboxP
 				Lane:             contract.TaskInboxLane(item.Lane),
 				ApprovalPolicy:   item.ApprovalPolicy,
 				ApprovalState:    item.ApprovalState,
-				BlockingReason:   item.BlockingReason,
+				BlockingReason:   taskpkg.RedactClaimTokens(strings.TrimSpace(item.BlockingReason)),
 				LatestActivityAt: item.LatestActivityAt,
 				Run:              contract.TaskCatalogRunPayloadFromSummary(item.Run),
 				Triage:           TaskTriageStatePayloadFromState(item.Triage),

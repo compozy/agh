@@ -380,7 +380,7 @@ func HookContracts() []HookContractSpec {
 	return specs
 }
 
-var namedHookTypes = map[string]NamedType{
+var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 	sdkPayloadBaseValue:             {Name: sdkPayloadBaseValue, Value: hooks.PayloadBase{}},
 	sdkSessionContextValue:          {Name: sdkSessionContextValue, Value: hooks.SessionContext{}},
 	sdkTurnContextValue:             {Name: sdkTurnContextValue, Value: hooks.TurnContext{}},
@@ -553,32 +553,16 @@ var namedHookTypes = map[string]NamedType{
 	},
 	sdkNetworkWorkClosedPayloadValue: {Name: sdkNetworkWorkClosedPayloadValue, Value: hooks.NetworkWorkClosedPayload{}},
 	sdkNetworkObservationPatchValue:  {Name: sdkNetworkObservationPatchValue, Value: hooks.NetworkObservationPatch{}},
-	"NetworkParticipationPreResolvePayload": {
-		Name:  "NetworkParticipationPreResolvePayload",
-		Value: hooks.NetworkParticipationPreResolvePayload{},
-	},
-	"NetworkParticipationPreResolvePatch": {
-		Name:  "NetworkParticipationPreResolvePatch",
-		Value: hooks.NetworkParticipationPreResolvePatch{},
-	},
-	"NetworkParticipationResolvedPayload": {
-		Name:  "NetworkParticipationResolvedPayload",
-		Value: hooks.NetworkParticipationResolvedPayload{},
-	},
-	"NetworkParticipationResolvedPatch": {
-		Name:  "NetworkParticipationResolvedPatch",
-		Value: hooks.NetworkParticipationResolvedPatch{},
-	},
-	sdkTurnPayloadValue:    {Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
-	"TurnStartPayload":     {Name: "TurnStartPayload", Value: hooks.TurnStartPayload{}},
-	"TurnEndPayload":       {Name: "TurnEndPayload", Value: hooks.TurnEndPayload{}},
-	sdkTurnPatchValue:      {Name: sdkTurnPatchValue, Value: hooks.TurnPatch{}},
-	"TurnStartPatch":       {Name: "TurnStartPatch", Value: hooks.TurnStartPatch{}},
-	"TurnEndPatch":         {Name: "TurnEndPatch", Value: hooks.TurnEndPatch{}},
-	sdkMessagePayloadValue: {Name: sdkMessagePayloadValue, Value: hooks.MessagePayload{}},
-	"MessageStartPayload":  {Name: "MessageStartPayload", Value: hooks.MessageStartPayload{}},
-	"MessageDeltaPayload":  {Name: "MessageDeltaPayload", Value: hooks.MessageDeltaPayload{}},
-	"MessageEndPayload":    {Name: "MessageEndPayload", Value: hooks.MessageEndPayload{}},
+	sdkTurnPayloadValue:              {Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
+	"TurnStartPayload":               {Name: "TurnStartPayload", Value: hooks.TurnStartPayload{}},
+	"TurnEndPayload":                 {Name: "TurnEndPayload", Value: hooks.TurnEndPayload{}},
+	sdkTurnPatchValue:                {Name: sdkTurnPatchValue, Value: hooks.TurnPatch{}},
+	"TurnStartPatch":                 {Name: "TurnStartPatch", Value: hooks.TurnStartPatch{}},
+	"TurnEndPatch":                   {Name: "TurnEndPatch", Value: hooks.TurnEndPatch{}},
+	sdkMessagePayloadValue:           {Name: sdkMessagePayloadValue, Value: hooks.MessagePayload{}},
+	"MessageStartPayload":            {Name: "MessageStartPayload", Value: hooks.MessageStartPayload{}},
+	"MessageDeltaPayload":            {Name: "MessageDeltaPayload", Value: hooks.MessageDeltaPayload{}},
+	"MessageEndPayload":              {Name: "MessageEndPayload", Value: hooks.MessageEndPayload{}},
 	sdkSessionMessagePersistedPayloadValue: {
 		Name:  sdkSessionMessagePersistedPayloadValue,
 		Value: hooks.SessionMessagePersistedPayload{},
@@ -763,7 +747,7 @@ var namedHookTypes = map[string]NamedType{
 	sdkSpawnCreatePatchValue: {Name: sdkSpawnCreatePatchValue, Value: hooks.SpawnCreatePatch{}},
 	"SpawnObservationPatch":  {Name: "SpawnObservationPatch", Value: hooks.SpawnObservationPatch{}},
 	sdkAutonomyMatcherValue:  {Name: sdkAutonomyMatcherValue, Value: hooks.AutonomyMatcher{}},
-}
+}, networkParticipationNamedHookTypes())
 
 func namedHookType(name string) (NamedType, error) {
 	namedType, ok := namedHookTypes[name]

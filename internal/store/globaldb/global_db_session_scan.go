@@ -68,6 +68,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	}
 	session.Provider = strings.TrimSpace(row.session.Provider)
 	networkSpec, err := decodeParticipationSnapshot(
+		session.WorkspaceID,
 		row.networkSpecJSON,
 		row.networkMode,
 		row.networkChannel,
@@ -77,7 +78,6 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		return store.SessionInfo{}, err
 	}
 	session.SetNetworkSpec(networkSpec)
-	session.Channel = networkSpec.ChannelID
 	session.SessionType = store.NormalizeSessionType(row.sessionType)
 	lineage, err := scanSessionLineage(
 		session.ID,

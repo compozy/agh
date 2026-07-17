@@ -64,6 +64,7 @@ func (d NetworkMessageDisposition) Validate() error {
 
 // NetworkWakeAdmissionInput carries policy resolved before the acceptance transaction.
 type NetworkWakeAdmissionInput struct {
+	WorkspaceID        string
 	RecipientSessionID string
 	OwnerKey           string
 	Spec               participation.Spec
@@ -79,6 +80,7 @@ type NetworkWakeAdmissionInput struct {
 // Validate ensures an admission candidate is immutable and fully identified.
 func (i NetworkWakeAdmissionInput) Validate() error {
 	for field, value := range map[string]string{
+		"workspace_id":         i.WorkspaceID,
 		"recipient_session_id": i.RecipientSessionID,
 		"owner_key":            i.OwnerKey,
 	} {
@@ -128,6 +130,7 @@ type AcceptNetworkMessageRequest struct {
 type WakeReservation struct {
 	WakeID           string
 	TaskRunID        string
+	WorkspaceID      string
 	OwnerKey         string
 	EnvelopeIDs      []string
 	ReservedWallTime string
@@ -144,6 +147,7 @@ type WakeSkip struct {
 
 // CommittedNetworkNotification is safe to dispatch only after acceptance commits.
 type CommittedNetworkNotification struct {
+	WorkspaceID        string
 	RecipientSessionID string
 	TaskRunID          string
 	AcceptanceSeq      int64

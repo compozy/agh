@@ -258,8 +258,8 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 		var payload contract.NetworkDirectRoomResponse
 		decodeJSONResponse(t, resp, &payload)
 		if payload.Direct.DirectID != wantDirectID ||
-			payload.Direct.PeerA != wantSessionA ||
-			payload.Direct.PeerB != wantSessionB {
+			payload.Direct.SessionA != wantSessionA ||
+			payload.Direct.SessionB != wantSessionB {
 			t.Fatalf("direct resolve payload = %#v, want deterministic room", payload.Direct)
 		}
 	})

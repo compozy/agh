@@ -952,17 +952,19 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 			"reason":          "loop_concurrency_conflict",
 			"catch_up_policy": "coalesce",
 		}
+		request := automationTestNamedParticipation("ops-automation")
 		run := RunPayloadFromRun(automationpkg.Run{
-			ID:              "run-scheduler",
-			JobID:           job.ID,
-			FireID:          "fire-scheduler",
-			Status:          automationpkg.RunFailed,
-			Attempt:         1,
-			ScheduledAt:     &lastScheduled,
-			StartedAt:       &lastRun,
-			DeliveryError:   "dispatcher unavailable",
-			DeliveryErrorAt: &deliveryErrorAt,
-			Metadata:        metadata,
+			ID:                   "run-scheduler",
+			JobID:                job.ID,
+			FireID:               "fire-scheduler",
+			Status:               automationpkg.RunFailed,
+			Attempt:              1,
+			NetworkParticipation: request,
+			ScheduledAt:          &lastScheduled,
+			StartedAt:            &lastRun,
+			DeliveryError:        "dispatcher unavailable",
+			DeliveryErrorAt:      &deliveryErrorAt,
+			Metadata:             metadata,
 		})
 		if run.FireID != "fire-scheduler" ||
 			run.ScheduledAt == nil ||
@@ -970,13 +972,18 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 			run.DeliveryError != "dispatcher unavailable" ||
 			run.DeliveryErrorAt == nil ||
 			!run.DeliveryErrorAt.Equal(deliveryErrorAt) ||
+			automationTestParticipationChannel(run.NetworkParticipation) != "ops-automation" ||
 			run.Metadata["reason"] != "loop_concurrency_conflict" ||
 			run.Metadata["catch_up_policy"] != "coalesce" {
 			t.Fatalf("RunPayloadFromRun() scheduler diagnostics = %#v", run)
 		}
 		metadata["reason"] = "mutated"
+		*request.ChannelID = "mutated"
 		if run.Metadata["reason"] != "loop_concurrency_conflict" {
 			t.Fatalf("RunPayloadFromRun() metadata was not cloned: %#v", run.Metadata)
+		}
+		if got := automationTestParticipationChannel(run.NetworkParticipation); got != "ops-automation" {
+			t.Fatalf("RunPayloadFromRun() participation was not cloned: %q", got)
 		}
 	})
 }
@@ -1027,7 +1034,7 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 	})
 
 	t.Run("Should map create requests to trimmed task-backed jobs", func(t *testing.T) {
-		createdJob := jobFromCreateRequest(contract.CreateJobRequest{
+		createdJob, err := jobFromCreateRequest(contract.CreateJobRequest{
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        " build review ",
 			AgentName:   " coder ",
@@ -1046,6 +1053,9 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 				},
 			},
 		})
+		if err != nil {
+			t.Fatalf("jobFromCreateRequest() error = %v", err)
+		}
 		if createdJob.Scope != automationpkg.AutomationScopeWorkspace || createdJob.Name != "build review" ||
 			createdJob.AgentName != "coder" ||
 			createdJob.WorkspaceID != "ws-alpha" ||
@@ -1083,7 +1093,7 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			BaseDelay:  "2m",
 		}
 		jobFireLimit := automationpkg.FireLimitConfig{Max: 4, Window: "24h"}
-		updatedJob := applyJobPatch(automationpkg.Job{
+		updatedJob, err := applyJobPatch(automationpkg.Job{
 			ID:          "job-1",
 			Name:        "before",
 			AgentName:   "old-agent",
@@ -1106,6 +1116,9 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			Retry:       &jobRetry,
 			FireLimit:   &jobFireLimit,
 		})
+		if err != nil {
+			t.Fatalf("applyJobPatch() error = %v", err)
+		}
 		if updatedJob.Name != "renamed" || updatedJob.AgentName != "reviewer" || updatedJob.WorkspaceID != "ws-beta" ||
 			updatedJob.Prompt != "next prompt" ||
 			updatedJob.Enabled ||
@@ -1270,7 +1283,7 @@ func automationTestParticipationChannel(request *participation.Request) string {
 	if request == nil || request.ChannelID == nil {
 		return ""
 	}
-	return strings.TrimSpace(*request.ChannelID)
+	return *request.ChannelID
 }
 
 func TestStatusForAutomationErrorMapsAdditionalSentinels(t *testing.T) {

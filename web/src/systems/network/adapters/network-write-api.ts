@@ -166,15 +166,15 @@ export async function upsertNetworkSubscription(
 export async function deleteNetworkSubscription(
   workspaceId: string,
   channel: string,
-  peerId: string,
+  sessionId: string,
   query: { thread_id?: string } = {},
   signal?: AbortSignal
 ): Promise<void> {
   const { error, response } = await apiClient.DELETE(
-    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{peer_id}",
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{session_id}",
     {
       params: {
-        path: { workspace_id: workspaceId, channel, peer_id: peerId },
+        path: { workspace_id: workspaceId, channel, session_id: sessionId },
         query,
       },
       signal,

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -11,7 +12,9 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/agh/internal/notifications"
 	storepkg "github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -58,23 +61,28 @@ type taskStatusProjectionObserver struct {
 	tasks        taskStore
 	prefs        storepkg.NetworkPreferenceStore
 	availability storepkg.NetworkAvailabilityStore
+	events       taskpkg.EventSequenceStore
+	cursors      notifications.CursorStore
 	publisher    taskStatusProjectionPublisher
 	logger       *slog.Logger
 	now          func() time.Time
 	ctx          context.Context
 	cancel       context.CancelFunc
 	wg           sync.WaitGroup
-	queue        chan taskpkg.EventRecord
+	queue        chan struct{}
+	batchSize    int
 	timeout      time.Duration
+	retryDelay   time.Duration
 }
 
 var _ taskpkg.EventObserver = (*taskStatusProjectionObserver)(nil)
 
 type taskStatusProjectionObserverOptions struct {
-	logger    *slog.Logger
-	now       func() time.Time
-	queueSize int
-	timeout   time.Duration
+	logger     *slog.Logger
+	now        func() time.Time
+	queueSize  int
+	timeout    time.Duration
+	retryDelay time.Duration
 }
 
 type taskStatusProjectionObserverOption func(*taskStatusProjectionObserverOptions)
@@ -102,13 +110,15 @@ func newTaskStatusProjectionObserver(
 ) *taskStatusProjectionObserver {
 	prefs, ok := tasks.(storepkg.NetworkPreferenceStore)
 	availability, availabilityOK := tasks.(storepkg.NetworkAvailabilityStore)
-	if tasks == nil || !ok || !availabilityOK || publisher == nil {
+	cursors, cursorsOK := tasks.(notifications.CursorStore)
+	if tasks == nil || !ok || !availabilityOK || !cursorsOK || publisher == nil {
 		return nil
 	}
 	options := taskStatusProjectionObserverOptions{
 		logger: slog.Default(), now: time.Now,
-		queueSize: aghconfig.DefaultTaskNetworkStatusQueueSize,
-		timeout:   aghconfig.DefaultTaskNetworkStatusTimeout,
+		queueSize:  aghconfig.DefaultTaskNetworkStatusQueueSize,
+		timeout:    aghconfig.DefaultTaskNetworkStatusTimeout,
+		retryDelay: 100 * time.Millisecond,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -127,11 +137,16 @@ func newTaskStatusProjectionObserver(
 	if options.timeout <= 0 {
 		options.timeout = aghconfig.DefaultTaskNetworkStatusTimeout
 	}
+	if options.retryDelay <= 0 {
+		options.retryDelay = 100 * time.Millisecond
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	observer := &taskStatusProjectionObserver{
-		tasks: tasks, prefs: prefs, availability: availability, publisher: publisher,
+		tasks: tasks, prefs: prefs, availability: availability, events: tasks,
+		cursors: cursors, publisher: publisher,
 		logger: options.logger, now: options.now, ctx: ctx, cancel: cancel,
-		queue: make(chan taskpkg.EventRecord, options.queueSize), timeout: options.timeout,
+		queue: make(chan struct{}, options.queueSize), batchSize: options.queueSize,
+		timeout: options.timeout, retryDelay: options.retryDelay,
 	}
 	observer.start()
 	return observer
@@ -141,15 +156,7 @@ func (o *taskStatusProjectionObserver) OnTaskEvent(_ context.Context, record tas
 	if o == nil || !taskStatusProjectionEvent(record.Event.EventType) {
 		return
 	}
-	select {
-	case <-o.ctx.Done():
-		return
-	case o.queue <- record:
-	default:
-		o.logger.Warn("daemon: dropped task status projection because queue is full",
-			"event_id", record.Event.ID, "task_id", record.Event.TaskID,
-			"run_id", record.Event.RunID, "event_type", record.Event.EventType)
-	}
+	o.signalTaskStatusProjection()
 }
 
 func (o *taskStatusProjectionObserver) shutdown() {
@@ -160,29 +167,6 @@ func (o *taskStatusProjectionObserver) shutdown() {
 		o.cancel()
 	}
 	o.wg.Wait()
-}
-
-func (o *taskStatusProjectionObserver) start() {
-	o.wg.Go(func() {
-		for {
-			select {
-			case <-o.ctx.Done():
-				return
-			case record := <-o.queue:
-				o.process(record)
-			}
-		}
-	})
-}
-
-func (o *taskStatusProjectionObserver) process(record taskpkg.EventRecord) {
-	ctx, cancel := context.WithTimeout(o.ctx, o.timeout)
-	defer cancel()
-	if err := o.processWithContext(ctx, record); err != nil {
-		o.logger.Warn("daemon: task status projection failed", "error", err,
-			"event_id", record.Event.ID, "task_id", record.Event.TaskID,
-			"run_id", record.Event.RunID, "event_type", record.Event.EventType)
-	}
 }
 
 func (o *taskStatusProjectionObserver) processWithContext(
@@ -196,6 +180,9 @@ func (o *taskStatusProjectionObserver) processWithContext(
 	}
 	taskRecord, err := o.tasks.GetTask(ctx, taskID)
 	if err != nil {
+		if errors.Is(err, taskpkg.ErrTaskNotFound) {
+			return nil
+		}
 		return fmt.Errorf("load task for status projection: %w", err)
 	}
 	projection := taskStatusProjection{
@@ -207,11 +194,14 @@ func (o *taskStatusProjectionObserver) processWithContext(
 	if projection.RunID != "" {
 		run, loadErr := o.tasks.GetTaskRun(ctx, projection.RunID)
 		if loadErr != nil {
+			if errors.Is(loadErr, taskpkg.ErrTaskRunNotFound) {
+				return nil
+			}
 			return fmt.Errorf("load task run for status projection: %w", loadErr)
 		}
 		projection.RunStatus = run.Status
 		projection.NetworkParticipation = run.NetworkSpecSnapshot()
-		if strings.TrimSpace(run.DesignationGroupID) != "" && taskpkg.IsTerminalRunStatus(run.Status) {
+		if strings.TrimSpace(run.DesignationGroupID) != "" {
 			rollup, rollupErr := o.persistDesignationRollup(ctx, event, run)
 			if rollupErr != nil {
 				return rollupErr
@@ -353,8 +343,29 @@ func taskStatusProjectionEvent(eventType string) bool {
 
 func taskStatusProjectionEventType(eventType string) string {
 	switch strings.TrimSpace(eventType) {
-	case taskEventCanceled, taskEventRunStarted, taskEventRunCompleted,
-		taskEventRunFailed, taskEventRunCanceled:
+	case eventspkg.TaskCanceled,
+		eventspkg.TaskNeedsAttention,
+		eventspkg.TaskRecovered,
+		eventspkg.TaskPaused,
+		eventspkg.TaskResumed,
+		eventspkg.TaskRunEnqueued,
+		eventspkg.TaskRunClaimed,
+		eventspkg.TaskRunStarting,
+		eventspkg.TaskRunSessionBound,
+		eventspkg.TaskRunStarted,
+		eventspkg.TaskRunCompleted,
+		eventspkg.TaskRunFailed,
+		eventspkg.TaskRunCanceled,
+		eventspkg.TaskRunForceStopped,
+		eventspkg.TaskRunRecovered,
+		eventspkg.TaskRunRejected,
+		eventspkg.TaskRunLeaseExpired,
+		eventspkg.TaskRunReleased,
+		eventspkg.TaskRunOperatorForcedFail,
+		eventspkg.TaskRunOperatorRetry,
+		eventspkg.TaskRunRecoveredFromAttention,
+		eventspkg.TaskRunNeedsAttention,
+		eventspkg.TaskRunReviewRetryEnqueued:
 		return strings.TrimSpace(eventType)
 	case taskHookRunStarted:
 		return taskEventRunStarted

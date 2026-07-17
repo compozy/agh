@@ -6,34 +6,32 @@ import (
 )
 
 func previewForBody(body Body) string {
+	preview := ""
 	switch value := body.(type) {
 	case GreetBody:
-		return ResolveGreetSummary(value.PeerCard, value.Summary)
+		preview = ResolveGreetSummary(value.PeerCard, value.Summary)
 	case WhoisBody:
 		if value.Type == WhoisTypeRequest {
-			return strings.TrimSpace(value.Query)
+			preview = strings.TrimSpace(value.Query)
 		}
-		return ""
 	case SayBody:
-		return strings.TrimSpace(value.Text)
+		preview = strings.TrimSpace(value.Text)
 	case CapabilityBody:
 		if summary := strings.TrimSpace(value.Capability.Summary); summary != "" {
-			return summary
+			preview = summary
+		} else if outcome := strings.TrimSpace(value.Capability.Outcome); outcome != "" {
+			preview = outcome
+		} else {
+			preview = strings.TrimSpace(value.Capability.ID)
 		}
-		if outcome := strings.TrimSpace(value.Capability.Outcome); outcome != "" {
-			return outcome
-		}
-		return strings.TrimSpace(value.Capability.ID)
 	case ReceiptBody:
 		if value.Detail != nil {
-			return strings.TrimSpace(*value.Detail)
+			preview = strings.TrimSpace(*value.Detail)
 		}
-		return ""
 	case TraceBody:
-		return strings.TrimSpace(value.Message)
-	default:
-		return ""
+		preview = strings.TrimSpace(value.Message)
 	}
+	return truncateNetworkPreview(preview)
 }
 
 // PreviewTextForRawBody derives operator-facing preview text from persisted JSON.

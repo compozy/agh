@@ -90,7 +90,7 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 			t.Fatalf("after wake run = %#v, want scheduler to leave queued ownership untouched", afterWake)
 		}
 
-		claimActor, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
+		claimActor, err := taskpkg.DeriveAgentSessionActorContext("sess-worker", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -128,7 +128,7 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 			t.Fatal("execution.Run.NetworkSpecSnapshot().ChannelID = empty, want derived channel")
 		}
 
-		oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old")
+		oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(old) error = %v", err)
 		}
@@ -198,7 +198,7 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 			}
 		}
 
-		newActor, err := taskpkg.DeriveAgentSessionActorContext("sess-new")
+		newActor, err := taskpkg.DeriveAgentSessionActorContext("sess-new", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(new) error = %v", err)
 		}
@@ -273,7 +273,7 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				t.Fatalf("execution.Run.NetworkSpecSnapshot().ChannelID = %q, want %q", got, want)
 			}
 
-			oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old")
+			oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old", workspaceID)
 			if err != nil {
 				t.Fatalf("DeriveAgentSessionActorContext(old) error = %v", err)
 			}
@@ -334,7 +334,7 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				)
 			}
 
-			newActor, err := taskpkg.DeriveAgentSessionActorContext("sess-new")
+			newActor, err := taskpkg.DeriveAgentSessionActorContext("sess-new", workspaceID)
 			if err != nil {
 				t.Fatalf("DeriveAgentSessionActorContext(new) error = %v", err)
 			}
@@ -438,7 +438,7 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 			t.Fatal("execution.Run.NetworkSpecSnapshot().ChannelID = empty, want derived channel")
 		}
 
-		deadActor, err := taskpkg.DeriveAgentSessionActorContext("sess-dead-worker")
+		deadActor, err := taskpkg.DeriveAgentSessionActorContext("sess-dead-worker", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(dead) error = %v", err)
 		}
@@ -530,7 +530,7 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 			t.Fatalf("wake target run = %q, want %q", got, want)
 		}
 
-		replacementActor, err := taskpkg.DeriveAgentSessionActorContext("sess-replacement")
+		replacementActor, err := taskpkg.DeriveAgentSessionActorContext("sess-replacement", workspaceID)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(replacement) error = %v", err)
 		}
@@ -713,7 +713,7 @@ func TestSchedulerNoEligibleSessionDoesNotClaimIntegration(t *testing.T) {
 			t.Fatalf("stored run = %#v, want queued with no owner or claim token", stored)
 		}
 
-		otherActor, err := taskpkg.DeriveAgentSessionActorContext("sess-other")
+		otherActor, err := taskpkg.DeriveAgentSessionActorContext("sess-other", "ws-other")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(other) error = %v", err)
 		}

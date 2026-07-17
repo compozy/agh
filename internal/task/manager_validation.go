@@ -72,6 +72,13 @@ func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)
 	}
+	if normalized.NetworkParticipation != nil {
+		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
+		if err != nil {
+			return CreateTask{}, fmt.Errorf("create_task.network_participation: %w", err)
+		}
+		normalized.NetworkParticipation = &request
+	}
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("create_task"); err != nil {
 		return CreateTask{}, err
@@ -118,6 +125,13 @@ func normalizeTaskPatch(patch Patch) (Patch, error) {
 	}
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)
+	}
+	if normalized.NetworkParticipation != nil {
+		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
+		if err != nil {
+			return Patch{}, fmt.Errorf("task_patch.network_participation: %w", err)
+		}
+		normalized.NetworkParticipation = &request
 	}
 	if err := normalized.Validate("task_patch"); err != nil {
 		return Patch{}, err

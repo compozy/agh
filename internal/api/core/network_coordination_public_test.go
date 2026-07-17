@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/api/testutil"
 	"github.com/compozy/agh/internal/network/participation"
+	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -22,143 +23,112 @@ func coordinationWorkspaceService() testutil.StubWorkspaceService {
 	}
 }
 
-type stubCoordinationSettings struct {
-	setting workspacepkg.CoordinationSetting
-	setErr  error
-	getErr  error
-	calls   int
+type stubCoordinationCommands struct {
+	getFn           func(context.Context, workspacepkg.CoordinationRef, taskpkg.ActorContext) (workspacepkg.CoordinationView, error)
+	setFn           func(context.Context, workspacepkg.SetCoordination, taskpkg.ActorContext) (workspacepkg.CoordinationView, error)
+	setInvitationFn func(context.Context, workspacepkg.SetInvitation, taskpkg.ActorContext) (workspacepkg.CoordinationView, error)
 }
 
-func (s *stubCoordinationSettings) Get(
-	_ context.Context,
-	workspaceID string,
-) (workspacepkg.CoordinationSetting, error) {
-	if s.getErr != nil {
-		return workspacepkg.CoordinationSetting{}, s.getErr
+func (s *stubCoordinationCommands) Get(
+	ctx context.Context,
+	ref workspacepkg.CoordinationRef,
+	actor taskpkg.ActorContext,
+) (workspacepkg.CoordinationView, error) {
+	if s.getFn == nil {
+		return workspacepkg.CoordinationView{}, nil
 	}
-	out := s.setting
-	if out.WorkspaceID == "" {
-		out.WorkspaceID = workspaceID
-	}
-	return out, nil
+	return s.getFn(ctx, ref, actor)
 }
 
-func (s *stubCoordinationSettings) Set(
-	_ context.Context,
-	workspaceID string,
-	enabled bool,
-	actor string,
-) (workspacepkg.CoordinationSetting, error) {
-	s.calls++
-	if s.setErr != nil {
-		return workspacepkg.CoordinationSetting{}, s.setErr
+func (s *stubCoordinationCommands) Set(
+	ctx context.Context,
+	cmd workspacepkg.SetCoordination,
+	actor taskpkg.ActorContext,
+) (workspacepkg.CoordinationView, error) {
+	if s.setFn == nil {
+		return workspacepkg.CoordinationView{}, nil
 	}
-	s.setting = workspacepkg.CoordinationSetting{
-		WorkspaceID: workspaceID,
-		Enabled:     enabled,
-		Revision:    s.setting.Revision + 1,
-		UpdatedAt:   time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC),
-		UpdatedBy:   actor,
-	}
-	return s.setting, nil
+	return s.setFn(ctx, cmd, actor)
 }
 
-type stubCoordinationInvitations struct {
-	row      workspacepkg.CoordinationInvitation
-	getErr   error
-	dismiss  error
-	resetErr error
+func (s *stubCoordinationCommands) SetInvitation(
+	ctx context.Context,
+	cmd workspacepkg.SetInvitation,
+	actor taskpkg.ActorContext,
+) (workspacepkg.CoordinationView, error) {
+	if s.setInvitationFn == nil {
+		return workspacepkg.CoordinationView{}, nil
+	}
+	return s.setInvitationFn(ctx, cmd, actor)
 }
 
-func (s *stubCoordinationInvitations) GetInvitation(
-	_ context.Context,
-	scopeKind string,
-	scopeID string,
-) (workspacepkg.CoordinationInvitation, error) {
-	if s.getErr != nil {
-		return workspacepkg.CoordinationInvitation{}, s.getErr
-	}
-	if s.row.ScopeKind == "" {
-		return workspacepkg.CoordinationInvitation{
-			ScopeKind: scopeKind,
-			ScopeID:   scopeID,
-			Dismissed: false,
-		}, nil
-	}
-	return s.row, nil
-}
-
-func (s *stubCoordinationInvitations) DismissInvitation(
-	_ context.Context,
-	scopeKind string,
-	scopeID string,
-	actor string,
-) (workspacepkg.CoordinationInvitation, error) {
-	if s.dismiss != nil {
-		return workspacepkg.CoordinationInvitation{}, s.dismiss
-	}
-	s.row = workspacepkg.CoordinationInvitation{
-		ScopeKind:   scopeKind,
-		ScopeID:     scopeID,
-		Dismissed:   true,
-		DismissedAt: time.Date(2026, 7, 14, 12, 1, 0, 0, time.UTC),
-		DismissedBy: actor,
-	}
-	return s.row, nil
-}
-
-func (s *stubCoordinationInvitations) ResetInvitation(
-	_ context.Context,
-	_ string,
-	_ string,
-) error {
-	if s.resetErr != nil {
-		return s.resetErr
-	}
-	s.row = workspacepkg.CoordinationInvitation{}
-	return nil
+func coordinationFixture(t *testing.T) handlerFixture {
+	t.Helper()
+	return newHandlerFixture(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		coordinationWorkspaceService(),
+		nil,
+		nil,
+	)
 }
 
 func TestNetworkCoordinationHandlers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return coordination provenance and invitation state on GET", func(t *testing.T) {
+	t.Run("Should return scope provenance invitation and eligibility on GET", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{},
-			testutil.StubObserver{},
-			coordinationWorkspaceService(),
-			nil,
-			nil,
-		)
-		settings := &stubCoordinationSettings{
-			setting: workspacepkg.CoordinationSetting{
-				WorkspaceID: "ws-alpha",
-				Enabled:     true,
-				Revision:    3,
-				UpdatedAt:   time.Date(2026, 7, 14, 11, 0, 0, 0, time.UTC),
-				UpdatedBy:   "operator",
+		fixture := coordinationFixture(t)
+		updatedAt := time.Date(2026, 7, 14, 11, 0, 0, 0, time.UTC)
+		dismissedAt := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+		fixture.Handlers.Coordination = &stubCoordinationCommands{
+			getFn: func(
+				_ context.Context,
+				ref workspacepkg.CoordinationRef,
+				actor taskpkg.ActorContext,
+			) (workspacepkg.CoordinationView, error) {
+				if ref.WorkspaceID != "ws-alpha" || ref.ScopeKind != "task" ||
+					ref.TaskID != "task-1" || ref.RunID != "run-1" {
+					t.Fatalf("ref = %#v, want explicit task/run scope", ref)
+				}
+				if actor.Actor.Ref != "local-user" || !actor.Scope.Operator {
+					t.Fatalf("actor = %#v, want trusted local operator", actor)
+				}
+				return workspacepkg.CoordinationView{
+					Setting: workspacepkg.CoordinationSetting{
+						WorkspaceID: "ws-alpha",
+						ScopeKind:   "task",
+						ScopeID:     "task-1",
+						Enabled:     false,
+						Revision:    3,
+						UpdatedAt:   updatedAt,
+						UpdatedBy:   "local-user",
+					},
+					Invitation: workspacepkg.CoordinationInvitation{
+						WorkspaceID: "ws-alpha",
+						ScopeKind:   "task",
+						ScopeID:     "task-1",
+						Dismissed:   true,
+						DismissedAt: dismissedAt,
+						DismissedBy: "local-user",
+					},
+					Eligibility: workspacepkg.CoordinationEligibility{
+						Reason:      "dismissed",
+						RunID:       "run-1",
+						Coordinator: true,
+						WorkerCount: 2,
+					},
+				}, nil
 			},
 		}
-		invitations := &stubCoordinationInvitations{
-			row: workspacepkg.CoordinationInvitation{
-				ScopeKind:   workspacepkg.InvitationScopeWorkspace,
-				ScopeID:     "ws-alpha",
-				Dismissed:   true,
-				DismissedAt: time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC),
-				DismissedBy: "operator",
-			},
-		}
-		fixture.Handlers.CoordinationSettings = settings
-		fixture.Handlers.CoordinationInvitations = invitations
 
 		resp := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-alpha/network-coordination",
+			"/workspaces/ws-alpha/network-coordination?scope=task&task_id=task-1&run_id=run-1",
 			nil,
 		)
 		if resp.Code != http.StatusOK {
@@ -168,170 +138,210 @@ func TestNetworkCoordinationHandlers(t *testing.T) {
 		if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
 			t.Fatalf("decode coordination response: %v", err)
 		}
-		if !body.Coordination.Enabled || body.Coordination.Revision != 3 {
-			t.Fatalf("coordination = %#v, want enabled revision=3", body.Coordination)
+		if body.Coordination.Scope != "task" || body.Coordination.TaskID != "task-1" ||
+			body.Coordination.Revision != 3 || body.Coordination.UpdatedAt == nil {
+			t.Fatalf("coordination = %#v, want task revision provenance", body.Coordination)
 		}
-		if body.Coordination.Invitation == nil || !body.Coordination.Invitation.Dismissed {
-			t.Fatalf("invitation = %#v, want dismissed", body.Coordination.Invitation)
+		if body.Coordination.Invitation == nil || !body.Coordination.Invitation.Dismissed ||
+			body.Coordination.Eligibility.Reason != "dismissed" {
+			t.Fatalf("coordination = %#v, want persisted invitation eligibility", body.Coordination)
 		}
 	})
 
-	t.Run("Should PUT enable and return updated revision", func(t *testing.T) {
+	t.Run("Should omit update timestamp for an absent coordination row", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{},
-			testutil.StubObserver{},
-			coordinationWorkspaceService(),
-			nil,
-			nil,
-		)
-		settings := &stubCoordinationSettings{}
-		fixture.Handlers.CoordinationSettings = settings
-		fixture.Handlers.CoordinationInvitations = &stubCoordinationInvitations{}
-
+		fixture := coordinationFixture(t)
+		fixture.Handlers.Coordination = &stubCoordinationCommands{
+			getFn: func(
+				_ context.Context,
+				ref workspacepkg.CoordinationRef,
+				_ taskpkg.ActorContext,
+			) (workspacepkg.CoordinationView, error) {
+				return workspacepkg.CoordinationView{
+					Setting: workspacepkg.CoordinationSetting{
+						WorkspaceID: ref.WorkspaceID,
+						ScopeKind:   ref.ScopeKind,
+						ScopeID:     ref.WorkspaceID,
+					},
+				}, nil
+			},
+		}
 		resp := performRequest(
 			t,
 			fixture.Engine,
-			http.MethodPut,
-			"/workspaces/ws-alpha/network-coordination",
-			[]byte(`{"enabled":true}`),
+			http.MethodGet,
+			"/workspaces/ws-alpha/network-coordination?scope=workspace",
+			nil,
 		)
 		if resp.Code != http.StatusOK {
-			t.Fatalf("PUT coordination status = %d body=%s", resp.Code, resp.Body.String())
+			t.Fatalf("GET absent coordination status = %d body=%s", resp.Code, resp.Body.String())
 		}
-		var body contract.NetworkCoordinationResponse
-		if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
-			t.Fatalf("decode coordination response: %v", err)
-		}
-		if !body.Coordination.Enabled || body.Coordination.Revision != 1 {
-			t.Fatalf("coordination = %#v, want enabled revision=1", body.Coordination)
-		}
-		if settings.calls != 1 {
-			t.Fatalf("Set calls = %d, want 1", settings.calls)
+		if strings.Contains(resp.Body.String(), "updated_at") {
+			t.Fatalf("body = %s, absent row must not invent updated_at", resp.Body.String())
 		}
 	})
 
-	t.Run("Should reject PUT while network participation is unavailable with body", func(t *testing.T) {
+	t.Run("Should compare-and-set task coordination through one command", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{},
-			testutil.StubObserver{},
-			coordinationWorkspaceService(),
-			nil,
-			nil,
-		)
-		fixture.Handlers.CoordinationSettings = &stubCoordinationSettings{
-			setErr: participation.ErrUnavailable,
+		fixture := coordinationFixture(t)
+		calls := 0
+		fixture.Handlers.Coordination = &stubCoordinationCommands{
+			setFn: func(
+				_ context.Context,
+				cmd workspacepkg.SetCoordination,
+				actor taskpkg.ActorContext,
+			) (workspacepkg.CoordinationView, error) {
+				calls++
+				if cmd.Ref.ScopeKind != "task" || cmd.Ref.TaskID != "task-1" ||
+					cmd.Ref.RunID != "run-1" || !cmd.Enabled || cmd.ExpectedRevision != 4 {
+					t.Fatalf("command = %#v, want task-scoped CAS enable", cmd)
+				}
+				if actor.Actor.Ref != "local-user" {
+					t.Fatalf("actor = %#v, want server-derived local user", actor)
+				}
+				return workspacepkg.CoordinationView{Setting: workspacepkg.CoordinationSetting{
+					WorkspaceID: "ws-alpha",
+					ScopeKind:   "task",
+					ScopeID:     "task-1",
+					Enabled:     true,
+					Revision:    5,
+				}}, nil
+			},
 		}
-		fixture.Handlers.CoordinationInvitations = &stubCoordinationInvitations{}
-
 		resp := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodPut,
 			"/workspaces/ws-alpha/network-coordination",
-			[]byte(`{"enabled":true}`),
+			[]byte(`{"scope":"task","task_id":"task-1","run_id":"run-1","enabled":true,"expected_revision":4}`),
 		)
-		if resp.Code != http.StatusConflict {
-			t.Fatalf("PUT unavailable status = %d body=%s", resp.Code, resp.Body.String())
-		}
-		if !strings.Contains(resp.Body.String(), "unavailable") &&
-			!strings.Contains(resp.Body.String(), participation.ErrUnavailable.Error()) {
-			t.Fatalf("body = %s, want unavailable diagnostic", resp.Body.String())
+		if resp.Code != http.StatusOK || calls != 1 {
+			t.Fatalf("PUT coordination status/calls = %d/%d body=%s", resp.Code, calls, resp.Body.String())
 		}
 	})
 
-	t.Run("Should reject unknown fields on coordination PUT", func(t *testing.T) {
+	t.Run("Should reject omitted booleans revisions and unknown fields", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{},
-			testutil.StubObserver{},
-			coordinationWorkspaceService(),
-			nil,
-			nil,
-		)
-		fixture.Handlers.CoordinationSettings = &stubCoordinationSettings{}
-		fixture.Handlers.CoordinationInvitations = &stubCoordinationInvitations{}
-
-		resp := performRequest(
-			t,
-			fixture.Engine,
-			http.MethodPut,
-			"/workspaces/ws-alpha/network-coordination",
-			[]byte(`{"enabled":true,"network_channel":"builders"}`),
-		)
-		if resp.Code != http.StatusBadRequest {
-			t.Fatalf("PUT unknown field status = %d body=%s", resp.Code, resp.Body.String())
-		}
-		body := resp.Body.String()
-		if !strings.Contains(body, "unknown_field") || !strings.Contains(body, "network_channel") {
-			t.Fatalf("body = %s, want unknown_field with network_channel named", body)
+		for _, tc := range []struct {
+			name string
+			body string
+		}{
+			{name: "enabled", body: `{"scope":"workspace","expected_revision":0}`},
+			{name: "expected revision", body: `{"scope":"workspace","enabled":true}`},
+			{name: "unknown field", body: `{"scope":"workspace","enabled":true,"expected_revision":0,"network_channel":"builders"}`},
+		} {
+			t.Run("Should reject missing "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				fixture := coordinationFixture(t)
+				fixture.Handlers.Coordination = &stubCoordinationCommands{}
+				resp := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPut,
+					"/workspaces/ws-alpha/network-coordination",
+					[]byte(tc.body),
+				)
+				if resp.Code != http.StatusBadRequest {
+					t.Fatalf("PUT invalid status = %d body=%s", resp.Code, resp.Body.String())
+				}
+			})
 		}
 	})
 
-	t.Run("Should dismiss invitation and return daemon-backed state", func(t *testing.T) {
+	t.Run("Should map unavailable and stale revisions to conflict", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{},
-			testutil.StubObserver{},
-			coordinationWorkspaceService(),
-			nil,
-			nil,
-		)
-		invitations := &stubCoordinationInvitations{}
-		fixture.Handlers.CoordinationSettings = &stubCoordinationSettings{}
-		fixture.Handlers.CoordinationInvitations = invitations
+		for _, commandErr := range []error{participation.ErrUnavailable, workspacepkg.ErrCoordinationConflict} {
+			fixture := coordinationFixture(t)
+			fixture.Handlers.Coordination = &stubCoordinationCommands{
+				setFn: func(
+					_ context.Context,
+					_ workspacepkg.SetCoordination,
+					_ taskpkg.ActorContext,
+				) (workspacepkg.CoordinationView, error) {
+					return workspacepkg.CoordinationView{}, commandErr
+				},
+			}
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPut,
+				"/workspaces/ws-alpha/network-coordination",
+				[]byte(`{"scope":"workspace","enabled":true,"expected_revision":0}`),
+			)
+			if resp.Code != http.StatusConflict || !strings.Contains(resp.Body.String(), commandErr.Error()) {
+				t.Fatalf("PUT conflict status = %d body=%s", resp.Code, resp.Body.String())
+			}
+		}
+	})
 
+	t.Run("Should dismiss task invitation with explicit run and revision", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := coordinationFixture(t)
+		fixture.Handlers.Coordination = &stubCoordinationCommands{
+			setInvitationFn: func(
+				_ context.Context,
+				cmd workspacepkg.SetInvitation,
+				actor taskpkg.ActorContext,
+			) (workspacepkg.CoordinationView, error) {
+				if cmd.Ref.ScopeKind != "task" || cmd.Ref.TaskID != "task-1" ||
+					cmd.Ref.RunID != "run-1" || !cmd.Dismissed || cmd.ExpectedRevision != 3 {
+					t.Fatalf("command = %#v, want task invitation CAS", cmd)
+				}
+				return workspacepkg.CoordinationView{
+					Setting: workspacepkg.CoordinationSetting{
+						WorkspaceID: "ws-alpha",
+						ScopeKind:   "task",
+						ScopeID:     "task-1",
+						Revision:    4,
+					},
+					Invitation: workspacepkg.CoordinationInvitation{
+						WorkspaceID: "ws-alpha",
+						ScopeKind:   "task",
+						ScopeID:     "task-1",
+						Dismissed:   true,
+						DismissedBy: actor.Actor.Ref,
+					},
+				}, nil
+			},
+		}
 		resp := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodPut,
 			"/workspaces/ws-alpha/network-coordination/invitation",
-			[]byte(`{"scope":"workspace","dismissed":true}`),
+			[]byte(`{"scope":"task","task_id":"task-1","run_id":"run-1","dismissed":true,"expected_revision":3}`),
 		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("PUT invitation status = %d body=%s", resp.Code, resp.Body.String())
 		}
-		var body contract.NetworkCoordinationResponse
-		if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
-			t.Fatalf("decode invitation response: %v", err)
-		}
-		if body.Coordination.Invitation == nil || !body.Coordination.Invitation.Dismissed {
-			t.Fatalf("invitation = %#v, want dismissed", body.Coordination.Invitation)
-		}
-		if !invitations.row.Dismissed {
-			t.Fatal("stub invitation row was not dismissed")
-		}
 	})
 
-	t.Run("Should map workspace not found on coordination GET", func(t *testing.T) {
+	t.Run("Should map workspace not found before reading coordination", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{},
 			testutil.StubObserver{},
-			testutil.StubWorkspaceService{},
+			testutil.StubWorkspaceService{
+				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				},
+			},
 			nil,
 			nil,
 		)
-		fixture.Handlers.CoordinationSettings = &stubCoordinationSettings{
-			getErr: workspacepkg.ErrWorkspaceNotFound,
-		}
-
+		fixture.Handlers.Coordination = &stubCoordinationCommands{}
 		resp := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/missing/network-coordination",
+			"/workspaces/missing/network-coordination?scope=workspace",
 			nil,
 		)
 		if resp.Code != http.StatusNotFound {

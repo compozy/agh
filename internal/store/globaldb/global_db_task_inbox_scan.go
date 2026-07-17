@@ -23,6 +23,7 @@ type taskInboxScanFields struct {
 	lastActivityAt           string
 	priorityRank             int
 	runID                    sql.NullString
+	runWorkspaceID           sql.NullString
 	runStatus                sql.NullString
 	runAttempt               sql.NullInt64
 	runPreviousRunID         sql.NullString
@@ -120,6 +121,7 @@ func scanTaskInboxFields(
 		&fields.lastActivityAt,
 		&fields.priorityRank,
 		&fields.runID,
+		&fields.runWorkspaceID,
 		&fields.runStatus,
 		&fields.runAttempt,
 		&fields.runPreviousRunID,
@@ -154,6 +156,7 @@ func scanTaskInboxFields(
 func taskInboxRunScanFields(fields *taskInboxScanFields) taskCatalogScanFields {
 	return taskCatalogScanFields{
 		activeRunID:              fields.runID,
+		activeRunWorkspaceID:     fields.runWorkspaceID,
 		activeRunStatus:          fields.runStatus,
 		activeRunAttempt:         fields.runAttempt,
 		activeRunPreviousRunID:   fields.runPreviousRunID,

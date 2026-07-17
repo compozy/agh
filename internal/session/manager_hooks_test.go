@@ -247,6 +247,47 @@ func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 	}
 }
 
+func TestResumeRejectsPatchedWorkspaceThatConflictsWithLiveSnapshot(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	liveSession := createLiveNetworkSession(t, h)
+	if err := h.manager.Stop(testutil.Context(t), liveSession.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	patchedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve(primary workspace) error = %v", err)
+	}
+	patchedWorkspace.ID = "ws-pre-resume-patched"
+	patchedWorkspace.WorkspaceID = patchedWorkspace.ID
+	patchedWorkspace.Name = "pre-resume-patched"
+	h.resolver.upsert(&patchedWorkspace)
+
+	dispatcher := &spyHookDispatcher{
+		dispatchSessionPreResumeFn: func(
+			_ context.Context,
+			payload hookspkg.SessionPreResumePayload,
+		) (hookspkg.SessionPreResumePayload, error) {
+			payload.WorkspaceID = patchedWorkspace.ID
+			return payload, nil
+		},
+	}
+	h.manager = newManagerWithHarness(t, h, WithHookSet(fullHookSet(dispatcher)))
+	startCallsBeforeResume := len(h.driver.startCalls)
+
+	_, err = h.manager.Resume(testutil.Context(t), liveSession.ID)
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("Resume(workspace mismatch) error = %v, want %v", err, ErrValidation)
+	}
+	if got := len(h.driver.startCalls); got != startCallsBeforeResume {
+		t.Fatalf("driver start calls = %d, want unchanged %d", got, startCallsBeforeResume)
+	}
+	if got := len(h.manager.List()); got != 0 {
+		t.Fatalf("active sessions after rejected resume = %d, want 0", got)
+	}
+}
+
 func TestFallbackLifecycleContextUsesManagerLifecycleContext(t *testing.T) {
 	t.Parallel()
 

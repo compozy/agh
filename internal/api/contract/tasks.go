@@ -322,27 +322,6 @@ type TaskRunOperationalSummaryPayload struct {
 	CostCurrency   *string   `json:"cost_currency,omitempty"`
 }
 
-// TaskRunConversationRefPayload identifies the deterministic conversation attached to a Live run.
-type TaskRunConversationRefPayload struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	Surface     string `json:"surface"`
-	ThreadID    string `json:"thread_id"`
-	StreamURL   string `json:"stream_url"`
-}
-
-// TaskRunNetworkPayload carries the run-scoped conversation and truthful bound consumption.
-type TaskRunNetworkPayload struct {
-	Conversation TaskRunConversationRefPayload `json:"conversation"`
-	Usage        NetworkUsageResponse          `json:"usage"`
-}
-
-// TaskRunConversationStreamPayload is one typed message-or-usage SSE frame.
-type TaskRunConversationStreamPayload struct {
-	Message *NetworkConversationMessagePayload `json:"message,omitempty"`
-	Usage   *NetworkUsageResponse              `json:"usage,omitempty"`
-}
-
 // TaskRunDetailPayload is the shared run-detail response payload.
 type TaskRunDetailPayload struct {
 	Run     TaskRunPayload                   `json:"run"`
@@ -600,9 +579,10 @@ type TaskTriageStatePayload struct {
 
 // TaskRunListQuery captures the shared task-run list filters.
 type TaskRunListQuery struct {
-	Status    taskpkg.RunStatus `json:"status,omitempty"`
-	SessionID string            `json:"session_id,omitempty"`
-	Limit     int               `json:"limit,omitempty"`
+	Status               taskpkg.RunStatus `json:"status,omitempty"`
+	SessionID            string            `json:"session_id,omitempty"`
+	ParticipationChannel string            `json:"participation_channel,omitempty"`
+	Limit                int               `json:"limit,omitempty"`
 }
 
 // TaskTimelineQuery captures the shared task timeline filters.

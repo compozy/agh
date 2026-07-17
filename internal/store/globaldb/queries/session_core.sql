@@ -52,7 +52,7 @@ FROM session_health
 WHERE session_id IN (sqlc.slice(session_ids))
 ORDER BY updated_at DESC, session_id DESC;
 
--- name: UpsertSession :exec
+-- name: UpsertSession :execrows
 INSERT INTO sessions (
   id, name, agent_name, provider, workspace_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
@@ -86,10 +86,6 @@ ON CONFLICT(id) DO UPDATE SET
   provider = excluded.provider,
   workspace_id = excluded.workspace_id,
   session_type = excluded.session_type,
-  network_spec_json = excluded.network_spec_json,
-  network_mode = excluded.network_mode,
-  network_channel = excluded.network_channel,
-  network_source = excluded.network_source,
   state = excluded.state,
   parent_session_id = excluded.parent_session_id,
   root_session_id = excluded.root_session_id,
@@ -123,4 +119,8 @@ ON CONFLICT(id) DO UPDATE SET
   sandbox_provider_state_json = excluded.sandbox_provider_state_json,
   sandbox_last_sync_at = excluded.sandbox_last_sync_at,
   sandbox_last_sync_error = excluded.sandbox_last_sync_error,
-  updated_at = excluded.updated_at;
+  updated_at = excluded.updated_at
+WHERE sessions.network_spec_json IS excluded.network_spec_json
+  AND sessions.network_mode IS excluded.network_mode
+  AND sessions.network_channel IS excluded.network_channel
+  AND sessions.network_source IS excluded.network_source;

@@ -6,22 +6,34 @@ import {
 } from "@/lib/api-client";
 
 import { NetworkApiError } from "./network-api-error";
+import type { NetworkUsageQuery } from "../types";
 
 export type NetworkCoordinationResponse = Awaited<ReturnType<typeof getNetworkCoordination>>;
 export type NetworkUsageResponse = Awaited<ReturnType<typeof getNetworkUsage>>;
 
+export interface NetworkCoordinationRef {
+  scope: "workspace" | "task";
+  taskId?: string;
+  runId?: string;
+}
+
 export async function getNetworkCoordination(
   workspaceId: string,
-  options: { taskId?: string; signal?: AbortSignal } = {}
+  ref: NetworkCoordinationRef,
+  signal?: AbortSignal
 ) {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/network-coordination",
     {
       params: {
         path: { workspace_id: workspaceId },
-        query: options.taskId ? { task_id: options.taskId } : undefined,
+        query: {
+          scope: ref.scope,
+          ...(ref.taskId ? { task_id: ref.taskId } : {}),
+          ...(ref.runId ? { run_id: ref.runId } : {}),
+        },
       },
-      signal: options.signal,
+      signal,
     }
   );
   if (apiRequestFailed(response, error)) {
@@ -35,18 +47,23 @@ export async function getNetworkCoordination(
 
 export async function putNetworkCoordination(
   workspaceId: string,
-  body: { enabled: boolean },
-  options: { taskId?: string; signal?: AbortSignal } = {}
+  body: {
+    scope: "workspace" | "task";
+    task_id?: string;
+    run_id?: string;
+    enabled: boolean;
+    expected_revision: number;
+  },
+  signal?: AbortSignal
 ) {
   const { data, error, response } = await apiClient.PUT(
     "/api/workspaces/{workspace_id}/network-coordination",
     {
       params: {
         path: { workspace_id: workspaceId },
-        query: options.taskId ? { task_id: options.taskId } : undefined,
       },
       body,
-      signal: options.signal,
+      signal,
     }
   );
   if (apiRequestFailed(response, error)) {
@@ -60,7 +77,13 @@ export async function putNetworkCoordination(
 
 export async function putNetworkCoordinationInvitation(
   workspaceId: string,
-  body: { scope: string; task_id?: string; dismissed: boolean },
+  body: {
+    scope: "workspace" | "task";
+    task_id?: string;
+    run_id?: string;
+    dismissed: boolean;
+    expected_revision: number;
+  },
   options: { signal?: AbortSignal } = {}
 ) {
   const { data, error, response } = await apiClient.PUT(
@@ -81,11 +104,15 @@ export async function putNetworkCoordinationInvitation(
     .coordination;
 }
 
-export async function getNetworkUsage(workspaceId: string, signal?: AbortSignal) {
+export async function getNetworkUsage(
+  workspaceId: string,
+  query: NetworkUsageQuery = {},
+  signal?: AbortSignal
+) {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/network/usage",
     {
-      params: { path: { workspace_id: workspaceId } },
+      params: { path: { workspace_id: workspaceId }, query },
       signal,
     }
   );

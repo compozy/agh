@@ -30,8 +30,7 @@ type BaseHandlerConfig struct {
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	NetworkUsage                 store.NetworkUsageStore
-	CoordinationSettings         workspacepkg.CoordinationSettings
-	CoordinationInvitations      workspacepkg.CoordinationInvitations
+	Coordination                 workspacepkg.CoordinationCommands
 	Observer                     Observer
 	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
@@ -100,8 +99,7 @@ type BaseHandlers struct {
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	NetworkUsage                 store.NetworkUsageStore
-	CoordinationSettings         workspacepkg.CoordinationSettings
-	CoordinationInvitations      workspacepkg.CoordinationInvitations
+	Coordination                 workspacepkg.CoordinationCommands
 	Observer                     Observer
 	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
@@ -179,8 +177,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Network:                      cfg.Network,
 		NetworkStore:                 cfg.NetworkStore,
 		NetworkUsage:                 cfg.NetworkUsage,
-		CoordinationSettings:         cfg.CoordinationSettings,
-		CoordinationInvitations:      cfg.CoordinationInvitations,
+		Coordination:                 cfg.Coordination,
 		Observer:                     cfg.Observer,
 		SchemaStreams:                cfg.SchemaStreams,
 		Resources:                    cfg.Resources,

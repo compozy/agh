@@ -6,7 +6,11 @@
  * modeled with `surface:"direct"` plus `direct_id`; the message kind for that
  * envelope is still `say` (or any other conversation-bearing kind).
  */
-export type NetworkKind = "greet" | "whois" | "say" | "capability" | "receipt" | "trace";
+export const NETWORK_KINDS = ["greet", "whois", "say", "capability", "receipt", "trace"] as const;
+
+export type NetworkKind = (typeof NETWORK_KINDS)[number];
+
+export const NETWORK_KIND_COUNT = NETWORK_KINDS.length;
 
 /** One-line purpose for every kind — tooltip copy, alt text, and copy audit source. */
 export const KIND_MEANING = {

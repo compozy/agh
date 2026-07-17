@@ -2,8 +2,10 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
+	"github.com/compozy/agh/internal/network"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/spf13/cobra"
 )
@@ -122,7 +124,7 @@ func parseTaskListFilters(
 			"cli: --owner-kind and --owner-ref must be provided together",
 		)
 	}
-	if err := validateTaskChannelFlag(participationChannelRaw); err != nil {
+	if err := validateTaskParticipationChannelFlag(participationChannelRaw); err != nil {
 		return TaskListQuery{}, err
 	}
 	if err := validateTaskLast(limit); err != nil {
@@ -154,6 +156,17 @@ func parseTaskListFilters(
 		Cursor:               strings.TrimSpace(cursor),
 		Limit:                limit,
 	}, nil
+}
+
+func validateTaskParticipationChannelFlag(channel string) error {
+	trimmed := strings.TrimSpace(channel)
+	if trimmed == "" {
+		return nil
+	}
+	if err := network.ValidateChannel(trimmed); err != nil {
+		return fmt.Errorf("cli: invalid --participation-channel value %q: %w", trimmed, err)
+	}
+	return nil
 }
 
 func taskSummaryListBundle(page TaskListRecord) outputBundle {

@@ -378,7 +378,7 @@ const listTaskEventRecordsAscending = `-- name: ListTaskEventRecordsAscending :m
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE task_id = ?1
+WHERE (CAST(?1 AS TEXT) = '' OR task_id = CAST(?1 AS TEXT))
   AND (CAST(?2 AS INTEGER) <= 0 OR event_seq > CAST(?2 AS INTEGER))
 ORDER BY event_seq ASC
 LIMIT ?3
@@ -443,7 +443,7 @@ const listTaskEventRecordsDescending = `-- name: ListTaskEventRecordsDescending 
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE task_id = ?1
+WHERE (CAST(?1 AS TEXT) = '' OR task_id = CAST(?1 AS TEXT))
   AND (CAST(?2 AS INTEGER) <= 0 OR event_seq > CAST(?2 AS INTEGER))
 ORDER BY event_seq DESC
 LIMIT ?3

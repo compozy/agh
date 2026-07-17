@@ -11,4 +11,5 @@ const (
 	listLimitLabel      = "Limit"
 	listHasMoreLabel    = "Has More"
 	listNextCursorLabel = "Next Cursor"
+	sessionIDLabel      = "Session ID"
 )

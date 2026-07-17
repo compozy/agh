@@ -408,12 +408,14 @@ var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)
 
 func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 	storeInfo := store.SessionInfo{
-		ID:               info.ID,
-		Name:             info.Name,
-		AgentName:        info.AgentName,
-		Provider:         info.Provider,
-		WorkspaceID:      info.WorkspaceID,
-		Channel:          info.NetworkParticipation.ChannelID,
+		ID:          info.ID,
+		Name:        info.Name,
+		AgentName:   info.AgentName,
+		Provider:    info.Provider,
+		WorkspaceID: info.WorkspaceID,
+		SessionNetworkState: &store.SessionNetworkState{
+			NetworkSpec: info.NetworkParticipation,
+		},
 		SessionType:      string(info.Type),
 		Lineage:          info.Lineage,
 		State:            string(info.State),

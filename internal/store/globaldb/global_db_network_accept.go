@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/agh/internal/store"
 )
@@ -25,73 +26,134 @@ func (g *NetworkRepo) AcceptNetworkMessage(
 	now := normalized.Message.Timestamp
 
 	err = g.withNetworkImmediateTransaction(ctx, "accept network message", func(exec networkSQLExecutor) error {
-		write, acceptanceSeq, persistErr := persistNetworkConversationMessageWithExecutor(
-			ctx,
-			exec,
-			normalized.Message,
-		)
-		if persistErr != nil {
-			return persistErr
-		}
-		result.AcceptanceSeq = acceptanceSeq
-		result.Duplicate = write.Duplicate
-		result.Conversation = write
-		if write.Duplicate {
-			result.Dispositions, persistErr = listNetworkMessageDispositions(
-				ctx,
-				exec,
-				normalized.Message.MessageID,
-			)
-			return persistErr
-		}
-
-		if persistErr := insertNetworkMessageDispositions(
-			ctx,
-			exec,
-			normalized.Message,
-			normalized.Dispositions,
-			acceptanceSeq,
-			now,
-		); persistErr != nil {
-			return persistErr
-		}
-		result.Dispositions = append([]store.NetworkMessageDisposition(nil), normalized.Dispositions...)
-		availability, availabilityErr := getNetworkAvailabilityWithExecutor(ctx, exec)
-		if availabilityErr != nil {
-			return availabilityErr
-		}
-		result.AvailabilityEpoch = availability.Epoch
-		for _, input := range normalized.Admissions {
-			decision, admissionErr := g.admitNetworkWake(
-				ctx,
-				exec,
-				normalized.Message,
-				input,
-				acceptanceSeq,
-				now,
-				availability.Enabled,
-			)
-			if admissionErr != nil {
-				return admissionErr
-			}
-			if decision.reservation != nil {
-				result.Admitted = append(result.Admitted, *decision.reservation)
-				result.Notify = append(result.Notify, store.CommittedNetworkNotification{
-					RecipientSessionID: input.RecipientSessionID,
-					TaskRunID:          decision.reservation.TaskRunID,
-					AcceptanceSeq:      acceptanceSeq,
-				})
-			}
-			if decision.skip != nil {
-				result.Skipped = append(result.Skipped, *decision.skip)
-			}
-		}
-		return nil
+		return g.acceptNetworkMessageWithExecutor(ctx, exec, &normalized, now, &result)
 	})
 	if err != nil {
 		return store.AcceptNetworkMessageResult{}, err
 	}
 	return result, nil
+}
+
+func (g *NetworkRepo) acceptNetworkMessageWithExecutor(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	normalized *store.AcceptNetworkMessageRequest,
+	now time.Time,
+	result *store.AcceptNetworkMessageResult,
+) error {
+	write, acceptanceSeq, err := persistNetworkConversationMessageWithExecutor(
+		ctx,
+		exec,
+		normalized.Message,
+	)
+	if err != nil {
+		return err
+	}
+	result.AcceptanceSeq = acceptanceSeq
+	result.Duplicate = write.Duplicate
+	result.Conversation = write
+	if write.Duplicate {
+		result.Dispositions, err = listNetworkMessageDispositions(
+			ctx,
+			exec,
+			normalized.Message.WorkspaceID,
+			normalized.Message.MessageID,
+		)
+		return err
+	}
+	if err := insertNetworkMessageDispositions(
+		ctx,
+		exec,
+		normalized.Message,
+		normalized.Dispositions,
+		acceptanceSeq,
+		now,
+	); err != nil {
+		return err
+	}
+	if err := upsertDeliveredNetworkThreadParticipants(
+		ctx,
+		exec,
+		normalized.Message,
+		normalized.Dispositions,
+	); err != nil {
+		return err
+	}
+	result.Dispositions = append([]store.NetworkMessageDisposition(nil), normalized.Dispositions...)
+	availability, err := getNetworkAvailabilityWithExecutor(ctx, exec)
+	if err != nil {
+		return err
+	}
+	result.AvailabilityEpoch = availability.Epoch
+	return g.admitAcceptedNetworkWakes(
+		ctx,
+		exec,
+		normalized,
+		acceptanceSeq,
+		now,
+		availability.Enabled,
+		result,
+	)
+}
+
+func (g *NetworkRepo) admitAcceptedNetworkWakes(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	normalized *store.AcceptNetworkMessageRequest,
+	acceptanceSeq int64,
+	now time.Time,
+	networkEnabled bool,
+	result *store.AcceptNetworkMessageResult,
+) error {
+	for _, input := range normalized.Admissions {
+		decision, err := g.admitNetworkWake(
+			ctx,
+			exec,
+			normalized.Message,
+			input,
+			acceptanceSeq,
+			now,
+			networkEnabled,
+		)
+		if err != nil {
+			return err
+		}
+		if decision.reservation != nil {
+			result.Admitted = append(result.Admitted, *decision.reservation)
+			result.Notify = append(result.Notify, store.CommittedNetworkNotification{
+				WorkspaceID:        normalized.Message.WorkspaceID,
+				RecipientSessionID: input.RecipientSessionID,
+				TaskRunID:          decision.reservation.TaskRunID,
+				AcceptanceSeq:      acceptanceSeq,
+			})
+		}
+		if decision.skip != nil {
+			result.Skipped = append(result.Skipped, *decision.skip)
+		}
+	}
+	return nil
+}
+
+func upsertDeliveredNetworkThreadParticipants(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	message store.NetworkConversationMessage,
+	dispositions []store.NetworkMessageDisposition,
+) error {
+	if message.Surface != store.NetworkSurfaceThread {
+		return nil
+	}
+	for _, disposition := range dispositions {
+		if disposition.Decision != store.NetworkDispositionDeliver {
+			continue
+		}
+		recipientMessage := message
+		recipientMessage.SessionID = disposition.RecipientSessionID
+		if err := upsertNetworkThreadParticipant(ctx, exec, recipientMessage); err != nil {
+			return err
+		}
+	}
+	return refreshNetworkThreadSummary(ctx, exec, message)
 }
 
 func (g *NetworkRepo) normalizeNetworkAcceptance(
@@ -140,6 +202,11 @@ func (g *NetworkRepo) normalizeNetworkAcceptance(
 				input.RecipientSessionID,
 			)
 		}
+		if input.WorkspaceID != message.WorkspaceID {
+			return store.AcceptNetworkMessageRequest{}, fmt.Errorf(
+				"store: network wake admission workspace does not match accepted message",
+			)
+		}
 		admissionRecipients[input.RecipientSessionID] = struct{}{}
 		if input.Spec.Mode == "live" &&
 			(input.Spec.WorkspaceID != message.WorkspaceID || input.Spec.ChannelID != message.Channel) {
@@ -153,6 +220,7 @@ func (g *NetworkRepo) normalizeNetworkAcceptance(
 }
 
 func normalizeNetworkWakeAdmissionInput(input store.NetworkWakeAdmissionInput) store.NetworkWakeAdmissionInput {
+	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
 	input.RecipientSessionID = strings.TrimSpace(input.RecipientSessionID)
 	input.OwnerKey = strings.TrimSpace(input.OwnerKey)
 	input.Trigger = strings.TrimSpace(input.Trigger)

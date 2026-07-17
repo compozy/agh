@@ -27,36 +27,39 @@ func (s *Service) PreviewActivation(ctx context.Context, req ActivateRequest) (A
 	return activationPreviewFromResolved(&resolved), nil
 }
 
-// Activate creates or reconciles one bundle activation.
+// Activate creates one bundle activation.
 func (s *Service) Activate(ctx context.Context, req ActivateRequest) (ActivationPreview, error) {
 	if err := s.checkReady(ctx); err != nil {
 		return ActivationPreview{}, err
 	}
-	if req.ExpectedVersion < 0 {
-		return ActivationPreview{}, fmt.Errorf(
-			"%w: expected version cannot be negative",
-			resources.ErrValidation,
-		)
-	}
 
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
+
+	digest, err := s.networkRequirementDigestForExtension(ctx, req.ExtensionName)
+	if err != nil {
+		return ActivationPreview{}, err
+	}
+	if digest != "" && !req.ConfirmNetworkRequirement {
+		return ActivationPreview{}, networkRequirementConfirmationError(digest)
+	}
 
 	resolved, err := s.resolveRequest(ctx, req, workspaceResolutionRegisterPaths)
 	if err != nil {
 		return ActivationPreview{}, err
 	}
 
-	existing, createNew, err := s.prepareActivationWrite(ctx, req, &resolved.activation)
-	if err != nil {
+	if _, err := s.store.GetBundleActivation(ctx, resolved.activation.ID); err == nil {
+		return ActivationPreview{}, fmt.Errorf("%w: bundle activation already exists", resources.ErrConflict)
+	} else if !errors.Is(err, ErrActivationNotFound) {
 		return ActivationPreview{}, err
 	}
-	var existingPtr *Activation
-	if !createNew {
-		existingPtr = &existing
-	}
-
-	if err := s.applyNetworkRequirementConfirmation(ctx, req, existingPtr, &resolved.activation); err != nil {
+	if err := s.applyNetworkRequirementConfirmationWithDigest(
+		req,
+		nil,
+		&resolved.activation,
+		digest,
+	); err != nil {
 		return ActivationPreview{}, err
 	}
 
@@ -65,34 +68,19 @@ func (s *Service) Activate(ctx context.Context, req ActivateRequest) (Activation
 	}
 	resolved.activation.UpdatedAt = s.now().UTC()
 
-	if createNew {
-		if err := s.store.CreateBundleActivation(ctx, resolved.activation); err != nil {
-			return ActivationPreview{}, err
-		}
-	} else if err := s.store.UpdateBundleActivation(ctx, resolved.activation); err != nil {
+	if err := s.store.CreateBundleActivation(ctx, resolved.activation); err != nil {
 		return ActivationPreview{}, err
 	}
 
 	if reconcileErr := s.reconcileLocked(ctx); reconcileErr != nil {
-		if createNew {
-			return ActivationPreview{}, s.rollbackActivationAndReconcileLocked(
-				ctx,
-				reconcileErr,
-				func(rollbackCtx context.Context) error {
-					return s.store.DeleteBundleActivation(rollbackCtx, resolved.activation.ID)
-				},
-				"delete newly-created bundle activation",
-				resolved.activation.ID,
-			)
-		}
 		return ActivationPreview{}, s.rollbackActivationAndReconcileLocked(
 			ctx,
 			reconcileErr,
 			func(rollbackCtx context.Context) error {
-				return s.restoreBundleActivation(rollbackCtx, existing)
+				return s.store.DeleteBundleActivation(rollbackCtx, resolved.activation.ID)
 			},
-			"restore existing bundle activation",
-			existing.ID,
+			"delete newly-created bundle activation",
+			resolved.activation.ID,
 		)
 	}
 
@@ -136,44 +124,4 @@ func activationPreviewFromResolved(resolved *resolvedActivation) ActivationPrevi
 		Profile:    cloneBundleProfile(resolved.profile),
 		Inventory:  cloneInventoryItems(resolved.inventory),
 	}
-}
-
-func (s *Service) prepareActivationWrite(
-	ctx context.Context,
-	req ActivateRequest,
-	desired *Activation,
-) (Activation, bool, error) {
-	existing, err := s.store.GetBundleActivation(ctx, desired.ID)
-	switch {
-	case err == nil:
-		if req.ExpectedVersion > 0 && req.ExpectedVersion != existing.Version {
-			return Activation{}, false, fmt.Errorf(
-				"%w: expected version %d",
-				resources.ErrConflict,
-				req.ExpectedVersion,
-			)
-		}
-		desired.CreatedAt, desired.Version = existing.CreatedAt, existing.Version
-		return existing, false, nil
-	case errors.Is(err, ErrActivationNotFound):
-		if req.ExpectedVersion > 0 {
-			return Activation{}, false, fmt.Errorf(
-				"%w: expected version %d",
-				resources.ErrConflict,
-				req.ExpectedVersion,
-			)
-		}
-		return Activation{}, true, nil
-	default:
-		return Activation{}, false, err
-	}
-}
-
-func (s *Service) restoreBundleActivation(ctx context.Context, desired Activation) error {
-	current, err := s.store.GetBundleActivation(ctx, desired.ID)
-	if err != nil {
-		return err
-	}
-	desired.Version = current.Version
-	return s.store.UpdateBundleActivation(ctx, desired)
 }

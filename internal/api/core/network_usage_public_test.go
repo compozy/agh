@@ -3,7 +3,9 @@ package core_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,6 +84,7 @@ func TestNetworkUsageHandlers(t *testing.T) {
 					OutputTokensUsed: 7,
 					UpdatedAt:        settled,
 				},
+				NextCursor: "cursor-next",
 			},
 		}
 		fixture.Handlers.NetworkUsage = usage
@@ -113,9 +116,13 @@ func TestNetworkUsageHandlers(t *testing.T) {
 			body.Budget.WallTimeUsed != "1s" {
 			t.Fatalf("budget = %#v, want run owner consumption", body.Budget)
 		}
+		if body.NextCursor != "cursor-next" {
+			t.Fatalf("next_cursor = %q, want cursor-next", body.NextCursor)
+		}
 		if usage.lastQuery.WorkspaceID != "ws-alpha" ||
 			usage.lastQuery.Channel != "builders" ||
-			usage.lastQuery.RunID != "run-1" {
+			usage.lastQuery.RunID != "run-1" ||
+			usage.lastQuery.Limit != store.DefaultNetworkUsageLimit {
 			t.Fatalf("query = %#v, want workspace/channel/run filters", usage.lastQuery)
 		}
 	})
@@ -133,7 +140,10 @@ func TestNetworkUsageHandlers(t *testing.T) {
 				OutputTokens:         4,
 			},
 		}
-		got := core.NetworkUsageResponseFromReport("ws-beta", report)
+		got, err := core.NetworkUsageResponseFromReport("ws-beta", report)
+		if err != nil {
+			t.Fatalf("NetworkUsageResponseFromReport() error = %v", err)
+		}
 		if got.WorkspaceID != "ws-beta" {
 			t.Fatalf("workspace_id = %q, want ws-beta", got.WorkspaceID)
 		}
@@ -142,6 +152,93 @@ func TestNetworkUsageHandlers(t *testing.T) {
 		}
 		if len(got.Details) != 0 {
 			t.Fatalf("details = %#v, want empty", got.Details)
+		}
+	})
+
+	t.Run("Should parse owner filters and explicit page bounds", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			usageWorkspaceService(),
+			nil,
+			nil,
+		)
+		usage := &stubNetworkUsageStore{}
+		fixture.Handlers.NetworkUsage = usage
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/alpha/network/usage?owner_kind=task_run&owner_id=run-1&limit=200",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("GET owner usage status = %d body=%s", resp.Code, resp.Body.String())
+		}
+		if usage.lastQuery.Owner == nil || usage.lastQuery.Owner.WorkspaceID != "ws-alpha" ||
+			usage.lastQuery.Owner.Kind != "task_run" || usage.lastQuery.Owner.ID != "run-1" ||
+			usage.lastQuery.Limit != 200 || !usage.lastQuery.LimitSet {
+			t.Fatalf("query = %#v, want workspace-qualified owner and explicit limit", usage.lastQuery)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name     string
+		query    string
+		wantBody string
+	}{
+		{name: "explicit zero limit", query: "limit=0", wantBody: "network_usage_limit_invalid"},
+		{name: "limit above maximum", query: "limit=201", wantBody: "network_usage_limit_invalid"},
+		{name: "malformed cursor", query: "cursor=broken", wantBody: "network_usage_cursor_invalid"},
+		{name: "partial owner", query: "owner_kind=task_run", wantBody: "owner id"},
+		{name: "owner and run", query: "owner_kind=task_run&owner_id=run-1&run_id=run-1", wantBody: "mutually exclusive"},
+		{name: "unknown query field", query: "owner_key=task_run%3Arun-1", wantBody: "unknown_field"},
+	} {
+		t.Run("Should reject "+testCase.name+" before store execution", func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				usageWorkspaceService(),
+				nil,
+				nil,
+			)
+			usage := &stubNetworkUsageStore{}
+			fixture.Handlers.NetworkUsage = usage
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/workspaces/alpha/network/usage?"+testCase.query,
+				nil,
+			)
+			if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), testCase.wantBody) {
+				t.Fatalf("GET invalid usage status = %d body=%s", resp.Code, resp.Body.String())
+			}
+			if usage.lastQuery != (store.NetworkUsageQuery{}) {
+				t.Fatalf("store query = %#v, want no execution", usage.lastQuery)
+			}
+		})
+	}
+
+	t.Run("Should reject token counters above the JavaScript-safe ceiling", func(t *testing.T) {
+		t.Parallel()
+
+		report := store.NetworkUsageReport{
+			Total: store.NetworkUsageSummary{InputTokens: store.MaxJavaScriptSafeInteger},
+		}
+		if _, err := core.NetworkUsageResponseFromReport("ws-alpha", report); err != nil {
+			t.Fatalf("NetworkUsageResponseFromReport(max) error = %v", err)
+		}
+		report.Total.InputTokens++
+		_, err := core.NetworkUsageResponseFromReport("ws-alpha", report)
+		if !errors.Is(err, store.ErrNetworkUsageUnsafeInteger) {
+			t.Fatalf("NetworkUsageResponseFromReport(max+1) error = %v", err)
 		}
 	})
 }

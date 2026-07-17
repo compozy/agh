@@ -19,7 +19,14 @@ func (m *Service) RunDetail(
 	if err != nil {
 		return nil, err
 	}
-	taskReference, err := m.runDetailTaskReference(ctx, run)
+	taskRecord, err := m.runDetailTask(ctx, run)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.runReadAuthorizer.AuthorizeRunRead(ctx, actor, run, taskRecord); err != nil {
+		return nil, err
+	}
+	taskReference, err := m.runDetailTaskReference(ctx, taskRecord)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +48,7 @@ func (m *Service) RunDetail(
 	}, nil
 }
 
-func (m *Service) runDetailTaskReference(ctx context.Context, run Run) (*Reference, error) {
+func (m *Service) runDetailTask(ctx context.Context, run Run) (*Task, error) {
 	if strings.TrimSpace(run.TaskID) == "" {
 		return nil, nil
 	}
@@ -50,6 +57,14 @@ func (m *Service) runDetailTaskReference(ctx context.Context, run Run) (*Referen
 	if err != nil {
 		return nil, err
 	}
+	return &taskRecord, nil
+}
+
+func (m *Service) runDetailTaskReference(ctx context.Context, taskRecord *Task) (*Reference, error) {
+	if taskRecord == nil {
+		return nil, nil
+	}
+
 	dependencies, err := m.store.ListDependencies(ctx, taskRecord.ID)
 	if err != nil {
 		return nil, err
@@ -58,11 +73,11 @@ func (m *Service) runDetailTaskReference(ctx context.Context, run Run) (*Referen
 	if err != nil {
 		return nil, err
 	}
-	status, err := m.canonicalTaskStatus(ctx, taskRecord, dependencies, runs)
+	status, err := m.canonicalTaskStatus(ctx, *taskRecord, dependencies, runs)
 	if err != nil {
 		return nil, err
 	}
 
-	reference := taskReferenceFromTask(taskRecord, status)
+	reference := taskReferenceFromTask(*taskRecord, status)
 	return &reference, nil
 }

@@ -3,7 +3,7 @@ package settings
 import aghconfig "github.com/compozy/agh/internal/config"
 
 func diffNetworkSettings(current aghconfig.NetworkConfig, desired aghconfig.NetworkConfig) []string {
-	changed := make([]string, 0, 22)
+	changed := make([]string, 0, 20)
 	appendNetworkChange := func(path string, differs bool) {
 		if differs {
 			changed = append(changed, path)
@@ -11,9 +11,7 @@ func diffNetworkSettings(current aghconfig.NetworkConfig, desired aghconfig.Netw
 	}
 
 	appendNetworkChange("network.enabled", current.Enabled != desired.Enabled)
-	appendNetworkChange("network.greet_interval", current.GreetInterval != desired.GreetInterval)
 	appendNetworkChange("network.max_replay_age", current.MaxReplayAge != desired.MaxReplayAge)
-	appendNetworkChange("network.max_queue_depth", current.MaxQueueDepth != desired.MaxQueueDepth)
 	appendNetworkChange(
 		"network.live.defaults.max_wakes",
 		current.Live.Defaults.MaxWakes != desired.Live.Defaults.MaxWakes,
@@ -86,9 +84,7 @@ func applyNetworkSettings(editor *aghconfig.OverlayEditor, settings aghconfig.Ne
 		value any
 	}{
 		{path: networkPath(sectionsEnabledKey), value: settings.Enabled},
-		{path: networkPath("greet_interval"), value: settings.GreetInterval},
 		{path: networkPath("max_replay_age"), value: settings.MaxReplayAge},
-		{path: networkPath("max_queue_depth"), value: settings.MaxQueueDepth},
 		{path: networkPath("live", "defaults", "max_wakes"), value: settings.Live.Defaults.MaxWakes},
 		{path: networkPath("live", "defaults", "max_wake_wall_time"), value: settings.Live.Defaults.MaxWakeWallTime},
 		{path: networkPath("live", "defaults", "max_total_wall_time"), value: settings.Live.Defaults.MaxTotalWallTime},

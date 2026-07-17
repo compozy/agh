@@ -11,6 +11,7 @@ export interface UseTaskRunConversationResult extends UseNetworkMessagesResult {
 }
 
 export function useTaskRunConversation(
+  runId: string,
   network: TaskRunNetworkProjection | null | undefined
 ): UseTaskRunConversationResult | null {
   const queryClient = useQueryClient();
@@ -22,15 +23,17 @@ export function useTaskRunConversation(
     containerId: conversation?.thread_id,
     enabled: Boolean(network),
   });
-  const [usage, setUsage] = useState<TaskRunNetworkUsage | null>(network?.usage ?? null);
+  const usageScope = network ? `${network.conversation.workspace_id}:${runId.trim()}` : "";
+  const [usageOverlay, setUsageOverlay] = useState<{
+    scope: string;
+    usage: TaskRunNetworkUsage;
+  } | null>(null);
   const [streamError, setStreamError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    setUsage(network?.usage ?? null);
-  }, [network?.usage]);
+  const usage = usageOverlay?.scope === usageScope ? usageOverlay.usage : (network?.usage ?? null);
 
   useEffect(() => {
     if (!conversation || !network || typeof EventSource === "undefined") return;
+    let active = true;
     const source = new EventSource(conversation.stream_url);
     const handleMessage = () => {
       setStreamError(null);
@@ -45,7 +48,9 @@ export function useTaskRunConversation(
     const handleUsage = (event: MessageEvent<string>) => {
       try {
         const payload = JSON.parse(event.data) as { usage?: TaskRunNetworkUsage };
-        if (payload.usage) setUsage(payload.usage);
+        if (payload.usage && active) {
+          setUsageOverlay({ scope: usageScope, usage: payload.usage });
+        }
         setStreamError(null);
       } catch (error) {
         setStreamError(
@@ -60,12 +65,13 @@ export function useTaskRunConversation(
     source.addEventListener("network.usage", handleUsage as EventListener);
     source.addEventListener("error", handleError);
     return () => {
+      active = false;
       source.removeEventListener("network.message", handleMessage);
       source.removeEventListener("network.usage", handleUsage as EventListener);
       source.removeEventListener("error", handleError);
       source.close();
     };
-  }, [conversation, network, queryClient]);
+  }, [conversation, network, queryClient, usageScope]);
 
   if (!network || !usage) return null;
   return { ...messages, usage, streamError };

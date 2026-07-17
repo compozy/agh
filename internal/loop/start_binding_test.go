@@ -85,7 +85,7 @@ func TestStartBindingShouldDeriveActorsForEverySurface(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			actor, err := loop.DeriveStartActor(tt.kind, "actor-ref", "origin-ref")
+			actor, err := loop.DeriveStartActor(tt.kind, "ws-1", "actor-ref", "origin-ref")
 			if err != nil {
 				t.Fatalf("DeriveStartActor(%q) error = %v", tt.kind, err)
 			}

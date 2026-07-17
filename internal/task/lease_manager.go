@@ -70,6 +70,7 @@ func (m *Service) HeartbeatRunLease(
 	if err != nil {
 		return nil, err
 	}
+	normalized.Actor = actor
 	run, err := m.store.HeartbeatRunLease(ctx, normalized)
 	if err != nil {
 		return nil, err
@@ -108,6 +109,7 @@ func (m *Service) ReleaseRunLease(
 	if err != nil {
 		return nil, err
 	}
+	normalized.Actor = actor
 	previous, err := m.store.GetTaskRun(ctx, normalized.RunID)
 	if err != nil {
 		return nil, err

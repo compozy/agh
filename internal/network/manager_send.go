@@ -97,7 +97,7 @@ func (m *Manager) acceptPrepared(
 	}
 	if !result.Duplicate {
 		m.observeConversationWrite(ctx, entry, result.Conversation)
-		m.recordAcceptedMessage(senderSessionID, prepared.Envelope, result.Dispositions)
+		m.recordAcceptedMessage(ctx, senderSessionID, prepared.Envelope, result.Dispositions)
 		m.notifyInboxRecipients(result.Dispositions)
 	}
 	for _, notification := range result.Notify {
@@ -105,7 +105,23 @@ func (m *Manager) acceptPrepared(
 			m.wakeNotifier.NotifyNetworkWake(notification)
 		}
 	}
+	if err := m.acceptWhoisResponses(ctx, route); err != nil {
+		return "", err
+	}
 	return prepared.ID, nil
+}
+
+func (m *Manager) acceptWhoisResponses(ctx context.Context, route RouteResult) error {
+	responses, err := m.router.buildWhoisResponses(route)
+	if err != nil {
+		return fmt.Errorf("network: build whois response: %w", err)
+	}
+	for _, response := range responses {
+		if _, err := m.acceptPrepared(ctx, response.senderSessionID, response.prepared); err != nil {
+			return fmt.Errorf("network: accept whois response: %w", err)
+		}
+	}
+	return nil
 }
 
 func (m *Manager) bindDurableSessionIdentities(
@@ -167,6 +183,7 @@ func (m *Manager) wakeAdmissions(
 			}
 		}
 		input := store.NetworkWakeAdmissionInput{
+			WorkspaceID:        runtime.workspaceID,
 			RecipientSessionID: delivery.SessionID,
 			OwnerKey:           runtime.ownerKey,
 			Spec:               runtime.networkParticipation,
@@ -240,28 +257,52 @@ func deliverySubscriptionMode(
 	query := store.NetworkSubscriptionQuery{
 		WorkspaceID: delivery.Envelope.WorkspaceID,
 		Channel:     delivery.Envelope.Channel,
+		ThreadID:    deliveryThreadID(delivery),
 		SessionID:   delivery.SessionID,
-		Limit:       50,
+		ExactThread: true,
+		Limit:       1,
 	}
-	entries, err := subscriptions.ListNetworkSubscriptions(ctx, query)
+	mode, found, err := lookupDeliverySubscriptionMode(ctx, subscriptions, query)
 	if err != nil {
 		return "", fmt.Errorf("network: list delivery subscriptions: %w", err)
 	}
-	threadID := ""
-	if delivery.Envelope.ThreadID != nil {
-		threadID = strings.TrimSpace(*delivery.Envelope.ThreadID)
+	if found {
+		return mode, nil
 	}
-	for _, entry := range entries {
-		if strings.TrimSpace(entry.ThreadID) == threadID && entry.Mode == store.NetworkSubscriptionModeMute {
-			return store.NetworkSubscriptionModeMute, nil
-		}
+	if query.ThreadID == "" {
+		return store.NetworkSubscriptionModeFull, nil
 	}
-	for _, entry := range entries {
-		if strings.TrimSpace(entry.ThreadID) == "" && entry.Mode == store.NetworkSubscriptionModeMute {
-			return store.NetworkSubscriptionModeMute, nil
-		}
+	query.ThreadID = ""
+	mode, found, err = lookupDeliverySubscriptionMode(ctx, subscriptions, query)
+	if err != nil {
+		return "", fmt.Errorf("network: list channel delivery subscription: %w", err)
+	}
+	if found {
+		return mode, nil
 	}
 	return store.NetworkSubscriptionModeFull, nil
+}
+
+func deliveryThreadID(delivery Delivery) string {
+	if delivery.Envelope.ThreadID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*delivery.Envelope.ThreadID)
+}
+
+func lookupDeliverySubscriptionMode(
+	ctx context.Context,
+	subscriptions networkSubscriptionStore,
+	query store.NetworkSubscriptionQuery,
+) (string, bool, error) {
+	entries, err := subscriptions.ListNetworkSubscriptions(ctx, query)
+	if err != nil {
+		return "", false, err
+	}
+	if len(entries) == 0 {
+		return "", false, nil
+	}
+	return entries[0].Mode, true, nil
 }
 
 func setRoutingDecision(values []RoutingDisposition, sessionID string, decision string) {

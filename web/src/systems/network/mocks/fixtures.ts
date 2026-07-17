@@ -119,8 +119,8 @@ const frontendPeerCard = makePeerCard({
   ],
 });
 
-const remotePeerCard = makePeerCard({
-  peerId: storyPeerIds.remote,
+const settlementPeerCard = makePeerCard({
+  peerId: storyPeerIds.partner,
   displayName: "Partner Settlement Desk",
   capabilities: [
     {
@@ -141,13 +141,12 @@ const creativePeerCard = makePeerCard({
   ],
 });
 
-const remoteCapabilityCatalog: NetworkCapabilityCatalog = {
+const settlementCapabilityCatalog: NetworkCapabilityCatalog = {
   capabilities: [
     {
       id: "chat",
       summary: "Confirms settlement ETA, replay state, and partner-bank evidence during launch.",
-      outcome:
-        "Remote peers can return the next settlement milestone without leaving the launch room.",
+      outcome: "Returns the next settlement milestone without leaving the launch room.",
       version: "1.2.0",
       digest: "sha256:partner-settlement-chat",
       context_needed: ["channel-history", "merchant-case-id"],
@@ -279,14 +278,13 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       last_activity_at: "2026-04-17T18:16:00Z",
       last_message_preview:
         "Open both corridors at 18:30 UTC. Keep the fallback banner armed for the first 15 minutes.",
-      local_peer_count: 6,
+      local_peer_count: 8,
       message_count: 34,
       peer_count: 8,
       fanout_policy: "capability_match",
       coordinator_peer_id: ctoPeerCard.peer_id,
       purpose:
         "Coordinate launch command, pricing approvals, engineering sign-off, and merchant-risk decisions for Northstar Pay Checkout.",
-      remote_peer_count: 2,
       session_count: 6,
       workspace_id: storyWorkspaceIds.hq,
     },
@@ -301,7 +299,6 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       message_count: 12,
       peer_count: 3,
       purpose: "Align landing-page QA, pricing claims, and launch-ready marketing surfaces.",
-      remote_peer_count: 0,
       session_count: 3,
       workspace_id: storyWorkspaceIds.product,
     },
@@ -315,7 +312,6 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       message_count: 11,
       peer_count: 2,
       purpose: "Coordinate canary promotion, rollback guardrails, and cutover evidence.",
-      remote_peer_count: 0,
       session_count: 2,
       workspace_id: storyWorkspaceIds.platform,
     },
@@ -326,11 +322,10 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       last_activity_at: "2026-04-17T17:58:00Z",
       last_message_preview:
         "CRM batch is staged and paid spend stays paused until the launch-room release.",
-      local_peer_count: 2,
+      local_peer_count: 3,
       message_count: 9,
       peer_count: 3,
       purpose: "Launch timing for CRM, ads, pricing claims, and merchant acquisition campaigns.",
-      remote_peer_count: 1,
       session_count: 2,
       workspace_id: storyWorkspaceIds.growth,
     },
@@ -344,7 +339,6 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       message_count: 7,
       peer_count: 2,
       purpose: "Track GMV, burn, reserves, and finance approvals tied to launch-day decisions.",
-      remote_peer_count: 0,
       session_count: 2,
       workspace_id: storyWorkspaceIds.finance,
     },
@@ -359,7 +353,6 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       message_count: 14,
       peer_count: 2,
       purpose: "Coordinate merchant communications, queue pressure, and launch-day support macros.",
-      remote_peer_count: 0,
       session_count: 2,
       workspace_id: storyWorkspaceIds.support,
     },
@@ -373,7 +366,6 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       message_count: 8,
       peer_count: 2,
       purpose: "Monitor payout risk, reserves, and fraud anomalies during the launch window.",
-      remote_peer_count: 0,
       session_count: 2,
       workspace_id: storyWorkspaceIds.risk,
     },
@@ -384,11 +376,10 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       last_activity_at: "2026-04-17T18:01:00Z",
       last_message_preview:
         "Webhook retries are within budget and partner replay visibility is back.",
-      local_peer_count: 1,
+      local_peer_count: 2,
       message_count: 6,
       peer_count: 2,
       purpose: "Track partner APIs, replay status, and integration-level launch dependencies.",
-      remote_peer_count: 1,
       session_count: 1,
       workspace_id: storyWorkspaceIds.platform,
     },
@@ -403,7 +394,6 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       message_count: 10,
       peer_count: 2,
       purpose: "High-touch merchant escalations that need a named owner before launch completes.",
-      remote_peer_count: 0,
       session_count: 2,
       workspace_id: storyWorkspaceIds.support,
     },
@@ -418,7 +408,6 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       message_count: 5,
       peer_count: 2,
       purpose: "Executive-only launch signals, fallback thresholds, and external-update prep.",
-      remote_peer_count: 0,
       session_count: 2,
       workspace_id: storyWorkspaceIds.hq,
     },
@@ -440,7 +429,7 @@ export const networkChannelFixture: NetworkChannel = {
   last_activity_at: "2026-04-17T18:16:00Z",
   last_message_preview:
     "Open both corridors at 18:30 UTC. Keep the fallback banner armed for the first 15 minutes.",
-  local_peer_count: 6,
+  local_peer_count: 8,
   message_count: 34,
   peer_count: 8,
   fanout_policy: "capability_match",
@@ -511,30 +500,25 @@ export const networkChannelFixture: NetworkChannel = {
       channel: storyHeroNetworkChannel,
       display_name: "Partner Settlement Desk",
       joined_at: "2026-04-17T14:08:00Z",
-      last_seen: "2026-04-17T18:15:00Z",
-      local: false,
-      peer_card: remotePeerCard,
-      peer_id: remotePeerCard.peer_id,
-      presence_state: "active",
-      last_seen_age_seconds: 12,
+      local: true,
+      peer_card: settlementPeerCard,
+      peer_id: settlementPeerCard.peer_id,
+      presence_state: "local",
       session_id: "sess_partner_bank",
     },
     {
       channel: storyHeroNetworkChannel,
       display_name: "Creative Studio Desk",
       joined_at: "2026-04-17T14:10:00Z",
-      last_seen: "2026-04-17T18:12:00Z",
-      local: false,
+      local: true,
       peer_card: creativePeerCard,
       peer_id: creativePeerCard.peer_id,
-      presence_state: "inactive",
-      last_seen_age_seconds: 82,
+      presence_state: "local",
       session_id: "sess_creative_studio",
     },
   ],
   purpose:
     "Coordinate launch command, pricing approvals, engineering sign-off, and merchant-risk decisions for Northstar Pay Checkout.",
-  remote_peer_count: 2,
   session_count: 6,
   sessions: [
     {
@@ -670,9 +654,6 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
       "Launch Control heartbeat with product, finance, engineering, support, and partner desks active.",
     session_id: storySessionIds.product,
     timestamp: "2026-04-17T17:50:00Z",
-    presence_count: 4,
-    presence_started_at: "2026-04-17T17:50:00Z",
-    presence_last_seen_at: "2026-04-17T18:16:00Z",
   },
   {
     body: {
@@ -688,13 +669,10 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     kind: "greet",
     local: false,
     message_id: "msg_launch_002",
-    peer_from: remotePeerCard.peer_id,
+    peer_from: settlementPeerCard.peer_id,
     preview_text:
       "Partner desks are connected and waiting on the final pricing and replay decision.",
     timestamp: "2026-04-17T17:51:00Z",
-    presence_count: 2,
-    presence_started_at: "2026-04-17T17:51:00Z",
-    presence_last_seen_at: "2026-04-17T18:15:00Z",
   },
   sayMessage(
     "msg_launch_003",
@@ -728,7 +706,7 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     {
       direction: "received",
       local: false,
-      peerFrom: remotePeerCard.peer_id,
+      peerFrom: settlementPeerCard.peer_id,
       peerTo: primaryPeerCard.peer_id,
     }
   ),
@@ -794,7 +772,7 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     kind: "receipt",
     local: false,
     message_id: "msg_launch_011",
-    peer_from: remotePeerCard.peer_id,
+    peer_from: settlementPeerCard.peer_id,
     preview_text: "Partner bank confirmed the replay ETA and attached the settlement checkpoint.",
     timestamp: "2026-04-17T18:00:00Z",
   },
@@ -819,7 +797,7 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     kind: "capability",
     local: false,
     message_id: "msg_launch_012",
-    peer_from: remotePeerCard.peer_id,
+    peer_from: settlementPeerCard.peer_id,
     preview_text: "Replay verification handoff",
     timestamp: "2026-04-17T18:01:00Z",
   },
@@ -945,7 +923,7 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     {
       direction: "received",
       local: false,
-      peerFrom: remotePeerCard.peer_id,
+      peerFrom: settlementPeerCard.peer_id,
       peerTo: primaryPeerCard.peer_id,
     }
   ),
@@ -1005,7 +983,7 @@ export const networkDirectRoomMessagesFixture: NetworkDirectRoomMessage[] = [
       direction: "sent",
       local: true,
       peerFrom: primaryPeerCard.peer_id,
-      peerTo: remotePeerCard.peer_id,
+      peerTo: settlementPeerCard.peer_id,
       sessionId: storySessionIds.product,
     }
   ),
@@ -1017,7 +995,7 @@ export const networkDirectRoomMessagesFixture: NetworkDirectRoomMessage[] = [
     {
       direction: "received",
       local: false,
-      peerFrom: remotePeerCard.peer_id,
+      peerFrom: settlementPeerCard.peer_id,
       peerTo: primaryPeerCard.peer_id,
     }
   ),
@@ -1030,7 +1008,7 @@ export const networkDirectRoomMessagesFixture: NetworkDirectRoomMessage[] = [
       direction: "sent",
       local: true,
       peerFrom: primaryPeerCard.peer_id,
-      peerTo: remotePeerCard.peer_id,
+      peerTo: settlementPeerCard.peer_id,
       sessionId: storySessionIds.product,
     }
   ),
@@ -1042,7 +1020,7 @@ export const networkDirectRoomMessagesFixture: NetworkDirectRoomMessage[] = [
     {
       direction: "received",
       local: false,
-      peerFrom: remotePeerCard.peer_id,
+      peerFrom: settlementPeerCard.peer_id,
       peerTo: primaryPeerCard.peer_id,
     }
   ),
@@ -1113,24 +1091,20 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     channel: storyHeroNetworkChannel,
     display_name: "Partner Settlement Desk",
     joined_at: "2026-04-17T14:08:00Z",
-    last_seen: "2026-04-17T18:15:00Z",
-    local: false,
-    peer_card: remotePeerCard,
-    peer_id: remotePeerCard.peer_id,
-    presence_state: "active",
-    last_seen_age_seconds: 12,
+    local: true,
+    peer_card: settlementPeerCard,
+    peer_id: settlementPeerCard.peer_id,
+    presence_state: "local",
     session_id: "sess_partner_bank",
   },
   {
     channel: storyHeroNetworkChannel,
     display_name: "Creative Studio Desk",
     joined_at: "2026-04-17T14:10:00Z",
-    last_seen: "2026-04-17T18:12:00Z",
-    local: false,
+    local: true,
     peer_card: creativePeerCard,
     peer_id: creativePeerCard.peer_id,
-    presence_state: "inactive",
-    last_seen_age_seconds: 82,
+    presence_state: "local",
     session_id: "sess_creative_studio",
   },
 ];
@@ -1153,23 +1127,21 @@ export const networkPeerFixture: NetworkPeerDetail = {
   session_id: storySessionIds.product,
 };
 
-export const networkRemotePeerFixture: NetworkPeerDetail = {
+export const networkSettlementPeerFixture: NetworkPeerDetail = {
   channel: storyHeroNetworkChannel,
   display_name: "Partner Settlement Desk",
   joined_at: "2026-04-17T14:08:00Z",
-  last_seen: "2026-04-17T18:15:00Z",
-  local: false,
+  local: true,
   metrics: {
     sent: 15,
     received: 19,
     delivered: 18,
     rejected: 0,
   },
-  peer_card: remotePeerCard,
-  capability_catalog: remoteCapabilityCatalog,
-  peer_id: remotePeerCard.peer_id,
-  presence_state: "active",
-  last_seen_age_seconds: 12,
+  peer_card: settlementPeerCard,
+  capability_catalog: settlementCapabilityCatalog,
+  peer_id: settlementPeerCard.peer_id,
+  presence_state: "local",
   session_id: "sess_partner_bank",
 };
 
@@ -1246,8 +1218,8 @@ export const networkDirectRoomsFixture: NetworkDirectRoomSummary[] = [
     message_count: 4,
     open_work_count: 1,
     opened_at: "2026-04-17T17:55:00Z",
-    peer_a: primaryPeerCard.peer_id,
-    peer_b: remotePeerCard.peer_id,
+    session_a: "sess_partner_bank",
+    session_b: storySessionIds.product,
   },
 ];
 
@@ -1261,8 +1233,8 @@ export const networkDirectRoomDetailFixture: NetworkDirectRoomDetail = {
   message_count: 4,
   open_work_count: 1,
   opened_at: "2026-04-17T17:55:00Z",
-  peer_a: primaryPeerCard.peer_id,
-  peer_b: remotePeerCard.peer_id,
+  session_a: "sess_partner_bank",
+  session_b: storySessionIds.product,
 };
 
 export const networkWorkFixture: NetworkWorkDetail = {
@@ -1270,10 +1242,9 @@ export const networkWorkFixture: NetworkWorkDetail = {
   direct_id: "direct_story_launch_corridor",
   last_activity_at: "2026-04-17T18:12:00Z",
   opened_at: "2026-04-17T17:55:00Z",
-  opened_by_peer_id: primaryPeerCard.peer_id,
   opened_session_id: storySessionIds.product,
   state: "working",
   surface: "direct",
-  target_peer_id: remotePeerCard.peer_id,
+  target_session_id: "sess_partner_bank",
   work_id: "work_story_launch_corridor",
 };

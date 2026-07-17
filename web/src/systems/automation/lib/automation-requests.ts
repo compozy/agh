@@ -1,6 +1,16 @@
-import { automationTargetMode, normalizeAutomationRetry } from "./automation-drafts";
+import {
+  automationJobUpdateFromDraft,
+  automationTargetMode,
+  automationTriggerUpdateFromDraft,
+  normalizeAutomationRetry,
+} from "./automation-drafts";
 import { localInputToDate, toRfc3339 } from "./cron-engine";
-import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../types";
+import type {
+  CreateAutomationJobRequest,
+  CreateAutomationTriggerRequest,
+  UpdateAutomationJobRequest,
+  UpdateAutomationTriggerRequest,
+} from "../types";
 
 export type AutomationEditorMode = "create" | "edit";
 
@@ -85,21 +95,24 @@ export function buildAutomationTriggerRequest(
 export function projectAutomationJobRequest(
   draft: CreateAutomationJobRequest,
   mode: AutomationEditorMode
-): AutomationRequestProjection<CreateAutomationJobRequest> {
+): AutomationRequestProjection<CreateAutomationJobRequest | UpdateAutomationJobRequest> {
+  const normalizedDraft = buildAutomationJobRequest(draft);
   return {
     method: mode === "create" ? "POST" : "PATCH",
     path: mode === "create" ? "/api/automation/jobs" : "/api/automation/jobs/{id}",
-    payload: buildAutomationJobRequest(draft),
+    payload: mode === "create" ? normalizedDraft : automationJobUpdateFromDraft(normalizedDraft),
   };
 }
 
 export function projectAutomationTriggerRequest(
   draft: CreateAutomationTriggerRequest,
   mode: AutomationEditorMode
-): AutomationRequestProjection<CreateAutomationTriggerRequest> {
+): AutomationRequestProjection<CreateAutomationTriggerRequest | UpdateAutomationTriggerRequest> {
+  const normalizedDraft = buildAutomationTriggerRequest(draft);
   return {
     method: mode === "create" ? "POST" : "PATCH",
     path: mode === "create" ? "/api/automation/triggers" : "/api/automation/triggers/{id}",
-    payload: buildAutomationTriggerRequest(draft),
+    payload:
+      mode === "create" ? normalizedDraft : automationTriggerUpdateFromDraft(normalizedDraft),
   };
 }

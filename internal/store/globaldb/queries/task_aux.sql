@@ -86,7 +86,7 @@ LIMIT sqlc.arg(result_limit);
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE task_id = sqlc.arg(task_id)
+WHERE (CAST(sqlc.arg(task_id) AS TEXT) = '' OR task_id = CAST(sqlc.arg(task_id) AS TEXT))
   AND (CAST(sqlc.arg(after_sequence) AS INTEGER) <= 0 OR event_seq > CAST(sqlc.arg(after_sequence) AS INTEGER))
 ORDER BY event_seq ASC
 LIMIT sqlc.arg(result_limit);
@@ -95,7 +95,7 @@ LIMIT sqlc.arg(result_limit);
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE task_id = sqlc.arg(task_id)
+WHERE (CAST(sqlc.arg(task_id) AS TEXT) = '' OR task_id = CAST(sqlc.arg(task_id) AS TEXT))
   AND (CAST(sqlc.arg(after_sequence) AS INTEGER) <= 0 OR event_seq > CAST(sqlc.arg(after_sequence) AS INTEGER))
 ORDER BY event_seq DESC
 LIMIT sqlc.arg(result_limit);

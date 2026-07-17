@@ -2,7 +2,6 @@ package network
 
 import (
 	"encoding/json"
-	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -10,249 +9,96 @@ import (
 	sessionpkg "github.com/compozy/agh/internal/session"
 )
 
-func TestPeerRegistryDerivesPresenceFromSnapshotTime(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should derive remote activity state and emit expired entries once", func(t *testing.T) {
-		t.Parallel()
-
-		now := time.Date(2026, 5, 21, 12, 15, 0, 0, time.UTC)
-		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
-		if err != nil {
-			t.Fatalf("NewPeerRegistry() error = %v", err)
-		}
-		localCard := mustPeerCard(t, "coder.sess-local")
-		remoteCard := mustPeerCard(t, "reviewer.sess-remote")
-		if _, err := registry.RegisterLocal("sess-local", testWorkspaceID, "builders", localCard, now); err != nil {
-			t.Fatalf("RegisterLocal(local) error = %v", err)
-		}
-		if _, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", remoteCard, now); err != nil {
-			t.Fatalf("RefreshRemote(remote) error = %v", err)
-		} else if !stored {
-			t.Fatal("RefreshRemote(remote) stored = false, want true")
-		}
-
-		snapshotAt := now.Add(15 * time.Second)
-		peers := registry.ListPeers(testWorkspaceID, "builders", snapshotAt)
-		if got, want := len(peers), 2; got != want {
-			t.Fatalf("ListPeers() len = %d, want %d", got, want)
-		}
-		if peers[0].PresenceState != PresenceStateLocal {
-			t.Fatalf("local presence_state = %q, want %q", peers[0].PresenceState, PresenceStateLocal)
-		}
-		if peers[1].PresenceState != PresenceStateInactive {
-			t.Fatalf("remote presence_state = %q, want %q", peers[1].PresenceState, PresenceStateInactive)
-		}
-		if peers[1].LastSeenAgeSeconds == nil || *peers[1].LastSeenAgeSeconds != 15 {
-			t.Fatalf("remote last_seen_age_seconds = %#v, want 15", peers[1].LastSeenAgeSeconds)
-		}
-
-		expired := registry.ExpireRemotes(now.Add(20 * time.Second))
-		if got, want := len(expired), 1; got != want {
-			t.Fatalf("ExpireRemotes() len = %d, want %d", got, want)
-		}
-		if expired[0].PeerID != remoteCard.PeerID {
-			t.Fatalf("expired peer_id = %q, want %q", expired[0].PeerID, remoteCard.PeerID)
-		}
-		if again := registry.ExpireRemotes(now.Add(21 * time.Second)); len(again) != 0 {
-			t.Fatalf("ExpireRemotes() second result = %#v, want none", again)
-		}
-	})
-}
-
-func TestPeerRegistryIsolatesChannelsExpiresRemotesAndLeavesLocal(t *testing.T) {
+func TestPeerRegistryTracksLocalMembership(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	registry, err := NewPeerRegistry(WithPeerRegistryClock(func() time.Time { return now }))
 	if err != nil {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
-
-	localCard := mustPeerCard(t, "coder.sess-local")
-	remoteBuilders := mustPeerCard(t, "reviewer.sess-builders")
-	remoteOps := mustPeerCard(t, "reviewer.sess-ops")
-
-	if _, err := registry.RegisterLocal("sess-local", testWorkspaceID, "builders", localCard, now); err != nil {
-		t.Fatalf("RegisterLocal(local) error = %v", err)
-	}
-	if _, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", remoteBuilders, now); err != nil {
-		t.Fatalf("RefreshRemote(builders) error = %v", err)
-	} else if !stored {
-		t.Fatal("RefreshRemote(builders) stored = false, want true")
-	}
-	if _, stored, err := registry.RefreshRemote(testWorkspaceID, "ops", remoteOps, now); err != nil {
-		t.Fatalf("RefreshRemote(ops) error = %v", err)
-	} else if !stored {
-		t.Fatal("RefreshRemote(ops) stored = false, want true")
-	}
-
-	if _, ok := registry.LookupPresence(testWorkspaceID, "builders", remoteBuilders.PeerID, now); !ok {
-		t.Fatalf("LookupPresence(builders, %q) = missing, want present", remoteBuilders.PeerID)
-	}
-	if _, ok := registry.LookupPresence(testWorkspaceID, "builders", remoteOps.PeerID, now); ok {
-		t.Fatalf("LookupPresence(builders, %q) = present, want isolated by channel", remoteOps.PeerID)
-	}
-
-	peers := registry.ListPeers(testWorkspaceID, "builders", now)
-	if got, want := len(peers), 2; got != want {
-		t.Fatalf("len(ListPeers(builders)) = %d, want %d", got, want)
-	}
-	if !peers[0].Local || peers[1].Local {
-		t.Fatalf("ListPeers(builders) local ordering mismatch = %#v", peers)
-	}
-
-	expiredAt := now.Add(21 * time.Second)
-	if _, ok := registry.LookupPresence(testWorkspaceID, "builders", remoteBuilders.PeerID, expiredAt); ok {
-		t.Fatalf("LookupPresence(builders, %q) after expiry = present, want expired", remoteBuilders.PeerID)
-	}
-	if _, ok := registry.LookupPresence(testWorkspaceID, "builders", localCard.PeerID, expiredAt); !ok {
-		t.Fatalf("LookupPresence(builders, %q) local = missing after remote expiry", localCard.PeerID)
-	}
-
-	if _, ok := registry.LeaveLocal("sess-local"); !ok {
-		t.Fatal("LeaveLocal(sess-local) ok = false, want true")
-	}
-	if _, ok := registry.LookupPresence(testWorkspaceID, "builders", localCard.PeerID, expiredAt); ok {
-		t.Fatalf("LookupPresence(builders, %q) after leave = present, want removed", localCard.PeerID)
-	}
-}
-
-func TestPeerRegistryPresenceAndExpiryLifecycle(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.May, 21, 13, 0, 0, 0, time.UTC)
-	registry, err := NewPeerRegistry(30*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
-	if err != nil {
-		t.Fatalf("NewPeerRegistry() error = %v", err)
-	}
-	remoteCard := mustPeerCard(t, "reviewer.sess-activity")
-	if _, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", remoteCard, now); err != nil {
-		t.Fatalf("RefreshRemote() error = %v", err)
-	} else if !stored {
-		t.Fatal("RefreshRemote() stored = false, want true")
-	}
-
-	t.Run("Should derive visible peer presence from one captured registry time", func(t *testing.T) {
-		peers := registry.ListPeers(testWorkspaceID, "builders", now.Add(45*time.Second))
-		if got, want := len(peers), 1; got != want {
-			t.Fatalf("len(ListPeers()) = %d, want %d", got, want)
-		}
-		if peers[0].PresenceState != PresenceStateInactive {
-			t.Fatalf("PresenceState = %q, want %q", peers[0].PresenceState, PresenceStateInactive)
-		}
-		if peers[0].LastSeenAgeSeconds == nil || *peers[0].LastSeenAgeSeconds != 45 {
-			t.Fatalf("LastSeenAgeSeconds = %#v, want 45", peers[0].LastSeenAgeSeconds)
-		}
-	})
-
-	t.Run("Should remove and report expired remotes once", func(t *testing.T) {
-		expiredAt := now.Add(61 * time.Second)
-		expired := registry.ExpireRemotes(expiredAt)
-		if got, want := len(expired), 1; got != want {
-			t.Fatalf("len(ExpireRemotes()) = %d, want %d", got, want)
-		}
-		if got, want := expired[0].PeerID, remoteCard.PeerID; got != want {
-			t.Fatalf("expired[0].PeerID = %q, want %q", got, want)
-		}
-		if again := registry.ExpireRemotes(expiredAt.Add(time.Second)); len(again) != 0 {
-			t.Fatalf("second ExpireRemotes() = %#v, want no duplicate expiry", again)
-		}
-	})
-}
-
-func TestPeerRegistryAccessorsAndChannelSummaries(t *testing.T) {
-	t.Parallel()
-
-	if _, err := NewPeerRegistry(0); err == nil {
-		t.Fatal("NewPeerRegistry(0) error = nil, want non-nil")
-	}
-
-	now := time.Date(2026, 4, 10, 12, 30, 0, 0, time.UTC)
-	registry, err := NewPeerRegistry(15 * time.Second)
-	if err != nil {
-		t.Fatalf("NewPeerRegistry() error = %v", err)
-	}
-	if got, want := registry.GreetInterval(), 15*time.Second; got != want {
-		t.Fatalf("GreetInterval() = %s, want %s", got, want)
-	}
-
-	displayName := "Review Bot"
-	local := PeerCard{
-		PeerID:              "reviewer.sess-b",
-		DisplayName:         &displayName,
-		ProfilesSupported:   []string{ProtocolV0},
-		Capabilities:        []string{"chat.review"},
-		ArtifactsSupported:  []string{"capability"},
-		TrustModesSupported: []string{"unverified"},
-	}
-	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", local, now); err != nil {
-		t.Fatalf("RegisterLocal(local) error = %v", err)
-	}
-	remote := mustPeerCard(t, "coder.sess-a")
-	if _, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", remote, now); err != nil {
-		t.Fatalf("RefreshRemote(remote) error = %v", err)
-	} else if !stored {
-		t.Fatal("RefreshRemote(remote) stored = false, want true")
-	}
-
-	if matches := registry.MatchLocalPeers(testWorkspaceID, "builders", "Review Bot"); len(matches) != 1 {
-		t.Fatalf("MatchLocalPeers(display name) len = %d, want 1", len(matches))
-	}
-	if matches := registry.MatchLocalPeers(testWorkspaceID, "builders", "chat.review"); len(matches) != 1 {
-		t.Fatalf("MatchLocalPeers(capability) len = %d, want 1", len(matches))
-	}
-	if entry, ok := registry.RemoteByPeer(testWorkspaceID, "builders", remote.PeerID, now); !ok {
-		t.Fatalf("RemoteByPeer(%q) = missing, want present", remote.PeerID)
-	} else if got, want := entry.PeerID, remote.PeerID; got != want {
-		t.Fatalf("RemoteByPeer().PeerID = %q, want %q", got, want)
-	}
-
-	channels := registry.ListChannels(testWorkspaceID, now)
-	if got, want := len(channels), 1; got != want {
-		t.Fatalf("len(ListChannels()) = %d, want %d", got, want)
-	}
-	if got, want := channels[0].PeerCount, 2; got != want {
-		t.Fatalf("ListChannels()[0].PeerCount = %d, want %d", got, want)
-	}
-
-	if _, err := DefaultPeerCard("Bad Peer"); err == nil {
-		t.Fatal("DefaultPeerCard(invalid) error = nil, want non-nil")
-	}
-}
-
-func TestPeerRegistryMoveLocalPeerAndIgnoreMatchingRemoteAdvertisement(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 10, 12, 40, 0, 0, time.UTC)
-	registry, err := NewPeerRegistry(10 * time.Second)
-	if err != nil {
-		t.Fatalf("NewPeerRegistry() error = %v", err)
-	}
-	local := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", local, now); err != nil {
+	buildersCard := mustPeerCard(t, "coder.sess-builders")
+	opsCard := mustPeerCard(t, "reviewer.sess-ops")
+	if _, err := registry.RegisterLocal(
+		"sess-builders",
+		testWorkspaceID,
+		"builders",
+		buildersCard,
+		time.Time{},
+	); err != nil {
 		t.Fatalf("RegisterLocal(builders) error = %v", err)
 	}
-
-	if _, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", local, now); err != nil {
-		t.Fatalf("RefreshRemote(local peer) error = %v", err)
-	} else if stored {
-		t.Fatal("RefreshRemote(local peer) stored = true, want ignored")
-	}
-	if _, ok := registry.RemoteByPeer(testWorkspaceID, "builders", local.PeerID, now); ok {
-		t.Fatalf("RemoteByPeer(%q) = present, want local advertisement ignored", local.PeerID)
-	}
-
-	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "ops", local, now); err != nil {
+	if _, err := registry.RegisterLocal("sess-ops", testWorkspaceID, "ops", opsCard, now); err != nil {
 		t.Fatalf("RegisterLocal(ops) error = %v", err)
 	}
-	if _, ok := registry.LocalByPeer(testWorkspaceID, "builders", local.PeerID); ok {
-		t.Fatalf("LocalByPeer(builders, %q) = present after move, want removed", local.PeerID)
+
+	peers := registry.ListPeers(testWorkspaceID, "builders")
+	if got, want := len(peers), 1; got != want {
+		t.Fatalf("len(ListPeers(builders)) = %d, want %d", got, want)
 	}
-	if moved, ok := registry.LocalByPeer(testWorkspaceID, "ops", local.PeerID); !ok {
-		t.Fatalf("LocalByPeer(ops, %q) = missing after move", local.PeerID)
-	} else if got, want := moved.Channel, "ops"; got != want {
-		t.Fatalf("moved.Channel = %q, want %q", got, want)
+	if !peers[0].Local || peers[0].PresenceState != PresenceStateLocal {
+		t.Fatalf("ListPeers(builders)[0] = %#v, want local presence", peers[0])
+	}
+	if peers[0].JoinedAt == nil || !peers[0].JoinedAt.Equal(now) {
+		t.Fatalf("ListPeers(builders)[0].JoinedAt = %#v, want %s", peers[0].JoinedAt, now)
+	}
+	if local, ok := registry.LocalBySession("sess-builders"); !ok || local.PeerID != buildersCard.PeerID {
+		t.Fatalf("LocalBySession(sess-builders) = %#v, %v", local, ok)
+	}
+	local, ok := registry.LocalByPeer(testWorkspaceID, "builders", buildersCard.PeerID)
+	if !ok || local.SessionID != "sess-builders" {
+		t.Fatalf("LocalByPeer(builders) = %#v, %v", local, ok)
+	}
+
+	channels := registry.ListChannels(testWorkspaceID)
+	if got, want := len(channels), 2; got != want {
+		t.Fatalf("len(ListChannels()) = %d, want %d", got, want)
+	}
+	if channels[0].Channel != "builders" || channels[0].PeerCount != 1 {
+		t.Fatalf("ListChannels()[0] = %#v, want builders with one peer", channels[0])
+	}
+	if _, ok := registry.LeaveLocal("sess-builders"); !ok {
+		t.Fatal("LeaveLocal(sess-builders) ok = false, want true")
+	}
+	if _, ok := registry.LocalByPeer(testWorkspaceID, "builders", buildersCard.PeerID); ok {
+		t.Fatalf("LocalByPeer(builders, %q) remained after leave", buildersCard.PeerID)
+	}
+}
+
+func TestPeerRegistryMovesLocalPeerAndRejectsDuplicatePeerID(t *testing.T) {
+	t.Parallel()
+
+	registry, err := NewPeerRegistry()
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+	now := time.Date(2026, 4, 10, 12, 40, 0, 0, time.UTC)
+	card := mustPeerCard(t, "reviewer.sess-b")
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "builders", card, now); err != nil {
+		t.Fatalf("RegisterLocal(builders) error = %v", err)
+	}
+	if _, err := registry.RegisterLocal("sess-c", testWorkspaceID, "builders", card, now); err == nil {
+		t.Fatal("RegisterLocal(duplicate peer id) error = nil, want rejection")
+	}
+	if _, err := registry.RegisterLocal("sess-b", testWorkspaceID, "ops", card, now); err != nil {
+		t.Fatalf("RegisterLocal(ops) error = %v", err)
+	}
+	if _, ok := registry.LocalByPeer(testWorkspaceID, "builders", card.PeerID); ok {
+		t.Fatalf("LocalByPeer(builders, %q) present after move", card.PeerID)
+	}
+	if moved, ok := registry.LocalByPeer(testWorkspaceID, "ops", card.PeerID); !ok || moved.Channel != "ops" {
+		t.Fatalf("LocalByPeer(ops, %q) = %#v, %v", card.PeerID, moved, ok)
+	}
+}
+
+func TestPeerRegistryValidatesConstructorAndDefaultCard(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewPeerRegistry(WithPeerRegistryClock(nil)); err == nil {
+		t.Fatal("NewPeerRegistry(nil clock) error = nil, want non-nil")
+	}
+	if _, err := DefaultPeerCard("Bad Peer"); err == nil {
+		t.Fatal("DefaultPeerCard(invalid) error = nil, want non-nil")
 	}
 }
 
@@ -263,14 +109,8 @@ func TestProjectCapabilityBriefViewMatchesProjectedIDsAndBriefEntries(t *testing
 		t.Parallel()
 
 		ids, ext, err := projectCapabilityBriefView([]sessionpkg.NetworkPeerCapability{
-			{
-				ID:      " review-pr ",
-				Summary: " Review pull requests ",
-			},
-			{
-				ID:      "draft-spec",
-				Summary: "Draft technical specs",
-			},
+			{ID: " review-pr ", Summary: " Review pull requests "},
+			{ID: "draft-spec", Summary: "Draft technical specs"},
 		})
 		if err != nil {
 			t.Fatalf("projectCapabilityBriefView() error = %v", err)
@@ -295,11 +135,8 @@ func TestProjectCapabilityBriefViewMatchesProjectedIDsAndBriefEntries(t *testing
 		if err != nil {
 			t.Fatalf("projectCapabilityBriefView(nil) error = %v", err)
 		}
-		if ids == nil {
-			t.Fatal("projected ids = nil, want empty-but-valid slice")
-		}
-		if got := len(ids); got != 0 {
-			t.Fatalf("len(projected ids) = %d, want 0", got)
+		if ids == nil || len(ids) != 0 {
+			t.Fatalf("projected ids = %#v, want empty-but-valid slice", ids)
 		}
 		if ext != nil && ext[capabilityBriefExtKey] != nil {
 			t.Fatalf("projected ext = %#v, want omitted capability brief key", ext)
@@ -315,8 +152,7 @@ func TestCloneAndNormalizePeerCardPreserveCapabilityBriefExt(t *testing.T) {
 		t.Fatalf("DefaultPeerCard() error = %v", err)
 	}
 	if err := applyCapabilityBriefProjection(&card, []sessionpkg.NetworkPeerCapability{{
-		ID:      "review-pr",
-		Summary: "Review pull requests",
+		ID: "review-pr", Summary: "Review pull requests",
 	}}); err != nil {
 		t.Fatalf("applyCapabilityBriefProjection() error = %v", err)
 	}
@@ -326,104 +162,52 @@ func TestCloneAndNormalizePeerCardPreserveCapabilityBriefExt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("normalizePeerCard() error = %v", err)
 	}
-
 	wantCapabilities := append([]string(nil), card.Capabilities...)
 	wantBriefRaw := append(json.RawMessage(nil), card.Ext[capabilityBriefExtKey]...)
 	card.Capabilities[0] = "mutated"
 	card.Ext[capabilityBriefExtKey][0] = '{'
 
-	if got := cloned.Capabilities; !slices.Equal(got, wantCapabilities) {
-		t.Fatalf("cloned capabilities = %#v, want %#v", got, wantCapabilities)
+	if !slices.Equal(cloned.Capabilities, wantCapabilities) ||
+		!slices.Equal(normalized.Capabilities, wantCapabilities) {
+		t.Fatalf(
+			"cloned capability ids diverged: cloned=%#v normalized=%#v",
+			cloned.Capabilities,
+			normalized.Capabilities,
+		)
 	}
-	if got := normalized.Capabilities; !slices.Equal(got, wantCapabilities) {
-		t.Fatalf("normalized capabilities = %#v, want %#v", got, wantCapabilities)
-	}
-	if got := string(cloned.Ext[capabilityBriefExtKey]); got != string(wantBriefRaw) {
-		t.Fatalf("cloned capability brief raw = %q, want %q", got, string(wantBriefRaw))
-	}
-	if got := string(normalized.Ext[capabilityBriefExtKey]); got != string(wantBriefRaw) {
-		t.Fatalf("normalized capability brief raw = %q, want %q", got, string(wantBriefRaw))
+	if string(cloned.Ext[capabilityBriefExtKey]) != string(wantBriefRaw) ||
+		string(normalized.Ext[capabilityBriefExtKey]) != string(wantBriefRaw) {
+		t.Fatal("cloned capability brief bytes changed after source mutation")
 	}
 }
 
-func TestPeerRegistryRefreshRemoteKeepsRichCatalogCoherentWithBriefDiscovery(t *testing.T) {
+func TestPeerRegistryPreservesLocalCapabilityCatalog(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
-	registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	registry, err := NewPeerRegistry()
 	if err != nil {
 		t.Fatalf("NewPeerRegistry() error = %v", err)
 	}
-
-	card := PeerCard{
-		PeerID:              "reviewer.sess-remote",
-		ProfilesSupported:   []string{ProtocolV0},
-		Capabilities:        []string{"review-pr"},
-		ArtifactsSupported:  []string{"capability"},
-		TrustModesSupported: []string{"untrusted"},
-	}
+	card := mustPeerCard(t, "reviewer.sess-local")
 	catalog := []sessionpkg.NetworkPeerCapability{{
-		ID:           "review-pr",
-		Summary:      "Review pull requests",
-		Outcome:      "Actionable review findings",
-		Version:      "1.0.0",
-		Digest:       "sha256:review-pr-v1",
-		Requirements: []string{"workspace-read"},
+		ID: "review-pr", Summary: "Review pull requests", Outcome: "Actionable findings",
+		Version: "1.0.0", Digest: "sha256:review-pr-v1", Requirements: []string{"workspace-read"},
 	}}
-
-	entry, stored, err := registry.RefreshRemoteWithCapabilityCatalog(
-		testWorkspaceID,
-		"builders",
-		card,
-		catalog,
-		true,
-		now,
+	local, err := registry.RegisterLocalWithCapabilityCatalog(
+		"sess-local", testWorkspaceID, "builders", card, catalog, time.Time{},
 	)
 	if err != nil {
-		t.Fatalf("RefreshRemoteWithCapabilityCatalog() error = %v", err)
+		t.Fatalf("RegisterLocalWithCapabilityCatalog() error = %v", err)
 	}
-	if !stored {
-		t.Fatal("RefreshRemoteWithCapabilityCatalog() stored = false, want true")
-	}
-	if !entry.CapabilityCatalogKnown || !reflect.DeepEqual(entry.CapabilityCatalog, catalog) {
-		t.Fatalf(
-			"initial remote capability catalog = %#v known=%v, want %#v known=true",
-			entry.CapabilityCatalog,
-			entry.CapabilityCatalogKnown,
-			catalog,
-		)
-	}
+	catalog[0].Summary = "mutated"
+	local.CapabilityCatalog[0].Summary = "also mutated"
 
-	refreshed, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", card, now.Add(time.Second))
-	if err != nil {
-		t.Fatalf("RefreshRemote() error = %v", err)
+	peers := registry.ListPeers(testWorkspaceID, "builders")
+	if len(peers) != 1 || !peers[0].CapabilityCatalogKnown {
+		t.Fatalf("ListPeers() = %#v, want one peer with known catalog", peers)
 	}
-	if !stored {
-		t.Fatal("RefreshRemote() stored = false, want true")
-	}
-	if !refreshed.CapabilityCatalogKnown || !reflect.DeepEqual(refreshed.CapabilityCatalog, catalog) {
-		t.Fatalf(
-			"refreshed capability catalog = %#v known=%v, want %#v known=true",
-			refreshed.CapabilityCatalog,
-			refreshed.CapabilityCatalogKnown,
-			catalog,
-		)
-	}
-
-	changedCard := card
-	changedCard.Capabilities = []string{"draft-spec"}
-	changed, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", changedCard, now.Add(2*time.Second))
-	if err != nil {
-		t.Fatalf("RefreshRemote(changed brief) error = %v", err)
-	}
-	if !stored {
-		t.Fatal("RefreshRemote(changed brief) stored = false, want true")
-	}
-	if changed.CapabilityCatalogKnown {
-		t.Fatalf("changed capability catalog should be cleared when brief ids change: %#v", changed)
-	}
-	if len(changed.CapabilityCatalog) != 0 {
-		t.Fatalf("changed capability catalog = %#v, want empty", changed.CapabilityCatalog)
+	if got, want := peers[0].CapabilityCatalog[0].Summary, "Review pull requests"; got != want {
+		t.Fatalf("stored catalog summary = %q, want %q", got, want)
 	}
 }
 
@@ -443,7 +227,6 @@ func decodeCapabilityBriefPayload(t *testing.T, raw json.RawMessage) []capabilit
 	if len(raw) == 0 {
 		return nil
 	}
-
 	var brief []capabilityBrief
 	if err := json.Unmarshal(raw, &brief); err != nil {
 		t.Fatalf("json.Unmarshal(capability brief) error = %v", err)

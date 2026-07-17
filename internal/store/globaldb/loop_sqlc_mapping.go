@@ -15,7 +15,7 @@ func loopRunInsertParams(
 	inputsJSON []byte,
 	metadataJSON []byte,
 ) (sqlcgen.InsertLoopRunParams, error) {
-	network, err := encodeParticipationSnapshot(run.NetworkSpecSnapshot())
+	network, err := encodeParticipationSnapshot(string(run.WorkspaceID), run.NetworkSpecSnapshot())
 	if err != nil {
 		return sqlcgen.InsertLoopRunParams{}, err
 	}

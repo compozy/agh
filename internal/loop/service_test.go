@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/gate"
@@ -143,6 +144,41 @@ func TestServiceParticipationShouldResolvePersistAndValidateLoopOwnership(t *tes
 		}
 		if got := store.mustRun(t, run.ID).NetworkSpecSnapshot(); got != spec {
 			t.Fatalf("stored participation = %#v, want %#v", got, spec)
+		}
+	})
+
+	t.Run("Should carry the live snapshot through started and terminal hooks", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		hooks := &participationLifecycleHookDispatcher{}
+		svc := newParticipationTestService(
+			t,
+			store,
+			liveLoopTestDefinition(),
+			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
+			loop.WithHookDispatcher(hooks),
+		)
+		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		want := run.NetworkSpecSnapshot()
+		if got := hooks.started.ResolvedNetworkParticipation; got == nil || *got != want {
+			t.Fatalf("loop.started participation = %#v, want %#v", got, want)
+		}
+		if err := svc.Transition(
+			context.Background(),
+			run.ID,
+			loop.StatusDone,
+			loop.TransitionCauseContract,
+		); err != nil {
+			t.Fatalf("Transition(done) error = %v", err)
+		}
+		if got := hooks.terminal.ResolvedNetworkParticipation; got == nil || *got != want {
+			t.Fatalf("loop.terminal participation = %#v, want %#v", got, want)
 		}
 	})
 
@@ -1693,6 +1729,28 @@ func newParticipationTestService(
 		t.Fatalf("NewService() error = %v", err)
 	}
 	return svc
+}
+
+type participationLifecycleHookDispatcher struct {
+	loop.HookDispatcher
+	started  hookspkg.LoopStartedPayload
+	terminal hookspkg.LoopTerminalPayload
+}
+
+func (d *participationLifecycleHookDispatcher) DispatchLoopStarted(
+	_ context.Context,
+	payload hookspkg.LoopStartedPayload,
+) (hookspkg.LoopStartedPayload, error) {
+	d.started = payload
+	return payload, nil
+}
+
+func (d *participationLifecycleHookDispatcher) DispatchLoopTerminal(
+	_ context.Context,
+	payload hookspkg.LoopTerminalPayload,
+) (hookspkg.LoopTerminalPayload, error) {
+	d.terminal = payload
+	return payload, nil
 }
 
 type atomicGoalStopStore struct {

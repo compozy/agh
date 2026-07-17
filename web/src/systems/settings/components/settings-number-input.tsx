@@ -24,14 +24,21 @@ function validateIntegerInput(rawValue: string, min: number): string | null {
   }
 
   const parsed = Number.parseInt(trimmed, 10);
-  if (!Number.isFinite(parsed) || parsed < min) {
+  if (!Number.isSafeInteger(parsed)) {
+    return "Enter a safely representable whole number.";
+  }
+  if (parsed < min) {
     return `Value must be ${min} or greater.`;
   }
 
   return null;
 }
 
-function SettingsNumberInput({
+function SettingsNumberInput({ value, ...props }: SettingsNumberInputProps) {
+  return <SettingsNumberInputControl key={value} value={value} {...props} />;
+}
+
+function SettingsNumberInputControl({
   value,
   min = 0,
   onValueChange,

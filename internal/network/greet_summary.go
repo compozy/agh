@@ -6,13 +6,13 @@ import (
 	"strings"
 )
 
-const maxGreetSummaryRunes = 160
+const maxNetworkPreviewRunes = 160
 
 // ResolveGreetSummary returns a deterministic operator-facing summary for one
 // greet advertisement.
 func ResolveGreetSummary(card PeerCard, summary string) string {
 	if trimmed := strings.TrimSpace(summary); trimmed != "" {
-		return truncateRunes(trimmed, maxGreetSummaryRunes)
+		return truncateNetworkPreview(trimmed)
 	}
 
 	name := strings.TrimSpace(card.PeerID)
@@ -27,14 +27,14 @@ func ResolveGreetSummary(card PeerCard, summary string) string {
 
 	capabilityLabel, extraCount := greetCapabilityLabel(card)
 	if capabilityLabel == "" {
-		return truncateRunes(name+" is present", maxGreetSummaryRunes)
+		return truncateNetworkPreview(name + " is present")
 	}
 
 	summaryText := fmt.Sprintf("%s ready for %s", name, capabilityLabel)
 	if extraCount > 0 {
 		summaryText = fmt.Sprintf("%s +%d more", summaryText, extraCount)
 	}
-	return truncateRunes(summaryText, maxGreetSummaryRunes)
+	return truncateNetworkPreview(summaryText)
 }
 
 func greetCapabilityLabel(card PeerCard) (string, int) {
@@ -85,13 +85,10 @@ func decodeCapabilityBriefs(raw json.RawMessage) []capabilityBrief {
 	return filtered
 }
 
-func truncateRunes(value string, limit int) string {
-	if limit <= 0 {
-		return ""
-	}
+func truncateNetworkPreview(value string) string {
 	runes := []rune(strings.TrimSpace(value))
-	if len(runes) <= limit {
+	if len(runes) <= maxNetworkPreviewRunes {
 		return string(runes)
 	}
-	return strings.TrimSpace(string(runes[:limit]))
+	return strings.TrimSpace(string(runes[:maxNetworkPreviewRunes]))
 }

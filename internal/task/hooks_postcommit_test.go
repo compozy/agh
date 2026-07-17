@@ -147,6 +147,7 @@ func validAgentActorContextForPostCommitHookTest() ActorContext {
 	agent := validActorContext()
 	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-post-commit-hooks"}
 	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+	agent.Scope = CallerScope{SessionID: "sess-post-commit-hooks", WorkspaceID: "ws-post-commit-hooks"}
 	return agent
 }
 

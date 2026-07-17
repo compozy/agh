@@ -1,3 +1,5 @@
+//go:build integration
+
 package daemon
 
 import (
@@ -64,6 +66,8 @@ func TestNetworkWakeRunnerWithDurableTaskService(t *testing.T) {
 	if _, err := taskService.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 		RunID:            queued[0].TaskRunID,
 		RunKind:          taskpkg.RunKindNetworkWake,
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      queued[0].WorkspaceID,
 		TargetSessionID:  "session-foreign",
 		ClaimerSessionID: "session-foreign",
 		LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
@@ -88,11 +92,11 @@ func TestNetworkWakeRunnerWithDurableTaskService(t *testing.T) {
 			OutputTokens: &outputTokens,
 		},
 	}}}
-	runner, err := newNetworkWakeRunner(taskService, prompter, reopenedDB, nil)
+	runner, err := newNetworkWakeRunner(taskService, prompter, reopenedDB, nil, 2)
 	if err != nil {
 		t.Fatalf("newNetworkWakeRunner() error = %v", err)
 	}
-	if err := runner.processNotification(ctx, actor, queued[0]); err != nil {
+	if _, err := runner.processNotification(ctx, actor, queued[0]); err != nil {
 		t.Fatalf("processNotification() error = %v", err)
 	}
 	if prompter.calls != 1 {
@@ -117,7 +121,11 @@ func TestNetworkWakeRunnerWithDurableTaskService(t *testing.T) {
 	usage, err := reopenedDB.GetNetworkUsage(ctx, store.NetworkUsageQuery{
 		WorkspaceID: "workspace-network",
 		Channel:     "builders",
-		OwnerKey:    "session:session-target",
+		Owner: &participation.OwnerRef{
+			WorkspaceID: "workspace-network",
+			Kind:        participation.OwnerKindSession,
+			ID:          "session-target",
+		},
 	})
 	if err != nil {
 		t.Fatalf("GetNetworkUsage() error = %v", err)
@@ -166,53 +174,5 @@ func seedNetworkWakeIntegrationScope(
 		}); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 		}
-	}
-}
-
-func networkWakeIntegrationAcceptance(
-	t *testing.T,
-	now time.Time,
-) store.AcceptNetworkMessageRequest {
-	t.Helper()
-
-	directID, _, _, err := store.NetworkDirectRoomIdentity(
-		"workspace-network",
-		"builders",
-		"session-sender",
-		"session-target",
-	)
-	if err != nil {
-		t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
-	}
-	spec := participation.Spec{
-		Version: participation.SpecVersion, Mode: participation.ModeLive,
-		WorkspaceID: "workspace-network", ChannelStrategy: participation.StrategyNamed,
-		ChannelID: "builders", Source: participation.SourceExplicitRequest,
-		Bounds: participation.Bounds{
-			MaxWakes: 1, MaxWakeWallTime: "1s", MaxTotalWallTime: "1s",
-			MaxInputTokens: 100, MaxOutputTokens: 100, MaxWakeDepth: 1,
-			CoalesceWindow: "100ms",
-		},
-	}
-	return store.AcceptNetworkMessageRequest{
-		Message: store.NetworkConversationMessage{
-			MessageID: "message-network-runner", SessionID: "session-sender",
-			WorkspaceID: "workspace-network", Channel: "builders",
-			Surface: store.NetworkSurfaceDirect, DirectID: directID,
-			Direction: "sent", PeerFrom: "session-sender", PeerTo: "session-target",
-			Kind: store.NetworkKindSay, Text: "Review the durable wake",
-			PreviewText: "Review the durable wake",
-			Body:        []byte(`{"text":"Review the durable wake"}`),
-			Timestamp:   now,
-		},
-		Dispositions: []store.NetworkMessageDisposition{{
-			RecipientSessionID: "session-target", Decision: store.NetworkDispositionDeliver,
-		}},
-		Admissions: []store.NetworkWakeAdmissionInput{{
-			RecipientSessionID: "session-target", OwnerKey: "session:session-target",
-			Spec: spec, Trigger: store.NetworkWakeTriggerDirect, Eligible: true, Addressed: true,
-			RootID: "message-network-runner", Depth: 0,
-			WakeID: "wake-network-runner", TaskRunID: "run-network-runner",
-		}},
 	}
 }

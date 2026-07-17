@@ -8,29 +8,49 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 )
 
 var _ store.NetworkUsageStore = (*NetworkRepo)(nil)
 
-// GetNetworkUsage returns workspace-fenced ledger details and their exact aggregate.
+// GetNetworkUsage returns one bounded workspace-fenced page plus full-filter totals.
 func (g *NetworkRepo) GetNetworkUsage(
 	ctx context.Context,
 	query store.NetworkUsageQuery,
-) (report store.NetworkUsageReport, err error) {
+) (store.NetworkUsageReport, error) {
 	if err := g.checkReady(ctx, "get network usage"); err != nil {
 		return store.NetworkUsageReport{}, err
 	}
-	normalized := store.NetworkUsageQuery{
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-		Channel:     strings.TrimSpace(query.Channel),
-		RunID:       strings.TrimSpace(query.RunID),
-		OwnerKey:    strings.TrimSpace(query.OwnerKey),
-	}
-	if err := normalized.Validate(); err != nil {
+	normalized, cursor, err := store.NormalizeNetworkUsageQuery(query)
+	if err != nil {
 		return store.NetworkUsageReport{}, fmt.Errorf("store: validate network usage query: %w", err)
 	}
+	details, nextCursor, err := g.loadNetworkUsageDetails(ctx, normalized, cursor)
+	if err != nil {
+		return store.NetworkUsageReport{}, err
+	}
+	total, err := g.loadNetworkUsageSummary(ctx, normalized)
+	if err != nil {
+		return store.NetworkUsageReport{}, err
+	}
+	budget, err := g.loadNetworkUsageBudget(ctx, normalized)
+	if err != nil {
+		return store.NetworkUsageReport{}, err
+	}
+	return store.NetworkUsageReport{
+		Details:    details,
+		Total:      total,
+		Budget:     budget,
+		NextCursor: nextCursor,
+	}, nil
+}
 
+func (g *NetworkRepo) loadNetworkUsageDetails(
+	ctx context.Context,
+	query store.NetworkUsageQuery,
+	cursor *store.NetworkUsageCursorPosition,
+) (details []store.NetworkWakeUsageDetail, nextCursor string, err error) {
 	const selectUsage = `SELECT wake_id, task_run_id, owner_key, workspace_id, channel,
 	root_id, depth, state, reserved_wall_ms, actual_wall_ms, reserved_at,
 	settled_at, input_tokens, output_tokens, usage_state, reason
@@ -39,22 +59,36 @@ WHERE workspace_id = ?
 	AND (? = '' OR channel = ?)
 	AND (? = '' OR owner_key = ?)
 	AND (? = '' OR owner_key IN (?, ?) OR task_run_id = ?)
-ORDER BY reserved_at ASC, wake_id ASC`
+	AND (? = '' OR reserved_at < ? OR (reserved_at = ? AND wake_id < ?))
+ORDER BY reserved_at DESC, wake_id DESC
+LIMIT ?`
+	ownerKey := networkUsageOwnerKey(query)
+	cursorAt := ""
+	cursorWakeID := ""
+	if cursor != nil {
+		cursorAt = store.FormatTimestamp(cursor.ReservedAt)
+		cursorWakeID = cursor.WakeID
+	}
 	rows, err := g.db.QueryContext(
 		ctx,
 		selectUsage,
-		normalized.WorkspaceID,
-		normalized.Channel,
-		normalized.Channel,
-		normalized.OwnerKey,
-		normalized.OwnerKey,
-		normalized.RunID,
-		"task_run:"+normalized.RunID,
-		"loop_run:"+normalized.RunID,
-		normalized.RunID,
+		query.WorkspaceID,
+		query.Channel,
+		query.Channel,
+		ownerKey,
+		ownerKey,
+		query.RunID,
+		"task_run:"+query.RunID,
+		"loop_run:"+query.RunID,
+		query.RunID,
+		cursorAt,
+		cursorAt,
+		cursorAt,
+		cursorWakeID,
+		query.Limit+1,
 	)
 	if err != nil {
-		return store.NetworkUsageReport{}, fmt.Errorf("store: query network usage: %w", err)
+		return nil, "", fmt.Errorf("store: query network usage: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -67,40 +101,102 @@ ORDER BY reserved_at ASC, wake_id ASC`
 		}
 	}()
 
-	report.Details = make([]store.NetworkWakeUsageDetail, 0)
+	details = make([]store.NetworkWakeUsageDetail, 0, query.Limit)
 	for rows.Next() {
 		detail, scanErr := scanNetworkWakeUsage(rows)
 		if scanErr != nil {
-			return store.NetworkUsageReport{}, scanErr
+			return nil, "", scanErr
 		}
-		report.Details = append(report.Details, detail)
-		addNetworkWakeUsage(&report.Total, detail)
+		details = append(details, detail)
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return store.NetworkUsageReport{}, fmt.Errorf("store: iterate network usage: %w", rowsErr)
+		return nil, "", fmt.Errorf("store: iterate network usage: %w", rowsErr)
 	}
-	report.Budget, err = g.loadNetworkUsageBudget(ctx, normalized)
+	if len(details) <= query.Limit {
+		return details, "", nil
+	}
+	details = details[:query.Limit]
+	last := details[len(details)-1]
+	nextCursor, err = store.EncodeNetworkUsageCursor(query, store.NetworkUsageCursorPosition{
+		ReservedAt: last.ReservedAt,
+		WakeID:     last.WakeID,
+	})
 	if err != nil {
-		return store.NetworkUsageReport{}, err
+		return nil, "", fmt.Errorf("store: encode next network usage cursor: %w", err)
 	}
-	return report, nil
+	return details, nextCursor, nil
+}
+
+func (g *NetworkRepo) loadNetworkUsageSummary(
+	ctx context.Context,
+	query store.NetworkUsageQuery,
+) (store.NetworkUsageSummary, error) {
+	const selectSummary = `SELECT
+	COUNT(*),
+	COALESCE(SUM(CASE WHEN usage_state NOT IN (?, ?) THEN 1 ELSE 0 END), 0),
+	COALESCE(SUM(CASE WHEN usage_state = ? THEN 1 ELSE 0 END), 0),
+	COALESCE(SUM(CASE WHEN usage_state = ? THEN 1 ELSE 0 END), 0),
+	COALESCE(SUM(COALESCE(actual_wall_ms, reserved_wall_ms)), 0),
+	COALESCE(SUM(CASE WHEN usage_state = ? THEN 0 ELSE COALESCE(input_tokens, 0) END), 0),
+	COALESCE(SUM(CASE WHEN usage_state = ? THEN 0 ELSE COALESCE(output_tokens, 0) END), 0)
+FROM network_live_wakes
+WHERE workspace_id = ?
+	AND (? = '' OR channel = ?)
+	AND (? = '' OR owner_key = ?)
+	AND (? = '' OR owner_key IN (?, ?) OR task_run_id = ?)`
+	ownerKey := networkUsageOwnerKey(query)
+	var total store.NetworkUsageSummary
+	var chargedWallMS int64
+	err := g.db.QueryRowContext(
+		ctx,
+		selectSummary,
+		store.NetworkWakeUsageActual,
+		store.NetworkWakeUsageUnavailable,
+		store.NetworkWakeUsageActual,
+		store.NetworkWakeUsageUnavailable,
+		store.NetworkWakeUsageUnavailable,
+		store.NetworkWakeUsageUnavailable,
+		query.WorkspaceID,
+		query.Channel,
+		query.Channel,
+		ownerKey,
+		ownerKey,
+		query.RunID,
+		"task_run:"+query.RunID,
+		"loop_run:"+query.RunID,
+		query.RunID,
+	).Scan(
+		&total.WakeCount,
+		&total.ReservedWakeCount,
+		&total.ActualWakeCount,
+		&total.UnavailableWakeCount,
+		&chargedWallMS,
+		&total.InputTokens,
+		&total.OutputTokens,
+	)
+	if err != nil {
+		return store.NetworkUsageSummary{}, fmt.Errorf("store: query network usage summary: %w", err)
+	}
+	total.ChargedWallTime = time.Duration(chargedWallMS) * time.Millisecond
+	return total, nil
 }
 
 func (g *NetworkRepo) loadNetworkUsageBudget(
 	ctx context.Context,
 	query store.NetworkUsageQuery,
 ) (*store.NetworkBudgetUsage, error) {
-	if query.OwnerKey == "" && query.RunID == "" {
+	ownerKey := networkUsageOwnerKey(query)
+	if ownerKey == "" && query.RunID == "" {
 		return nil, nil
 	}
-	ownerKeys := []string{query.OwnerKey}
-	if query.OwnerKey == "" {
+	ownerKeys := []string{ownerKey}
+	if ownerKey == "" {
 		ownerKeys = []string{"task_run:" + query.RunID, "loop_run:" + query.RunID}
 	}
 	const selectBudget = `SELECT owner_key, wakes_used, wall_ms_used, input_tokens_used,
 	output_tokens_used, exhausted_reason, updated_at
 FROM network_participation_budgets
-WHERE owner_key IN (?, ?)
+WHERE workspace_id = ? AND owner_key IN (?, ?)
 ORDER BY CASE WHEN owner_key = ? THEN 0 ELSE 1 END
 LIMIT 1`
 	primary := ownerKeys[0]
@@ -111,7 +207,14 @@ LIMIT 1`
 	var budget store.NetworkBudgetUsage
 	var wallMS int64
 	var updatedAtRaw string
-	err := g.db.QueryRowContext(ctx, selectBudget, primary, secondary, primary).Scan(
+	err := g.db.QueryRowContext(
+		ctx,
+		selectBudget,
+		query.WorkspaceID,
+		primary,
+		secondary,
+		primary,
+	).Scan(
 		&budget.OwnerKey,
 		&budget.WakesUsed,
 		&wallMS,
@@ -133,6 +236,13 @@ LIMIT 1`
 	budget.WallTimeUsed = time.Duration(wallMS) * time.Millisecond
 	budget.UpdatedAt = updatedAt
 	return &budget, nil
+}
+
+func networkUsageOwnerKey(query store.NetworkUsageQuery) string {
+	if query.Owner == nil {
+		return ""
+	}
+	return participation.OwnerKey(*query.Owner)
 }
 
 func scanNetworkWakeUsage(rows *sql.Rows) (store.NetworkWakeUsageDetail, error) {
@@ -185,20 +295,9 @@ func scanNetworkWakeUsage(rows *sql.Rows) (store.NetworkWakeUsageDetail, error) 
 	if strings.TrimSpace(detail.UsageState) == "" {
 		detail.UsageState = store.NetworkWakeUsageReserved
 	}
-	return detail, nil
-}
-
-func addNetworkWakeUsage(total *store.NetworkUsageSummary, detail store.NetworkWakeUsageDetail) {
-	total.WakeCount++
-	total.ChargedWallTime += detail.ChargedWallTime
-	total.InputTokens += detail.InputTokens
-	total.OutputTokens += detail.OutputTokens
-	switch detail.UsageState {
-	case store.NetworkWakeUsageActual:
-		total.ActualWakeCount++
-	case store.NetworkWakeUsageUnavailable:
-		total.UnavailableWakeCount++
-	default:
-		total.ReservedWakeCount++
+	if detail.UsageState == store.NetworkWakeUsageUnavailable {
+		detail.InputTokens = 0
+		detail.OutputTokens = 0
 	}
+	return detail, nil
 }

@@ -53,6 +53,75 @@ func seedNonLeasedClaimedRunForDaemonTest(
 	return &run
 }
 
+func networkWakeIntegrationAcceptance(
+	t *testing.T,
+	now time.Time,
+) store.AcceptNetworkMessageRequest {
+	t.Helper()
+
+	directID, _, _, err := store.NetworkDirectRoomIdentity(
+		"workspace-network",
+		"builders",
+		"session-sender",
+		"session-target",
+	)
+	if err != nil {
+		t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
+	}
+	spec := participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "workspace-network",
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "builders",
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         1,
+			MaxWakeWallTime:  "1s",
+			MaxTotalWallTime: "1s",
+			MaxInputTokens:   100,
+			MaxOutputTokens:  100,
+			MaxWakeDepth:     1,
+			CoalesceWindow:   "100ms",
+		},
+	}
+	return store.AcceptNetworkMessageRequest{
+		Message: store.NetworkConversationMessage{
+			MessageID:   "message-network-runner",
+			SessionID:   "session-sender",
+			WorkspaceID: "workspace-network",
+			Channel:     "builders",
+			Surface:     store.NetworkSurfaceDirect,
+			DirectID:    directID,
+			Direction:   "sent",
+			PeerFrom:    "session-sender",
+			PeerTo:      "session-target",
+			Kind:        store.NetworkKindSay,
+			Text:        "Review the durable wake",
+			PreviewText: "Review the durable wake",
+			Body:        []byte(`{"text":"Review the durable wake"}`),
+			Timestamp:   now,
+		},
+		Dispositions: []store.NetworkMessageDisposition{{
+			RecipientSessionID: "session-target",
+			Decision:           store.NetworkDispositionDeliver,
+		}},
+		Admissions: []store.NetworkWakeAdmissionInput{{
+			WorkspaceID:        "workspace-network",
+			RecipientSessionID: "session-target",
+			OwnerKey:           "session:session-target",
+			Spec:               spec,
+			Trigger:            store.NetworkWakeTriggerDirect,
+			Eligible:           true,
+			Addressed:          true,
+			RootID:             "message-network-runner",
+			Depth:              0,
+			WakeID:             "wake-network-runner",
+			TaskRunID:          "run-network-runner",
+		}},
+	}
+}
+
 func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing.T) {
 	t.Parallel()
 
@@ -77,14 +146,11 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-engineer-agent"},
 			},
 			run: taskpkg.Run{
-				ID:      "run-1",
-				TaskID:  "task-workspace",
-				Status:  taskpkg.TaskRunStatusStarting,
-				Attempt: 2,
-				Origin:  taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
-				RunNetworkState: &taskpkg.RunNetworkState{
-					NetworkSpec: daemonTestLiveParticipation("ws-123", "coord-builders"),
-				},
+				ID:       "run-1",
+				TaskID:   "task-workspace",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  2,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
 				QueuedAt: time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantWorkspace: "ws-123",
@@ -100,13 +166,12 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				Title: "Global Task",
 			},
 			run: taskpkg.Run{
-				ID:              "run-1",
-				TaskID:          "task-global",
-				Status:          taskpkg.TaskRunStatusStarting,
-				Attempt:         2,
-				Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
-				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("", "builders")},
-				QueuedAt:        time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+				ID:       "run-1",
+				TaskID:   "task-global",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  2,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantPath:     globalPath,
 			wantChannel:  "builders",
@@ -1266,6 +1331,13 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("workspace.NewResolver() error = %v", err)
 		}
+		workspaceRecord, err := resolver.Register(ctx, workspacepkg.RegisterOptions{
+			RootDir: homePaths.HomeDir,
+			Name:    "scheduler-status-workspace",
+		})
+		if err != nil {
+			t.Fatalf("workspace.Register() error = %v", err)
+		}
 
 		cfg := aghconfig.DefaultWithHome(homePaths)
 		cfg.Autonomy.Scheduler.MinQueuedAge = time.Hour
@@ -1296,13 +1368,19 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 			}
 		})
 
-		actor, err := taskpkg.DeriveDaemonActorContext("scheduler-status-test", "daemon.test")
+		actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
+			"scheduler-status-test",
+			workspaceRecord.ID,
+			taskpkg.OriginKindHTTP,
+			"daemon.test",
+		)
 		if err != nil {
-			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+			t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 		}
 		taskRecord, err := state.tasks.manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Verify scheduler status threshold wiring",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceRecord.ID,
+			Title:       "Verify scheduler status threshold wiring",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -1409,6 +1487,21 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 
 	db := openDaemonTestGlobalDB(t)
 	homePaths := testHomePaths(t)
+	now := time.Now().UTC()
+	if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID: "global", RootDir: homePaths.HomeDir, Name: "global",
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(global) error = %v", err)
+	}
+	for _, sessionID := range []string{"sess-wake-live", "sess-wake-sender"} {
+		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+			ID: sessionID, AgentName: "coder", Provider: "test",
+			WorkspaceID: "global", State: string(session.StateActive), CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
+		}
+	}
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
@@ -1455,30 +1548,58 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	if _, err := seedManager.AttachRunSession(context.Background(), claimedRun.ID, "sess-live", seedActor); err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
 	}
-	wake := taskpkg.Run{
-		ID: "run-wake-boot-recovery", RunKind: taskpkg.RunKindNetworkWake,
-		Status: taskpkg.TaskRunStatusQueued, Attempt: 1,
-		Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
-		QueuedAt: time.Now().UTC(),
-	}
-	wake.SetNetworkState(
-		daemonTestLiveParticipation("global", "operations"),
-		"wake-boot-recovery",
-		"sess-wake-missing",
-		"owner-wake-boot-recovery",
+	const wakeRunID = "run-wake-boot-recovery"
+	acceptance := networkWakeIntegrationAcceptance(t, now)
+	acceptance.Message.MessageID = "message-wake-boot-recovery"
+	acceptance.Message.SessionID = "sess-wake-sender"
+	acceptance.Message.WorkspaceID = "global"
+	acceptance.Message.PeerFrom = "sess-wake-sender"
+	acceptance.Message.PeerTo = "sess-wake-live"
+	directID, _, _, err := store.NetworkDirectRoomIdentity(
+		"global",
+		acceptance.Message.Channel,
+		"sess-wake-sender",
+		"sess-wake-live",
 	)
-	if err := db.CreateTaskRun(context.Background(), wake); err != nil {
-		t.Fatalf("CreateTaskRun(network wake) error = %v", err)
+	if err != nil {
+		t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
 	}
-	wakeActor, err := taskpkg.DeriveAgentSessionActorContext("sess-wake-missing")
+	acceptance.Message.DirectID = directID
+	acceptance.Dispositions[0].RecipientSessionID = "sess-wake-live"
+	acceptance.Admissions[0].WorkspaceID = "global"
+	acceptance.Admissions[0].RecipientSessionID = "sess-wake-live"
+	acceptance.Admissions[0].OwnerKey = "session:sess-wake-live"
+	acceptance.Admissions[0].Spec.WorkspaceID = "global"
+	acceptance.Admissions[0].Spec.Bounds.MaxWakes = 2
+	acceptance.Admissions[0].Spec.Bounds.MaxTotalWallTime = "2s"
+	acceptance.Admissions[0].WakeID = "wake-boot-recovery"
+	acceptance.Admissions[0].TaskRunID = wakeRunID
+	wantWakeParticipation := acceptance.Admissions[0].Spec
+	acceptedWake, err := db.AcceptNetworkMessage(context.Background(), acceptance)
+	if err != nil {
+		t.Fatalf("AcceptNetworkMessage(network wake) error = %v", err)
+	}
+	if got, want := len(acceptedWake.Notify), 1; got != want {
+		t.Fatalf("len(AcceptNetworkMessage(network wake).Notify) = %d, want %d", got, want)
+	}
+	wakeActor, err := taskpkg.DeriveAgentSessionActorContext("sess-wake-live", "global")
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext(network wake) error = %v", err)
 	}
-	if _, err := seedManager.ClaimNextRun(context.Background(), taskpkg.ClaimCriteria{
-		RunID: wake.ID, RunKind: taskpkg.RunKindNetworkWake,
-		TargetSessionID: "sess-wake-missing", ClaimerSessionID: "sess-wake-missing",
-	}, wakeActor); err != nil {
+	wakeClaim, err := seedManager.ClaimNextRun(context.Background(), taskpkg.ClaimCriteria{
+		RunID: wakeRunID, RunKind: taskpkg.RunKindNetworkWake,
+		Scope: taskpkg.ScopeWorkspace, WorkspaceID: "global",
+		TargetSessionID: "sess-wake-live", ClaimerSessionID: "sess-wake-live",
+	}, wakeActor)
+	if err != nil {
 		t.Fatalf("ClaimNextRun(network wake) error = %v", err)
+	}
+	runningWake := wakeClaim.Run
+	runningWake.Status = taskpkg.TaskRunStatusRunning
+	runningWake.SessionID = "sess-wake-live"
+	runningWake.StartedAt = now.Add(time.Millisecond)
+	if err := db.UpdateTaskRun(context.Background(), runningWake); err != nil {
+		t.Fatalf("UpdateTaskRun(running network wake) error = %v", err)
 	}
 
 	daemon := &Daemon{
@@ -1516,13 +1637,78 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	if got, want := recoveredRun.Status, taskpkg.TaskRunStatusRunning; got != want {
 		t.Fatalf("recovered run status = %q, want %q", got, want)
 	}
-	recoveredWake, err := db.GetTaskRun(context.Background(), wake.ID)
+	recoveredWake, err := db.GetTaskRun(context.Background(), wakeRunID)
 	if err != nil {
 		t.Fatalf("GetTaskRun(recovered network wake) error = %v", err)
 	}
 	if recoveredWake.Status != taskpkg.TaskRunStatusQueued || recoveredWake.TaskID != "" ||
 		recoveredWake.SessionID != "" || recoveredWake.ClaimTokenHash != "" {
 		t.Fatalf("recovered network wake = %#v, want taskless queued run", recoveredWake)
+	}
+	if got := recoveredWake.NetworkSpecSnapshot(); got != wantWakeParticipation {
+		t.Fatalf("recovered network wake participation = %#v, want %#v", got, wantWakeParticipation)
+	}
+	wakeID, targetSessionID, ownerKey := recoveredWake.NetworkWakeCorrelation()
+	if wakeID != "wake-boot-recovery" || targetSessionID != "sess-wake-live" || ownerKey != "session:sess-wake-live" {
+		t.Fatalf(
+			"recovered network wake correlation = (%q, %q, %q), want exact admission tuple",
+			wakeID,
+			targetSessionID,
+			ownerKey,
+		)
+	}
+
+	missingRecipientPrompter := &networkWakePrompterStub{
+		resume: func(context.Context, string, int) (*session.Session, error) {
+			return nil, session.ErrSessionNotFound
+		},
+	}
+	wakeRunner, err := newNetworkWakeRunner(
+		state.tasks.manager,
+		missingRecipientPrompter,
+		db,
+		nil,
+		1,
+	)
+	if err != nil {
+		t.Fatalf("newNetworkWakeRunner() error = %v", err)
+	}
+	if _, err := wakeRunner.processNotification(
+		context.Background(),
+		wakeActor,
+		acceptedWake.Notify[0],
+	); !errors.Is(
+		err,
+		session.ErrSessionNotFound,
+	) {
+		t.Fatalf("processNotification(missing recipient) error = %v, want %v", err, session.ErrSessionNotFound)
+	}
+	settledWake, err := db.GetTaskRun(context.Background(), wakeRunID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(settled network wake) error = %v", err)
+	}
+	if settledWake.Status != taskpkg.TaskRunStatusFailed || !settledWake.LeaseUntil.IsZero() {
+		t.Fatalf("settled network wake = %#v, want failed terminal run with no active lease", settledWake)
+	}
+
+	followUp := acceptance
+	followUp.Message.MessageID = "message-wake-after-boot-recovery"
+	followUp.Message.Text = "Verify the recovered wake released its reservation"
+	followUp.Message.PreviewText = followUp.Message.Text
+	followUp.Message.Body = []byte(`{"text":"Verify the recovered wake released its reservation"}`)
+	followUp.Message.Timestamp = now.Add(time.Second)
+	followUp.Admissions[0].RootID = followUp.Message.MessageID
+	followUp.Admissions[0].WakeID = "wake-after-boot-recovery"
+	followUp.Admissions[0].TaskRunID = "run-wake-after-boot-recovery"
+	followUpResult, err := db.AcceptNetworkMessage(context.Background(), followUp)
+	if err != nil {
+		t.Fatalf("AcceptNetworkMessage(after boot recovery) error = %v", err)
+	}
+	if got := len(followUpResult.Admitted); got != 0 {
+		t.Fatalf("len(AcceptNetworkMessage(after boot recovery).Admitted) = %d, want 0", got)
+	}
+	if got := followUpResult.Skipped; len(got) != 1 || got[0].Reason != store.NetworkWakeSkipBudgetExhausted {
+		t.Fatalf("AcceptNetworkMessage(after boot recovery).Skipped = %#v, want conservative budget exhaustion", got)
 	}
 }
 

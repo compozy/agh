@@ -131,6 +131,122 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	}
 }
 
+func TestCoordinatorRuntimeBindsLiveParticipationToCoordinatorLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the coordinator snapshot when a Local run wakes the existing session", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		liveRun := coordinatorRuntimeRun()
+		liveSpec := liveRun.NetworkSpecSnapshot()
+		store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), liveRun)
+		sessions := &coordinatorRuntimeSessions{}
+		hooks := &recordingCoordinatorHooks{}
+		runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), now)
+
+		info, created, err := runtime.bootstrapRun(
+			context.Background(),
+			store.tasks["task-1"],
+			store.runs["run-1"],
+			coordinator.ReasonRunEnqueued,
+		)
+		if err != nil {
+			t.Fatalf("bootstrapRun(Live) error = %v", err)
+		}
+		if !created || info == nil {
+			t.Fatalf("bootstrapRun(Live) created/info = %t/%#v, want created coordinator", created, info)
+		}
+		if got := info.NetworkParticipation; got != liveSpec {
+			t.Fatalf("coordinator NetworkParticipation = %#v, want %#v", got, liveSpec)
+		}
+
+		call := sessions.createCall(0)
+		if call.ResolvedNetworkParticipation == nil || *call.ResolvedNetworkParticipation != liveSpec {
+			t.Fatalf(
+				"CreateOpts.ResolvedNetworkParticipation = %#v, want %#v",
+				call.ResolvedNetworkParticipation,
+				liveSpec,
+			)
+		}
+		if call.Lineage == nil ||
+			!slices.Equal(call.Lineage.PermissionPolicy.NetworkChannels, []string{liveSpec.ChannelID}) {
+			t.Fatalf(
+				"Lineage.PermissionPolicy.NetworkChannels = %#v, want [%q]",
+				call.Lineage,
+				liveSpec.ChannelID,
+			)
+		}
+		if !slices.Contains(call.Lineage.PermissionPolicy.Tools, toolspkg.ToolIDNetworkSend.String()) {
+			t.Fatalf("Lineage.PermissionPolicy.Tools = %#v, want Network send", call.Lineage.PermissionPolicy.Tools)
+		}
+		for _, required := range []string{"participation_channel: " + liveSpec.ChannelID, "agh ch"} {
+			if !contains(call.PromptOverlay, required) {
+				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
+			}
+		}
+
+		preSpawn := hooks.preSpawnPayload(0)
+		spawned := hooks.spawnedPayload(0)
+		if preSpawn.ResolvedNetworkParticipation == nil ||
+			*preSpawn.ResolvedNetworkParticipation != liveSpec {
+			t.Fatalf(
+				"pre-spawn participation = %#v, want %#v",
+				preSpawn.ResolvedNetworkParticipation,
+				liveSpec,
+			)
+		}
+		if spawned.ResolvedNetworkParticipation == nil ||
+			*spawned.ResolvedNetworkParticipation != liveSpec {
+			t.Fatalf(
+				"spawned participation = %#v, want %#v",
+				spawned.ResolvedNetworkParticipation,
+				liveSpec,
+			)
+		}
+
+		localRun := coordinatorRuntimeRun()
+		localRun.ID = "run-2"
+		localRun.SetNetworkState(participation.LocalSpec(), "", "", "")
+		store.runs[localRun.ID] = localRun
+		sessions.promptErr = fmt.Errorf("synthetic prompt failed")
+		_, created, err = runtime.bootstrapRun(
+			context.Background(),
+			store.tasks["task-1"],
+			store.runs[localRun.ID],
+			coordinator.ReasonRunEnqueued,
+		)
+		if err == nil {
+			t.Fatal("bootstrapRun(existing Local wake) error = nil, want prompt failure")
+		}
+		if created {
+			t.Fatal("bootstrapRun(existing Local wake) created = true, want existing coordinator")
+		}
+		if got := sessions.createCount(); got != 1 {
+			t.Fatalf("Create count = %d, want original coordinator only", got)
+		}
+
+		decisionPayload := hooks.lastDecisionPayload()
+		failedPayload := hooks.lastFailedPayload()
+		if decisionPayload.ResolvedNetworkParticipation == nil ||
+			*decisionPayload.ResolvedNetworkParticipation != liveSpec {
+			t.Fatalf(
+				"existing decision participation = %#v, want coordinator %#v",
+				decisionPayload.ResolvedNetworkParticipation,
+				liveSpec,
+			)
+		}
+		if failedPayload.ResolvedNetworkParticipation == nil ||
+			*failedPayload.ResolvedNetworkParticipation != liveSpec {
+			t.Fatalf(
+				"failed wake participation = %#v, want coordinator %#v",
+				failedPayload.ResolvedNetworkParticipation,
+				liveSpec,
+			)
+		}
+	})
+}
+
 func TestCoordinatorRuntimeBootstrapsWithTaskContextOverlay(t *testing.T) {
 	t.Parallel()
 
@@ -1101,6 +1217,33 @@ func (h *recordingCoordinatorHooks) spawnedPayload(index int) hookspkg.Coordinat
 		return hookspkg.CoordinatorSpawnedPayload{}
 	}
 	return h.spawned[index]
+}
+
+func (h *recordingCoordinatorHooks) preSpawnPayload(index int) hookspkg.CoordinatorPreSpawnPayload {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if index < 0 || index >= len(h.preSpawn) {
+		return hookspkg.CoordinatorPreSpawnPayload{}
+	}
+	return h.preSpawn[index]
+}
+
+func (h *recordingCoordinatorHooks) lastDecisionPayload() hookspkg.CoordinatorDecisionPayload {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.decisions) == 0 {
+		return hookspkg.CoordinatorDecisionPayload{}
+	}
+	return h.decisions[len(h.decisions)-1]
+}
+
+func (h *recordingCoordinatorHooks) lastFailedPayload() hookspkg.CoordinatorFailedPayload {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.failed) == 0 {
+		return hookspkg.CoordinatorFailedPayload{}
+	}
+	return h.failed[len(h.failed)-1]
 }
 
 func (h *recordingCoordinatorHooks) lastDecision() string {

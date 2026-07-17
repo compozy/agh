@@ -11,7 +11,7 @@ func networkThreadsValues(query NetworkThreadsQuery) url.Values {
 		query.Limit,
 		query.After,
 		query.Query,
-		query.PeerID,
+		query.SessionID,
 		query.Sort,
 		query.HasWork,
 	)
@@ -22,7 +22,7 @@ func networkDirectsValues(query NetworkDirectsQuery) url.Values {
 		query.Limit,
 		query.After,
 		query.Query,
-		query.PeerID,
+		query.SessionID,
 		query.Sort,
 		query.HasWork,
 	)
@@ -32,7 +32,7 @@ func networkConversationListValues(
 	limit int,
 	after string,
 	search string,
-	peerID string,
+	sessionID string,
 	sortOrder string,
 	hasWork *bool,
 ) url.Values {
@@ -40,8 +40,8 @@ func networkConversationListValues(
 	if trimmed := strings.TrimSpace(search); trimmed != "" {
 		values.Set("query", trimmed)
 	}
-	if trimmed := strings.TrimSpace(peerID); trimmed != "" {
-		values.Set("peer_id", trimmed)
+	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
+		values.Set("session_id", trimmed)
 	}
 	if trimmed := strings.TrimSpace(sortOrder); trimmed != "" {
 		values.Set("sort", trimmed)

@@ -45,14 +45,14 @@ type stubClient struct {
 	putVaultSecretFn                   func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
 	deleteVaultSecretFn                func(context.Context, string) error
 	networkStatusFn                    func(context.Context) (NetworkStatusRecord, error)
-	getNetworkCoordinationFn           func(context.Context, string, string) (NetworkCoordinationRecord, error)
-	putNetworkCoordinationFn           func(context.Context, string, PutNetworkCoordinationRequest, string) (NetworkCoordinationRecord, error)
+	getNetworkCoordinationFn           func(context.Context, string, NetworkCoordinationRef) (NetworkCoordinationRecord, error)
+	putNetworkCoordinationFn           func(context.Context, string, PutNetworkCoordinationRequest) (NetworkCoordinationRecord, error)
 	putNetworkCoordinationInvitationFn func(
 		context.Context,
 		string,
 		PutNetworkCoordinationInvitationRequest,
 	) (NetworkCoordinationRecord, error)
-	getNetworkUsageFn           func(context.Context, string) (NetworkUsageRecord, error)
+	getNetworkUsageFn           func(context.Context, string, NetworkUsageQuery) (NetworkUsageRecord, error)
 	networkPeersFn              func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	networkChannelsFn           func(context.Context, string) ([]NetworkChannelRecord, error)
 	createNetworkChannelFn      func(context.Context, string, CreateNetworkChannelRequest) (NetworkChannelDetailRecord, error)
@@ -625,10 +625,10 @@ func (s *stubClient) NetworkStatus(ctx context.Context) (NetworkStatusRecord, er
 func (s *stubClient) GetNetworkCoordination(
 	ctx context.Context,
 	workspaceRef string,
-	taskID string,
+	ref NetworkCoordinationRef,
 ) (NetworkCoordinationRecord, error) {
 	if s.getNetworkCoordinationFn != nil {
-		return s.getNetworkCoordinationFn(ctx, workspaceRef, taskID)
+		return s.getNetworkCoordinationFn(ctx, workspaceRef, ref)
 	}
 	return NetworkCoordinationRecord{}, errors.New("unexpected GetNetworkCoordination call")
 }
@@ -637,10 +637,9 @@ func (s *stubClient) PutNetworkCoordination(
 	ctx context.Context,
 	workspaceRef string,
 	request PutNetworkCoordinationRequest,
-	taskID string,
 ) (NetworkCoordinationRecord, error) {
 	if s.putNetworkCoordinationFn != nil {
-		return s.putNetworkCoordinationFn(ctx, workspaceRef, request, taskID)
+		return s.putNetworkCoordinationFn(ctx, workspaceRef, request)
 	}
 	return NetworkCoordinationRecord{}, errors.New("unexpected PutNetworkCoordination call")
 }
@@ -656,9 +655,13 @@ func (s *stubClient) PutNetworkCoordinationInvitation(
 	return NetworkCoordinationRecord{}, errors.New("unexpected PutNetworkCoordinationInvitation call")
 }
 
-func (s *stubClient) GetNetworkUsage(ctx context.Context, workspaceRef string) (NetworkUsageRecord, error) {
+func (s *stubClient) GetNetworkUsage(
+	ctx context.Context,
+	workspaceRef string,
+	query NetworkUsageQuery,
+) (NetworkUsageRecord, error) {
 	if s.getNetworkUsageFn != nil {
-		return s.getNetworkUsageFn(ctx, workspaceRef)
+		return s.getNetworkUsageFn(ctx, workspaceRef, query)
 	}
 	return NetworkUsageRecord{}, errors.New("unexpected GetNetworkUsage call")
 }

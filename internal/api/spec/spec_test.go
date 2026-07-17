@@ -15,6 +15,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -350,7 +351,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
 					"GET",
 				)
-				assertParameter(t, listSubscriptions, "peer_id", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSubscriptions, "session_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSubscriptions, "thread_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSubscriptions, "limit", openapi3.ParameterInQuery, false)
 			},
@@ -1765,6 +1766,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listTaskRuns := operationFor(t, doc, "/api/tasks/{id}/runs", "GET")
 				assertParameter(t, listTaskRuns, "status", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTaskRuns, "session_id", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTaskRuns, "participation_channel", openapi3.ParameterInQuery, false)
 
 				completeTaskRun := operationFor(t, doc, "/api/task-runs/{id}/complete", "POST")
 				completeTaskRunSchema := jsonRequestSchema(t, completeTaskRun)
@@ -2201,6 +2203,10 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},
 		{name: "ToolSource", typ: tools.ToolSourceBuiltin},
 		{name: "HostAPIMethod", typ: extensionprotocol.HostAPIMethod("memory.read")},
+		{name: "ParticipationMode", typ: participation.ModeLive},
+		{name: "ParticipationChannelStrategy", typ: participation.StrategyNamed},
+		{name: "ParticipationSource", typ: participation.SourceExplicitRequest},
+		{name: "ParticipationOwnerKind", typ: participation.OwnerKindTaskRun},
 	}
 
 	for _, tt := range tests {
@@ -2215,6 +2221,128 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 				t.Fatalf("schemaCustomizer() enum = %v, want non-empty", schema.Enum)
 			}
 		})
+	}
+}
+
+func TestParticipationSchemaCustomizerRepresentsRuntimeVariants(t *testing.T) {
+	t.Parallel()
+
+	requestSchema := openapi3.NewObjectSchema()
+	customizeParticipationRequestSchema(requestSchema)
+	if got, want := len(requestSchema.OneOf), 4; got != want {
+		t.Fatalf("participation request oneOf branches = %d, want %d", got, want)
+	}
+	requestCases := []struct {
+		name      string
+		payload   string
+		wantValid bool
+	}{
+		{name: "Should accept omitted Local intent", payload: `{}`, wantValid: true},
+		{name: "Should accept explicit Local intent", payload: `{"mode":"local"}`, wantValid: true},
+		{
+			name: "Should accept bounded named Live intent",
+			payload: `{
+				"mode":"live",
+				"channel_strategy":"named",
+				"channel_id":"builders",
+				"bounds":{"max_wakes":2,"max_input_tokens":1024}
+			}`,
+			wantValid: true,
+		},
+		{
+			name:      "Should accept derived run intent without channel",
+			payload:   `{"mode":"live","channel_strategy":"run"}`,
+			wantValid: true,
+		},
+		{
+			name:      "Should accept derived Loop run intent without channel",
+			payload:   `{"mode":"live","channel_strategy":"loop_run"}`,
+			wantValid: true,
+		},
+		{name: "Should reject Local channel data", payload: `{"mode":"local","channel_id":"builders"}`},
+		{name: "Should reject Live without strategy", payload: `{"mode":"live"}`},
+		{name: "Should reject named without channel", payload: `{"mode":"live","channel_strategy":"named"}`},
+		{
+			name:    "Should reject derived strategy with channel",
+			payload: `{"mode":"live","channel_strategy":"run","channel_id":"builders"}`,
+		},
+		{
+			name:    "Should reject invalid named channel",
+			payload: `{"mode":"live","channel_strategy":"named","channel_id":"Invalid channel"}`,
+		},
+		{
+			name:    "Should reject nonpositive bounds",
+			payload: `{"mode":"live","channel_strategy":"run","bounds":{"max_wakes":0}}`,
+		},
+		{name: "Should reject unknown participation fields", payload: `{"mode":"local","legacy":true}`},
+	}
+	for _, testCase := range requestCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			assertOpenAPISchemaJSONValidity(t, requestSchema, testCase.payload, testCase.wantValid)
+		})
+	}
+
+	specSchema := openapi3.NewObjectSchema()
+	customizeParticipationSpecSchema(specSchema)
+	if got, want := len(specSchema.OneOf), 2; got != want {
+		t.Fatalf("participation spec oneOf branches = %d, want %d", got, want)
+	}
+	liveSpec := `{
+		"version":"network-participation/v1",
+		"mode":"live",
+		"workspace_id":"ws-alpha",
+		"channel_strategy":"named",
+		"channel_id":"builders",
+		"source":"explicit_request",
+		"bounds":{
+			"max_wakes":2,
+			"max_wake_wall_time":"30s",
+			"max_total_wall_time":"2m",
+			"max_input_tokens":4096,
+			"max_output_tokens":2048,
+			"max_wake_depth":2,
+			"coalesce_window":"250ms"
+		}
+	}`
+	assertOpenAPISchemaJSONValidity(
+		t,
+		specSchema,
+		`{"version":"network-participation/v1","mode":"local","source":"built_in_local"}`,
+		true,
+	)
+	assertOpenAPISchemaJSONValidity(t, specSchema, liveSpec, true)
+	assertOpenAPISchemaJSONValidity(
+		t,
+		specSchema,
+		`{"version":"network-participation/v1","mode":"local","source":"built_in_local","bounds":{}}`,
+		false,
+	)
+	assertOpenAPISchemaJSONValidity(
+		t,
+		specSchema,
+		`{"version":"network-participation/v1","mode":"live","workspace_id":"ws-alpha","channel_strategy":"run","channel_id":"run-1","source":"explicit_request"}`,
+		false,
+	)
+}
+
+func assertOpenAPISchemaJSONValidity(
+	t *testing.T,
+	schema *openapi3.Schema,
+	payload string,
+	wantValid bool,
+) {
+	t.Helper()
+	var value any
+	if err := json.Unmarshal([]byte(payload), &value); err != nil {
+		t.Fatalf("json.Unmarshal(schema payload) error = %v", err)
+	}
+	err := schema.VisitJSON(value)
+	if wantValid && err != nil {
+		t.Fatalf("schema rejected valid payload %s: %v", payload, err)
+	}
+	if !wantValid && err == nil {
+		t.Fatalf("schema accepted invalid payload %s", payload)
 	}
 }
 

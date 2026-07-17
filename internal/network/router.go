@@ -96,6 +96,7 @@ type RouteResult struct {
 	Envelope     Envelope
 	Deliveries   []Delivery
 	Dispositions []RoutingDisposition
+	whoisPeers   []LocalPeer
 }
 
 // PeerLifecycleKind describes one daemon-local membership transition.
@@ -192,9 +193,6 @@ func (r *Router) PrepareSend(ctx context.Context, req SendRequest) (SendResult, 
 	if err != nil {
 		return SendResult{}, err
 	}
-	if err := r.requireDirectedTarget(envelope); err != nil {
-		return SendResult{}, err
-	}
 	return SendResult{ID: envelope.ID, Envelope: envelope}, nil
 }
 
@@ -211,9 +209,6 @@ func (r *Router) PrepareRuntimeSend(ctx context.Context, req RuntimeSendRequest)
 	}
 	envelope, err := r.buildRuntimeEnvelope(req, r.now().UTC())
 	if err != nil {
-		return SendResult{}, err
-	}
-	if err := r.requireDirectedTarget(envelope); err != nil {
 		return SendResult{}, err
 	}
 	return SendResult{ID: envelope.ID, Envelope: envelope}, nil
@@ -236,15 +231,20 @@ func (r *Router) RoutePrepared(ctx context.Context, prepared SendResult) (RouteR
 	}); err != nil {
 		return RouteResult{}, err
 	}
-	selected, err := r.selectedSessionSet(ctx, envelope)
+	locals := r.peers.LocalPeers(envelope.WorkspaceID, envelope.Channel)
+	selected, err := r.selectedSessionSet(ctx, envelope, locals)
 	if err != nil {
 		return RouteResult{}, err
 	}
-	locals := r.peers.LocalPeers(envelope.WorkspaceID, envelope.Channel)
+	whoisPeers, err := snapshotWhoisResponders(envelope, locals, selected)
+	if err != nil {
+		return RouteResult{}, err
+	}
 	result := RouteResult{
 		Envelope:     envelope,
 		Deliveries:   make([]Delivery, 0, len(selected)),
 		Dispositions: make([]RoutingDisposition, 0, len(locals)),
+		whoisPeers:   whoisPeers,
 	}
 	for _, peer := range locals {
 		if isEnvelopeSender(peer, envelope) {
@@ -275,20 +275,25 @@ func (r *Router) RoutePrepared(ctx context.Context, prepared SendResult) (RouteR
 	return result, nil
 }
 
-func (r *Router) selectedSessionSet(ctx context.Context, envelope Envelope) (map[string]bool, error) {
+func (r *Router) selectedSessionSet(
+	ctx context.Context,
+	envelope Envelope,
+	locals []LocalPeer,
+) (map[string]bool, error) {
 	if envelope.IsDirected() {
-		target, ok := r.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To)
-		if !ok {
-			return nil, fmt.Errorf(
-				"%w: peer_id=%q channel=%q",
-				ErrTargetPeerNotFound,
-				strings.TrimSpace(*envelope.To),
-				envelope.Channel,
-			)
+		targetPeerID := strings.TrimSpace(*envelope.To)
+		for _, peer := range locals {
+			if peer.PeerID == targetPeerID {
+				return map[string]bool{peer.SessionID: true}, nil
+			}
 		}
-		return map[string]bool{target.SessionID: true}, nil
+		return nil, fmt.Errorf(
+			"%w: peer_id=%q channel=%q",
+			ErrTargetPeerNotFound,
+			targetPeerID,
+			envelope.Channel,
+		)
 	}
-	locals := r.peers.LocalPeers(envelope.WorkspaceID, envelope.Channel)
 	selected := make(map[string]bool, len(locals))
 	if !envelopeRequiresThreadSnapshot(envelope) {
 		selectAllLocalRecipients(selected, locals, envelope)
@@ -353,21 +358,6 @@ func slicesContainsString(values []string, target string) bool {
 	return false
 }
 
-func (r *Router) requireDirectedTarget(envelope Envelope) error {
-	if !envelope.IsDirected() {
-		return nil
-	}
-	if _, ok := r.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To); !ok {
-		return fmt.Errorf(
-			"%w: peer_id=%q channel=%q",
-			ErrTargetPeerNotFound,
-			strings.TrimSpace(*envelope.To),
-			envelope.Channel,
-		)
-	}
-	return nil
-}
-
 func localPeerMatchesConversation(peer LocalPeer, envelope Envelope) bool {
 	if envelope.Surface == nil || *envelope.Surface != SurfaceDirect {
 		return true
@@ -398,10 +388,14 @@ func (r *Router) buildSessionEnvelope(req SendRequest, now time.Time) (Envelope,
 	if workspaceID := strings.TrimSpace(req.WorkspaceID); workspaceID != "" && workspaceID != local.WorkspaceID {
 		return Envelope{}, fmt.Errorf("%w: session=%q workspace_id=%q", ErrLocalPeerNotFound, sessionID, workspaceID)
 	}
+	targetSessionID, err := r.resolveDirectedTargetSessionID(local.WorkspaceID, channel, req.To)
+	if err != nil {
+		return Envelope{}, err
+	}
 	return buildEnvelope(envelopeInput{
 		workspaceID: local.WorkspaceID, channel: channel, from: local.PeerID,
 		directIdentityFrom: local.SessionID,
-		directIdentityTo:   r.directTargetSessionID(local.WorkspaceID, channel, req.To),
+		directIdentityTo:   targetSessionID,
 		surface:            req.Surface, threadID: req.ThreadID, directID: req.DirectID, kind: req.Kind,
 		to: req.To, mentions: req.Mentions, body: req.Body, workID: req.WorkID, replyTo: req.ReplyTo,
 		traceID: req.TraceID, causationID: req.CausationID, expiresAt: req.ExpiresAt, id: req.ID, ext: req.Ext,
@@ -417,28 +411,40 @@ func (r *Router) buildRuntimeEnvelope(req RuntimeSendRequest, now time.Time) (En
 	if err := ValidateChannel(channel); err != nil {
 		return Envelope{}, err
 	}
+	targetSessionID, err := r.resolveDirectedTargetSessionID(workspaceID, channel, req.To)
+	if err != nil {
+		return Envelope{}, err
+	}
 	return buildEnvelope(envelopeInput{
 		workspaceID: workspaceID, channel: channel, from: RuntimePeerID,
 		directIdentityFrom: runtimePeerSessionID,
-		directIdentityTo:   r.directTargetSessionID(workspaceID, channel, req.To),
+		directIdentityTo:   targetSessionID,
 		surface:            req.Surface, threadID: req.ThreadID, directID: req.DirectID, kind: req.Kind,
 		to: req.To, mentions: req.Mentions, body: req.Body, workID: req.WorkID, replyTo: req.ReplyTo,
 		traceID: req.TraceID, causationID: req.CausationID, expiresAt: req.ExpiresAt, id: req.ID, ext: req.Ext,
 	}, now, r.maxReplayAge)
 }
 
-func (r *Router) directTargetSessionID(workspaceID string, channel string, peerID *string) string {
+func (r *Router) resolveDirectedTargetSessionID(
+	workspaceID string,
+	channel string,
+	peerID *string,
+) (string, error) {
 	if peerID == nil || r == nil || r.peers == nil {
-		return ""
+		return "", nil
 	}
 	target := strings.TrimSpace(*peerID)
 	if target == "" {
-		return ""
+		return "", nil
 	}
-	for _, peer := range r.peers.LocalPeers(workspaceID, channel) {
-		if strings.TrimSpace(peer.PeerID) == target {
-			return peer.SessionID
-		}
+	peer, ok := r.peers.LocalByPeer(workspaceID, channel, target)
+	if !ok {
+		return "", fmt.Errorf(
+			"%w: peer_id=%q channel=%q",
+			ErrTargetPeerNotFound,
+			target,
+			channel,
+		)
 	}
-	return ""
+	return strings.TrimSpace(peer.SessionID), nil
 }

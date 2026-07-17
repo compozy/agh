@@ -20,6 +20,7 @@ vi.mock("../use-messages", () => ({
 
 class FakeEventSource {
   static instance: FakeEventSource | null = null;
+  static instances: FakeEventSource[] = [];
   readonly url: string;
   readonly listeners = new Map<string, Set<EventListener>>();
   closed = false;
@@ -27,6 +28,7 @@ class FakeEventSource {
   constructor(url: string | URL) {
     this.url = String(url);
     FakeEventSource.instance = this;
+    FakeEventSource.instances.push(this);
   }
 
   addEventListener(type: string, listener: EventListener): void {
@@ -75,6 +77,7 @@ const network: TaskRunNetworkProjection = {
 describe("useTaskRunConversation", () => {
   beforeEach(() => {
     FakeEventSource.instance = null;
+    FakeEventSource.instances = [];
     vi.stubGlobal("EventSource", FakeEventSource);
   });
 
@@ -88,7 +91,9 @@ describe("useTaskRunConversation", () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
-    const { result, unmount } = renderHook(() => useTaskRunConversation(network), { wrapper });
+    const { result, unmount } = renderHook(() => useTaskRunConversation("run-1", network), {
+      wrapper,
+    });
     const source = FakeEventSource.instance;
     expect(source?.url).toBe("/api/task-runs/run-1/conversation/stream");
 
@@ -116,10 +121,54 @@ describe("useTaskRunConversation", () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
-    const { result } = renderHook(() => useTaskRunConversation(network), { wrapper });
+    const { result } = renderHook(() => useTaskRunConversation("run-1", network), { wrapper });
 
     act(() => FakeEventSource.instance?.emit("error"));
 
     await waitFor(() => expect(result.current?.streamError?.message).toMatch(/reconnecting/i));
+  });
+
+  it("Should ignore a late usage frame from another workspace run", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const nextNetwork: TaskRunNetworkProjection = {
+      ...network,
+      conversation: {
+        ...network.conversation,
+        workspace_id: "ws-2",
+        channel: "coord-run-2",
+        stream_url: "/api/task-runs/run-2/conversation/stream",
+      },
+      usage: {
+        ...network.usage,
+        workspace_id: "ws-2",
+        total: { ...network.usage.total, wake_count: 2, actual_wake_count: 2 },
+      },
+    };
+    const { result, rerender } = renderHook(
+      ({ runId, projection }) => useTaskRunConversation(runId, projection),
+      { initialProps: { runId: "run-1", projection: network }, wrapper }
+    );
+    const previousSource = FakeEventSource.instances[0];
+    const lateUsageListener = [...(previousSource?.listeners.get("network.usage") ?? [])][0];
+
+    rerender({ runId: "run-2", projection: nextNetwork });
+    act(() => {
+      lateUsageListener?.(
+        new MessageEvent("network.usage", {
+          data: JSON.stringify({
+            usage: {
+              ...network.usage,
+              total: { ...network.usage.total, wake_count: 99, actual_wake_count: 99 },
+            },
+          }),
+        })
+      );
+    });
+
+    await waitFor(() => expect(result.current?.usage.workspace_id).toBe("ws-2"));
+    expect(result.current?.usage.total.wake_count).toBe(2);
   });
 });

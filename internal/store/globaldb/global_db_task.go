@@ -46,7 +46,8 @@ const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 	)
 ), tasks.updated_at) DESC, updated_at DESC, created_at DESC, id DESC`
 
-const taskRunSelectColumnsSQL = `id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+const taskRunSelectColumnsSQL = `
+	id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
 	claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
 	network_spec_json, network_mode, network_channel, network_source,
 	designation_group_id, '' AS claim_token,
