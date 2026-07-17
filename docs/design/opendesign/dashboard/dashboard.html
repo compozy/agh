@@ -141,9 +141,9 @@
 
   /* ============ zone 3 · working now (RunCard) ============ */
   .runcard{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;
-    padding:13px 16px;background:var(--canvas-soft);border:1px solid var(--accent-dim);border-radius:var(--radius-lg);margin-bottom:10px;
+    padding:13px 16px;background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);margin-bottom:10px;
     transition:border-color var(--dur) var(--ease)}
-  .runcard:hover{border-color:color-mix(in srgb, var(--accent) 38%, transparent)}
+  .runcard:hover{border-color:var(--line-strong)}
   .runcard__title{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:560;color:var(--fg-strong)}
   .runcard__title .d{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
   .runcard__title .kind{font-size:10.5px;font-weight:500;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:1px 6px}
