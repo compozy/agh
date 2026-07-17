@@ -252,6 +252,16 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueDuration,
 		},
 		{
+			name: "Should allow Marketplace catalog TTL mutation",
+			path: "marketplace.catalog.ttl",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow Marketplace catalog timeout mutation",
+			path: "marketplace.catalog.timeout",
+			kind: ConfigValueDuration,
+		},
+		{
 			name:   "Should reject daemon socket trust root",
 			path:   "daemon.socket",
 			denial: ConfigPathTrustForbidden,
@@ -314,6 +324,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name:   "Should reject extension trust root",
 			path:   "extensions.marketplace.registry",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
+			name:   "Should reject Marketplace catalog feed trust root",
+			path:   "marketplace.catalog.base_url",
 			denial: ConfigPathTrustForbidden,
 		},
 		{

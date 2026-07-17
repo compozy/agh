@@ -74,6 +74,12 @@ describe("settings collection options", () => {
     ]);
     expect(disabled.enabled).toBe(false);
   });
+
+  it("uses an auth-flow polling interval when the caller requests one", () => {
+    const authorizing = settingsMCPServersListOptions({ scope: "global" }, true, 1_000);
+
+    expect(authorizing.refetchInterval).toBe(1_000);
+  });
 });
 
 describe("settings restart options", () => {

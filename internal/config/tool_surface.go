@@ -230,6 +230,8 @@ var (
 		"memory.provider.failure_threshold":                           ConfigValueInt,
 		"memory.provider.cooldown":                                    ConfigValueDuration,
 		"memory.workspace.auto_create":                                ConfigValueBool,
+		"marketplace.catalog.ttl":                                     ConfigValueDuration,
+		"marketplace.catalog.timeout":                                 ConfigValueDuration,
 		"skills.enabled":                                              ConfigValueBool,
 		"skills.disabled_skills":                                      ConfigValueStringSlice,
 		"skills.poll_interval":                                        ConfigValueDuration,
@@ -737,6 +739,8 @@ func configPathIsTrustRoot(path []string) bool {
 		return skillsConfigPathIsTrustRoot(path)
 	case "extensions":
 		return true
+	case toolSurfaceMarketplaceKey:
+		return len(path) >= 3 && path[1] == "catalog" && path[2] == "base_url"
 	}
 	return false
 }

@@ -287,13 +287,15 @@ func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) 
 	delete(env, extensiontest.EnvCrashOncePath)
 	env["AGH_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
 
+	configSeed := nightlyCombinedConfigSeed(
+		t,
+		nightlyCombinedBridgeAgentName,
+		nightlyCombinedBridgeScenario,
+	)
+	configSeed.Mutate = allowUnverifiedBridgeExtensionInstalls
 	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
-		ConfigSeed: nightlyCombinedConfigSeed(
-			t,
-			nightlyCombinedBridgeAgentName,
-			nightlyCombinedBridgeScenario,
-		),
-		Env: env,
+		ConfigSeed: configSeed,
+		Env:        env,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)

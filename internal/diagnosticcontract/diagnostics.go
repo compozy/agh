@@ -81,6 +81,7 @@ const (
 	CodeExtensionBlockedByBundle      = "extension_blocked_by_bundle"
 	CodeExtensionChecksumUnverified   = "extension_checksum_unverified"
 	CodeExtensionInstallFailed        = "extension_install_failed"
+	CodeExtensionUpdateCleanupFailed  = "extension_update_cleanup_failed"
 	CodeExtensionInUse                = "extension_in_use"
 	CodeExtensionNotFound             = "extension_not_found"
 	CodeFlagNotApplicable             = "flag_not_applicable"
@@ -155,6 +156,12 @@ const (
 	CodeVaultRefUnresolved     = "vault_ref_unresolved"
 )
 
+const (
+	CodeExtensionArchiveDigestMismatch   = "extension_archive_digest_mismatch"
+	CodeExtensionRegistryTierUnverified  = "extension_registry_tier_unverified"
+	CodeExtensionUnverifiedPolicyBlocked = "extension_unverified_policy_blocked"
+)
+
 // DiagnosticCodeSpec records the canonical owner metadata for one code.
 type DiagnosticCodeSpec struct {
 	Code     string
@@ -189,8 +196,12 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeDaemonUnavailable, Category: CategoryDaemon},
 	{Code: CodeDiskWriteFailed, Category: CategoryDaemon},
 	{Code: CodeExtensionBlockedByBundle, Category: CategoryExtension},
+	{Code: CodeExtensionArchiveDigestMismatch, Category: CategoryExtension},
 	{Code: CodeExtensionChecksumUnverified, Category: CategoryExtension},
+	{Code: CodeExtensionRegistryTierUnverified, Category: CategoryExtension},
+	{Code: CodeExtensionUnverifiedPolicyBlocked, Category: CategoryExtension},
 	{Code: CodeExtensionInstallFailed, Category: CategoryExtension},
+	{Code: CodeExtensionUpdateCleanupFailed, Category: CategoryExtension},
 	{Code: CodeExtensionInUse, Category: CategoryExtension},
 	{Code: CodeExtensionNotFound, Category: CategoryExtension},
 	{Code: CodeFlagNotApplicable, Category: CategoryDaemon},

@@ -76,6 +76,7 @@ type ActivationPreview struct {
 	Bundle     extensionpkg.BundleSpec
 	Profile    extensionpkg.BundleProfile
 	Inventory  []InventoryItem
+	SpecDrift  bool
 }
 
 type Store interface {
@@ -290,116 +291,6 @@ func (s *Service) Activate(ctx context.Context, req ActivateRequest) (Activation
 	}
 
 	return s.GetActivation(ctx, resolved.activation.ID)
-}
-
-func (s *Service) ListActivations(ctx context.Context) ([]ActivationPreview, error) {
-	if err := s.checkReady(ctx); err != nil {
-		return nil, err
-	}
-
-	activations, err := s.store.ListBundleActivations(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("bundles: list bundle activations: %w", err)
-	}
-	if len(activations) == 0 {
-		return []ActivationPreview{}, nil
-	}
-	bundleRecords, err := s.store.ListBundleResources(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("bundles: list bundle resources for activations: %w", err)
-	}
-	bundleLookup := newBundleRecordLookup(bundleRecords)
-
-	items := make([]ActivationPreview, 0, len(activations))
-	for _, activation := range activations {
-		resolved, resolveErr := s.resolveActivationFromBundleLookup(ctx, activation, bundleLookup)
-		if resolveErr != nil {
-			return nil, fmt.Errorf("bundles: resolve activation %q for listing: %w", activation.ID, resolveErr)
-		}
-		inventory, inventoryErr := s.store.ListBundleActivationInventory(ctx, activation.ID)
-		if inventoryErr != nil {
-			return nil, fmt.Errorf("bundles: list activation inventory for %q: %w", activation.ID, inventoryErr)
-		}
-		if len(inventory) > 0 {
-			resolved.inventory = inventory
-		}
-		items = append(items, ActivationPreview{
-			Activation: cloneActivation(resolved.activation),
-			Bundle:     cloneBundleSpec(resolved.bundle),
-			Profile:    cloneBundleProfile(resolved.profile),
-			Inventory:  cloneInventoryItems(resolved.inventory),
-		})
-	}
-	return items, nil
-}
-
-func (s *Service) GetActivation(ctx context.Context, id string) (ActivationPreview, error) {
-	if err := s.checkReady(ctx); err != nil {
-		return ActivationPreview{}, err
-	}
-
-	activation, err := s.store.GetBundleActivation(ctx, strings.TrimSpace(id))
-	if err != nil {
-		return ActivationPreview{}, err
-	}
-	resolved, err := s.resolveActivation(ctx, activation)
-	if err != nil {
-		return ActivationPreview{}, err
-	}
-	inventory, err := s.store.ListBundleActivationInventory(ctx, activation.ID)
-	if err != nil {
-		return ActivationPreview{}, err
-	}
-	if len(inventory) > 0 {
-		resolved.inventory = inventory
-	}
-	return ActivationPreview{
-		Activation: cloneActivation(resolved.activation),
-		Bundle:     cloneBundleSpec(resolved.bundle),
-		Profile:    cloneBundleProfile(resolved.profile),
-		Inventory:  cloneInventoryItems(resolved.inventory),
-	}, nil
-}
-
-func (s *Service) UpdateActivation(ctx context.Context, req UpdateActivationRequest) (ActivationPreview, error) {
-	if err := s.checkReady(ctx); err != nil {
-		return ActivationPreview{}, err
-	}
-
-	s.opMu.Lock()
-	defer s.opMu.Unlock()
-
-	current, err := s.store.GetBundleActivation(ctx, strings.TrimSpace(req.ID))
-	if err != nil {
-		return ActivationPreview{}, err
-	}
-	next := cloneActivation(current)
-	next.BindPrimaryChannelAsDefault = req.BindPrimaryChannelAsDefault
-	next.UpdatedAt = s.now().UTC()
-
-	acts, err := s.store.ListBundleActivations(ctx)
-	if err != nil {
-		return ActivationPreview{}, err
-	}
-	if err := validatePrimaryChannelClaim(replaceActivation(acts, next), next); err != nil {
-		return ActivationPreview{}, err
-	}
-
-	if err := s.store.UpdateBundleActivation(ctx, next); err != nil {
-		return ActivationPreview{}, err
-	}
-	if reconcileErr := s.reconcileLocked(ctx); reconcileErr != nil {
-		return ActivationPreview{}, s.rollbackActivationAndReconcileLocked(
-			ctx,
-			reconcileErr,
-			func(rollbackCtx context.Context) error {
-				return s.store.UpdateBundleActivation(rollbackCtx, current)
-			},
-			"restore bundle activation after update",
-			current.ID,
-		)
-	}
-	return s.GetActivation(ctx, next.ID)
 }
 
 func (s *Service) Deactivate(ctx context.Context, id string) error {
@@ -1484,34 +1375,6 @@ func bridgeScopeFromActivation(scope Scope) bridgepkg.Scope {
 		return bridgepkg.ScopeWorkspace
 	}
 	return bridgepkg.ScopeGlobal
-}
-
-func (s *Service) warnSpecHashDrift(ctx context.Context, activation Activation, currentHash string) {
-	storedHash := strings.TrimSpace(activation.SpecContentHash)
-	currentHash = strings.TrimSpace(currentHash)
-	switch {
-	case storedHash == "":
-		s.logger.WarnContext(
-			ctx,
-			"bundles.activation.spec_hash_missing",
-			"activation_id", strings.TrimSpace(activation.ID),
-			"extension_name", strings.TrimSpace(activation.ExtensionName),
-			"bundle_name", strings.TrimSpace(activation.BundleName),
-			"profile_name", strings.TrimSpace(activation.ProfileName),
-			"current_hash", currentHash,
-		)
-	case storedHash != currentHash:
-		s.logger.WarnContext(
-			ctx,
-			"bundles.activation.spec_hash_drift",
-			"activation_id", strings.TrimSpace(activation.ID),
-			"extension_name", strings.TrimSpace(activation.ExtensionName),
-			"bundle_name", strings.TrimSpace(activation.BundleName),
-			"profile_name", strings.TrimSpace(activation.ProfileName),
-			"stored_hash", storedHash,
-			"current_hash", currentHash,
-		)
-	}
 }
 
 func (s *Service) joinRollbackFailure(

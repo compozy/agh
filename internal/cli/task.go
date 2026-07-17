@@ -3661,7 +3661,7 @@ func renderTaskInspectToon(record *TaskInspectRecord) (string, error) {
 			taskTitleKey,
 			taskStatusKey,
 			"current_run_id",
-			"next_action",
+			cliNextActionKey,
 			"as_of",
 		}, []string{
 			record.Target,

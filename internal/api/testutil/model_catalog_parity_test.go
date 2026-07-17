@@ -234,7 +234,7 @@ func performParityJSONRequest(
 func newShortParityHomePaths(t *testing.T) aghconfig.HomePaths {
 	t.Helper()
 
-	root, err := os.MkdirTemp(".", ".agh-model-parity-*")
+	root, err := os.MkdirTemp("", "agh-mp-*")
 	if err != nil {
 		t.Fatalf("MkdirTemp() error = %v", err)
 	}

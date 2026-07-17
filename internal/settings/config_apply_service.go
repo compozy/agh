@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -68,7 +67,9 @@ func (s *service) ApplyCollectionItem(ctx context.Context, req CollectionItemPut
 		)
 	}
 	result = applyCollectionLifecycle(result, req.Collection, collectionMutationPut, before)
-	if req.Collection == CollectionProviders && result.Lifecycle == lifecycle.Live {
+	if req.Collection == CollectionProviders &&
+		result.Lifecycle == lifecycle.Live &&
+		!mutationResultHasNoChanges(result) {
 		return s.recordProviderModelsMutationApply(ctx, result, req.Name)
 	}
 	return s.recordMutationApply(ctx, result)
@@ -564,37 +565,14 @@ func (s *service) classifySectionApplyRequest(
 			return lifecycle.RestartRequired
 		}
 		return s.classifyGeneralRequest(ctx, req)
+	case SectionHooksExtensions:
+		if req.HooksExtensions == nil {
+			return lifecycle.RestartRequired
+		}
+		return s.classifyHooksExtensionsRequest(ctx, req)
 	default:
 		return lifecycle.RestartRequired
 	}
-}
-
-func (s *service) classifySkillsRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
-	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
-	if err != nil {
-		return lifecycle.Live
-	}
-	if scope == ScopeWorkspace {
-		return lifecycle.Live
-	}
-	if scope == ScopeAgent {
-		return lifecycle.Live
-	}
-	cfg, _, err := s.loadConfig(ctx, scope, workspaceID)
-	if err != nil {
-		return lifecycle.Live
-	}
-	changed := diffSkillsSettings(cfg.Skills, *req.Skills)
-	return lifecycleForChangedPaths(changed, lifecycle.Live)
-}
-
-func (s *service) classifyGeneralRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
-	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
-	if err != nil {
-		return lifecycle.RestartRequired
-	}
-	changed := diffGeneralSettings(&cfg, *req.General)
-	return lifecycleForChangedPaths(changed, lifecycle.RestartRequired)
 }
 
 func lifecycleForChangedPaths(paths []string, fallback lifecycle.Lifecycle) lifecycle.Lifecycle {
@@ -650,40 +628,6 @@ func (s *service) collectionItemExistsBeforeMutation(
 		}
 	}
 	return false, nil
-}
-
-func classifyReloadLifecycle(current *aghconfig.Config, desired *aghconfig.Config) lifecycle.Lifecycle {
-	changed := reloadChangedPaths(current, desired)
-	if len(changed) == 0 {
-		return lifecycle.RestartRequired
-	}
-	configLifecycle, _, err := lifecycle.ClassifyPaths(changed)
-	if err != nil {
-		return lifecycle.RestartRequired
-	}
-	return configLifecycle
-}
-
-func reloadChangedPaths(current *aghconfig.Config, desired *aghconfig.Config) []string {
-	var changed []string
-	changed = append(changed, diffGeneralSettings(current, generalSettingsFromConfig(desired))...)
-	changed = append(changed, diffSkillsSettings(current.Skills, desired.Skills)...)
-	changed = append(changed, diffMemorySettings(&current.Memory, &desired.Memory)...)
-	changed = append(changed, diffAutomationSettings(current, automationSettingsFromConfig(desired))...)
-	changed = append(changed, diffNetworkSettings(current.Network, desired.Network)...)
-	changed = append(changed, diffObservabilitySettings(current.Observability, desired.Observability)...)
-	changed = append(changed, diffExtensionsSettings(current.Extensions, desired.Extensions)...)
-	changed = append(changed, diffProviderSettings(current.Providers, desired.Providers)...)
-	if !reflect.DeepEqual(current.MCPServers, desired.MCPServers) {
-		changed = append(changed, "mcp-servers.*")
-	}
-	if !reflect.DeepEqual(current.Sandboxes, desired.Sandboxes) {
-		changed = append(changed, "sandboxes.*")
-	}
-	if !reflect.DeepEqual(current.Hooks.Declarations, desired.Hooks.Declarations) {
-		changed = append(changed, "hooks.*")
-	}
-	return changed
 }
 
 func generalSettingsFromConfig(cfg *aghconfig.Config) GeneralSettings {

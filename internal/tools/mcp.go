@@ -16,6 +16,8 @@ const (
 	mcpAuthStatusExpired       = "expired"
 	mcpAuthStatusInvalid       = "invalid"
 	mcpAuthStatusRefreshFailed = "refresh_failed"
+	mcpSourceScopeGlobal       = "global"
+	mcpSourceScopeWorkspace    = "workspace"
 )
 
 // MCPSourceLister returns configured MCP server sources for dynamic discovery.
@@ -88,7 +90,7 @@ func (p *MCPProvider) ID() SourceRef {
 }
 
 // List discovers configured MCP tools and normalizes them into registry descriptors.
-func (p *MCPProvider) List(ctx context.Context, _ Scope) ([]Descriptor, error) {
+func (p *MCPProvider) List(ctx context.Context, scope Scope) ([]Descriptor, error) {
 	if p == nil || isNilInterface(p.exec) || isNilInterface(p.sources) {
 		return nil, NewValidationError(
 			"provider",
@@ -103,6 +105,7 @@ func (p *MCPProvider) List(ctx context.Context, _ Scope) ([]Descriptor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tools: list mcp sources: %w", err)
 	}
+	sources = mcpSourcesForScope(sources, scope)
 	descriptors := make([]Descriptor, 0)
 	for _, source := range sources {
 		tools, err := p.exec.ListTools(ctx, source)
@@ -124,6 +127,40 @@ func (p *MCPProvider) List(ctx context.Context, _ Scope) ([]Descriptor, error) {
 		return strings.Compare(left.ID.String(), right.ID.String())
 	})
 	return descriptors, nil
+}
+
+func mcpSourcesForScope(sources []SourceRef, scope Scope) []SourceRef {
+	workspaceID := strings.TrimSpace(scope.WorkspaceID)
+	workspaceSources := make([]SourceRef, 0)
+	workspaceServerNames := make(map[string]struct{})
+	if workspaceID != "" {
+		for _, source := range sources {
+			if strings.TrimSpace(source.Scope) != mcpSourceScopeWorkspace ||
+				strings.TrimSpace(source.WorkspaceID) != workspaceID {
+				continue
+			}
+			workspaceSources = append(workspaceSources, source)
+			workspaceServerNames[mcpSourceServerName(source)] = struct{}{}
+		}
+	}
+
+	projected := make([]SourceRef, 0, len(sources))
+	for _, source := range sources {
+		sourceScope := strings.TrimSpace(source.Scope)
+		if (sourceScope != "" && sourceScope != mcpSourceScopeGlobal) ||
+			strings.TrimSpace(source.WorkspaceID) != "" {
+			continue
+		}
+		if _, shadowed := workspaceServerNames[mcpSourceServerName(source)]; shadowed {
+			continue
+		}
+		projected = append(projected, source)
+	}
+	return append(projected, workspaceSources...)
+}
+
+func mcpSourceServerName(source SourceRef) string {
+	return strings.TrimSpace(firstNonEmpty(source.RawServerName, source.Owner))
 }
 
 // Resolve returns a handle for one discovered MCP tool.

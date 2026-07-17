@@ -19,7 +19,7 @@ func TestBeginLoginDirectEndpointConfigurationContract(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 		cfg := ServerConfig{
-			ServerName:       "mcp",
+			Target:           globalTestTarget("mcp"),
 			Type:             "oauth2_pkce",
 			AuthorizationURL: "https://issuer.example/authorize",
 			TokenURL:         "https://issuer.example/token",
@@ -82,7 +82,7 @@ func TestBeginLoginDirectEndpointConfigurationContract(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 		cfg := ServerConfig{
-			ServerName:       "mcp",
+			Target:           globalTestTarget("mcp"),
 			Type:             "oauth2_pkce",
 			MetadataURL:      server.URL + "/metadata",
 			AuthorizationURL: "https://manual.example/authorize",

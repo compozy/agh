@@ -1,20 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Settings as SettingsIcon } from "lucide-react";
 
-import {
-  SETTINGS_ROOT_PATH,
-  SETTINGS_SECTIONS,
-  type SettingsSectionDescriptor,
-} from "@/systems/settings";
 import type { TopbarRouteContext } from "@/types/topbar";
 import {
   SettingsShellErrorBoundary,
   SettingsShellNotFoundBoundary,
 } from "./-settings-shell-boundaries";
 import { SettingsShell } from "./-settings-shell";
-
-export { SETTINGS_ROOT_PATH, SETTINGS_SECTIONS };
-export type SettingsSection = SettingsSectionDescriptor;
 
 export const Route = createFileRoute("/_app/settings")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({

@@ -19,7 +19,6 @@ import (
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/modelcatalog"
-	"github.com/compozy/agh/internal/resources"
 	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/gin-gonic/gin"
 )
@@ -1610,66 +1609,6 @@ func observabilityConfigFromPayload(
 	return value, nil
 }
 
-func extensionsConfigFromPayload(
-	payload contract.SettingsExtensionsConfigPayload,
-) (aghconfig.ExtensionsConfig, error) {
-	snapshotRateLimit, err := extensionRateLimitConfigFromPayload(
-		payload.Resources.SnapshotRateLimit,
-		"hooks-extensions.config.resources.snapshot_rate_limit",
-	)
-	if err != nil {
-		return aghconfig.ExtensionsConfig{}, err
-	}
-	operatorWriteRateLimit, err := extensionRateLimitConfigFromPayload(
-		payload.Resources.OperatorWriteRateLimit,
-		"hooks-extensions.config.resources.operator_write_rate_limit",
-	)
-	if err != nil {
-		return aghconfig.ExtensionsConfig{}, err
-	}
-
-	allowedKinds := make([]resources.ResourceKind, 0, len(payload.Resources.AllowedKinds))
-	for _, value := range payload.Resources.AllowedKinds {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			allowedKinds = append(allowedKinds, resources.ResourceKind(trimmed))
-		}
-	}
-
-	value := aghconfig.ExtensionsConfig{
-		Marketplace: aghconfig.ExtensionsMarketplaceConfig{
-			Registry: strings.TrimSpace(payload.Marketplace.Registry),
-			BaseURL:  strings.TrimSpace(payload.Marketplace.BaseURL),
-		},
-		Resources: aghconfig.ExtensionsResourcesConfig{
-			AllowedKinds:           allowedKinds,
-			MaxScope:               payload.Resources.MaxScope,
-			SnapshotRateLimit:      snapshotRateLimit,
-			OperatorWriteRateLimit: operatorWriteRateLimit,
-		},
-	}
-	if err := value.Validate(); err != nil {
-		return aghconfig.ExtensionsConfig{}, NewSettingsValidationError(err)
-	}
-	return value, nil
-}
-
-func extensionRateLimitConfigFromPayload(
-	payload contract.SettingsExtensionRateLimitPayload,
-	path string,
-) (aghconfig.ExtensionsResourceRateLimitConfig, error) {
-	window, err := time.ParseDuration(strings.TrimSpace(payload.Window))
-	if err != nil && strings.TrimSpace(payload.Window) != "" {
-		return aghconfig.ExtensionsResourceRateLimitConfig{}, NewSettingsValidationError(
-			fmt.Errorf("%s.window: %w", path, err),
-		)
-	}
-	return aghconfig.ExtensionsResourceRateLimitConfig{
-		Requests: payload.Requests,
-		Window:   window,
-		Queue:    payload.Queue,
-	}, nil
-}
-
 func sandboxProfileFromPayload(
 	payload contract.SettingsSandboxProfilePayload,
 ) (aghconfig.SandboxProfile, error) {
@@ -1725,6 +1664,7 @@ func hookDeclarationFromPayload(
 		Source:       hookspkg.HookSourceConfig,
 		Mode:         payload.Mode,
 		Required:     payload.Required,
+		Enabled:      payload.Enabled,
 		Priority:     priority,
 		PrioritySet:  payload.Priority != 0,
 		Timeout:      timeout,

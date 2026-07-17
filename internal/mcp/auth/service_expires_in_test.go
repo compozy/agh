@@ -42,7 +42,7 @@ func TestTokenResponseExpiresInValidationContract(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tc.wantSnippet) {
 				t.Fatalf("Exchange() error = %v, want %q", err, tc.wantSnippet)
 			}
-			if _, err := store.GetMCPAuthToken(ctx, "linear"); !errors.Is(err, ErrTokenNotFound) {
+			if _, err := store.GetMCPAuthToken(ctx, globalTestTarget("linear")); !errors.Is(err, ErrTokenNotFound) {
 				t.Fatalf("GetMCPAuthToken() error = %v, want ErrTokenNotFound", err)
 			}
 		})
@@ -63,7 +63,7 @@ func TestTokenResponseExpiresInValidationContract(t *testing.T) {
 		if status.Status != StatusExpired || status.ExpiresAt == nil {
 			t.Fatalf("Exchange() status = %#v, want expired status with expires_at", status)
 		}
-		token, err := store.GetMCPAuthToken(ctx, "linear")
+		token, err := store.GetMCPAuthToken(ctx, globalTestTarget("linear"))
 		if err != nil {
 			t.Fatalf("GetMCPAuthToken() error = %v", err)
 		}
@@ -112,7 +112,7 @@ func newTokenExpiresInService(
 		t.Fatalf("NewService() error = %v", err)
 	}
 	cfg := ServerConfig{
-		ServerName:  "linear",
+		Target:      globalTestTarget("linear"),
 		Type:        "oauth2_pkce",
 		MetadataURL: server.URL,
 		ClientID:    "client",

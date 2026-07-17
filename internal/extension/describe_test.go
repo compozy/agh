@@ -126,3 +126,50 @@ func TestDescribeExtension(t *testing.T) {
 		})
 	}
 }
+
+func TestDescribeExtensionProjectsCuratedArchiveIdentity(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project distinct curated archive and installed tree identity", func(t *testing.T) {
+		t.Parallel()
+
+		payload := DescribeExtension(&Extension{Info: ExtensionInfo{
+			Name: "curated", Version: "1.0.0", Source: SourceMarketplace,
+			Provenance: ExtensionProvenance{
+				Slug: "acme/curated", CatalogEntryID: "extension.acme.curated",
+				InstalledFrom:  ExtensionInstalledFromMarketplace,
+				ChecksumSHA256: "tree-digest", ArchiveDigestSHA256: "archive-digest",
+				ChecksumVerified: true, RegistryTier: ExtensionRegistryTierOfficial,
+			},
+		}}, false, time.Now())
+		if payload.Provenance == nil {
+			t.Fatal("DescribeExtension().Provenance = nil")
+		}
+		if payload.Provenance.CatalogEntryID != "extension.acme.curated" ||
+			payload.Provenance.ArchiveDigestSHA256 != "archive-digest" ||
+			payload.Provenance.ChecksumSHA256 != "tree-digest" {
+			t.Fatalf(
+				"DescribeExtension().Provenance = %#v, want separate catalog/archive/tree identity",
+				payload.Provenance,
+			)
+		}
+		if payload.Provenance.Trust == nil || payload.Provenance.Trust.Decision != ExtensionTrustDecisionVerified {
+			t.Fatalf("DescribeExtension().Provenance.Trust = %#v, want verified", payload.Provenance.Trust)
+		}
+
+		allowed := extensionProvenancePayload(ExtensionProvenance{
+			InstalledFrom:   ExtensionInstalledFromLocalPath,
+			RegistryTier:    ExtensionRegistryTierUnverified,
+			AllowUnverified: true,
+		})
+		if allowed == nil || allowed.Trust == nil || allowed.Trust.Decision != ExtensionTrustDecisionAllowedUnverified {
+			t.Fatalf("allowed side-load trust = %#v, want allowed_unverified", allowed)
+		}
+		blocked := extensionProvenancePayload(ExtensionProvenance{
+			InstalledFrom: ExtensionInstalledFromLocalPath,
+			RegistryTier:  ExtensionRegistryTierUnverified,
+		})
+		if blocked == nil || blocked.Trust == nil || blocked.Trust.Decision != ExtensionTrustDecisionBlocked {
+			t.Fatalf("blocked side-load trust = %#v, want blocked", blocked)
+		}
+	})
+}

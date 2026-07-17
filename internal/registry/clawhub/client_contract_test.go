@@ -21,8 +21,11 @@ func TestClientBehaviorContracts(t *testing.T) {
 		t.Parallel()
 
 		server := newContractServer(t, func(writer http.ResponseWriter, request *http.Request) {
-			if request.URL.Path != "/api/v1/skills/@agh%2Fmissing" {
+			if request.URL.Path != "/api/v1/skills/@agh/missing" {
 				t.Fatalf("request.URL.Path = %q, want missing skill path", request.URL.Path)
+			}
+			if request.URL.RawPath != "/api/v1/skills/@agh%2Fmissing" {
+				t.Fatalf("request.URL.RawPath = %q, want one escaped missing skill segment", request.URL.RawPath)
 			}
 			writer.Header().Set("Content-Type", "application/json")
 			writer.WriteHeader(http.StatusNotFound)

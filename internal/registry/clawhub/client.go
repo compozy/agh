@@ -347,40 +347,6 @@ func (c *Client) doRequest(
 	return nil, lastErr
 }
 
-func (c *Client) buildURL(requestPath string, query url.Values) (string, error) {
-	base, err := url.Parse(c.baseURL)
-	if err != nil {
-		return "", err
-	}
-
-	base.Path = strings.TrimRight(base.Path, "/") + "/" + strings.TrimLeft(requestPath, "/")
-	if len(query) > 0 {
-		base.RawQuery = query.Encode()
-	}
-
-	return base.String(), nil
-}
-
-func normalizeBaseURL(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return defaultBaseURL
-	}
-
-	parsed, err := url.Parse(trimmed)
-	if err != nil {
-		return strings.TrimRight(trimmed, "/")
-	}
-
-	path := strings.TrimRight(parsed.Path, "/")
-	if path == "" {
-		path = "/api/v1"
-	}
-	parsed.Path = path
-
-	return strings.TrimRight(parsed.String(), "/")
-}
-
 func responseError(response *http.Response, operation string, slug string) error {
 	message := readErrorMessage(response.Body)
 

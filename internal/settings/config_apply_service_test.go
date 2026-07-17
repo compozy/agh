@@ -12,6 +12,7 @@ import (
 	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
 	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 )
 
@@ -276,6 +277,71 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should skip an unchanged builtin projection without applying runtime config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		applier := &fakeConfigRuntimeApplier{}
+		eventStore := &recordingEventSummaryStore{}
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+			ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+				"claude": {{ProviderID: "claude", ModelID: "claude-sonnet-5", Curated: true}},
+			}},
+			RuntimeApplier: applier,
+			EventSummaries: eventStore,
+		})
+		envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		settings := mustFindProviderItem(t, envelope.Providers, "claude").Settings
+		settings.ModelsSet = true
+		before := readFile(t, homePaths.ConfigFile)
+		result, err := service.ApplyCollectionItem(
+			WithMutationSource(ctx, "http"),
+			CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+				Name:              "claude",
+				Provider:          &settings,
+			},
+		)
+		if err != nil {
+			t.Fatalf("ApplyCollectionItem(unchanged builtin projection) error = %v", err)
+		}
+		if !result.Applied || result.RestartRequired || !result.Skipped {
+			t.Fatalf("apply result = %#v, want applied skipped no-op without restart", result)
+		}
+		if got, want := result.SkippedReason, configApplyNoChangesReason; got != want {
+			t.Fatalf("SkippedReason = %q, want %q", got, want)
+		}
+		if got := applier.calls; got != 0 {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want 0", got)
+		}
+		summaries, err := eventStore.ListEventSummaries(ctx, store.EventSummaryQuery{})
+		if err != nil {
+			t.Fatalf("ListEventSummaries() error = %v", err)
+		}
+		if got := len(summaries); got != 0 {
+			t.Fatalf("settings.changed summaries = %d, want 0", got)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("unchanged builtin projection rewrote config:\n%s", after)
+		}
+	})
+
 	t.Run("Should reconcile the catalog without requiring a daemon restart", func(t *testing.T) {
 		t.Parallel()
 
@@ -357,6 +423,57 @@ func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 	})
 }
 
+func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
+	t.Parallel()
+	t.Run("Should apply extension side-load policy without a restart", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		applier := &fakeConfigRuntimeApplier{}
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+			RuntimeApplier: applier,
+		})
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		cfg.Extensions.Marketplace.AllowUnverified = true
+		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
+			SectionRequest:  SectionRequest{Section: SectionHooksExtensions},
+			HooksExtensions: &cfg.Extensions,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(hooks-extensions) error = %v", err)
+		}
+		if !result.Applied || result.RestartRequired {
+			t.Fatalf("ApplySection(hooks-extensions) = %#v, want live applied", result)
+		}
+		if result.Record.Lifecycle != lifecycle.Live || applier.calls != 1 {
+			t.Fatalf("Lifecycle = %q, applier calls = %d, want live and one", result.Record.Lifecycle, applier.calls)
+		}
+		active, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig() error = %v", err)
+		}
+		if !active.Extensions.Marketplace.AllowUnverified {
+			t.Fatal("ActiveConfig() extension side-load policy = false, want true")
+		}
+	})
+}
+
 func TestReloadChangedPathsSeparatesProviderModelsFromRestartRequiredFields(t *testing.T) {
 	t.Parallel()
 
@@ -399,6 +516,25 @@ func TestReloadChangedPathsSeparatesProviderModelsFromRestartRequiredFields(t *t
 			}
 		})
 	}
+
+	t.Run("Should emit every live Marketplace catalog path", func(t *testing.T) {
+		t.Parallel()
+
+		current := &aghconfig.Config{Marketplace: aghconfig.DefaultMarketplaceRuntimeConfig()}
+		desired := *current
+		desired.Marketplace.Catalog.BaseURL = "https://catalog.example.test"
+		desired.Marketplace.Catalog.TTL = "30m"
+		desired.Marketplace.Catalog.Timeout = "5s"
+
+		want := []string{
+			"marketplace.catalog.base_url",
+			"marketplace.catalog.ttl",
+			"marketplace.catalog.timeout",
+		}
+		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+	})
 }
 
 func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {

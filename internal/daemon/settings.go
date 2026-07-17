@@ -37,6 +37,7 @@ type settingsRuntimeSurface struct {
 	automation     automationRuntime
 	network        networkRuntime
 	mcpAuthStore   mcpauth.TokenStore
+	mcpAuthManager *mcpauth.Manager
 	secretResolver mcpauth.SecretRefResolver
 	secretRefs     interface {
 		ResolveRef(context.Context, string) (string, error)
@@ -60,9 +61,9 @@ var _ settingspkg.TransportParityProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.MCPAuthRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.MCPRuntimeProvider = (*settingsRuntimeSurface)(nil)
 
-func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurface {
+func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSurface, error) {
 	if state == nil {
-		return &settingsRuntimeSurface{}
+		return &settingsRuntimeSurface{}, nil
 	}
 
 	now := time.Now
@@ -81,6 +82,14 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurf
 	var mcpAuthStore mcpauth.TokenStore
 	if store, ok := state.registry.(mcpauth.TokenStore); ok {
 		mcpAuthStore = store
+	}
+	mcpAuthManager, err := newSettingsMCPAuthManager(mcpAuthStore, &daemonMCPAuthNotifier{
+		writer: state.registry,
+		logger: state.logger,
+		now:    now,
+	})
+	if err != nil {
+		return nil, err
 	}
 	var secretResolver mcpauth.SecretRefResolver
 	var secretRefs interface {
@@ -112,6 +121,7 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurf
 		automation:     state.automation,
 		network:        state.network,
 		mcpAuthStore:   mcpAuthStore,
+		mcpAuthManager: mcpAuthManager,
 		secretResolver: secretResolver,
 		secretRefs:     secretRefs,
 		lookupSecret:   lookupSecret,
@@ -119,7 +129,7 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurf
 		now:            now,
 		pid:            pid,
 		info:           info,
-	}
+	}, nil
 }
 
 func (d *Daemon) settingsInfoSnapshot() Info {
@@ -337,38 +347,9 @@ func (s *settingsRuntimeSurface) TransportParityStatus(
 	}, nil
 }
 
-func (s *settingsRuntimeSurface) MCPAuthStatus(
-	ctx context.Context,
-	server aghconfig.MCPServer,
-) (mcpauth.Status, error) {
-	cfg, err := mcpauth.ServerConfigFromMCP(ctx, server, s.secretResolver)
-	if err != nil {
-		return mcpauth.Status{}, fmt.Errorf("daemon: resolve MCP auth config: %w", err)
-	}
-	if s.mcpAuthStore == nil {
-		return mcpauth.Status{
-			ServerName: strings.TrimSpace(cfg.ServerName),
-			Status:     mcpauth.StatusNeedsLogin,
-			RemoteURL:  strings.TrimSpace(cfg.RemoteURL),
-			AuthType:   strings.TrimSpace(cfg.Type),
-			ClientID:   strings.TrimSpace(cfg.ClientID),
-			Scopes:     append([]string(nil), cfg.Scopes...),
-			Diagnostic: "token store unavailable",
-		}, nil
-	}
-	service, err := mcpauth.NewService(s.mcpAuthStore)
-	if err != nil {
-		return mcpauth.Status{}, err
-	}
-	status, err := service.Status(ctx, cfg)
-	if err != nil {
-		return mcpauth.Status{}, fmt.Errorf("daemon: load MCP auth status: %w", err)
-	}
-	return status, nil
-}
-
 func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	ctx context.Context,
+	target mcpauth.Target,
 	server aghconfig.MCPServer,
 ) (settingspkg.MCPServerRuntimeStatus, error) {
 	status := settingspkg.MCPServerRuntimeStatus{
@@ -382,7 +363,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 		return status, nil
 	}
 	if server.Auth.Enabled() {
-		authStatus, err := s.MCPAuthStatus(ctx, server)
+		authStatus, err := s.MCPAuthStatus(ctx, target, server)
 		if err != nil {
 			status.State = settingspkg.MCPServerRuntimeStateAuthRequired
 			status.Probe = settingspkg.MCPServerProbeSkipped
@@ -400,8 +381,11 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	}
 
 	executor, err := mcppkg.NewMCPCallExecutor(
-		mcppkg.ServerResolverFunc(func(context.Context) ([]aghconfig.MCPServer, error) {
-			return []aghconfig.MCPServer{server}, nil
+		mcppkg.ServerResolverFunc(func(
+			context.Context,
+			toolspkg.SourceRef,
+		) (mcppkg.ResolvedServer, error) {
+			return mcppkg.ResolvedServer{Server: server, Target: target}, nil
 		}),
 		mcppkg.WithTokenStore(s.mcpAuthStore),
 		mcppkg.WithSecretLookup(s.lookupSecret),

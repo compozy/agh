@@ -40,7 +40,7 @@ func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {
 			t.Fatalf("SaveMCPAuthToken(update) error = %v, want injected metadata failure", err)
 		}
 
-		preserved, err := db.GetMCPAuthToken(ctx, "linear")
+		preserved, err := db.GetMCPAuthToken(ctx, globalMCPAuthTarget("linear"))
 		if err != nil {
 			t.Fatalf("GetMCPAuthToken() error = %v", err)
 		}
@@ -68,7 +68,7 @@ func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {
 			ctx,
 			"CREATE TRIGGER fail_mcp_vault_secret_delete "+
 				"BEFORE DELETE ON vault_secrets "+
-				"WHEN OLD.ref LIKE 'vault:mcp/linear/oauth/%' "+
+				"WHEN OLD.ref LIKE 'vault:mcp/global/linear/oauth/%' "+
 				"BEGIN "+
 				"SELECT RAISE(FAIL, 'forced vault secret delete failure'); "+
 				"END;",
@@ -76,7 +76,7 @@ func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {
 			t.Fatalf("create failure trigger error = %v", err)
 		}
 
-		err := db.DeleteMCPAuthToken(ctx, "linear")
+		err := db.DeleteMCPAuthToken(ctx, globalMCPAuthTarget("linear"))
 		if err == nil {
 			t.Fatal("DeleteMCPAuthToken() error = nil, want injected vault delete failure")
 		}
@@ -84,7 +84,7 @@ func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {
 			t.Fatalf("DeleteMCPAuthToken() error = %v, want injected vault delete failure", err)
 		}
 
-		preserved, err := db.GetMCPAuthToken(ctx, "linear")
+		preserved, err := db.GetMCPAuthToken(ctx, globalMCPAuthTarget("linear"))
 		if err != nil {
 			t.Fatalf("GetMCPAuthToken() error = %v", err)
 		}
@@ -103,15 +103,16 @@ func TestMCPAuthTokenStoreAtomicityContract(t *testing.T) {
 func mcpAuthTokenAtomicityRecord(serverName string, accessToken string, refreshToken string) mcpauth.TokenRecord {
 	issuedAt := time.Date(2026, 5, 17, 16, 0, 0, 0, time.UTC)
 	return mcpauth.TokenRecord{
-		ServerName:   serverName,
-		Issuer:       "https://issuer.example",
-		ClientID:     "client",
-		Scopes:       []string{"read", "write"},
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresAt:    issuedAt.Add(time.Hour),
-		ObtainedAt:   issuedAt,
-		UpdatedAt:    issuedAt,
+		Target:                globalMCPAuthTarget(serverName),
+		DefinitionFingerprint: testMCPDefinitionFingerprint,
+		Issuer:                "https://issuer.example",
+		ClientID:              "client",
+		Scopes:                []string{"read", "write"},
+		AccessToken:           accessToken,
+		RefreshToken:          refreshToken,
+		TokenType:             "Bearer",
+		ExpiresAt:             issuedAt.Add(time.Hour),
+		ObtainedAt:            issuedAt,
+		UpdatedAt:             issuedAt,
 	}
 }

@@ -115,7 +115,7 @@ func TestOAuthPKCELifecycleWithRefreshAndLogout(t *testing.T) {
 		t.Fatalf("NewService() error = %v", err)
 	}
 	cfg := ServerConfig{
-		ServerName:    "linear",
+		Target:        globalTestTarget("linear"),
 		RemoteURL:     "https://mcp.example/sse",
 		Type:          "oauth2_pkce",
 		IssuerURL:     server.URL,
@@ -166,7 +166,7 @@ func TestOAuthPKCELifecycleWithRefreshAndLogout(t *testing.T) {
 		t.Fatal("refresh endpoint was not called")
 	}
 	mu.Unlock()
-	token, err := store.GetMCPAuthToken(ctx, "linear")
+	token, err := store.GetMCPAuthToken(ctx, globalTestTarget("linear"))
 	if err != nil {
 		t.Fatalf("GetMCPAuthToken() error = %v", err)
 	}
@@ -186,7 +186,7 @@ func TestOAuthPKCELifecycleWithRefreshAndLogout(t *testing.T) {
 		t.Fatalf("revoked token = %q, want refresh token", revokedToken)
 	}
 	mu.Unlock()
-	if _, err := store.GetMCPAuthToken(ctx, "linear"); !errors.Is(err, ErrTokenNotFound) {
+	if _, err := store.GetMCPAuthToken(ctx, globalTestTarget("linear")); !errors.Is(err, ErrTokenNotFound) {
 		t.Fatalf("GetMCPAuthToken(after logout) error = %v, want ErrTokenNotFound", err)
 	}
 	handlerErrors.assertEmpty(t)
@@ -221,7 +221,7 @@ func TestTokenResponseRejectsMalformedPayload(t *testing.T) {
 		t.Fatalf("NewService() error = %v", err)
 	}
 	cfg := ServerConfig{
-		ServerName:  "bad",
+		Target:      globalTestTarget("bad"),
 		Type:        "oauth2_pkce",
 		MetadataURL: server.URL,
 		ClientID:    "client",
@@ -242,16 +242,6 @@ func TestLogoutDeletesLocalTokenWhenRemoteRevocationFails(t *testing.T) {
 
 	ctx := context.Background()
 	store := newMemoryTokenStore()
-	if err := store.SaveMCPAuthToken(ctx, TokenRecord{
-		ServerName:   "linear",
-		AccessToken:  "access-token",
-		RefreshToken: "refresh-token",
-		TokenType:    "Bearer",
-		ObtainedAt:   time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC),
-		UpdatedAt:    time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC),
-	}); err != nil {
-		t.Fatalf("SaveMCPAuthToken() error = %v", err)
-	}
 	handlerErrors := newHandlerErrorRecorder()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -277,11 +267,23 @@ func TestLogoutDeletesLocalTokenWhenRemoteRevocationFails(t *testing.T) {
 		t.Fatalf("NewService() error = %v", err)
 	}
 	cfg := ServerConfig{
-		ServerName: "linear",
-		RemoteURL:  "https://mcp.example/sse",
-		Type:       "oauth2_pkce",
-		IssuerURL:  server.URL,
-		ClientID:   "client-1",
+		Target:    globalTestTarget("linear"),
+		RemoteURL: "https://mcp.example/sse",
+		Type:      "oauth2_pkce",
+		IssuerURL: server.URL,
+		ClientID:  "client-1",
+	}
+	fingerprint, err := ServerDefinitionFingerprint(cfg)
+	if err != nil {
+		t.Fatalf("ServerDefinitionFingerprint() error = %v", err)
+	}
+	if err := store.SaveMCPAuthToken(ctx, TokenRecord{
+		Target: cfg.Target, DefinitionFingerprint: fingerprint,
+		AccessToken: "access-token", RefreshToken: "refresh-token", TokenType: "Bearer",
+		ObtainedAt: time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:  time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("SaveMCPAuthToken() error = %v", err)
 	}
 
 	status, err := service.Logout(ctx, cfg)
@@ -291,10 +293,187 @@ func TestLogoutDeletesLocalTokenWhenRemoteRevocationFails(t *testing.T) {
 	if status.Status != StatusNeedsLogin || !strings.Contains(status.Diagnostic, "remote revocation failed") {
 		t.Fatalf("Logout() status = %#v, want local logout diagnostic", status)
 	}
-	if _, err := store.GetMCPAuthToken(ctx, "linear"); !errors.Is(err, ErrTokenNotFound) {
+	if _, err := store.GetMCPAuthToken(ctx, globalTestTarget("linear")); !errors.Is(err, ErrTokenNotFound) {
 		t.Fatalf("GetMCPAuthToken(after failed revocation logout) error = %v, want ErrTokenNotFound", err)
 	}
 	handlerErrors.assertEmpty(t)
+}
+
+func TestOAuthFailuresPreserveExistingTokenAndRedactSecretInputs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve existing tokens and redact failed OAuth inputs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		target := globalTestTarget("linear")
+		issuedAt := time.Date(2026, 7, 13, 15, 0, 0, 0, time.UTC)
+		existing := TokenRecord{
+			Target:       target,
+			ClientID:     "client-id",
+			AccessToken:  "existing-sensitive-access-token",
+			RefreshToken: "existing-sensitive-refresh-token",
+			TokenType:    "Bearer",
+			ObtainedAt:   issuedAt,
+			UpdatedAt:    issuedAt,
+		}
+		store := newMemoryTokenStore()
+		handlerErrors := newHandlerErrorRecorder()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/metadata":
+				if err := writeJSON(w, Metadata{
+					AuthorizationEndpoint:         "http://" + r.Host + "/authorize",
+					TokenEndpoint:                 "http://" + r.Host + "/token",
+					CodeChallengeMethodsSupported: []string{pkceS256Value},
+				}); err != nil {
+					handlerErrors.record(err)
+				}
+			case "/token":
+				if err := r.ParseForm(); err != nil {
+					handlerErrors.record(fmt.Errorf("parse failure token form: %w", err))
+					http.Error(w, "invalid form", http.StatusBadRequest)
+					return
+				}
+				echoedSecret := r.Form.Get("code")
+				if echoedSecret == "" {
+					echoedSecret = r.Form.Get(serviceRefreshTokenKey)
+				}
+				w.WriteHeader(http.StatusBadRequest)
+				if err := writeJSON(w, map[string]string{"error": echoedSecret}); err != nil {
+					handlerErrors.record(err)
+				}
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer func() {
+			server.Close()
+			handlerErrors.assertEmpty(t)
+		}()
+		service, err := NewService(
+			store,
+			WithHTTPClient(server.Client()),
+			WithNow(func() time.Time { return issuedAt }),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		cfg := ServerConfig{
+			Target:      target,
+			Type:        "oauth2_pkce",
+			MetadataURL: server.URL + "/metadata",
+			ClientID:    "client-id",
+		}
+		fingerprint, err := ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatalf("ServerDefinitionFingerprint() error = %v", err)
+		}
+		existing.DefinitionFingerprint = fingerprint
+		if err := store.SaveMCPAuthToken(ctx, existing); err != nil {
+			t.Fatalf("SaveMCPAuthToken(existing) error = %v", err)
+		}
+		login, err := service.BeginLogin(ctx, cfg, managerTestCallbackURL)
+		if err != nil {
+			t.Fatalf("BeginLogin() error = %v", err)
+		}
+		sensitiveCode := "sensitive-authorization-code"
+		callbackURL := callbackWithCodeAndState(t, sensitiveCode, login.State)
+		if _, err := service.Exchange(ctx, login, callbackURL); err == nil {
+			t.Fatal("Exchange(failed token request) error = nil")
+		} else if strings.Contains(err.Error(), sensitiveCode) || strings.Contains(err.Error(), callbackURL) {
+			t.Fatalf("Exchange() error leaked inbound secret material: %v", err)
+		}
+		assertStoredMCPTokenUnchanged(t, store, target, existing)
+
+		if _, err := service.Refresh(ctx, cfg); err == nil {
+			t.Fatal("Refresh(failed token request) error = nil")
+		} else if strings.Contains(err.Error(), existing.RefreshToken) || strings.Contains(err.Error(), existing.AccessToken) {
+			t.Fatalf("Refresh() error leaked token material: %v", err)
+		}
+		assertStoredMCPTokenUnchanged(t, store, target, existing)
+	})
+}
+
+func TestOAuthTokenDefinitionBinding(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	target := globalTestTarget("linear")
+	original := ServerConfig{
+		Target: target, Transport: "http", RemoteURL: "https://original.example/mcp",
+		Type: "oauth2_pkce", AuthorizationURL: "https://issuer.example/authorize",
+		TokenURL: "https://issuer.example/token", ClientID: "client-id", Scopes: []string{"read"},
+	}
+	replacement := original
+	replacement.RemoteURL = "https://replacement.example/mcp"
+	fingerprint, err := ServerDefinitionFingerprint(original)
+	if err != nil {
+		t.Fatalf("ServerDefinitionFingerprint() error = %v", err)
+	}
+	store := newMemoryTokenStore()
+	if err := store.SaveMCPAuthToken(ctx, TokenRecord{
+		Target: target, DefinitionFingerprint: fingerprint, ClientID: "client-id",
+		AccessToken: "original-access", RefreshToken: "original-refresh", TokenType: "Bearer",
+		UpdatedAt: time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("SaveMCPAuthToken() error = %v", err)
+	}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	for operation, load := range map[string]func() (Status, error){
+		"status":  func() (Status, error) { return service.Status(ctx, replacement) },
+		"refresh": func() (Status, error) { return service.Refresh(ctx, replacement) },
+	} {
+		status, loadErr := load()
+		if loadErr != nil {
+			t.Fatalf("%s replacement definition error = %v", operation, loadErr)
+		}
+		if status.Status != StatusNeedsLogin || status.TokenPresent ||
+			!strings.Contains(status.Diagnostic, "different server definition") {
+			t.Fatalf("%s replacement definition status = %#v", operation, status)
+		}
+	}
+	preserved, err := store.GetMCPAuthToken(ctx, target)
+	if err != nil {
+		t.Fatalf("GetMCPAuthToken() error = %v", err)
+	}
+	if preserved.AccessToken != "original-access" || preserved.DefinitionFingerprint != fingerprint {
+		t.Fatalf("preserved token = %#v", preserved)
+	}
+
+	loggedOut, err := service.Logout(ctx, replacement)
+	if err != nil {
+		t.Fatalf("Logout(replacement definition) error = %v", err)
+	}
+	if loggedOut.Status != StatusNeedsLogin ||
+		!strings.Contains(loggedOut.Diagnostic, "different server definition") {
+		t.Fatalf("Logout(replacement definition) status = %#v", loggedOut)
+	}
+	if _, err := store.GetMCPAuthToken(ctx, target); !errors.Is(err, ErrTokenNotFound) {
+		t.Fatalf("GetMCPAuthToken(after logout) error = %v, want ErrTokenNotFound", err)
+	}
+}
+
+func assertStoredMCPTokenUnchanged(
+	t *testing.T,
+	store TokenStore,
+	target Target,
+	want TokenRecord,
+) {
+	t.Helper()
+
+	got, err := store.GetMCPAuthToken(t.Context(), target)
+	if err != nil {
+		t.Fatalf("GetMCPAuthToken() error = %v", err)
+	}
+	if got.AccessToken != want.AccessToken || got.RefreshToken != want.RefreshToken ||
+		!got.UpdatedAt.Equal(want.UpdatedAt) {
+		t.Fatalf("stored token changed after failed OAuth operation: %#v", got)
+	}
 }
 
 func TestSupportsS256RequiresAdvertisedMethod(t *testing.T) {
@@ -345,16 +524,24 @@ func newMemoryTokenStore() *memoryTokenStore {
 }
 
 func (s *memoryTokenStore) SaveMCPAuthToken(_ context.Context, token TokenRecord) error {
+	key, err := token.Target.Key()
+	if err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.tokens[token.ServerName] = token
+	s.tokens[key] = token
 	return nil
 }
 
-func (s *memoryTokenStore) GetMCPAuthToken(_ context.Context, serverName string) (TokenRecord, error) {
+func (s *memoryTokenStore) GetMCPAuthToken(_ context.Context, target Target) (TokenRecord, error) {
+	key, err := target.Key()
+	if err != nil {
+		return TokenRecord{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	token, ok := s.tokens[serverName]
+	token, ok := s.tokens[key]
 	if !ok {
 		return TokenRecord{}, ErrTokenNotFound
 	}
@@ -371,11 +558,19 @@ func (s *memoryTokenStore) ListMCPAuthTokens(context.Context) ([]TokenRecord, er
 	return tokens, nil
 }
 
-func (s *memoryTokenStore) DeleteMCPAuthToken(_ context.Context, serverName string) error {
+func (s *memoryTokenStore) DeleteMCPAuthToken(_ context.Context, target Target) error {
+	key, err := target.Key()
+	if err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.tokens, serverName)
+	delete(s.tokens, key)
 	return nil
+}
+
+func globalTestTarget(serverName string) Target {
+	return Target{Scope: ScopeGlobal, ServerName: serverName}
 }
 
 type handlerErrorRecorder struct {

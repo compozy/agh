@@ -88,6 +88,7 @@ type BundleActivationPayload struct {
 	Triggers                    []BundleTriggerPayload   `json:"triggers,omitempty"`
 	Bridges                     []BundleBridgePayload    `json:"bridges,omitempty"`
 	Inventory                   []BundleInventoryPayload `json:"inventory,omitempty"`
+	SpecDrift                   bool                     `json:"spec_drift"`
 	CreatedAt                   time.Time                `json:"created_at"`
 	UpdatedAt                   time.Time                `json:"updated_at"`
 }

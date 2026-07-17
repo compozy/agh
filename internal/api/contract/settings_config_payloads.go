@@ -236,6 +236,12 @@ type SettingsMarketplacePayload struct {
 	BaseURL  string `json:"base_url,omitempty"`
 }
 
+type SettingsExtensionMarketplacePayload struct {
+	Registry        string `json:"registry"`
+	BaseURL         string `json:"base_url,omitempty"`
+	AllowUnverified bool   `json:"allow_unverified"`
+}
+
 type SettingsSkillsConfigPayload struct {
 	Enabled                 bool                       `json:"enabled"`
 	DisabledSkills          []string                   `json:"disabled_skills,omitempty"`
@@ -281,8 +287,8 @@ type SettingsObservabilityTranscriptPayload struct {
 }
 
 type SettingsExtensionsConfigPayload struct {
-	Marketplace SettingsMarketplacePayload        `json:"marketplace"`
-	Resources   SettingsExtensionResourcesPayload `json:"resources"`
+	Marketplace SettingsExtensionMarketplacePayload `json:"marketplace"`
+	Resources   SettingsExtensionResourcesPayload   `json:"resources"`
 }
 
 type SettingsExtensionResourcesPayload struct {

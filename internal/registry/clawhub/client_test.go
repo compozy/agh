@@ -160,8 +160,11 @@ func TestClientInfoParsesSkillDetail(t *testing.T) {
 		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			if request.URL.Path != "/api/v1/skills/@agh%2Freview" {
-				t.Fatalf("request.URL.Path = %q, want %q", request.URL.Path, "/api/v1/skills/@agh%2Freview")
+			if request.URL.Path != "/api/v1/skills/@agh/review" {
+				t.Fatalf("request.URL.Path = %q, want decoded scoped slug path", request.URL.Path)
+			}
+			if request.URL.RawPath != "/api/v1/skills/@agh%2Freview" {
+				t.Fatalf("request.URL.RawPath = %q, want one escaped scoped slug segment", request.URL.RawPath)
 			}
 
 			writer.Header().Set("Content-Type", "application/json")
@@ -368,8 +371,11 @@ func TestClientDownloadUsesLatestEndpointWhenVersionEmpty(t *testing.T) {
 	})
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/api/v1/skills/@agh%2Freview/download" {
-			t.Fatalf("request.URL.Path = %q, want %q", request.URL.Path, "/api/v1/skills/@agh%2Freview/download")
+		if request.URL.Path != "/api/v1/skills/@agh/review/download" {
+			t.Fatalf("request.URL.Path = %q, want decoded scoped slug download path", request.URL.Path)
+		}
+		if request.URL.RawPath != "/api/v1/skills/@agh%2Freview/download" {
+			t.Fatalf("request.URL.RawPath = %q, want one escaped scoped slug download path", request.URL.RawPath)
 		}
 
 		writer.Header().Set("Content-Type", "application/gzip")
@@ -407,12 +413,15 @@ func TestClientDownloadUsesVersionedEndpointWhenVersionSpecified(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/api/v1/skills/@agh%2Freview/versions/1.2.3/archive" {
+		if request.URL.Path != "/api/v1/skills/@agh/review/versions/1.2.3/archive" {
 			t.Fatalf(
-				"request.URL.Path = %q, want %q",
+				"request.URL.Path = %q, want decoded scoped slug version path %q",
 				request.URL.Path,
-				"/api/v1/skills/@agh%2Freview/versions/1.2.3/archive",
+				"/api/v1/skills/@agh/review/versions/1.2.3/archive",
 			)
+		}
+		if request.URL.RawPath != "/api/v1/skills/@agh%2Freview/versions/1.2.3/archive" {
+			t.Fatalf("request.URL.RawPath = %q, want one escaped scoped slug version path", request.URL.RawPath)
 		}
 
 		writer.Header().Set("Content-Type", "application/gzip")

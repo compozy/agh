@@ -26,6 +26,7 @@ const (
 
 	extensionTrustInstalledByOperator = "operator"
 	extensionTrustEvidenceSourceKey   = "source"
+	extensionTrustEvidenceVersionKey  = "version"
 	extensionTrustGitHubSource        = "github"
 )
 
@@ -33,17 +34,19 @@ var ErrExtensionChecksumUnverified = errors.New("extension: checksum is unverifi
 
 // ExtensionProvenance records one installed extension's source and trust state.
 type ExtensionProvenance struct {
-	Slug             string                    `json:"slug,omitempty"`
-	InstalledFrom    string                    `json:"installed_from"`
-	SourceURL        string                    `json:"source_url,omitempty"`
-	ChecksumSHA256   string                    `json:"checksum_sha256"`
-	ChecksumVerified bool                      `json:"checksum_verified"`
-	RegistryTier     string                    `json:"registry_tier"`
-	Permissions      []string                  `json:"permissions,omitempty"`
-	InstalledAt      time.Time                 `json:"installed_at"`
-	InstalledBy      string                    `json:"installed_by"`
-	AllowUnverified  bool                      `json:"allow_unverified"`
-	Warnings         []contract.DiagnosticItem `json:"warnings,omitempty"`
+	Slug                string                    `json:"slug,omitempty"`
+	CatalogEntryID      string                    `json:"catalog_entry_id,omitempty"`
+	InstalledFrom       string                    `json:"installed_from"`
+	SourceURL           string                    `json:"source_url,omitempty"`
+	ChecksumSHA256      string                    `json:"checksum_sha256"`
+	ArchiveDigestSHA256 string                    `json:"archive_digest_sha256,omitempty"`
+	ChecksumVerified    bool                      `json:"checksum_verified"`
+	RegistryTier        string                    `json:"registry_tier"`
+	Permissions         []string                  `json:"permissions,omitempty"`
+	InstalledAt         time.Time                 `json:"installed_at"`
+	InstalledBy         string                    `json:"installed_by"`
+	AllowUnverified     bool                      `json:"allow_unverified"`
+	Warnings            []contract.DiagnosticItem `json:"warnings,omitempty"`
 }
 
 // ExtensionTrustError carries the canonical diagnostic for a denied extension
@@ -143,8 +146,14 @@ func normalizeExtensionProvenance(value ExtensionProvenance, fallback ExtensionP
 	if strings.TrimSpace(value.SourceURL) == "" {
 		value.SourceURL = fallback.SourceURL
 	}
+	if strings.TrimSpace(value.CatalogEntryID) == "" {
+		value.CatalogEntryID = fallback.CatalogEntryID
+	}
 	if strings.TrimSpace(value.ChecksumSHA256) == "" {
 		value.ChecksumSHA256 = fallback.ChecksumSHA256
+	}
+	if strings.TrimSpace(value.ArchiveDigestSHA256) == "" {
+		value.ArchiveDigestSHA256 = fallback.ArchiveDigestSHA256
 	}
 	if strings.TrimSpace(value.RegistryTier) == "" {
 		value.RegistryTier = fallback.RegistryTier
@@ -162,9 +171,11 @@ func normalizeExtensionProvenance(value ExtensionProvenance, fallback ExtensionP
 		value.Warnings = append([]contract.DiagnosticItem(nil), value.Warnings...)
 	}
 	value.Slug = strings.TrimSpace(value.Slug)
+	value.CatalogEntryID = strings.TrimSpace(value.CatalogEntryID)
 	value.InstalledFrom = strings.TrimSpace(value.InstalledFrom)
 	value.SourceURL = strings.TrimSpace(value.SourceURL)
 	value.ChecksumSHA256 = strings.TrimSpace(value.ChecksumSHA256)
+	value.ArchiveDigestSHA256 = strings.TrimSpace(value.ArchiveDigestSHA256)
 	value.RegistryTier = strings.TrimSpace(value.RegistryTier)
 	value.InstalledBy = strings.TrimSpace(value.InstalledBy)
 	return value
@@ -283,6 +294,12 @@ func registryTierForSource(source ExtensionSource, registryName string) string {
 }
 
 func extensionTrustDecision(provenance ExtensionProvenance) string {
+	if strings.EqualFold(strings.TrimSpace(provenance.RegistryTier), ExtensionRegistryTierUnverified) {
+		if provenance.AllowUnverified {
+			return ExtensionTrustDecisionAllowedUnverified
+		}
+		return ExtensionTrustDecisionBlocked
+	}
 	if provenance.ChecksumVerified {
 		return ExtensionTrustDecisionVerified
 	}

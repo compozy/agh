@@ -5,6 +5,7 @@ import {
   Network,
   Puzzle,
   SlidersHorizontal,
+  Webhook,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -21,7 +22,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
   { slug: "automation", label: "Automation", icon: Zap },
   { slug: "network", label: "Network", icon: Network },
   { slug: "observability", label: "Observability", icon: Activity },
-  { slug: "hooks-extensions", label: "Hooks & Extensions", icon: Puzzle },
+  { slug: "hooks", label: "Hooks", icon: Webhook },
+  { slug: "extensions", label: "Extensions", icon: Puzzle },
 ] as const;
 
 export const SETTINGS_SECTION_SLUGS: readonly SettingsSectionSlug[] = SETTINGS_SECTIONS.map(

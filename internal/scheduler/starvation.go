@@ -18,6 +18,7 @@ import (
 func (s *Scheduler) runConvergence(
 	ctx context.Context,
 	now time.Time,
+	starvationNotBefore time.Time,
 	candidates []RunSnapshot,
 	result *CycleResult,
 ) []error {
@@ -30,7 +31,7 @@ func (s *Scheduler) runConvergence(
 			continue
 		}
 		processed[runID] = struct{}{}
-		if err := s.escalateCandidate(ctx, now, work, result); err != nil {
+		if err := s.escalateCandidate(ctx, now, starvationNotBefore, work, result); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -40,6 +41,7 @@ func (s *Scheduler) runConvergence(
 func (s *Scheduler) escalateCandidate(
 	ctx context.Context,
 	now time.Time,
+	starvationNotBefore time.Time,
 	work *RunSnapshot,
 	result *CycleResult,
 ) error {
@@ -47,7 +49,8 @@ func (s *Scheduler) escalateCandidate(
 	if !isPotentiallyClaimable(work) {
 		return nil
 	}
-	if work.Run.QueuedAt.IsZero() || now.Sub(work.Run.QueuedAt) < s.starveThresholds.MinQueuedAge {
+	queuedAge, hasQueuedAge := effectiveQueuedAge(now, work.Run.QueuedAt, starvationNotBefore)
+	if !hasQueuedAge || queuedAge < s.starveThresholds.MinQueuedAge {
 		return nil
 	}
 	if shouldContinue, err := s.ensureCandidateStillQueued(ctx, runID); err != nil || !shouldContinue {
@@ -60,8 +63,8 @@ func (s *Scheduler) escalateCandidate(
 	mutation := advanceStarvation(prev, runID, now, s.starveThresholds)
 	var errs []error
 	errs = append(errs, s.escalateSpawn(ctx, now, work, &mutation, result)...)
-	errs = append(errs, s.escalateEvent(ctx, now, work, &mutation)...)
-	cleared, attnErrs := s.escalateNeedsAttention(ctx, runID, work, mutation, result)
+	errs = append(errs, s.escalateEvent(ctx, now, queuedAge, work, &mutation)...)
+	cleared, attnErrs := s.escalateNeedsAttention(ctx, runID, queuedAge, mutation, result)
 	errs = append(errs, attnErrs...)
 	if cleared {
 		return errors.Join(errs...)
@@ -121,13 +124,14 @@ func (s *Scheduler) escalateSpawn(
 func (s *Scheduler) escalateEvent(
 	ctx context.Context,
 	now time.Time,
+	queuedAge time.Duration,
 	work *RunSnapshot,
 	mutation *taskpkg.RunStarvationMutation,
 ) []error {
 	if mutation.WakeCount < s.starveThresholds.EventAfter || mutation.StarvedEventAt != nil {
 		return nil
 	}
-	if err := s.escalator.EmitRunStarved(ctx, work, now.Sub(work.Run.QueuedAt)); err != nil {
+	if err := s.escalator.EmitRunStarved(ctx, work, queuedAge); err != nil {
 		return []error{fmt.Errorf("scheduler: emit run starved %q: %w", work.Run.ID, err)}
 	}
 	at := now
@@ -141,14 +145,14 @@ func (s *Scheduler) escalateEvent(
 func (s *Scheduler) escalateNeedsAttention(
 	ctx context.Context,
 	runID string,
-	work *RunSnapshot,
+	queuedAge time.Duration,
 	mutation taskpkg.RunStarvationMutation,
 	result *CycleResult,
 ) (bool, []error) {
 	if mutation.WakeCount < s.starveThresholds.NeedsAttentionAfter {
 		return false, nil
 	}
-	_, err := s.escalator.MarkRunNeedsAttention(ctx, runID, starvationDiagnostic(work, mutation))
+	_, err := s.escalator.MarkRunNeedsAttention(ctx, runID, starvationDiagnostic(queuedAge, mutation))
 	if err != nil && !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
 		return false, []error{fmt.Errorf("scheduler: mark run needs attention %q: %w", runID, err)}
 	}
@@ -241,11 +245,21 @@ func starvationStatusHolds(status taskpkg.RunStatus) bool {
 	}
 }
 
-func starvationDiagnostic(work *RunSnapshot, mutation taskpkg.RunStarvationMutation) string {
-	age := max(mutation.UpdatedAt.Sub(work.Run.QueuedAt), 0)
+func starvationDiagnostic(queuedAge time.Duration, mutation taskpkg.RunStarvationMutation) string {
 	return fmt.Sprintf(
 		"run queued %s without a claim after %d escalation cycles",
-		age.Round(time.Second),
+		max(queuedAge, 0).Round(time.Second),
 		mutation.WakeCount,
 	)
+}
+
+func effectiveQueuedAge(now time.Time, queuedAt time.Time, starvationNotBefore time.Time) (time.Duration, bool) {
+	if queuedAt.IsZero() {
+		return 0, false
+	}
+	effectiveQueuedAt := queuedAt
+	if starvationNotBefore.After(effectiveQueuedAt) {
+		effectiveQueuedAt = starvationNotBefore
+	}
+	return max(now.Sub(effectiveQueuedAt), 0), true
 }

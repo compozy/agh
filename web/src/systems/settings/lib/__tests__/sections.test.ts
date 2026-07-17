@@ -17,14 +17,16 @@ describe("settings sections metadata", () => {
       "automation",
       "network",
       "observability",
-      "hooks-extensions",
+      "hooks",
+      "extensions",
     ]);
   });
 
   it("provides nested paths rooted under the settings shell", () => {
     expect(SETTINGS_ROOT_PATH).toBe("/settings");
     expect(settingsSectionPath("providers")).toBe("/settings/providers");
-    expect(settingsSectionPath("hooks-extensions")).toBe("/settings/hooks-extensions");
+    expect(settingsSectionPath("hooks")).toBe("/settings/hooks");
+    expect(settingsSectionPath("extensions")).toBe("/settings/extensions");
   });
 
   it("looks sections up by slug", () => {

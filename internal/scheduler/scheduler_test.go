@@ -1,11 +1,13 @@
 package scheduler
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -87,6 +89,404 @@ func TestRunOnceRecordsNoMatchWithoutWakeMutation(t *testing.T) {
 
 func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should classify structural compatibility separately from momentary availability", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 7, 15, 11, 0, 0, 0, time.UTC)
+		work := workSnapshot(
+			"task-classify",
+			"run-classify",
+			taskpkg.ScopeWorkspace,
+			"ws-1",
+			[]string{"frontend"},
+			base,
+		)
+		work.Task.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-agent"}
+		work.Run.CoordinationChannelID = "frontend"
+		matching := sessionSnapshot(
+			"sess-matching",
+			"ws-1",
+			"active",
+			false,
+			[]string{"frontend"},
+			base,
+		)
+		matching.AgentName = "frontend-agent"
+		matching.Channel = "frontend"
+
+		with := func(mutator func(*SessionSnapshot)) SessionSnapshot {
+			candidate := matching
+			candidate.Capabilities = append([]string(nil), matching.Capabilities...)
+			mutator(&candidate)
+			return candidate
+		}
+		testCases := []struct {
+			name          string
+			sessions      []SessionSnapshot
+			occupied      map[string]struct{}
+			wantKind      CapacityKind
+			wantAvailable []string
+		}{
+			{
+				name:          "Should return available for a matching idle session",
+				sessions:      []SessionSnapshot{matching},
+				wantKind:      CapacityAvailable,
+				wantAvailable: []string{"sess-matching"},
+			},
+			{
+				name:     "Should return waiting for a matching session with an active lease",
+				sessions: []SessionSnapshot{matching},
+				occupied: map[string]struct{}{"sess-matching": {}},
+				wantKind: CapacityWaiting,
+			},
+			{
+				name: "Should return waiting for a matching prompting session",
+				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
+					candidate.Prompting = true
+				})},
+				wantKind: CapacityWaiting,
+			},
+			{
+				name: "Should return waiting for a matching starting session",
+				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
+					candidate.State = "starting"
+				})},
+				wantKind: CapacityWaiting,
+			},
+			{
+				name: "Should prefer a matching idle session over matching occupied capacity",
+				sessions: []SessionSnapshot{
+					matching,
+					with(func(candidate *SessionSnapshot) { candidate.ID = "sess-idle" }),
+				},
+				occupied:      map[string]struct{}{"sess-matching": {}},
+				wantKind:      CapacityAvailable,
+				wantAvailable: []string{"sess-idle"},
+			},
+			{
+				name:     "Should return unmatched when no session exists",
+				wantKind: CapacityUnmatched,
+			},
+			{
+				name: "Should return unmatched for a foreign workspace",
+				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
+					candidate.WorkspaceID = "ws-2"
+				})},
+				wantKind: CapacityUnmatched,
+			},
+			{
+				name: "Should return unmatched for a foreign coordination channel",
+				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
+					candidate.Channel = "backend"
+				})},
+				wantKind: CapacityUnmatched,
+			},
+			{
+				name: "Should return unmatched for a foreign owner pool",
+				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
+					candidate.AgentName = "analytics-agent"
+				})},
+				wantKind: CapacityUnmatched,
+			},
+			{
+				name: "Should return unmatched for known missing capabilities",
+				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
+					candidate.Capabilities = []string{"docs"}
+				})},
+				wantKind: CapacityUnmatched,
+			},
+			{
+				name: "Should return indeterminate for an unknown capability projection",
+				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
+					candidate.Capabilities = nil
+					candidate.CapabilityState = CapabilityStateUnknown
+				})},
+				wantKind: CapacityIndeterminate,
+			},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				disposition := classifyRunCapacity(&work, testCase.sessions, testCase.occupied)
+				if disposition.Kind != testCase.wantKind {
+					t.Fatalf("capacity kind = %q, want %q", disposition.Kind, testCase.wantKind)
+				}
+				availableIDs := make([]string, 0, len(disposition.Available))
+				for _, candidate := range disposition.Available {
+					availableIDs = append(availableIDs, candidate.ID)
+				}
+				if !slices.Equal(availableIDs, testCase.wantAvailable) {
+					t.Fatalf("available sessions = %v, want %v", availableIDs, testCase.wantAvailable)
+				}
+			})
+		}
+	})
+
+	for _, testCase := range []struct {
+		name      string
+		state     string
+		prompting bool
+		active    []taskpkg.Run
+		capState  CapabilityState
+	}{
+		{
+			name:  "Should hold convergence while a compatible session owns an active lease",
+			state: "active",
+			active: []taskpkg.Run{{
+				ID:        "run-active",
+				Status:    taskpkg.TaskRunStatusRunning,
+				SessionID: "sess-capacity",
+			}},
+		},
+		{
+			name:      "Should hold convergence while a compatible session is prompting",
+			state:     "active",
+			prompting: true,
+		},
+		{
+			name:  "Should hold convergence while a compatible session is starting",
+			state: "starting",
+		},
+		{
+			name:     "Should hold convergence while compatible capability projection is indeterminate",
+			state:    "active",
+			capState: CapabilityStateUnknown,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			base := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+			work := workSnapshot(
+				"task-capacity",
+				"run-capacity",
+				taskpkg.ScopeWorkspace,
+				"ws-1",
+				[]string{"frontend"},
+				base,
+			)
+			source := &fakeTaskSource{pending: []RunSnapshot{work}, active: testCase.active}
+			candidate := sessionSnapshot(
+				"sess-capacity",
+				"ws-1",
+				testCase.state,
+				testCase.prompting,
+				[]string{"frontend"},
+				base,
+			)
+			if testCase.capState != "" {
+				candidate.CapabilityState = testCase.capState
+				candidate.Capabilities = nil
+			}
+			sessions := &fakeSessionSource{sessions: []SessionSnapshot{candidate}}
+			starvation := newFakeStarvationStore()
+			escalator := &fakeEscalationActor{}
+			scheduler := newTestScheduler(
+				t,
+				source,
+				sessions,
+				&fakeWaker{},
+				WithClock(clockwork.NewFakeClockAt(base.Add(10*time.Minute))),
+				WithEscalationActor(escalator),
+				WithStarvationStore(starvation),
+				WithStarvationThresholds(StarvationThresholds{
+					FanOutAfter:         1,
+					SpawnAfter:          2,
+					EventAfter:          3,
+					NeedsAttentionAfter: 4,
+					MinQueuedAge:        time.Minute,
+				}),
+			)
+
+			result, err := scheduler.RunOnce(testutil.Context(t))
+			if err != nil {
+				t.Fatalf("RunOnce() error = %v", err)
+			}
+			if result.StarvedRuns != 0 || result.NoMatchRuns != 0 {
+				t.Fatalf(
+					"capacity-held result = %#v, want no starvation or no-match classification",
+					result,
+				)
+			}
+			if result.CapacityWaitingRuns != 1 ||
+				!slices.Equal(result.CapacityWaitingRunIDs, []string{work.Run.ID}) {
+				t.Fatalf("capacity wait result = %#v, want held run %q", result, work.Run.ID)
+			}
+			if _, ok := starvation.snapshot(work.Run.ID); ok {
+				t.Fatal("capacity-held run created a starvation budget")
+			}
+			if len(escalator.spawns()) != 0 || len(escalator.emitted()) != 0 || len(escalator.attention()) != 0 {
+				t.Fatalf("capacity-held run produced convergence side effects: %#v", escalator)
+			}
+		})
+	}
+
+	t.Run("Should freeze and resume an existing starvation budget as compatible capacity changes", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 7, 15, 13, 0, 0, 0, time.UTC)
+		work := workSnapshot(
+			"task-frozen",
+			"run-frozen",
+			taskpkg.ScopeWorkspace,
+			"ws-1",
+			[]string{"frontend"},
+			base,
+		)
+		source := &fakeTaskSource{
+			pending: []RunSnapshot{work},
+			active: []taskpkg.Run{{
+				ID:        "run-active",
+				Status:    taskpkg.TaskRunStatusRunning,
+				SessionID: "sess-capacity",
+			}},
+		}
+		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
+			sessionSnapshot("sess-capacity", "ws-1", "active", false, []string{"frontend"}, base),
+		}}
+		starvation := newFakeStarvationStore()
+		var capacityLogs bytes.Buffer
+		seeded := taskpkg.RunStarvationMutation{
+			RunID:          work.Run.ID,
+			WakeCount:      3,
+			FirstStarvedAt: base.Add(time.Minute),
+			LastWakeAt:     base.Add(2 * time.Minute),
+			EscalationTier: 1,
+			UpdatedAt:      base.Add(2 * time.Minute),
+		}
+		if _, err := starvation.UpsertRunStarvation(testutil.Context(t), seeded); err != nil {
+			t.Fatalf("UpsertRunStarvation(seed) error = %v", err)
+		}
+		scheduler := newTestScheduler(
+			t,
+			source,
+			sessions,
+			&fakeWaker{},
+			WithClock(clockwork.NewFakeClockAt(base.Add(10*time.Minute))),
+			WithLogger(slog.New(slog.NewJSONHandler(&capacityLogs, nil))),
+			WithEscalationActor(&fakeEscalationActor{}),
+			WithStarvationStore(starvation),
+			WithStarvationThresholds(StarvationThresholds{
+				FanOutAfter:         1,
+				SpawnAfter:          8,
+				EventAfter:          9,
+				NeedsAttentionAfter: 10,
+				MinQueuedAge:        time.Minute,
+			}),
+		)
+
+		heldResult, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce(capacity held) error = %v", err)
+		}
+		if heldResult.CapacityWaitingRuns != 1 ||
+			!slices.Equal(heldResult.CapacityWaitingRunIDs, []string{work.Run.ID}) {
+			t.Fatalf("capacity wait result = %#v, want held run %q", heldResult, work.Run.ID)
+		}
+		held, ok := starvation.snapshot(work.Run.ID)
+		if !ok {
+			t.Fatal("capacity-held run cleared its durable starvation budget")
+		}
+		if held.WakeCount != seeded.WakeCount ||
+			!held.FirstStarvedAt.Equal(seeded.FirstStarvedAt) ||
+			!held.LastWakeAt.Equal(seeded.LastWakeAt) ||
+			!held.UpdatedAt.Equal(seeded.UpdatedAt) {
+			t.Fatalf("held budget = %#v, want unchanged %#v", held, seeded)
+		}
+		if _, err := scheduler.RunOnce(testutil.Context(t)); err != nil {
+			t.Fatalf("RunOnce(capacity held again) error = %v", err)
+		}
+		if got, want := scheduler.Stats().CapacityWaitingRuns, 2; got != want {
+			t.Fatalf("CapacityWaitingRuns stats = %d, want %d", got, want)
+		}
+		if logOutput := capacityLogs.String(); !strings.Contains(logOutput, "scheduler.capacity_waiting") ||
+			!strings.Contains(logOutput, work.Run.ID) {
+			t.Fatalf("capacity wait logs = %q, want event and run id", logOutput)
+		}
+
+		source.mu.Lock()
+		source.active = nil
+		source.mu.Unlock()
+		sessions.setSessions(nil)
+		if _, err := scheduler.RunOnce(testutil.Context(t)); err != nil {
+			t.Fatalf("RunOnce(capacity absent) error = %v", err)
+		}
+		resumed, ok := starvation.snapshot(work.Run.ID)
+		if !ok {
+			t.Fatal("unmatched run did not retain its resumed starvation budget")
+		}
+		if got, want := resumed.WakeCount, seeded.WakeCount+1; got != want {
+			t.Fatalf("resumed wake_count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should reserve one idle session for the canonical first run and hold the later run", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 7, 15, 14, 0, 0, 0, time.UTC)
+		first := workSnapshot(
+			"task-first",
+			"run-first",
+			taskpkg.ScopeWorkspace,
+			"ws-1",
+			[]string{"frontend"},
+			base,
+		)
+		second := workSnapshot(
+			"task-second",
+			"run-second",
+			taskpkg.ScopeWorkspace,
+			"ws-1",
+			[]string{"frontend"},
+			base.Add(time.Second),
+		)
+		source := &fakeTaskSource{pending: []RunSnapshot{second, first}}
+		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
+			sessionSnapshot("sess-serial", "ws-1", "active", false, []string{"frontend"}, base),
+		}}
+		starvation := newFakeStarvationStore()
+		waker := &fakeWaker{}
+		scheduler := newTestScheduler(
+			t,
+			source,
+			sessions,
+			waker,
+			WithClock(clockwork.NewFakeClockAt(base.Add(10*time.Minute))),
+			WithEscalationActor(&fakeEscalationActor{}),
+			WithStarvationStore(starvation),
+			WithStarvationThresholds(StarvationThresholds{
+				FanOutAfter:         1,
+				SpawnAfter:          2,
+				EventAfter:          3,
+				NeedsAttentionAfter: 4,
+				MinQueuedAge:        time.Minute,
+			}),
+		)
+
+		result, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if got, want := result.StarvedRunIDs, []string{first.Run.ID}; !slices.Equal(got, want) {
+			t.Fatalf("StarvedRunIDs = %v, want %v", got, want)
+		}
+		if result.NoMatchRuns != 0 {
+			t.Fatalf("NoMatchRuns = %d, want 0 for same-cycle reserved capacity", result.NoMatchRuns)
+		}
+		if result.CapacityWaitingRuns != 1 ||
+			!slices.Equal(result.CapacityWaitingRunIDs, []string{second.Run.ID}) {
+			t.Fatalf("capacity wait result = %#v, want later run %q", result, second.Run.ID)
+		}
+		if targets := waker.targetsSnapshot(); len(targets) != 1 || targets[0].Work.Run.ID != first.Run.ID {
+			t.Fatalf("wake targets = %#v, want only canonical first run", targets)
+		}
+		if _, ok := starvation.snapshot(second.Run.ID); ok {
+			t.Fatal("same-cycle capacity wait created a starvation budget for the later run")
+		}
+	})
 
 	t.Run("Should fan out wakes to every eligible session for a starved run", func(t *testing.T) {
 		t.Parallel()
@@ -704,12 +1104,26 @@ func TestRunOncePausedSchedulerStillSweepsExpiredLeases(t *testing.T) {
 }
 
 func TestRunOnceSkipsDirectlyPausedTaskSnapshots(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should leave paused task work undispatched while dispatching eligible work", func(t *testing.T) {
+		t.Parallel()
+
 		base := time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC)
 		paused := workSnapshot("task-paused", "run-paused", taskpkg.ScopeWorkspace, "ws-1", nil, base)
 		paused.Task.Paused = true
+		needsAttention := workSnapshot(
+			"task-needs-attention",
+			"run-needs-attention",
+			taskpkg.ScopeWorkspace,
+			"ws-1",
+			nil,
+			base,
+		)
+		needsAttention.Task.Status = taskpkg.TaskStatusNeedsAttention
 		source := &fakeTaskSource{pending: []RunSnapshot{
 			paused,
+			needsAttention,
 			workSnapshot("task-open", "run-open", taskpkg.ScopeWorkspace, "ws-1", nil, base.Add(time.Second)),
 		}}
 		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
@@ -725,6 +1139,9 @@ func TestRunOnceSkipsDirectlyPausedTaskSnapshots(t *testing.T) {
 		}
 		if result.WakeSucceeded != 1 {
 			t.Fatalf("WakeSucceeded = %d, want 1", result.WakeSucceeded)
+		}
+		if result.UnclaimableRuns != 2 {
+			t.Fatalf("UnclaimableRuns = %d, want 2", result.UnclaimableRuns)
 		}
 		targets := waker.targetsSnapshot()
 		if got, want := len(targets), 1; got != want {
@@ -778,6 +1195,59 @@ func TestRunOnceSchedulerPause(t *testing.T) {
 		}
 		if got := len(source.recoveryCallsSnapshot()); got != 1 {
 			t.Fatalf("recovery calls = %d, want sweep to continue while paused", got)
+		}
+	})
+
+	t.Run("Should restart starvation age at the durable scheduler resume boundary", func(t *testing.T) {
+		t.Parallel()
+
+		queuedAt := time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC)
+		resumedAt := queuedAt.Add(6 * time.Minute)
+		clock := clockwork.NewFakeClockAt(resumedAt.Add(2*time.Minute - time.Nanosecond))
+		source := &fakeTaskSource{pending: []RunSnapshot{
+			workSnapshot("task-resumed", "run-resumed", taskpkg.ScopeWorkspace, "ws-1", nil, queuedAt),
+		}}
+		starvation := newFakeStarvationStore()
+		scheduler := newTestScheduler(
+			t,
+			source,
+			&fakeSessionSource{},
+			&fakeWaker{},
+			WithClock(clock),
+			WithPauseStore(fakePauseStore{state: taskpkg.SchedulerPauseState{UpdatedAt: resumedAt}}),
+			WithEscalationActor(&fakeEscalationActor{}),
+			WithStarvationStore(starvation),
+			WithStarvationThresholds(StarvationThresholds{
+				FanOutAfter:         1,
+				SpawnAfter:          2,
+				EventAfter:          3,
+				NeedsAttentionAfter: 4,
+				MinQueuedAge:        2 * time.Minute,
+			}),
+		)
+
+		beforeThreshold, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce(before threshold) error = %v", err)
+		}
+		if beforeThreshold.StarvedRuns != 0 {
+			t.Fatalf("StarvedRuns = %d, want 0 while resume grace is active", beforeThreshold.StarvedRuns)
+		}
+		if _, ok := starvation.snapshot("run-resumed"); ok {
+			t.Fatal("starvation budget exists before the post-resume minimum age")
+		}
+
+		clock.Advance(time.Nanosecond)
+		afterThreshold, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce(after threshold) error = %v", err)
+		}
+		if afterThreshold.StarvedRuns != 1 {
+			t.Fatalf("StarvedRuns = %d, want 1 after post-resume minimum age", afterThreshold.StarvedRuns)
+		}
+		row, ok := starvation.snapshot("run-resumed")
+		if !ok || row.WakeCount != 1 {
+			t.Fatalf("starvation budget = %#v, exists = %t, want wake_count 1", row, ok)
 		}
 	})
 }
@@ -1078,12 +1548,13 @@ func sessionSnapshot(
 	createdAt time.Time,
 ) SessionSnapshot {
 	return SessionSnapshot{
-		ID:           id,
-		WorkspaceID:  workspaceID,
-		State:        state,
-		Prompting:    prompting,
-		Capabilities: append([]string(nil), capabilities...),
-		CreatedAt:    createdAt,
+		ID:              id,
+		WorkspaceID:     workspaceID,
+		State:           state,
+		Prompting:       prompting,
+		Capabilities:    append([]string(nil), capabilities...),
+		CapabilityState: CapabilityStateKnown,
+		CreatedAt:       createdAt,
 	}
 }
 
@@ -1343,6 +1814,12 @@ func (f *fakeTaskSource) actorsSnapshot() []taskpkg.ActorContext {
 type fakeSessionSource struct {
 	mu       sync.Mutex
 	sessions []SessionSnapshot
+}
+
+func (f *fakeSessionSource) setSessions(sessions []SessionSnapshot) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sessions = append([]SessionSnapshot(nil), sessions...)
 }
 
 func (f *fakeSessionSource) Sessions(context.Context) ([]SessionSnapshot, error) {

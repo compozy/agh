@@ -250,8 +250,6 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 		state.desiredJobs = append(state.desiredJobs, resolved.jobs...)
 		state.desiredTriggers = append(state.desiredTriggers, resolved.triggers...)
 		state.desiredBridges = append(state.desiredBridges, resolved.bridges...)
-		s.warnSpecHashDrift(ctx, activation, resolved.specContentHash)
-
 		claimedActivation, state.effectiveDefault, state.effectiveSource, resolveErr =
 			resolveActivationDefaultChannel(
 				activation,

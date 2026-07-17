@@ -1,11 +1,10 @@
 package cli
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
-	settingspkg "github.com/compozy/agh/internal/settings"
+	configlifecycle "github.com/compozy/agh/internal/config/lifecycle"
 )
 
 type configMutationLifecycle struct {
@@ -16,67 +15,24 @@ type configMutationLifecycle struct {
 	NextAction      string
 }
 
-func classifyConfigSetLifecycle(path []string) (configMutationLifecycle, error) {
+func classifyConfigSetLifecycle(path []string) configMutationLifecycle {
 	field := strings.Join(path, ".")
-	section := settingsSectionForConfigMutation(path)
-	if section == "" {
-		return restartRequiredConfigLifecycle(), nil
-	}
-	classification, err := settingspkg.ClassifyMutation(settingspkg.MutationDescriptor{
-		Section:       section,
-		ChangedFields: []string{field},
-	})
+	rule, err := configlifecycle.ClassifyPath(field)
 	if err != nil {
-		return configMutationLifecycle{}, fmt.Errorf(
-			"cli: classify lifecycle for config path %q: %w",
-			field,
-			err,
-		)
+		return restartRequiredConfigLifecycle()
 	}
-	return configLifecycleFromSettings(classification), nil
+	return configLifecycleFromRule(rule)
 }
 
-func settingsSectionForConfigMutation(path []string) settingspkg.SectionName {
-	if len(path) == 0 {
-		return ""
+func configLifecycleFromRule(rule configlifecycle.Rule) configMutationLifecycle {
+	if rule.Lifecycle == configlifecycle.RestartRequired {
+		return restartRequiredConfigLifecycle()
 	}
-	switch path[0] {
-	case configDaemonKey, "defaults", "http", "limits", configPermissionsKey, sessionSessionKey:
-		return settingspkg.SectionGeneral
-	case configMemoryKey:
-		return settingspkg.SectionMemory
-	case configSkillsKey:
-		return settingspkg.SectionSkills
-	case "automation":
-		return settingspkg.SectionAutomation
-	case configNetworkKey:
-		return settingspkg.SectionNetwork
-	case "log", "observability":
-		return settingspkg.SectionObservability
-	case "extensions", "hooks":
-		return settingspkg.SectionHooksExtensions
-	case configProvidersKey:
-		return settingspkg.SectionName(settingspkg.CollectionProviders)
-	case "mcp-servers":
-		return settingspkg.SectionName(settingspkg.CollectionMCPServers)
-	case configPathSandboxes:
-		return settingspkg.SectionName(settingspkg.CollectionSandboxes)
-	default:
-		return ""
-	}
-}
-
-func configLifecycleFromSettings(classification settingspkg.MutationClassification) configMutationLifecycle {
 	nextAction := contract.SettingsApplyNextActionNone
-	if classification.RestartRequired {
-		nextAction = contract.SettingsApplyNextActionRestartDaemon
-	}
 	return configMutationLifecycle{
-		Lifecycle:       string(classification.Lifecycle),
-		Applied:         classification.Applied,
-		RestartRequired: classification.RestartRequired,
-		RestartScope:    classification.RestartScope,
-		NextAction:      string(nextAction),
+		Lifecycle:  string(rule.Lifecycle),
+		Applied:    true,
+		NextAction: string(nextAction),
 	}
 }
 

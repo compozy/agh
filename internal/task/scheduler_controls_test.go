@@ -20,6 +20,7 @@ type schedulerControlTestStore struct {
 	cancelAfterPause       context.CancelFunc
 	requireDeadline        bool
 	starvedRunCount        int
+	escalatingCountCalls   int
 	needsAttentionRunCount int
 }
 
@@ -148,14 +149,11 @@ func (s *schedulerControlTestStore) CountPausedTasks(ctx context.Context) (int, 
 	return count, nil
 }
 
-func (s *schedulerControlTestStore) CountStarvedQueuedTaskRuns(
-	ctx context.Context,
-	_ time.Time,
-	_ time.Duration,
-) (int, error) {
+func (s *schedulerControlTestStore) CountEscalatingQueuedTaskRuns(ctx context.Context) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
+	s.escalatingCountCalls++
 	return s.starvedRunCount, nil
 }
 
@@ -259,6 +257,52 @@ func TestSchedulerControls(t *testing.T) {
 		}
 		if !schedulerEventSummariesContain(store.summaries, eventspkg.SchedulerDrainCompleted) {
 			t.Fatalf("event summaries = %#v, want %s", store.summaries, eventspkg.SchedulerDrainCompleted)
+		}
+	})
+
+	t.Run("Should hold the public starvation count through pause and resume grace", func(t *testing.T) {
+		t.Parallel()
+
+		asOf := time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
+		store := newSchedulerControlTestStore()
+		store.starvedRunCount = 12
+		manager := newTaskManagerForTestWithOptions(t, store, WithStarvationAge(2*time.Minute))
+
+		store.pause = SchedulerPauseState{
+			Paused:    true,
+			PausedAt:  asOf.Add(-10 * time.Minute),
+			UpdatedAt: asOf.Add(-10 * time.Minute),
+		}
+		paused, err := manager.SchedulerStatus(context.Background(), validActorContext())
+		if err != nil {
+			t.Fatalf("SchedulerStatus(paused) error = %v", err)
+		}
+		if paused.StarvedRunCount != 0 {
+			t.Fatalf("paused StarvedRunCount = %d, want 0", paused.StarvedRunCount)
+		}
+
+		store.pause = SchedulerPauseState{UpdatedAt: asOf.Add(-time.Minute)}
+		grace, err := manager.SchedulerStatus(context.Background(), validActorContext())
+		if err != nil {
+			t.Fatalf("SchedulerStatus(grace) error = %v", err)
+		}
+		if grace.StarvedRunCount != 0 {
+			t.Fatalf("grace StarvedRunCount = %d, want 0", grace.StarvedRunCount)
+		}
+		if store.escalatingCountCalls != 0 {
+			t.Fatalf("escalating count calls = %d, want 0 before grace boundary", store.escalatingCountCalls)
+		}
+
+		store.pause = SchedulerPauseState{UpdatedAt: asOf.Add(-3 * time.Minute)}
+		eligible, err := manager.SchedulerStatus(context.Background(), validActorContext())
+		if err != nil {
+			t.Fatalf("SchedulerStatus(eligible) error = %v", err)
+		}
+		if eligible.StarvedRunCount != 12 {
+			t.Fatalf("eligible StarvedRunCount = %d, want 12", eligible.StarvedRunCount)
+		}
+		if store.escalatingCountCalls != 1 {
+			t.Fatalf("escalating count calls = %d, want 1 at grace boundary", store.escalatingCountCalls)
 		}
 	})
 }

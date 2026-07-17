@@ -48,7 +48,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { routeComponent } from "@/test/route-options";
-import { Route, SETTINGS_SECTIONS } from "../settings";
+import { SETTINGS_SECTIONS } from "@/systems/settings";
+import { Route } from "../settings";
 
 const SettingsShell = routeComponent(Route);
 
@@ -124,7 +125,8 @@ describe("SettingsShell", () => {
       "automation",
       "network",
       "observability",
-      "hooks-extensions",
+      "hooks",
+      "extensions",
     ]);
   });
 });

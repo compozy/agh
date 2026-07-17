@@ -31,6 +31,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnosticcontract"
 	eventspkg "github.com/compozy/agh/internal/events"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
@@ -1928,6 +1929,10 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		homePaths,
 		discardLogger(),
 		func() time.Time { return fixedNow },
+		withDaemonExtensionMarketplace(
+			aghconfig.ExtensionsMarketplaceConfig{AllowUnverified: true},
+			nil,
+		),
 		withDaemonExtensionEventWriter(db),
 	)
 	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh extension install")
@@ -2051,6 +2056,99 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	}
 }
 
+func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailure(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	fixedNow := time.Date(2026, 7, 16, 18, 0, 0, 0, time.UTC)
+	service := &daemonExtensionService{eventWriter: db, now: func() time.Time { return fixedNow }}
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh extension update --all")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	cause := errors.New("later update failed")
+	items := []extensionpkg.MarketplaceUpdateResult{
+		{
+			Name: "a-good", Slug: "acme/a-good", Registry: "github",
+			CurrentVersion: "1.0.0", LatestVersion: "2.0.0", Path: "/extensions/a-good",
+			Status: extensionpkg.MarketplaceUpdateStatusUpdated,
+			Warnings: []diagnosticcontract.DiagnosticItem{{
+				Code: diagnosticcontract.CodeExtensionUpdateCleanupFailed,
+			}},
+		},
+		{
+			Name: "b-good", Slug: "acme/b-good", Registry: "github",
+			CurrentVersion: "1.0.0", LatestVersion: "2.0.0", Path: "/extensions/b-good",
+			Status: extensionpkg.MarketplaceUpdateStatusUpdated,
+		},
+	}
+
+	payloads, err := service.finalizeMarketplaceUpdateBatch(t.Context(), actor, items, cause)
+	if !errors.Is(err, cause) {
+		t.Fatalf("finalizeMarketplaceUpdateBatch() error = %v, want original batch failure", err)
+	}
+	if len(payloads) != 2 {
+		t.Fatalf("finalizeMarketplaceUpdateBatch() payloads = %#v, want two committed updates", payloads)
+	}
+	if len(payloads[0].Warnings) != 1 ||
+		payloads[0].Warnings[0].Code != diagnosticcontract.CodeExtensionUpdateCleanupFailed {
+		t.Fatalf("finalizeMarketplaceUpdateBatch() warnings = %#v, want cleanup warning", payloads[0].Warnings)
+	}
+	summaries, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+		Type: eventspkg.ExtensionUpdated,
+	})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(extension.updated) error = %v", err)
+	}
+	if len(summaries) != 2 {
+		t.Fatalf("extension.updated summaries = %#v, want two", summaries)
+	}
+	if !bytes.Contains(summaries[0].Content, []byte(diagnosticcontract.CodeExtensionUpdateCleanupFailed)) &&
+		!bytes.Contains(summaries[1].Content, []byte(diagnosticcontract.CodeExtensionUpdateCleanupFailed)) {
+		t.Fatalf("extension.updated summaries = %#v, want cleanup warning", summaries)
+	}
+	for _, name := range []string{"a-good", "b-good"} {
+		found := false
+		for _, summary := range summaries {
+			if bytes.Contains(summary.Content, []byte(`"name":"`+name+`"`)) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("extension.updated summaries = %#v, want event for %s", summaries, name)
+		}
+	}
+
+	writeErr := errors.New("event store failed")
+	failingWriter := &daemonExtensionEventStoreStub{writeErr: writeErr}
+	service.eventWriter = failingWriter
+	_, err = service.finalizeMarketplaceUpdateBatch(t.Context(), actor, items, cause)
+	if !errors.Is(err, cause) || !errors.Is(err, writeErr) {
+		t.Fatalf("finalizeMarketplaceUpdateBatch(event failure) error = %v, want batch and event failures", err)
+	}
+	if failingWriter.writeCalls != len(items) {
+		t.Fatalf("event writer calls = %d, want %d committed update attempts", failingWriter.writeCalls, len(items))
+	}
+}
+
+type daemonExtensionEventStoreStub struct {
+	writeErr   error
+	writeCalls int
+}
+
+func (s *daemonExtensionEventStoreStub) WriteEventSummary(context.Context, store.EventSummary) error {
+	s.writeCalls++
+	return s.writeErr
+}
+
+func (*daemonExtensionEventStoreStub) ListEventSummaries(
+	context.Context,
+	store.EventSummaryQuery,
+) ([]store.EventSummary, error) {
+	return nil, nil
+}
+
 func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 	t.Parallel()
 
@@ -2083,6 +2181,10 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 			homePaths,
 			discardLogger(),
 			time.Now,
+			withDaemonExtensionMarketplace(
+				aghconfig.ExtensionsMarketplaceConfig{AllowUnverified: true},
+				nil,
+			),
 		)
 		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh extension install")
 		if err != nil {

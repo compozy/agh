@@ -17,6 +17,7 @@ func TestBundleActivationPayloadCategoryPath(t *testing.T) {
 		t.Parallel()
 
 		payload := core.BundleActivationPayload(bundlepkg.ActivationPreview{
+			SpecDrift: true,
 			Activation: bundlepkg.Activation{
 				ID:            "act_marketing",
 				ExtensionName: "marketing-team",
@@ -43,6 +44,9 @@ func TestBundleActivationPayloadCategoryPath(t *testing.T) {
 		}
 		if got, want := strings.Join(payload.Agents[0].CategoryPath, ","), "Marketing,Planning"; got != want {
 			t.Fatalf("payload.Agents[0].CategoryPath = %#v, want %q", payload.Agents[0].CategoryPath, want)
+		}
+		if !payload.SpecDrift {
+			t.Fatal("payload.SpecDrift = false, want true")
 		}
 	})
 }

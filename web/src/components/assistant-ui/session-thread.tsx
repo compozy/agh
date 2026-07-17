@@ -162,7 +162,7 @@ export function ScrollToBottomPill({
           "flex size-8 items-center justify-center rounded-full",
           "border border-line bg-canvas-soft text-muted shadow-[var(--shadow-overlay)]",
           "transition-colors hover:bg-hover hover:text-fg",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong",
+          "focus-visible:outline-none focus-visible:shadow-focus-ring",
           visible ? "pointer-events-auto" : "pointer-events-none"
         )}
       >

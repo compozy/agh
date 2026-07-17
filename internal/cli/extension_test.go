@@ -62,6 +62,34 @@ func TestExtensionInstallOfflinePersistsExtension(t *testing.T) {
 	}
 }
 
+func TestExtensionInstallOfflineRequiresSideLoadPolicy(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject an offline side-load when live policy is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			return aghconfig.DefaultWithHome(homePaths), nil
+		}
+		dir := writeExtensionFixture(t, "blocked-offline-ext", extensionFixtureOptions{})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"extension",
+			"install",
+			dir,
+			"--allow-unverified",
+			"--yes",
+			"-o",
+			"json",
+		)
+		if !errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked) {
+			t.Fatalf("extension install policy error = %v, want ErrExtensionUnverifiedPolicyBlocked", err)
+		}
+	})
+}
+
 func TestPrepareExtensionInstallMissingDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -489,6 +517,11 @@ func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, aghc
 		t.Fatalf("resolveHome() error = %v", err)
 	}
 	deps.ensureHome = aghconfig.EnsureHomeLayout
+	deps.loadConfig = func() (aghconfig.Config, error) {
+		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg.Extensions.Marketplace.AllowUnverified = true
+		return cfg, nil
+	}
 	return deps, homePaths
 }
 

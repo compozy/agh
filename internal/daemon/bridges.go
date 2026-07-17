@@ -542,68 +542,6 @@ func bridgeStatusForBridgeUpdate(
 	}
 }
 
-func (r *bridgeRuntime) BuildBridgeResourceState(
-	ctx context.Context,
-	records []resources.Record[bridgepkg.BridgeInstanceSpec],
-) (resources.ProjectionPlan, error) {
-	if r == nil {
-		return nil, errors.New("daemon: bridge runtime is required")
-	}
-	return bridgepkg.BuildResourceState(ctx, r.store, records, r.now)
-}
-
-func (r *bridgeRuntime) ApplyBridgeResourceState(ctx context.Context, plan resources.ProjectionPlan) error {
-	if r == nil {
-		return errors.New("daemon: bridge runtime is required")
-	}
-	typed, ok := plan.(*bridgepkg.ResourceProjectionPlan)
-	if !ok {
-		return fmt.Errorf("daemon: bridge resource plan has type %T", plan)
-	}
-	if typed == nil {
-		return errors.New("daemon: bridge resource plan is required")
-	}
-	if err := bridgepkg.ApplyResourceState(ctx, r.store, typed); err != nil {
-		return err
-	}
-	if typed.OperationCount() == 0 || len(typed.ChangedExtensions()) == 0 {
-		return nil
-	}
-	if err := r.reloadExtensions(ctx, "bridge.resource"); err != nil {
-		rollbackCtx := context.WithoutCancel(ctx)
-		rollbackPlan := typed.RollbackPlan()
-		if rollbackErr := bridgepkg.ApplyResourceState(rollbackCtx, r.store, rollbackPlan); rollbackErr != nil {
-			return fmt.Errorf(
-				"daemon: apply bridge resource state: reload failed and rollback also failed: %w",
-				errors.Join(err, rollbackErr),
-			)
-		}
-		return fmt.Errorf("daemon: apply bridge resource state: rolled back after reload failure: %w", err)
-	}
-	return nil
-}
-
-func (r *bridgeRuntime) applyBridgeResourcesFromStore(ctx context.Context) error {
-	records, err := r.resourceStore.List(ctx, r.resourceActor, resources.ResourceFilter{
-		Kind: bridgepkg.BridgeInstanceResourceKind,
-	})
-	if err != nil {
-		return fmt.Errorf("daemon: list bridge instance resources: %w", err)
-	}
-	plan, err := r.BuildBridgeResourceState(ctx, records)
-	if err != nil {
-		return err
-	}
-	return r.ApplyBridgeResourceState(ctx, plan)
-}
-
-func (r *bridgeRuntime) triggerBridgeResourceReconcile(ctx context.Context) error {
-	if r == nil || r.resourceTrigger == nil {
-		return nil
-	}
-	return r.resourceTrigger(ctx, bridgepkg.BridgeInstanceResourceKind, resources.ReconcileReasonWrite)
-}
-
 func (r *bridgeRuntime) resourceActorForSource(source bridgepkg.BridgeInstanceSource) resources.MutationActor {
 	actor := r.resourceActor
 	if actor.Kind == "" {
@@ -1126,7 +1064,7 @@ func (r *bridgeRuntime) transitionResourceInstance(
 	if err != nil {
 		return nil, fmt.Errorf("daemon: %s bridge instance %q: write resource: %w", action, trimmedID, err)
 	}
-	if err := r.applyBridgeResourcesFromStore(ctx); err != nil {
+	if err := r.applyBridgeResourcesFromStoreWithoutReload(ctx); err != nil {
 		return nil, err
 	}
 	return r.finalizeTransitionResourceInstance(

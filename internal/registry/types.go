@@ -39,16 +39,18 @@ type DownloadOpts struct {
 	Version        string
 	Asset          string
 	MaxArchiveSize int64
+	ExpectedSHA256 string
 }
 
 // DownloadResult is the structured download response returned by a source.
 type DownloadResult struct {
-	Reader      io.ReadCloser
-	Slug        string
-	Version     string
-	ContentSize int64
-	Checksum    string
-	ContentType string
+	Reader         io.ReadCloser
+	Slug           string
+	Version        string
+	ContentSize    int64
+	Checksum       string
+	ContentType    string
+	expectedSHA256 string
 }
 
 // SourceCaps declares which operations one registry source supports.
@@ -74,10 +76,11 @@ type UpdateInfo struct {
 
 // InstallResult is the outcome of a registry-backed install.
 type InstallResult struct {
-	Slug        string `json:"slug"`
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Source      string `json:"source"`
-	InstallPath string `json:"install_path"`
-	Checksum    string `json:"checksum"`
+	Slug                string `json:"slug"`
+	Name                string `json:"name"`
+	Version             string `json:"version"`
+	Source              string `json:"source"`
+	InstallPath         string `json:"install_path"`
+	Checksum            string `json:"checksum"`
+	ArchiveDigestSHA256 string `json:"archive_digest_sha256"`
 }

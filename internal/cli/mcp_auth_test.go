@@ -1,530 +1,554 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
-	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
-	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/api/contract"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 )
 
-func TestMCPAuthStatusReportsRedactedState(t *testing.T) {
+func TestMCPAuthorizeUsesDaemonOwnedManualExchange(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report redacted auth status", func(t *testing.T) {
+	t.Run("Should exchange a pasted code without exposing it", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{
-			statusFn: func(_ context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error) {
-				return mcpauth.Status{
-					ServerName:   cfg.ServerName,
-					Status:       mcpauth.StatusAuthenticated,
-					ClientID:     cfg.ClientID,
-					Scopes:       []string{"read"},
-					TokenPresent: true,
-					Refreshable:  true,
-				}, nil
-			},
-		})
+		client := &stubClient{}
+		client.listSettingsMCPServersFn = func(
+			context.Context,
+			contract.SettingsWorkspaceScopeKind,
+			string,
+		) (contract.SettingsMCPServersResponse, error) {
+			return mcpAuthServerResponse(mcpAuthStatus("linear", "global", "", false, nil)), nil
+		}
+		client.beginSettingsMCPAuthFn = func(
+			_ context.Context,
+			target SettingsMCPAuthTarget,
+		) (SettingsMCPAuthBeginRecord, error) {
+			if target.Name != "linear" || target.Scope != contract.SettingsWorkspaceScopeGlobal {
+				t.Fatalf("begin target = %#v", target)
+			}
+			return SettingsMCPAuthBeginRecord{
+				AuthorizationURL: "https://auth.example/authorize?state=public-state",
+				ExpiresAt:        time.Now().Add(time.Minute),
+				ManualSupported:  true,
+			}, nil
+		}
+		client.exchangeSettingsMCPAuthFn = func(
+			_ context.Context,
+			target SettingsMCPAuthTarget,
+			request SettingsMCPAuthExchangeRequest,
+		) (SettingsMCPAuthStatusRecord, error) {
+			if target.Name != "linear" || request.Code != "one-time-code" || request.RedirectURL != "" {
+				t.Fatalf("exchange target/request = %#v / %#v", target, request)
+			}
+			return mcpAuthStatus("linear", "global", "", true, timePointer(time.Now())), nil
+		}
 
-		stdout, _, err := executeRootCommand(t, deps, "mcp", "auth", "status", "linear", "-o", "json")
+		stdout, stderr, err := executeMCPAuthCommandWithInput(
+			t,
+			newTestDeps(t, client),
+			"one-time-code\n",
+			"mcp", "authorize", "linear", "--manual", "-o", "json",
+		)
 		if err != nil {
-			t.Fatalf("executeRootCommand(mcp auth status) error = %v", err)
+			t.Fatalf("execute mcp authorize --manual error = %v", err)
 		}
-		if strings.Contains(stdout, "access-token") || strings.Contains(stdout, "refresh-token") ||
-			strings.Contains(stdout, "client-secret") {
-			t.Fatalf("status output leaked secret material: %s", stdout)
+		if !strings.Contains(stderr, "https://auth.example/authorize?state=public-state") {
+			t.Fatalf("stderr = %q, want live authorization URL", stderr)
 		}
-		var statuses []mcpauth.Status
-		if err := json.Unmarshal([]byte(stdout), &statuses); err != nil {
+		if strings.Contains(stdout+stderr, "one-time-code") {
+			t.Fatalf("command output leaked authorization code: stdout=%q stderr=%q", stdout, stderr)
+		}
+		var status SettingsMCPAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
 			t.Fatalf("json.Unmarshal(status) error = %v", err)
 		}
-		if len(statuses) != 1 || statuses[0].Status != mcpauth.StatusAuthenticated {
-			t.Fatalf("statuses = %#v", statuses)
+		if !confirmedMCPAuthStatus(status) {
+			t.Fatalf("status = %#v, want confirmed credential", status)
 		}
 	})
-}
 
-func TestMCPAuthSecretResolverRegistersDynamicRedaction(t *testing.T) {
-	t.Run("Should register resolved env secret for diagnostics redaction", func(t *testing.T) {
-		// diagnostics redaction keeps a package-global registry, so this subtest must stay serial.
-		secret := "mcp-client-secret-redaction-test"
-		resolver := mcpAuthSecretResolver(aghconfig.HomePaths{}, func(key string) string {
-			if key == "MCP_CLIENT_SECRET_REDACTION_TEST" {
-				return secret
-			}
-			return ""
-		})
-
-		value, err := resolver(context.Background(), "env:MCP_CLIENT_SECRET_REDACTION_TEST")
-		if err != nil {
-			t.Fatalf("mcpAuthSecretResolver(env) error = %v", err)
-		}
-		if value != secret {
-			t.Fatalf("mcpAuthSecretResolver(env) = %q, want secret", value)
-		}
-		redacted := diagnostics.Redact("leaked " + secret)
-		if strings.Contains(redacted, secret) {
-			t.Fatalf("diagnostics.Redact() leaked resolved MCP client secret: %q", redacted)
-		}
-	})
-}
-
-func TestMCPAuthStatusBundlesRenderHumanAndToon(t *testing.T) {
-	t.Parallel()
-
-	expiresAt := timePointer(fixedTestNow)
-	status := mcpauth.Status{
-		ServerName:  "linear",
-		Status:      mcpauth.StatusAuthenticated,
-		RemoteURL:   "https://mcp.example/sse",
-		AuthType:    "oauth2_pkce",
-		ClientID:    "client-id",
-		Scopes:      []string{"read", "write"},
-		ExpiresAt:   expiresAt,
-		Refreshable: true,
-		Diagnostic:  "ok",
-	}
-
-	t.Run("Should render single status in human format", func(t *testing.T) {
+	t.Run("Should reject a false-success exchange without token presence", func(t *testing.T) {
 		t.Parallel()
 
-		bundle := mcpAuthStatusBundle(status)
-		human, err := bundle.human()
+		client := &stubClient{
+			listSettingsMCPServersFn: func(
+				context.Context,
+				contract.SettingsWorkspaceScopeKind,
+				string,
+			) (contract.SettingsMCPServersResponse, error) {
+				return mcpAuthServerResponse(mcpAuthStatus("linear", "global", "", false, nil)), nil
+			},
+			beginSettingsMCPAuthFn: func(
+				context.Context,
+				SettingsMCPAuthTarget,
+			) (SettingsMCPAuthBeginRecord, error) {
+				return SettingsMCPAuthBeginRecord{
+					AuthorizationURL: "https://auth.example/authorize",
+					ExpiresAt:        time.Now().Add(time.Minute),
+				}, nil
+			},
+			exchangeSettingsMCPAuthFn: func(
+				context.Context,
+				SettingsMCPAuthTarget,
+				SettingsMCPAuthExchangeRequest,
+			) (SettingsMCPAuthStatusRecord, error) {
+				status := mcpAuthStatus("linear", "global", "", false, nil)
+				status.Status = string(mcpauth.StatusAuthenticated)
+				return status, nil
+			},
+		}
+
+		_, _, err := executeMCPAuthCommandWithInput(
+			t,
+			newTestDeps(t, client),
+			"code\n",
+			"mcp", "auth", "login", "linear", "--manual",
+		)
+		if err == nil || !strings.Contains(err.Error(), "confirmed credential") {
+			t.Fatalf("mcp auth login error = %v, want confirmed-credential failure", err)
+		}
+	})
+
+	t.Run("Should distinguish an existing server without OAuth from a missing server", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			listSettingsMCPServersFn: func(
+				context.Context,
+				contract.SettingsWorkspaceScopeKind,
+				string,
+			) (contract.SettingsMCPServersResponse, error) {
+				return contract.SettingsMCPServersResponse{MCPServers: []contract.SettingsMCPServerItemPayload{{
+					Name:  "filesystem",
+					Scope: contract.SettingsScopeGlobal,
+				}}}, nil
+			},
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"mcp", "auth", "status", "filesystem", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("execute mcp auth status error = %v", err)
+		}
+		if strings.TrimSpace(stdout) != "[]" {
+			t.Fatalf("mcp auth status output = %q, want empty status list", stdout)
+		}
+
+		_, _, err = executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"mcp", "authorize", "filesystem",
+		)
+		if err == nil || !strings.Contains(err.Error(), "does not configure OAuth") {
+			t.Fatalf("mcp authorize error = %v, want OAuth configuration error", err)
+		}
+	})
+}
+
+func TestMCPAuthorizeManualHonorsTimeout(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(exchange func(context.Context) error) *stubClient {
+		return &stubClient{
+			listSettingsMCPServersFn: func(
+				context.Context,
+				contract.SettingsWorkspaceScopeKind,
+				string,
+			) (contract.SettingsMCPServersResponse, error) {
+				return mcpAuthServerResponse(mcpAuthStatus("linear", "global", "", false, nil)), nil
+			},
+			beginSettingsMCPAuthFn: func(
+				context.Context,
+				SettingsMCPAuthTarget,
+			) (SettingsMCPAuthBeginRecord, error) {
+				return SettingsMCPAuthBeginRecord{
+					AuthorizationURL: "https://auth.example/authorize",
+					ExpiresAt:        time.Now().Add(time.Minute),
+					ManualSupported:  true,
+				}, nil
+			},
+			exchangeSettingsMCPAuthFn: func(
+				ctx context.Context,
+				_ SettingsMCPAuthTarget,
+				_ SettingsMCPAuthExchangeRequest,
+			) (SettingsMCPAuthStatusRecord, error) {
+				if exchange == nil {
+					t.Fatal("ExchangeSettingsMCPAuth called while input was pending")
+				}
+				return SettingsMCPAuthStatusRecord{}, exchange(ctx)
+			},
+		}
+	}
+
+	t.Run("Should interrupt pending manual input at the authorization deadline", func(t *testing.T) {
+		t.Parallel()
+
+		input := newDelayedMCPAuthReader(200 * time.Millisecond)
+		client := newClient(nil)
+		cmd := newRootCommand(newTestDeps(t, client))
+		cmd.SetIn(input)
+		cmd.SetArgs([]string{"mcp", "authorize", "linear", "--manual", "--timeout", "20ms"})
+		err := cmd.ExecuteContext(t.Context())
+		if err == nil || !strings.Contains(err.Error(), "authorization timed out") {
+			t.Fatalf("mcp authorize error = %v, want authorization timeout", err)
+		}
+	})
+
+	t.Run("Should carry the authorization deadline through manual exchange", func(t *testing.T) {
+		t.Parallel()
+
+		client := newClient(func(ctx context.Context) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(200 * time.Millisecond):
+				return errors.New("exchange context did not expire")
+			}
+		})
+		_, _, err := executeMCPAuthCommandWithInput(
+			t,
+			newTestDeps(t, client),
+			"one-time-code\n",
+			"mcp", "authorize", "linear", "--manual", "--timeout", "20ms",
+		)
+		if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("mcp authorize error = %v, want context deadline exceeded", err)
+		}
+	})
+}
+
+type delayedMCPAuthReader struct {
+	delay  time.Duration
+	closed chan struct{}
+	once   sync.Once
+}
+
+func newDelayedMCPAuthReader(delay time.Duration) *delayedMCPAuthReader {
+	return &delayedMCPAuthReader{delay: delay, closed: make(chan struct{})}
+}
+
+func (r *delayedMCPAuthReader) Read([]byte) (int, error) {
+	timer := time.NewTimer(r.delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return 0, io.EOF
+	case <-r.closed:
+		return 0, io.ErrClosedPipe
+	}
+}
+
+func (r *delayedMCPAuthReader) Close() error {
+	r.once.Do(func() { close(r.closed) })
+	return nil
+}
+
+func TestReadManualMCPAuthInput(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should hide a full redirect URL read from a terminal", func(t *testing.T) {
+		t.Parallel()
+
+		terminalInput, terminalWriter, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("os.Pipe() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := terminalInput.Close(); err != nil {
+				t.Errorf("terminal input close error = %v", err)
+			}
+		})
+		if err := terminalWriter.Close(); err != nil {
+			t.Fatalf("terminal writer close error = %v", err)
+		}
+
+		const secretRedirect = "http://127.0.0.1:2123/api/mcp/oauth/callback?code=secret-code&state=secret-state"
+		var output bytes.Buffer
+		input, err := readManualMCPAuthInputWithTerminal(
+			terminalInput,
+			&output,
+			func(inputReader io.Reader) bool {
+				return inputReader == terminalInput
+			},
+			func(fd int) ([]byte, error) {
+				if fd != int(terminalInput.Fd()) {
+					t.Fatalf("terminal fd = %d, want %d", fd, terminalInput.Fd())
+				}
+				return []byte(secretRedirect), nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("readManualMCPAuthInputWithTerminal() error = %v", err)
+		}
+		if input != secretRedirect {
+			t.Fatalf("input = %q, want secret redirect", input)
+		}
+		if output.String() != "\n" {
+			t.Fatalf("terminal output = %q, want only hidden-input newline", output.String())
+		}
+		if strings.Contains(output.String(), "secret-code") || strings.Contains(output.String(), "secret-state") {
+			t.Fatalf("terminal output leaked OAuth material: %q", output.String())
+		}
+	})
+
+	t.Run("Should preserve piped input without using terminal reads", func(t *testing.T) {
+		t.Parallel()
+
+		const code = "piped-one-time-code"
+		var output bytes.Buffer
+		input, err := readManualMCPAuthInputWithTerminal(
+			strings.NewReader(code+"\n"),
+			&output,
+			func(io.Reader) bool { return false },
+			func(int) ([]byte, error) {
+				t.Fatal("terminal password reader called for piped input")
+				return nil, nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("readManualMCPAuthInputWithTerminal() error = %v", err)
+		}
+		if input != code+"\n" {
+			t.Fatalf("input = %q, want piped code", input)
+		}
+		if output.Len() != 0 {
+			t.Fatalf("piped output = %q, want empty", output.String())
+		}
+	})
+}
+
+func TestMCPAuthorizeWaitsForAChangedConfirmedCredential(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wait for a changed confirmed credential", func(t *testing.T) {
+		t.Parallel()
+
+		oldUpdatedAt := time.Now().Add(-time.Hour).UTC()
+		newUpdatedAt := oldUpdatedAt.Add(time.Minute)
+		var listCalls atomic.Int32
+		client := &stubClient{
+			listSettingsMCPServersFn: func(
+				context.Context,
+				contract.SettingsWorkspaceScopeKind,
+				string,
+			) (contract.SettingsMCPServersResponse, error) {
+				updatedAt := &oldUpdatedAt
+				if listCalls.Add(1) >= 3 {
+					updatedAt = &newUpdatedAt
+				}
+				return mcpAuthServerResponse(mcpAuthStatus("linear", "global", "", true, updatedAt)), nil
+			},
+			beginSettingsMCPAuthFn: func(
+				context.Context,
+				SettingsMCPAuthTarget,
+			) (SettingsMCPAuthBeginRecord, error) {
+				return SettingsMCPAuthBeginRecord{
+					AuthorizationURL: "https://auth.example/authorize",
+					ExpiresAt:        time.Now().Add(time.Minute),
+				}, nil
+			},
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"mcp", "authorize", "linear", "--timeout", "2s", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("execute mcp authorize error = %v", err)
+		}
+		if listCalls.Load() < 3 {
+			t.Fatalf("ListSettingsMCPServers calls = %d, want baseline plus changed poll", listCalls.Load())
+		}
+		var status SettingsMCPAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
+			t.Fatalf("json.Unmarshal(status) error = %v", err)
+		}
+		if status.UpdatedAt == nil || !status.UpdatedAt.Equal(newUpdatedAt) {
+			t.Fatalf("status.UpdatedAt = %v, want %v", status.UpdatedAt, newUpdatedAt)
+		}
+	})
+}
+
+func TestMCPAuthStatusAndLogoutHonorWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should honor workspace identity for status and logout", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceID := "workspace-a"
+		wantStatus := mcpAuthStatus("linear", "workspace", workspaceID, true, timePointer(time.Now()))
+		client := &stubClient{}
+		client.listSettingsMCPServersFn = func(
+			_ context.Context,
+			scope contract.SettingsWorkspaceScopeKind,
+			gotWorkspaceID string,
+		) (contract.SettingsMCPServersResponse, error) {
+			if scope != contract.SettingsWorkspaceScopeWorkspace || gotWorkspaceID != workspaceID {
+				t.Fatalf("status scope/workspace = %q/%q", scope, gotWorkspaceID)
+			}
+			return mcpAuthServerResponse(wantStatus), nil
+		}
+		client.logoutSettingsMCPAuthFn = func(
+			_ context.Context,
+			target SettingsMCPAuthTarget,
+		) (SettingsMCPAuthStatusRecord, error) {
+			if target.Scope != contract.SettingsWorkspaceScopeWorkspace || target.WorkspaceID != workspaceID {
+				t.Fatalf("logout target = %#v", target)
+			}
+			status := wantStatus
+			status.Status = string(mcpauth.StatusNeedsLogin)
+			status.TokenPresent = false
+			return status, nil
+		}
+		deps := newTestDeps(t, client)
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"mcp", "auth", "status", "linear",
+			"--scope", "workspace", "--workspace", workspaceID, "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("execute mcp auth status error = %v", err)
+		}
+		if strings.Contains(stdout, "access-token") || strings.Contains(stdout, "refresh-token") {
+			t.Fatalf("status output leaked token material: %s", stdout)
+		}
+		var statuses []SettingsMCPAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &statuses); err != nil {
+			t.Fatalf("json.Unmarshal(statuses) error = %v", err)
+		}
+		if len(statuses) != 1 || statuses[0].WorkspaceID != workspaceID {
+			t.Fatalf("statuses = %#v", statuses)
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"mcp", "auth", "logout", "linear",
+			"--scope", "workspace", "--workspace", workspaceID,
+		); err != nil {
+			t.Fatalf("execute mcp auth logout error = %v", err)
+		}
+	})
+}
+
+func TestManualMCPAuthExchangeRequestClassifiesCodeAndRedirect(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		input        string
+		wantCode     bool
+		wantRedirect bool
+	}{
+		{name: "Should classify an opaque code", input: "opaque-code", wantCode: true},
+		{
+			name:         "Should classify an absolute redirect URL",
+			input:        "https://callback.example/oauth?code=opaque&state=public",
+			wantRedirect: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			request, err := manualMCPAuthExchangeRequest(tc.input)
+			if err != nil {
+				t.Fatalf("manualMCPAuthExchangeRequest() error = %v", err)
+			}
+			if (request.Code != "") != tc.wantCode || (request.RedirectURL != "") != tc.wantRedirect {
+				t.Fatalf("request = %#v", request)
+			}
+		})
+	}
+}
+
+func TestMCPAuthStatusBundlesRenderScopeAndTokenPresence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render scope and token presence in status bundles", func(t *testing.T) {
+		t.Parallel()
+
+		status := mcpAuthStatus("linear", "workspace", "workspace-a", true, timePointer(fixedTestNow))
+		human, err := mcpAuthStatusBundle(status).human()
 		if err != nil {
 			t.Fatalf("mcpAuthStatusBundle.human() error = %v", err)
 		}
-		if !strings.Contains(human, "linear") || !strings.Contains(human, "Refreshable") {
-			t.Fatalf("mcp auth status human = %q, want status rows", human)
+		if !strings.Contains(human, "workspace-a") || !strings.Contains(human, "Token Present") {
+			t.Fatalf("human status = %q", human)
 		}
-	})
-
-	t.Run("Should render single status in toon format", func(t *testing.T) {
-		t.Parallel()
-
-		bundle := mcpAuthStatusBundle(status)
-		toon, err := bundle.toon()
-		if err != nil {
-			t.Fatalf("mcpAuthStatusBundle.toon() error = %v", err)
-		}
-		if !strings.Contains(toon, "mcp_auth") || !strings.Contains(toon, "read|write") {
-			t.Fatalf("mcp auth status toon = %q, want toon fields", toon)
-		}
-	})
-
-	t.Run("Should render status list in human format", func(t *testing.T) {
-		t.Parallel()
-
-		listBundle := mcpAuthStatusListBundle([]mcpauth.Status{status})
-		listHuman, err := listBundle.human()
-		if err != nil {
-			t.Fatalf("mcpAuthStatusListBundle.human() error = %v", err)
-		}
-		if !strings.Contains(listHuman, "MCP Auth") || !strings.Contains(listHuman, "linear") {
-			t.Fatalf("mcp auth list human = %q, want status table", listHuman)
-		}
-	})
-
-	t.Run("Should render status list in toon format", func(t *testing.T) {
-		t.Parallel()
-
-		listBundle := mcpAuthStatusListBundle([]mcpauth.Status{status})
-		listToon, err := listBundle.toon()
+		toon, err := mcpAuthStatusListBundle([]SettingsMCPAuthStatusRecord{status}).toon()
 		if err != nil {
 			t.Fatalf("mcpAuthStatusListBundle.toon() error = %v", err)
 		}
-		if !strings.Contains(listToon, "mcp_auth[1]") {
-			t.Fatalf("mcp auth list toon = %q, want toon table", listToon)
+		if !strings.Contains(toon, "mcp_auth[1]") || !strings.Contains(toon, "workspace") {
+			t.Fatalf("toon status = %q", toon)
 		}
 	})
 }
 
-func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should start manual login and persist state without printing verifier", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{
-			beginFn: func(_ context.Context, cfg mcpauth.ServerConfig, redirectURL string) (mcpauth.LoginState, error) {
-				return mcpauth.LoginState{
-					ServerName:       cfg.ServerName,
-					RedirectURL:      redirectURL,
-					State:            "state-1",
-					Verifier:         "sensitive-verifier",
-					AuthorizationURL: "https://auth.example/authorize?state=state-1",
-					Config:           cfg,
-				}, nil
-			},
-		})
-		homePaths, err := deps.resolveHome()
-		if err != nil {
-			t.Fatalf("deps.resolveHome() error = %v", err)
-		}
-
-		stdout, stderr, err := executeRootCommand(
-			t,
-			deps,
-			"mcp",
-			"auth",
-			"login",
-			"linear",
-			"--manual",
-			"--redirect-url",
-			defaultMCPAuthRedirectURL,
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("executeRootCommand(mcp auth login --manual) error = %v", err)
-		}
-		if strings.Contains(stdout+stderr, "sensitive-verifier") {
-			t.Fatalf("manual login output leaked PKCE verifier: stdout=%q stderr=%q", stdout, stderr)
-		}
-		if !strings.Contains(stderr, "https://auth.example/authorize?state=state-1") {
-			t.Fatalf("manual login stderr = %q, want authorization URL", stderr)
-		}
-		var status mcpauth.Status
-		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
-			t.Fatalf("json.Unmarshal(login status) error = %v", err)
-		}
-		if status.Status != mcpauth.StatusNeedsLogin || status.AuthorizationURL == "" {
-			t.Fatalf("status = %#v, want pending manual login", status)
-		}
-		path, err := mcpAuthPendingLoginPath(homePaths, "linear")
-		if err != nil {
-			t.Fatalf("mcpAuthPendingLoginPath() error = %v", err)
-		}
-		if _, err := os.Stat(path); err != nil {
-			t.Fatalf("os.Stat(pending login) error = %v", err)
-		}
-		assertMCPAuthPendingLoginFileMode(t, path, 0o600)
-	})
-
-	t.Run("Should atomically replace stale pending login files with private mode", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{})
-		homePaths, err := deps.resolveHome()
-		if err != nil {
-			t.Fatalf("deps.resolveHome() error = %v", err)
-		}
-		path, err := mcpAuthPendingLoginPath(homePaths, "linear")
-		if err != nil {
-			t.Fatalf("mcpAuthPendingLoginPath() error = %v", err)
-		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatalf("MkdirAll(pending dir) error = %v", err)
-		}
-		if err := os.Chmod(filepath.Dir(path), 0o755); err != nil {
-			t.Fatalf("Chmod(pending dir) error = %v", err)
-		}
-		if err := os.WriteFile(path, []byte("stale verifier"), 0o644); err != nil {
-			t.Fatalf("WriteFile(stale pending login) error = %v", err)
-		}
-
-		if err := saveMCPAuthPendingLogin(homePaths, mcpauth.LoginState{
-			ServerName:       "linear",
-			RedirectURL:      defaultMCPAuthRedirectURL,
-			State:            "state-replacement",
-			Verifier:         "replacement-sensitive-verifier",
-			AuthorizationURL: "https://auth.example/authorize?state=state-replacement",
-		}); err != nil {
-			t.Fatalf("saveMCPAuthPendingLogin() error = %v", err)
-		}
-
-		assertMCPAuthPendingLoginFileMode(t, filepath.Dir(path), 0o700)
-		assertMCPAuthPendingLoginFileMode(t, path, 0o600)
-		payload, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("ReadFile(pending login) error = %v", err)
-		}
-		text := string(payload)
-		if strings.Contains(text, "stale verifier") || !strings.Contains(text, "replacement-sensitive-verifier") {
-			t.Fatalf("pending login payload = %q, want replacement without stale verifier", text)
-		}
-	})
-
-	t.Run("Should exchange manual code without printing verifier", func(t *testing.T) {
-		t.Parallel()
-
-		deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{
-			beginFn: func(_ context.Context, cfg mcpauth.ServerConfig, redirectURL string) (mcpauth.LoginState, error) {
-				t.Fatalf("BeginLogin(%q, %q) was called for --manual-code", cfg.ServerName, redirectURL)
-				return mcpauth.LoginState{}, nil
-			},
-			exchangeFn: func(_ context.Context, state mcpauth.LoginState, callbackURL string) (mcpauth.Status, error) {
-				if state.State != "state-original" || state.Verifier != "sensitive-verifier" {
-					t.Fatalf("state = %#v, want persisted manual login state", state)
-				}
-				if state.Config.ClientSecret != "client-secret" {
-					t.Fatalf("state.Config.ClientSecret = %q, want resolved current secret", state.Config.ClientSecret)
-				}
-				if !strings.Contains(callbackURL, "code=manual-code") ||
-					!strings.Contains(callbackURL, "state="+state.State) {
-					t.Fatalf("callbackURL = %q", callbackURL)
-				}
-				return mcpauth.Status{ServerName: state.ServerName, Status: mcpauth.StatusAuthenticated}, nil
-			},
-		})
-		homePaths, err := deps.resolveHome()
-		if err != nil {
-			t.Fatalf("deps.resolveHome() error = %v", err)
-		}
-		if err := saveMCPAuthPendingLogin(homePaths, mcpauth.LoginState{
-			ServerName:       "linear",
-			RedirectURL:      defaultMCPAuthRedirectURL,
-			State:            "state-original",
-			Verifier:         "sensitive-verifier",
-			AuthorizationURL: "https://auth.example/authorize?state=state-original",
-		}); err != nil {
-			t.Fatalf("saveMCPAuthPendingLogin() error = %v", err)
-		}
-
-		stdout, stderr, err := executeRootCommand(
-			t,
-			deps,
-			"mcp",
-			"auth",
-			"login",
-			"linear",
-			"--manual-code",
-			"manual-code",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("executeRootCommand(mcp auth login) error = %v", err)
-		}
-		if strings.Contains(stdout+stderr, "sensitive-verifier") {
-			t.Fatalf("login output leaked PKCE verifier: stdout=%q stderr=%q", stdout, stderr)
-		}
-		var status mcpauth.Status
-		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
-			t.Fatalf("json.Unmarshal(login status) error = %v", err)
-		}
-		if status.Status != mcpauth.StatusAuthenticated {
-			t.Fatalf("status = %#v", status)
-		}
-		path, err := mcpAuthPendingLoginPath(homePaths, "linear")
-		if err != nil {
-			t.Fatalf("mcpAuthPendingLoginPath() error = %v", err)
-		}
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			t.Fatalf("pending login file error = %v, want not exists", err)
-		}
-	})
+func mcpAuthStatus(
+	serverName string,
+	scope string,
+	workspaceID string,
+	tokenPresent bool,
+	updatedAt *time.Time,
+) SettingsMCPAuthStatusRecord {
+	status := string(mcpauth.StatusNeedsLogin)
+	if tokenPresent {
+		status = string(mcpauth.StatusAuthenticated)
+	}
+	return SettingsMCPAuthStatusRecord{
+		ServerName:   serverName,
+		Scope:        scope,
+		WorkspaceID:  workspaceID,
+		Status:       status,
+		ClientID:     "client-id",
+		TokenPresent: tokenPresent,
+		UpdatedAt:    updatedAt,
+	}
 }
 
-func assertMCPAuthPendingLoginFileMode(t *testing.T, path string, want os.FileMode) {
+func mcpAuthServerResponse(status SettingsMCPAuthStatusRecord) contract.SettingsMCPServersResponse {
+	return contract.SettingsMCPServersResponse{MCPServers: []contract.SettingsMCPServerItemPayload{{
+		Name:        status.ServerName,
+		Scope:       contract.SettingsScopeKind(status.Scope),
+		WorkspaceID: status.WorkspaceID,
+		AuthStatus:  &status,
+	}}}
+}
+
+func executeMCPAuthCommandWithInput(
+	t *testing.T,
+	deps commandDeps,
+	stdin string,
+	args ...string,
+) (string, string, error) {
 	t.Helper()
 
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("Stat(%q) error = %v", path, err)
-	}
-	if got := info.Mode().Perm(); got != want {
-		t.Fatalf("Stat(%q).Mode().Perm() = %#o, want %#o", path, got, want)
-	}
-}
-
-func TestMCPAuthLogoutCallsAuthClient(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should call auth client logout", func(t *testing.T) {
-		t.Parallel()
-
-		called := false
-		deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{
-			logoutFn: func(_ context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error) {
-				called = true
-				return mcpauth.Status{ServerName: cfg.ServerName, Status: mcpauth.StatusNeedsLogin}, nil
-			},
-		})
-
-		if _, _, err := executeRootCommand(t, deps, "mcp", "auth", "logout", "linear"); err != nil {
-			t.Fatalf("executeRootCommand(mcp auth logout) error = %v", err)
-		}
-		if !called {
-			t.Fatal("Logout was not called")
-		}
-	})
-}
-
-func TestListenForMCPAuthCallbackRequiresLoopbackRedirect(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject non-loopback redirect", func(t *testing.T) {
-		t.Parallel()
-
-		listener, _, err := listenForMCPAuthCallback(
-			context.Background(),
-			"http://0.0.0.0:0/callback",
-		)
-		if listener != nil {
-			t.Cleanup(func() {
-				if closeErr := listener.Close(); closeErr != nil {
-					t.Errorf("listener.Close() error = %v", closeErr)
-				}
-			})
-		}
-		if err == nil {
-			t.Fatal("listenForMCPAuthCallback(non-loopback) error = nil, want failure")
-		}
-		if !strings.Contains(err.Error(), "loopback") {
-			t.Fatalf("listenForMCPAuthCallback(non-loopback) error = %v, want loopback failure", err)
-		}
-	})
-
-	t.Run("Should replace zero port with bound listener port", func(t *testing.T) {
-		t.Parallel()
-
-		listener, actualRedirectURL, err := listenForMCPAuthCallback(
-			context.Background(),
-			"http://127.0.0.1:0/callback",
-		)
-		if err != nil {
-			t.Fatalf("listenForMCPAuthCallback(loopback) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := listener.Close(); err != nil {
-				t.Errorf("listener.Close() error = %v", err)
-			}
-		})
-		if strings.Contains(actualRedirectURL, ":0/") {
-			t.Fatalf("actualRedirectURL = %q, want bound listener port", actualRedirectURL)
-		}
-	})
-}
-
-func TestListenForMCPAuthCallbackNormalizesEmptyPath(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should normalize empty path to callback", func(t *testing.T) {
-		t.Parallel()
-
-		listener, actualRedirectURL, err := listenForMCPAuthCallback(
-			context.Background(),
-			"http://127.0.0.1:0",
-		)
-		if err != nil {
-			t.Fatalf("listenForMCPAuthCallback(empty path) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := listener.Close(); err != nil {
-				t.Errorf("listener.Close() error = %v", err)
-			}
-		})
-		if !strings.HasSuffix(actualRedirectURL, "/callback") {
-			t.Fatalf("actualRedirectURL = %q, want /callback path", actualRedirectURL)
-		}
-	})
-}
-
-func newMCPAuthTestDeps(t *testing.T, client *stubMCPAuthClient) commandDeps {
-	t.Helper()
-
-	deps := newTestDeps(t, &stubClient{})
-	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	cfg := aghconfig.DefaultWithHome(homePaths)
-	cfg.MCPServers = []aghconfig.MCPServer{{
-		Name:      "linear",
-		Transport: aghconfig.MCPServerTransportSSE,
-		URL:       "https://mcp.example/sse",
-		Auth: aghconfig.MCPAuthConfig{
-			Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
-			AuthorizationURL: "https://auth.example/authorize",
-			TokenURL:         "https://auth.example/token",
-			ClientID:         "client-id",
-			ClientSecretRef:  "env:LINEAR_CLIENT_SECRET",
-			Scopes:           []string{"read"},
-		},
-	}}
-	deps.loadConfig = func() (aghconfig.Config, error) {
-		return cfg, nil
-	}
-	deps.resolveHome = func() (aghconfig.HomePaths, error) {
-		return homePaths, nil
-	}
-	deps.getenv = func(key string) string {
-		if key == "LINEAR_CLIENT_SECRET" {
-			return "client-secret"
-		}
-		return ""
-	}
-	deps.newMCPAuthClient = func(
-		context.Context,
-		aghconfig.HomePaths,
-	) (mcpAuthClient, func(context.Context) error, error) {
-		return client, func(context.Context) error { return nil }, nil
-	}
-	return deps
-}
-
-type stubMCPAuthClient struct {
-	beginFn    func(context.Context, mcpauth.ServerConfig, string) (mcpauth.LoginState, error)
-	exchangeFn func(context.Context, mcpauth.LoginState, string) (mcpauth.Status, error)
-	refreshFn  func(context.Context, mcpauth.ServerConfig) (mcpauth.Status, error)
-	statusFn   func(context.Context, mcpauth.ServerConfig) (mcpauth.Status, error)
-	logoutFn   func(context.Context, mcpauth.ServerConfig) (mcpauth.Status, error)
-}
-
-func (s *stubMCPAuthClient) BeginLogin(
-	ctx context.Context,
-	cfg mcpauth.ServerConfig,
-	redirectURL string,
-) (mcpauth.LoginState, error) {
-	if s.beginFn != nil {
-		return s.beginFn(ctx, cfg, redirectURL)
-	}
-	return mcpauth.LoginState{}, nil
-}
-
-func (s *stubMCPAuthClient) Exchange(
-	ctx context.Context,
-	state mcpauth.LoginState,
-	callbackURL string,
-) (mcpauth.Status, error) {
-	if s.exchangeFn != nil {
-		return s.exchangeFn(ctx, state, callbackURL)
-	}
-	return mcpauth.Status{}, nil
-}
-
-func (s *stubMCPAuthClient) Refresh(
-	ctx context.Context,
-	cfg mcpauth.ServerConfig,
-) (mcpauth.Status, error) {
-	if s.refreshFn != nil {
-		return s.refreshFn(ctx, cfg)
-	}
-	return mcpauth.Status{ServerName: cfg.ServerName, Status: mcpauth.StatusAuthenticated}, nil
-}
-
-func (s *stubMCPAuthClient) Status(
-	ctx context.Context,
-	cfg mcpauth.ServerConfig,
-) (mcpauth.Status, error) {
-	if s.statusFn != nil {
-		return s.statusFn(ctx, cfg)
-	}
-	return mcpauth.Status{ServerName: cfg.ServerName, Status: mcpauth.StatusNeedsLogin}, nil
-}
-
-func (s *stubMCPAuthClient) Logout(
-	ctx context.Context,
-	cfg mcpauth.ServerConfig,
-) (mcpauth.Status, error) {
-	if s.logoutFn != nil {
-		return s.logoutFn(ctx, cfg)
-	}
-	return mcpauth.Status{ServerName: cfg.ServerName, Status: mcpauth.StatusNeedsLogin}, nil
+	cmd := newRootCommand(deps)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetIn(strings.NewReader(stdin))
+	cmd.SetArgs(args)
+	err := cmd.ExecuteContext(t.Context())
+	return stdout.String(), stderr.String(), err
 }

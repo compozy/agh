@@ -1426,8 +1426,24 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
+		settingsService := &nativeConfigSettingsService{
+			result: settingspkg.ApplyResult{
+				Applied:    true,
+				NextAction: lifecycle.NextActionNone,
+				Record: settingspkg.ApplyRecord{
+					ID:         "cfgapp-native-marketplace",
+					ActiveHash: "sha256:active-marketplace",
+					Generation: 7,
+					Lifecycle:  lifecycle.Live,
+					Status:     lifecycle.StatusApplied,
+				},
+			},
+		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			HomePaths: homePaths,
+			Settings: func() core.SettingsService {
+				return settingsService
+			},
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -1469,6 +1485,93 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, goalResult, []byte(`"restart-required"`))
 
+		marketplaceResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input:  json.RawMessage(`{"path":"marketplace.catalog.timeout","value":"3s"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set Marketplace timeout) error = %v", err)
+		}
+		cfg, err = aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after Marketplace timeout) error = %v", err)
+		}
+		if cfg.Marketplace.Catalog.Timeout != "3s" {
+			t.Fatalf("Marketplace.Catalog.Timeout = %q, want 3s", cfg.Marketplace.Catalog.Timeout)
+		}
+		requireNativeStructuredContains(t, marketplaceResult, []byte(`"applied":true`))
+		requireNativeStructuredContains(t, marketplaceResult, []byte(`"apply_record_id":"cfgapp-native-marketplace"`))
+		requireNativeStructuredContains(t, marketplaceResult, []byte(`"active_generation":7`))
+		if settingsService.reloadCalls != 1 {
+			t.Fatalf("Settings.Reload calls = %d, want 1", settingsService.reloadCalls)
+		}
+
+		workspaceRoot := t.TempDir()
+		for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDConfigSet, toolspkg.ToolIDConfigUnset} {
+			input := map[string]any{
+				"path":           "marketplace.catalog.timeout",
+				"scope":          "workspace",
+				"workspace_root": workspaceRoot,
+			}
+			if toolID == toolspkg.ToolIDConfigSet {
+				input["value"] = "4s"
+			}
+			encoded, marshalErr := json.Marshal(input)
+			if marshalErr != nil {
+				t.Fatalf("json.Marshal(%s input) error = %v", toolID, marshalErr)
+			}
+			_, err = registry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{ToolID: toolID, Input: encoded},
+			)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonConfigScopeNotAllowed)
+		}
+		workspaceConfig := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName)
+		if _, statErr := os.Stat(workspaceConfig); !os.IsNotExist(statErr) {
+			t.Fatalf("workspace config stat error = %v, want no file", statErr)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input:  json.RawMessage(`{"path":"marketplace.catalog.timeout","value":"0s"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(config_set invalid Marketplace timeout) error = %v, want ErrToolInvalidInput", err)
+		}
+		cfg, err = aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after invalid Marketplace timeout) error = %v", err)
+		}
+		if cfg.Marketplace.Catalog.Timeout != "3s" {
+			t.Fatalf("Marketplace.Catalog.Timeout after invalid write = %q, want 3s", cfg.Marketplace.Catalog.Timeout)
+		}
+
+		unsetResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigUnset,
+				Input:  json.RawMessage(`{"path":"marketplace.catalog.timeout"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_unset Marketplace timeout) error = %v", err)
+		}
+		requireNativeStructuredContains(t, unsetResult, []byte(`"applied":true`))
+		requireNativeStructuredContains(t, unsetResult, []byte(`"apply_record_id":"cfgapp-native-marketplace"`))
+		if settingsService.reloadCalls != 2 {
+			t.Fatalf("Settings.Reload calls = %d, want 2", settingsService.reloadCalls)
+		}
+
 		result, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
@@ -1491,6 +1594,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			{path: "providers.claude.credential_slots[0].secret_ref", reason: toolspkg.ReasonConfigSecretPathForbidden},
 			{path: "mcp_servers[0].env.TOKEN", reason: toolspkg.ReasonConfigSecretPathForbidden},
 			{path: "sandboxes.default.runtime_root", reason: toolspkg.ReasonConfigTrustRootForbidden},
+			{path: "marketplace.catalog.base_url", reason: toolspkg.ReasonConfigTrustRootForbidden},
 		}
 		for _, tc := range cases {
 			t.Run(tc.path, func(t *testing.T) {
@@ -1506,6 +1610,59 @@ func TestDaemonNativeTools(t *testing.T) {
 				)
 				requireToolReason(t, err, toolspkg.ErrToolDenied, tc.reason)
 			})
+		}
+	})
+
+	t.Run("Should report live config reconciliation failures from the settings apply record", func(t *testing.T) {
+		t.Parallel()
+
+		settingsService := &nativeConfigSettingsService{
+			result: settingspkg.ApplyResult{
+				Applied:    false,
+				NextAction: lifecycle.NextActionRetry,
+				Record: settingspkg.ApplyRecord{
+					ID:        "cfgapp-native-marketplace-failed",
+					Lifecycle: lifecycle.Live,
+					Status:    lifecycle.StatusFailed,
+				},
+				PartialFailures: []settingspkg.ApplyFailure{{
+					Subsystem: "marketplace",
+					Diagnostic: diagnostics.NewItem(
+						"config.apply.marketplace_sync_failed",
+						diagnosticcontract.CodeConfigPartialFailure,
+						diagnosticcontract.CategoryConfig,
+						"Marketplace sync failed",
+						"test reconciliation failure",
+						diagnosticcontract.SeverityError,
+						diagnosticcontract.FreshnessLive,
+					),
+				}},
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			HomePaths: testHomePaths(t),
+			Settings: func() core.SettingsService {
+				return settingsService
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input:  json.RawMessage(`{"path":"marketplace.catalog.ttl","value":"10m"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set Marketplace TTL) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"applied":false`))
+		requireNativeStructuredContains(t, result, []byte(`"apply_record_id":"cfgapp-native-marketplace-failed"`))
+		requireNativeStructuredContains(t, result, []byte(`"next_action":"retry"`))
+		requireNativeStructuredContains(t, result, []byte(`"subsystem":"marketplace"`))
+		if settingsService.reloadCalls != 1 {
+			t.Fatalf("Settings.Reload calls = %d, want 1", settingsService.reloadCalls)
 		}
 	})
 
@@ -6909,6 +7066,23 @@ type nativeProviderModelSettingsService struct {
 	err         error
 	calls       int
 	lastRequest settingspkg.ProviderModelCurationRequest
+}
+
+type nativeConfigSettingsService struct {
+	core.SettingsService
+	result      settingspkg.ApplyResult
+	err         error
+	reloadCalls int
+}
+
+func (s *nativeConfigSettingsService) Reload(
+	_ context.Context,
+) (settingspkg.ApplyResult, error) {
+	s.reloadCalls++
+	if s.err != nil {
+		return settingspkg.ApplyResult{}, s.err
+	}
+	return s.result, nil
 }
 
 func (s *nativeProviderModelSettingsService) ApplyProviderModelCuration(

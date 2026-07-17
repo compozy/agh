@@ -54,6 +54,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 			ConfigSeed: e2etest.ConfigSeedOptions{
 				DefaultAgent:   bridgeIngressFixtureAgentName,
 				PermissionMode: aghconfig.PermissionModeApproveAll,
+				Mutate:         allowUnverifiedBridgeExtensionInstalls,
 			},
 			MockAgents: []e2etest.MockAgentSpec{{
 				FixturePath:  mockFixturePath(t, "bridge_ingress_fixture.json"),
@@ -257,6 +258,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultAgent:   bridgeIngressFixtureAgentName,
 			PermissionMode: aghconfig.PermissionModeApproveAll,
+			Mutate:         allowUnverifiedBridgeExtensionInstalls,
 		},
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "bridge_ingress_fixture.json"),
@@ -877,6 +879,10 @@ func daemonBridgeRuntimeRepoRoot(t *testing.T) string {
 		t.Fatal("runtime.Caller() failed")
 	}
 	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+}
+
+func allowUnverifiedBridgeExtensionInstalls(cfg *aghconfig.Config) {
+	cfg.Extensions.Marketplace.AllowUnverified = true
 }
 
 func daemonTelegramReferenceExtensionDir(repoRoot string) string {

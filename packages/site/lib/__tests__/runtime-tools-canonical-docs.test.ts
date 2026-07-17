@@ -140,7 +140,7 @@ describe("tool-first canonical surface docs", () => {
     expectIncludesAll(configToml, [
       "`agh__mcp_status`",
       "`agh__mcp_auth_status`",
-      "operator-only management flows",
+      "operator flows available through CLI, HTTP, and UDS",
       "omitted from callable discovery",
       "agh mcp auth login",
       "agh mcp auth logout",
