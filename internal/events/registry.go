@@ -8,24 +8,6 @@ import (
 	"strings"
 )
 
-const (
-	ComponentBridge       = "bridge"
-	ComponentConfig       = "config"
-	ComponentHarness      = "harness"
-	ComponentHook         = "hook"
-	ComponentMemory       = "memory"
-	ComponentNetwork      = "network"
-	ComponentExtension    = "extension"
-	ComponentProvider     = "provider"
-	ComponentScheduler    = "scheduler"
-	ComponentSession      = "session"
-	ComponentSkill        = "skill"
-	ComponentTask         = "task"
-	ComponentTools        = "tools"
-	ComponentTranscript   = "transcript"
-	ComponentNotification = "notification"
-)
-
 // Outcome classifies an event for log filtering and notification policy.
 type Outcome string
 
@@ -198,12 +180,6 @@ const (
 	ProviderUnavailable           = "provider.unavailable"
 	ProviderModelCatalogRefreshed = "provider.model_catalog_refreshed"
 
-	ExtensionInstalled = "extension.installed"
-	ExtensionUpdated   = "extension.updated"
-	ExtensionRemoved   = "extension.removed"
-	ExtensionEnabled   = "extension.enabled"
-	ExtensionDisabled  = "extension.disabled"
-
 	BridgeNotificationSuppressed = "bridge_notification_suppressed"
 	NetworkPeerJoined            = "network.peer.joined"
 	NetworkPeerLeft              = "network.peer.left"
@@ -214,7 +190,7 @@ const (
 	NotificationPresetDispatchFailed = "notification.preset_dispatch_failed"
 )
 
-var registryEntries = []Metadata{
+var baseRegistryEntries = []Metadata{
 	info(ACPUserMessage, "session", ComponentSession),
 	info(ACPSyntheticReentry, "session", ComponentSession),
 	info(ACPAgentMessage, "session", ComponentSession),
@@ -361,12 +337,15 @@ var registryEntries = []Metadata{
 	notify(global(failure(ProviderPermissionDenied, "provider", ComponentProvider))),
 	notify(global(failure(ProviderUnavailable, "provider", ComponentProvider))),
 	global(success(ProviderModelCatalogRefreshed, "provider", ComponentProvider)),
+	global(info(MarketplaceCatalogRefresh, "marketplace.catalog", ComponentMarketplace)),
+	global(info(MarketplaceInstall, "marketplace.install", ComponentMarketplace)),
 
 	notify(global(success(ExtensionInstalled, "extension", ComponentExtension))),
 	notify(global(success(ExtensionUpdated, "extension", ComponentExtension))),
 	notify(global(warning(ExtensionRemoved, "extension", ComponentExtension))),
 	global(success(ExtensionEnabled, "extension", ComponentExtension)),
 	global(warning(ExtensionDisabled, "extension", ComponentExtension)),
+	global(info(ExtensionDigestVerify, "extension.digest", ComponentExtension)),
 
 	global(success(NotificationPresetCreated, "notification.preset", ComponentNotification)),
 	global(info(NotificationPresetUpdated, "notification.preset", ComponentNotification)),

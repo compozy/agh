@@ -13,6 +13,63 @@ import (
 // ErrTokenNotFound reports missing persisted MCP auth state for one server.
 var ErrTokenNotFound = errors.New("mcp auth: token not found")
 
+// Scope identifies the owner of one MCP OAuth credential set.
+type Scope string
+
+const (
+	// ScopeGlobal identifies a daemon-global MCP server.
+	ScopeGlobal Scope = "global"
+	// ScopeWorkspace identifies a workspace-owned MCP server.
+	ScopeWorkspace Scope = "workspace"
+)
+
+// Target is the complete identity of one MCP OAuth credential set.
+type Target struct {
+	Scope       Scope  `json:"scope"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	ServerName  string `json:"server_name"`
+}
+
+// Normalize trims target fields without changing their meaning.
+func (t Target) Normalize() Target {
+	t.Scope = Scope(strings.TrimSpace(string(t.Scope)))
+	t.WorkspaceID = strings.TrimSpace(t.WorkspaceID)
+	t.ServerName = strings.TrimSpace(t.ServerName)
+	return t
+}
+
+// Validate ensures the target has one unambiguous owner.
+func (t Target) Validate() error {
+	t = t.Normalize()
+	switch {
+	case t.ServerName == "":
+		return errors.New("mcp auth: server name is required")
+	case strings.ContainsRune(t.ServerName, '\x00'):
+		return errors.New("mcp auth: server name cannot contain NUL")
+	case strings.Contains(t.ServerName, "/"):
+		return errors.New("mcp auth: server name cannot contain a slash")
+	case strings.ContainsRune(t.WorkspaceID, '\x00'):
+		return errors.New("mcp auth: workspace_id cannot contain NUL")
+	case t.Scope == ScopeGlobal && t.WorkspaceID != "":
+		return errors.New("mcp auth: global target cannot include workspace_id")
+	case t.Scope == ScopeWorkspace && t.WorkspaceID == "":
+		return errors.New("mcp auth: workspace target requires workspace_id")
+	case t.Scope != ScopeGlobal && t.Scope != ScopeWorkspace:
+		return fmt.Errorf("mcp auth: unsupported target scope %q", t.Scope)
+	default:
+		return nil
+	}
+}
+
+// Key returns a collision-safe in-memory identity after validation.
+func (t Target) Key() (string, error) {
+	t = t.Normalize()
+	if err := t.Validate(); err != nil {
+		return "", err
+	}
+	return string(t.Scope) + "\x00" + t.WorkspaceID + "\x00" + t.ServerName, nil
+}
+
 // StatusValue is the redacted operator-facing authentication state.
 type StatusValue string
 
@@ -26,7 +83,7 @@ const (
 
 // ServerConfig is the token-free auth configuration used by the OAuth service.
 type ServerConfig struct {
-	ServerName       string
+	Target           Target
 	Transport        string
 	RemoteURL        string
 	Type             string
@@ -54,21 +111,24 @@ type Metadata struct {
 // TokenRecord is the durable token-store row. It must never be rendered
 // directly in public API or CLI output.
 type TokenRecord struct {
-	ServerName   string
-	Issuer       string
-	ClientID     string
-	Scopes       []string
-	AccessToken  string
-	RefreshToken string
-	TokenType    string
-	ExpiresAt    time.Time
-	ObtainedAt   time.Time
-	UpdatedAt    time.Time
+	Target                Target
+	DefinitionFingerprint string
+	Issuer                string
+	ClientID              string
+	Scopes                []string
+	AccessToken           string
+	RefreshToken          string
+	TokenType             string
+	ExpiresAt             time.Time
+	ObtainedAt            time.Time
+	UpdatedAt             time.Time
 }
 
 // Status is the token-redacted state used by CLI and settings APIs.
 type Status struct {
 	ServerName       string      `json:"server_name"`
+	Scope            Scope       `json:"scope"`
+	WorkspaceID      string      `json:"workspace_id,omitempty"`
 	Status           StatusValue `json:"status"`
 	RemoteURL        string      `json:"remote_url,omitempty"`
 	AuthType         string      `json:"auth_type,omitempty"`
@@ -87,9 +147,9 @@ type Status struct {
 // TokenStore persists OAuth token material behind a narrow boundary.
 type TokenStore interface {
 	SaveMCPAuthToken(ctx context.Context, token TokenRecord) error
-	GetMCPAuthToken(ctx context.Context, serverName string) (TokenRecord, error)
+	GetMCPAuthToken(ctx context.Context, target Target) (TokenRecord, error)
 	ListMCPAuthTokens(ctx context.Context) ([]TokenRecord, error)
-	DeleteMCPAuthToken(ctx context.Context, serverName string) error
+	DeleteMCPAuthToken(ctx context.Context, target Target) error
 }
 
 // SecretRefResolver resolves configured env: or vault: refs to plaintext for OAuth token requests.
@@ -100,17 +160,25 @@ type SecretRefResolver func(ctx context.Context, ref string) (string, error)
 // returns the actual secret value when present.
 func ServerConfigFromMCP(
 	ctx context.Context,
+	target Target,
 	server aghconfig.MCPServer,
 	resolveSecret SecretRefResolver,
 ) (ServerConfig, error) {
+	target = target.Normalize()
+	if err := target.Validate(); err != nil {
+		return ServerConfig{}, err
+	}
+	if target.ServerName != strings.TrimSpace(server.Name) {
+		return ServerConfig{}, errors.New("mcp auth: target server name does not match config")
+	}
 	if err := server.Validate("mcp_server"); err != nil {
 		return ServerConfig{}, err
 	}
 	if server.Auth.IsZero() {
 		return ServerConfig{
-			ServerName: strings.TrimSpace(server.Name),
-			Transport:  string(server.EffectiveTransport()),
-			RemoteURL:  strings.TrimSpace(server.URL),
+			Target:    target,
+			Transport: string(server.EffectiveTransport()),
+			RemoteURL: strings.TrimSpace(server.URL),
 		}, nil
 	}
 
@@ -125,7 +193,7 @@ func ServerConfigFromMCP(
 	}
 
 	return ServerConfig{
-		ServerName:       strings.TrimSpace(server.Name),
+		Target:           target,
 		Transport:        string(server.EffectiveTransport()),
 		RemoteURL:        strings.TrimSpace(server.URL),
 		Type:             strings.TrimSpace(string(server.Auth.Type)),
@@ -145,15 +213,15 @@ func ServerConfigFromMCP(
 // server in the supplied list.
 func ServerConfigsFromMCP(
 	ctx context.Context,
-	servers []aghconfig.MCPServer,
+	servers map[Target]aghconfig.MCPServer,
 	resolveSecret SecretRefResolver,
 ) ([]ServerConfig, error) {
 	configs := make([]ServerConfig, 0, len(servers))
-	for _, server := range servers {
+	for target, server := range servers {
 		if server.Auth.IsZero() {
 			continue
 		}
-		cfg, err := ServerConfigFromMCP(ctx, server, resolveSecret)
+		cfg, err := ServerConfigFromMCP(ctx, target, server, resolveSecret)
 		if err != nil {
 			return nil, err
 		}
@@ -164,9 +232,10 @@ func ServerConfigsFromMCP(
 
 // Validate checks whether a server config is sufficient for auth actions.
 func (c ServerConfig) Validate() error {
+	if err := c.Target.Validate(); err != nil {
+		return err
+	}
 	switch {
-	case strings.TrimSpace(c.ServerName) == "":
-		return errors.New("mcp auth: server name is required")
 	case strings.TrimSpace(c.Type) == "":
 		return errors.New("mcp auth: auth type is required")
 	case strings.TrimSpace(c.Type) != string(aghconfig.MCPAuthTypeOAuth2PKCE):

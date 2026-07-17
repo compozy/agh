@@ -6,6 +6,9 @@ import (
 )
 
 func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets shutdownTargets, errs *[]error) {
+	if targets.marketplace != nil {
+		appendWrappedError(errs, "daemon: shutdown marketplace", targets.marketplace.Shutdown(ctx))
+	}
 	if err := RemoveInfo(targets.infoPath); err != nil {
 		*errs = append(*errs, err)
 	}

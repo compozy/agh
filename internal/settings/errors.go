@@ -21,6 +21,9 @@ var ErrForbidden = errors.New("settings: forbidden")
 // cannot be processed because its backing state is invalid.
 var ErrUnprocessable = errors.New("settings: unprocessable")
 
+// ErrUnavailable marks a required settings dependency that is not configured.
+var ErrUnavailable = errors.New("settings: unavailable")
+
 func validationError(err error) error {
 	if err == nil {
 		return nil
@@ -47,4 +50,11 @@ func unprocessableError(err error) error {
 		return nil
 	}
 	return fmt.Errorf("%w: %w", ErrUnprocessable, err)
+}
+
+func unavailableError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrUnavailable, err)
 }

@@ -326,8 +326,8 @@ const (
 	ToolIDAutomationRunsList ToolID = "agh__automation_runs_list"
 	// ToolIDAutomationRunsGet reads one automation run record through the automation manager.
 	ToolIDAutomationRunsGet ToolID = "agh__automation_runs_get"
-	// ToolIDExtensionsSearch searches configured extension marketplace sources.
-	ToolIDExtensionsSearch ToolID = "agh__extensions_search"
+	// ToolIDMarketplaceSearch searches the shared marketplace discovery plane.
+	ToolIDMarketplaceSearch ToolID = "agh__marketplace_search"
 	// ToolIDExtensionsList lists installed extensions through the extension registry.
 	ToolIDExtensionsList ToolID = "agh__extensions_list"
 	// ToolIDExtensionsInfo reads one installed extension status.
@@ -401,6 +401,8 @@ const (
 	ToolsetIDAutomation ToolsetID = "agh__automation"
 	// ToolsetIDExtensions groups extension discovery and lifecycle tools.
 	ToolsetIDExtensions ToolsetID = "agh__extensions"
+	// ToolsetIDMarketplace groups cross-kind marketplace discovery tools.
+	ToolsetIDMarketplace ToolsetID = "agh__marketplace"
 	// ToolsetIDBundles groups extension bundle lifecycle tools.
 	ToolsetIDBundles ToolsetID = "agh__bundles"
 	// ToolsetIDResources groups desired-state resource inspection tools.

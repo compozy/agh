@@ -22,6 +22,7 @@ import (
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	aghlogger "github.com/compozy/agh/internal/logger"
 	looppkg "github.com/compozy/agh/internal/loop"
+	marketplacepkg "github.com/compozy/agh/internal/marketplace"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/memory/consolidation"
@@ -38,7 +39,6 @@ import (
 	"github.com/compozy/agh/internal/sandbox/local"
 	"github.com/compozy/agh/internal/session"
 	sessionledger "github.com/compozy/agh/internal/sessions/ledger"
-	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/compozy/agh/internal/situation"
 	"github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/soul"
@@ -86,6 +86,8 @@ type bootState struct {
 	hostedMCP              *mcppkg.HostedService
 	providerVault          *vault.Service
 	modelCatalog           *modelCatalogRuntime
+	marketplace            *marketplaceRuntime
+	marketplaceNotifier    marketplacepkg.Notifier
 	tasks                  *taskRuntime
 	reviewRequests         *runReviewRequestedForwarder
 	spawnReaper            *spawnReaper
@@ -131,24 +133,6 @@ type bootState struct {
 	startedAt              time.Time
 	info                   Info
 	deps                   RuntimeDeps
-}
-
-func (s *bootState) currentExtensionRuntime() extensionRuntime {
-	if s == nil {
-		return nil
-	}
-	s.extMu.RLock()
-	defer s.extMu.RUnlock()
-	return s.extensions
-}
-
-func (s *bootState) setExtensionRuntime(runtime extensionRuntime) {
-	if s == nil {
-		return
-	}
-	s.extMu.Lock()
-	defer s.extMu.Unlock()
-	s.extensions = runtime
 }
 
 type bootCleanup struct {
@@ -215,6 +199,7 @@ func (d *Daemon) beginBoot() error {
 		d.registry != nil ||
 		d.sessions != nil ||
 		d.modelCatalog != nil ||
+		d.marketplace != nil ||
 		d.network != nil ||
 		d.toolRegistry != nil ||
 		d.observer != nil ||
@@ -225,15 +210,6 @@ func (d *Daemon) beginBoot() error {
 	}
 	d.booting = true
 	return nil
-}
-
-func (d *Daemon) finishBoot(err *error) {
-	if err == nil || *err == nil {
-		return
-	}
-	d.mu.Lock()
-	d.booting = false
-	d.mu.Unlock()
 }
 
 func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
@@ -639,6 +615,9 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootModelCatalog(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootMarketplace(ctx, state, cleanup); err != nil {
+		return err
+	}
 	state.bridges = d.composeBridgeRuntime(state, cleanup)
 	if err := d.bootNotificationPresets(ctx, state); err != nil {
 		return err
@@ -901,13 +880,6 @@ func (d *Daemon) buildProviderVault(state *bootState) (*vault.Service, error) {
 }
 
 func sessionProviderVaultDependency(service *vault.Service) session.ProviderSecretResolver {
-	if service == nil {
-		return nil
-	}
-	return service
-}
-
-func settingsProviderVaultDependency(service *vault.Service) settingspkg.ProviderSecretStore {
 	if service == nil {
 		return nil
 	}
@@ -1682,83 +1654,6 @@ func (d *Daemon) extensionManagerDeps(
 	}
 }
 
-func (d *Daemon) attachExtensionRuntime(
-	ctx context.Context,
-	state *bootState,
-	extRegistry *extensionpkg.Registry,
-	manager extensionRuntime,
-) {
-	state.deps.Extensions = newDaemonExtensionService(
-		extRegistry,
-		manager,
-		state.hookBindings,
-		state.agentSkillResources,
-		state.toolMCPResources,
-		state.bundleResources,
-		state.loopResources,
-		d.homePaths,
-		state.logger,
-		d.now,
-		withDaemonExtensionMarketplace(state.cfg.Extensions.Marketplace, nil),
-		withDaemonExtensionEventWriter(extensionEventSummaryStore(state.registry)),
-	)
-	if state.agentSkillResources != nil {
-		if err := state.agentSkillResources.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync agent/skill resources after extension boot failed",
-				"error",
-				err,
-			)
-		}
-	}
-	if state.hookBindings != nil {
-		if err := state.hookBindings.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync hook bindings after extension boot failed",
-				"error",
-				err,
-			)
-		}
-	}
-	if state.toolMCPResources != nil {
-		if err := state.toolMCPResources.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync tool/mcp resources after extension boot failed",
-				"error",
-				err,
-			)
-		}
-	}
-	if state.bundleResources != nil {
-		if err := state.bundleResources.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync bundle resources after extension boot failed",
-				"error",
-				err,
-			)
-		}
-	}
-	if state.loopResources != nil {
-		if err := state.loopResources.Sync(ctx); err != nil {
-			state.logger.Error(
-				"daemon: sync loop resources after extension boot failed",
-				"error",
-				err,
-			)
-		}
-	}
-	if state.hookBindings != nil {
-		return
-	}
-	if rebuildable, ok := state.hooks.(interface {
-		Rebuild(context.Context) error
-	}); ok {
-		if err := rebuildable.Rebuild(ctx); err != nil {
-			state.logger.Error("daemon: rebuild hooks after extension boot failed", "error", err)
-		}
-	}
-}
-
 func resourceRawStore(kernel *resources.Kernel) resources.RawStore {
 	if kernel == nil {
 		return nil
@@ -1861,58 +1756,6 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 	state.httpServer = httpServer
 	state.udsServer = udsServer
 	state.info = info
-	return nil
-}
-
-func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
-	if state == nil {
-		return errors.New("daemon: boot settings state is required")
-	}
-
-	surface := newSettingsRuntimeSurface(d, state)
-	var applyRecords settingspkg.ApplyRecordStore
-	if dbSource, ok := state.registry.(settingspkg.ApplyRecordDBSource); ok {
-		applyRecords = settingspkg.NewConfigApplyRecordRepository(dbSource.DB(), time.Now)
-	}
-	service, err := settingspkg.NewService(d.homePaths, settingspkg.Dependencies{
-		WorkspaceResolver:          state.workspaceResolver,
-		GeneralRuntime:             surface,
-		MemoryRuntime:              surface,
-		SkillsRuntime:              state.skillsRegistry,
-		AutomationRuntime:          surface,
-		NetworkRuntime:             surface,
-		ObservabilityRuntime:       surface,
-		Extensions:                 surface,
-		TransportParity:            surface,
-		MCPAuth:                    surface,
-		MCPRuntime:                 surface,
-		ModelCatalog:               state.modelCatalog,
-		RuntimeApplier:             daemonSettingsRuntimeApplier{daemon: d, state: state},
-		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
-		EventSummaries:             state.registry,
-		ApplyRecords:               applyRecords,
-		RestartActionAvailable:     true,
-		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
-		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",
-	})
-	if err != nil {
-		return fmt.Errorf("daemon: create settings service: %w", err)
-	}
-	if applyRecords != nil {
-		if _, err := service.Reload(settingspkg.WithMutationSource(ctx, "boot")); err != nil {
-			return fmt.Errorf("daemon: reconcile desired config with active generation: %w", err)
-		}
-	}
-
-	updateManager, err := newSettingsUpdateManager(d)
-	if err != nil {
-		return fmt.Errorf("daemon: create settings update manager: %w", err)
-	}
-	updateManager.PrimeInstallDetection(ctx)
-
-	state.deps.Settings = service
-	state.deps.SettingsRestart = settingsRestartController{daemon: d}
-	state.deps.SettingsUpdate = settingsUpdateController{manager: updateManager}
 	return nil
 }
 

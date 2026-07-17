@@ -19,13 +19,15 @@ type mcpJSONDocument struct {
 }
 
 type mcpJSONServer struct {
-	Transport MCPServerTransport `json:"transport,omitempty"`
-	Command   string             `json:"command,omitempty"`
-	Args      []string           `json:"args,omitempty"`
-	Env       map[string]string  `json:"env,omitempty"`
-	SecretEnv map[string]string  `json:"secret_env,omitempty"`
-	URL       string             `json:"url,omitempty"`
-	Auth      MCPAuthConfig      `json:"auth"`
+	Transport      MCPServerTransport `json:"transport,omitempty"`
+	Command        string             `json:"command,omitempty"`
+	Args           []string           `json:"args,omitempty"`
+	Env            map[string]string  `json:"env,omitempty"`
+	SecretEnv      map[string]string  `json:"secret_env,omitempty"`
+	URL            string             `json:"url,omitempty"`
+	Auth           MCPAuthConfig      `json:"auth"`
+	CatalogEntry   string             `json:"catalog_entry,omitempty"`
+	CatalogVersion string             `json:"catalog_version,omitempty"`
 }
 
 // ParseMCPServersJSON parses an MCP JSON document into canonical MCP server values.
@@ -118,14 +120,16 @@ func sortedMCPJSONServers(values map[string]mcpJSONServer) []MCPServer {
 	for _, name := range names {
 		entry := values[name]
 		servers = append(servers, MCPServer{
-			Name:      normalizeMCPServerName(name),
-			Transport: MCPServerTransport(strings.TrimSpace(string(entry.Transport))),
-			Command:   strings.TrimSpace(entry.Command),
-			Args:      append([]string(nil), entry.Args...),
-			Env:       mergeStringMaps(nil, entry.Env),
-			SecretEnv: mergeStringMaps(nil, entry.SecretEnv),
-			URL:       strings.TrimSpace(entry.URL),
-			Auth:      normalizeMCPAuthConfig(entry.Auth),
+			Name:           normalizeMCPServerName(name),
+			Transport:      MCPServerTransport(strings.TrimSpace(string(entry.Transport))),
+			Command:        strings.TrimSpace(entry.Command),
+			Args:           append([]string(nil), entry.Args...),
+			Env:            mergeStringMaps(nil, entry.Env),
+			SecretEnv:      mergeStringMaps(nil, entry.SecretEnv),
+			URL:            strings.TrimSpace(entry.URL),
+			Auth:           normalizeMCPAuthConfig(entry.Auth),
+			CatalogEntry:   strings.TrimSpace(entry.CatalogEntry),
+			CatalogVersion: strings.TrimSpace(entry.CatalogVersion),
 		})
 	}
 

@@ -3,8 +3,6 @@ import type {
   SettingsAutomationSection,
   SettingsSandboxCollection,
   SettingsSandboxEntry,
-  SettingsExtensionEntry,
-  SettingsExtensionMarketplaceEntry,
   SettingsApplyResponse,
   SettingsGeneralSection,
   SettingsHookCollection,
@@ -384,7 +382,11 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
   scope: "global",
   available_scopes: ["global"],
   config: {
-    marketplace: { registry: "northstar", base_url: storyCompany.hooksMarketplaceBaseUrl },
+    marketplace: {
+      registry: "northstar",
+      base_url: storyCompany.hooksMarketplaceBaseUrl,
+      allow_unverified: false,
+    },
     resources: {
       allowed_kinds: ["snapshot", "artifact"],
       max_scope: "workspace",
@@ -847,70 +849,6 @@ export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
 export const settingsHookFixtures: SettingsHookEntry[] =
   settingsHooksExtensionsSectionFixture.hooks ?? [];
 
-export const settingsExtensionTrustFixture = {
-  decision: "allowed_unverified",
-  registry_tier: "community",
-  checksum_verified: false,
-  allow_unverified: true,
-  warnings: [
-    {
-      id: "diag_extension_checksum_unverified",
-      code: "extension_checksum_unverified",
-      severity: "warning",
-      title: "Extension checksum is not registry-verified",
-      message: "The operator allowed an install without a registry checksum match.",
-      category: "extension",
-      data_freshness: "live",
-    },
-  ],
-} satisfies NonNullable<SettingsExtensionEntry["trust"]>;
-
-export const settingsExtensionProvenanceFixture = {
-  slug: "daytona/daytona-extension",
-  installed_from: "marketplace_registry",
-  source_url: "https://registry.example.com/daytona/daytona-extension",
-  checksum_sha256: "sha256:fixture-daytona",
-  checksum_verified: false,
-  registry_tier: "community",
-  permissions: ["logs.read", "session.read"],
-  installed_at: "2026-05-21T10:00:00Z",
-  installed_by: "operator:web",
-  allow_unverified: true,
-  trust: settingsExtensionTrustFixture,
-  warnings: settingsExtensionTrustFixture.warnings,
-} satisfies NonNullable<SettingsExtensionEntry["provenance"]>;
-
-export const settingsExtensionFixtures: SettingsExtensionEntry[] = [
-  {
-    name: "daytona",
-    enabled: true,
-    version: "1.2.3",
-    state: "ready",
-    source: "marketplace",
-    type: "backend",
-    daemon_running: true,
-    health: "healthy",
-    requires_env: ["DAYTONA_TOKEN"],
-    missing_env: ["DAYTONA_TOKEN"],
-    provenance: settingsExtensionProvenanceFixture,
-    trust: settingsExtensionTrustFixture,
-  },
-];
-
-export const settingsExtensionMarketplaceFixtures: SettingsExtensionMarketplaceEntry[] = [
-  {
-    slug: "daytona/daytona-extension",
-    name: "daytona",
-    source: "github",
-    type: "backend",
-    version: "1.2.4",
-    author: "daytona",
-    description: "Workspace sandbox integration for AGH sessions.",
-    downloads: 1204,
-    trust: settingsExtensionTrustFixture,
-  },
-];
-
 export const settingsProvidersCollectionFixture = {
   available_scopes: ["global"],
   collection: "providers",
@@ -939,12 +877,278 @@ export const settingsMCPServersCollectionFixture = {
   scope: "global",
 } satisfies SettingsMCPServerCollection;
 
-export const settingsExtensionsCollectionFixture = {
-  extensions: settingsExtensionFixtures,
+// The reference visual-contract matrix: nine servers exercising every auth x
+// runtime x probe cell (docs/design/opendesign/mcp-management.html SERVERS).
+function mcpConfigSource(kind: string, scope: "global" | "workspace") {
+  return {
+    available_targets: [kind] as SettingsMCPServerEntry["source_metadata"]["available_targets"],
+    effective_source:
+      scope === "workspace" ? { kind, scope, workspace_id: "ws-platform" } : { kind, scope },
+  } as SettingsMCPServerEntry["source_metadata"];
+}
+
+export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
+  {
+    name: "github-local",
+    transport: "stdio",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-github"],
+    env: { LOG_LEVEL: "info" },
+    secret_env: {
+      GITHUB_PERSONAL_ACCESS_TOKEN:
+        "vault:mcp/ws/ws-platform/github-local/env/github_personal_access_token",
+    },
+    scope: "workspace",
+    workspace_id: "ws-platform",
+    runtime_status: {
+      configured: true,
+      initialized: true,
+      state: "ready",
+      probe: "succeeded",
+      tool_count: 12,
+    },
+    source_metadata: mcpConfigSource("workspace-mcp-sidecar", "workspace"),
+  },
+  {
+    name: "linear",
+    transport: "http",
+    url: "https://mcp.linear.app/mcp",
+    auth: {
+      type: "oauth2_pkce",
+      client_id: "agh-linear-public",
+      issuer_url: "https://auth.linear.app",
+    },
+    auth_status: {
+      server_name: "linear",
+      scope: "workspace",
+      status: "needs_login",
+      token_present: false,
+      refreshable: true,
+      diagnostic: "token absent",
+    },
+    runtime_status: {
+      configured: true,
+      initialized: false,
+      state: "auth_required",
+      probe: "skipped",
+      tool_count: 0,
+    },
+    catalog_entry: "linear",
+    catalog_version: "1.4.0",
+    scope: "workspace",
+    workspace_id: "ws-platform",
+    source_metadata: mcpConfigSource("workspace-config", "workspace"),
+  },
+  {
+    name: "sentry",
+    transport: "sse",
+    url: "https://mcp.sentry.dev/sse",
+    auth: {
+      type: "oauth2_pkce",
+      client_id: "agh-sentry-public",
+      issuer_url: "https://auth.sentry.io",
+    },
+    auth_status: {
+      server_name: "sentry",
+      scope: "workspace",
+      status: "authenticated",
+      token_present: true,
+      refreshable: true,
+      diagnostic: "token present",
+    },
+    runtime_status: {
+      configured: true,
+      initialized: true,
+      state: "ready",
+      probe: "succeeded",
+      tool_count: 18,
+    },
+    catalog_entry: "sentry",
+    catalog_version: "2.1.0",
+    scope: "workspace",
+    workspace_id: "ws-platform",
+    source_metadata: mcpConfigSource("workspace-config", "workspace"),
+  },
+  {
+    name: "notion",
+    transport: "http",
+    url: "https://mcp.notion.com/mcp",
+    auth: {
+      type: "oauth2_pkce",
+      client_id: "agh-notion-public",
+      issuer_url: "https://auth.notion.com",
+    },
+    auth_status: {
+      server_name: "notion",
+      scope: "workspace",
+      status: "expired",
+      token_present: true,
+      refreshable: true,
+      diagnostic: "token expired",
+    },
+    runtime_status: {
+      configured: true,
+      initialized: false,
+      state: "auth_expired",
+      probe: "skipped",
+      tool_count: 0,
+    },
+    scope: "workspace",
+    workspace_id: "ws-platform",
+    source_metadata: mcpConfigSource("workspace-config", "workspace"),
+  },
+  {
+    name: "figma",
+    transport: "sse",
+    url: "https://mcp.figma.com/sse",
+    auth: {
+      type: "oauth2_pkce",
+      client_id: "agh-figma-public",
+      issuer_url: "https://auth.figma.com",
+    },
+    auth_status: {
+      server_name: "figma",
+      scope: "global",
+      status: "invalid",
+      token_present: true,
+      refreshable: false,
+      diagnostic: "token rejected",
+    },
+    runtime_status: {
+      configured: true,
+      initialized: false,
+      state: "auth_invalid",
+      probe: "skipped",
+      tool_count: 0,
+    },
+    scope: "global",
+    source_metadata: mcpConfigSource("global-config", "global"),
+  },
+  {
+    name: "github-remote",
+    transport: "http",
+    url: "https://api.githubcopilot.com/mcp",
+    auth: {
+      type: "oauth2_pkce",
+      client_id: "agh-github-public",
+      issuer_url: "https://github.com/login/oauth",
+    },
+    auth_status: {
+      server_name: "github-remote",
+      scope: "global",
+      status: "authenticated",
+      token_present: true,
+      refreshable: true,
+      diagnostic: "prior token retained",
+    },
+    runtime_status: {
+      configured: true,
+      initialized: false,
+      state: "auth_refresh_failed",
+      probe: "skipped",
+      tool_count: 0,
+    },
+    scope: "global",
+    source_metadata: mcpConfigSource("global-config", "global"),
+  },
+  {
+    name: "filesystem",
+    transport: "stdio",
+    command: "node",
+    args: ["./bin/filesystem-mcp.js"],
+    scope: "workspace",
+    workspace_id: "ws-platform",
+    runtime_status: {
+      configured: true,
+      initialized: false,
+      state: "config_error",
+      probe: "skipped",
+      tool_count: 0,
+    },
+    source_metadata: mcpConfigSource("workspace-config", "workspace"),
+  },
+  {
+    name: "pagerduty",
+    transport: "http",
+    url: "https://mcp.pagerduty.com/mcp",
+    auth: {
+      type: "oauth2_pkce",
+      client_id: "agh-pagerduty-public",
+      issuer_url: "https://auth.pagerduty.com",
+    },
+    auth_status: {
+      server_name: "pagerduty",
+      scope: "workspace",
+      status: "authenticated",
+      token_present: true,
+      refreshable: true,
+      diagnostic: "token present",
+    },
+    runtime_status: {
+      configured: true,
+      initialized: true,
+      state: "permission_denied",
+      probe: "failed",
+      tool_count: 0,
+    },
+    scope: "workspace",
+    workspace_id: "ws-platform",
+    source_metadata: mcpConfigSource("workspace-config", "workspace"),
+  },
+  {
+    name: "buildkite",
+    transport: "sse",
+    url: "https://mcp.buildkite.com/sse",
+    auth: {
+      type: "oauth2_pkce",
+      client_id: "agh-buildkite-public",
+      issuer_url: "https://auth.buildkite.com",
+    },
+    auth_status: {
+      server_name: "buildkite",
+      scope: "global",
+      status: "authenticated",
+      token_present: true,
+      refreshable: true,
+      diagnostic: "token present",
+    },
+    runtime_status: {
+      configured: true,
+      initialized: true,
+      state: "runtime_unavailable",
+      probe: "failed",
+      tool_count: 0,
+    },
+    scope: "global",
+    source_metadata: mcpConfigSource("global-config", "global"),
+  },
+];
+
+export const mcpManagementCollectionFixture = {
+  available_scopes: ["global", "workspace"],
+  collection: "mcp-servers",
+  mcp_servers: mcpManagementServerFixtures,
+  scope: "workspace",
+  workspace_id: "ws-platform",
+} satisfies SettingsMCPServerCollection;
+
+export const mcpAuthBeginFixture = {
+  authorization_url:
+    "https://auth.linear.app/oauth/authorize?client_id=agh-linear-public&code_challenge=J6lRkq8l9lZ3tZpQf7uYx2AqY7M3xv2b9R6n0ZsVn4A&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%3A2123%2Fapi%2Fmcp%2Foauth%2Fcallback&state=agh_mcp_7m3p9q",
+  callback_url: "http://127.0.0.1:2123/api/mcp/oauth/callback",
+  expires_at: "2026-07-15T00:05:00Z",
+  manual_supported: true,
+  state: "agh_mcp_7m3p9q",
 };
 
-export const settingsExtensionMarketplaceCollectionFixture = {
-  extensions: settingsExtensionMarketplaceFixtures,
+export const mcpAuthStatusAuthenticatedFixture = {
+  server_name: "linear",
+  scope: "workspace",
+  workspace_id: "ws-platform",
+  status: "authenticated",
+  token_present: true,
+  refreshable: true,
+  diagnostic: "token present",
 };
 
 export const settingsRestartResponseFixture: SettingsRestartResponse = {

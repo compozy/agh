@@ -48,7 +48,7 @@ type daemonMigrationExpectation struct {
 
 func daemonMigrationExpectations() []daemonMigrationExpectation {
 	return []daemonMigrationExpectation{
-		{stream: globaldb.MigrationStream(), version: 2},
+		{stream: globaldb.MigrationStream(), version: 5},
 		{stream: memory.MigrationStream(), version: 1},
 	}
 }

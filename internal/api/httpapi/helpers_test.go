@@ -16,6 +16,8 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	"github.com/compozy/agh/internal/session"
 	settingspkg "github.com/compozy/agh/internal/settings"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -51,15 +53,15 @@ func (stubVaultService) DeleteSecret(context.Context, string) error {
 }
 
 type stubExtensionService struct {
-	ListFn              func(context.Context) ([]contract.ExtensionPayload, error)
-	SearchMarketplaceFn func(context.Context, string, string, int) ([]contract.ExtensionMarketplaceEntry, error)
-	InstallFn           func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	UpdateFn            func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
-	RemoveFn            func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
-	EnableFn            func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	DisableFn           func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	StatusFn            func(context.Context, string) (contract.ExtensionPayload, error)
-	ProvenanceFn        func(context.Context, string) (contract.ExtensionProvenancePayload, error)
+	ListFn             func(context.Context) ([]contract.ExtensionPayload, error)
+	MarketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
+	InstallFn          func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	UpdateFn           func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
+	RemoveFn           func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
+	EnableFn           func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	DisableFn          func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	StatusFn           func(context.Context, string) (contract.ExtensionPayload, error)
+	ProvenanceFn       func(context.Context, string) (contract.ExtensionProvenancePayload, error)
 }
 
 func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -69,16 +71,14 @@ func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPay
 	return s.ListFn(ctx)
 }
 
-func (s stubExtensionService) SearchMarketplace(
+func (s stubExtensionService) MarketplaceTrust(
 	ctx context.Context,
-	query string,
-	source string,
-	limit int,
-) ([]contract.ExtensionMarketplaceEntry, error) {
-	if s.SearchMarketplaceFn == nil {
-		return nil, nil
+	evidence extensionpkg.MarketplaceTrustEvidence,
+) (contract.ExtensionTrustReportPayload, error) {
+	if s.MarketplaceTrustFn == nil {
+		return extensionpkg.MarketplaceEntryTrustReport(evidence, false)
 	}
-	return s.SearchMarketplaceFn(ctx, query, source, limit)
+	return s.MarketplaceTrustFn(ctx, evidence)
 }
 
 func (s stubExtensionService) Install(
@@ -162,6 +162,11 @@ type stubSettingsService struct {
 	PutCollectionItemFn         func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
 	ApplyCollectionItemFn       func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.ApplyResult, error)
 	ApplyModelCurationFn        func(context.Context, settingspkg.ProviderModelCurationRequest) (settingspkg.ProviderModelCurationResult, error)
+	InstallMCPCatalogFn         func(context.Context, settingspkg.MCPCatalogInstallRequest) (settingspkg.MCPCatalogInstallResult, error)
+	BeginMCPAuthFn              func(context.Context, settingspkg.MCPAuthBeginRequest) (mcpauth.BeginResult, error)
+	ExchangeMCPAuthFn           func(context.Context, settingspkg.MCPAuthExchangeRequest) (mcpauth.Status, error)
+	CompleteMCPAuthFn           func(context.Context, string) (mcpauth.Status, error)
+	LogoutMCPAuthFn             func(context.Context, settingspkg.MCPAuthTargetRequest) (mcpauth.Status, error)
 	DeleteCollectionItemFn      func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
 	ApplyCollectionDeleteFn     func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
 	ReloadFn                    func(context.Context) (settingspkg.ApplyResult, error)
@@ -170,6 +175,7 @@ type stubSettingsService struct {
 	LastUpdateSectionRequest    settingspkg.SectionUpdateRequest
 	LastListCollectionRequest   settingspkg.CollectionRequest
 	LastPutCollectionRequest    settingspkg.CollectionItemPutRequest
+	LastMCPCatalogInstall       settingspkg.MCPCatalogInstallRequest
 	LastDeleteCollectionRequest settingspkg.CollectionItemDeleteRequest
 	LastApplyRecordFilter       settingspkg.ApplyRecordFilter
 }
@@ -260,6 +266,57 @@ func (s *stubSettingsService) ApplyProviderModelCuration(
 		return settingspkg.ProviderModelCurationResult{}, nil
 	}
 	return s.ApplyModelCurationFn(ctx, req)
+}
+
+func (s *stubSettingsService) InstallMCPCatalog(
+	ctx context.Context,
+	req settingspkg.MCPCatalogInstallRequest,
+) (settingspkg.MCPCatalogInstallResult, error) {
+	s.LastMCPCatalogInstall = req
+	if s.InstallMCPCatalogFn == nil {
+		return settingspkg.MCPCatalogInstallResult{}, nil
+	}
+	return s.InstallMCPCatalogFn(ctx, req)
+}
+
+func (s *stubSettingsService) BeginMCPAuth(
+	ctx context.Context,
+	req settingspkg.MCPAuthBeginRequest,
+) (mcpauth.BeginResult, error) {
+	if s.BeginMCPAuthFn == nil {
+		return mcpauth.BeginResult{}, nil
+	}
+	return s.BeginMCPAuthFn(ctx, req)
+}
+
+func (s *stubSettingsService) ExchangeMCPAuth(
+	ctx context.Context,
+	req settingspkg.MCPAuthExchangeRequest,
+) (mcpauth.Status, error) {
+	if s.ExchangeMCPAuthFn == nil {
+		return mcpauth.Status{}, nil
+	}
+	return s.ExchangeMCPAuthFn(ctx, req)
+}
+
+func (s *stubSettingsService) CompleteMCPAuthCallback(
+	ctx context.Context,
+	callbackURL string,
+) (mcpauth.Status, error) {
+	if s.CompleteMCPAuthFn == nil {
+		return mcpauth.Status{}, nil
+	}
+	return s.CompleteMCPAuthFn(ctx, callbackURL)
+}
+
+func (s *stubSettingsService) LogoutMCPAuth(
+	ctx context.Context,
+	req settingspkg.MCPAuthTargetRequest,
+) (mcpauth.Status, error) {
+	if s.LogoutMCPAuthFn == nil {
+		return mcpauth.Status{}, nil
+	}
+	return s.LogoutMCPAuthFn(ctx, req)
 }
 
 func (s *stubSettingsService) DeleteCollectionItem(

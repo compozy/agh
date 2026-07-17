@@ -75,18 +75,4 @@ describe("settingsKeys", () => {
       8,
     ]);
   });
-
-  it("isolates extensions keys from collections and sections", () => {
-    expect(settingsKeys.extensionsRoot()).toEqual(["settings", "extensions"]);
-    expect(settingsKeys.extensionsList()).toEqual(["settings", "extensions", "list"]);
-    expect(
-      settingsKeys.extensionsMarketplace({ q: "daytona", source: "github", limit: 12 })
-    ).toEqual(["settings", "extensions", "marketplace", "daytona", "github", "12"]);
-    expect(settingsKeys.extensionProvenance("daytona")).toEqual([
-      "settings",
-      "extensions",
-      "provenance",
-      "daytona",
-    ]);
-  });
 });

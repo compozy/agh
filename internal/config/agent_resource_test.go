@@ -148,9 +148,6 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 			Name:      " linear ",
 			Transport: " sse ",
 			URL:       " https://mcp.example/sse ",
-			Env: map[string]string{
-				" X_WORKSPACE ": " agh ",
-			},
 			Auth: MCPAuthConfig{
 				Type:             " oauth2_pkce ",
 				AuthorizationURL: " https://auth.example/authorize ",

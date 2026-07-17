@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/marketplace"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	"github.com/compozy/agh/internal/modelcatalog"
 	skillspkg "github.com/compozy/agh/internal/skills"
@@ -80,14 +81,43 @@ type TransportParityProvider interface {
 	TransportParityStatus(ctx context.Context) (TransportParityStatus, error)
 }
 
-// MCPAuthRuntimeProvider returns redacted MCP auth status for settings rows.
+// MCPAuthRuntimeProvider owns daemon-mediated MCP OAuth sessions and status.
 type MCPAuthRuntimeProvider interface {
-	MCPAuthStatus(ctx context.Context, server aghconfig.MCPServer) (mcpauth.Status, error)
+	MCPAuthStatus(ctx context.Context, target mcpauth.Target, server aghconfig.MCPServer) (mcpauth.Status, error)
+	MCPAuthBegin(
+		ctx context.Context,
+		target mcpauth.Target,
+		server aghconfig.MCPServer,
+		callbackURL string,
+	) (mcpauth.BeginResult, error)
+	MCPAuthExchange(
+		ctx context.Context,
+		target mcpauth.Target,
+		server aghconfig.MCPServer,
+		input mcpauth.ExchangeInput,
+	) (mcpauth.Status, error)
+	MCPAuthCallbackTarget(callbackURL string) (mcpauth.Target, error)
+	MCPAuthCompleteCallback(
+		ctx context.Context,
+		target mcpauth.Target,
+		server aghconfig.MCPServer,
+		callbackURL string,
+	) (mcpauth.Status, error)
+	MCPAuthInvalidate(target mcpauth.Target) error
+	MCPAuthLogout(
+		ctx context.Context,
+		target mcpauth.Target,
+		server aghconfig.MCPServer,
+	) (mcpauth.Status, error)
 }
 
 // MCPRuntimeProvider returns daemon-observed runtime probe status for settings rows.
 type MCPRuntimeProvider interface {
-	MCPServerRuntimeStatus(ctx context.Context, server aghconfig.MCPServer) (MCPServerRuntimeStatus, error)
+	MCPServerRuntimeStatus(
+		ctx context.Context,
+		target mcpauth.Target,
+		server aghconfig.MCPServer,
+	) (MCPServerRuntimeStatus, error)
 }
 
 // ConfigRuntimeApplier reconciles a validated config snapshot with daemon-owned runtime state.
@@ -99,7 +129,19 @@ type ConfigRuntimeApplier interface {
 // ProviderSecretStore stores provider-bound secrets and returns redacted metadata.
 type ProviderSecretStore interface {
 	GetMetadata(ctx context.Context, ref string) (vault.Metadata, error)
+	ResolveRef(ctx context.Context, ref string) (string, error)
 	PutSecret(ctx context.Context, ref string, kind string, plaintext string) (vault.Metadata, error)
+	DeleteSecret(ctx context.Context, ref string) error
+}
+
+// MCPCatalog provides the single curated entry read needed by settings-owned install orchestration.
+type MCPCatalog interface {
+	Detail(ctx context.Context, kind marketplace.Kind, entryID string) (*marketplace.Entry, error)
+}
+
+// MarketplaceInstallNotifier receives redacted install outcomes without controlling the mutation.
+type MarketplaceInstallNotifier interface {
+	NotifyInstall(ctx context.Context, outcome marketplace.InstallOutcome)
 }
 
 // Dependencies captures the runtime dependencies required by the settings service.
@@ -115,6 +157,8 @@ type Dependencies struct {
 	TransportParity            TransportParityProvider
 	MCPAuth                    MCPAuthRuntimeProvider
 	MCPRuntime                 MCPRuntimeProvider
+	MCPCatalog                 MCPCatalog
+	MarketplaceInstallEvents   MarketplaceInstallNotifier
 	ModelCatalog               modelcatalog.Service
 	RuntimeApplier             ConfigRuntimeApplier
 	ProviderSecrets            ProviderSecretStore
@@ -140,6 +184,8 @@ type service struct {
 	transportParity            TransportParityProvider
 	mcpAuth                    MCPAuthRuntimeProvider
 	mcpRuntime                 MCPRuntimeProvider
+	mcpCatalog                 MCPCatalog
+	marketplaceInstallEvents   MarketplaceInstallNotifier
 	modelCatalog               modelcatalog.Service
 	runtimeApplier             ConfigRuntimeApplier
 	providerSecrets            ProviderSecretStore
@@ -184,6 +230,8 @@ func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, erro
 		transportParity:            deps.TransportParity,
 		mcpAuth:                    deps.MCPAuth,
 		mcpRuntime:                 deps.MCPRuntime,
+		mcpCatalog:                 deps.MCPCatalog,
+		marketplaceInstallEvents:   deps.MarketplaceInstallEvents,
 		modelCatalog:               deps.ModelCatalog,
 		runtimeApplier:             deps.RuntimeApplier,
 		providerSecrets:            deps.ProviderSecrets,

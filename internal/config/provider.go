@@ -234,18 +234,6 @@ type MCPAuthConfig struct {
 	Scopes           []string    `json:"scopes,omitempty"            yaml:"scopes,omitempty"            toml:"scopes,omitempty"`
 }
 
-// MCPServer describes an MCP server passed through to the agent runtime.
-type MCPServer struct {
-	Name      string             `json:"name"                 yaml:"name"                 toml:"name"`
-	Transport MCPServerTransport `json:"transport,omitempty"  yaml:"transport,omitempty"  toml:"transport,omitempty"`
-	Command   string             `json:"command,omitempty"    yaml:"command,omitempty"    toml:"command,omitempty"`
-	Args      []string           `json:"args,omitempty"       yaml:"args,omitempty"       toml:"args,omitempty"`
-	Env       map[string]string  `json:"env,omitempty"        yaml:"env,omitempty"        toml:"env,omitempty"`
-	SecretEnv map[string]string  `json:"secret_env,omitempty" yaml:"secret_env,omitempty" toml:"secret_env,omitempty"`
-	URL       string             `json:"url,omitempty"        yaml:"url,omitempty"        toml:"url,omitempty"`
-	Auth      MCPAuthConfig      `json:"auth"                 yaml:"auth,omitempty"       toml:"auth,omitempty"`
-}
-
 // ResolvedAgent is the effective runtime configuration for a parsed agent definition.
 type ResolvedAgent struct {
 	Name            string
@@ -963,65 +951,6 @@ func indexMCPServersByName(servers []MCPServer) map[string]int {
 	return index
 }
 
-// Validate ensures the MCP server entry is usable.
-func (s MCPServer) Validate(path string) error {
-	transport := s.EffectiveTransport()
-	if err := transport.Validate(path + ".transport"); err != nil {
-		return err
-	}
-	if err := s.Auth.Validate(path + ".auth"); err != nil {
-		return err
-	}
-	switch {
-	case strings.TrimSpace(s.Name) == "":
-		return fmt.Errorf("%s.name is required", path)
-	case transport == MCPServerTransportStdio && strings.TrimSpace(s.Command) == "":
-		return fmt.Errorf("%s.command is required", path)
-	case transport == MCPServerTransportStdio && strings.TrimSpace(s.URL) != "":
-		return fmt.Errorf("%s.url requires remote transport", path)
-	case transport != MCPServerTransportStdio && strings.TrimSpace(s.URL) == "":
-		return fmt.Errorf("%s.url is required for %s transport", path, transport)
-	case transport != MCPServerTransportStdio && strings.TrimSpace(s.Command) != "":
-		return fmt.Errorf("%s.command is only valid for stdio transport", path)
-	case transport == MCPServerTransportStdio && !s.Auth.IsZero():
-		return fmt.Errorf("%s.auth is only valid for remote MCP servers", path)
-	case transport != MCPServerTransportStdio && len(s.SecretEnv) > 0:
-		return fmt.Errorf("%s.secret_env is only valid for stdio transport", path)
-	default:
-		return validateStdioMCPEnv(path, transport, s.Env, s.SecretEnv)
-	}
-}
-
-func validateStdioMCPEnv(
-	path string,
-	transport MCPServerTransport,
-	env map[string]string,
-	secretEnv map[string]string,
-) error {
-	if transport != MCPServerTransportStdio {
-		return nil
-	}
-	for key := range env {
-		if forbiddenStdioMCPEnvKey(key) {
-			return fmt.Errorf("%s.env.%s is forbidden for stdio MCP servers", path, strings.TrimSpace(key))
-		}
-		if vault.SecretLikeEnvName(key) {
-			return fmt.Errorf("%s.env.%s must move secret-like values to secret_env", path, strings.TrimSpace(key))
-		}
-	}
-	return vault.ValidateSecretEnvMap(path, "mcp", secretEnv)
-}
-
-func forbiddenStdioMCPEnvKey(key string) bool {
-	normalized := strings.ToUpper(strings.TrimSpace(key))
-	switch normalized {
-	case providerNodeOptionsValue, "PYTHONPATH", "PYTHONHOME", "LD_PRELOAD":
-		return true
-	default:
-		return strings.HasPrefix(normalized, "DYLD_")
-	}
-}
-
 // EffectiveHarness returns the configured provider harness or the command-backed default.
 func (p ProviderConfig) EffectiveHarness() ProviderHarness {
 	if p.Harness != "" {
@@ -1488,6 +1417,12 @@ func mergeMCPServerInto(merged *MCPServer, override MCPServer) {
 	if !override.Auth.IsZero() {
 		merged.Auth = mergeMCPAuthConfig(merged.Auth, override.Auth)
 	}
+	if strings.TrimSpace(override.CatalogEntry) != "" {
+		merged.CatalogEntry = override.CatalogEntry
+	}
+	if strings.TrimSpace(override.CatalogVersion) != "" {
+		merged.CatalogVersion = override.CatalogVersion
+	}
 }
 
 func mergeMCPAuthConfig(base MCPAuthConfig, override MCPAuthConfig) MCPAuthConfig {
@@ -1658,14 +1593,16 @@ func cloneMCPServersWithCapacity(src []MCPServer, capacity int) []MCPServer {
 
 func cloneMCPServer(src MCPServer) MCPServer {
 	return MCPServer{
-		Name:      src.Name,
-		Transport: src.Transport,
-		Command:   src.Command,
-		Args:      append([]string(nil), src.Args...),
-		Env:       mergeStringMaps(nil, src.Env),
-		SecretEnv: mergeStringMaps(nil, src.SecretEnv),
-		URL:       src.URL,
-		Auth:      cloneMCPAuthConfig(src.Auth),
+		Name:           src.Name,
+		Transport:      src.Transport,
+		Command:        src.Command,
+		Args:           append([]string(nil), src.Args...),
+		Env:            mergeStringMaps(nil, src.Env),
+		SecretEnv:      mergeStringMaps(nil, src.SecretEnv),
+		URL:            src.URL,
+		Auth:           cloneMCPAuthConfig(src.Auth),
+		CatalogEntry:   src.CatalogEntry,
+		CatalogVersion: src.CatalogVersion,
 	}
 }
 

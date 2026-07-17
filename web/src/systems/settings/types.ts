@@ -15,26 +15,6 @@ export type SettingsHooksExtensionsHook = NonNullable<
 export type SettingsHooksExtensionsInstalled = NonNullable<
   SettingsHooksExtensionsSection["installed"]
 >[number];
-export type SettingsHooksExtensionsTransportParity =
-  SettingsHooksExtensionsSection["transport_parity"];
-
-export type SettingsExtensionEntry = OperationResponse<"listExtensions", 200>["extensions"][number];
-export type SettingsExtensionMarketplaceEntry = OperationResponse<
-  "searchExtensionMarketplace",
-  200
->["extensions"][number];
-export type SettingsExtensionMarketplaceFilter = NonNullable<
-  OperationQuery<"searchExtensionMarketplace">
->;
-export type SettingsExtensionProvenance = OperationResponse<
-  "getExtensionProvenance",
-  200
->["provenance"];
-export type SettingsInstallExtensionRequest = OperationRequestBody<"installExtension">;
-export type SettingsUpdateExtensionRequest = OperationRequestBody<"updateExtension">;
-export type SettingsExtensionUpdate = OperationResponse<"updateExtension", 200>["update"];
-export type SettingsExtensionRemove = OperationResponse<"removeExtension", 200>["extension"];
-
 export type SettingsNotificationPresetCollection = OperationResponse<
   "listNotificationPresets",
   200
@@ -101,6 +81,13 @@ export type SettingsMCPServerRequest = OperationRequestBody<"putSettingsMCPServe
 export type SettingsMCPServerListFilter = NonNullable<OperationQuery<"listSettingsMCPServers">>;
 export type SettingsMCPServerPutFilter = NonNullable<OperationQuery<"putSettingsMCPServer">>;
 export type SettingsMCPServerDeleteFilter = NonNullable<OperationQuery<"deleteSettingsMCPServer">>;
+
+// Daemon-mediated OAuth (ADR-016). The begin response returns the ONLY live PKCE
+// authorization URL; the exchange/logout responses return the fresh auth-status shape.
+export type SettingsMCPAuthFilter = NonNullable<OperationQuery<"beginSettingsMCPAuth">>;
+export type SettingsMCPAuthBeginResponse = OperationResponse<"beginSettingsMCPAuth", 200>;
+export type SettingsMCPAuthExchangeRequest = OperationRequestBody<"exchangeSettingsMCPAuth">;
+export type SettingsMCPAuthStatusResponse = OperationResponse<"exchangeSettingsMCPAuth", 200>;
 
 export type SettingsUpdateGeneralRequest = OperationRequestBody<"updateSettingsGeneral">;
 export type SettingsUpdateMemoryRequest = OperationRequestBody<"updateSettingsMemory">;
@@ -173,4 +160,5 @@ export type SettingsSectionSlug =
   | "automation"
   | "network"
   | "observability"
-  | "hooks-extensions";
+  | "hooks"
+  | "extensions";

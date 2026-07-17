@@ -3,14 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  useSkill,
-  useSkillContent,
-  useSkillMarketplaceInfo,
-  useSkillMarketplaceSearch,
-  useSkillShadows,
-  useSkills,
-} from "../use-skills";
+import { useSkill, useSkillContent, useSkillShadows, useSkills } from "../use-skills";
 
 vi.mock("../../adapters/skill-api", () => ({
   listSkills: vi.fn(),
@@ -19,18 +12,9 @@ vi.mock("../../adapters/skill-api", () => ({
   getSkillShadows: vi.fn(),
   enableSkill: vi.fn(),
   disableSkill: vi.fn(),
-  searchSkillMarketplace: vi.fn(),
-  getSkillMarketplaceInfo: vi.fn(),
 }));
 
-import {
-  getSkill,
-  getSkillContent,
-  getSkillShadows,
-  getSkillMarketplaceInfo,
-  listSkills,
-  searchSkillMarketplace,
-} from "../../adapters/skill-api";
+import { getSkill, getSkillContent, getSkillShadows, listSkills } from "../../adapters/skill-api";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -169,121 +153,5 @@ describe("useSkillShadows", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(response);
     expect(getSkillShadows).toHaveBeenCalledWith("test-skill", "ws_123", expect.any(AbortSignal));
-  });
-});
-
-describe("useSkillMarketplaceSearch", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("fetches when the query is non-empty", async () => {
-    vi.mocked(searchSkillMarketplace).mockResolvedValue([
-      {
-        name: "alpha",
-        slug: "@compozy/alpha",
-        author: "compozy",
-        description: "demo",
-        downloads: 1,
-        source: "clawhub",
-        version: "0.1.0",
-      },
-    ]);
-
-    const { result } = renderHook(() => useSkillMarketplaceSearch("alpha"), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.data).toHaveLength(1);
-    });
-
-    expect(searchSkillMarketplace).toHaveBeenCalledWith(
-      { query: "alpha", limit: undefined },
-      expect.any(AbortSignal)
-    );
-  });
-
-  it("does not fetch when the query is blank", () => {
-    renderHook(() => useSkillMarketplaceSearch(""), {
-      wrapper: createWrapper(),
-    });
-
-    expect(searchSkillMarketplace).not.toHaveBeenCalled();
-  });
-});
-
-describe("useSkillMarketplaceInfo", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("fetches the marketplace info for a slug when enabled", async () => {
-    vi.mocked(getSkillMarketplaceInfo).mockResolvedValue({
-      name: "alpha",
-      slug: "@compozy/alpha",
-      author: "compozy",
-      description: "demo",
-      downloads: 1,
-      source: "clawhub",
-      version: "0.1.0",
-    });
-
-    const { result } = renderHook(() => useSkillMarketplaceInfo("@compozy/alpha"), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.data?.name).toBe("alpha");
-    });
-
-    expect(getSkillMarketplaceInfo).toHaveBeenCalledWith("@compozy/alpha", expect.any(AbortSignal));
-  });
-
-  it("trims padded marketplace slugs before fetching", async () => {
-    vi.mocked(getSkillMarketplaceInfo).mockResolvedValue({
-      name: "alpha",
-      slug: "@compozy/alpha",
-      author: "compozy",
-      description: "demo",
-      downloads: 1,
-      source: "clawhub",
-      version: "0.1.0",
-    });
-
-    renderHook(() => useSkillMarketplaceInfo("  @compozy/alpha  "), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(getSkillMarketplaceInfo).toHaveBeenCalledWith(
-        "@compozy/alpha",
-        expect.any(AbortSignal)
-      );
-    });
-  });
-
-  it("does not fetch when explicitly disabled", () => {
-    renderHook(() => useSkillMarketplaceInfo("@compozy/alpha", false), {
-      wrapper: createWrapper(),
-    });
-
-    expect(getSkillMarketplaceInfo).not.toHaveBeenCalled();
-  });
-
-  it("does not fetch when the slug is whitespace only", () => {
-    renderHook(() => useSkillMarketplaceInfo("   "), {
-      wrapper: createWrapper(),
-    });
-
-    expect(getSkillMarketplaceInfo).not.toHaveBeenCalled();
   });
 });

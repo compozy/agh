@@ -19,6 +19,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		d.localMemoryProvider = state.localMemoryProvider
 	}
 	d.modelCatalog = state.modelCatalog
+	d.marketplace = state.marketplace
 	d.situationContext = state.situationContext
 	d.sessions = state.sessions
 	d.tasks = state.tasks

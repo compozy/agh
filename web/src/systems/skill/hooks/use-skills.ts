@@ -3,8 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   skillContentOptions,
   skillDetailOptions,
-  skillMarketplaceInfoOptions,
-  skillMarketplaceSearchOptions,
   skillShadowsOptions,
   skillsListOptions,
 } from "@/systems/skill/lib/query-options";
@@ -23,12 +21,4 @@ export function useSkillContent(name: string, workspace: string, enabled = false
 
 export function useSkillShadows(name: string, workspace: string) {
   return useQuery(skillShadowsOptions(name, workspace));
-}
-
-export function useSkillMarketplaceSearch(query: string, limit?: number) {
-  return useQuery(skillMarketplaceSearchOptions(query, limit));
-}
-
-export function useSkillMarketplaceInfo(slug: string, enabled = true) {
-  return useQuery(skillMarketplaceInfoOptions(slug, enabled));
 }

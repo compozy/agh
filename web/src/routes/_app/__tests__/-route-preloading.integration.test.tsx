@@ -32,7 +32,6 @@ import { useSessions } from "@/systems/session";
 import { useTaskInbox, useTasks } from "@/systems/tasks";
 import {
   useSettingsApplyRecords,
-  useSettingsExtensions,
   useSettingsGeneral,
   useSettingsHooksExtensions,
   useSettingsMCPServers,
@@ -43,13 +42,7 @@ import {
   useSettingsSkills,
   useSettingsUpdate,
 } from "@/systems/settings";
-import {
-  useSkill,
-  useSkillContent,
-  useSkillMarketplaceSearch,
-  useSkillShadows,
-  useSkills,
-} from "@/systems/skill";
+import { useSkill, useSkillContent, useSkillShadows, useSkills } from "@/systems/skill";
 import { useVaultSecrets, vaultSecretsListOptions } from "@/systems/vault";
 import { useActiveWorkspaceStore, useWorkspace, useWorkspaces } from "@/systems/workspace";
 import { routeLoader } from "@/test/route-options";
@@ -91,13 +84,11 @@ const adapterMocks = vi.hoisted(() => ({
   listTasks: vi.fn(),
   listNotificationPresets: vi.fn(),
   listSettingsApplyRecords: vi.fn(),
-  listSettingsExtensions: vi.fn(),
   listSettingsMCPServers: vi.fn(),
   listSettingsProviders: vi.fn(),
   listSettingsSandboxes: vi.fn(),
   listSkills: vi.fn(),
   listVaultSecrets: vi.fn(),
-  searchSkillMarketplace: vi.fn(),
 }));
 
 vi.mock("@/systems/workspace/adapters/workspace-api", async importOriginal => ({
@@ -143,7 +134,6 @@ vi.mock("@/systems/settings/adapters/settings-api", async importOriginal => ({
   getSettingsSkills: adapterMocks.getSettingsSkills,
   getSettingsUpdate: adapterMocks.getSettingsUpdate,
   listSettingsApplyRecords: adapterMocks.listSettingsApplyRecords,
-  listSettingsExtensions: adapterMocks.listSettingsExtensions,
   listSettingsMCPServers: adapterMocks.listSettingsMCPServers,
   listSettingsProviders: adapterMocks.listSettingsProviders,
   listSettingsSandboxes: adapterMocks.listSettingsSandboxes,
@@ -165,7 +155,6 @@ vi.mock("@/systems/skill/adapters/skill-api", async importOriginal => ({
   getSkillContent: adapterMocks.getSkillContent,
   getSkillShadows: adapterMocks.getSkillShadows,
   listSkills: adapterMocks.listSkills,
-  searchSkillMarketplace: adapterMocks.searchSkillMarketplace,
 }));
 
 vi.mock("@/systems/bridges/adapters/bridges-api", async importOriginal => ({
@@ -223,7 +212,8 @@ import { Route as TriggersRoute } from "../triggers";
 import { Route as TasksRoute } from "../tasks";
 import { Route as VaultRoute } from "../vault";
 import { Route as SettingsGeneralRoute } from "../settings/general";
-import { Route as SettingsHooksExtensionsRoute } from "../settings/hooks-extensions";
+import { Route as SettingsExtensionsRoute } from "../settings/extensions";
+import { Route as SettingsHooksRoute } from "../settings/hooks";
 import { Route as SettingsMemoryRoute } from "../settings/memory";
 import { Route as SettingsObservabilityRoute } from "../settings/observability";
 import { Route as SettingsProvidersRoute } from "../settings/providers";
@@ -450,23 +440,14 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.listVaultSecrets],
   },
   {
-    name: "skills marketplace → workspacesListOptions + skillsListOptions + skillMarketplaceSearchOptions",
-    load: queryClient =>
-      invokeLoader(SkillsRoute, {
-        ...context(queryClient),
-        deps: { q: "memory", tab: "marketplace" as const },
-      }),
+    name: "skills → workspacesListOptions + skillsListOptions",
+    load: queryClient => invokeLoader(SkillsRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useWorkspaces();
         useSkills(workspace.id);
-        useSkillMarketplaceSearch("memory");
       }),
-    requests: [
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.listSkills,
-      adapterMocks.searchSkillMarketplace,
-    ],
+    requests: [adapterMocks.fetchWorkspaces, adapterMocks.listSkills],
   },
   {
     name: "skill detail → list/detail/shadows/content options",
@@ -775,19 +756,23 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.getSettingsObservability],
   },
   {
-    name: "hooks/extensions settings → section/extensions/notification-preset options",
-    load: queryClient => invokeLoader(SettingsHooksExtensionsRoute, context(queryClient)),
+    name: "hooks settings → section and notification-preset options",
+    load: queryClient => invokeLoader(SettingsHooksRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useSettingsHooksExtensions();
-        useSettingsExtensions();
         useNotificationPresets();
       }),
-    requests: [
-      adapterMocks.getSettingsHooksExtensions,
-      adapterMocks.listSettingsExtensions,
-      adapterMocks.listNotificationPresets,
-    ],
+    requests: [adapterMocks.getSettingsHooksExtensions, adapterMocks.listNotificationPresets],
+  },
+  {
+    name: "extensions settings → combined policy section option",
+    load: queryClient => invokeLoader(SettingsExtensionsRoute, context(queryClient)),
+    mountConsumer: queryClient =>
+      mountQueries(queryClient, () => {
+        useSettingsHooksExtensions();
+      }),
+    requests: [adapterMocks.getSettingsHooksExtensions],
   },
 ];
 
@@ -823,11 +808,9 @@ describe("route query preloading", () => {
     adapterMocks.getSettingsMemory.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsObservability.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsHooksExtensions.mockResolvedValue({ config: {} });
-    adapterMocks.listSettingsExtensions.mockResolvedValue([]);
     adapterMocks.listNotificationPresets.mockResolvedValue([]);
     adapterMocks.listVaultSecrets.mockResolvedValue([]);
     adapterMocks.listSkills.mockResolvedValue([]);
-    adapterMocks.searchSkillMarketplace.mockResolvedValue([]);
     adapterMocks.getSkill.mockResolvedValue({ name: "memory" });
     adapterMocks.getSkillShadows.mockResolvedValue([]);
     adapterMocks.getSkillContent.mockResolvedValue({ content: "# Memory" });

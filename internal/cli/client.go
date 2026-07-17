@@ -135,12 +135,8 @@ type DaemonClient interface {
 		request PromoteNetworkThreadTaskRequest,
 	) (PromoteNetworkThreadTaskRecord, error)
 	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
-	SearchExtensionMarketplace(
-		ctx context.Context,
-		query string,
-		source string,
-		limit int,
-	) ([]ExtensionMarketplaceRecord, error)
+	MarketplaceClient
+	MCPSettingsClient
 	InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error)
 	UpdateExtension(ctx context.Context, name string, request UpdateExtensionRequest) (ExtensionUpdateRecord, error)
 	RemoveExtension(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error)
@@ -275,7 +271,6 @@ type DaemonClient interface {
 	GetSkillShadows(ctx context.Context, name string, query SkillQuery) (SkillShadowsRecord, error)
 	EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
 	DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
-	SearchSkillMarketplace(ctx context.Context, query string, limit int) ([]SkillMarketplaceRecord, error)
 	InstallSkillMarketplace(
 		ctx context.Context,
 		request SkillMarketplaceInstallRequest,
@@ -695,8 +690,20 @@ type SkillQuery struct {
 // SkillActionRecord is the shared skill enable/disable response payload.
 type SkillActionRecord = contract.SkillActionResponse
 
-// SkillMarketplaceRecord is one daemon marketplace search result.
-type SkillMarketplaceRecord = contract.SkillMarketplaceListingPayload
+// MarketplaceListingRecord is one shared marketplace discovery row.
+type MarketplaceListingRecord = contract.MarketplaceListingPayload
+
+// MarketplaceSearchRecord is one grouped marketplace discovery response.
+type MarketplaceSearchRecord = contract.MarketplaceSearchResponse
+
+// MarketplaceKindRecord is one marketplace kind response.
+type MarketplaceKindRecord = contract.MarketplaceKindResponse
+
+// MarketplaceEntryRecord is one exact marketplace detail response.
+type MarketplaceEntryRecord = contract.MarketplaceEntryResponse
+
+// MarketplaceRefreshRecord is one marketplace refresh response.
+type MarketplaceRefreshRecord = contract.MarketplaceRefreshResponse
 
 // SkillMarketplaceInstallRequest captures one daemon marketplace install request.
 type SkillMarketplaceInstallRequest = contract.SkillMarketplaceInstallRequest
@@ -1315,9 +1322,6 @@ type UpdateExtensionRequest = contract.UpdateExtensionRequest
 
 // ExtensionRecord is the shared extension response payload.
 type ExtensionRecord = contract.ExtensionPayload
-
-// ExtensionMarketplaceRecord is one marketplace browse result.
-type ExtensionMarketplaceRecord = contract.ExtensionMarketplaceEntry
 
 // ExtensionProvenanceRecord is one installed extension provenance payload.
 type ExtensionProvenanceRecord = contract.ExtensionProvenancePayload
@@ -2126,31 +2130,6 @@ func (c *unixSocketClient) ListExtensions(ctx context.Context) ([]ExtensionRecor
 		Extensions []ExtensionRecord `json:"extensions"`
 	}
 	if err := c.doJSON(ctx, http.MethodGet, "/api/extensions", nil, nil, &response); err != nil {
-		return nil, err
-	}
-	return response.Extensions, nil
-}
-
-func (c *unixSocketClient) SearchExtensionMarketplace(
-	ctx context.Context,
-	query string,
-	source string,
-	limit int,
-) ([]ExtensionMarketplaceRecord, error) {
-	values := url.Values{}
-	if strings.TrimSpace(query) != "" {
-		values.Set("q", strings.TrimSpace(query))
-	}
-	if strings.TrimSpace(source) != "" {
-		values.Set("source", strings.TrimSpace(source))
-	}
-	if limit > 0 {
-		values.Set("limit", strconv.Itoa(limit))
-	}
-	var response struct {
-		Extensions []ExtensionMarketplaceRecord `json:"extensions"`
-	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/extensions/marketplace", values, nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Extensions, nil
@@ -3387,27 +3366,6 @@ func (c *unixSocketClient) EnableSkill(ctx context.Context, name string, query S
 
 func (c *unixSocketClient) DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
 	return c.skillAction(ctx, strings.TrimSpace(name), "disable", query)
-}
-
-func (c *unixSocketClient) SearchSkillMarketplace(
-	ctx context.Context,
-	query string,
-	limit int,
-) ([]SkillMarketplaceRecord, error) {
-	values := url.Values{}
-	if trimmed := strings.TrimSpace(query); trimmed != "" {
-		values.Set("query", trimmed)
-	}
-	if limit > 0 {
-		values.Set("limit", strconv.Itoa(limit))
-	}
-	var response struct {
-		Skills []SkillMarketplaceRecord `json:"skills"`
-	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/skills/marketplace/search", values, nil, &response); err != nil {
-		return nil, err
-	}
-	return response.Skills, nil
 }
 
 func (c *unixSocketClient) InstallSkillMarketplace(

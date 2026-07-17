@@ -73,6 +73,31 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			},
 			{path: "/api/settings/mcp-servers", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{
+				path:       "/api/settings/mcp-servers/install",
+				method:     "POST",
+				transports: []Transport{TransportHTTP, TransportUDS},
+			},
+			{
+				path:       "/api/settings/mcp-servers/{name}/auth/begin",
+				method:     "POST",
+				transports: []Transport{TransportHTTP, TransportUDS},
+			},
+			{
+				path:       "/api/settings/mcp-servers/{name}/auth/exchange",
+				method:     "POST",
+				transports: []Transport{TransportHTTP, TransportUDS},
+			},
+			{
+				path:       "/api/settings/mcp-servers/{name}/auth/logout",
+				method:     "POST",
+				transports: []Transport{TransportHTTP, TransportUDS},
+			},
+			{
+				path:       "/api/mcp/oauth/callback",
+				method:     "GET",
+				transports: []Transport{TransportHTTP},
+			},
+			{
 				path:       "/api/settings/mcp-servers/{name}",
 				method:     "PUT",
 				transports: []Transport{TransportHTTP, TransportUDS},
@@ -117,7 +142,6 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			},
 			{path: "/api/extensions", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/extensions", method: "POST", transports: []Transport{TransportHTTP, TransportUDS}},
-			{path: "/api/extensions/marketplace", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: specAPIExtensionsNamePath, method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: specAPIExtensionsNamePath, method: "PUT", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: specAPIExtensionsNamePath, method: "DELETE", transports: []Transport{TransportHTTP, TransportUDS}},
@@ -145,6 +169,53 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				op := operationFor(t, doc, operation.path, operation.method)
 				assertOperationTransports(t, op, operation.transports...)
 			})
+		}
+	})
+
+	t.Run("Should describe daemon-mediated MCP OAuth contracts", func(t *testing.T) {
+		t.Parallel()
+
+		begin := operationFor(t, doc, "/api/settings/mcp-servers/{name}/auth/begin", "POST")
+		assertOperationTransports(t, begin, TransportHTTP, TransportUDS)
+		assertParameter(t, begin, "name", openapi3.ParameterInPath, true)
+		assertParameter(t, begin, "scope", openapi3.ParameterInQuery, true)
+		assertParameter(t, begin, "workspace_id", openapi3.ParameterInQuery, false)
+		assertParameterEnumValues(t, begin, "scope", "global", "workspace")
+		beginSchema := jsonResponseSchema(t, begin, 200)
+		assertRequired(
+			t,
+			beginSchema,
+			"authorization_url",
+			"state",
+			"expires_at",
+			"callback_url",
+			"manual_supported",
+		)
+
+		exchange := operationFor(t, doc, "/api/settings/mcp-servers/{name}/auth/exchange", "POST")
+		assertOperationTransports(t, exchange, TransportHTTP, TransportUDS)
+		exchangeRequest := jsonRequestSchema(t, exchange)
+		assertMCPAuthExchangeExactlyOneOf(t, exchangeRequest)
+		exchangeStatus := jsonResponseSchema(t, exchange, 200)
+		assertRequired(
+			t,
+			exchangeStatus,
+			"server_name",
+			"scope",
+			"status",
+			"refreshable",
+			"token_present",
+		)
+
+		logout := operationFor(t, doc, "/api/settings/mcp-servers/{name}/auth/logout", "POST")
+		assertOperationTransports(t, logout, TransportHTTP, TransportUDS)
+		callback := operationFor(t, doc, "/api/mcp/oauth/callback", "GET")
+		assertOperationTransports(t, callback, TransportHTTP)
+		assertParameter(t, callback, "code", openapi3.ParameterInQuery, false)
+		assertParameter(t, callback, "state", openapi3.ParameterInQuery, false)
+		assertParameter(t, callback, "error", openapi3.ParameterInQuery, false)
+		for _, status := range []int{200, 400, 403, 503} {
+			assertResponseStatus(t, callback, status)
 		}
 	})
 
@@ -394,6 +465,34 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertRequired(t, serverSchema, "name")
 		assertNotRequired(t, serverSchema, "transport", "command", "args", "env", "url", "auth")
 
+		installMCP := operationFor(t, doc, "/api/settings/mcp-servers/install", "POST")
+		installMCPSchema := jsonRequestSchema(t, installMCP)
+		assertRequired(t, installMCPSchema, "entry_id", "scope", "values")
+		assertNotRequired(t, installMCPSchema, "name", "workspace_id")
+		assertEnumValues(t, propertySchema(t, installMCPSchema, "scope"), "global", "workspace")
+		installValuesSchema := propertySchema(t, installMCPSchema, "values")
+		installEnvSchema := propertySchema(t, installValuesSchema, "env")
+		if installEnvSchema.AdditionalProperties.Schema == nil ||
+			installEnvSchema.AdditionalProperties.Schema.Value == nil {
+			t.Fatal("install values.env additionalProperties schema = nil")
+		}
+		assertMCPSecretInputExactlyOneOf(t, installEnvSchema.AdditionalProperties.Schema.Value)
+		assertMCPSecretInputExactlyOneOf(t, propertySchema(t, installValuesSchema, "oauth_client_secret"))
+		installMCPResponseSchema := jsonResponseSchema(t, installMCP, 200)
+		assertRequired(t, installMCPResponseSchema, "mcp_server", "apply", "next_step")
+		installApplySchema := propertySchema(t, installMCPResponseSchema, "apply")
+		assertRequired(
+			t,
+			installApplySchema,
+			"applied",
+			"lifecycle",
+			"apply_record_id",
+			"active_generation",
+			"active_config_hash",
+			"next_action",
+		)
+		assertEnumValues(t, propertySchema(t, installMCPResponseSchema, "next_step"), "authorize", "none")
+
 		mcpListSchema := jsonResponseSchema(t, mcpList, 200)
 		assertRequired(t, mcpListSchema, "collection", "scope", "available_scopes", "mcp_servers")
 		assertNotRequired(t, mcpListSchema, "workspace_id")
@@ -406,10 +505,13 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"command",
 			"args",
 			"env",
+			"secret_env",
 			"url",
 			"auth",
 			"auth_status",
 			"runtime_status",
+			"catalog_entry",
+			"catalog_version",
 		)
 		mcpRuntimeSchema := propertySchema(t, mcpItemRootSchema, "runtime_status")
 		assertRequired(t, mcpRuntimeSchema, "configured", "initialized", "state", "probe", "tool_count")
@@ -463,6 +565,75 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			t.Fatal("expected 403 response on POST /api/extensions")
 		}
 	})
+}
+
+func assertMCPSecretInputExactlyOneOf(t *testing.T, schema *openapi3.Schema) {
+	t.Helper()
+
+	if len(schema.OneOf) != 2 {
+		t.Fatalf("MCP secret input oneOf = %#v, want two variants", schema.OneOf)
+	}
+	wantProperties := map[string]bool{"value": false, "vault_ref": false}
+	for _, variantRef := range schema.OneOf {
+		if variantRef == nil || variantRef.Value == nil {
+			t.Fatalf("MCP secret input variant = %#v, want concrete schema", variantRef)
+		}
+		variant := variantRef.Value
+		if len(variant.Required) != 1 || len(variant.Properties) != 1 {
+			t.Fatalf("MCP secret input variant = %#v, want one required property", variant)
+		}
+		property := variant.Required[0]
+		if _, ok := wantProperties[property]; !ok {
+			t.Fatalf("MCP secret input property = %q, want value or vault_ref", property)
+		}
+		if _, ok := variant.Properties[property]; !ok {
+			t.Fatalf("MCP secret input variant missing required property %q", property)
+		}
+		if variant.AdditionalProperties.Has == nil || *variant.AdditionalProperties.Has {
+			t.Fatalf("MCP secret input %q variant allows additional properties", property)
+		}
+		wantProperties[property] = true
+	}
+	for property, found := range wantProperties {
+		if !found {
+			t.Fatalf("MCP secret input oneOf missing %q variant", property)
+		}
+	}
+}
+
+func assertMCPAuthExchangeExactlyOneOf(t *testing.T, schema *openapi3.Schema) {
+	t.Helper()
+
+	if len(schema.OneOf) != 2 {
+		t.Fatalf("MCP auth exchange oneOf = %#v, want two variants", schema.OneOf)
+	}
+	wantProperties := map[string]bool{"code": false, "redirect_url": false}
+	for _, variantRef := range schema.OneOf {
+		if variantRef == nil || variantRef.Value == nil {
+			t.Fatalf("MCP auth exchange variant = %#v, want concrete schema", variantRef)
+		}
+		variant := variantRef.Value
+		if len(variant.Required) != 1 || len(variant.Properties) != 1 {
+			t.Fatalf("MCP auth exchange variant = %#v, want one required property", variant)
+		}
+		property := variant.Required[0]
+		propertyRef, ok := variant.Properties[property]
+		if !ok || propertyRef == nil || propertyRef.Value == nil {
+			t.Fatalf("MCP auth exchange %q property is missing", property)
+		}
+		if propertyRef.Value.MinLength == 0 || !propertyRef.Value.WriteOnly {
+			t.Fatalf("MCP auth exchange %q property = %#v, want non-empty write-only string", property, propertyRef)
+		}
+		if variant.AdditionalProperties.Has == nil || *variant.AdditionalProperties.Has {
+			t.Fatalf("MCP auth exchange %q variant allows additional properties", property)
+		}
+		wantProperties[property] = true
+	}
+	for property, found := range wantProperties {
+		if !found {
+			t.Fatalf("MCP auth exchange oneOf missing %q variant", property)
+		}
+	}
 }
 
 func assertOperationTransports(t *testing.T, operation *openapi3.Operation, want ...Transport) {

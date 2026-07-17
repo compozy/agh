@@ -62,8 +62,14 @@ type configSeedFile struct {
 	Permissions *configSeedPermissionsSection       `toml:"permissions,omitempty"`
 	Session     *aghconfig.SessionConfig            `toml:"session,omitempty"`
 	Network     *aghconfig.NetworkConfig            `toml:"network,omitempty"`
+	Marketplace *aghconfig.MarketplaceRuntimeConfig `toml:"marketplace,omitempty"`
+	Extensions  *configSeedExtensionsSection        `toml:"extensions,omitempty"`
 	Providers   map[string]aghconfig.ProviderConfig `toml:"providers,omitempty"`
 	Sandboxes   map[string]aghconfig.SandboxProfile `toml:"sandboxes,omitempty"`
+}
+
+type configSeedExtensionsSection struct {
+	Marketplace *aghconfig.ExtensionsMarketplaceConfig `toml:"marketplace,omitempty"`
 }
 
 type configSeedDaemonSection struct {
@@ -164,8 +170,14 @@ func writeSeedConfigFile(homePaths aghconfig.HomePaths, cfg *aghconfig.Config) e
 			Provider: cfg.Defaults.Provider,
 			Sandbox:  cfg.Defaults.Sandbox,
 		},
-		Session:   cloneSessionConfig(cfg.Session),
-		Network:   &cfg.Network,
+		Session: cloneSessionConfig(cfg.Session),
+		Network: &cfg.Network,
+		Marketplace: &aghconfig.MarketplaceRuntimeConfig{
+			Catalog: cfg.Marketplace.Catalog,
+		},
+		Extensions: &configSeedExtensionsSection{
+			Marketplace: &cfg.Extensions.Marketplace,
+		},
 		Providers: cloneProviders(cfg.Providers),
 		Sandboxes: cloneSandboxProfiles(cfg.Sandboxes),
 	}

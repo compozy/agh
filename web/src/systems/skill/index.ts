@@ -3,15 +3,11 @@ export type {
   ProvenancePayload,
   SkillActionResponse,
   SkillContentResponse,
-  SkillMarketplaceDetailPayload,
-  SkillMarketplaceInfoResponse,
   SkillMarketplaceInstallPayload,
   SkillMarketplaceInstallRequest,
   SkillMarketplaceInstallResponse,
-  SkillMarketplaceListingPayload,
   SkillMarketplaceRemovePayload,
   SkillMarketplaceRemoveResponse,
-  SkillMarketplaceSearchResponse,
   SkillMarketplaceUpdatePayload,
   SkillMarketplaceUpdateRequest,
   SkillMarketplaceUpdateResponse,
@@ -29,11 +25,9 @@ export {
   getSkill,
   getSkillContent,
   getSkillShadows,
-  getSkillMarketplaceInfo,
   installSkillMarketplace,
   listSkills,
   removeSkillMarketplace,
-  searchSkillMarketplace,
   SkillApiError,
   updateSkillMarketplace,
 } from "./adapters/skill-api";
@@ -43,21 +37,12 @@ export { skillKeys } from "./lib/query-keys";
 export {
   skillContentOptions,
   skillDetailOptions,
-  skillMarketplaceInfoOptions,
-  skillMarketplaceSearchOptions,
   skillShadowsOptions,
   skillsListOptions,
 } from "./lib/query-options";
 
 // Hooks
-export {
-  useSkill,
-  useSkillContent,
-  useSkillMarketplaceInfo,
-  useSkillMarketplaceSearch,
-  useSkillShadows,
-  useSkills,
-} from "./hooks/use-skills";
+export { useSkill, useSkillContent, useSkillShadows, useSkills } from "./hooks/use-skills";
 export {
   useDisableSkill,
   useEnableSkill,
@@ -70,7 +55,6 @@ export {
 export { SkillListPanel } from "./components/skill-list-panel";
 export { SkillListFilters } from "./components/skill-list-filters";
 export { SkillDetailPanel } from "./components/skill-detail-panel";
-export { MarketplaceView } from "./components/marketplace-view";
 export type {
   SkillEnabledFilter,
   SkillFilterState,

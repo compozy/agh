@@ -1,23 +1,20 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { marketplaceKeys } from "@/systems/marketplace";
+
 import {
   deleteSettingsSandbox,
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
-  disableSettingsExtension,
-  enableSettingsExtension,
   createSettingsNotificationPreset,
   deleteSettingsNotificationPreset,
-  installSettingsExtension,
   putSettingsSandbox,
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
   reloadSettings,
-  removeSettingsExtension,
   updateSettingsNotificationPreset,
-  updateSettingsExtension,
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
@@ -26,17 +23,20 @@ import {
   updateSettingsObservability,
   updateSettingsSkills,
 } from "../adapters/settings-api";
+import {
+  beginSettingsMCPAuth,
+  exchangeSettingsMCPAuth,
+  logoutSettingsMCPAuth,
+} from "../adapters/settings-mcp-auth-api";
 import { settingsKeys } from "../lib/query-keys";
 import { useSettingsRestartStore } from "../stores/use-settings-restart-store";
 import type {
   SettingsSandboxRequest,
-  SettingsExtensionRemove,
-  SettingsExtensionEntry,
-  SettingsExtensionUpdate,
   SettingsHookRequest,
-  SettingsInstallExtensionRequest,
   SettingsCreateNotificationPresetRequest,
   SettingsNotificationPresetEntry,
+  SettingsMCPAuthExchangeRequest,
+  SettingsMCPAuthFilter,
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerPutFilter,
   SettingsMCPServerRequest,
@@ -44,7 +44,6 @@ import type {
   SettingsUpdateNotificationPresetRequest,
   SettingsProviderRequest,
   SettingsUpdateAutomationRequest,
-  SettingsUpdateExtensionRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
   SettingsUpdateMemoryRequest,
@@ -206,7 +205,11 @@ export function useUpdateSettingsHooksExtensions() {
   return useMutation({
     mutationFn: (body: SettingsUpdateHooksExtensionsRequest) => updateSettingsHooksExtensions(body),
     onSuccess: recordMutation,
-    onSettled: () => invalidateSection(queryClient, "hooks-extensions"),
+    onSettled: () =>
+      Promise.all([
+        invalidateSection(queryClient, "hooks-extensions"),
+        queryClient.invalidateQueries({ queryKey: marketplaceKeys.all }),
+      ]),
   });
 }
 
@@ -289,11 +292,6 @@ interface MCPDeleteParams {
   filter?: SettingsMCPServerDeleteFilter;
 }
 
-interface SettingsExtensionUpdateParams {
-  name: string;
-  body: SettingsUpdateExtensionRequest;
-}
-
 interface SettingsNotificationPresetUpdateParams {
   name: string;
   body: SettingsUpdateNotificationPresetRequest;
@@ -320,60 +318,47 @@ export function useDeleteSettingsMCPServer() {
   });
 }
 
-function invalidateExtensions(queryClient: ReturnType<typeof useQueryClient>) {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: settingsKeys.extensionsRoot() }),
-    queryClient.invalidateQueries({ queryKey: settingsKeys.section("hooks-extensions") }),
-  ]);
+interface MCPAuthParams {
+  name: string;
+  filter: SettingsMCPAuthFilter;
+}
+
+interface MCPAuthExchangeParams extends MCPAuthParams {
+  body: SettingsMCPAuthExchangeRequest;
+}
+
+// Begin only creates a PKCE session (no server-state change) -> no invalidation,
+// no restart record. It is a mutation for in-flight/error tracking only.
+export function useBeginMCPAuth() {
+  return useMutation({
+    mutationFn: ({ name, filter }: MCPAuthParams) => beginSettingsMCPAuth(name, filter),
+  });
+}
+
+// Exchange/logout change credential state; refetch the canonical scoped list so
+// auth_status re-reads. These are runtime auth ops, not config edits, so they do
+// not record a pending restart.
+export function useExchangeMCPAuth() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ name, filter, body }: MCPAuthExchangeParams) =>
+      exchangeSettingsMCPAuth(name, filter, body),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() }),
+  });
+}
+
+export function useLogoutMCPAuth() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ name, filter }: MCPAuthParams) => logoutSettingsMCPAuth(name, filter),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() }),
+  });
 }
 
 function invalidateNotificationPresets(queryClient: ReturnType<typeof useQueryClient>) {
   return queryClient.invalidateQueries({ queryKey: settingsKeys.notificationsRoot() });
-}
-
-export function useEnableSettingsExtension() {
-  const queryClient = useQueryClient();
-
-  return useMutation<SettingsExtensionEntry, Error, string>({
-    mutationFn: name => enableSettingsExtension(name),
-    onSettled: () => invalidateExtensions(queryClient),
-  });
-}
-
-export function useDisableSettingsExtension() {
-  const queryClient = useQueryClient();
-
-  return useMutation<SettingsExtensionEntry, Error, string>({
-    mutationFn: name => disableSettingsExtension(name),
-    onSettled: () => invalidateExtensions(queryClient),
-  });
-}
-
-export function useInstallSettingsExtension() {
-  const queryClient = useQueryClient();
-
-  return useMutation<SettingsExtensionEntry, Error, SettingsInstallExtensionRequest>({
-    mutationFn: body => installSettingsExtension(body),
-    onSettled: () => invalidateExtensions(queryClient),
-  });
-}
-
-export function useUpdateSettingsExtension() {
-  const queryClient = useQueryClient();
-
-  return useMutation<SettingsExtensionUpdate, Error, SettingsExtensionUpdateParams>({
-    mutationFn: ({ name, body }) => updateSettingsExtension(name, body),
-    onSettled: () => invalidateExtensions(queryClient),
-  });
-}
-
-export function useRemoveSettingsExtension() {
-  const queryClient = useQueryClient();
-
-  return useMutation<SettingsExtensionRemove, Error, string>({
-    mutationFn: name => removeSettingsExtension(name),
-    onSettled: () => invalidateExtensions(queryClient),
-  });
 }
 
 export function useCreateSettingsNotificationPreset() {

@@ -1,13 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import {
-  getSkill,
-  getSkillContent,
-  getSkillShadows,
-  getSkillMarketplaceInfo,
-  listSkills,
-  searchSkillMarketplace,
-} from "../adapters/skill-api";
+import { getSkill, getSkillContent, getSkillShadows, listSkills } from "../adapters/skill-api";
 import { skillKeys } from "./query-keys";
 
 export function skillsListOptions(workspace: string) {
@@ -44,25 +37,5 @@ export function skillShadowsOptions(name: string, workspace: string) {
     queryFn: ({ signal }) => getSkillShadows(name, workspace, signal),
     staleTime: 30_000,
     enabled: !!name && !!workspace,
-  });
-}
-
-export function skillMarketplaceSearchOptions(query: string, limit?: number) {
-  const trimmed = query.trim();
-  return queryOptions({
-    queryKey: skillKeys.marketplaceSearch(trimmed, limit),
-    queryFn: ({ signal }) => searchSkillMarketplace({ query: trimmed, limit }, signal),
-    staleTime: 30_000,
-    enabled: trimmed !== "",
-  });
-}
-
-export function skillMarketplaceInfoOptions(slug: string, enabled = true) {
-  const normalizedSlug = slug.trim();
-  return queryOptions({
-    queryKey: skillKeys.marketplaceInfo(normalizedSlug),
-    queryFn: ({ signal }) => getSkillMarketplaceInfo(normalizedSlug, signal),
-    staleTime: 30_000,
-    enabled: enabled && normalizedSlug !== "",
   });
 }

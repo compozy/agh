@@ -13,7 +13,6 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
-	aghdaemon "github.com/compozy/agh/internal/daemon"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/spf13/cobra"
 )
@@ -75,14 +74,13 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 
 func newExtensionSearchCommand(deps commandDeps) *cobra.Command {
 	limit := defaultExtensionRegistrySearchLimit
-	var sourceFilter string
 
 	cmd := &cobra.Command{
 		Use:   extensionSearchQueryValue,
-		Short: "Search remote extension registries",
+		Short: "Search marketplace extensions",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			results, err := searchExtensions(cmd.Context(), deps, args[0], sourceFilter, limit)
+			results, err := searchExtensions(cmd.Context(), deps, args[0], limit)
 			if err != nil {
 				return err
 			}
@@ -91,7 +89,6 @@ func newExtensionSearchCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().
 		IntVar(&limit, "limit", defaultExtensionRegistrySearchLimit, "Maximum number of extension registry results to return")
-	cmd.Flags().StringVar(&sourceFilter, "from", "", "Only query one configured extension registry source")
 	return cmd
 }
 
@@ -299,7 +296,7 @@ func newExtensionProvenanceCommand(deps commandDeps) *cobra.Command {
 }
 
 func loadExtensionRecords(ctx context.Context, deps commandDeps) ([]ExtensionRecord, error) {
-	client, running, err := extensionClientIfRunning(deps)
+	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
@@ -325,54 +322,8 @@ func loadExtensionRecords(ctx context.Context, deps commandDeps) ([]ExtensionRec
 	)
 }
 
-func installExtension(
-	ctx context.Context,
-	deps commandDeps,
-	prepared preparedExtensionInstall,
-	allowUnverified bool,
-) (ExtensionRecord, error) {
-	client, running, err := extensionClientIfRunning(deps)
-	if err != nil {
-		return ExtensionRecord{}, err
-	}
-	if running {
-		return client.InstallExtension(ctx, InstallExtensionRequest{
-			Path:            prepared.Path,
-			Checksum:        prepared.Checksum,
-			AllowUnverified: allowUnverified,
-		})
-	}
-	if !allowUnverified {
-		return ExtensionRecord{}, extensionpkg.NewExtensionChecksumUnverifiedError(
-			prepared.Manifest.Name,
-			prepared.Path,
-		)
-	}
-
-	return withLocalExtensionRegistry(
-		ctx,
-		deps,
-		func(runtime *runtimeContext, registry localExtensionRegistry) (ExtensionRecord, error) {
-			if err := installPreparedExtension(
-				runtime.HomePaths,
-				registry,
-				prepared,
-				deps.now(),
-				allowUnverified,
-			); err != nil {
-				return ExtensionRecord{}, err
-			}
-			info, err := registry.Get(prepared.Manifest.Name)
-			if err != nil {
-				return ExtensionRecord{}, err
-			}
-			return localExtensionRecord(*info, deps.now, deps.getenv), nil
-		},
-	)
-}
-
 func mutateExtensionEnabled(ctx context.Context, deps commandDeps, name string, enabled bool) (ExtensionRecord, error) {
-	client, err := requireExtensionDaemonClient(deps)
+	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
 		return ExtensionRecord{}, err
 	}
@@ -383,7 +334,7 @@ func mutateExtensionEnabled(ctx context.Context, deps commandDeps, name string, 
 }
 
 func extensionStatus(ctx context.Context, deps commandDeps, name string) (ExtensionRecord, error) {
-	client, err := requireExtensionDaemonClient(deps)
+	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
 		return ExtensionRecord{}, err
 	}
@@ -391,39 +342,15 @@ func extensionStatus(ctx context.Context, deps commandDeps, name string) (Extens
 }
 
 func extensionProvenance(ctx context.Context, deps commandDeps, name string) (ExtensionProvenanceRecord, error) {
-	client, err := requireExtensionDaemonClient(deps)
+	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
 		return ExtensionProvenanceRecord{}, err
 	}
 	return client.ExtensionProvenance(ctx, name)
 }
 
-func extensionClientIfRunning(deps commandDeps) (DaemonClient, bool, error) {
-	runtime, err := loadRuntimeContext(deps)
-	if err != nil {
-		return nil, false, err
-	}
-
-	info, running, err := daemonInfo(runtime.HomePaths, deps)
-	if err != nil {
-		return nil, false, err
-	}
-	if !running {
-		return nil, false, nil
-	}
-	if info == (aghdaemon.Info{}) {
-		return nil, false, nil
-	}
-
-	client, err := clientFromDeps(deps)
-	if err != nil {
-		return nil, false, err
-	}
-	return client, true, nil
-}
-
-func requireExtensionDaemonClient(deps commandDeps) (DaemonClient, error) {
-	client, running, err := extensionClientIfRunning(deps)
+func requireExtensionDaemonClient(ctx context.Context, deps commandDeps) (DaemonClient, error) {
+	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
 		return nil, err
 	}

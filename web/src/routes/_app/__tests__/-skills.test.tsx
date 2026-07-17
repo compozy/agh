@@ -3,7 +3,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SkillMarketplaceListingPayload, SkillPayload } from "@/systems/skill/types";
+import type { SkillPayload } from "@/systems/skill/types";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
 function render(ui: React.ReactElement) {
@@ -17,19 +17,8 @@ const mockRefetchSkills = vi.fn();
 
 const mockDisableMutate = vi.fn();
 const mockEnableMutate = vi.fn();
-const mockInstallMutate = vi.fn();
-const mockUpdateMutate = vi.fn();
-const mockRemoveMutate = vi.fn();
 let mockDisablePending = false;
 let mockEnablePending = false;
-let mockInstallPending = false;
-let mockUpdatePending = false;
-let mockRemovePending = false;
-
-let mockMarketplaceListings: SkillMarketplaceListingPayload[] = [];
-let mockMarketplaceSearching = false;
-let mockMarketplaceError: Error | null = null;
-const mockRefetchMarketplace = vi.fn();
 
 const routerState = vi.hoisted(() => ({
   navigateMock: vi.fn(),
@@ -96,15 +85,24 @@ vi.mock("@tanstack/react-router", () => ({
 
       routerState.navigateMock(options);
     },
-  Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
-    <a
-      href={typeof to === "string" ? to : "#"}
-      data-params={JSON.stringify(params)}
-      {...(props as Record<string, unknown>)}
-    >
-      {children as React.ReactNode}
-    </a>
-  ),
+  Link: ({ to, params, search, children, ...props }: Record<string, unknown>) => {
+    const path = typeof to === "string" ? to : "#";
+    const query =
+      search && typeof search === "object"
+        ? new URLSearchParams(
+            Object.entries(search as Record<string, string>).filter(([, value]) => Boolean(value))
+          ).toString()
+        : "";
+    return (
+      <a
+        href={`${path}${query ? `?${query}` : ""}`}
+        data-params={JSON.stringify(params)}
+        {...(props as Record<string, unknown>)}
+      >
+        {children as React.ReactNode}
+      </a>
+    );
+  },
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -154,24 +152,6 @@ vi.mock("@/systems/skill", async () => {
       mutate: mockEnableMutate,
       isPending: mockEnablePending,
     }),
-    useSkillMarketplaceSearch: () => ({
-      data: mockMarketplaceListings,
-      isFetching: mockMarketplaceSearching,
-      error: mockMarketplaceError,
-      refetch: mockRefetchMarketplace,
-    }),
-    useInstallSkillMarketplace: () => ({
-      mutate: mockInstallMutate,
-      isPending: mockInstallPending,
-    }),
-    useUpdateSkillMarketplace: () => ({
-      mutate: mockUpdateMutate,
-      isPending: mockUpdatePending,
-    }),
-    useRemoveSkillMarketplace: () => ({
-      mutate: mockRemoveMutate,
-      isPending: mockRemovePending,
-    }),
   };
 });
 
@@ -210,27 +190,6 @@ const ALL_SKILLS: SkillPayload[] = [
   }),
 ];
 
-const MARKETPLACE_LISTINGS: SkillMarketplaceListingPayload[] = [
-  {
-    name: "mp-plugin",
-    slug: "@compozy/mp-plugin",
-    author: "compozy",
-    description: "An installable marketplace plugin",
-    downloads: 1234,
-    source: "clawhub",
-    version: "3.1.0",
-  },
-  {
-    name: "remote-only",
-    slug: "@community/remote-only",
-    author: "community",
-    description: "Not yet installed",
-    downloads: 42,
-    source: "clawhub",
-    version: "0.1.0",
-  },
-];
-
 describe("SkillsPage", () => {
   beforeEach(() => {
     mockSkills = ALL_SKILLS;
@@ -239,31 +198,31 @@ describe("SkillsPage", () => {
     mockRefetchSkills.mockReset();
     mockDisablePending = false;
     mockEnablePending = false;
-    mockInstallPending = false;
-    mockUpdatePending = false;
-    mockRemovePending = false;
     mockDisableMutate.mockReset();
     mockEnableMutate.mockReset();
-    mockInstallMutate.mockReset();
-    mockUpdateMutate.mockReset();
-    mockRemoveMutate.mockReset();
-    mockMarketplaceListings = MARKETPLACE_LISTINGS;
-    mockMarketplaceSearching = false;
-    mockMarketplaceError = null;
-    mockRefetchMarketplace.mockReset();
     routerState.searchListeners.clear();
     routerState.searchParams = {};
     routerState.childMatches = [];
     routerState.navigateMock.mockReset();
   });
 
-  it("renders Installed tab by default with listing shell", () => {
+  it("renders the installed skills listing shell", () => {
     render(<SkillsPage />);
-    expect(screen.getByTestId("tab-installed")).toHaveTextContent("Installed");
+    expect(screen.queryByTestId("skills-tabs")).not.toBeInTheDocument();
     expect(screen.getByTestId("skills-page-head")).toBeInTheDocument();
     expect(screen.getByTestId("listing-toolbar")).toBeInTheDocument();
     expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("skills-split-pane")).not.toBeInTheDocument();
+  });
+
+  it("Should expose no tab control and link Browse marketplace to the plural Skills kind", () => {
+    render(<SkillsPage />);
+
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.getByTestId("skills-browse-marketplace")).toHaveAttribute(
+      "href",
+      "/marketplace?kind=skills"
+    );
   });
 
   it("renders Outlet and hides tabs/actions when a child route is active", () => {
@@ -273,38 +232,6 @@ describe("SkillsPage", () => {
     expect(screen.queryByTestId("skills-tabs")).not.toBeInTheDocument();
     expect(screen.queryByTestId("skills-topbar-actions")).not.toBeInTheDocument();
     expect(screen.queryByTestId("skill-list-panel")).not.toBeInTheDocument();
-  });
-
-  it("clicking MARKETPLACE tab switches to marketplace view", async () => {
-    const user = userEvent.setup();
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("tab-marketplace"));
-
-    expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
-    expect(getValidatedSearch()).toMatchObject({ tab: "marketplace" });
-    expect(screen.queryByTestId("skill-list-panel")).not.toBeInTheDocument();
-  });
-
-  it("clicking back to INSTALLED tab shows list panel again", async () => {
-    const user = userEvent.setup();
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("tab-marketplace"));
-    expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("tab-installed"));
-    expect(getValidatedSearch().tab).toBeUndefined();
-    expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
-  });
-
-  it("restores tab state from URL search", () => {
-    routerState.searchParams = { q: "mp-plugin", tab: "marketplace" };
-
-    render(<SkillsPage />);
-
-    expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
-    expect(screen.getByTestId("marketplace-search-input")).toHaveValue("mp-plugin");
   });
 
   it("shows total skill count badge in page head", () => {
@@ -373,94 +300,6 @@ describe("SkillsPage", () => {
     });
   });
 
-  it("Browse marketplace topbar action switches tab", async () => {
-    const user = userEvent.setup();
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("skills-browse-marketplace"));
-    expect(getValidatedSearch()).toMatchObject({ tab: "marketplace" });
-    expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
-  });
-
-  it("marketplace tab shows a search prompt with no query", async () => {
-    const user = userEvent.setup();
-    mockMarketplaceListings = [];
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("tab-marketplace"));
-
-    expect(screen.getByTestId("marketplace-search-prompt")).toBeInTheDocument();
-    expect(screen.queryByTestId("marketplace-grid")).not.toBeInTheDocument();
-  });
-
-  it("marketplace search query renders remote listings and installed state", () => {
-    routerState.searchParams = { q: "plugin", tab: "marketplace" };
-    render(<SkillsPage />);
-
-    expect(screen.getByTestId("marketplace-row-mp-plugin")).toBeInTheDocument();
-    expect(screen.getByTestId("marketplace-row-remote-only")).toBeInTheDocument();
-    expect(screen.getByTestId("installed-pill-mp-plugin")).toBeInTheDocument();
-    expect(screen.getByTestId("install-btn-remote-only")).toBeInTheDocument();
-  });
-
-  it("marketplace install button triggers the install mutation with the slug", async () => {
-    const user = userEvent.setup();
-    routerState.searchParams = { q: "plugin", tab: "marketplace" };
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("install-btn-remote-only"));
-
-    expect(mockInstallMutate).toHaveBeenCalledWith({
-      body: { slug: "@community/remote-only" },
-      workspace: "ws_test",
-    });
-  });
-
-  it("marketplace update button triggers the update mutation", async () => {
-    const user = userEvent.setup();
-    routerState.searchParams = { q: "plugin", tab: "marketplace" };
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("update-btn-mp-plugin"));
-
-    expect(mockUpdateMutate).toHaveBeenCalledWith({
-      body: { name: "mp-plugin" },
-      workspace: "ws_test",
-    });
-  });
-
-  it("marketplace remove requires explicit confirmation before mutating", async () => {
-    const user = userEvent.setup();
-    routerState.searchParams = { q: "plugin", tab: "marketplace" };
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("remove-btn-mp-plugin"));
-    expect(mockRemoveMutate).not.toHaveBeenCalled();
-
-    await user.click(screen.getByTestId("confirm-remove-mp-plugin"));
-    expect(mockRemoveMutate).toHaveBeenCalledWith({
-      name: "mp-plugin",
-      workspace: "ws_test",
-    });
-  });
-
-  it("marketplace shows empty state when remote search returns nothing", () => {
-    routerState.searchParams = { q: "no-match", tab: "marketplace" };
-    mockMarketplaceListings = [];
-    render(<SkillsPage />);
-
-    expect(screen.getByTestId("marketplace-empty")).toBeInTheDocument();
-  });
-
-  it("marketplace surfaces remote search errors inline", () => {
-    routerState.searchParams = { q: "boom", tab: "marketplace" };
-    mockMarketplaceListings = [];
-    mockMarketplaceError = new Error("clawhub unavailable");
-    render(<SkillsPage />);
-
-    expect(screen.getByTestId("marketplace-error")).toHaveTextContent("clawhub unavailable");
-  });
-
   it("loading state shows spinner", () => {
     mockSkillsLoading = true;
     mockSkills = [];
@@ -493,10 +332,10 @@ describe("SkillsPage", () => {
     mockSkills = [];
     render(<SkillsPage />);
 
-    expect(screen.getByTestId("skill-list-empty")).toHaveTextContent("No skills yet");
+    expect(screen.getByTestId("skill-list-empty")).toHaveTextContent("No skills installed");
   });
 
-  it("full page flow: load skills, switch tabs, toggle view", async () => {
+  it("full page flow loads skills and toggles the listing view", async () => {
     const user = userEvent.setup();
     render(<SkillsPage />);
 
@@ -506,10 +345,6 @@ describe("SkillsPage", () => {
     await user.click(screen.getByTestId("listing-view-cards"));
     expect(screen.getByTestId("skill-list-card-grid")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("tab-marketplace"));
-    expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("tab-installed"));
     expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
   });
 });

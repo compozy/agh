@@ -238,7 +238,7 @@ func (s ExtensionSource) String() string {
 	case SourceWorkspace:
 		return capabilityWorkspaceKey
 	case SourceMarketplace:
-		return "marketplace"
+		return sourceMarketplaceName
 	default:
 		return ""
 	}

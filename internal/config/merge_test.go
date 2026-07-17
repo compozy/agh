@@ -105,6 +105,65 @@ enabled = true
 	})
 }
 
+func TestApplyConfigOverlayFileAppliesMarketplaceCatalogOverlay(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply marketplace catalog overlay", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, `
+[marketplace.catalog]
+base_url = "https://workspace.example.test/catalog"
+ttl = "20m"
+timeout = "3s"
+`)
+
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		if got, want := cfg.Marketplace.Catalog.BaseURL, "https://workspace.example.test/catalog"; got != want {
+			t.Fatalf("Marketplace.Catalog.BaseURL = %q, want %q", got, want)
+		}
+		if got, want := cfg.Marketplace.Catalog.TTL, "20m"; got != want {
+			t.Fatalf("Marketplace.Catalog.TTL = %q, want %q", got, want)
+		}
+		if got, want := cfg.Marketplace.Catalog.Timeout, "3s"; got != want {
+			t.Fatalf("Marketplace.Catalog.Timeout = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestApplyConfigOverlayFileAppliesExtensionSideLoadPolicy(t *testing.T) {
+	t.Parallel()
+	t.Run("Should apply the extension side-load policy from an overlay", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, `
+[extensions.marketplace]
+allow_unverified = true
+`)
+
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		if !cfg.Extensions.Marketplace.AllowUnverified {
+			t.Fatal("Extensions.Marketplace.AllowUnverified = false, want true")
+		}
+	})
+}
+
 func TestApplyConfigOverlayFileAppliesNetworkOverlay(t *testing.T) {
 	t.Parallel()
 

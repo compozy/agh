@@ -8,16 +8,11 @@ vi.mock("../../adapters/settings-api", () => ({
   deleteSettingsHook: vi.fn(),
   deleteSettingsMCPServer: vi.fn(),
   deleteSettingsProvider: vi.fn(),
-  disableSettingsExtension: vi.fn(),
-  enableSettingsExtension: vi.fn(),
-  installSettingsExtension: vi.fn(),
   putSettingsSandbox: vi.fn(),
   putSettingsHook: vi.fn(),
   putSettingsMCPServer: vi.fn(),
   putSettingsProvider: vi.fn(),
   reloadSettings: vi.fn(),
-  removeSettingsExtension: vi.fn(),
-  updateSettingsExtension: vi.fn(),
   updateSettingsAutomation: vi.fn(),
   updateSettingsGeneral: vi.fn(),
   updateSettingsHooksExtensions: vi.fn(),
@@ -27,34 +22,41 @@ vi.mock("../../adapters/settings-api", () => ({
   updateSettingsSkills: vi.fn(),
 }));
 
+vi.mock("../../adapters/settings-mcp-auth-api", () => ({
+  beginSettingsMCPAuth: vi.fn(),
+  exchangeSettingsMCPAuth: vi.fn(),
+  logoutSettingsMCPAuth: vi.fn(),
+}));
+
 import {
   deleteSettingsMCPServer,
   deleteSettingsProvider,
-  disableSettingsExtension,
-  enableSettingsExtension,
-  installSettingsExtension,
   putSettingsMCPServer,
   reloadSettings,
-  removeSettingsExtension,
-  updateSettingsExtension,
   updateSettingsGeneral,
+  updateSettingsHooksExtensions,
   updateSettingsMemory,
 } from "../../adapters/settings-api";
+import {
+  exchangeSettingsMCPAuth,
+  logoutSettingsMCPAuth,
+} from "../../adapters/settings-mcp-auth-api";
 import { settingsKeys } from "../../lib/query-keys";
-import { settingsMemoryConfigFixture } from "../../mocks/fixtures";
+import {
+  settingsHooksExtensionsSectionFixture,
+  settingsMemoryConfigFixture,
+} from "../../mocks/fixtures";
 import { initialSettingsRestartState } from "../../stores/settings-restart-store";
 import { useSettingsRestartStore } from "../../stores/use-settings-restart-store";
 import {
   useDeleteSettingsMCPServer,
   useDeleteSettingsProvider,
-  useDisableSettingsExtension,
-  useEnableSettingsExtension,
-  useInstallSettingsExtension,
+  useExchangeMCPAuth,
+  useLogoutMCPAuth,
   usePutSettingsMCPServer,
   useReloadSettings,
-  useRemoveSettingsExtension,
-  useUpdateSettingsExtension,
   useUpdateSettingsGeneral,
+  useUpdateSettingsHooksExtensions,
   useUpdateSettingsMemory,
 } from "../use-settings-mutations";
 
@@ -173,6 +175,29 @@ describe("useUpdateSettingsMemory", () => {
   });
 });
 
+describe("useUpdateSettingsHooksExtensions", () => {
+  it("Should invalidate marketplace discovery after policy changes", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    vi.mocked(updateSettingsHooksExtensions).mockResolvedValue({
+      ...generalMutation,
+      section: "hooks-extensions" as const,
+    });
+    const { result } = renderHook(() => useUpdateSettingsHooksExtensions(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ config: settingsHooksExtensionsSectionFixture.config });
+    });
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: settingsKeys.section("hooks-extensions"),
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
+    });
+  });
+});
+
 describe("useReloadSettings", () => {
   it("records reload state and invalidates all settings queries", async () => {
     const { queryClient, wrapper } = createWrapper();
@@ -273,117 +298,59 @@ describe("mcp server mutations", () => {
   });
 });
 
-describe("extension action mutations", () => {
-  const extension = {
-    name: "daytona",
-    enabled: true,
-    version: "1.2.3",
-    state: "running",
-    source: "marketplace",
-    type: "backend",
-    daemon_running: true,
-  };
-
-  it("enables an extension and invalidates extension + section caches", async () => {
+describe("mcp auth mutations", () => {
+  it("re-reads the scoped mcp list after a successful exchange without recording a restart", async () => {
     const { queryClient, wrapper } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    vi.mocked(enableSettingsExtension).mockResolvedValue(extension);
+    vi.mocked(exchangeSettingsMCPAuth).mockResolvedValue({
+      server_name: "linear",
+      scope: "workspace",
+      status: "authenticated",
+      token_present: true,
+      refreshable: true,
+    });
 
-    const { result } = renderHook(() => useEnableSettingsExtension(), { wrapper });
+    const { result } = renderHook(() => useExchangeMCPAuth(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync("daytona");
+      await result.current.mutateAsync({
+        name: "linear",
+        filter: { scope: "workspace", workspace_id: "ws_alpha" },
+        body: { code: "abc123" },
+      });
     });
-
-    expect(enableSettingsExtension).toHaveBeenCalledWith("daytona");
 
     await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: settingsKeys.extensionsRoot(),
-      });
-      expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: settingsKeys.section("hooks-extensions"),
-      });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.mcpRoot() });
     });
-
-    // Extension toggles must not leak into the restart banner.
+    // Auth is a runtime op, not a config edit: it must not queue a pending restart.
     expect(useSettingsRestartStore.getState().lastMutation).toBeNull();
+    expect(exchangeSettingsMCPAuth).toHaveBeenCalledWith(
+      "linear",
+      { scope: "workspace", workspace_id: "ws_alpha" },
+      { code: "abc123" }
+    );
   });
 
-  it("disables an extension and reuses the same invalidation path", async () => {
+  it("re-reads the scoped mcp list after logout", async () => {
     const { queryClient, wrapper } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    vi.mocked(disableSettingsExtension).mockResolvedValue({ ...extension, enabled: false });
+    vi.mocked(logoutSettingsMCPAuth).mockResolvedValue({
+      server_name: "linear",
+      scope: "global",
+      status: "needs_login",
+      token_present: false,
+      refreshable: false,
+    });
 
-    const { result } = renderHook(() => useDisableSettingsExtension(), { wrapper });
+    const { result } = renderHook(() => useLogoutMCPAuth(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync("daytona");
+      await result.current.mutateAsync({ name: "linear", filter: { scope: "global" } });
     });
-
-    expect(disableSettingsExtension).toHaveBeenCalledWith("daytona");
-    await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: settingsKeys.extensionsRoot(),
-      });
-    });
-  });
-
-  it("installs, updates, and removes extensions through the shared invalidation path", async () => {
-    const { queryClient, wrapper } = createWrapper();
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    vi.mocked(installSettingsExtension).mockResolvedValue(extension);
-    vi.mocked(updateSettingsExtension).mockResolvedValue({
-      name: "daytona",
-      slug: "daytona/daytona-extension",
-      registry: "github",
-      path: "/tmp/agh/extensions/daytona",
-      current_version: "1.2.3",
-      latest_version: "1.2.4",
-      status: "available",
-    });
-    vi.mocked(removeSettingsExtension).mockResolvedValue({
-      name: "daytona",
-      path: "/tmp/agh/extensions/daytona",
-      status: "removed",
-    });
-
-    const install = renderHook(() => useInstallSettingsExtension(), { wrapper });
-    await act(async () => {
-      await install.result.current.mutateAsync({
-        slug: "daytona/daytona-extension",
-        source: "github",
-        allow_unverified: true,
-      });
-    });
-    expect(installSettingsExtension).toHaveBeenCalledWith({
-      slug: "daytona/daytona-extension",
-      source: "github",
-      allow_unverified: true,
-    });
-
-    const update = renderHook(() => useUpdateSettingsExtension(), { wrapper });
-    await act(async () => {
-      await update.result.current.mutateAsync({
-        name: "daytona",
-        body: { version: "1.2.4" },
-      });
-    });
-    expect(updateSettingsExtension).toHaveBeenCalledWith("daytona", { version: "1.2.4" });
-
-    const remove = renderHook(() => useRemoveSettingsExtension(), { wrapper });
-    await act(async () => {
-      await remove.result.current.mutateAsync("daytona");
-    });
-    expect(removeSettingsExtension).toHaveBeenCalledWith("daytona");
 
     await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: settingsKeys.extensionsRoot(),
-      });
-      expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: settingsKeys.section("hooks-extensions"),
-      });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.mcpRoot() });
     });
   });
 });

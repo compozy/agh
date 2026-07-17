@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,9 +15,13 @@ import (
 	"strings"
 	"testing"
 
+	core "github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
+	eventspkg "github.com/compozy/agh/internal/events"
 	extensionpkg "github.com/compozy/agh/internal/extension"
+	marketplacepkg "github.com/compozy/agh/internal/marketplace"
 	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -24,6 +29,40 @@ import (
 type nativeExtensionSource struct {
 	latestVersion string
 	downloads     map[string]*registrypkg.DownloadResult
+}
+
+type nativeExtensionCatalog struct {
+	entry *marketplacepkg.Entry
+	err   error
+}
+
+func (c nativeExtensionCatalog) Browse(
+	context.Context,
+	marketplacepkg.Kind,
+	string,
+	int,
+) (marketplacepkg.BrowseResult, error) {
+	return marketplacepkg.BrowseResult{}, errors.New("unexpected catalog browse")
+}
+
+func (c nativeExtensionCatalog) Detail(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) {
+	return nil, errors.New("unexpected catalog detail")
+}
+
+func (c nativeExtensionCatalog) ResolveExtensionInstall(
+	context.Context,
+	string,
+	string,
+) (*marketplacepkg.Entry, error) {
+	return c.entry, c.err
+}
+
+func (c nativeExtensionCatalog) Refresh(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error) {
+	return marketplacepkg.RefreshReport{}, errors.New("unexpected catalog refresh")
+}
+
+func (c nativeExtensionCatalog) Status(context.Context) ([]marketplacepkg.KindState, error) {
+	return nil, errors.New("unexpected catalog status")
 }
 
 var _ registrypkg.Source = (*nativeExtensionSource)(nil)
@@ -129,25 +168,33 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonExtensionValidationFailed)
 	})
 
+	t.Run("Should require live policy plus request consent for local side-loads", func(t *testing.T) {
+		t.Parallel()
+
+		deps, extRegistry, _, runtime := newNativeExtensionToolDeps(t)
+		deps.ExtensionMarket.AllowUnverified = false
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		sourceDir := writeNativeLocalExtensionFixture(t, "blocked-local-ext", "1.0.0")
+
+		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"allow_unverified":true}`, sourceDir)),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonExtensionSourceForbidden)
+		if _, err := extRegistry.Get("blocked-local-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("extension registry Get(blocked local) error = %v, want ErrExtensionNotFound", err)
+		}
+		if runtime.reloadCount != 0 {
+			t.Fatalf("reload count after policy block = %d, want 0", runtime.reloadCount)
+		}
+	})
+
 	t.Run("Should manage marketplace extension lifecycle through native tools", func(t *testing.T) {
 		t.Parallel()
 
 		deps, extRegistry, source, runtime := newNativeExtensionToolDeps(t)
 		source.latestVersion = "1.0.0"
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
-
-		searchResult, err := registry.Call(
-			t.Context(),
-			toolspkg.Scope{},
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDExtensionsSearch,
-				Input:  json.RawMessage(`{"query":"tool","source":"github"}`),
-			},
-		)
-		if err != nil {
-			t.Fatalf("Registry.Call(extensions_search) error = %v", err)
-		}
-		requireNativeStructuredContains(t, searchResult, []byte(`"acme/tool-ext"`))
 
 		installResult, err := registry.Call(
 			t.Context(),
@@ -281,6 +328,137 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should derive curated digest authority from the catalog", func(t *testing.T) {
+		t.Parallel()
+
+		deps, extRegistry, source, runtime := newNativeExtensionToolDeps(t)
+		archive := nativeExtensionTarGz(t, "1.0.0")
+		digest := fmt.Sprintf("%x", sha256.Sum256(archive))
+		source.downloads["1.0.0"] = &registrypkg.DownloadResult{
+			Reader: io.NopCloser(bytes.NewReader(archive)), Slug: "acme/tool-ext", Version: "1.0.0",
+			ContentSize: -1, ContentType: "application/gzip",
+		}
+		catalog := nativeExtensionCatalog{entry: &marketplacepkg.Entry{
+			Kind: marketplacepkg.KindExtension, EntryID: "extension.acme.tool-ext",
+			InstallSlug: "acme/tool-ext", Version: "1.0.0", DigestSHA256: digest, Tier: "official",
+			Payload: json.RawMessage(
+				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
+			),
+		}}
+		service := newDaemonExtensionService(
+			extRegistry,
+			runtime,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			deps.HomePaths,
+			nil,
+			nil,
+			withDaemonExtensionMarketplace(
+				aghconfig.ExtensionsMarketplaceConfig{Registry: "github"},
+				deps.ExtensionSources,
+			),
+			withDaemonExtensionCatalog(catalog),
+			withDaemonExtensionEventWriter(deps.ExtensionEvents),
+		)
+		deps.Extensions = func() core.ExtensionService { return service }
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input:  json.RawMessage(`{"source":"marketplace","slug":"acme/tool-ext","registry":"github"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(curated extension install) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"catalog_entry_id":"extension.acme.tool-ext"`))
+		installed, err := extRegistry.Get("tool-ext")
+		if err != nil {
+			t.Fatalf("extension registry Get(curated) error = %v", err)
+		}
+		if installed.Provenance.CatalogEntryID != "extension.acme.tool-ext" ||
+			installed.Provenance.ArchiveDigestSHA256 != digest ||
+			installed.Provenance.ChecksumSHA256 == digest ||
+			!installed.Provenance.ChecksumVerified {
+			t.Fatalf("curated provenance = %#v, want separate verified archive and tree digests", installed.Provenance)
+		}
+		summaries, err := deps.ExtensionEvents.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+			Type: eventspkg.ExtensionDigestVerify,
+		})
+		if err != nil {
+			t.Fatalf("ListEventSummaries(digest verification) error = %v", err)
+		}
+		if len(summaries) != 1 ||
+			summaries[0].Outcome != string(eventspkg.OutcomeSuccess) ||
+			!bytes.Contains(summaries[0].Content, []byte(`"verification_outcome":"verified"`)) {
+			t.Fatalf("digest verification summaries = %#v, want one verified event", summaries)
+		}
+	})
+
+	t.Run("Should fail closed when catalog refresh and lookup both fail", func(t *testing.T) {
+		t.Parallel()
+
+		refreshErr := errors.New("catalog unavailable")
+		catalog := nativeExtensionCatalog{err: &marketplacepkg.ExtensionInstallResolutionError{
+			RefreshErr: refreshErr,
+			LookupErr:  marketplacepkg.ErrEntryNotFound,
+		}}
+		service := &daemonExtensionService{marketplaceCatalog: catalog}
+		trust, err := service.resolveMarketplaceExtensionTrust(t.Context(), "acme/tool-ext", "1.0.0")
+		if trust != nil || !errors.Is(err, refreshErr) || !errors.Is(err, marketplacepkg.ErrEntryNotFound) {
+			t.Fatalf("resolveMarketplaceExtensionTrust() = (%#v, %v), want fail-closed combined error", trust, err)
+		}
+	})
+
+	t.Run("Should reject catalog digest mismatch even when request allows unverified", func(t *testing.T) {
+		t.Parallel()
+
+		deps, extRegistry, _, runtime := newNativeExtensionToolDeps(t)
+		catalog := nativeExtensionCatalog{entry: &marketplacepkg.Entry{
+			Kind: marketplacepkg.KindExtension, EntryID: "extension.acme.tool-ext",
+			InstallSlug: "acme/tool-ext", Version: "1.0.0",
+			DigestSHA256: strings.Repeat("0", sha256.Size*2), Tier: "official",
+			Payload: json.RawMessage(
+				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
+			),
+		}}
+		service := newDaemonExtensionService(
+			extRegistry, runtime, nil, nil, nil, nil, nil, deps.HomePaths, nil, nil,
+			withDaemonExtensionMarketplace(
+				aghconfig.ExtensionsMarketplaceConfig{Registry: "github", AllowUnverified: true},
+				deps.ExtensionSources,
+			),
+			withDaemonExtensionCatalog(catalog),
+			withDaemonExtensionEventWriter(deps.ExtensionEvents),
+		)
+		deps.Extensions = func() core.ExtensionService { return service }
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(
+				`{"source":"marketplace","slug":"acme/tool-ext","registry":"github","allow_unverified":true}`,
+			),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonExtensionValidationFailed)
+		if _, err := extRegistry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("extension registry Get(after digest mismatch) error = %v, want ErrExtensionNotFound", err)
+		}
+		summaries, listErr := deps.ExtensionEvents.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+			Type: eventspkg.ExtensionDigestVerify,
+		})
+		if listErr != nil {
+			t.Fatalf("ListEventSummaries(digest mismatch) error = %v", listErr)
+		}
+		if len(summaries) != 1 ||
+			summaries[0].Outcome != string(eventspkg.OutcomeFailure) ||
+			!bytes.Contains(summaries[0].Content, []byte(`"verification_outcome":"mismatch"`)) {
+			t.Fatalf("digest verification summaries = %#v, want one mismatch event", summaries)
+		}
+	})
+
 	t.Run("Should require approval before extension mutations reach lifecycle dependencies", func(t *testing.T) {
 		t.Parallel()
 
@@ -315,25 +493,6 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		if runtime.reloadCount != 0 {
 			t.Fatalf("reload count after denied install = %d, want 0", runtime.reloadCount)
 		}
-	})
-
-	t.Run("Should deterministically deny unconfigured marketplace sources", func(t *testing.T) {
-		t.Parallel()
-
-		deps, _, _, _ := newNativeExtensionToolDeps(t)
-		deps.ExtensionSources = nil
-		deps.ExtensionMarket = aghconfig.ExtensionsMarketplaceConfig{}
-		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
-
-		_, err := registry.Call(
-			t.Context(),
-			toolspkg.Scope{},
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDExtensionsSearch,
-				Input:  json.RawMessage(`{"query":"tool"}`),
-			},
-		)
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonExtensionSourceForbidden)
 	})
 }
 
@@ -371,7 +530,8 @@ func newNativeExtensionToolDeps(
 		ExtensionSources: func(context.Context, aghconfig.ExtensionsMarketplaceConfig) ([]registrypkg.Source, error) {
 			return []registrypkg.Source{source}, nil
 		},
-		ExtensionMarket: aghconfig.ExtensionsMarketplaceConfig{Registry: "github"},
+		ExtensionMarket: aghconfig.ExtensionsMarketplaceConfig{Registry: "github", AllowUnverified: true},
+		ExtensionEvents: db,
 	}
 	return &deps, extRegistry, source, runtime
 }

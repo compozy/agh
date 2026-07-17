@@ -669,23 +669,6 @@ type ProviderItem struct {
 	Fallback         *ProviderFallback
 }
 
-// MCPServerItem is one MCP server collection row.
-type MCPServerItem struct {
-	Name           string
-	Transport      aghconfig.MCPServerTransport
-	Command        string
-	Args           []string
-	Env            map[string]string
-	SecretEnv      map[string]string
-	URL            string
-	Auth           aghconfig.MCPAuthConfig
-	AuthStatus     *mcpauth.Status
-	RuntimeStatus  *MCPServerRuntimeStatus
-	Scope          ScopeKind
-	WorkspaceID    string
-	SourceMetadata SourceMetadata
-}
-
 // SandboxItem is one sandbox collection row.
 type SandboxItem struct {
 	Name                string
@@ -705,7 +688,7 @@ func builtinProviderSource() SourceRef {
 	return SourceRef{Kind: SourceKindBuiltinProvider, Scope: ScopeGlobal}
 }
 
-func sourceRefForWriteTarget(kind WriteTargetKind, workspaceID string, agentName string) SourceRef {
+func sourceRefForWriteTarget(kind WriteTargetKind, workspaceID string) SourceRef {
 	switch kind {
 	case WriteTargetGlobalConfig:
 		return SourceRef{Kind: SourceKindGlobalConfig, Scope: ScopeGlobal}
@@ -716,13 +699,12 @@ func sourceRefForWriteTarget(kind WriteTargetKind, workspaceID string, agentName
 	case WriteTargetWorkspaceMCPSidecar:
 		return SourceRef{Kind: SourceKindWorkspaceMCPSidecar, Scope: ScopeWorkspace, WorkspaceID: workspaceID}
 	case WriteTargetGlobalAgentFile:
-		return SourceRef{Kind: SourceKindGlobalAgentFile, Scope: ScopeAgent, AgentName: agentName}
+		return SourceRef{Kind: SourceKindGlobalAgentFile, Scope: ScopeAgent}
 	case WriteTargetWorkspaceAgentFile:
 		return SourceRef{
 			Kind:        SourceKindWorkspaceAgentFile,
 			Scope:       ScopeAgent,
 			WorkspaceID: workspaceID,
-			AgentName:   agentName,
 		}
 	default:
 		return SourceRef{}
@@ -740,7 +722,7 @@ func availableTargetsForScope(scope ScopeKind) []WriteTargetKind {
 
 func singleTargetSourceMetadata(kind WriteTargetKind, workspaceID string) SourceMetadata {
 	return SourceMetadata{
-		EffectiveSource:  sourceRefForWriteTarget(kind, workspaceID, ""),
+		EffectiveSource:  sourceRefForWriteTarget(kind, workspaceID),
 		AvailableTargets: []WriteTargetKind{kind},
 	}
 }

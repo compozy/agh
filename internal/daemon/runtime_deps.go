@@ -43,6 +43,7 @@ type RuntimeDeps struct {
 	AgentCatalog        core.AgentCatalog
 	AgentDefinitionSync core.AgentDefinitionSync
 	ModelCatalog        core.ModelCatalogService
+	MarketplaceCatalog  core.MarketplaceCatalogService
 	AgentContext        *situation.Service
 	SoulAuthoring       core.SoulAuthoringService
 	SoulHistoryPurger   core.SoulHistoryPurger

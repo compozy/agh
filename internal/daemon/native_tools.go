@@ -202,71 +202,13 @@ func appendToolEventSinkOption(
 	}))
 }
 
-func (d *Daemon) nativeToolsDeps(
-	state *bootState,
-	registryRef func() toolspkg.Registry,
-) daemonNativeToolsDeps {
-	return daemonNativeToolsDeps{
-		Registry:            registryRef,
-		Config:              state.cfg,
-		Skills:              skillsRegistryAPI(state.skillsRegistry),
-		Sessions:            state.sessions,
-		Workspaces:          state.workspaceResolver,
-		WorkspaceResolver:   state.workspaceResolver,
-		ModelCatalog:        state.deps.ModelCatalog,
-		Settings:            func() core.SettingsService { return state.deps.Settings },
-		Network:             state.deps.Network,
-		NetworkStore:        state.registry,
-		Tasks:               state.deps.Tasks,
-		MemoryStore:         state.memoryStore,
-		MemoryToolWrites:    state.memoryExtractor,
-		DreamTrigger:        state.deps.DreamTrigger,
-		MemoryExtractor:     state.deps.MemoryExtractor,
-		MemoryProviders:     state.deps.MemoryProviders,
-		MemorySessionLedger: state.deps.MemorySessionLedger,
-		Bridges:             state.deps.Bridges,
-		HomePaths:           d.homePaths,
-		Observer:            state.observer,
-		HookBindings:        state.hookBindings,
-		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
-			soul:      state.soulCatalog,
-			heartbeat: state.heartbeatCatalog,
-		}),
-		HeartbeatStatus: state.deps.HeartbeatStatus,
-		HeartbeatWake:   state.deps.HeartbeatWake,
-		SessionHealth:   state.deps.SessionHealth,
-		WakeEvents:      state.deps.WakeEvents,
-		Automation:      state.deps.Automation,
-		AutomationRuntime: func() core.AutomationManager {
-			return state.deps.Automation
-		},
-		ExtensionRegistry: extensionRegistryDependency(state.registry),
-		ExtensionRuntime:  state.currentExtensionRuntime,
-		ExtensionMarket:   state.cfg.Extensions.Marketplace,
-		ExtensionEvents:   extensionEventSummaryStore(state.registry),
-		AgentSkills:       state.agentSkillResources,
-		ToolMCP:           state.toolMCPResources,
-		BundleResources:   state.bundleResources,
-		LoopResources:     state.loopResources,
-		BundleService: func() core.BundleService {
-			return state.deps.Bundles
-		},
-		Loops: func() core.LoopService {
-			return state.deps.Loops
-		},
-		Resources: state.deps.Resources,
-	}
-}
-
 func (d *Daemon) newDaemonMCPToolProvider(
 	state *bootState,
 ) (toolspkg.Provider, toolspkg.MCPAuthStatusProvider, error) {
 	if state == nil {
 		return nil, nil, nil
 	}
-	resolver := mcppkg.ServerResolverFunc(func(context.Context) ([]aghconfig.MCPServer, error) {
-		return daemonMCPServerConfigs(state), nil
-	})
+	resolver := newDaemonMCPServerResolver(state)
 	options := []mcppkg.CallExecutorOption{}
 	if d != nil && d.getenv != nil {
 		options = append(options, mcppkg.WithSecretLookup(d.getenv))
@@ -322,90 +264,6 @@ func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error)
 	return newDaemonScopedExtensionToolProvider(provider, state.workspaceResolver), nil
 }
 
-func daemonMCPServerConfigs(state *bootState) []aghconfig.MCPServer {
-	if state == nil {
-		return nil
-	}
-	servers := make([]aghconfig.MCPServer, 0, len(state.cfg.MCPServers))
-	seen := map[string]struct{}{}
-	add := func(server aghconfig.MCPServer) {
-		name := strings.TrimSpace(server.Name)
-		if name == "" {
-			return
-		}
-		if _, ok := seen[name]; ok {
-			return
-		}
-		seen[name] = struct{}{}
-		servers = append(servers, cloneDaemonMCPServer(server))
-	}
-	for _, server := range state.cfg.MCPServers {
-		add(server)
-	}
-	providerNames := make([]string, 0, len(state.cfg.Providers))
-	for name := range state.cfg.Providers {
-		providerNames = append(providerNames, name)
-	}
-	slices.Sort(providerNames)
-	for _, name := range providerNames {
-		for _, server := range state.cfg.Providers[name].MCPServers {
-			add(server)
-		}
-	}
-	if state.mcpServerCatalog != nil {
-		for _, record := range state.mcpServerCatalog.Snapshot() {
-			add(record.Spec)
-		}
-	}
-	return servers
-}
-
-func daemonMCPSources(state *bootState) []toolspkg.SourceRef {
-	if state == nil {
-		return nil
-	}
-	sources := make([]toolspkg.SourceRef, 0, len(state.cfg.MCPServers))
-	seen := map[string]struct{}{}
-	add := func(server aghconfig.MCPServer, source toolspkg.SourceRef) {
-		name := strings.TrimSpace(server.Name)
-		if name == "" {
-			return
-		}
-		if _, ok := seen[name]; ok {
-			return
-		}
-		seen[name] = struct{}{}
-		source.Kind = toolspkg.SourceMCP
-		source.Owner = name
-		source.RawServerName = name
-		sources = append(sources, source)
-	}
-	for _, server := range state.cfg.MCPServers {
-		add(server, toolspkg.SourceRef{})
-	}
-	providerNames := make([]string, 0, len(state.cfg.Providers))
-	for name := range state.cfg.Providers {
-		providerNames = append(providerNames, name)
-	}
-	slices.Sort(providerNames)
-	for _, name := range providerNames {
-		for _, server := range state.cfg.Providers[name].MCPServers {
-			add(server, toolspkg.SourceRef{})
-		}
-	}
-	if state.mcpServerCatalog != nil {
-		for _, record := range state.mcpServerCatalog.Snapshot() {
-			add(record.Spec, toolspkg.SourceRef{
-				ResourceID:      record.ID,
-				ResourceVersion: fmt.Sprint(record.Version),
-				WorkspaceID:     record.Scope.ID,
-				Scope:           string(record.Scope.Kind),
-			})
-		}
-	}
-	return sources
-}
-
 type nativeToolAvailabilitySet struct {
 	registry            toolspkg.NativeAvailabilityFunc
 	skills              toolspkg.NativeAvailabilityFunc
@@ -434,6 +292,7 @@ type nativeToolAvailabilitySet struct {
 	automation          toolspkg.NativeAvailabilityFunc
 	loops               toolspkg.NativeAvailabilityFunc
 	extensions          toolspkg.NativeAvailabilityFunc
+	marketplace         toolspkg.NativeAvailabilityFunc
 	bundles             toolspkg.NativeAvailabilityFunc
 	resources           toolspkg.NativeAvailabilityFunc
 	mcpAuth             toolspkg.NativeAvailabilityFunc
@@ -477,6 +336,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
 	addNativeToolBindings(bindings, n.loopToolBindings(availability.loops))
 	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
+	addNativeToolBindings(bindings, n.marketplaceToolBindings(availability.marketplace))
 	addNativeToolBindings(bindings, n.extensionToolBindings(availability.extensions))
 	addNativeToolBindings(bindings, n.bundleToolBindings(availability.bundles))
 	addNativeToolBindings(bindings, n.resourceToolBindings(availability.resources))
@@ -542,6 +402,9 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		loops:      n.dependencyAvailability(func() bool { return n.loopService() != nil }),
 		extensions: n.dependencyAvailability(func() bool {
 			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
+		}),
+		marketplace: n.dependencyAvailability(func() bool {
+			return n.deps.MarketplaceCatalog != nil || n.bundleService() != nil || n.deps.MarketplaceSkills != nil
 		}),
 		bundles:   n.dependencyAvailability(func() bool { return n.bundleService() != nil }),
 		resources: n.dependencyAvailability(func() bool { return n.deps.Resources != nil }),

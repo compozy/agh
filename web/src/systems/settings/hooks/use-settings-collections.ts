@@ -1,25 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  settingsExtensionMarketplaceOptions,
-  settingsExtensionProvenanceOptions,
   settingsSandboxDetailOptions,
   settingsSandboxesListOptions,
-  settingsExtensionsListOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
   settingsNotificationPresetsOptions,
   settingsProviderDetailOptions,
   settingsProvidersListOptions,
 } from "../lib/query-options";
-import type {
-  SettingsExtensionMarketplaceFilter,
-  SettingsMCPServerListFilter,
-  SettingsNotificationPresetFilter,
-} from "../types";
+import type { SettingsMCPServerListFilter, SettingsNotificationPresetFilter } from "../types";
 
 interface QueryEnabledOptions {
   enabled?: boolean;
+}
+
+interface MCPQueryOptions extends QueryEnabledOptions {
+  refetchInterval?: number;
 }
 
 export function useSettingsProviders() {
@@ -44,21 +41,11 @@ export function useSettingsHooks() {
 
 export function useSettingsMCPServers(
   filter: SettingsMCPServerListFilter = {},
-  options: QueryEnabledOptions = {}
+  options: MCPQueryOptions = {}
 ) {
-  return useQuery(settingsMCPServersListOptions(filter, options.enabled ?? true));
-}
-
-export function useSettingsExtensions() {
-  return useQuery(settingsExtensionsListOptions());
-}
-
-export function useSettingsExtensionMarketplace(filter: SettingsExtensionMarketplaceFilter = {}) {
-  return useQuery(settingsExtensionMarketplaceOptions(filter));
-}
-
-export function useSettingsExtensionProvenance(name: string, options: QueryEnabledOptions = {}) {
-  return useQuery(settingsExtensionProvenanceOptions(name, options.enabled ?? true));
+  return useQuery(
+    settingsMCPServersListOptions(filter, options.enabled ?? true, options.refetchInterval)
+  );
 }
 
 export function useSettingsNotificationPresets(filter: SettingsNotificationPresetFilter = {}) {

@@ -49,6 +49,24 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify marketplace catalog changes as live",
+			path:          "marketplace.catalog.timeout",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
+			name:          "Should classify extension side-load policy as live",
+			path:          "extensions.marketplace.allow_unverified",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
+			name:          "Should keep extension registry changes restart required",
+			path:          "extensions.marketplace.registry",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
 			name:          "Should classify Goal config as restart required",
 			path:          "goals.context_nudge_ratio",
 			wantLifecycle: RestartRequired,

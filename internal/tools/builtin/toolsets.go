@@ -184,6 +184,7 @@ var builtinToolsets = []toolspkg.Toolset{
 	{ID: toolspkg.ToolsetIDHooks, Tools: []string{"agh__hooks_*"}},
 	{ID: toolspkg.ToolsetIDLoops, Tools: []string{"agh__goal_*", "agh__loop_*"}},
 	{ID: toolspkg.ToolsetIDAutomation, Tools: []string{"agh__automation_*"}},
+	{ID: toolspkg.ToolsetIDMarketplace, Tools: []string{toolspkg.ToolIDMarketplaceSearch.String()}},
 	{ID: toolspkg.ToolsetIDExtensions, Tools: []string{"agh__extensions_*"}},
 	{ID: toolspkg.ToolsetIDBundles, Tools: []string{"agh__bundles_*"}},
 	{ID: toolspkg.ToolsetIDResources, Tools: []string{"agh__resources_*"}},

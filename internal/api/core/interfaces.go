@@ -16,12 +16,9 @@ import (
 	"github.com/compozy/agh/internal/network"
 	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 	"github.com/compozy/agh/internal/observe"
-	registrypkg "github.com/compozy/agh/internal/registry"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
-	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/compozy/agh/internal/skills"
-	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
 	"github.com/compozy/agh/internal/soul"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/support"
@@ -288,36 +285,6 @@ type MemorySessionLedgerService interface {
 	Repair(ctx context.Context) (contract.MemorySessionsRepairResponse, error)
 }
 
-// SettingsService exposes the daemon-owned settings read and mutation surface to API transports.
-type SettingsService interface {
-	GetSection(ctx context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
-	UpdateSection(ctx context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
-	ApplySection(ctx context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error)
-	ListCollection(ctx context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
-	PutCollectionItem(ctx context.Context, req settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
-	ApplyCollectionItem(
-		ctx context.Context,
-		req settingspkg.CollectionItemPutRequest,
-	) (settingspkg.ApplyResult, error)
-	ApplyProviderModelCuration(
-		ctx context.Context,
-		req settingspkg.ProviderModelCurationRequest,
-	) (settingspkg.ProviderModelCurationResult, error)
-	DeleteCollectionItem(
-		ctx context.Context,
-		req settingspkg.CollectionItemDeleteRequest,
-	) (
-		settingspkg.MutationResult,
-		error,
-	)
-	ApplyCollectionDelete(
-		ctx context.Context,
-		req settingspkg.CollectionItemDeleteRequest,
-	) (settingspkg.ApplyResult, error)
-	Reload(ctx context.Context) (settingspkg.ApplyResult, error)
-	ListApplyRecords(ctx context.Context, filter settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
-}
-
 // SupportBundleService exposes daemon-owned support bundle operations to transports.
 type SupportBundleService interface {
 	Create(ctx context.Context, req support.CreateRequest) (support.Operation, error)
@@ -345,15 +312,6 @@ type SkillsRegistryRefresher interface {
 // SkillResourceSyncer synchronizes resource-backed skill declarations after on-disk mutations.
 type SkillResourceSyncer interface {
 	SyncSkills(ctx context.Context) error
-}
-
-// SkillMarketplaceService exposes remote skill marketplace lifecycle operations.
-type SkillMarketplaceService interface {
-	Search(ctx context.Context, query string, limit int) ([]registrypkg.Listing, error)
-	Info(ctx context.Context, slug string) (*registrypkg.Detail, error)
-	Install(ctx context.Context, slug string, version string) (skillmarketplace.InstallResult, error)
-	Update(ctx context.Context, req skillmarketplace.UpdateRequest) ([]skillmarketplace.UpdateResult, error)
-	Remove(ctx context.Context, name string) (skillmarketplace.RemoveResult, error)
 }
 
 // VaultService exposes redacted secret metadata and write-only mutations to API transports.

@@ -491,7 +491,7 @@ func TestSkillViewCommandRejectsSymlinkEscape(t *testing.T) {
 	}
 }
 
-func TestSkillInfoCommandShowsMetadataSourcePathAndResources(t *testing.T) {
+func TestSkillInspectCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 	t.Parallel()
 
 	env := newSkillTestEnv(t, nil)
@@ -517,14 +517,14 @@ func TestSkillInfoCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 		"Useful notes.\n",
 	)
 
-	stdout, _, err := executeRootCommand(t, env.deps, "skill", "info", "info-skill", "-o", "json")
+	stdout, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill", "-o", "json")
 	if err != nil {
-		t.Fatalf("skill info json error = %v", err)
+		t.Fatalf("skill inspect json error = %v", err)
 	}
 
 	var payload skillInfoItem
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(skill info) error = %v; stdout=%s", err, stdout)
+		t.Fatalf("json.Unmarshal(skill inspect) error = %v; stdout=%s", err, stdout)
 	}
 
 	if payload.Name != "info-skill" || payload.Version != "1.2.3" {
@@ -544,12 +544,12 @@ func TestSkillInfoCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 		t.Fatalf("payload.Metadata = %#v, want author", payload.Metadata)
 	}
 
-	humanOut, _, err := executeRootCommand(t, env.deps, "skill", "info", "info-skill")
+	humanOut, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill")
 	if err != nil {
-		t.Fatalf("skill info human error = %v", err)
+		t.Fatalf("skill inspect human error = %v", err)
 	}
 	if !strings.Contains(humanOut, "Metadata") || !strings.Contains(humanOut, "references/notes.md") {
-		t.Fatalf("skill info human output missing metadata/resources:\n%s", humanOut)
+		t.Fatalf("skill inspect human output missing metadata/resources:\n%s", humanOut)
 	}
 }
 
@@ -696,7 +696,7 @@ func TestSkillCommandsWorkWithoutDaemonAndSupportToonOutput(t *testing.T) {
 		{args: []string{"skill", "list", "-o", "toon"}, contains: "skills["},
 		{args: []string{"skill", "view", "toon-skill", "-o", "toon"}, contains: `<skill_content name="toon-skill">`},
 		{
-			args:     []string{"skill", "info", "toon-skill", "-o", "toon"},
+			args:     []string{"skill", "inspect", "toon-skill", "-o", "toon"},
 			contains: "skill{name,description,version,source,path,enabled}:",
 		},
 		{
@@ -1763,8 +1763,12 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 				defaultMarketplaceRegistry,
 			)
 		}
-		if item.Path != targetDir {
-			t.Fatalf("installMarketplaceSkill(fallbacks) path = %q, want %q", item.Path, targetDir)
+		canonicalTarget, err := filepath.EvalSymlinks(targetDir)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(targetDir) error = %v", err)
+		}
+		if item.Path != canonicalTarget {
+			t.Fatalf("installMarketplaceSkill(fallbacks) path = %q, want %q", item.Path, canonicalTarget)
 		}
 
 		provenance, err := skills.ReadSidecar(targetDir)
@@ -2110,8 +2114,12 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 
 		expectedDir := filepath.Join(env.homePaths.SkillsDir, "review")
-		if item.Path != expectedDir {
-			t.Fatalf("updateMarketplaceSkill(rename) path = %q, want %q", item.Path, expectedDir)
+		canonicalExpectedDir, err := filepath.EvalSymlinks(expectedDir)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(expectedDir) error = %v", err)
+		}
+		if item.Path != canonicalExpectedDir {
+			t.Fatalf("updateMarketplaceSkill(rename) path = %q, want %q", item.Path, canonicalExpectedDir)
 		}
 		if _, statErr := os.Stat(
 			filepath.Join(env.homePaths.SkillsDir, "renamed-review"),

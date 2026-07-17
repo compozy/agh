@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
 	registrypkg "github.com/compozy/agh/internal/registry"
 	registryclawhub "github.com/compozy/agh/internal/registry/clawhub"
 	"github.com/compozy/agh/internal/skills"
@@ -83,7 +84,7 @@ func installMarketplaceSkillForCommand(
 	slug string,
 	version string,
 ) (_ skillInstallItem, err error) {
-	client, running, err := extensionClientIfRunning(deps)
+	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
 		return skillInstallItem{}, err
 	}
@@ -229,7 +230,7 @@ func updateMarketplaceSkillsForCommand(
 	updateAll bool,
 	checkOnly bool,
 ) (_ []skillUpdateItem, err error) {
-	client, running, err := extensionClientIfRunning(deps)
+	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
@@ -307,16 +308,22 @@ func searchMarketplaceSkills(
 		return nil, fmt.Errorf("cli: search limit must be positive: %d", limit)
 	}
 
-	client, running, err := extensionClientIfRunning(deps)
+	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
 	if running {
-		items, err := client.SearchSkillMarketplace(ctx, query, limit)
+		response, err := client.BrowseMarketplace(
+			ctx,
+			"skill",
+			query,
+			limit,
+			MarketplaceReadScope{Scope: contract.SettingsWorkspaceScopeGlobal},
+		)
 		if err != nil {
 			return nil, err
 		}
-		return skillMarketplaceListingsFromRecords(items), nil
+		return skillMarketplaceListingsFromRecords(response.Items)
 	}
 
 	_, registry, err := loadSkillRegistry(deps)
@@ -343,7 +350,7 @@ func versionIsNewer(current string, latest string) bool {
 }
 
 func removeMarketplaceSkillForCommand(ctx context.Context, deps commandDeps, name string) (skillRemoveItem, error) {
-	client, running, err := extensionClientIfRunning(deps)
+	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
 		return skillRemoveItem{}, err
 	}
@@ -384,23 +391,6 @@ func findInstalledMarketplaceSkill(
 
 func listInstalledMarketplaceSkills(skillsDir string) ([]installedMarketplaceSkill, error) {
 	return skillmarketplace.ListInstalledSkills(skillsDir)
-}
-
-func skillMarketplaceListingsFromRecords(items []SkillMarketplaceRecord) []registrypkg.Listing {
-	listings := make([]registrypkg.Listing, 0, len(items))
-	for _, item := range items {
-		listings = append(listings, registrypkg.Listing{
-			Slug:        item.Slug,
-			Name:        item.Name,
-			Description: item.Description,
-			Author:      item.Author,
-			Version:     item.Version,
-			Downloads:   item.Downloads,
-			Source:      item.Source,
-			Type:        registrypkg.PackageTypeSkill,
-		})
-	}
-	return listings
 }
 
 func skillInstallItemFromRecord(item SkillMarketplaceInstallRecord) skillInstallItem {

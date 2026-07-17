@@ -21,8 +21,6 @@ import (
 	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	observepkg "github.com/compozy/agh/internal/observe"
-	registrypkg "github.com/compozy/agh/internal/registry"
-	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
 	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/compozy/agh/internal/skills"
@@ -1143,56 +1141,6 @@ func SkillPayloadsFromSkills(skillList []*skills.Skill) []contract.SkillPayload 
 	return payload
 }
 
-// SkillMarketplaceListingPayloadFromListing converts a remote listing into the shared payload.
-func SkillMarketplaceListingPayloadFromListing(
-	listing registrypkg.Listing,
-) contract.SkillMarketplaceListingPayload {
-	return contract.SkillMarketplaceListingPayload{
-		Slug:        listing.Slug,
-		Name:        listing.Name,
-		Description: listing.Description,
-		Author:      listing.Author,
-		Version:     listing.Version,
-		Downloads:   listing.Downloads,
-		Source:      listing.Source,
-	}
-}
-
-// SkillMarketplaceListingPayloadsFromListings converts remote listings into shared payloads.
-func SkillMarketplaceListingPayloadsFromListings(
-	listings []registrypkg.Listing,
-) []contract.SkillMarketplaceListingPayload {
-	payload := make([]contract.SkillMarketplaceListingPayload, 0, len(listings))
-	for _, listing := range listings {
-		payload = append(payload, SkillMarketplaceListingPayloadFromListing(listing))
-	}
-	return payload
-}
-
-// SkillMarketplaceDetailPayloadFromDetail converts a remote detail into the shared payload.
-func SkillMarketplaceDetailPayloadFromDetail(
-	detail *registrypkg.Detail,
-) contract.SkillMarketplaceDetailPayload {
-	if detail == nil {
-		return contract.SkillMarketplaceDetailPayload{}
-	}
-	return contract.SkillMarketplaceDetailPayload{
-		Slug:        detail.Slug,
-		Name:        detail.Name,
-		Description: detail.Description,
-		Author:      detail.Author,
-		Version:     detail.Version,
-		Downloads:   detail.Downloads,
-		Source:      detail.Source,
-		Readme:      detail.Readme,
-		MCPServers:  append([]string(nil), detail.MCPServers...),
-		Tags:        append([]string(nil), detail.Tags...),
-		License:     detail.License,
-		Repository:  detail.Repository,
-		Versions:    append([]string(nil), detail.Versions...),
-	}
-}
-
 // SkillMarketplaceInstallPayloadFromResult converts an install result into the shared payload.
 func SkillMarketplaceInstallPayloadFromResult(
 	result skillmarketplace.InstallResult,
@@ -1924,31 +1872,6 @@ func settingsObservabilityConfigPayload(
 	}
 }
 
-func settingsExtensionsConfigPayload(value aghconfig.ExtensionsConfig) contract.SettingsExtensionsConfigPayload {
-	return contract.SettingsExtensionsConfigPayload{
-		Marketplace: contract.SettingsMarketplacePayload{
-			Registry: strings.TrimSpace(value.Marketplace.Registry),
-			BaseURL:  strings.TrimSpace(value.Marketplace.BaseURL),
-		},
-		Resources: contract.SettingsExtensionResourcesPayload{
-			AllowedKinds:           resourceKindsToStrings(value.Resources.AllowedKinds),
-			MaxScope:               value.Resources.MaxScope,
-			SnapshotRateLimit:      settingsExtensionRateLimitPayload(value.Resources.SnapshotRateLimit),
-			OperatorWriteRateLimit: settingsExtensionRateLimitPayload(value.Resources.OperatorWriteRateLimit),
-		},
-	}
-}
-
-func settingsExtensionRateLimitPayload(
-	value aghconfig.ExtensionsResourceRateLimitConfig,
-) contract.SettingsExtensionRateLimitPayload {
-	return contract.SettingsExtensionRateLimitPayload{
-		Requests: value.Requests,
-		Window:   value.Window.String(),
-		Queue:    value.Queue,
-	}
-}
-
 func settingsDaemonRuntimePayload(value settingspkg.DaemonRuntimeStatus) contract.SettingsDaemonRuntimePayload {
 	payload := contract.SettingsDaemonRuntimePayload{
 		Available:      value.Available,
@@ -2224,6 +2147,8 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 			RuntimeStatus:  settingsMCPServerRuntimeStatusPayload(value.RuntimeStatus),
 			Scope:          contract.SettingsScopeKind(value.Scope),
 			WorkspaceID:    strings.TrimSpace(value.WorkspaceID),
+			CatalogEntry:   strings.TrimSpace(value.CatalogEntry),
+			CatalogVersion: strings.TrimSpace(value.CatalogVersion),
 			SourceMetadata: settingsSourceMetadataPayload(value.SourceMetadata),
 		})
 	}
@@ -2261,28 +2186,6 @@ func settingsMCPAuthConfigPayload(value aghconfig.MCPAuthConfig) *contract.Setti
 		ClientID:         strings.TrimSpace(value.ClientID),
 		ClientSecretRef:  strings.TrimSpace(value.ClientSecretRef),
 		Scopes:           cloneStrings(value.Scopes),
-	}
-}
-
-func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.SettingsMCPAuthStatusPayload {
-	if value == nil {
-		return nil
-	}
-	return &contract.SettingsMCPAuthStatusPayload{
-		ServerName:       strings.TrimSpace(value.ServerName),
-		Status:           strings.TrimSpace(string(value.Status)),
-		RemoteURL:        strings.TrimSpace(value.RemoteURL),
-		AuthType:         strings.TrimSpace(value.AuthType),
-		ClientID:         strings.TrimSpace(value.ClientID),
-		Issuer:           strings.TrimSpace(value.Issuer),
-		Scopes:           cloneStrings(value.Scopes),
-		ExpiresAt:        cloneTimePtr(value.ExpiresAt),
-		UpdatedAt:        cloneTimePtr(value.UpdatedAt),
-		Refreshable:      value.Refreshable,
-		TokenPresent:     value.TokenPresent,
-		RevocationURL:    strings.TrimSpace(value.RevocationURL),
-		Diagnostic:       strings.TrimSpace(value.Diagnostic),
-		AuthorizationURL: strings.TrimSpace(value.AuthorizationURL),
 	}
 }
 
@@ -2384,6 +2287,7 @@ func settingsHookDeclarationPayload(value hookspkg.HookDecl) contract.SettingsHo
 		Event:        value.Event,
 		Mode:         value.Mode,
 		Required:     value.Required,
+		Enabled:      value.Enabled,
 		Priority:     int(value.Priority),
 		Timeout:      durationString(value.Timeout),
 		Matcher:      value.Matcher,
@@ -2457,19 +2361,6 @@ func cloneBoolPtr(src *bool) *bool {
 	}
 	value := *src
 	return &value
-}
-
-func resourceKindsToStrings(values []resources.ResourceKind) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	payloads := make([]string, 0, len(values))
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(string(value)); trimmed != "" {
-			payloads = append(payloads, trimmed)
-		}
-	}
-	return payloads
 }
 
 func cloneTimePointer(src *time.Time) *time.Time {

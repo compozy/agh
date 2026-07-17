@@ -23,7 +23,7 @@ disable services:
 
 | Action             | Tool                                | CLI                            |
 | ------------------ | ----------------------------------- | ------------------------------ |
-| Search marketplace | `agh__extensions_search`            | `agh extension search`         |
+| Search marketplace | `agh__marketplace_search`           | `agh extension search`         |
 | List installed     | `agh__extensions_list`              | `agh extension list`           |
 | Inspect one        | `agh__extensions_info`              | `agh extension status`         |
 | Inspect provenance | `agh__extensions_info`              | `agh extension provenance`     |
@@ -144,52 +144,70 @@ agh extension remove prompt-enhancer
 Removal deletes the managed install directory and registry row with rollback handling. Like disable,
 removal is rejected while active bundle activations still depend on the extension.
 
-## Configure Marketplace Installs
+## Configure Marketplace And Side-Load Policy
 
-Marketplace settings live under `[extensions.marketplace]`:
+`[marketplace.catalog]` selects the curated discovery feed. `[extensions.marketplace]` configures
+the registry downloader and the independent non-curated side-load gate:
 
 ```toml
+[marketplace.catalog]
+base_url = "https://raw.githubusercontent.com/compozy/agh/main/catalog"
+ttl = "1h"
+timeout = "10s"
+
 [extensions.marketplace]
 registry = "github"
 # Optional. Empty uses the GitHub API default.
 base_url = "https://api.github.com"
+allow_unverified = false
 ```
 
 `registry = "github"` is the only accepted registry value today. `base_url` may use `https` or
 `http`; `http` logs an insecure-scheme warning. The GitHub client reads `GITHUB_TOKEN` from the
-daemon environment for authenticated release access.
+daemon environment for authenticated release access. `allow_unverified` applies live and controls
+non-curated side-loads only. It does not weaken the digest check for curated entries.
+
+After changing `marketplace.catalog.*` or `extensions.marketplace.allow_unverified`, reconcile and
+inspect the daemon's apply record:
+
+```bash
+agh config reload -o json
+agh config apply-history --limit 5 -o json
+```
 
 ## Search Marketplace Sources
 
-The CLI exposes a search command:
+The CLI searches the daemon-owned curated projection:
 
 ```bash
 agh extension search prompt --limit 20
 ```
 
-Current caveat: the built-in GitHub registry source supports release lookup and download, but it
-does not implement full-text search. A GitHub-only marketplace configuration can install a known
-slug, but search may return no results until a searchable source is configured.
-
-Use `--from` when multiple marketplace sources exist:
+Use the unified discovery command when another agent needs installed state and trust fields in the
+same structured result:
 
 ```bash
-agh extension search bridge --from github
+agh marketplace search bridge --kind extension -o json
 ```
+
+Both commands read `GET /api/marketplace/extension`. Curated entries name an exact HTTPS artifact
+and digest; GitHub remains the release source for manual registry installs, not curated acquisition.
 
 ## Install From A Registry
 
-Install a known marketplace slug:
+Install the `install_slug` from a curated detail record:
 
 ```bash
-agh extension install owner/repo --allow-unverified
+agh marketplace info extension acme-linear-bridge -o json
+agh extension install acme/linear-bridge -o json
 ```
 
-Install a specific version or asset:
+Curated installs pin the catalog version, exact `artifact_url`, and archive digest. `--version` and
+`--asset` remain available for non-curated registry installs:
 
 ```bash
-agh extension install owner/repo --version v0.3.1 --allow-unverified
-agh extension install owner/repo --asset agh-extension-linux-amd64.tar.gz --allow-unverified
+agh extension install acme/private-extension --version v0.3.1 --allow-unverified --yes
+agh extension install acme/private-extension --asset agh-extension-linux-amd64.tar.gz --allow-unverified --yes
 ```
 
 Registry flags are valid only for registry installs. If the argument is an existing local directory,
@@ -198,23 +216,32 @@ Registry flags are valid only for registry installs. If the argument is an exist
 Marketplace install flow:
 
 1. The CLI, HTTP client, web app, or native tool sends the install request to the daemon.
-2. AGH downloads the release archive into a staging directory.
-3. The installer extracts the archive and locates `extension.toml`.
-4. The installer accepts a manifest at archive root or inside one top-level directory.
-5. AGH validates the manifest, computes the install checksum, and evaluates the trust report.
-6. AGH rejects unverified checksums unless the caller explicitly sends `allow_unverified=true`.
-7. AGH moves the package to `<AGH_HOME>/extensions/<name>`.
-8. AGH persists registry metadata: source tier `marketplace`, slug, registry name, remote version,
-   provenance, trust report, and diagnostics.
-9. AGH reloads extension runtime resources and writes an `extension.installed` event.
+2. AGH resolves curated evidence for the requested slug and version when a matching catalog entry
+   exists.
+3. AGH downloads the catalog entry's exact HTTPS artifact into a staging directory and verifies the
+   catalog-pinned SHA-256 digest before extraction. Non-curated installs resolve a registry release
+   instead.
+4. The installer extracts the archive and locates `extension.toml` at archive root or inside one
+   top-level directory.
+5. AGH validates the manifest, computes the extracted-tree checksum, and evaluates the trust
+   report.
+6. AGH moves the package to `<AGH_HOME>/extensions/<name>`.
+7. AGH persists catalog identity, archive digest, extracted checksum, registry tier, install actor,
+   trust report, and diagnostics.
+8. AGH reloads extension runtime resources and writes an `extension.installed` event.
 
 Managed installs do not allow runtime dependency symlinks to escape the extracted extension root.
 If a packaged `node_modules` or runtime dependency symlink resolves outside that root, installation
 fails instead of copying content from the host filesystem.
 
-Use `--allow-unverified --yes` only when the operator intentionally accepts a package without a
-registry-verified checksum. Machine-readable output refuses `--allow-unverified` without `--yes` so
-agents cannot hide an interactive trust prompt.
+For a non-curated side-load, `extensions.marketplace.allow_unverified` must be `true` and the request
+must still include `--allow-unverified`. Machine-readable output also requires `--yes`, so agents
+cannot hide an interactive trust prompt. A disabled policy returns
+`extension_unverified_policy_blocked` with `/settings/extensions` and the config key in its
+diagnostic evidence.
+
+A curated archive mismatch returns `extension_archive_digest_mismatch`, installs nothing, and
+cannot be bypassed with `--allow-unverified`.
 
 ## Check For Updates
 
@@ -227,20 +254,27 @@ agh extension update prompt-enhancer --check
 Update one marketplace extension:
 
 ```bash
-agh extension update prompt-enhancer --allow-unverified
+agh extension update prompt-enhancer
 ```
 
 Check or update all marketplace-installed extensions:
 
 ```bash
 agh extension update --all --check
-agh extension update --all --allow-unverified
+agh extension update --all
 ```
 
 Update only works for extensions installed from a registry with slug metadata. Local extensions are
 not update targets. A successful update replaces the managed install directory, updates the registry
-row and provenance, reloads runtime resources, and writes an `extension.updated` event. As with
-install, unverified updates require explicit `--allow-unverified --yes`.
+row and provenance, reloads runtime resources, and writes an `extension.updated` event. Curated
+updates resolve and verify the digest for the selected version again. Non-curated updates follow the
+same policy-plus-request gate as installs.
+
+The runtime activation is the update commit point. If the new version is active but AGH cannot
+remove its staging directory or previous-version backup, the update still returns `status: "updated"`
+with an `extension_update_cleanup_failed` warning. The warning identifies the cleanup target and
+residual path; verify the active version before an operator removes that residue. The same warning is
+preserved in the `extension.updated` event and in CLI/native structured output.
 
 ## Inspect Provenance And Trust
 
@@ -254,22 +288,24 @@ source, registry tier, slug or path, selected version, checksum, checksum verifi
 diagnostics. Use it before enabling a package from an untrusted source or when an agent needs to
 justify why an install was accepted or rejected.
 
-## Registry Tiers, Trust Reports, And Marketplace Security
+## Registry Tiers And Provenance
 
 Marketplace registry entries have one registry tier. Local and bundled extension sources still
-exist, but registry trust is recorded separately in the provenance payload.
+exist, but registry trust is recorded separately in the provenance payload. A tier describes source
+provenance; it is not a safety guarantee.
 
-| Tier         | Meaning                                                | Default install behavior |
-| ------------ | ------------------------------------------------------ | ------------------------ |
-| `official`   | Registry-controlled source with a verified checksum.   | Allowed.                 |
-| `community`  | Community source with a registry checksum.             | Allowed when verified.   |
-| `unverified` | Registry entry or package without a verified checksum. | Blocked by default.      |
+| Tier         | Meaning                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| `official`   | The catalog classifies the publisher as an official source.                                    |
+| `community`  | The catalog classifies the publisher as a community source.                                    |
+| `unverified` | The catalog does not assign a trusted publisher tier; inspect the warning and policy decision. |
 
 Trust reports include `decision`, `registry_tier`, `checksum_verified`, `allow_unverified`, and
-warning diagnostics such as `extension_checksum_unverified`. Marketplace extensions are constrained
-to a read-oriented ceiling: `logs.read`, `memory.read`, `observe.read`, `session.read`,
-`skills.read`, and `tool.read`. Host API actions are filtered to methods whose required capability
-fits that ceiling.
+warning diagnostics. Before download, `checksum_verified` is false because no archive has been
+checked yet. A successful curated install records both the verified archive digest and the separate
+extracted-tree checksum. Marketplace extensions are constrained to a read-oriented ceiling:
+`logs.read`, `memory.read`, `observe.read`, `session.read`, `skills.read`, and `tool.read`. Host API
+actions are filtered to methods whose required capability fits that ceiling.
 
 If an extension requests capabilities outside its trust tier, the install returns deterministic
 diagnostics in the trust report instead of silently dropping the request. Operators can make an
@@ -277,14 +313,15 @@ unverified checksum decision with `allow_unverified`, but capability ceilings st
 
 ## Troubleshooting
 
-| Symptom                                            | Cause                                                                                      | Fix                                                                                 |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `extensions marketplace is not configured`         | `[extensions.marketplace]` is absent or empty.                                             | Add `registry = "github"` or install from a local path.                             |
-| `extensions.marketplace.registry must be "github"` | Unsupported registry value.                                                                | Use `github`.                                                                       |
-| Extension appears as `enabled` but not `active`    | Daemon is offline, disabled, or runtime failed before activation.                          | Start the daemon and inspect `agh extension status <name>`.                         |
-| Disable/remove returns a conflict                  | Active bundle activations depend on the extension.                                         | Remove or deactivate those bundle activations first.                                |
-| Registry install is rejected as unverified         | The registry did not provide a checksum AGH could verify.                                  | Re-run only with `--allow-unverified --yes` after reviewing provenance.             |
-| Marketplace command says the daemon is required    | Search, registry install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry, or use the documented local-directory install fallback. |
+| Symptom                                            | Cause                                                                                      | Fix                                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `extensions marketplace is not configured`         | `[extensions.marketplace]` is absent or empty.                                             | Add `registry = "github"` or install from a local path.                                                    |
+| `extensions.marketplace.registry must be "github"` | Unsupported registry value.                                                                | Use `github`.                                                                                              |
+| Extension appears as `enabled` but not `active`    | Daemon is offline, disabled, or runtime failed before activation.                          | Start the daemon and inspect `agh extension status <name>`.                                                |
+| Disable/remove returns a conflict                  | Active bundle activations depend on the extension.                                         | Remove or deactivate those bundle activations first.                                                       |
+| `extension_unverified_policy_blocked`              | A non-curated side-load is disabled by live policy.                                        | Review the source, enable `extensions.marketplace.allow_unverified`, reload, then confirm the one request. |
+| `extension_archive_digest_mismatch`                | A curated archive differs from the catalog-pinned bytes.                                   | Stop. Refresh the catalog or wait for the curated entry to be corrected; do not bypass the check.          |
+| Marketplace command says the daemon is required    | Search, registry install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry, or use the documented local-directory install fallback.                        |
 
 Related references:
 
@@ -292,3 +329,4 @@ Related references:
 - [Extension CLI Reference](/runtime/cli-reference/extension)
 - [Hook Declaration Format](/runtime/core/hooks/declaration)
 - [Skills Marketplace](/runtime/core/skills/marketplace)
+- [Unified Marketplace](/runtime/core/marketplace)

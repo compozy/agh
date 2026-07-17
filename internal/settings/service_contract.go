@@ -4,6 +4,7 @@ import (
 	"context"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 )
 
 // Service is the daemon-facing settings orchestration boundary.
@@ -18,6 +19,11 @@ type Service interface {
 		ctx context.Context,
 		req ProviderModelCurationRequest,
 	) (ProviderModelCurationResult, error)
+	InstallMCPCatalog(ctx context.Context, req MCPCatalogInstallRequest) (MCPCatalogInstallResult, error)
+	BeginMCPAuth(ctx context.Context, req MCPAuthBeginRequest) (mcpauth.BeginResult, error)
+	ExchangeMCPAuth(ctx context.Context, req MCPAuthExchangeRequest) (mcpauth.Status, error)
+	CompleteMCPAuthCallback(ctx context.Context, callbackURL string) (mcpauth.Status, error)
+	LogoutMCPAuth(ctx context.Context, req MCPAuthTargetRequest) (mcpauth.Status, error)
 	DeleteCollectionItem(ctx context.Context, req CollectionItemDeleteRequest) (MutationResult, error)
 	ApplyCollectionDelete(ctx context.Context, req CollectionItemDeleteRequest) (ApplyResult, error)
 	Reload(ctx context.Context) (ApplyResult, error)

@@ -48,7 +48,6 @@ const (
 	specAPIAutomationTriggersIDPath                          = "/api/automation/triggers/{id}"
 	specAPIBundlesActivationsIDPath                          = "/api/bundles/activations/{id}"
 	specAPIExtensionsPath                                    = "/api/extensions"
-	specAPIExtensionsMarketplacePath                         = specAPIExtensionsPath + "/marketplace"
 	specAPIExtensionsNamePath                                = "/api/extensions/{name}"
 	specAPIExtensionsNameProvenancePath                      = specAPIExtensionsNamePath + "/provenance"
 	specAPIExtensionsNameEnablePath                          = specAPIExtensionsNamePath + "/enable"
@@ -163,6 +162,7 @@ const (
 	specHooksKey                                             = "hooks"
 	specIntegerKey                                           = "integer"
 	specLogsKey                                              = "logs"
+	specMarketplaceKey                                       = "marketplace"
 	specMemoryKey                                            = "memory"
 	specNetworkKey                                           = "network"
 	specNotificationsKey                                     = "notifications"
@@ -260,6 +260,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specHooksKey},
 			{Name: specLogsKey},
 			{Name: specLoopsKey},
+			{Name: specMarketplaceKey},
 			{Name: specMemoryKey},
 			{Name: specObserveKey},
 			{Name: specOpenAIKey},
@@ -714,7 +715,7 @@ var operationRegistry = append([]OperationSpec{
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Filter by automation scope", automationScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			enumQueryParam("source", "Filter by job source", automationSourceValues()),
 			boolQueryParam("enabled", "Filter by enabled state"),
@@ -848,7 +849,7 @@ var operationRegistry = append([]OperationSpec{
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Filter by automation scope", automationScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			enumQueryParam("source", "Filter by trigger source", automationSourceValues()),
 			boolQueryParam("enabled", "Filter by enabled state"),
@@ -1556,25 +1557,6 @@ var operationRegistry = append([]OperationSpec{
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Extension trust decision required", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
-		Method:      httpMethodGet,
-		Path:        specAPIExtensionsMarketplacePath,
-		OperationID: "searchExtensionMarketplace",
-		Summary:     "Search configured extension marketplace sources",
-		Tags:        []string{specExtensionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			queryParam("q", "Search query", false),
-			queryParam("source", "Marketplace source filter", false),
-			intQueryParam("limit", "Maximum number of results"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.ExtensionMarketplaceResponse{}},
-			{Status: 400, Description: "Invalid marketplace request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -3253,7 +3235,7 @@ var operationRegistry = append([]OperationSpec{
 		Tags:        []string{specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Filter by catalog visibility", taskCatalogScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by catalog visibility", taskCatalogScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			enumQueryParam("status", "Filter by task status", taskStatusValues()),
 			enumQueryParam("priority", "Filter by task priority", taskPriorityValues()),
@@ -3543,7 +3525,7 @@ var operationRegistry = append([]OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("id", "Task id"),
 			queryParam("bridge_instance_id", "Filter by bridge instance id", false),
-			enumQueryParam("scope", "Filter by bridge scope", bridgeScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by bridge scope", bridgeScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			intQueryParam("limit", "Maximum number of records to return"),
 		},
@@ -4090,7 +4072,7 @@ var operationRegistry = append([]OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			intQueryParam("limit", "Maximum number of queued runs to return"),
-			enumQueryParam("scope", "Filter by catalog visibility", taskCatalogScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by catalog visibility", taskCatalogScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			boolQueryParam("include_paused", "Include runs blocked by task pause state"),
 		},
@@ -4465,7 +4447,7 @@ var operationRegistry = append([]OperationSpec{
 		Tags:        []string{specObserveKey, specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Filter by task scope", taskScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
@@ -4488,7 +4470,7 @@ var operationRegistry = append([]OperationSpec{
 		Tags:        []string{specObserveKey, specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Filter by task scope", taskScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
@@ -4526,42 +4508,6 @@ var operationRegistry = append([]OperationSpec{
 			{Status: 404, Description: "Skill scope not found", Body: contract.ErrorPayload{}},
 			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
-		Method:      httpMethodGet,
-		Path:        "/api/skills/marketplace/search",
-		OperationID: "searchSkillMarketplace",
-		Summary:     "Search remote marketplace skills",
-		Tags:        []string{specSkillsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			queryParam("query", "Remote marketplace search query", true),
-			intQueryParam("limit", "Maximum number of remote skill results"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SkillMarketplaceSearchResponse{}},
-			{Status: 400, Description: "Invalid marketplace search request", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specSkillMarketplaceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
-		Method:      httpMethodGet,
-		Path:        "/api/skills/marketplace/info",
-		OperationID: "getSkillMarketplaceInfo",
-		Summary:     "Get remote marketplace skill detail",
-		Tags:        []string{specSkillsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			queryParam("slug", "Marketplace skill slug in @author/name form", true),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SkillMarketplaceDetailResponse{}},
-			{Status: 400, Description: "Invalid marketplace detail request", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Marketplace skill not found", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specSkillMarketplaceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -5000,7 +4946,7 @@ var operationRegistry = append([]OperationSpec{
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Select the settings scope", settingsWorkspaceScopeValues()),
+			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
 		},
 		Responses: []ResponseSpec{
@@ -5019,7 +4965,7 @@ var operationRegistry = append([]OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "MCP server name"),
-			enumQueryParam("scope", "Select the settings scope", settingsWorkspaceScopeValues()),
+			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
 			enumQueryParam("target", "Select the persistence target", settingsTargetSelectorValues()),
 		},
@@ -5042,7 +4988,7 @@ var operationRegistry = append([]OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "MCP server name"),
-			enumQueryParam("scope", "Select the settings scope", settingsWorkspaceScopeValues()),
+			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
 			enumQueryParam("target", "Select the persistence target", settingsTargetSelectorValues()),
 		},
@@ -5223,7 +5169,7 @@ var operationRegistry = append([]OperationSpec{
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Select the settings scope", settingsAgentScopeValues()),
+			enumQueryParam(specScopeKey, "Select the settings scope", settingsAgentScopeValues()),
 			queryParam("workspace_id", "Optional workspace id for agent resolution context", false),
 			queryParam("agent_name", "Agent name when scope=agent", false),
 		},
@@ -5243,7 +5189,7 @@ var operationRegistry = append([]OperationSpec{
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Select the settings scope", settingsAgentScopeValues()),
+			enumQueryParam(specScopeKey, "Select the settings scope", settingsAgentScopeValues()),
 			queryParam("workspace_id", "Optional workspace id for agent resolution context", false),
 			queryParam("agent_name", "Agent name when scope=agent", false),
 		},
@@ -5979,7 +5925,7 @@ func intQueryParam(name string, description string) ParameterSpec {
 
 func memorySelectorQueryParams() []ParameterSpec {
 	return []ParameterSpec{
-		enumQueryParam("scope", "Memory scope", memoryScopeValues()),
+		enumQueryParam(specScopeKey, "Memory scope", memoryScopeValues()),
 		queryParam("workspace_id", "Durable workspace id", false),
 		queryParam("agent_name", "Agent name for agent-scoped memory", false),
 		enumQueryParam("agent_tier", "Agent memory tier", memoryAgentTierValues()),
@@ -6402,7 +6348,7 @@ func hookExecutorKindValues() []string {
 }
 
 func hookSourceValues() []string {
-	return []string{"native", "config", "agent_definition", "skill"}
+	return []string{"native", "config", "agent_definition", specSkillKey}
 }
 
 func memoryTypeValues() []string {
@@ -6590,7 +6536,7 @@ func stopReasonValues() []string {
 }
 
 func toolSourceValues() []string {
-	return []string{"builtin", "mcp", specExtensionKey, "dynamic"}
+	return []string{"builtin", specMCPKey, specExtensionKey, "dynamic"}
 }
 
 func toolBackendKindValues() []string {

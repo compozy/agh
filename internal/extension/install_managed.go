@@ -186,7 +186,7 @@ func validateManagedInstallName(name string) (string, error) {
 	switch {
 	case trimmed == "":
 		return "", errors.New("extension: managed extension name is required")
-	case trimmed == "." || trimmed == "..":
+	case trimmed == "." || trimmed == ".." || trimmed == sourceMarketplaceName:
 		return "", fmt.Errorf("extension: managed extension name %q is reserved", name)
 	case filepath.IsAbs(trimmed):
 		return "", fmt.Errorf("extension: managed extension name %q must be relative", name)

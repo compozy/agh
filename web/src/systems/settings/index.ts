@@ -13,12 +13,6 @@ export type {
   SettingsSandboxDetail,
   SettingsSandboxEntry,
   SettingsSandboxRequest,
-  SettingsExtensionEntry,
-  SettingsExtensionMarketplaceEntry,
-  SettingsExtensionMarketplaceFilter,
-  SettingsExtensionProvenance,
-  SettingsExtensionRemove,
-  SettingsExtensionUpdate,
   SettingsGeneralSection,
   SettingsHookCollection,
   SettingsHookEntry,
@@ -26,7 +20,10 @@ export type {
   SettingsHooksExtensionsHook,
   SettingsHooksExtensionsInstalled,
   SettingsHooksExtensionsSection,
-  SettingsHooksExtensionsTransportParity,
+  SettingsMCPAuthBeginResponse,
+  SettingsMCPAuthExchangeRequest,
+  SettingsMCPAuthFilter,
+  SettingsMCPAuthStatusResponse,
   SettingsMCPServerCollection,
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerEntry,
@@ -58,14 +55,12 @@ export type {
   SettingsSource,
   SettingsSourceKind,
   SettingsUpdateStatus,
-  SettingsInstallExtensionRequest,
   SettingsCreateNotificationPresetRequest,
   SettingsNotificationPresetCollection,
   SettingsNotificationPresetEntry,
   SettingsNotificationPresetFilter,
   SettingsNotificationPresetTarget,
   SettingsUpdateAutomationRequest,
-  SettingsUpdateExtensionRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
   SettingsUpdateNotificationPresetRequest,
@@ -86,15 +81,46 @@ export {
   settingsSectionPath,
 } from "./lib/sections";
 
+// MCP page models (status matrix + editor draft)
+export {
+  authorizeLabel,
+  composeMCPRowStatus,
+  formatStatusLabel,
+  isOAuthCapable,
+  isOAuthRepairable,
+  MCP_AUTH_STATUSES,
+  MCP_PROBE_STATES,
+  MCP_RUNTIME_STATES,
+  probeToolLabel,
+} from "./lib/mcp-status-view-model";
+export type {
+  MCPAuthorizeLabel,
+  MCPAuthStatus,
+  MCPProbeState,
+  MCPRowStatus,
+  MCPRuntimeState,
+  MCPStatusCell,
+} from "./lib/mcp-status-view-model";
+export { emptyDraft, toDraft, toRequest, validateDraft } from "./lib/mcp-editor-model";
+export type {
+  MCPDraft,
+  MCPDraftErrors,
+  MCPDraftValidation,
+  MCPEnvPair,
+  MCPOAuthDiscovery,
+  MCPOAuthDraft,
+  MCPSecretBinding,
+  MCPSecretEnvEntry,
+  MCPSecretMode,
+  MCPTransport,
+} from "./lib/mcp-editor-model";
+
 // Adapters
 export {
   deleteSettingsSandbox,
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,
-  disableSettingsExtension,
-  enableSettingsExtension,
-  getSettingsExtensionProvenance,
   getSettingsAutomation,
   getSettingsSandbox,
   getSettingsGeneral,
@@ -108,12 +134,10 @@ export {
   getSettingsUpdate,
   listSettingsApplyRecords,
   listSettingsSandboxes,
-  listSettingsExtensions,
   listSettingsHooks,
   listSettingsMCPServers,
   listSettingsProviders,
   OBSERVABILITY_LOG_TAIL_PATH,
-  installSettingsExtension,
   listSettingsNotificationPresets,
   createSettingsNotificationPreset,
   updateSettingsNotificationPreset,
@@ -123,12 +147,9 @@ export {
   putSettingsMCPServer,
   putSettingsProvider,
   reloadSettings,
-  removeSettingsExtension,
-  searchSettingsExtensionMarketplace,
   SettingsApiError,
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
-  updateSettingsExtension,
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
@@ -137,6 +158,11 @@ export {
   updateSettingsObservability,
   updateSettingsSkills,
 } from "./adapters/settings-api";
+export {
+  beginSettingsMCPAuth,
+  exchangeSettingsMCPAuth,
+  logoutSettingsMCPAuth,
+} from "./adapters/settings-mcp-auth-api";
 
 // Query infrastructure
 export { settingsKeys } from "./lib/query-keys";
@@ -146,12 +172,9 @@ export {
   settingsApplyRecordsOptions,
   settingsSandboxDetailOptions,
   settingsSandboxesListOptions,
-  settingsExtensionsListOptions,
   settingsGeneralOptions,
   settingsHooksExtensionsOptions,
   settingsHooksListOptions,
-  settingsExtensionMarketplaceOptions,
-  settingsExtensionProvenanceOptions,
   settingsNotificationPresetsOptions,
   settingsMCPServersListOptions,
   settingsMemoryOptions,
@@ -174,6 +197,8 @@ export { restartBannerPropsFor } from "./lib/restart-banner-mapper";
 // Components
 export {
   MCPActionResultBanner,
+  MCPAuthorizeDialog,
+  MCPSelectionStrip,
   MCPServerDeleteDialog,
   MCPServerEditor,
   MCPServersTable,
@@ -219,10 +244,7 @@ export {
 export {
   useSettingsSandbox,
   useSettingsSandboxes,
-  useSettingsExtensionMarketplace,
-  useSettingsExtensionProvenance,
   useSettingsNotificationPresets,
-  useSettingsExtensions,
   useSettingsHooks,
   useSettingsMCPServers,
   useSettingsProvider,
@@ -231,13 +253,13 @@ export {
 
 // Hooks -- mutations
 export {
+  useBeginMCPAuth,
   useDeleteSettingsSandbox,
   useDeleteSettingsHook,
   useDeleteSettingsMCPServer,
+  useExchangeMCPAuth,
+  useLogoutMCPAuth,
   useDeleteSettingsProvider,
-  useDisableSettingsExtension,
-  useEnableSettingsExtension,
-  useInstallSettingsExtension,
   useCreateSettingsNotificationPreset,
   useUpdateSettingsNotificationPreset,
   useDeleteSettingsNotificationPreset,
@@ -246,8 +268,6 @@ export {
   usePutSettingsMCPServer,
   usePutSettingsProvider,
   useReloadSettings,
-  useRemoveSettingsExtension,
-  useUpdateSettingsExtension,
   useUpdateSettingsAutomation,
   useUpdateSettingsGeneral,
   useUpdateSettingsHooksExtensions,

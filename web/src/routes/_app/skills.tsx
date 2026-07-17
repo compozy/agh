@@ -1,5 +1,5 @@
-import { AlertCircle, RefreshCw, Store, Wrench } from "lucide-react";
-import { Outlet, createFileRoute } from "@tanstack/react-router";
+import { AlertCircle, RefreshCw, Wrench } from "lucide-react";
+import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
 
 import {
   Alert,
@@ -9,7 +9,6 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
-  PillGroup,
   Spinner,
   useTopbarSlot,
 } from "@agh/ui";
@@ -21,7 +20,7 @@ import {
   useSkillsPage,
 } from "@/hooks/routes/use-skills-page";
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
-import { MarketplaceView, SkillListFilters, SkillListPanel } from "@/systems/skill";
+import { SkillListFilters, SkillListPanel } from "@/systems/skill";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { preloadSkillsRoute } from "./-skill-preload";
 
@@ -30,7 +29,6 @@ function validateSkillsSearch(search: Record<string, unknown>): SkillsRouteSearc
     enabled: parseSkillEnabledFilter(search.enabled),
     q: normalizeListingSearchValue(search.q),
     source: parseSkillSourceFilter(search.source),
-    tab: search.tab === "installed" || search.tab === "marketplace" ? search.tab : undefined,
     view: parseListingView(search.view),
   };
 }
@@ -40,40 +38,27 @@ export const Route = createFileRoute("/_app/skills")({
     topbar: { title: "Skills", icon: Wrench },
   }),
   validateSearch: validateSkillsSearch,
-  loaderDeps: ({ search }) => ({ q: search.q, tab: search.tab }),
-  loader: ({ context, deps }) => preloadSkillsRoute(context.queryClient, deps),
+  loader: ({ context }) => preloadSkillsRoute(context.queryClient),
   component: SkillsPage,
 });
-
-const TAB_ITEMS = [
-  { value: "installed", label: "Installed", testId: "tab-installed" },
-  { value: "marketplace", label: "Marketplace", testId: "tab-marketplace" },
-] as const;
-
-type SkillsTabValue = (typeof TAB_ITEMS)[number]["value"];
 
 function SkillsPage() {
   const page = useSkillsPage(Route.useSearch());
   const { activeWorkspace } = useActiveWorkspace();
 
   useTopbarSlot({
-    count: page.hasChildMatch
-      ? undefined
-      : page.activeTab === "marketplace"
-        ? page.marketplaceListingCount
-        : page.skillCount,
-    tabs: page.hasChildMatch ? undefined : (
-      <PillGroup<SkillsTabValue>
-        aria-label="Skills tab"
-        data-testid="skills-tabs"
-        items={TAB_ITEMS}
-        onChange={value => page.setActiveTab(value)}
-        size="sm"
-        value={page.activeTab as SkillsTabValue}
-      />
-    ),
+    count: page.hasChildMatch ? undefined : page.skillCount,
     actions: page.hasChildMatch ? undefined : (
       <div className="flex items-center gap-2" data-testid="skills-topbar-actions">
+        <Button
+          data-testid="skills-browse-marketplace"
+          render={<Link search={{ kind: "skills" }} to="/marketplace" />}
+          nativeButton={false}
+          size="sm"
+          variant="ghost"
+        >
+          Browse marketplace
+        </Button>
         <Button
           data-testid="skills-refresh"
           onClick={page.handleRefresh}
@@ -84,17 +69,6 @@ function SkillsPage() {
           <RefreshCw aria-hidden="true" className="size-3" />
           Refresh
         </Button>
-        {page.activeTab === "installed" ? (
-          <Button
-            data-testid="skills-browse-marketplace"
-            onClick={page.browseMarketplace}
-            size="sm"
-            type="button"
-          >
-            <Store aria-hidden="true" className="size-3" />
-            Browse marketplace
-          </Button>
-        ) : null}
       </div>
     ),
   });
@@ -127,8 +101,6 @@ function SkillsPage() {
     );
   }
 
-  const isMarketplace = page.activeTab === "marketplace";
-  const count = isMarketplace ? page.marketplaceListingCount : page.skillCount;
   const workspaceLabel = activeWorkspace?.name ?? activeWorkspace?.id ?? "workspace";
 
   return (
@@ -150,16 +122,12 @@ function SkillsPage() {
       data-testid="skills-shell"
     >
       <ListingPage.Head
-        count={count}
+        count={page.skillCount}
         countTestId="skills-page-count"
         data-testid="skills-page-head"
         meta={
           <>
-            <span>
-              {isMarketplace
-                ? "Browse and install skills from the marketplace."
-                : "Installed skills available to agents in this workspace."}
-            </span>
+            <span>Installed skills available to agents in this workspace.</span>
             <ListingPage.MetaDot />
             <span>{workspaceLabel}</span>
           </>
@@ -170,72 +138,39 @@ function SkillsPage() {
       <ListingToolbar>
         <ListingToolbar.Leading>
           <ListingToolbar.Search
-            aria-label={isMarketplace ? "Search marketplace skills" : "Search installed skills"}
-            data-testid={isMarketplace ? "marketplace-search-input" : "skill-search-input"}
+            aria-label="Search installed skills"
+            data-testid="skill-search-input"
             onChange={page.setSearchQuery}
-            placeholder={isMarketplace ? "Search skills on the marketplace…" : "Search skills"}
+            placeholder="Search skills"
             value={page.searchQuery}
           />
-          {!isMarketplace ? (
-            <ListingToolbar.Filters>
-              <SkillListFilters
-                enabledFilter={page.enabledFilter}
-                onEnabledFilterChange={page.setEnabledFilter}
-                onSourceFilterChange={page.setSourceFilter}
-                sourceFilter={page.sourceFilter}
-              />
-            </ListingToolbar.Filters>
-          ) : null}
+          <ListingToolbar.Filters>
+            <SkillListFilters
+              enabledFilter={page.enabledFilter}
+              onEnabledFilterChange={page.setEnabledFilter}
+              onSourceFilterChange={page.setSourceFilter}
+              sourceFilter={page.sourceFilter}
+            />
+          </ListingToolbar.Filters>
         </ListingToolbar.Leading>
         <ListingToolbar.Trailing>
           <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
         </ListingToolbar.Trailing>
       </ListingToolbar>
 
-      {isMarketplace ? (
-        <MarketplaceView
-          installedSkillNames={page.installedSkillNames}
-          searchStatus={
-            !page.isMarketplaceSearchEnabled
-              ? "prompt"
-              : page.isMarketplaceSearching
-                ? "searching"
-                : page.marketplaceSearchError
-                  ? "error"
-                  : "ready"
-          }
-          pendingActions={
-            new Set(
-              [
-                page.isInstalling ? "install" : null,
-                page.isUpdating ? "update" : null,
-                page.isRemoving ? "remove" : null,
-              ].filter((action): action is "install" | "update" | "remove" => action !== null)
-            )
-          }
-          listings={page.marketplaceListings}
-          onClearSearch={() => page.setSearchQuery("")}
-          onInstall={page.handleInstallMarketplace}
-          onRemove={page.handleRemoveMarketplace}
-          onUpdate={page.handleUpdateMarketplace}
-          searchError={page.marketplaceSearchError}
+      <div data-testid="skill-list-panel">
+        <SkillListPanel
+          enabledFilter={page.enabledFilter}
+          isActionPending={page.isActionPending}
+          onClearFilters={page.clearFilters}
+          onDisable={page.handleDisable}
+          onEnable={page.handleEnable}
+          searchQuery={page.searchQuery}
+          sourceFilter={page.sourceFilter}
+          skills={page.skills}
           view={page.view}
         />
-      ) : (
-        <div data-testid="skill-list-panel">
-          <SkillListPanel
-            enabledFilter={page.enabledFilter}
-            isActionPending={page.isActionPending}
-            onClearFilters={page.clearFilters}
-            onDisable={page.handleDisable}
-            onEnable={page.handleEnable}
-            searchQuery={page.searchQuery}
-            sourceFilter={page.sourceFilter}
-            skills={page.skills}
-            view={page.view}
-          />
-        </div>
-      )}
+      </div>
     </ListingPage>
   );
 }

@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/marketplace"
 	"github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {
@@ -92,6 +96,46 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply and rollback extension side-load policy live", func(t *testing.T) {
+		t.Parallel()
+
+		nativeDeps, registry, _, _ := newNativeExtensionToolDeps(t)
+		extensionService, ok := newDaemonExtensionService(
+			registry,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			nativeDeps.HomePaths,
+			nil,
+			nil,
+		).(*daemonExtensionService)
+		if !ok {
+			t.Fatal("newDaemonExtensionService() did not return daemon service")
+		}
+		previous := aghconfig.Config{}
+		next := previous
+		next.Extensions.Marketplace.AllowUnverified = true
+		syncCalls := 0
+		state := &bootState{
+			cfg:  previous,
+			deps: RuntimeDeps{Extensions: extensionService},
+			toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
+				syncCalls++
+				return errors.New("mcp sync boom")
+			}),
+		}
+		failures := daemonSettingsRuntimeApplier{daemon: &Daemon{}, state: state}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 2 {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want mcp plus rollback", failures)
+		}
+		if extensionService.marketplaceConfig().AllowUnverified {
+			t.Fatal("extension side-load policy = true after rollback, want false")
+		}
+	})
+
 	t.Run("Should record mcp_rollback when MCP rollback sync fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -124,6 +168,66 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		if failures[1].Subsystem != "mcp_rollback" {
 			t.Fatalf("second failure subsystem = %q, want mcp_rollback", failures[1].Subsystem)
 		}
+	})
+
+	t.Run("Should restore marketplace sources when another live dependency fails", func(t *testing.T) {
+		t.Parallel()
+
+		firstServer := newMarketplaceFeedServer(t, "rollback-first")
+		secondServer := newMarketplaceFeedServer(t, "rollback-second")
+		homePaths := testHomePaths(t)
+		previous := aghconfig.DefaultWithHome(homePaths)
+		previous.Marketplace.Catalog.BaseURL = firstServer.URL
+		previous.Marketplace.Catalog.Timeout = "1s"
+		next := previous
+		next.Marketplace.Catalog.BaseURL = secondServer.URL
+
+		registry, err := globaldb.OpenGlobalDB(
+			t.Context(),
+			filepath.Join(t.TempDir(), store.GlobalDatabaseName),
+		)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := registry.Close(context.Background()); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		marketplaceStore, err := marketplace.NewSQLiteStore(registry)
+		if err != nil {
+			t.Fatalf("NewSQLiteStore() error = %v", err)
+		}
+		runtime, err := newMarketplaceRuntime(marketplaceStore, nil, previous.Marketplace.Catalog, nil)
+		if err != nil {
+			t.Fatalf("newMarketplaceRuntime() error = %v", err)
+		}
+		if _, err := runtime.Refresh(t.Context(), marketplace.KindSkill); err != nil {
+			t.Fatalf("Refresh(seed) error = %v", err)
+		}
+
+		syncCalls := 0
+		failures := daemonSettingsRuntimeApplier{
+			daemon: &Daemon{},
+			state: &bootState{
+				cfg:         previous,
+				marketplace: runtime,
+				toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
+					syncCalls++
+					if syncCalls == 1 {
+						return errors.New("mcp sync boom")
+					}
+					return nil
+				}),
+			},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 1 || failures[0].Subsystem != "mcp" {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want one mcp failure", failures)
+		}
+		if _, err := runtime.Refresh(t.Context(), marketplace.KindSkill); err != nil {
+			t.Fatalf("Refresh(after rollback) error = %v", err)
+		}
+		assertMarketplaceRuntimeEntry(t, runtime, "rollback-first")
 	})
 }
 

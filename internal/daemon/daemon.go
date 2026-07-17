@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -203,10 +202,6 @@ type observerRetentionStopper interface {
 	ShutdownRetention(context.Context) error
 }
 
-type extensionDBSource interface {
-	DB() *sql.DB
-}
-
 type resourceReconcileDriverDeps struct {
 	Config           aghconfig.Config
 	Logger           *slog.Logger
@@ -353,6 +348,7 @@ type Daemon struct {
 	sandboxRegistry              *sandbox.Registry
 	skillsRegistry               *skills.Registry
 	modelCatalog                 *modelCatalogRuntime
+	marketplace                  *marketplaceRuntime
 	skillsCancel                 context.CancelFunc
 	skillsDone                   chan struct{}
 	loopsCancel                  context.CancelFunc
@@ -1060,6 +1056,7 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 		memoryStore:         d.memoryStore,
 		localMemoryProvider: d.localMemoryProvider,
 		modelCatalog:        d.modelCatalog,
+		marketplace:         d.marketplace,
 		skillsCancel:        d.skillsCancel,
 		skillsDone:          d.skillsDone,
 		loopsCancel:         d.loopsCancel,
@@ -1095,6 +1092,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.memoryExtractor = nil
 	d.localMemoryProvider = nil
 	d.modelCatalog = nil
+	d.marketplace = nil
 	d.skillsRegistry = nil
 	d.loopCatalog = nil
 	d.lock = nil

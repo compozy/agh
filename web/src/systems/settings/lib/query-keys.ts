@@ -1,6 +1,5 @@
 import type {
   SettingsApplyRecordsFilter,
-  SettingsExtensionMarketplaceFilter,
   SettingsMCPServerListFilter,
   SettingsNotificationPresetFilter,
   SettingsSectionName,
@@ -15,13 +14,6 @@ function normalizeText(value?: string | null): string {
 
   const trimmed = value.trim();
   return trimmed;
-}
-
-function normalizeKeyValue(value?: string | number | null): string {
-  if (typeof value === "number") {
-    return String(value);
-  }
-  return normalizeText(value);
 }
 
 export type SettingsSectionKey = SettingsSectionName | SettingsSectionSlug;
@@ -56,19 +48,6 @@ export const settingsKeys = {
   mcpLists: () => [...settingsKeys.mcpRoot(), "list"] as const,
   mcpList: (filter: SettingsMCPServerListFilter = {}) =>
     [...settingsKeys.mcpLists(), filter.scope ?? "", normalizeText(filter.workspace_id)] as const,
-
-  extensionsRoot: () => [...settingsKeys.all, "extensions"] as const,
-  extensionsList: () => [...settingsKeys.extensionsRoot(), "list"] as const,
-  extensionsMarketplace: (filter: SettingsExtensionMarketplaceFilter = {}) =>
-    [
-      ...settingsKeys.extensionsRoot(),
-      "marketplace",
-      normalizeText(filter.q),
-      normalizeText(filter.source),
-      normalizeKeyValue(filter.limit),
-    ] as const,
-  extensionProvenance: (name: string) =>
-    [...settingsKeys.extensionsRoot(), "provenance", name] as const,
 
   notificationsRoot: () => [...settingsKeys.all, "notifications"] as const,
   notificationPresetsList: (filter: SettingsNotificationPresetFilter = {}) =>
