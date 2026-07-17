@@ -359,7 +359,7 @@
   ];
   var ACTIVATIONS = [
     { id:"ops-starter", name:"ops-starter", version:"0.8.0", contents:"2 skills · 1 extension · 1 mcp", activated:"5d ago", update:false,
-      profile:"triage", scope:"workspace", workspace_id:"ws_ops", active:true,
+      profile:"triage", scope:"workspace", workspace_id:"ws_ops", active:true, bind_primary_channel_as_default:true,
       description:"MCP servers and skills for incident triage and status page updates.",
       profile_description:"Triage-only: the incident skill plus GitHub and Postgres MCP.",
       agents:[{name:"oncall", provider:"anthropic", model:"claude-sonnet-4"}],
@@ -369,7 +369,7 @@
       inventory:[{resource_kind:"skill", resource_name:"incident-triage"},{resource_kind:"extension", resource_name:"cost-guard"},{resource_kind:"mcp", resource_name:"github"}],
       created_at:"2026-07-03T11:00:00Z", updated_at:"2026-07-03T11:00:00Z" },
     { id:"qa-pack", name:"qa-pack", version:"0.2.0", contents:"2 skills", activated:"3w ago", update:true, updateTo:"0.3.0",
-      profile:"default", scope:"global", workspace_id:null, active:true,
+      profile:"default", scope:"global", workspace_id:null, active:true, bind_primary_channel_as_default:false,
       description:"QA skills for regression triage and flake classification.",
       profile_description:"Default QA profile with two skills.",
       agents:[], jobs:[], triggers:[], bridges:[], channels:[],
