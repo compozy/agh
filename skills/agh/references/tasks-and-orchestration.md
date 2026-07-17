@@ -58,7 +58,9 @@ A parent task stays nonterminal while any direct child is not completed. The suc
 
 Scheduler controls affect dispatch, not task truth. They do not complete work, approve reviews, or transfer ownership.
 
-A claimable run that no eligible session claims past `[autonomy.scheduler].min_queued_age` escalates on a bounded ladder: fan-out wake to every eligible session, then a capability-matched worker spawn, then the `task.run_starved` event (once), then `needs_attention`. `agh scheduler status -o json` surfaces `starved_run_count` and `needs_attention_run_count` so this pressure is observable. The scheduler never claims — spawned `system` workers self-claim via `agh task next` and are TTL-reaped. Tune the ladder under `[autonomy.scheduler]`.
+A claimable run that no eligible session claims past `[autonomy.scheduler].min_queued_age` escalates on a bounded ladder: fan-out wake to every eligible session, then a capability-matched worker spawn, then the `task.run_starved` event (once), then `needs_attention`. Compatible sessions that are starting, prompting, already processing a run, or reserved for an earlier run in the same scheduler cycle are capacity, not absence. Their queued work remains queued without consuming the escalation budget; the daemon records `scheduler.capacity_waiting` diagnostics until capacity becomes available.
+
+`agh scheduler status -o json` surfaces `starved_run_count` as the number of queued, claimable runs with an active durable escalation episode. Queue age alone does not increment it, and capacity-waiting runs remain visible through `queued_run_count`. `needs_attention_run_count` reports runs already parked by the ladder. The scheduler never claims — spawned `system` workers self-claim via `agh task next` and are TTL-reaped. Tune the ladder under `[autonomy.scheduler]`.
 
 ## Coordinator Loop
 

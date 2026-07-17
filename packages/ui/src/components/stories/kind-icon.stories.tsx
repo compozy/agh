@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { KindIcon, providerKindIconRegistry } from "../custom/kind-icon";
+import { KindIcon } from "../custom/kind-icon";
+import { providerKindIconRegistry } from "../custom/kind-icon-registry";
 
 const providerKeys = Object.keys(providerKindIconRegistry);
 

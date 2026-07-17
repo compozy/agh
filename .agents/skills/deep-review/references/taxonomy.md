@@ -1,6 +1,6 @@
 # Finding Taxonomy
 
-The grammar every finding carries, the gates that decide what gets reported, and the suppression rules that keep the review high-signal. Reviewer, sweep, and skeptic prompts embed this file.
+The grammar every finding carries, the gates that decide what gets reported, and the suppression rules that keep the review high-signal. Reviewer and sweep prompts embed this file.
 
 ## Badge grammar
 
@@ -52,7 +52,7 @@ A finding on lines the diff did not touch is allowed only when: (a) the diff bre
 
 ## Suppression rules
 
-Drop the finding — before the skeptic ever sees it — when any of these hold:
+Drop the finding before recording it when any of these hold:
 
 1. **Linter overlap** — a linter/typechecker lane that ran in the context pack already reports it.
 2. **Intentional** — an adjacent comment, `nolint`/`eslint-disable` with justification, ADR, or a test asserting the behavior shows the pattern is deliberate.

@@ -321,13 +321,11 @@ describe("captureRouteState", () => {
     });
   });
 
-  it("captures Skills route catalog, detail, enabled state, and marketplace context", async () => {
+  it("captures the installed Skills catalog, detail, and enabled state", async () => {
     window.history.replaceState({}, "", "/skills");
     document.title = "AGH";
     document.body.innerHTML = `
       <main data-testid="skills-shell">
-        <button data-testid="tab-installed" aria-selected="true"></button>
-        <button data-testid="tab-marketplace" aria-selected="false"></button>
         <input data-testid="skill-search-input" value="browser-context" />
         <aside data-testid="skill-list-panel">
           <button data-testid="skill-item-browser-context-skill" data-state="selected">
@@ -348,12 +346,10 @@ describe("captureRouteState", () => {
 
     expect(installedState).toMatchObject({
       pathname: "/skills",
-      skills_active_tab: "installed",
       skills_content_visible: true,
       skills_detail_visible: true,
       skills_enabled_state: "enabled",
       skills_item_count: 2,
-      skills_marketplace_count: 0,
       skills_search_active: true,
       skills_selected_item: "browser-context-skill",
       skills_view_visible: true,
@@ -377,7 +373,6 @@ describe("captureRouteState", () => {
 
     expect(detailState).toMatchObject({
       pathname: "/skills/browser-context-skill",
-      skills_active_tab: "installed",
       skills_content_visible: true,
       skills_detail_visible: true,
       skills_enabled_state: "enabled",
@@ -385,40 +380,6 @@ describe("captureRouteState", () => {
       skills_selected_item: "browser-context-skill",
       skills_view_visible: true,
     });
-
-    window.history.replaceState({}, "", "/skills?tab=marketplace");
-    document.body.innerHTML = `
-      <main data-testid="skills-shell">
-        <button data-testid="tab-installed" aria-selected="false"></button>
-        <button data-testid="tab-marketplace" aria-selected="true"></button>
-        <input data-testid="marketplace-search-input" value="browser-marketplace" />
-        <section data-testid="marketplace-view">
-          <div data-testid="marketplace-grid">
-            <article data-testid="marketplace-row-browser-marketplace-skill">installed</article>
-          </div>
-        </section>
-        <section data-testid="skill-detail-panel">
-          <button data-testid="skill-enabled-toggle">Disabled</button>
-        </section>
-      </main>
-    `;
-
-    const marketplaceState = await captureRouteState({
-      evaluate: async (callback: () => unknown) => callback(),
-    });
-
-    expect(marketplaceState).toMatchObject({
-      pathname: "/skills",
-      skills_active_tab: "marketplace",
-      skills_content_visible: false,
-      skills_detail_visible: true,
-      skills_enabled_state: "disabled",
-      skills_item_count: 0,
-      skills_marketplace_count: 1,
-      skills_search_active: true,
-      skills_view_visible: true,
-    });
-    expect(marketplaceState.skills_selected_item).toBeUndefined();
   });
 
   it("captures sandbox route profile counts, dialogs, and restart state", async () => {

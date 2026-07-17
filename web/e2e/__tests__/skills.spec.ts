@@ -182,7 +182,6 @@ test("operator manages Skills against a real daemon and proves next-session prom
 
   await appPage.goto(runtime.url("/skills"), { waitUntil: "domcontentloaded" });
   await expect(skillsUI.shell).toBeVisible();
-  await expect(skillsUI.tabInstalled).toHaveAttribute("aria-pressed", "true");
   await expect(skillsUI.listPanel).toBeVisible();
 
   await skillsUI.searchInput.fill("browser-context");
@@ -231,7 +230,6 @@ test("operator manages Skills against a real daemon and proves next-session prom
   const routeState = await readRouteState(runtime);
   expect(routeState).toMatchObject({
     pathname: `/skills/${contextSkillName}`,
-    skills_active_tab: "installed",
     skills_content_visible: true,
     skills_detail_visible: true,
     skills_enabled_state: "enabled",
@@ -240,7 +238,6 @@ test("operator manages Skills against a real daemon and proves next-session prom
     skills_selected_item: contextSkillName,
     skills_view_visible: true,
   });
-
   const baselineSession = await createSessionThroughBrowser(
     appPage,
     sessionUI,
@@ -356,17 +353,6 @@ test("operator manages Skills against a real daemon and proves next-session prom
     "skill context after enable"
   );
 
-  await appPage.goto(runtime.url("/skills?tab=marketplace"), { waitUntil: "domcontentloaded" });
-  await expect(skillsUI.marketplaceView).toBeVisible();
-  await expect(skillsUI.marketplaceSearchPrompt).toBeVisible();
-  await skillsUI.marketplaceSearchInput.fill("browser-marketplace");
-  await expect(skillsUI.marketplaceSearchInput).toHaveValue("browser-marketplace");
-  const marketplaceInstalledRow = skillsUI.marketplaceRow("browser-marketplace-skill");
-  await expect(marketplaceInstalledRow).toBeVisible();
-  await expect(
-    marketplaceInstalledRow.getByTestId("installed-pill-browser-marketplace-skill")
-  ).toBeVisible();
-
   await appPage.goto(runtime.url("/settings/skills"), { waitUntil: "domcontentloaded" });
   await expect(settingsUI.skills.page).toBeVisible();
   const disabledSkillsEmpty = appPage.getByTestId("settings-page-skills-disabled-empty");
@@ -392,8 +378,8 @@ test("operator manages Skills against a real daemon and proves next-session prom
   expect(tamperEvidence.daemonLog).toContain(`"skill_name":"${tamperedSkillName}"`);
   expect(JSON.stringify(tamperEvidence)).not.toContain(tamperedPayload);
   expect(JSON.stringify(tamperEvidence)).not.toMatch(sensitivePattern);
-  await expect(skillsUI.marketplaceRow(tamperedSkillName)).toBeHidden();
-  await browserArtifacts.captureScreenshot("skills-marketplace-remote-safe-state", appPage);
+  await expect(skillsUI.item(tamperedSkillName)).toBeHidden();
+  await browserArtifacts.captureScreenshot("skills-installed-safe-state", appPage);
 
   const bodyText = (await appPage.textContent("body")) ?? "";
   expect(bodyText).not.toContain(tamperedPayload);

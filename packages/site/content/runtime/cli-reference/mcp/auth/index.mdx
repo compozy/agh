@@ -1,11 +1,11 @@
 ---
 title: "agh mcp auth"
-description: "Authenticate remote MCP servers"
+description: "Authenticate remote MCP servers through the daemon"
 ---
 
 ## agh mcp auth
 
-Authenticate remote MCP servers
+Authenticate remote MCP servers through the daemon
 
 ### Options
 
@@ -31,8 +31,8 @@ Every AGH command supports `-o, --output`:
 
 ## Subcommands
 
-| Command                                                       | Description                             |
-| ------------------------------------------------------------- | --------------------------------------- |
-| [agh mcp auth login](/runtime/cli-reference/mcp/auth/login)   | Run OAuth login for a remote MCP server |
-| [agh mcp auth logout](/runtime/cli-reference/mcp/auth/logout) | Revoke or delete remote MCP auth tokens |
-| [agh mcp auth status](/runtime/cli-reference/mcp/auth/status) | Show redacted remote MCP auth status    |
+| Command                                                       | Description                                                |
+| ------------------------------------------------------------- | ---------------------------------------------------------- |
+| [agh mcp auth login](/runtime/cli-reference/mcp/auth/login)   | Authorize a remote MCP server through the daemon           |
+| [agh mcp auth logout](/runtime/cli-reference/mcp/auth/logout) | Revoke or delete remote MCP auth tokens through the daemon |
+| [agh mcp auth status](/runtime/cli-reference/mcp/auth/status) | Show redacted remote MCP auth status                       |

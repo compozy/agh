@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
-"""Render and record the single in-persona operator kickoff for a real-scenario QA playbook.
+"""Render or confirm the single in-persona operator kickoff for a real-scenario QA playbook.
 
 Mutating helper. Called once by the real-scenario-qa skill after the bootstrap completes.
 
 What it does:
   1. Loads the playbook spec and renders the kickoff message.
   2. Scans the rendered message against forbidden-prompt-phrases.md and aborts on any match.
-  3. Appends a journey-log entry with kickoff=true, surface=runtime, actor=operator persona.
-  4. Updates the bootstrap manifest with KICKOFF_POSTED=true and KICKOFF_TIMESTAMP=<iso>.
-  5. Optionally writes the rendered message to <workspace>/.agh/operator-kickoff.txt for inspection.
+  3. Writes the rendered message to <workspace>/.agh/operator-kickoff.txt for inspection.
+  4. With --confirm-posted, requires non-empty provider evidence, appends the journey row, and
+     updates the manifest with KICKOFF_POSTED=true and KICKOFF_TIMESTAMP=<iso>.
 
-It does NOT call `agh session prompt` itself. The caller (real-scenario-qa SKILL.md) is responsible
-for invoking the AGH CLI / API with the rendered text against the operator session, after this
-helper has produced the verified payload. That keeps the helper independent of the AGH binary path
-and keeps prompt scanning local + deterministic.
+It does NOT call `agh session prompt` itself. The caller renders, invokes the AGH CLI once, then
+confirms that exact call with --confirm-posted and its captured provider evidence.
 """
 
 from __future__ import annotations
@@ -70,12 +68,42 @@ def update_manifest(manifest_path: Path, timestamp: str) -> None:
         raise PlaybookError(f"manifest not found: {manifest_path}")
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     env = data.setdefault("env", {})
+    if str(env.get("KICKOFF_POSTED", "false")).lower() == "true":
+        raise PlaybookError("operator kickoff is already confirmed; refusing a duplicate")
     env["KICKOFF_POSTED"] = "true"
     env["KICKOFF_TIMESTAMP"] = timestamp
     status = data.setdefault("status", {})
     notes = status.setdefault("notes", [])
     notes.append(f"operator kickoff posted at {timestamp}")
     manifest_path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def confirm_posted(
+    manifest_path: Path,
+    journey_log: Path,
+    evidence: Path,
+    actor: str,
+    playbook_ref: str,
+) -> str:
+    if not evidence.is_file() or evidence.stat().st_size == 0:
+        raise PlaybookError(f"operator kickoff evidence is missing or empty: {evidence}")
+    timestamp = datetime.now(timezone.utc).isoformat()
+    update_manifest(manifest_path, timestamp)
+    append_journey_entry(
+        journey_log,
+        {
+            "ts": timestamp,
+            "surface": "runtime",
+            "actor": actor,
+            "action": "operator_kickoff",
+            "target": f"playbook:{playbook_ref}",
+            "ids": [playbook_ref],
+            "evidence_path": str(evidence),
+            "kickoff": True,
+            "playbook_ref": playbook_ref,
+        },
+    )
+    return timestamp
 
 
 def main() -> int:
@@ -89,6 +117,11 @@ def main() -> int:
         "--print-only",
         action="store_true",
         help="Print the rendered kickoff text and exit; do not mutate manifest or journey log",
+    )
+    parser.add_argument(
+        "--confirm-posted",
+        default="",
+        help="Non-empty session prompt JSONL captured from the one posted kickoff",
     )
     args = parser.parse_args()
 
@@ -116,6 +149,9 @@ def main() -> int:
         return 2
 
     if args.print_only:
+        if args.confirm_posted:
+            print("--print-only cannot be combined with --confirm-posted", file=sys.stderr)
+            return 2
         sys.stdout.write(message)
         return 0
 
@@ -124,34 +160,33 @@ def main() -> int:
     journey_log = qa_output_path / "qa" / "journey-log.jsonl"
     manifest_path = Path(args.manifest).resolve()
 
-    timestamp = datetime.now(timezone.utc).isoformat()
-    entry = {
-        "ts": timestamp,
-        "surface": "runtime",
-        "actor": actor,
-        "action": "operator_kickoff",
-        "target": f"playbook:{args.playbook}",
-        "ids": [args.playbook],
-        "evidence_path": "",
-        "kickoff": True,
-        "playbook_ref": args.playbook,
-    }
-    append_journey_entry(journey_log, entry)
-
     inspect_path = workspace_root / ".agh" / "operator-kickoff.txt"
     inspect_path.parent.mkdir(parents=True, exist_ok=True)
     inspect_path.write_text(message, encoding="utf-8")
 
-    try:
-        update_manifest(manifest_path, timestamp)
-    except PlaybookError as err:
-        print(str(err), file=sys.stderr)
-        return 2
+    timestamp = ""
+    evidence_path = ""
+    if args.confirm_posted:
+        evidence = Path(args.confirm_posted).resolve()
+        try:
+            timestamp = confirm_posted(
+                manifest_path,
+                journey_log,
+                evidence,
+                actor,
+                args.playbook,
+            )
+        except PlaybookError as err:
+            print(str(err), file=sys.stderr)
+            return 2
+        evidence_path = str(evidence)
 
     summary = {
         "playbook_ref": args.playbook,
         "actor": actor,
         "timestamp": timestamp,
+        "confirmed": bool(args.confirm_posted),
+        "evidence_path": evidence_path,
         "rendered_path": str(inspect_path),
         "journey_log_path": str(journey_log),
         "manifest_path": str(manifest_path),

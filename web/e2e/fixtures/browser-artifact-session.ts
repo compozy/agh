@@ -315,11 +315,6 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         .querySelector<HTMLElement>('[data-testid^="memory-item-"][data-state="selected"]')
         ?.textContent?.trim() || undefined;
     const skillsDetailRouteItem = readPathContainerId(/\/skills\/([^/?#]+)/);
-    const skillsActiveTab = document.querySelector('[data-testid="marketplace-view"]')
-      ? "marketplace"
-      : document.querySelector('[data-testid="skill-list-panel"]') || skillsDetailRouteItem
-        ? "installed"
-        : undefined;
     const skillsSelectedItem =
       [...document.querySelectorAll<HTMLElement>('[data-testid^="skill-item-"]')]
         .find(element => element.dataset.state === "selected")
@@ -420,16 +415,12 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         document.querySelector('[data-testid="knowledge-search-info"]') !== null,
       knowledge_selected_item: knowledgeSelectedItem,
       knowledge_view_visible: document.querySelector('[data-testid="knowledge-shell"]') !== null,
-      skills_active_tab: skillsActiveTab,
       skills_content_visible: document.querySelector('[data-testid="content-body"]') !== null,
       skills_detail_visible: document.querySelector('[data-testid="skill-detail-panel"]') !== null,
       skills_enabled_state: skillsEnabledState,
       skills_item_count: countByPrefix("skill-item-"),
-      skills_marketplace_count: countByPrefix("marketplace-row-"),
       skills_search_active:
         (document.querySelector<HTMLInputElement>('[data-testid="skill-search-input"]')?.value ??
-          document.querySelector<HTMLInputElement>('[data-testid="marketplace-search-input"]')
-            ?.value ??
           "") !== "",
       skills_selected_item: skillsSelectedItem,
       skills_view_visible:

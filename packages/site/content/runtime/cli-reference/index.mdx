@@ -41,6 +41,7 @@ config --> workspace[workspace]
 config --> agent[agent]
 
 agh --> capabilities
+capabilities --> marketplace[marketplace]
 capabilities --> skill[skill]
 capabilities --> extension[extension]
 capabilities --> hooks[hooks]
@@ -112,8 +113,8 @@ caption="The CLI groups commands by the runtime surface they operate: daemon pro
   <RouteRow
     href="/runtime/cli-reference/mcp"
     label="MCP"
-    title="Authenticate and inspect MCP integrations"
-    description="Use this group for remote MCP OAuth login, token status, refresh diagnostics, and logout."
+    title="Install, authorize, and inspect MCP integrations"
+    description="Use this group for curated install, remote MCP OAuth completion, redacted auth status, refresh diagnostics, and logout."
     meta="Runtime integrations"
   />
   <RouteRow
@@ -143,6 +144,13 @@ caption="The CLI groups commands by the runtime surface they operate: daemon pro
     title="Manage encrypted daemon Vault metadata"
     description="Use this group to list redacted metadata, write values from stdin, inspect one ref, and delete refs."
     meta="Secrets"
+  />
+  <RouteRow
+    href="/runtime/cli-reference/marketplace"
+    label="Marketplace"
+    title="Discover installable capabilities"
+    description="Use this group to search MCP servers, extensions, skills, and bundles, inspect stable catalog entries, and refresh feed-backed kinds."
+    meta="Capability discovery"
   />
   <RouteRow
     href="/runtime/cli-reference/skill"

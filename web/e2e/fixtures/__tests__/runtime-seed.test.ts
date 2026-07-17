@@ -1315,9 +1315,9 @@ describe("browser runtime seed helpers", () => {
         ],
         hooks: [
           {
-            name: browserSettingsOperatorFlowScenario.hooksExtensions.hookName,
+            name: browserSettingsOperatorFlowScenario.hooks.hookName,
             declaration: {
-              name: browserSettingsOperatorFlowScenario.hooksExtensions.hookName,
+              name: browserSettingsOperatorFlowScenario.hooks.hookName,
               event: "turn.end",
               command: "/bin/echo",
               args: ["done"],
@@ -1393,7 +1393,7 @@ describe("browser runtime seed helpers", () => {
       expect.objectContaining({ method: "PUT" })
     );
     expect(seeded).toEqual({
-      createdHookNames: [browserSettingsOperatorFlowScenario.hooksExtensions.hookName],
+      createdHookNames: [browserSettingsOperatorFlowScenario.hooks.hookName],
       createdMCPServers: [
         {
           name: browserSettingsOperatorFlowScenario.mcpServers.global.name,
@@ -1479,7 +1479,7 @@ describe("browser runtime seed helpers", () => {
         paths: { homeDir },
       },
       {
-        createdHookNames: [browserSettingsOperatorFlowScenario.hooksExtensions.hookName],
+        createdHookNames: [browserSettingsOperatorFlowScenario.hooks.hookName],
         createdMCPServers: [
           {
             name: browserSettingsOperatorFlowScenario.mcpServers.workspace.name,

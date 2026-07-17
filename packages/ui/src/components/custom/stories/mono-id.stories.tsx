@@ -34,6 +34,15 @@ export const Copy: Story = {
   args: { value: "task_4QzPnzdNiF", copy: true },
 };
 
+/** Case-sensitive identifier (e.g. a Vault ref) — rendered and copied byte-for-byte. */
+export const PreserveCase: Story = {
+  args: {
+    value: "vault:mcp/ws/ws-platform/github-local/env/QA_TYPED_TOKEN",
+    preserveCase: true,
+    copy: true,
+  },
+};
+
 /** Inline with surrounding mono text. */
 export const Inline: Story = {
   render: () => (

@@ -156,10 +156,11 @@ tokens:
     shadow:
       overlay: "0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)"
       highlight: "inset 0 1px 0 rgba(255, 255, 255, 0.035)"
-      focus-ring: "0 0 0 1px var(--color-line-strong)"
-      focus-ring-soft: "0 0 0 1px var(--color-line-soft)"
-      focus-ring-inset: "inset 0 0 0 1px var(--color-line-strong)"
-      focus-ring-inset-soft: "inset 0 0 0 1px var(--color-line-soft)"
+      focus-ring: "0 0 0 2px rgba(255, 255, 255, 0.5)"
+      focus-inset: "inset 0 0 0 2px rgba(255, 255, 255, 0.5)"
+      hairline: "0 0 0 1px var(--color-line-soft)"
+      hairline-inset: "inset 0 0 0 1px var(--color-line-soft)"
+      inset-strong: "inset 0 0 0 1px var(--color-line-strong)"
     sizes:
       height-button-xs: "22px"
       height-button-sm: "22px"
@@ -594,14 +595,15 @@ thrash with a stable ring.
 
 <!-- BEGIN:tokens:shadows -->
 
-| Token                            | Value                                                                         |
-| -------------------------------- | ----------------------------------------------------------------------------- |
-| `--shadow-overlay`               | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` |
-| `--shadow-highlight`             | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                    |
-| `--shadow-focus-ring`            | `0 0 0 1px var(--color-line-strong)`                                          |
-| `--shadow-focus-ring-soft`       | `0 0 0 1px var(--color-line-soft)`                                            |
-| `--shadow-focus-ring-inset`      | `inset 0 0 0 1px var(--color-line-strong)`                                    |
-| `--shadow-focus-ring-inset-soft` | `inset 0 0 0 1px var(--color-line-soft)`                                      |
+| Token                     | Value                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| `--shadow-overlay`        | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` |
+| `--shadow-highlight`      | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                    |
+| `--shadow-focus-ring`     | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          |
+| `--shadow-focus-inset`    | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                    |
+| `--shadow-hairline`       | `0 0 0 1px var(--color-line-soft)`                                            |
+| `--shadow-hairline-inset` | `inset 0 0 0 1px var(--color-line-soft)`                                      |
+| `--shadow-inset-strong`   | `inset 0 0 0 1px var(--color-line-strong)`                                    |
 
 <!-- END:tokens:shadows -->
 

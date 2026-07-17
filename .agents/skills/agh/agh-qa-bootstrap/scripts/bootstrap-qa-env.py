@@ -648,6 +648,7 @@ def main() -> int:
     qa_root = qa_output_path / "qa"
     ensure_lab_scaffold(workspace_path, qa_output_path)
 
+    seed_summary: dict = {}
     if playbook_data is not None and not reused_lab:
         try:
             seed_summary = seed_playbook_workspace(repo_root, workspace_path, playbook_ref)
@@ -669,9 +670,15 @@ def main() -> int:
 
     if reused_lab and existing_manifest is not None:
         existing_env = existing_manifest.get("env", {})
+        runtime_workspace_path = Path(
+            str(existing_env.get("RUNTIME_WORKSPACE_PATH", workspace_path))
+        ).resolve()
         provider_home = Path(str(existing_env.get("PROVIDER_HOME", workspace_path / ".provider-home"))).resolve()
         agh_home = Path(str(existing_env.get("AGH_HOME", workspace_path / ".agh" / "runtime"))).resolve()
     else:
+        runtime_workspace_path = Path(
+            str(seed_summary.get("runtime_workspace_path", workspace_path))
+        ).resolve()
         provider_home = workspace_path / ".provider-home"
         agh_home = workspace_path / ".agh" / "runtime"
         violations = socket_limit_violations(socket_limited_paths(agh_home, provider_home))
@@ -698,6 +705,7 @@ def main() -> int:
         env_block = {
             "SCENARIO_SLUG": workspace_info["SCENARIO_SLUG"],
             "WORKSPACE_PATH": str(workspace_path),
+            "RUNTIME_WORKSPACE_PATH": str(runtime_workspace_path),
             "QA_OUTPUT_PATH": str(qa_output_path),
             "AGH_HOME": str(agh_home),
             "AGH_HTTP_PORT": str(pick_free_port()),
@@ -721,6 +729,7 @@ def main() -> int:
 
     env_block["SCENARIO_SLUG"] = workspace_info["SCENARIO_SLUG"]
     env_block["WORKSPACE_PATH"] = str(workspace_path)
+    env_block["RUNTIME_WORKSPACE_PATH"] = str(runtime_workspace_path)
     env_block["QA_OUTPUT_PATH"] = str(qa_output_path)
     env_block["PROVIDER_HOME"] = str(provider_home)
     env_block["PROVIDER_CODEX_HOME"] = str(provider_codex_home)
@@ -762,6 +771,7 @@ def main() -> int:
         },
         "paths": {
             "project_root": str(repo_root),
+            "runtime_workspace": str(runtime_workspace_path),
             "qa_root": str(qa_root),
             "provider_home": str(provider_home),
             "provider_codex_home": str(provider_codex_home),
@@ -781,6 +791,7 @@ def main() -> int:
     outputs = {
         "SCENARIO_SLUG": workspace_info["SCENARIO_SLUG"],
         "WORKSPACE_PATH": str(workspace_path),
+        "RUNTIME_WORKSPACE_PATH": env_block["RUNTIME_WORKSPACE_PATH"],
         "QA_OUTPUT_PATH": str(qa_output_path),
         "BOOTSTRAP_MANIFEST": str(manifest_path),
         "BOOTSTRAP_ENV": str(env_path),

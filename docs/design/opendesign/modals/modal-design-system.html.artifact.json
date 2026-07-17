@@ -1,0 +1,24 @@
+{
+  "artifact": "modal-design-system.html",
+  "kind": "design-system-reference",
+  "status": "canonical",
+  "register": "product",
+  "dials": {
+    "visual_variance": 2,
+    "motion_intensity": 2,
+    "information_density": 8
+  },
+  "authorities": [
+    "packages/ui/src/tokens.css",
+    "DESIGN.md",
+    "packages/ui/src/index.ts",
+    "web/src/systems/runtime/components/runtime-selector"
+  ],
+  "deterministic_previews": [
+    "scope-selector",
+    "workspace-select",
+    "agent-select",
+    "agent-multi-select",
+    "runtime-selector"
+  ]
+}

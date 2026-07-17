@@ -44,7 +44,7 @@ test("operator sees non-loopback HTTP API restrictions with explicit operator me
     remoteHTTPAPIBlockedMessage
   );
 
-  await appPage.goto(runtime.url("/settings/hooks-extensions"), { waitUntil: "domcontentloaded" });
+  await appPage.goto(runtime.url("/settings/hooks"), { waitUntil: "domcontentloaded" });
 
   await expect(appPage.getByTestId("onboarding-gate-error")).toContainText(
     remoteHTTPAPIBlockedMessage

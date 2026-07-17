@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
-import { useEffect } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -10,7 +9,9 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
-import { settingsMCPServersCollectionFixture } from "@/systems/settings/mocks";
+import { MCPServerEditor } from "@/systems/settings/components/mcp-server-editor";
+import { emptyDraft } from "@/systems/settings/lib/mcp-editor-model";
+import { mcpManagementCollectionFixture } from "@/systems/settings/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/settings/routes/McpServers",
@@ -20,7 +21,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "MCP servers route stories covering workspace/global scope pills, editor and delete flows, and request failures.",
+          "MCP management route: composed status matrix, authorize/repair flow, and the stdio/HTTP/SSE editor. Stories back the Task 08 Visual Contract capture set.",
       },
     },
   },
@@ -29,116 +30,248 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/**
- * Default workspace-scope MCP catalog on the top-level System route.
- */
-export const Default: Story = {
-  args: {},
-  parameters: appRouteParameters("/mcp"),
+// The nine-server reference matrix, plus a vault ref for the stdio secret editor.
+const managementMsw = storybookMswParameters({
+  settings: [
+    aghApiMock.get("/api/settings/mcp-servers", () =>
+      HttpResponse.json(mcpManagementCollectionFixture)
+    ),
+    aghApiMock.get("/api/vault/secrets", () =>
+      HttpResponse.json({
+        secrets: [
+          {
+            ref: "vault:mcp/ws/ws-platform/github-local/env/github_personal_access_token",
+            namespace: "mcp",
+            present: true,
+            created_at: "2026-07-01T00:00:00Z",
+            updated_at: "2026-07-01T00:00:00Z",
+          },
+        ],
+      })
+    ),
+  ],
+});
+
+function managementParams(path: string) {
+  return { ...appRouteParameters(path), ...managementMsw };
+}
+
+async function openAuthorizeWaiting(canvas: ReturnType<typeof within>) {
+  await userEvent.click(
+    await canvas.findByTestId("settings-page-mcp-servers-row-linear-authorize")
+  );
+  await canvas.findByTestId("settings-page-mcp-authorize-url");
+}
+
+/** matrix-desktop / matrix-mobile */
+export const Matrix: Story = {
+  parameters: managementParams("/mcp?scope=workspace"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/**
- * Dirty editor state -- the add-server dialog is open with the name field
- * pre-filled, matching the mid-edit route state.
- */
-export const Dirty: Story = {
-  args: {},
-  parameters: appRouteParameters("/mcp"),
-  render: () => (
-    <>
-      <StorybookWorkspaceSetup />
-      <StorybookMCPServersDirtySetup />
-    </>
-  ),
+/** selected-needs-login-desktop */
+export const SelectedNeedsLogin: Story = {
+  parameters: managementParams("/mcp?scope=workspace&server=linear"),
+  render: () => <StorybookWorkspaceSetup />,
 };
 
-/**
- * Empty catalog branch exercising the `@agh/ui` `Empty` primitive when the
- * active scope returns no MCP servers.
- */
-export const Empty: Story = {
-  args: {},
+/** authorize-waiting-desktop / authorize-mobile */
+export const AuthorizeWaiting: Story = {
+  tags: ["play-fn"],
+  parameters: managementParams("/mcp?scope=workspace"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await openAuthorizeWaiting(canvas);
+    await expect(canvas.getByTestId("settings-page-mcp-authorize-waiting")).toBeInTheDocument();
+  },
+};
+
+/** authorize-manual-desktop */
+export const AuthorizeManual: Story = {
+  tags: ["play-fn"],
+  parameters: managementParams("/mcp?scope=workspace"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await openAuthorizeWaiting(canvas);
+    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-manual-trigger"));
+    await canvas.findByTestId("settings-page-mcp-authorize-manual");
+  },
+};
+
+/** auth-failure-desktop */
+export const AuthFailure: Story = {
+  tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/mcp"),
+    ...appRouteParameters("/mcp?scope=workspace"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", () =>
-          HttpResponse.json({ ...settingsMCPServersCollectionFixture, mcp_servers: [] })
+          HttpResponse.json(mcpManagementCollectionFixture)
+        ),
+        aghApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] })),
+        // Exchange returns without a confirmed token -> the UI stays failed.
+        aghApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", () =>
+          HttpResponse.json({
+            server_name: "linear",
+            scope: "workspace",
+            status: "needs_login",
+            token_present: false,
+            refreshable: true,
+          })
         ),
       ],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
-};
-
-/**
- * Global scope after switching from the workspace catalog.
- */
-export const GlobalScope: Story = {
-  args: {},
-  parameters: appRouteParameters("/mcp"),
-  render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("mcp-scope-global"));
-    await expect(canvas.findByTestId("mcp-page-scope-label")).resolves.toHaveTextContent("global");
+    await openAuthorizeWaiting(canvas);
+    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-manual-trigger"));
+    await userEvent.type(
+      await canvas.findByTestId("settings-page-mcp-authorize-manual-input"),
+      "rejected-code"
+    );
+    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-exchange"));
+    await canvas.findByTestId("settings-page-mcp-authorize-failure");
   },
 };
 
-/**
- * Server editor opened from the collection header and saved through the real mutation path.
- */
-export const CreateServer: Story = {
-  args: {},
-  parameters: appRouteParameters("/mcp"),
-  render: () => <StorybookWorkspaceSetup />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("mcp-page-create"));
-    await userEvent.type(
-      await canvas.findByTestId("settings-mcp-servers-editor-name-input"),
-      "slack"
-    );
-    await userEvent.type(
-      await canvas.findByTestId("settings-mcp-servers-editor-command-input"),
-      "npx -y @modelcontextprotocol/server-slack"
-    );
-    await userEvent.click(await canvas.findByTestId("settings-mcp-servers-editor-save"));
-    await expect(canvas.findByTestId("mcp-page-action-result")).resolves.toBeDefined();
+/** auth-begin-failure-desktop */
+export const AuthBeginFailure: Story = {
+  tags: ["play-fn"],
+  parameters: {
+    ...appRouteParameters("/mcp?scope=workspace"),
+    ...storybookMswParameters({
+      settings: [
+        aghApiMock.get("/api/settings/mcp-servers", () =>
+          HttpResponse.json(mcpManagementCollectionFixture)
+        ),
+        aghApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] })),
+        aghApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
+          HttpResponse.json({ error: "OAuth provider unavailable" }, { status: 503 })
+        ),
+      ],
+    }),
   },
-};
-
-/**
- * Delete dialog showing how shadowed definitions become effective again after removal.
- */
-export const DeleteServer: Story = {
-  args: {},
-  parameters: appRouteParameters("/mcp"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
-      await canvas.findByTestId("settings-page-mcp-servers-row-filesystem-delete")
+      await canvas.findByTestId("settings-page-mcp-servers-row-linear-authorize")
     );
-    await expect(
-      canvas.findByTestId("settings-mcp-servers-delete-shadowed")
-    ).resolves.toBeDefined();
+    await canvas.findByText("Authorization could not be started");
+    await canvas.findByTestId("settings-page-mcp-authorize-retry");
+  },
+};
+
+/** authenticated-token-desktop */
+export const Authenticated: Story = {
+  tags: ["play-fn"],
+  parameters: managementParams("/mcp?scope=workspace"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await openAuthorizeWaiting(canvas);
+    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-manual-trigger"));
+    await userEvent.type(
+      await canvas.findByTestId("settings-page-mcp-authorize-manual-input"),
+      "valid-code"
+    );
+    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-exchange"));
+    await canvas.findByTestId("settings-page-mcp-authorize-confirmed");
+  },
+};
+
+/** editor-stdio-desktop */
+export const EditorStdio: Story = {
+  tags: ["play-fn"],
+  parameters: managementParams("/mcp?scope=workspace"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByTestId("settings-page-mcp-servers-row-github-local-edit")
+    );
+    await canvas.findByTestId("settings-mcp-editor-stdio");
+  },
+};
+
+/** editor-stdio-incomplete-secret-desktop */
+export const EditorStdioIncompleteSecret: Story = {
+  render: () => (
+    <div className="min-h-screen bg-canvas">
+      <MCPServerEditor
+        open
+        mode="edit"
+        draft={{
+          ...emptyDraft("stdio"),
+          name: "github-local",
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-github"],
+          secretEnv: [
+            {
+              key: "GITHUB_PERSONAL_ACCESS_TOKEN",
+              binding: { mode: "typed", typedValue: "", vaultRef: "" },
+            },
+          ],
+        }}
+        scope="workspace"
+        errors={{ secretEnv: { 0: "Enter a value or select a Vault reference" } }}
+        isValid={false}
+        isSaving={false}
+        saveError={null}
+        vaultRefs={[]}
+        target="config"
+        availableTargets={["config"]}
+        entry={null}
+        onChange={() => undefined}
+        onTargetChange={() => undefined}
+        onClose={() => undefined}
+        onSave={() => undefined}
+      />
+    </div>
+  ),
+};
+
+/** editor-http-desktop / remote-editor-mobile */
+export const EditorHttp: Story = {
+  tags: ["play-fn"],
+  parameters: managementParams("/mcp?scope=workspace"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("settings-page-mcp-servers-row-linear-edit"));
+    await canvas.findByTestId("settings-mcp-editor-remote");
+  },
+};
+
+/** editor-sse-desktop */
+export const EditorSse: Story = {
+  tags: ["play-fn"],
+  parameters: managementParams("/mcp?scope=workspace"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("settings-page-mcp-servers-row-sentry-edit"));
+    await canvas.findByTestId("settings-mcp-editor-remote");
   },
 };
 
 /**
- * Loading state while the scoped MCP catalog is still fetching.
+ * loading-desktop. Driven at global scope so the route's workspace-scope loader
+ * resolves and the mounted matrix shows its in-component skeleton for the pending
+ * global query.
  */
 export const Loading: Story = {
-  args: {},
   parameters: {
-    ...appRouteParameters("/mcp"),
+    ...appRouteParameters("/mcp?scope=global"),
     ...storybookMswParameters({
       settings: [
-        aghApiMock.get("/api/settings/mcp-servers", async () => {
-          await delay("infinite");
-          return HttpResponse.json({ ...settingsMCPServersCollectionFixture, mcp_servers: [] });
+        aghApiMock.get("/api/settings/mcp-servers", async ({ request }) => {
+          if (new URL(request.url).searchParams.get("scope") === "global") await delay("infinite");
+          return HttpResponse.json(mcpManagementCollectionFixture);
         }),
       ],
     }),
@@ -146,17 +279,14 @@ export const Loading: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/**
- * Error branch when the MCP settings request cannot be loaded.
- */
-export const Error: Story = {
-  args: {},
+/** empty-desktop */
+export const Empty: Story = {
   parameters: {
-    ...appRouteParameters("/mcp"),
+    ...appRouteParameters("/mcp?scope=global"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", () =>
-          HttpResponse.json({ error: "Failed to load MCP servers" }, { status: 500 })
+          HttpResponse.json({ ...mcpManagementCollectionFixture, mcp_servers: [], scope: "global" })
         ),
       ],
     }),
@@ -165,47 +295,22 @@ export const Error: Story = {
 };
 
 /**
- * Reaches the dirty editor state by opening the add-server dialog and seeding
- * the name field. RAF-polls until the route mounts.
+ * error-desktop. Global scope so the workspace-scope loader resolves; the mounted
+ * matrix then renders its in-component retry block for the failing global query.
  */
-function StorybookMCPServersDirtySetup() {
-  useEffect(() => {
-    let cancelled = false;
-    let stage: "open" | "fill" = "open";
-    const setValue = (element: HTMLInputElement, next: string) => {
-      const setter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        "value"
-      )?.set;
-      setter?.call(element, next);
-      element.dispatchEvent(new Event("input", { bubbles: true }));
-      element.dispatchEvent(new Event("change", { bubbles: true }));
-    };
-    const advance = () => {
-      if (cancelled) return;
-      if (stage === "open") {
-        const trigger = document.querySelector<HTMLButtonElement>(
-          '[data-testid="mcp-page-create"]'
-        );
-        if (trigger) {
-          trigger.click();
-          stage = "fill";
-        }
-      } else if (stage === "fill") {
-        const input = document.querySelector<HTMLInputElement>(
-          '[data-testid="settings-mcp-servers-editor-name-input"]'
-        );
-        if (input) {
-          setValue(input, "dirty-server");
-          return;
-        }
-      }
-      requestAnimationFrame(advance);
-    };
-    requestAnimationFrame(advance);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  return null;
-}
+export const Error: Story = {
+  parameters: {
+    ...appRouteParameters("/mcp?scope=global"),
+    ...storybookMswParameters({
+      settings: [
+        aghApiMock.get("/api/settings/mcp-servers", ({ request }) => {
+          if (new URL(request.url).searchParams.get("scope") === "global") {
+            return HttpResponse.json({ error: "Failed to load MCP servers" }, { status: 500 });
+          }
+          return HttpResponse.json(mcpManagementCollectionFixture);
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};

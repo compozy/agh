@@ -1,6 +1,6 @@
 # Operator kickoff template
 
-The single in-persona message the operator sends at scenario start. The post-operator-kickoff helper reads `kickoff_brief` from the active playbook and posts it once. This is the only QA-controlled prompt; the runtime drives everything after.
+The single in-persona message the operator sends at scenario start. The post-operator-kickoff helper renders `kickoff_brief` from the active playbook, then confirms the one captured CLI post. This is the only QA-controlled prompt; the runtime drives everything after.
 
 ## Format
 

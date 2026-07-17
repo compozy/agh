@@ -134,3 +134,5 @@ For `legacy_database`, stop AGH, cold-move the complete containing `AGH_HOME` or
 AGH must remain agent-manageable. Any runtime capability that affects state should have a deterministic CLI, HTTP/UDS, or tool path with machine-readable output. UI-only management is incomplete.
 
 Management flows involving daemon lifecycle, raw secrets, OAuth, trust roots, provider bootstrap, destructive repair, and cross-session terminal-state mutation stay on operator surfaces unless AGH explicitly exposes a scoped tool for them.
+
+Marketplace catalog configuration is global-only because its projection and refresh service are global. `agh__config_set` and `agh__config_unset` may change `marketplace.catalog.ttl` and `marketplace.catalog.timeout` at global scope; each mutation runs the daemon settings apply lifecycle and returns the real `applied`, `apply_record_id`, `active_generation`, `next_action`, and reconciliation diagnostics. `marketplace.catalog.base_url` is a trust root and remains operator-only through global `agh config set`. Workspace overlays and workspace-scoped writes are rejected.

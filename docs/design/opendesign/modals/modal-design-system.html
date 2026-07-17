@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGH · Modal design system</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="modal-system.css">
+</head>
+<body class="library" data-modal-design-system>
+<nav class="library__bar" aria-label="Modal design system sections" data-od-id="library-nav">
+  <span class="library__brand"><span class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg></span>Modal system</span>
+  <a href="#foundations">Foundations</a>
+  <a href="#hosts">Hosts</a>
+  <a href="#anatomy">Anatomy</a>
+  <a href="#selectors">Selectors</a>
+  <a href="#states">States</a>
+  <a href="#mapping">Map</a>
+  <a href="#accessibility">Accessibility</a>
+  <a class="library__cta" href="index.html">Open modal launcher</a>
+</nav>
+
+<main class="library__main">
+  <header class="library__intro" data-od-id="library-intro">
+    <div class="eyebrow">OpenDesign · Canonical reference</div>
+    <h1>Modal design system</h1>
+    <p>One component grammar for focused AGH configuration tasks. Every value transcribes <span class="mono">packages/ui/src/tokens.css</span> and the production components in <span class="mono">packages/ui</span> and <span class="mono">web/src/systems</span> — these artifacts introduce no runtime capability and no parallel visual library.</p>
+    <div class="frame-chips" aria-label="Design frame">
+      <span class="chip chip--static">register <b>product</b></span>
+      <span class="chip chip--static">visual variance <b>2</b></span>
+      <span class="chip chip--static">motion <b>2</b></span>
+      <span class="chip chip--static">density <b>8</b></span>
+      <span class="chip chip--static">floor <b>WCAG 2.2 AA</b></span>
+    </div>
+  </header>
+
+  <!-- ══ FOUNDATIONS ══ -->
+  <section class="library__section" id="foundations" data-od-id="section-foundations">
+    <h2 class="library__section-head">Foundations <span class="sub">surface ramp · type scale · control metrics</span><span class="anchor">tokens.css</span></h2>
+
+    <div class="preview-grid">
+      <article class="preview-stage" data-od-id="foundation-surfaces">
+        <div class="preview-stage__head"><h3>Surface ramp</h3><span class="spec">warm dark · flat depth</span></div>
+        <p>Hierarchy comes from the ramp and hairlines, never from card shadows. Dialogs sit on <span class="mono">canvas-soft</span>; inputs and triggers sit on <span class="mono">elevated</span>.</p>
+        <div class="preview-stage__body">
+          <div class="sw-row">
+            <figure class="sw"><i class="bg-rail"></i><figcaption><b>rail</b><span>#0c0b0b</span></figcaption></figure>
+            <figure class="sw"><i class="bg-canvas"></i><figcaption><b>canvas</b><span>#131211</span></figcaption></figure>
+            <figure class="sw"><i class="bg-canvas-soft"></i><figcaption><b>canvas-soft</b><span>#1a1918</span></figcaption></figure>
+            <figure class="sw"><i class="bg-canvas-tint"></i><figcaption><b>canvas-tint</b><span>#1c1b1a</span></figcaption></figure>
+            <figure class="sw"><i class="bg-elevated"></i><figcaption><b>elevated</b><span>#232220</span></figcaption></figure>
+          </div>
+        </div>
+      </article>
+
+      <article class="preview-stage" data-od-id="foundation-text-signals">
+        <div class="preview-stage__head"><h3>Text ramp &amp; signals</h3><span class="spec">one accent per viewport</span></div>
+        <p>Five text steps carry hierarchy. Signal colors render as tint + ink pairs and never travel alone — pair them with copy or shape.</p>
+        <div class="preview-stage__body">
+          <div class="type-rows">
+            <div class="type-row"><code>--color-fg-strong</code><span class="t-small-body c-fg-strong">Titles, values, selected states</span><span class="type-meta">#f6f6f8</span></div>
+            <div class="type-row"><code>--color-fg</code><span class="t-small-body c-fg">Body and control text</span><span class="type-meta">#ececef</span></div>
+            <div class="type-row"><code>--color-muted</code><span class="t-small-body c-muted">Descriptions, hints, metadata</span><span class="type-meta">#9a9a9f</span></div>
+            <div class="type-row"><code>--color-subtle</code><span class="t-small-body c-subtle">Placeholders, inactive segments</span><span class="type-meta">#76767c</span></div>
+            <div class="type-row"><code>--color-faint</code><span class="t-small-body c-faint">Dividers of meaning, spec labels</span><span class="type-meta">#545458</span></div>
+          </div>
+          <div class="frame-chips">
+            <span class="b-acc">accent · act</span>
+            <span class="b-ok">success · settled</span>
+            <span class="b-warn">warning · attention</span>
+            <span class="b-danger">danger · destructive</span>
+            <span class="b-info">info · ambient</span>
+            <span class="b-neutral">neutral · inert</span>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="preview-grid mt-16">
+      <article class="preview-stage" data-od-id="foundation-type-scale">
+        <div class="preview-stage__head"><h3>Modal type scale</h3><span class="spec">Inter · JetBrains Mono</span></div>
+        <p>Eight steps, all from exported tokens. Nothing in a modal renders outside this scale.</p>
+        <div class="preview-stage__body">
+          <div class="type-rows">
+            <div class="type-row"><code>--text-item-title</code><span class="t-item-title c-fg-strong">Create MCP server</span><span class="type-meta">15px · 500</span></div>
+            <div class="type-row"><code>--text-small-body</code><span class="t-small-body c-fg">Control text, dialog descriptions</span><span class="type-meta">13px · 400</span></div>
+            <div class="type-row"><code>--text-form-input</code><span class="t-form-input c-muted">Notice body, secondary copy</span><span class="type-meta">12.5px · 400</span></div>
+            <div class="type-row"><code>--text-form-label</code><span class="t-form-label c-fg-strong">Field label · button label</span><span class="type-meta">12px · 500</span></div>
+            <div class="type-row"><code>--text-form-hint</code><span class="t-form-hint c-muted">Hints, errors, footer notes</span><span class="type-meta">11.5px · 400</span></div>
+            <div class="type-row"><code>--text-eyebrow</code><span class="eyebrow">System · MCP server</span><span class="type-meta">11px · 600 · caps</span></div>
+            <div class="type-row"><code>--text-mono-id</code><span class="t-mono-id c-muted">vault:providers/openai/api-key</span><span class="type-meta">10.5px · mono</span></div>
+            <div class="type-row"><code>--text-badge</code><span class="t-badge c-muted">option metadata · counters</span><span class="type-meta">10px · 400</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="preview-stage" data-od-id="foundation-metrics">
+        <div class="preview-stage__head"><h3>Control metrics</h3><span class="spec">radius 8 · 4px grid</span></div>
+        <p>Fixed control heights from tokens: buttons 22/26/30, inputs and triggers 36, runtime trigger 34, pill segments 24 in a 2px track, switch 18×32.</p>
+        <div class="preview-stage__body preview-stage__body--well">
+          <div class="gauge-row">
+            <div class="gauge"><button class="btn btn--primary" type="button">Create server</button><span>26px · primary</span></div>
+            <div class="gauge"><button class="btn btn--outline" type="button">Cancel</button><span>26px · outline</span></div>
+            <div class="gauge"><div class="control-sm"><input class="input" aria-label="Input metric sample" placeholder="mcp-github"></div><span>36px · input</span></div>
+            <div class="gauge"><div class="pillgroup" role="group" aria-label="Metric sample mode"><button class="pill" type="button" aria-pressed="true">Simple</button><button class="pill" type="button" aria-pressed="false">Advanced</button></div><span>24px seg · 2px track</span></div>
+            <div class="gauge"><button class="switch" role="switch" aria-checked="true" aria-label="Metric sample switch" type="button"></button><span>18×32 · switch</span></div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ══ HOSTS ══ -->
+  <section class="library__section" id="hosts" data-od-id="section-hosts">
+    <h2 class="library__section-head">Hosts &amp; geometry <span class="sub">pick the smallest host that preserves comprehension</span><span class="anchor">dialog.tsx</span></h2>
+    <div class="library__cards">
+      <article class="library-card"><div class="library-card__copy"><strong>Compact dialog</strong><span>One focused task, short forms, low branching.</span></div><span class="library-card__badge">560px · --width-modal-sm</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Standard dialog</strong><span>Default editor with Simple/Advanced disclosure.</span></div><span class="library-card__badge">720px · --width-modal-md</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Wide dialog</strong><span>Dense catalog and policy composition.</span></div><span class="library-card__badge">880px · --width-modal-lg</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Extra-wide host</strong><span>Workspace-scale tasks that cannot preserve comprehension at 880px.</span></div><span class="library-card__badge">1180px · --width-modal-xl</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Wizard host</strong><span>Ordered, validated steps for one irreversible task with a visible progress model.</span></div><span class="library-card__badge">960px tall · wizard</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Provider sheet</strong><span>Persistent settings rhythm with SettingsFieldRow.</span></div><span class="library-card__badge">576px · edge sheet</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>ConfirmDialog</strong><span>Destructive or irreversible confirmation. Name the consequence, target, and recovery boundary.</span></div><span class="library-card__badge">AlertDialog</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>When a modal is wrong</strong><span>Use a route or sheet for browse-heavy, long-lived, multi-entity, or cross-navigation work.</span></div><span class="library-card__badge">choose the host</span></article>
+    </div>
+    <div class="notice mt-16" data-od-component="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span><strong>Overlay contract.</strong> Scrim <span class="mono">rgba(0,0,0,.55)</span> with 3px blur, <span class="mono">--shadow-overlay</span> only, 10px dialog radius, one body scroll owner, one primary action. At 760px dialogs become bottom-anchored full-width surfaces and every target reaches 44px.</span></div>
+  </section>
+
+  <!-- ══ ANATOMY ══ -->
+  <section class="library__section" id="anatomy" data-od-id="section-anatomy">
+    <h2 class="library__section-head">Shell &amp; form anatomy <span class="sub">rendered at production geometry</span><span class="anchor">task-editor pattern</span></h2>
+
+    <div class="preview-grid preview-grid--solo">
+      <article class="preview-stage" data-od-component="dialog" data-od-id="anatomy-standard-dialog">
+        <div class="preview-stage__head"><h3>Standard dialog</h3><span class="spec">head 36px icon well · body 20px pad · foot 52px</span></div>
+        <p>Icon-well header with eyebrow (the production editor pattern), pinned mode toolbar, divider-ruled sections, and a stable footer that names the durable consequence.</p>
+        <div class="preview-stage__body preview-stage__body--well">
+          <div class="dialog" aria-label="Create MCP server — anatomy specimen">
+            <header class="dialog__head">
+              <div class="head-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></div>
+              <div class="head-copy">
+                <div class="eyebrow">System · MCP server</div>
+                <h3>Create MCP server</h3>
+                <p>Registers a tool server for agent sessions. Transport and scope are fixed after creation.</p>
+              </div>
+              <button class="icon-button" type="button" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </header>
+            <div class="modebar">
+              <div class="pillgroup" role="group" aria-label="Editor mode">
+                <button class="pill" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M5 12l4-4M5 12l4 4"/></svg>Simple</button>
+                <button class="pill" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>Advanced</button>
+              </div>
+              <div class="modebar__spacer"></div>
+              <span class="modebar__label">Scope</span>
+              <div class="pillgroup" role="group" aria-label="Scope">
+                <button class="pill" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Global</button>
+                <button class="pill" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>Workspace</button>
+              </div>
+              <div class="control-sm grow"><button class="command-select" type="button" aria-label="Workspace: checkout-platform"><span class="command-select__avatar">C</span><span class="command-select__copy"><strong>checkout-platform</strong></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button></div>
+            </div>
+            <div class="dialog__body">
+              <div class="sec" data-od-component="form-section">
+                <div class="sec__head"><span class="sec__num">01</span><span class="sec__title">Identity</span><span class="sec__sub">How sessions reference this server.</span></div>
+                <div class="grid-2">
+                  <div class="field"><label class="label" for="anat-name">Name <span class="req">required</span></label><input class="input input--mono" id="anat-name" value="github"></div>
+                  <div class="field"><label class="label" for="anat-timeout">Startup timeout <span class="opt">— seconds</span></label><input class="input" id="anat-timeout" value="30"><span class="hint">The daemon marks the server degraded after this window.</span></div>
+                </div>
+              </div>
+              <div class="sec" data-od-component="form-section">
+                <div class="sec__head"><span class="sec__num">02</span><span class="sec__title">Transport</span><span class="sec__sub">Fixed after creation.</span></div>
+                <div class="tpl-grid cols2" role="radiogroup" aria-label="Transport">
+                  <button class="tpl" type="button" role="radio" aria-checked="true" data-od-component="radio-card"><span class="tpl__top"><span class="tpl__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span><span class="tpl__name">Local process</span><span class="tpl__check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></span><span class="tpl__desc">The daemon starts a command and speaks over stdio.</span></button>
+                  <button class="tpl" type="button" role="radio" aria-checked="false" data-od-component="radio-card"><span class="tpl__top"><span class="tpl__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span><span class="tpl__name">Remote endpoint</span><span class="tpl__check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></span><span class="tpl__desc">The daemon connects to a streamable HTTP endpoint.</span></button>
+                </div>
+                <div class="field mt-16"><label class="label" for="anat-cmd">Command <span class="req">required</span></label><input class="input input--mono" id="anat-cmd" value="npx -y @modelcontextprotocol/server-github"></div>
+              </div>
+              <div class="sec" data-od-component="form-section">
+                <div class="sec__head"><span class="sec__num">03</span><span class="sec__title">Credential</span><span class="sec__sub">Plaintext enters once; edit surfaces expose presence only.</span></div>
+                <div class="secret" data-present="true" data-od-component="secret-field"><span class="secret__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><div class="secret__state"><strong>Credential configured</strong><span>vault:mcp/github/token</span></div><button class="btn btn--small" type="button">Rotate</button></div>
+              </div>
+            </div>
+            <footer class="dialog__foot" data-od-component="dialog-footer">
+              <div class="foot-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span>Drafts survive validation and transport failures.</span></div>
+              <button class="btn btn--outline" type="button">Cancel</button>
+              <button class="btn btn--primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Create server</button>
+            </footer>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="preview-grid mt-16">
+      <article class="preview-stage" data-od-component="confirm-dialog" data-od-id="anatomy-confirm">
+        <div class="preview-stage__head"><h3>ConfirmDialog</h3><span class="spec">560px · danger tint action</span></div>
+        <p>Only for consequences that warrant an interruption. The action label states the irreversible effect; the note states what survives.</p>
+        <div class="preview-stage__body preview-stage__body--well">
+          <div class="dialog dialog--compact" aria-label="Delete provider confirmation">
+            <header class="dialog__head">
+              <div class="head-icon head-icon--neutral" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+              <div class="head-copy"><h3>Delete OpenAI provider?</h3><p>Agents using this provider will no longer be able to start sessions.</p></div>
+              <button class="icon-button" type="button" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </header>
+            <footer class="dialog__foot"><div class="foot-note"><span>Existing session history remains available.</span></div><button class="btn btn--outline" type="button">Cancel</button><button class="btn btn--danger" type="button">Delete provider</button></footer>
+          </div>
+        </div>
+      </article>
+
+      <article class="preview-stage" data-od-id="anatomy-settings-row">
+        <div class="preview-stage__head"><h3>SettingsFieldRow</h3><span class="spec">sheet rhythm · 20px rows</span></div>
+        <p>Provider sheets use one row per field. The row owns label, hint, description, control, error, and their associations.</p>
+        <div class="preview-stage__body">
+          <div class="settings-rows">
+            <div class="settings-row field" data-od-component="settings-field-row">
+              <div class="settings-row__meta"><div class="settings-row__label-line"><label class="settings-row__label" for="anat-command">Command</label><span class="settings-row__hint">Required</span></div><p class="settings-row__description">Executable used to launch the ACP subprocess.</p></div>
+              <div class="settings-row__control"><input class="input input--mono" id="anat-command" value="claude"></div>
+            </div>
+            <div class="settings-row field" data-invalid="true" data-od-component="settings-field-row">
+              <div class="settings-row__meta"><div class="settings-row__label-line"><label class="settings-row__label" for="anat-baseurl">Base URL</label></div><p class="settings-row__description">Overrides the provider's default API endpoint.</p></div>
+              <div class="settings-row__control"><input class="input input--mono" id="anat-baseurl" value="localhost:8787" aria-describedby="anat-baseurl-err"><span class="error" id="anat-baseurl-err">Enter an absolute URL, including the scheme — for example https://localhost:8787.</span></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="preview-stage" data-od-component="immutable-identity" data-od-id="anatomy-identity">
+        <div class="preview-stage__head"><h3>Immutable identity</h3><span class="spec">summary, not disabled inputs</span></div>
+        <p>Edit surfaces summarize fields the update contract cannot mutate as readable data.</p>
+        <div class="preview-stage__body">
+          <div class="identity-row"><span class="identity-row__ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span><div class="identity-row__copy"><strong>incident-response</strong><span>Channel name and membership stay fixed after creation.</span></div><span class="identity-row__badge">Locked</span></div>
+          <div class="switch-row"><button class="switch" role="switch" aria-checked="false" aria-label="Auto-enqueue when ready" type="button"></button><div class="switch-copy"><b>Auto-enqueue when ready</b><span>Queue a run automatically once dependencies resolve.</span></div></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ══ SELECTION GRAMMAR ══ -->
+  <section class="library__section" id="grammar" data-od-id="section-grammar">
+    <h2 class="library__section-head">Selection grammar <span class="sub">one need, one canonical component</span><span class="anchor">reuse before create</span></h2>
+    <div class="contract-table-wrap"><table class="contract-table"><thead><tr><th>Need</th><th>Canonical component</th><th>Production authority</th><th>Contract</th></tr></thead><tbody>
+      <tr><td>Provider + model + reasoning</td><td><code>RuntimeSelector</code></td><td><code>web/src/systems/runtime/components/runtime-selector/</code></td><td>Segmented 34px trigger; searchable popup with provider rail, model listbox, separate favorite toggle, reasoning pressed group.</td></tr>
+      <tr><td>One agent</td><td><code>AgentCommandSelect</code></td><td><code>web/src/systems/agent/components/</code></td><td>Search by name, provider, or category; identity metadata stays visible in results.</td></tr>
+      <tr><td>Many agents</td><td><code>AgentCommandMultiSelect</code></td><td><code>web/src/systems/agent/components/</code></td><td>Listbox with <code>aria-multiselectable</code>; trigger count and chips stay synchronized.</td></tr>
+      <tr><td>Workspace</td><td><code>WorkspaceCommandSelect</code></td><td><code>web/src/systems/workspace/components/</code></td><td>Searchable catalog; workspace identity and home path visible.</td></tr>
+      <tr><td>Global/workspace scope</td><td><code>ScopeSelector</code></td><td><code>web/src/systems/workspace/components/scope-selector.tsx</code></td><td>Pressed PillGroup; WorkspaceCommandSelect appears only for workspace scope.</td></tr>
+      <tr><td>Large catalog</td><td><code>CommandSelect</code></td><td><code>@agh/ui Command + Popover</code></td><td>36px button trigger with <code>aria-controls</code>; searchable listbox. Never a disguised native select.</td></tr>
+      <tr><td>Small stable enum</td><td><code>NativeSelect</code></td><td><code>@agh/ui NativeSelect</code></td><td>At most seven stable choices; no search, no rich identity.</td></tr>
+      <tr><td>Consequence-bearing exclusive choice</td><td><code>RadioCard</code></td><td><code>@agh/ui RadioCard</code></td><td>Two to four choices; neutral selected state (glaze + rim), arrow-key radio behavior.</td></tr>
+      <tr><td>Related form block</td><td><code>FormSection</code></td><td><code>@agh/ui FormSection</code></td><td>Every rendered <code>.sec</code> is the component instance, not a marker on an ancestor.</td></tr>
+      <tr><td>Inline status or recovery</td><td><code>Alert</code></td><td><code>@agh/ui Alert</code></td><td>Every rendered <code>.notice</code>/<code>.note</code> is the component instance.</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <!-- ══ SELECTOR PLAYGROUNDS ══ -->
+  <section class="library__section" id="selectors" data-od-id="section-selectors">
+    <h2 class="library__section-head">Canonical selector playgrounds <span class="sub">live triggers — open, search, arrow through</span><span class="anchor">?preview=&lt;id&gt;&amp;state=&lt;state&gt;</span></h2>
+    <p class="library__intro">Each preview has a deterministic capture route: append <span class="mono">?preview=runtime-selector&amp;state=open</span> with any <span class="mono">data-preview</span> ID to isolate one component at 1100×700 without modifying this file.</p>
+
+    <div class="preview-grid mt-16">
+      <article class="preview-stage" data-preview="scope-selector" data-od-component="scope-selector" data-od-id="playground-scope">
+        <div class="preview-stage__head"><h3>ScopeSelector</h3><span class="spec">PillGroup + compact select</span></div>
+        <p>The workspace catalog appears only when workspace scope is pressed.</p>
+        <div class="preview-stage__body preview-stage__body--well">
+          <div class="row preview-control">
+            <div class="pillgroup" role="group" aria-label="Scope"><button class="pill" type="button" aria-pressed="false">Global</button><button class="pill" type="button" aria-pressed="true">Workspace</button></div>
+            <button class="command-select" type="button" aria-label="Workspace: checkout-platform" aria-controls="ds-scope-workspace-popover" data-component-trigger="command-select"><span class="command-select__avatar">C</span><span class="command-select__copy"><strong data-component-value>checkout-platform</strong></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+          </div>
+        </div>
+      </article>
+
+      <article class="preview-stage" data-preview="workspace-select" data-od-id="playground-workspace">
+        <div class="preview-stage__head"><h3>WorkspaceCommandSelect</h3><span class="spec">trigger 36px · avatar 20px</span></div>
+        <p>Searchable workspace catalog with identity and home path.</p>
+        <div class="preview-stage__body preview-stage__body--well">
+          <button class="command-select preview-control" type="button" aria-label="Workspace: checkout-platform" aria-controls="ds-workspace-popover" data-component-trigger="command-select" data-od-component="workspace-select"><span class="command-select__avatar">C</span><span class="command-select__copy"><strong data-component-value>checkout-platform</strong><span>~/Dev/checkout-platform</span></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+        </div>
+      </article>
+
+      <article class="preview-stage" data-preview="command-select" data-od-id="playground-command">
+        <div class="preview-stage__head"><h3>CommandSelect</h3><span class="spec">catalog fallback</span></div>
+        <p>For daemon-backed registries without a richer domain selector — channels, toolsets, sandboxes, coordinators.</p>
+        <div class="preview-stage__body preview-stage__body--well">
+          <button class="command-select preview-control" type="button" aria-label="Network channel: operations" aria-controls="ds-command-popover" data-component-trigger="command-select" data-od-component="command-select"><span class="command-select__avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span><span class="command-select__copy"><strong data-component-value>operations</strong><span>network channel</span></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+        </div>
+      </article>
+
+      <article class="preview-stage" data-preview="agent-select" data-od-id="playground-agent">
+        <div class="preview-stage__head"><h3>AgentCommandSelect</h3><span class="spec">identity stays visible</span></div>
+        <p>Search by agent name, provider, or category; provider and category remain visible in every result.</p>
+        <div class="preview-stage__body preview-stage__body--well">
+          <button class="command-select preview-control" type="button" aria-label="Agent: incident-triage" aria-controls="ds-agent-popover" data-component-trigger="command-select" data-od-component="agent-select"><span class="command-select__avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="command-select__copy"><strong data-component-value>incident-triage</strong><span>anthropic · operations</span></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+        </div>
+      </article>
+
+      <article class="preview-stage" data-preview="agent-multi-select" data-od-id="playground-agent-multi">
+        <div class="preview-stage__head"><h3>AgentCommandMultiSelect</h3><span class="spec">count in trigger · chips synced</span></div>
+        <p>Multi-selection reuses the agent list with <span class="mono">aria-multiselectable</span>; the trigger carries the count and selected identities.</p>
+        <div class="preview-stage__body preview-stage__body--well">
+          <button class="command-select preview-control" type="button" aria-label="2 agents selected" aria-controls="ds-agent-multi-popover" data-component-trigger="agent-multi-select" data-selection-noun="agents" data-od-component="agent-multi-select"><span class="command-select__avatar">2</span><span class="command-select__copy"><strong data-component-value>2 agents selected</strong><span data-component-summary>incident-triage, release-coordinator</span></span><span class="command-select__chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg></span></button>
+        </div>
+      </article>
+
+      <article class="preview-stage" data-preview="runtime-selector" data-od-component="runtime-selector" data-od-id="playground-runtime">
+        <div class="preview-stage__head"><h3>RuntimeSelector</h3><span class="spec">trigger 34px · popup 528px</span></div>
+        <p>Provider, model, and reasoning are one segmented control. The popup owns provider filtering, favorites, search, catalog state, and focus restoration.</p>
+        <div class="preview-stage__body preview-stage__body--well">
+          <div class="runtime-trigger preview-control" role="group" aria-label="Runtime: Anthropic, Claude Sonnet 4, medium reasoning">
+            <button class="runtime-trigger__segment" type="button" aria-label="Provider: Anthropic" aria-controls="ds-runtime-popover" data-component-trigger="runtime-selector" data-runtime-segment="provider"><span class="command-select__avatar">A</span><strong>Anthropic</strong></button>
+            <span class="runtime-trigger__divider" aria-hidden="true"></span>
+            <button class="runtime-trigger__segment" type="button" aria-label="Model: Claude Sonnet 4" aria-controls="ds-runtime-popover" data-component-trigger="runtime-selector" data-runtime-segment="model"><strong data-component-value>Claude Sonnet 4</strong></button>
+            <span class="runtime-trigger__divider" aria-hidden="true"></span>
+            <button class="runtime-trigger__segment runtime-trigger__reasoning" type="button" aria-label="Reasoning: Medium" aria-controls="ds-runtime-popover" data-component-trigger="runtime-selector" data-runtime-segment="reasoning"><span class="im" data-level="4" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><strong>Medium</strong></button>
+            <button class="runtime-trigger__segment" type="button" aria-label="Open runtime selector" aria-controls="ds-runtime-popover" data-component-trigger="runtime-selector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          </div>
+        </div>
+        <p class="preview-state" data-state-kind="loading" hidden>Loading catalog. The current draft remains visible.</p>
+        <p class="preview-state" data-state-kind="stale" hidden>Catalog may be stale. Current choices remain visible while refresh is available.</p>
+        <p class="preview-state" data-state-kind="no-model" hidden>No model selected. The trigger names the next action.</p>
+        <p class="preview-state" data-state-kind="disabled" hidden>Runtime is read-only. Provider, model, and effort remain legible.</p>
+        <p class="preview-state" data-state-kind="empty" hidden>No runtime choices found. Configure a provider, then refresh.</p>
+        <p class="preview-state" data-state-kind="error" hidden>Catalog unavailable. Keep the draft and retry.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ══ STATES ══ -->
+  <section class="library__section" id="states" data-od-id="section-states">
+    <h2 class="library__section-head">State contract <span class="sub">drafts survive everything</span><span class="anchor">catalog · form · secret</span></h2>
+    <div class="contract-table-wrap"><table class="contract-table"><thead><tr><th>Lifecycle</th><th>Visible behavior</th><th>Blocked scope</th><th>Recovery</th></tr></thead><tbody>
+      <tr><td>Loading / refreshing</td><td>Keep current trigger copy and announce progress.</td><td>Dependent catalog choice only.</td><td>Resolve in place; never reset the draft.</td></tr>
+      <tr><td>Stale</td><td>Keep choices visible with a warning status.</td><td>Nothing by default.</td><td>Offer refresh before selecting an unavailable entry.</td></tr>
+      <tr><td>Empty / no match</td><td>Name whether the catalog is empty or the query has no match.</td><td>Catalog selection.</td><td>Configure provider, refresh, or clear search.</td></tr>
+      <tr><td>Validation error</td><td>Associate inline copy and focus the first invalid control.</td><td>Submission.</td><td>Preserve every entered value.</td></tr>
+      <tr><td>Saving / save error</td><td>Lock duplicate submit; announce the outcome near the form.</td><td>Primary action only.</td><td>Retry with the same draft.</td></tr>
+      <tr><td>Disabled / immutable</td><td>Keep durable identity readable; summarize immutable fields.</td><td>Only unavailable edits.</td><td>Explain which contract owns the boundary.</td></tr>
+    </tbody></table></div>
+    <div class="library__cards mt-16">
+      <article class="library-card"><div class="library-card__copy"><strong>Validation</strong><span>Validate on blur or submit; associate each error with its field and move focus to the first invalid control.</span></div><span class="library-card__badge">inline recovery</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Saving</strong><span>Disable duplicate submission, preserve control width, report failure near the form, retain every entered value.</span></div><span class="library-card__badge">draft safe</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Secrets</strong><span>Absent, present, editing, invalid, saving, and rotated. The stored plaintext is never re-displayed.</span></div><span class="library-card__badge">write-only</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Responsive</strong><span>At 760px dialogs become bottom-anchored full-width surfaces; grids stack and targets expand to 44px.</span></div><span class="library-card__badge">360px path</span></article>
+    </div>
+  </section>
+
+  <!-- ══ MIGRATION MAP ══ -->
+  <section class="library__section" id="mapping" data-od-id="section-mapping">
+    <h2 class="library__section-head">Implementation &amp; migration map <span class="sub">per-surface canonical composition</span><span class="anchor">16 surfaces</span></h2>
+    <div class="contract-table-wrap"><table class="contract-table"><thead><tr><th>Surface</th><th>Host</th><th>Canonical selection/components</th></tr></thead><tbody>
+      <tr><td><code>create-agent.html</code></td><td>Wide dialog</td><td>ScopeSelector, WorkspaceCommandSelect, RuntimeSelector, RadioCard, catalog CommandSelect.</td></tr>
+      <tr><td><code>create-bridge.html</code></td><td>Standard dialog</td><td>ScopeSelector, WorkspaceCommandSelect, RadioCard, SecretField.</td></tr>
+      <tr><td><code>edit-bridge.html</code></td><td>Standard dialog</td><td>ImmutableIdentity, NativeSelect, SecretField.</td></tr>
+      <tr><td><code>start-session.html</code></td><td>Standard dialog</td><td>AgentCommandSelect, WorkspaceCommandSelect, RuntimeSelector, channel CommandSelect.</td></tr>
+      <tr><td><code>create-knowledge.html</code></td><td>Compact dialog</td><td>RadioCard and FormSection.</td></tr>
+      <tr><td><code>edit-knowledge.html</code></td><td>Compact dialog</td><td>ImmutableIdentity and FormSection.</td></tr>
+      <tr><td><code>create-network-channel.html</code></td><td>Standard dialog</td><td>AgentCommandMultiSelect, member-derived CommandSelect, RadioCard.</td></tr>
+      <tr><td><code>edit-network-channel.html</code></td><td>Compact dialog</td><td>ImmutableIdentity, member-derived CommandSelect, RadioCard.</td></tr>
+      <tr><td><code>create-mcp-server.html</code></td><td>Standard dialog</td><td>ScopeSelector, WorkspaceCommandSelect, RadioCard, NativeSelect, SecretField.</td></tr>
+      <tr><td><code>edit-mcp-server.html</code></td><td>Standard dialog</td><td>ImmutableIdentity, RadioCard, NativeSelect, SecretField.</td></tr>
+      <tr><td><code>create-vault-secret.html</code></td><td>Compact dialog</td><td>SecretField, Alert, explicit replacement confirmation.</td></tr>
+      <tr><td><code>create-sandbox-profile.html</code></td><td>Standard dialog</td><td>RadioCard, NativeSelect, SecretField.</td></tr>
+      <tr><td><code>edit-sandbox-profile.html</code></td><td>Standard dialog</td><td>ImmutableIdentity, RadioCard, NativeSelect, SecretField.</td></tr>
+      <tr><td><code>add-workspace.html</code></td><td>Compact dialog</td><td>AgentCommandSelect and catalog CommandSelect.</td></tr>
+      <tr><td><code>create-provider-sheet.html</code></td><td>Provider sheet</td><td>SettingsFieldRow, RadioCard, NativeSelect, SecretField; no RuntimeSelector.</td></tr>
+      <tr><td><code>edit-provider-sheet.html</code></td><td>Provider sheet</td><td>SettingsFieldRow, ImmutableIdentity, RadioCard, NativeSelect, SecretField; no RuntimeSelector.</td></tr>
+    </tbody></table></div>
+    <div class="notice mt-16" data-od-component="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span><strong>Migration gate.</strong> Remove provider/model/reasoning field trios, native agent selectors, accent-selected cards, inline styles/scripts, token aliases, gradients, and accent side rails. Every modal keeps one dialog name, one body scroll owner, one primary action, and a complete state path. Headers adopt the icon-well + eyebrow pattern; the icon well is the only accent-tinted surface in the shell.</span></div>
+  </section>
+
+  <!-- ══ ACCESSIBILITY ══ -->
+  <section class="library__section" id="accessibility" data-od-id="section-accessibility">
+    <h2 class="library__section-head">Do / don’t &amp; accessibility gate <span class="sub">WCAG 2.2 AA · WAI-ARIA patterns</span><span class="anchor">release checklist</span></h2>
+    <div class="library__cards">
+      <article class="library-card"><div class="library-card__copy"><strong>Do</strong><span>One named dialog, one body scroll owner, visible required/immutable boundaries, draft-safe errors, real component instances, 44px mobile targets.</span></div><span class="library-card__badge">structural clarity</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Don’t</strong><span>Split RuntimeSelector into fields, disguise native selects, nest interactive controls, use color alone, or close the dialog when Escape dismisses a child popup.</span></div><span class="library-card__badge">no component theater</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Keyboard</strong><span>Tab stays trapped in the host. Escape closes the innermost layer. ArrowDown enters the listbox from search; provider radios take arrows plus Home/End; focus returns to the opening trigger.</span></div><span class="library-card__badge">WAI-ARIA</span></article>
+      <article class="library-card"><div class="library-card__copy"><strong>Focus &amp; contrast</strong><span>2px accent focus indicator on composite widgets; form controls pair a strong border with a ring. Essential small text reaches 4.5:1 against its rendered surface.</span></div><span class="library-card__badge">visible focus</span></article>
+    </div>
+    <div class="notice mt-16" data-od-component="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span><strong>Acceptance checklist.</strong> Unique IDs and ARIA references; a label on every control; provider rail and model list semantics kept distinct; Default plus all seven reasoning efforts exposed; favorite toggle separate from options; 360px and reduced-motion verified; default, open, empty, error, stale, no-model, and disabled states captured.</span></div>
+  </section>
+</main>
+
+<!-- ── popovers (positioned by modal-system.js) ── -->
+<div class="component-popover" id="ds-scope-workspace-popover" role="listbox" aria-label="Workspaces">
+  <div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search workspaces" placeholder="Search workspaces…"></div>
+  <div class="component-popover__list">
+    <button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="checkout-platform"><span class="opt-ic mono" aria-hidden="true">C</span><span class="opt-copy"><strong>checkout-platform</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+    <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="agh-core"><span class="opt-ic mono" aria-hidden="true">A</span><span class="opt-copy"><strong>agh-core</strong></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+  </div>
+</div>
+
+<div class="component-popover" id="ds-workspace-popover" role="listbox" aria-label="Workspaces">
+  <div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search workspaces" placeholder="Search workspaces…"></div>
+  <div class="component-popover__list">
+    <button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="checkout-platform"><span class="opt-ic mono" aria-hidden="true">C</span><span class="opt-copy"><strong>checkout-platform</strong><span><b>~/Dev/checkout-platform</b></span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+    <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="agh-core"><span class="opt-ic mono" aria-hidden="true">A</span><span class="opt-copy"><strong>agh-core</strong><span><b>~/Dev/compozy/agh</b></span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+    <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="Home"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span class="opt-copy"><strong>Home workspace</strong><span><b>~/</b></span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+  </div>
+</div>
+
+<div class="component-popover" id="ds-command-popover" role="listbox" aria-label="Network channels">
+  <div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search network channels" placeholder="Search channels…"></div>
+  <div class="component-popover__list">
+    <button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="operations"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span><span class="opt-copy"><strong>operations</strong><span><b>4 members</b> · coordinator incident-triage</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+    <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="incident-response"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span><span class="opt-copy"><strong>incident-response</strong><span><b>2 members</b> · coordinator reviewer</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+  </div>
+</div>
+
+<div class="component-popover" id="ds-agent-popover" role="listbox" aria-label="Agents">
+  <div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search agents" placeholder="Search agents…"></div>
+  <div class="component-popover__list">
+    <button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="incident-triage"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>incident-triage</strong><span><b>anthropic</b> · operations/incident</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+    <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="release-coordinator"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>release-coordinator</strong><span><b>openai</b> · delivery</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+    <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="customer-support"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>customer-support</strong><span><b>anthropic</b> · support</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+  </div>
+</div>
+
+<div class="component-popover" id="ds-agent-multi-popover" role="listbox" aria-label="Agents" aria-multiselectable="true">
+  <div class="component-popover__search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input aria-label="Search agents" placeholder="Search agents…"></div>
+  <div class="component-popover__list">
+    <button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="incident-triage"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>incident-triage</strong><span><b>anthropic</b> · operations/incident</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+    <button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="release-coordinator"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>release-coordinator</strong><span><b>openai</b> · delivery</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+    <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="customer-support"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5"/><circle cx="12" cy="3.5" r="1"/><path d="M9 13v2M15 13v2"/></svg></span><span class="opt-copy"><strong>customer-support</strong><span><b>anthropic</b> · support</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+  </div>
+</div>
+
+<div class="component-popover" id="ds-runtime-popover" role="dialog" aria-label="Runtime selector">
+  <div class="component-popover__search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input role="combobox" aria-expanded="true" aria-controls="ds-runtime-list" aria-label="Search models and providers" placeholder="Search models and providers…">
+    <button class="icon-button" type="button" aria-label="Refresh model catalog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+  </div>
+  <div class="component-popover__body">
+    <div class="component-popover__rail" role="radiogroup" aria-label="Provider filter">
+      <button type="button" role="radio" aria-checked="true" aria-label="All providers">All</button>
+      <button type="button" role="radio" aria-checked="false" aria-label="Favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+      <button type="button" role="radio" aria-checked="false" aria-label="Anthropic">A</button>
+      <button type="button" role="radio" aria-checked="false" aria-label="OpenAI">O</button>
+      <button type="button" role="radio" aria-checked="false" aria-label="Google">G</button>
+    </div>
+    <div class="component-popover__list" id="ds-runtime-list" role="listbox" aria-label="Models">
+      <button class="component-popover__option" type="button" role="option" aria-selected="true" data-value="Claude Sonnet 4"><span class="opt-ic mono" aria-hidden="true">A</span><span class="opt-copy"><strong>Claude Sonnet 4</strong><span><b>Anthropic</b> · 200k ctx · 7 efforts</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+      <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="Claude Opus 4"><span class="opt-ic mono" aria-hidden="true">A</span><span class="opt-copy"><strong>Claude Opus 4</strong><span><b>Anthropic</b> · 200k ctx · 7 efforts</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+      <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="GPT-5"><span class="opt-ic mono" aria-hidden="true">O</span><span class="opt-copy"><strong>GPT-5</strong><span><b>OpenAI</b> · 272k ctx · 4 efforts</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+      <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="Gemini 2.5 Pro"><span class="opt-ic mono" aria-hidden="true">G</span><span class="opt-copy"><strong>Gemini 2.5 Pro</strong><span><b>Google</b> · 1M ctx</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+      <button class="component-popover__option" type="button" role="option" aria-selected="false" data-value="Custom model ID"><span class="opt-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span class="opt-copy"><strong>Use custom model ID</strong><span><b>manual entry</b> · validated against the provider</span></span><span class="opt-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button>
+    </div>
+  </div>
+  <div class="component-popover__model-actions"><button class="favorite-toggle" type="button" aria-pressed="true" data-favorite-key="anthropic:claude-sonnet-4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span data-favorite-copy>Favorited</span></button></div>
+  <div class="component-popover__reasoning" role="group" aria-label="Reasoning effort" data-pressed-group>
+    <button class="pill reasoning-default" type="button" aria-pressed="false" data-value="default"><span class="reasoning-ring" aria-hidden="true"></span>Default</button>
+    <span class="reasoning-divider" aria-hidden="true"></span>
+    <button class="pill" type="button" aria-pressed="false" data-value="none"><span class="im" data-level="1" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>None</button>
+    <button class="pill" type="button" aria-pressed="false" data-value="minimal"><span class="im" data-level="2" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Minimal</button>
+    <button class="pill" type="button" aria-pressed="false" data-value="low"><span class="im" data-level="3" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Low</button>
+    <button class="pill" type="button" aria-pressed="true" data-value="medium"><span class="im" data-level="4" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Medium</button>
+    <button class="pill" type="button" aria-pressed="false" data-value="high"><span class="im" data-level="5" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>High</button>
+    <button class="pill" type="button" aria-pressed="false" data-value="xhigh"><span class="im" data-level="6" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Extra high</button>
+    <button class="pill" type="button" aria-pressed="false" data-value="max"><span class="im" data-level="7" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Max</button>
+  </div>
+  <span role="status" aria-live="polite" hidden>Claude Sonnet 4 from Anthropic is a favorite.</span>
+</div>
+
+<div class="toast" data-toast></div>
+<script src="modal-system.js"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Shared loader for real-scenario-qa playbooks.
 
-Read-only. Imported by seed-playbook-workspace.py, post-operator-kickoff.py, and audit-qa-evidence.py.
+Read-only. Imported by the real-scenario seeding, kickoff, validation, and audit helpers.
 Each playbook is a markdown file ending with one ```json fenced block carrying the canonical spec.
 """
 
@@ -235,6 +235,7 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
         else:
             errors.append(f"playbook.agents[{index}].system_prompt must be a string")
 
+    knowledge_paths: set[str] = set()
     for index, entry in enumerate(knowledge_files):
         if not isinstance(entry, dict):
             errors.append(f"playbook.knowledge_files[{index}] must be an object")
@@ -243,6 +244,39 @@ def validate_playbook_data(repo_root: Path | str, ref: str, data: dict[str, Any]
         path = entry.get("path")
         if isinstance(path, str):
             _validate_relative_path(f"playbook.knowledge_files[{index}].path", path, errors)
+            if path in knowledge_paths:
+                errors.append(f"playbook.knowledge_files contains duplicate path {path!r}")
+            knowledge_paths.add(path)
+
+    assigned_scoped_paths: set[str] = set()
+    for index, workspace in enumerate(workspaces):
+        if not isinstance(workspace, dict):
+            continue
+        refs = workspace.get("knowledge_files", [])
+        if refs is None:
+            refs = []
+        if not isinstance(refs, list):
+            errors.append(f"playbook.workspaces[{index}].knowledge_files must be an array")
+            continue
+        for ref in refs:
+            if not isinstance(ref, str) or not ref.strip():
+                errors.append(
+                    f"playbook.workspaces[{index}].knowledge_files entries must be non-empty strings"
+                )
+                continue
+            if ref not in knowledge_paths:
+                errors.append(
+                    f"playbook.workspaces[{index}].knowledge_files references unknown path {ref!r}"
+                )
+            assigned_scoped_paths.add(ref)
+    unassigned_scoped = sorted(
+        path for path in knowledge_paths if not path.startswith("global/") and path not in assigned_scoped_paths
+    )
+    if unassigned_scoped:
+        errors.append(
+            "playbook workspace-scoped knowledge must be assigned: "
+            + ", ".join(unassigned_scoped)
+        )
 
     for index, task in enumerate(open_tasks):
         if not isinstance(task, dict):

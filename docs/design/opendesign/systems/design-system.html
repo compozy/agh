@@ -1,0 +1,1471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Design System · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+    --size-catalog-logo:24px;
+    --ds-nav:220px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--canvas);color:var(--fg);
+    font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  }
+  a{color:inherit;text-decoration:none}
+  button,input{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  code,.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .hide{display:none!important}
+  /* JetBrains Mono: reset inherited Inter features + restore subpixel AA (tokens.css contract). */
+  code,kbd,pre,.mono,.ds-nav__sub,.ds-kicker,.ds-sec__id,.ds-card__label,.swatch__name,.swatch__val,
+  .anatomy__label,.anatomy__wire,.do-dont__tag,.preview__bar span,.code-block,.count-chip,
+  .listing-row__name b:not(.sans),.listing-row__slug,.listing-row__meta .k,.listing-row__stat-v,.bindbadge,
+  .listing-card__title b:not(.sans),.pill[data-mono="true"]{
+    -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
+  :is(.btn,.runbtn,.pill-group__item,.filter-chip__op,.filter-chip__val,.filter-chip__x,.ds-nav a,.ds-refs a):focus-visible{
+    outline:none;box-shadow:var(--focus-ring)}
+  /* Reduced motion — global guard (tokens.css contract; 0.001ms keeps animation callbacks). */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+
+  /* ── DS chrome ── */
+  .ds-shell{display:grid;grid-template-columns:var(--ds-nav) minmax(0,1fr);min-height:100vh}
+  .ds-nav{
+    position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;
+    padding:20px 14px 40px;border-right:1px solid var(--line);background:var(--rail);
+  }
+  .ds-nav__brand{display:flex;align-items:center;gap:8px;padding:0 6px 16px;border-bottom:1px solid var(--line-soft);margin-bottom:14px}
+  .ds-nav__mark{width:22px;height:22px;border-radius:var(--radius-xs);background:var(--elevated);color:var(--accent);display:grid;place-items:center}
+  .ds-nav__mark svg{width:12px;height:12px}
+  .ds-nav__title{font-size:12.5px;font-weight:600;color:var(--fg-strong);letter-spacing:-.01em}
+  .ds-nav__sub{font-size:10.5px;color:var(--faint);font-family:var(--font-mono);margin-top:1px}
+  .ds-nav__group{margin-top:14px}
+  /* Eyebrow contract — Inter UC 11/600/−0.005em */
+  .ds-nav__label{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--faint);padding:0 8px 6px}
+  .ds-nav a{
+    display:block;padding:6px 8px;border-radius:var(--radius);font-size:12.5px;color:var(--muted);
+    transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+  }
+  .ds-nav a:hover{background:var(--row-hover);color:var(--fg-strong)}
+  .ds-nav a.is-active{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+
+  .ds-main{min-width:0}
+  .ds-page{max-width:1080px;margin:0 auto;padding:36px 40px 120px}
+
+  .ds-hero{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+  .ds-kicker{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-strong)}
+  .ds-hero h1{font-size:28px;font-weight:600;letter-spacing:-.03em;color:var(--fg-strong);margin-top:8px}
+  .ds-hero p{margin-top:10px;max-width:62ch;font-size:14px;color:var(--muted);line-height:1.55}
+  .ds-refs{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .ds-refs a{
+    display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;
+    border:1px solid var(--line);border-radius:var(--radius);background:var(--canvas-soft);
+    font-size:12px;color:var(--muted);
+  }
+  .ds-refs a:hover{border-color:var(--line-strong);color:var(--fg-strong)}
+  .ds-refs a svg{width:12px;height:12px}
+
+  .ds-sec{margin-top:48px;scroll-margin-top:24px}
+  .ds-sec__head{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+  .ds-sec__head h2{font-size:18px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
+  .ds-sec__id{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+  .ds-sec__lead{font-size:13px;color:var(--muted);max-width:68ch;margin-bottom:18px;line-height:1.55}
+
+  .ds-callout{
+    display:flex;gap:12px;padding:12px 14px;border:1px solid var(--line-soft);
+    border-radius:var(--radius-md);background:var(--canvas-soft);margin-bottom:18px;
+  }
+  .ds-callout--rule{border-color:var(--accent-dim);background:var(--accent-tint)}
+  .ds-callout b{display:block;font-size:12.5px;font-weight:600;color:var(--fg-strong);margin-bottom:2px}
+  .ds-callout p{font-size:12.5px;color:var(--muted);line-height:1.5}
+  .ds-callout--rule p{color:var(--fg)}
+
+  .ds-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .ds-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  @media(max-width:900px){
+    .ds-shell{grid-template-columns:1fr}
+    .ds-nav{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}
+    .ds-page{padding:24px 18px 80px}
+    .ds-grid-2,.ds-grid-3{grid-template-columns:1fr}
+  }
+
+  .ds-card{
+    border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);
+    padding:14px 16px;min-width:0;
+  }
+  .ds-card__label{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  .ds-card h3{font-size:13.5px;font-weight:600;color:var(--fg-strong);letter-spacing:-.01em;margin-bottom:4px}
+  .ds-card p{font-size:12.5px;color:var(--muted);line-height:1.5}
+  .ds-card ul{margin-top:8px;padding-left:16px;color:var(--muted);font-size:12.5px}
+  .ds-card li{margin:3px 0}
+  .ds-card code{font-size:11px;color:var(--fg)}
+
+  .swatch-row{display:flex;flex-wrap:wrap;gap:8px}
+  .swatch{width:88px}
+  .swatch__chip{height:36px;border-radius:var(--radius);border:1px solid var(--line);margin-bottom:6px}
+  .swatch__name{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .swatch__val{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);margin-top:1px}
+
+  .spec-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .spec-table th,.spec-table td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  .spec-table th{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--faint);background:var(--canvas-tint)}
+  .spec-table td{color:var(--muted)}
+  .spec-table td:first-child{color:var(--fg);font-weight:500;white-space:nowrap}
+  .spec-table code{font-size:11px;color:var(--fg)}
+  .spec-wrap{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:auto;background:var(--canvas-soft);margin-bottom:16px}
+
+  .anatomy{
+    border:1px dashed var(--line-strong);border-radius:var(--radius-lg);
+    background:var(--canvas-tint);padding:16px;margin-bottom:16px;overflow-x:auto;
+  }
+  .anatomy__label{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-strong);margin-bottom:10px}
+  .anatomy__wire{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    font-family:var(--font-mono);font-size:11.5px;color:var(--subtle);
+  }
+  .anatomy__slot{
+    display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;
+    border:1px solid var(--line);border-radius:var(--radius);background:var(--elevated);color:var(--fg);
+  }
+  .anatomy__slot--accent{border-color:var(--accent-dim);color:var(--accent-strong);background:var(--accent-tint)}
+  .anatomy__slot--muted{color:var(--muted);background:var(--canvas-soft)}
+  .anatomy__spacer{flex:1;min-width:24px;height:1px;background:var(--line);align-self:center}
+
+  .do-dont{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  @media(max-width:720px){.do-dont{grid-template-columns:1fr}}
+  .do-dont__col{border:1px solid var(--line);border-radius:var(--radius-lg);padding:12px 14px;background:var(--canvas-soft)}
+  .do-dont__col--do{border-color:color-mix(in srgb,var(--success) 25%,transparent)}
+  .do-dont__col--dont{border-color:color-mix(in srgb,var(--danger) 25%,transparent)}
+  .do-dont__tag{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+  .do-dont__col--do .do-dont__tag{color:var(--success)}
+  .do-dont__col--dont .do-dont__tag{color:var(--danger)}
+  .do-dont__col li{margin:4px 0 4px 14px;font-size:12.5px;color:var(--muted)}
+
+  .preview{
+    border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+    background:var(--canvas);margin-bottom:16px;
+  }
+  .preview__bar{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:8px 12px;border-bottom:1px solid var(--line-soft);background:var(--canvas-soft);
+  }
+  .preview__bar span{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;text-transform:uppercase}
+  .preview__body{padding:0;min-width:0}
+  .preview__pad{padding:16px}
+
+  /* ── Product components · proposed route chrome ── */
+  .topbar{
+    display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;
+    min-height:48px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--canvas);min-width:0
+  }
+  .topbar__context{min-width:0;overflow:hidden}
+  .topbar__route-nav{justify-self:center;min-width:0}
+  .topbar__trailing{display:flex;align-items:center;justify-content:flex-end;gap:8px;justify-self:end;min-width:0}
+  .breadcrumb{min-width:0;overflow:hidden}
+  .breadcrumb__list{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;list-style:none;white-space:nowrap;color:var(--muted)}
+  .breadcrumb__item{display:inline-flex;align-items:center;gap:4px;min-width:0;flex:none}
+  .breadcrumb__item:last-child{min-width:0;flex:1 1 auto;overflow:hidden}
+  .breadcrumb__link,.breadcrumb__page{
+    display:inline-flex;align-items:center;min-width:0;border-radius:var(--radius-sm);padding:2px 6px;
+    font-size:13px;line-height:18px;letter-spacing:-.006em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+  }
+  .breadcrumb__link{color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .breadcrumb__link:hover{background:var(--row-hover);color:var(--fg)}
+  .breadcrumb__link:focus-visible,.route-nav__link:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .breadcrumb__page{color:var(--fg-strong)}
+  .breadcrumb__separator{display:inline-flex;color:var(--faint);flex:none}
+  .breadcrumb__separator svg{width:12px;height:12px}
+  .breadcrumb__ellipsis{display:grid;place-items:center;width:20px;height:20px;color:var(--muted)}
+  .breadcrumb__ellipsis svg{width:14px;height:14px}
+  .route-nav{
+    display:inline-flex;align-items:center;gap:1px;padding:2px;border-radius:var(--radius-md);background:var(--canvas-soft)
+  }
+  .route-nav__link{
+    display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:var(--radius-xs);
+    font-size:12px;font-weight:500;letter-spacing:-.005em;color:var(--subtle);
+    transition:background var(--dur) var(--ease),color var(--dur) var(--ease)
+  }
+  .route-nav__link:hover{color:var(--fg)}
+  .route-nav__link[aria-current="page"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+  .route-nav__count{font-family:var(--font-mono);font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}
+  @media(max-width:760px){
+    .topbar{grid-template-columns:minmax(0,1fr) auto;padding:8px 12px}
+    .topbar__route-nav{grid-column:1/-1;grid-row:2;justify-self:stretch;overflow-x:auto}
+    .route-nav{width:max-content}
+    .topbar__trailing{grid-column:2;grid-row:1}
+    .topbar__trailing .btn:not(.btn--primary):not(.btn--icon){display:none}
+  }
+  .search{display:flex;align-items:center;gap:8px;height:26px;min-width:220px;width:220px;padding:0 8px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--canvas-soft);color:var(--fg);font-size:13px;flex:none}
+  .search svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+  .search input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-size:13px;outline:none}
+  .search input::placeholder{color:var(--subtle)}
+  .search .kbd{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;line-height:1;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 4px;flex:none;background:var(--canvas-soft)}
+  .search:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+
+  /* Button — packages/ui buttonVariants: h26 · 12/500 · tracking eyebrow · radius-md */
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--destructive{background:var(--danger-tint);border-color:transparent;color:var(--danger)}
+  .btn--destructive:hover{background:var(--danger-tint);border-color:transparent;color:var(--danger);opacity:.9}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn:disabled{cursor:not-allowed;opacity:.5}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+
+
+  .head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px;min-width:0}
+  .head--detail{padding-bottom:18px;border-bottom:1px solid var(--line)}
+  .head--compact{gap:10px;margin-bottom:12px}
+  .head__icon{
+    display:inline-flex;width:24px;height:24px;flex:none;align-items:center;justify-content:center;
+    border-radius:var(--radius-sm);background:var(--elevated);color:var(--accent);margin-top:2px
+  }
+  .head__icon svg{width:12px;height:12px}
+  .head__main{min-width:0;flex:1}
+  .head__pretitle{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);margin-bottom:3px}
+  .head__titlerow{display:flex;align-items:center;gap:10px;min-width:0}
+  .head__title{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);line-height:1.25}
+  .head--compact .head__title{font-size:1.1rem;letter-spacing:-.022em}
+  .head__pills{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:7px}
+  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle);max-width:72ch}
+  .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+
+  .listing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
+  .listing-toolbar__leading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1;min-width:0}
+  .listing-toolbar__trailing{display:flex;align-items:center;gap:10px;margin-left:auto;flex:none}
+
+  .filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;position:relative}
+  .filter-chip{display:inline-flex;align-items:stretch;width:fit-content;border-radius:var(--radius);overflow:hidden}
+  .filter-chip > *{border:1px solid var(--line);background:var(--canvas);color:var(--fg);font-size:11px;line-height:1;display:inline-flex;align-items:center;height:22px;padding:0 8px;margin:0}
+  .filter-chip > * + *{border-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
+  .filter-chip > *:first-child{border-radius:var(--radius) 0 0 var(--radius);background:var(--canvas);color:var(--fg);gap:6px}
+  .filter-chip > *:last-child{border-radius:0 var(--radius) var(--radius) 0}
+  .filter-chip__label{font-weight:500}
+  .filter-chip__op{color:var(--muted);background:transparent;cursor:pointer;font-family:inherit}
+  .filter-chip__val{background:transparent;cursor:pointer;font-family:inherit;max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .filter-chip__x{width:22px;padding:0;justify-content:center;cursor:pointer;color:var(--muted);background:transparent;border:1px solid var(--line);border-left:0}
+  .filter-chip__x:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .filter-chip__x svg{width:12px;height:12px}
+
+  /* PillGroup — packages/ui: borderless track p2/gap1, radius-xs segments, md 24px */
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;cursor:pointer;transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item svg{width:12px;height:12px}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .listing-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:12px 16px;
+    border-bottom:1px solid var(--line-soft);transition:background var(--dur) var(--ease);color:inherit}
+  .listing-row:last-child{border-bottom:0}
+  .listing-row:hover{background:var(--row-hover)}
+  .listing-row[data-selected]{background:var(--row-selected)}
+  .listing-row__icon{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-row__icon svg{width:16px;height:16px}
+  .listing-row__main{min-width:0}
+  .listing-row__name{display:flex;align-items:center;gap:8px;min-width:0}
+  .listing-row__name b{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong);letter-spacing:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__name b.sans{font-family:var(--font-sans);font-size:14px;font-weight:500;letter-spacing:-.01em}
+  .listing-row__slug{font-family:var(--font-mono);font-size:11px;color:var(--faint);white-space:nowrap;flex:none}
+  .listing-row__desc{margin-top:3px;font-size:12.5px;line-height:1.45;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-row__meta{margin-top:4px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--faint);flex-wrap:wrap}
+  .listing-row__meta .k{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .listing-row__trail{display:flex;align-items:center;gap:12px;flex:none}
+  .listing-row__stat{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+  .listing-row__stat-v{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
+  .listing-row__stat-l{font-size:10px;color:var(--faint)}
+  /* kind tag — packages/ui Pill xs sans neutral (no uppercase mono badges) */
+  .tag{display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;background:var(--neutral-tint);color:var(--muted);flex:none}
+  .bindbadge{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:1px 6px}
+  .runbtn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;background:var(--btn-fill);border:1px solid var(--line);color:var(--fg);cursor:pointer}
+  .runbtn svg{width:11px;height:11px}
+  .runbtn:hover{background:var(--accent);border-color:transparent;color:var(--accent-ink)}
+  .row-actions{display:flex;align-items:center;gap:4px}
+  .row-actions .btn{height:26px;width:26px;padding:0;justify-content:center;color:var(--muted)}
+  .row-actions .btn:hover{color:var(--danger);background:var(--danger-tint);border-color:transparent}
+
+  .listing-card-grid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media (min-width:720px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (min-width:1100px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  /* CatalogCard — borderless flat surface; hover elevates bg only */
+  .listing-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:var(--radius-lg);
+    background:var(--canvas-soft);min-width:0;transition:background var(--dur) var(--ease)}
+  .listing-card:hover{background:var(--elevated)}
+  .listing-card__head{display:flex;align-items:flex-start;gap:10px;min-width:0}
+  .listing-card__icon{width:24px;height:24px;border-radius:var(--radius);background:var(--surface-glaze);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-card__icon svg{width:13px;height:13px}
+  .listing-card__title{min-width:0;flex:1}
+  .listing-card__title b{display:block;font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong);letter-spacing:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-card__title b.sans{font-family:var(--font-sans);font-size:13px;font-weight:500;letter-spacing:-.012em}
+  /* CatalogCard.Meta — Eyebrow contract, text-subtle; ids stay mono-id (no uppercase) */
+  .listing-card__eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle);margin-top:4px}
+  .listing-card__eyebrow .mono-slug{font-family:var(--font-mono);font-size:10.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--faint)}
+  .listing-card__desc{font-size:13px;line-height:1.5;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .listing-card__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--line);margin-top:auto}
+  .listing-card__foot-meta{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
+
+  /* packages/ui Pill — sans base 11/500; data-mono chips use mono-id (10.5/600, tracking 0) */
+  .pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:fit-content;flex:none;
+    height:19px;padding:0 8px;border-radius:var(--radius-xs);white-space:nowrap;line-height:1;
+    font-size:11px;font-weight:500;letter-spacing:-.005em;
+    background:var(--neutral-tint);color:var(--muted)}
+  .pill[data-mono="true"]{font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:0}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .pill[data-tone="accent"]{background:var(--accent-tint);color:var(--accent)}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+  /* Empty — packages/ui <Empty>: flat centered state, 38px icon well, no dashed frame */
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:48px 24px;
+    border-radius:var(--radius-lg);text-align:center;color:var(--subtle)}
+  .empty svg{width:38px;height:38px;padding:11px;border-radius:var(--radius-lg);background:var(--canvas-soft);color:var(--subtle)}
+  .empty b{font-size:18px;font-weight:500;color:var(--fg-strong);letter-spacing:-.022em}
+  .empty p{font-size:13px;max-width:28rem;line-height:1.6;color:var(--muted)}
+  .empty .btn{margin-top:4px}
+
+  .code-block{
+    margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--rail);overflow-x:auto;font-family:var(--font-mono);font-size:11.5px;line-height:1.55;color:var(--muted);
+  }
+  .code-block .c{color:var(--faint)}
+  .code-block .k{color:var(--accent-strong)}
+  .code-block .s{color:var(--success)}
+
+  .checklist{list-style:none;padding:0}
+  .checklist li{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:12.5px;color:var(--muted)}
+  .checklist li:last-child{border-bottom:0}
+  .checklist .mark{flex:none;width:18px;height:18px;border-radius:var(--radius-xs);display:grid;place-items:center;
+    background:var(--success-tint);color:var(--success);font-size:11px;font-weight:700}
+  .checklist .mark--p0{background:var(--accent-tint);color:var(--accent-strong)}
+</style>
+</head>
+<body>
+<div class="ds-shell" data-od-id="agh-ds-shell">
+  <nav class="ds-nav" data-od-id="agh-ds-nav" aria-label="Design system">
+    <div class="ds-nav__brand">
+      <span class="ds-nav__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </span>
+      <div>
+        <div class="ds-nav__title">AGH Design System</div>
+        <div class="ds-nav__sub">product UI · route chrome</div>
+      </div>
+    </div>
+    <div class="ds-nav__group">
+      <div class="ds-nav__label">Start</div>
+      <a href="#overview" class="is-active">Overview</a>
+      <a href="#principles">Principles</a>
+      <a href="#tokens">Tokens</a>
+    </div>
+    <div class="ds-nav__group">
+      <div class="ds-nav__label">Route chrome</div>
+      <a href="#route-composition">Composition</a>
+      <a href="#topbar">Topbar</a>
+      <a href="#breadcrumb">Breadcrumb</a>
+      <a href="#route-navigation">Route navigation</a>
+      <a href="#actions">Actions</a>
+      <a href="#page-head">Page head</a>
+    </div>
+    <div class="ds-nav__group">
+      <div class="ds-nav__label">Catalog patterns</div>
+      <a href="#toolbar">Listing toolbar</a>
+      <a href="#rows">Rows</a>
+      <a href="#cards">Cards</a>
+      <a href="#empty">Empty</a>
+    </div>
+    <div class="ds-nav__group">
+      <div class="ds-nav__label">Build</div>
+      <a href="../modals/modal-design-system.html">Modal system</a>
+      <a href="#playground">Playground</a>
+      <a href="#contract">Class contract</a>
+      <a href="#checklist">Migration checklist</a>
+      <a href="#references">References</a>
+    </div>
+  </nav>
+
+  <main class="ds-main">
+    <div class="ds-page">
+
+      <!-- OVERVIEW -->
+      <header class="ds-hero" id="overview" data-od-id="ds-hero">
+        <div class="ds-kicker">AGH · Product UI</div>
+        <h1 data-od-id="ds-title">Design system</h1>
+        <p>
+          Canonical route chrome, page identity, and inventory patterns for the AGH operator UI.
+          This document expands the catalog system into a page-level contract grounded in the
+          shared <code>@agh/ui</code> primitives, production routes, and the supplied route captures.
+        </p>
+        <div class="ds-refs">
+          <a href="catalog-design-system.html" data-od-id="ref-original-catalog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>catalog-design-system.html</a>
+          <a href="../loops/loops-catalog.html" data-od-id="ref-loops-catalog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>loops-catalog.html</a>
+          <a href="LISTING-STANDARD.md" data-od-id="ref-listing-standard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>LISTING-STANDARD.md</a>
+        </div>
+      </header>
+
+      <!-- PRINCIPLES -->
+      <section class="ds-sec" id="principles" data-od-id="sec-principles">
+        <div class="ds-sec__head">
+          <h2>Principles</h2>
+          <span class="ds-sec__id">01</span>
+        </div>
+        <p class="ds-sec__lead">Route chrome has three jobs, each with one owner. Separation removes the duplicated titles and drifting metadata visible across current pages.</p>
+        <div class="ds-grid-3">
+          <div class="ds-card" data-od-id="principle-location">
+            <div class="ds-card__label">Location</div>
+            <h3>Topbar answers “where?”</h3>
+            <p>Breadcrumb is the only identity on the leading edge. Optional route navigation stays centered. Actions terminate the row on the right.</p>
+          </div>
+          <div class="ds-card" data-od-id="principle-identity">
+            <div class="ds-card__label">Identity</div>
+            <h3>Page head answers “what?”</h3>
+            <p>The orange icon well, H1, count, status, description, and page metadata live inside content, never in the topbar.</p>
+          </div>
+          <div class="ds-card" data-od-id="principle-controls">
+            <div class="ds-card__label">Controls</div>
+            <h3>Body answers “how?”</h3>
+            <p>Search, filters, scope selectors, content tabs, and status summaries stay beside the content they change.</p>
+          </div>
+        </div>
+        <div class="ds-callout ds-callout--rule" style="margin-top:14px" data-od-id="principle-rule">
+          <div>
+            <b>Canonical route stack</b>
+            <p><code>Topbar [breadcrumb · optional route nav · actions]</code> → <code>PageHead [icon · H1 · context]</code> → <code>content navigation / toolbar</code> → <code>route body</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TOKENS -->
+      <section class="ds-sec" id="tokens" data-od-id="sec-tokens">
+        <div class="ds-sec__head">
+          <h2>Tokens</h2>
+          <span class="ds-sec__id">02</span>
+        </div>
+        <p class="ds-sec__lead">Warm-dark ramp from <code>packages/ui/src/tokens.css</code>. One accent (operator orange). Status hues are desaturated and tint-only.</p>
+        <div class="ds-card" style="margin-bottom:12px">
+          <div class="ds-card__label">Surfaces</div>
+          <div class="swatch-row">
+            <div class="swatch"><div class="swatch__chip" style="background:#0c0b0b"></div><div class="swatch__name">rail</div><div class="swatch__val">#0c0b0b</div></div>
+            <div class="swatch"><div class="swatch__chip" style="background:#131211"></div><div class="swatch__name">canvas</div><div class="swatch__val">#131211</div></div>
+            <div class="swatch"><div class="swatch__chip" style="background:#1a1918"></div><div class="swatch__name">canvas-soft</div><div class="swatch__val">#1a1918</div></div>
+            <div class="swatch"><div class="swatch__chip" style="background:#232220"></div><div class="swatch__name">elevated</div><div class="swatch__val">#232220</div></div>
+            <div class="swatch"><div class="swatch__chip" style="background:#e8572a"></div><div class="swatch__name">accent</div><div class="swatch__val">#e8572a</div></div>
+          </div>
+        </div>
+        <div class="ds-grid-2">
+          <div class="ds-card">
+            <div class="ds-card__label">Type</div>
+            <h3>Inter + JetBrains Mono</h3>
+            <p>Sans for UI chrome, loop names, and status pills. Mono for refs, slugs, counts, filter values, and id chips (<code>data-mono</code> Pills).</p>
+          </div>
+          <div class="ds-card">
+            <div class="ds-card__label">Radii</div>
+            <h3>xs 4 · sm 5 · 6 · md 8 · lg 10</h3>
+            <p>Buttons and the PillGroup track use <code>radius-md</code>; segments and pills use <code>radius-xs</code>. Rows use <code>radius-md</code> icon wells. Cards and list shells use <code>radius-lg</code>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROUTE COMPOSITION -->
+      <section class="ds-sec" id="route-composition" data-od-id="sec-route-composition">
+        <div class="ds-sec__head">
+          <h2>Route composition</h2>
+          <span class="ds-sec__id">03</span>
+        </div>
+        <p class="ds-sec__lead">Three page families cover the current product. Optional slots change the content, not the anatomy.</p>
+        <div class="spec-wrap">
+          <table class="spec-table">
+            <thead><tr><th>Page family</th><th>Topbar</th><th>Page head</th><th>Body chrome</th></tr></thead>
+            <tbody>
+              <tr><td>Index / collection</td><td>Breadcrumb · optional route nav · actions</td><td>Icon · H1 · count · description/meta</td><td>Scope, search, filters, view mode</td></tr>
+              <tr><td>Entity detail</td><td>Parent › entity · actions</td><td>Icon/avatar · H1 · pills/status · meta</td><td>Content tabs, sections, inspector</td></tr>
+              <tr><td>Split-pane compact</td><td>Parent › entity · actions</td><td>Compact icon · pre-title · H1 · short meta</td><td>Master list + detail pane controls</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ds-callout" data-od-id="composition-implementation-note">
+          <div>
+            <b>Implementation status</b>
+            <p>This is the target contract. The current <code>Topbar</code>, <code>PageShell</code>, and <code>DetailHeader</code> still encode parts of the old model and require a later production refactor.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TOPBAR -->
+      <section class="ds-sec" id="topbar" data-od-id="sec-topbar">
+        <div class="ds-sec__head">
+          <h2>Topbar</h2>
+          <span class="ds-sec__id">04</span>
+        </div>
+        <p class="ds-sec__lead">One 48px shell contract with four compositions: breadcrumb only; breadcrumb + actions; breadcrumb + centered route navigation; or all three zones.</p>
+        <div class="anatomy" data-od-id="topbar-anatomy">
+          <div class="anatomy__label">Anatomy · independent three-zone grid</div>
+          <div class="anatomy__wire">
+            <span class="anatomy__slot">breadcrumb · minmax(0,1fr)</span>
+            <span class="anatomy__slot anatomy__slot--muted">route nav · auto</span>
+            <span class="anatomy__slot anatomy__slot--accent">actions · 1fr / end</span>
+          </div>
+        </div>
+        <div class="preview" data-od-id="topbar-full-preview">
+          <div class="preview__bar"><span>T4 · Breadcrumb + route nav + actions</span><span>48px · canvas</span></div>
+          <header class="topbar" data-od-id="topbar-full">
+            <div class="topbar__context">
+              <nav class="breadcrumb" aria-label="Breadcrumb" data-od-id="topbar-full-breadcrumb">
+                <ol class="breadcrumb__list">
+                  <li class="breadcrumb__item"><a class="breadcrumb__link" href="#route-composition">Operate</a></li>
+                  <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+                  <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Tasks</span></li>
+                </ol>
+              </nav>
+            </div>
+            <nav class="topbar__route-nav route-nav" aria-label="Tasks views" data-od-id="topbar-route-nav">
+              <a class="route-nav__link" href="#topbar" aria-current="page">List</a>
+              <a class="route-nav__link" href="#route-navigation">Kanban</a>
+              <a class="route-nav__link" href="#route-navigation">Dashboard</a>
+              <a class="route-nav__link" href="#route-navigation">Inbox <span class="route-nav__count">2</span></a>
+            </nav>
+            <div class="topbar__trailing" data-od-id="topbar-full-actions">
+              <button type="button" class="btn btn--primary btn--sm" data-od-id="topbar-new-task"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New task</button>
+              <button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="More actions" title="More actions" data-od-id="topbar-more"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
+            </div>
+          </header>
+        </div>
+        <div class="ds-grid-2">
+          <div class="preview" data-od-id="topbar-detail-preview">
+            <div class="preview__bar"><span>T2 · Detail + actions</span></div>
+            <header class="topbar">
+              <div class="topbar__context">
+                <nav class="breadcrumb" aria-label="Breadcrumb">
+                  <ol class="breadcrumb__list">
+                    <li class="breadcrumb__item"><a class="breadcrumb__link" href="#page-head">Loops</a></li>
+                    <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+                    <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">software-delivery</span></li>
+                  </ol>
+                </nav>
+              </div>
+              <div></div>
+              <div class="topbar__trailing">
+                <button type="button" class="btn btn--ghost btn--sm">Edit</button>
+                <button type="button" class="btn btn--primary btn--sm">Run loop</button>
+              </div>
+            </header>
+          </div>
+          <div class="preview" data-od-id="topbar-minimal-preview">
+            <div class="preview__bar"><span>T1 · Breadcrumb only</span></div>
+            <header class="topbar">
+              <div class="topbar__context">
+                <nav class="breadcrumb" aria-label="Breadcrumb">
+                  <ol class="breadcrumb__list">
+                    <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Runs</span></li>
+                  </ol>
+                </nav>
+              </div>
+            </header>
+          </div>
+        </div>
+        <div class="do-dont">
+          <div class="do-dont__col do-dont__col--do">
+            <div class="do-dont__tag">Do</div>
+            <ul>
+              <li>Keep context, route navigation, and actions in independent grid zones</li>
+              <li>Allow breadcrumb truncation before displacing centered navigation</li>
+              <li>Collapse secondary actions into overflow at narrow widths</li>
+            </ul>
+          </div>
+          <div class="do-dont__col do-dont__col--dont">
+            <div class="do-dont__tag">Don’t</div>
+            <ul>
+              <li>Render route icon, H1, count, status, or badges in the topbar</li>
+              <li>Use <code>slot.title</code> for Breadcrumb; the current API nests it in an H1</li>
+              <li>Put search, scope selectors, or content status in the topbar</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- BREADCRUMB -->
+      <section class="ds-sec" id="breadcrumb" data-od-id="sec-breadcrumb">
+        <div class="ds-sec__head">
+          <h2>Breadcrumb</h2>
+          <span class="ds-sec__id">05</span>
+        </div>
+        <p class="ds-sec__lead">Use the exported <code>Breadcrumb</code> primitive: semantic navigation landmark, ordered list, real links, chevron separators, and <code>aria-current="page"</code> on the current location.</p>
+        <div class="preview" data-od-id="breadcrumb-preview">
+          <div class="preview__bar"><span>Default + truncated</span><span>13 / 18 · gap 6 · chevron 12</span></div>
+          <div class="preview__pad ds-grid-2">
+            <nav class="breadcrumb" aria-label="Breadcrumb" data-od-id="breadcrumb-default">
+              <ol class="breadcrumb__list">
+                <li class="breadcrumb__item"><a class="breadcrumb__link" href="#overview">Workspaces</a></li>
+                <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+                <li class="breadcrumb__item"><a class="breadcrumb__link" href="#overview">launch-hq</a></li>
+                <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+                <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Operator Style</span></li>
+              </ol>
+            </nav>
+            <nav class="breadcrumb" aria-label="Breadcrumb" data-od-id="breadcrumb-truncated">
+              <ol class="breadcrumb__list">
+                <li class="breadcrumb__item"><a class="breadcrumb__link" href="#overview">Workspaces</a></li>
+                <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+                <li class="breadcrumb__item"><span class="breadcrumb__ellipsis" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span></li>
+                <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+                <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">looprun_running</span></li>
+              </ol>
+            </nav>
+          </div>
+        </div>
+        <div class="ds-callout" data-od-id="breadcrumb-ellipsis-rule">
+          <div><b>Ellipsis is presentational</b><p>The current primitive hides ellipsis from assistive technology. Do not imply a menu unless a real disclosure control is implemented.</p></div>
+        </div>
+      </section>
+
+      <!-- ROUTE NAVIGATION -->
+      <section class="ds-sec" id="route-navigation" data-od-id="sec-route-navigation">
+        <div class="ds-sec__head">
+          <h2>Route navigation</h2>
+          <span class="ds-sec__id">06</span>
+        </div>
+        <p class="ds-sec__lead">Sister routes use real links inside a labeled <code>nav</code>. The neutral segmented appearance is visual only; <code>Tabs</code> remain for in-route panels and <code>PillGroup</code> remains a mode selector.</p>
+        <div class="ds-grid-3">
+          <div class="ds-card" data-od-id="route-nav-links">
+            <div class="ds-card__label">Routes</div>
+            <h3><code>nav &gt; a[aria-current]</code></h3>
+            <p>Changes URL/history. Allowed in the topbar center zone.</p>
+          </div>
+          <div class="ds-card" data-od-id="route-nav-tabs">
+            <div class="ds-card__label">Panels</div>
+            <h3><code>Tabs / LaneTabs</code></h3>
+            <p>Changes a panel in the same route. Place below the page head.</p>
+          </div>
+          <div class="ds-card" data-od-id="route-nav-pill-group">
+            <div class="ds-card__label">Modes</div>
+            <h3><code>PillGroup</code></h3>
+            <p>Changes scope or view mode. Place inside the body toolbar.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ACTIONS -->
+      <section class="ds-sec" id="actions" data-od-id="sec-actions">
+        <div class="ds-sec__head">
+          <h2>Topbar actions</h2>
+          <span class="ds-sec__id">07</span>
+        </div>
+        <p class="ds-sec__lead">Actions are right-aligned, 22px high, and ordered from lower to higher emphasis. One accent target per viewport.</p>
+        <div class="ds-grid-3">
+          <div class="preview" data-od-id="actions-create">
+            <div class="preview__bar"><span>Create</span></div>
+            <div class="preview__pad topbar__trailing">
+              <button type="button" class="btn btn--ghost btn--sm">Refresh</button>
+              <button type="button" class="btn btn--primary btn--sm">New bridge</button>
+            </div>
+          </div>
+          <div class="preview" data-od-id="actions-save">
+            <div class="preview__bar"><span>Save / discard</span></div>
+            <div class="preview__pad topbar__trailing">
+              <button type="button" class="btn btn--ghost btn--sm">Discard</button>
+              <button type="button" class="btn btn--primary btn--sm" id="ds-save-action">Save changes</button>
+            </div>
+          </div>
+          <div class="preview" data-od-id="actions-entity">
+            <div class="preview__bar"><span>Entity</span></div>
+            <div class="preview__pad topbar__trailing">
+              <button type="button" class="btn btn--destructive btn--sm">Delete loop</button>
+              <button type="button" class="btn btn--ghost btn--sm">Edit</button>
+              <button type="button" class="btn btn--primary btn--sm">Run now</button>
+            </div>
+          </div>
+        </div>
+        <div class="spec-wrap">
+          <table class="spec-table">
+            <thead><tr><th>Priority</th><th>Variant</th><th>Rule</th></tr></thead>
+            <tbody>
+              <tr><td>Primary</td><td><code>Button default / primary · sm</code></td><td>One accent action, immediately before overflow.</td></tr>
+              <tr><td>Secondary</td><td><code>neutral</code> or <code>ghost · sm</code></td><td>Use neutral fill for persistent alternatives; ghost for utilities.</td></tr>
+              <tr><td>Destructive</td><td><code>destructive</code> or danger ghost</td><td>Never compete with the positive primary action.</td></tr>
+              <tr><td>Overflow</td><td><code>ghost · icon-sm</code></td><td>Last item; requires accessible label and tooltip.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PAGE HEAD -->
+      <section class="ds-sec" id="page-head" data-od-id="sec-page-head">
+        <div class="ds-sec__head">
+          <h2>Page head</h2>
+          <span class="ds-sec__id">08</span>
+        </div>
+        <p class="ds-sec__lead">Page identity moves into content. Every variant starts with the 24px elevated icon well from the old topbar and owns the route’s single focusable H1.</p>
+        <div class="anatomy" data-od-id="page-head-anatomy">
+          <div class="anatomy__label">Shared anatomy</div>
+          <div class="anatomy__wire">
+            <span class="anatomy__slot anatomy__slot--accent">icon well 24 · glyph 12</span>
+            <span class="anatomy__slot">H1 · 1.4rem / 600</span>
+            <span class="anatomy__slot anatomy__slot--muted">optional count / pills / meta</span>
+          </div>
+        </div>
+        <div class="preview" data-od-id="page-head-index-preview">
+          <div class="preview__bar"><span>PH1 · Index / collection</span><span>Bridges · Runs · Tasks · MCP</span></div>
+          <div class="preview__pad">
+            <header class="head" data-od-id="page-head-index">
+              <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6-6 6 6M6 15l6 6 6-6M4 12h16"/></svg></span>
+              <div class="head__main">
+                <div class="head__titlerow"><h1 class="head__title" tabindex="-1">Bridges</h1><span class="count-chip">1</span></div>
+                <div class="head__meta"><span>Messaging bridges that connect AGH to external platforms.</span><span class="dotsep"></span><span>launch-hq</span></div>
+              </div>
+            </header>
+          </div>
+        </div>
+        <div class="ds-grid-2">
+          <div class="preview" data-od-id="page-head-detail-preview">
+            <div class="preview__bar"><span>PH2 · Entity detail</span></div>
+            <div class="preview__pad">
+              <header class="head head--detail" data-od-id="page-head-detail">
+                <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></span>
+                <div class="head__main">
+                  <div class="head__titlerow"><h1 class="head__title" tabindex="-1">software-delivery</h1></div>
+                  <div class="head__pills"><span class="pill" data-tone="success"><span class="dot"></span>ready</span><span class="pill">workspace</span><span class="pill">v4</span></div>
+                  <div class="head__meta"><span>agh.loop/v1</span><span class="dotsep"></span><span>8 nodes</span><span class="dotsep"></span><span>Canonical ship-a-change delivery loop.</span></div>
+                </div>
+              </header>
+            </div>
+          </div>
+          <div class="preview" data-od-id="page-head-compact-preview">
+            <div class="preview__bar"><span>PH3 · Split-pane compact</span></div>
+            <div class="preview__pad">
+              <header class="head head--compact" data-od-id="page-head-compact">
+                <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+                <div class="head__main">
+                  <div class="head__pretitle">operator-style.md</div>
+                  <div class="head__titlerow"><h1 class="head__title" tabindex="-1">Operator Style</h1></div>
+                  <div class="head__meta"><span>Global</span><span class="dotsep"></span><span>Apr 17, 2026, 14:30</span></div>
+                </div>
+              </header>
+            </div>
+          </div>
+        </div>
+        <div class="spec-wrap">
+          <table class="spec-table">
+            <thead><tr><th>Variant</th><th>Required</th><th>Optional</th><th>Never</th></tr></thead>
+            <tbody>
+              <tr><td>PH1 Index</td><td>Icon + H1 + supporting copy</td><td>Count, scope, freshness</td><td>Status summary strip, route actions</td></tr>
+              <tr><td>PH2 Detail</td><td>Icon/avatar + H1</td><td>Pills, status, description, metadata</td><td>Breadcrumb, duplicate back, route actions</td></tr>
+              <tr><td>PH3 Compact</td><td>Compact icon + H1</td><td>Pre-title/id, one short meta line</td><td>Second list title, full action cluster</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ds-callout" data-od-id="page-head-focus-rule">
+          <div><b>Route focus moves here</b><p>The Page Head H1 is the single page title and keeps <code>tabIndex="-1"</code> so the shell can move focus after route resolution.</p></div>
+        </div>
+      </section>
+
+      <!-- TOOLBAR — THE KEY PATTERN -->
+      <section class="ds-sec" id="toolbar" data-od-id="sec-toolbar">
+        <div class="ds-sec__head">
+          <h2>Listing toolbar</h2>
+          <span class="ds-sec__id">09</span>
+        </div>
+        <p class="ds-sec__lead">
+          The locked title pattern: <strong style="color:var(--fg-strong);font-weight:600">Search + Filters</strong> on the leading side,
+          <strong style="color:var(--fg-strong);font-weight:600">Rows | Cards</strong> on the trailing side. This is the control surface every catalog redesign must reuse.
+        </p>
+
+        <div class="anatomy" data-od-id="toolbar-anatomy">
+          <div class="anatomy__label">Anatomy · listing-toolbar</div>
+          <div class="anatomy__wire">
+            <span class="anatomy__slot anatomy__slot--accent">SearchInput 26px</span>
+            <span class="anatomy__slot">Filters chips</span>
+            <span class="anatomy__slot anatomy__slot--muted">+ Filter</span>
+            <span class="anatomy__spacer"></span>
+            <span class="anatomy__slot anatomy__slot--accent">PillGroup · Rows | Cards</span>
+          </div>
+        </div>
+
+        <div class="preview" data-od-id="toolbar-preview">
+          <div class="preview__bar"><span>Live · listing toolbar</span><span>AND search × chips</span></div>
+          <div class="preview__pad">
+            <div class="listing-toolbar">
+              <div class="listing-toolbar__leading">
+                <label class="search" data-od-id="demo-search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+                  <input type="search" placeholder="Search items" autocomplete="off" spellcheck="false" />
+                  <span class="kbd">/</span>
+                </label>
+                <div class="filters">
+                  <div class="filter-chip" data-od-id="demo-chip-kind">
+                    <span class="filter-chip__label">Kind</span>
+                    <button type="button" class="filter-chip__op">is</button>
+                    <button type="button" class="filter-chip__val">custom</button>
+                    <button type="button" class="filter-chip__x" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                  </div>
+                  <div class="filter-chip" data-od-id="demo-chip-status">
+                    <span class="filter-chip__label">Status</span>
+                    <button type="button" class="filter-chip__op">is</button>
+                    <button type="button" class="filter-chip__val">running</button>
+                    <button type="button" class="filter-chip__x" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                  </div>
+                  <button type="button" class="btn btn--ghost btn--sm" data-od-id="demo-filter-add">+ Filter</button>
+                </div>
+              </div>
+              <div class="listing-toolbar__trailing">
+                <div class="pill-group" role="group" aria-label="View mode" data-od-id="demo-view-toggle">
+                  <button type="button" class="pill-group__item" data-view="rows" aria-pressed="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    Rows
+                  </button>
+                  <button type="button" class="pill-group__item" data-view="cards" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    Cards
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec-wrap">
+          <table class="spec-table">
+            <thead><tr><th>Part</th><th>Spec</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>SearchInput</td><td>26px · min 220px · <code>/</code> shortcut</td><td>Before Filters. AND with chips.</td></tr>
+              <tr><td>Filters</td><td>reui chip bar · label · op · value · ×</td><td>One chip per field. No kind tab strip.</td></tr>
+              <tr><td>PillGroup</td><td>md 24px · borderless track · elevated active segment</td><td>Never accent fill. Labels <code>Rows</code> | <code>Cards</code>.</td></tr>
+              <tr><td>Sort label</td><td>None</td><td>Omit unless a real sort control exists.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="ds-grid-2">
+          <div class="ds-card">
+            <div class="ds-card__label">Loops filter fields</div>
+            <ul>
+              <li><code>kind</code>: builtin / custom</li>
+              <li><code>category</code>: distinct from data</li>
+              <li><code>status</code>: 10-state enum</li>
+              <li><code>mode</code>: delivery / watch</li>
+              <li><code>name</code>: contains / starts_with / is</li>
+            </ul>
+          </div>
+          <div class="ds-card">
+            <div class="ds-card__label">Vault filter fields</div>
+            <ul>
+              <li><code>namespace</code>: sessions → info tone</li>
+              <li><code>kind</code>: secret kind string</li>
+              <li><code>ref</code>: text contains on vault: path</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROWS -->
+      <section class="ds-sec" id="rows" data-od-id="sec-rows">
+        <div class="ds-sec__head">
+          <h2>Rows</h2>
+          <span class="ds-sec__id">10</span>
+        </div>
+        <p class="ds-sec__lead">Canonical dense scan layout. Grid <code>[34px] [1fr] [auto]</code>. Flat list by default. Filters own type and namespace scoping; Loops may group Built-in and Custom.</p>
+
+        <div class="anatomy" data-od-id="row-anatomy">
+          <div class="anatomy__label">Anatomy · listing-row</div>
+          <div class="anatomy__wire">
+            <span class="anatomy__slot">icon 34</span>
+            <span class="anatomy__slot anatomy__slot--accent">name · tags · slug</span>
+            <span class="anatomy__slot anatomy__slot--muted">desc · meta</span>
+            <span class="anatomy__spacer"></span>
+            <span class="anatomy__slot">Pill</span>
+            <span class="anatomy__slot anatomy__slot--accent">action</span>
+          </div>
+        </div>
+
+        <div class="preview" data-od-id="rows-preview">
+          <div class="preview__bar"><span>Live · vault row + loops row</span></div>
+          <div class="preview__pad">
+            <div class="list">
+              <div class="listing-row" data-od-id="ex-row-vault">
+                <div class="listing-row__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                </div>
+                <div class="listing-row__main">
+                  <div class="listing-row__name">
+                    <b>automation/nightly-deploy/webhook_secret</b>
+                    <span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">webhook_secret</span>
+                  </div>
+                  <div class="listing-row__meta">
+                    <span>present</span>
+                    <span class="dotsep"></span>
+                    <span>updated May 30</span>
+                  </div>
+                </div>
+                <div class="listing-row__trail">
+                  <span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">automation</span>
+                  <div class="row-actions">
+                    <button type="button" class="btn btn--icon" aria-label="Delete">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="listing-row" data-od-id="ex-row-loop">
+                <div class="listing-row__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </div>
+                <div class="listing-row__main">
+                  <div class="listing-row__name">
+                    <b class="sans">Nightly deploy watch</b>
+                    <span class="tag">custom</span>
+                    <span class="listing-row__slug">nightly_deploy_watch</span>
+                  </div>
+                  <div class="listing-row__desc">Watch deploy pipeline and escalate when health checks fail.</div>
+                  <div class="listing-row__meta">
+                    <span class="k">watch</span>
+                    <span class="dotsep"></span>
+                    <span class="k">watch-source</span>
+                    <span class="dotsep"></span>
+                    <span class="k">3 inputs</span>
+                    <span class="dotsep"></span>
+                    <span>iteration cap 40</span>
+                    <span class="bindbadge">trigger · schedule</span>
+                  </div>
+                </div>
+                <div class="listing-row__trail">
+                  <span class="pill" data-tone="accent"><span class="dot"></span>running</span>
+                  <div class="listing-row__stat">
+                    <span class="listing-row__stat-v">94%</span>
+                    <span class="listing-row__stat-l">28 runs · 30d</span>
+                  </div>
+                  <button type="button" class="runbtn">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    Run
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="do-dont">
+          <div class="do-dont__col do-dont__col--do">
+            <div class="do-dont__tag">Do</div>
+            <ul>
+              <li>Type/kind as <code>Pill mono tone=neutral</code> in the trail</li>
+              <li>Always-visible primary action (Run / Delete)</li>
+              <li>Truncate name; keep slug mono beside tags</li>
+            </ul>
+          </div>
+          <div class="do-dont__col do-dont__col--dont">
+            <div class="do-dont__tag">Don’t</div>
+            <ul>
+              <li>Duplicate type in meta when trail already shows it</li>
+              <li>Accent side-stripes or hover lift</li>
+              <li>Invent bordered elevated chips instead of Pill</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- CARDS -->
+      <section class="ds-sec" id="cards" data-od-id="sec-cards">
+        <div class="ds-sec__head">
+          <h2>Cards</h2>
+          <span class="ds-sec__id">11</span>
+        </div>
+        <p class="ds-sec__lead">Same data, browse density. Grid 1 / 2 / 3 at sm / xl. Cards are borderless flat surfaces: <code>canvas-soft</code> at rest, <code>elevated</code> on hover, never outlined. Relative date sits under the title as the Meta eyebrow. Type Pill stays in the footer opposite the action. Description appears only when it adds meaning; Vault omits body copy entirely.</p>
+
+        <div class="anatomy" data-od-id="card-anatomy">
+          <div class="anatomy__label">Anatomy · listing-card / CatalogCard</div>
+          <div class="anatomy__wire">
+            <span class="anatomy__slot">logo 24</span>
+            <span class="anatomy__slot anatomy__slot--accent">title</span>
+            <span class="anatomy__slot anatomy__slot--muted">updated · relative</span>
+            <span class="anatomy__spacer"></span>
+            <span class="anatomy__slot anatomy__slot--muted">optional desc</span>
+            <span class="anatomy__spacer"></span>
+            <span class="anatomy__slot">Pill type</span>
+            <span class="anatomy__slot anatomy__slot--accent">Delete / Run</span>
+          </div>
+        </div>
+
+        <div class="preview" data-od-id="cards-preview">
+          <div class="preview__bar"><span>Live · vault card (no desc) · reference screenshot pattern</span></div>
+          <div class="preview__pad">
+            <div class="listing-card-grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+              <div class="listing-card" data-od-id="ex-card-vault">
+                <div class="listing-card__head">
+                  <div class="listing-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                  </div>
+                  <div class="listing-card__title">
+                    <b title="vault:automation/nightly-deploy/webhook_secret">automation/nightly-deploy/webhook_secret</b>
+                    <div class="listing-card__eyebrow">updated May 30</div>
+                  </div>
+                </div>
+                <div class="listing-card__foot">
+                  <div class="listing-card__foot-meta">
+                    <span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">automation</span>
+                    <span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">webhook_secret</span>
+                  </div>
+                  <button type="button" class="btn btn--ghost btn--sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                    Delete
+                  </button>
+                </div>
+              </div>
+              <div class="listing-card" data-od-id="ex-card-loop">
+                <div class="listing-card__head">
+                  <div class="listing-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                  </div>
+                  <div class="listing-card__title">
+                    <b class="sans">Nightly deploy watch</b>
+                    <div class="listing-card__eyebrow">custom · delivery · <span class="mono-slug">nightly_deploy_watch</span></div>
+                  </div>
+                </div>
+                <p class="listing-card__desc">Watch deploy pipeline and escalate when health checks fail.</p>
+                <div class="listing-card__foot">
+                  <div class="listing-card__foot-meta">
+                    <span class="pill" data-tone="success"><span class="dot"></span>done</span>
+                  </div>
+                  <button type="button" class="runbtn">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    Run
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EMPTY -->
+      <section class="ds-sec" id="empty" data-od-id="sec-empty">
+        <div class="ds-sec__head">
+          <h2>Empty</h2>
+          <span class="ds-sec__id">12</span>
+        </div>
+        <p class="ds-sec__lead">Flat centered state with a 38px icon well on <code>canvas-soft</code> and no dashed frame, matching <code>&lt;Empty&gt;</code>. Use distinct copy for zero inventory and no matches. Match the CTA to the page primary action: New secret, New from template, or Clear filters.</p>
+        <div class="ds-grid-2">
+          <div class="preview" data-od-id="empty-zero">
+            <div class="preview__bar"><span>Zero inventory</span></div>
+            <div class="preview__pad">
+              <div class="empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                <b>No vault secrets</b>
+                <p>Vault metadata appears here after a write-only secret is stored.</p>
+                <button type="button" class="btn btn--primary">New secret</button>
+              </div>
+            </div>
+          </div>
+          <div class="preview" data-od-id="empty-filter">
+            <div class="preview__bar"><span>No matches</span></div>
+            <div class="preview__pad">
+              <div class="empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+                <b>No loops match</b>
+                <p>Try a different search or clear filters.</p>
+                <button type="button" class="btn">Clear filters</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PLAYGROUND -->
+      <section class="ds-sec" id="playground" data-od-id="sec-playground">
+        <div class="ds-sec__head">
+          <h2>Playground</h2>
+          <span class="ds-sec__id">13</span>
+        </div>
+        <p class="ds-sec__lead">Full route composition: canonical topbar + PH1 page head + toolbar + live rows/cards toggle. Use this as the starting composition for an inventory route.</p>
+
+        <div class="preview" data-od-id="playground-preview">
+          <div class="preview__bar"><span>Interactive · Skills catalog (sample)</span><span id="pg-count-label">4 items</span></div>
+          <header class="topbar" data-od-id="pg-topbar">
+            <div class="topbar__context">
+              <nav class="breadcrumb" aria-label="Breadcrumb">
+                <ol class="breadcrumb__list">
+                  <li class="breadcrumb__item"><a class="breadcrumb__link" href="#overview">Catalog</a></li>
+                  <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+                  <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Skills</span></li>
+                </ol>
+              </nav>
+            </div>
+            <div></div>
+            <div class="topbar__trailing">
+              <button type="button" class="btn btn--primary btn--sm">Install skill</button>
+            </div>
+          </header>
+          <div class="preview__pad">
+            <div class="head" data-od-id="pg-head">
+              <span class="head__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg></span>
+              <div class="head__main">
+                <div class="head__titlerow">
+                  <h1 class="head__title">Skills</h1>
+                  <span class="count-chip" id="pg-count">4</span>
+                </div>
+                <div class="head__meta">
+                  <span>Installed skills available to agents in this workspace.</span>
+                  <span class="dotsep"></span>
+                  <span>workspace home</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="listing-toolbar" data-od-id="pg-toolbar">
+              <div class="listing-toolbar__leading">
+                <label class="search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+                  <input id="pg-search" type="search" placeholder="Search skills" autocomplete="off" spellcheck="false" />
+                  <span class="kbd">/</span>
+                </label>
+                <div class="filters">
+                  <div class="filter-chip" id="pg-chip" data-od-id="pg-chip">
+                    <span class="filter-chip__label">Source</span>
+                    <button type="button" class="filter-chip__op">is</button>
+                    <button type="button" class="filter-chip__val" id="pg-chip-val">installed</button>
+                    <button type="button" class="filter-chip__x" id="pg-chip-x" aria-label="Remove filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                  </div>
+                  <button type="button" class="btn btn--ghost btn--sm" id="pg-add-filter">+ Filter</button>
+                </div>
+              </div>
+              <div class="listing-toolbar__trailing">
+                <div class="pill-group" role="group" aria-label="View mode" id="pg-view">
+                  <button type="button" class="pill-group__item" data-view="rows" aria-pressed="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    Rows
+                  </button>
+                  <button type="button" class="pill-group__item" data-view="cards" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    Cards
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div id="pg-root" data-od-id="pg-root"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONTRACT -->
+      <section class="ds-sec" id="contract" data-od-id="sec-contract">
+        <div class="ds-sec__head">
+          <h2>Class contract</h2>
+          <span class="ds-sec__id">14</span>
+        </div>
+        <p class="ds-sec__lead">Stable selectors for HTML prototypes and CJX handoff. Prefer these over inventing new BEM trees per page.</p>
+        <div class="spec-wrap">
+          <table class="spec-table">
+            <thead><tr><th>Role</th><th>Classes</th></tr></thead>
+            <tbody>
+              <tr><td>Topbar</td><td><code>.topbar</code> / <code>.topbar__context</code> / <code>.topbar__route-nav</code> / <code>.topbar__trailing</code></td></tr>
+              <tr><td>Breadcrumb</td><td><code>.breadcrumb</code> / <code>.breadcrumb__list|item|link|page|separator|ellipsis</code></td></tr>
+              <tr><td>Route navigation</td><td><code>.route-nav</code> / <code>.route-nav__link[aria-current=page]</code></td></tr>
+              <tr><td>Page head</td><td><code>.head</code> / <code>.head--detail|compact</code> / <code>.head__icon|title|pills|meta</code></td></tr>
+              <tr><td>Toolbar</td><td><code>.listing-toolbar</code> / <code>.listing-toolbar__leading</code> / <code>.listing-toolbar__trailing</code></td></tr>
+              <tr><td>Search</td><td><code>.search</code> (+ <code>.kbd</code>)</td></tr>
+              <tr><td>Filters</td><td><code>.filters</code> / <code>.filter-chip</code> / <code>.filter-chip__label|op|val|x</code></td></tr>
+              <tr><td>View toggle</td><td><code>.pill-group</code> / <code>.pill-group__item</code></td></tr>
+              <tr><td>Type / kind</td><td><code>.pill[data-slot=pill][data-mono=true]</code></td></tr>
+              <tr><td>Rows</td><td><code>.list</code> &gt; <code>.listing-row</code> (alias <code>.row</code>)</td></tr>
+              <tr><td>Cards</td><td><code>.listing-card-grid</code> &gt; <code>.listing-card</code> (Loops also <code>.catalog-card</code>)</td></tr>
+              <tr><td>Empty</td><td><code>.empty</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-block" data-od-id="contract-snippet"><span class="c">&lt;!-- minimal listing shell --&gt;</span>
+<span class="k">&lt;div</span> class=<span class="s">"head"</span><span class="k">&gt;</span>…title + count + meta<span class="k">&lt;/div&gt;</span>
+<span class="k">&lt;div</span> class=<span class="s">"listing-toolbar"</span><span class="k">&gt;</span>
+  <span class="k">&lt;div</span> class=<span class="s">"listing-toolbar__leading"</span><span class="k">&gt;</span>
+    <span class="k">&lt;label</span> class=<span class="s">"search"</span><span class="k">&gt;</span>…<span class="k">&lt;/label&gt;</span>
+    <span class="k">&lt;div</span> class=<span class="s">"filters"</span><span class="k">&gt;</span>…chips<span class="k">&lt;/div&gt;</span>
+  <span class="k">&lt;/div&gt;</span>
+  <span class="k">&lt;div</span> class=<span class="s">"listing-toolbar__trailing"</span><span class="k">&gt;</span>
+    <span class="k">&lt;div</span> class=<span class="s">"pill-group"</span><span class="k">&gt;</span>Rows | Cards<span class="k">&lt;/div&gt;</span>
+  <span class="k">&lt;/div&gt;</span>
+<span class="k">&lt;/div&gt;</span>
+<span class="k">&lt;div</span> class=<span class="s">"list"</span><span class="k">&gt;</span>…<span class="k">&lt;div</span> class=<span class="s">"listing-row"</span><span class="k">&gt;</span>…</div>
+      </section>
+
+      <!-- CHECKLIST -->
+      <section class="ds-sec" id="checklist" data-od-id="sec-checklist">
+        <div class="ds-sec__head">
+          <h2>Migration checklist</h2>
+          <span class="ds-sec__id">15</span>
+        </div>
+        <p class="ds-sec__lead">Run this before migrating any route to the new page-level contract.</p>
+        <div class="ds-card">
+          <ul class="checklist">
+            <li><span class="mark mark--p0">P0</span> Topbar = Breadcrumb · optional route navigation · right-aligned actions</li>
+            <li><span class="mark mark--p0">P0</span> No route icon, H1, count, status, badge, search, or scope selector in the topbar</li>
+            <li><span class="mark mark--p0">P0</span> Route navigation uses real links + <code>aria-current</code>; Tabs and PillGroup keep their original semantics</li>
+            <li><span class="mark mark--p0">P0</span> Page Head owns the 24px orange icon well and the route’s single focusable H1</li>
+            <li><span class="mark mark--p0">P0</span> Collection, detail, and compact pages map to PH1, PH2, or PH3 without new anatomy</li>
+            <li><span class="mark mark--p0">P0</span> Topbar actions are 22px; one accent CTA; secondary → primary → overflow</li>
+            <li><span class="mark">P1</span> Search, filters, scopes, view modes, and content tabs stay in body chrome</li>
+            <li><span class="mark">P1</span> Long breadcrumbs truncate; narrow topbars collapse secondary actions before context</li>
+            <li><span class="mark">P1</span> Catalog toolbar remains Search → Filters → spacer → PillGroup Rows|Cards</li>
+            <li><span class="mark">P2</span> No accent side-stripes, gradients, duplicate titles, or invented status summaries</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- REFERENCES -->
+      <section class="ds-sec" id="references" data-od-id="sec-references">
+        <div class="ds-sec__head">
+          <h2>References</h2>
+          <span class="ds-sec__id">16</span>
+        </div>
+        <p class="ds-sec__lead">Canonical sources and known implementation deltas. Use the shared primitives where they exist; treat the new chrome as a migration target until production components are updated.</p>
+        <div class="ds-grid-2">
+          <div class="ds-card" data-od-id="ref-loops">
+            <div class="ds-card__label">Source A</div>
+            <h3><a href="../loops/loops-catalog.html">loops-catalog.html</a></h3>
+            <p>Operator catalog with status pills, success rate, Run CTA, Built-in/Custom groups, and CatalogCard compound.</p>
+          </div>
+          <div class="ds-card" data-od-id="ref-vault">
+            <div class="ds-card__label">Source B</div>
+            <h3><a href="vault-redesign.html">vault-redesign.html</a></h3>
+            <p>Inventory with namespace Pills, delete actions, cards without body desc, and the CleanShot card reference pattern.</p>
+          </div>
+          <div class="ds-card" data-od-id="ref-standard">
+            <div class="ds-card__label">Written spec</div>
+            <h3><a href="LISTING-STANDARD.md">LISTING-STANDARD.md</a></h3>
+            <p>When to use rows vs cards, toolbar anatomy, filter fields, anti-patterns.</p>
+          </div>
+          <div class="ds-card" data-od-id="ref-tokens">
+            <div class="ds-card__label">Runtime tokens</div>
+            <h3>packages/ui/src/tokens.css</h3>
+            <p>Canonical AGH color/type/radius contract. Prototypes mirror these as local <code>:root</code> vars.</p>
+          </div>
+          <div class="ds-card" data-od-id="ref-breadcrumb-component">
+            <div class="ds-card__label">Existing primitive</div>
+            <h3>packages/ui/src/components/breadcrumb.tsx</h3>
+            <p>Semantic breadcrumb anatomy, links, current page, separator, and ellipsis. Reuse directly.</p>
+          </div>
+          <div class="ds-card" data-od-id="ref-topbar-migration">
+            <div class="ds-card__label">Migration target</div>
+            <h3>packages/ui/src/components/custom/topbar.tsx</h3>
+            <p>Current component still owns icon, H1, count, and meta. Its API must change before production adopts this contract.</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var ITEMS = [
+    { id: "web-search", name: "web_search", source: "installed", kind: "tool", updated: "Jun 12", desc: "Search the public web and return ranked snippets." },
+    { id: "code-exec", name: "code_exec", source: "installed", kind: "runtime", updated: "Jun 8", desc: "Run sandboxed code snippets for agents." },
+    { id: "browser", name: "browser_use", source: "marketplace", kind: "tool", updated: "May 30", desc: "Drive a headed browser for form fills and scrapes." },
+    { id: "memory", name: "memory_store", source: "installed", kind: "storage", updated: "May 22", desc: "Persist long-term facts for a workspace agent." }
+  ];
+
+  var state = { view: "rows", query: "", sourceFilter: "installed" };
+  var ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>';
+
+  function esc(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  function filtered() {
+    var q = state.query.trim().toLowerCase();
+    return ITEMS.filter(function (it) {
+      if (state.sourceFilter && it.source !== state.sourceFilter) return false;
+      if (!q) return true;
+      return (it.name + " " + it.kind + " " + it.desc).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function render() {
+    var list = filtered();
+    var root = document.getElementById("pg-root");
+    document.getElementById("pg-count").textContent = String(list.length);
+    document.getElementById("pg-count-label").textContent = list.length + " item" + (list.length === 1 ? "" : "s");
+
+    if (!list.length) {
+      root.innerHTML = '<div class="empty" data-od-id="pg-empty">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>' +
+        "<b>No skills match</b><p>Try clearing search or filters.</p>" +
+        '<button type="button" class="btn" id="pg-clear">Clear filters</button></div>';
+      var clear = document.getElementById("pg-clear");
+      if (clear) clear.addEventListener("click", function () {
+        state.query = "";
+        state.sourceFilter = "";
+        document.getElementById("pg-search").value = "";
+        document.getElementById("pg-chip").classList.add("hide");
+        render();
+      });
+      return;
+    }
+
+    if (state.view === "cards") {
+      var html = '<div class="listing-card-grid" data-od-id="pg-cards">';
+      list.forEach(function (it, i) {
+        html += '<div class="listing-card" data-od-id="pg-card-' + (i + 1) + '">';
+        html += '<div class="listing-card__head"><div class="listing-card__icon" aria-hidden="true">' + ICON + '</div>';
+        html += '<div class="listing-card__title"><b>' + esc(it.name) + '</b>';
+        html += '<div class="listing-card__eyebrow">updated ' + esc(it.updated) + '</div></div></div>';
+        html += '<p class="listing-card__desc">' + esc(it.desc) + '</p>';
+        html += '<div class="listing-card__foot"><div class="listing-card__foot-meta">';
+        html += '<span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">' + esc(it.source) + '</span>';
+        html += '<span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">' + esc(it.kind) + '</span>';
+        html += '</div><button type="button" class="btn btn--ghost btn--sm">Open</button></div></div>';
+      });
+      html += "</div>";
+      root.innerHTML = html;
+    } else {
+      var rows = '<div class="list" data-od-id="pg-list">';
+      list.forEach(function (it, i) {
+        rows += '<div class="listing-row" data-od-id="pg-row-' + (i + 1) + '">';
+        rows += '<div class="listing-row__icon" aria-hidden="true">' + ICON + '</div>';
+        rows += '<div class="listing-row__main"><div class="listing-row__name"><b>' + esc(it.name) + '</b>';
+        rows += '<span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">' + esc(it.kind) + '</span></div>';
+        rows += '<div class="listing-row__desc">' + esc(it.desc) + '</div>';
+        rows += '<div class="listing-row__meta"><span class="k">' + esc(it.source) + '</span><span class="dotsep"></span><span>updated ' + esc(it.updated) + '</span></div></div>';
+        rows += '<div class="listing-row__trail"><span class="pill" data-slot="pill" data-tone="neutral" data-mono="true">' + esc(it.source) + '</span>';
+        rows += '<button type="button" class="btn btn--sm">Open</button></div></div>';
+      });
+      rows += "</div>";
+      root.innerHTML = rows;
+    }
+  }
+
+  document.getElementById("pg-search").addEventListener("input", function (e) {
+    state.query = e.target.value;
+    render();
+  });
+
+  document.getElementById("pg-view").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-view]");
+    if (!btn) return;
+    state.view = btn.getAttribute("data-view");
+    document.querySelectorAll("#pg-view .pill-group__item").forEach(function (el) {
+      el.setAttribute("aria-pressed", el === btn ? "true" : "false");
+    });
+    render();
+  });
+
+  document.getElementById("pg-chip-x").addEventListener("click", function () {
+    state.sourceFilter = "";
+    document.getElementById("pg-chip").classList.add("hide");
+    render();
+  });
+
+  document.getElementById("pg-add-filter").addEventListener("click", function () {
+    state.sourceFilter = "installed";
+    document.getElementById("pg-chip").classList.remove("hide");
+    document.getElementById("pg-chip-val").textContent = "installed";
+    render();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "/" && !e.metaKey && !e.ctrlKey) {
+      var t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      document.getElementById("pg-search").focus();
+    }
+  });
+
+
+  var saveAction = document.getElementById("ds-save-action");
+  if (saveAction) {
+    saveAction.addEventListener("click", function () {
+      var original = saveAction.textContent;
+      saveAction.disabled = true;
+      saveAction.textContent = "Saving…";
+      window.setTimeout(function () {
+        saveAction.textContent = "Saved";
+        window.setTimeout(function () {
+          saveAction.textContent = original;
+          saveAction.disabled = false;
+        }, 900);
+      }, 650);
+    });
+  }
+
+  // Demo toolbar view toggle (static section)
+  var demoToggle = document.querySelector("[data-od-id='demo-view-toggle']");
+  if (demoToggle) {
+    demoToggle.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-view]");
+      if (!btn) return;
+      demoToggle.querySelectorAll(".pill-group__item").forEach(function (el) {
+        el.setAttribute("aria-pressed", el === btn ? "true" : "false");
+      });
+    });
+  }
+
+  // Nav active state
+  var links = Array.prototype.slice.call(document.querySelectorAll(".ds-nav a[href^='#']"));
+  var sections = links.map(function (a) { return document.querySelector(a.getAttribute("href")); }).filter(Boolean);
+  function syncNav() {
+    var y = window.scrollY + 80;
+    var current = sections[0];
+    sections.forEach(function (sec) { if (sec.offsetTop <= y) current = sec; });
+    links.forEach(function (a) {
+      a.classList.toggle("is-active", a.getAttribute("href") === "#" + current.id);
+    });
+  }
+  window.addEventListener("scroll", syncNav, { passive: true });
+  syncNav();
+
+  render();
+})();
+</script>
+</body>
+</html>

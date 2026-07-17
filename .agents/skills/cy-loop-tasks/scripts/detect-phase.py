@@ -58,20 +58,13 @@ def _read_frontmatter(md_path: Path) -> dict[str, str]:
 def _is_qa_task(slug_dir: Path, stem: str) -> bool:
     fm = _read_frontmatter(slug_dir / f"{stem}.md")
     type_field = fm.get("type", "").lower()
-    title = fm.get("title", "").lower()
-    return (
-        "qa-report" in type_field
-        or "qa-execution" in type_field
-        or "qa report" in title
-        or "qa execution" in title
-    )
+    return type_field in {"qa-report", "qa-execution"}
 
 
 def _qa_kind(slug_dir: Path, stem: str) -> str:
     fm = _read_frontmatter(slug_dir / f"{stem}.md")
     type_field = fm.get("type", "").lower()
-    title = fm.get("title", "").lower()
-    if "qa-execution" in type_field or "qa execution" in title:
+    if type_field == "qa-execution":
         return "qa_execution"
     return "qa_report"
 

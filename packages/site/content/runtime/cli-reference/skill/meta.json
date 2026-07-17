@@ -6,6 +6,7 @@
         "disable",
         "enable",
         "info",
+        "inspect",
         "install",
         "list",
         "remove",

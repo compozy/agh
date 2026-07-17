@@ -5,18 +5,55 @@ Reads the repo (and gh for --pr), writes only under --out. Produces
 manifest.json accounting for EVERY changed file as selected / ignored / skipped
 / carried, applying the funnel: path filters -> binary -> generated ->
 pure-rename -> whitespace-only -> incremental delta scoping. Also resolves the
-repo review profile (.deep-review.yaml, else .coderabbit.yaml) into the manifest.
+repo review profile (.deep-review.yaml, else .coderabbit.yaml), records the
+per-round diff_command, and pins the source-freeze baseline
+(worktree_snapshot) that run_jobs.py / render_review.py enforce.
+
+Scopes: --pr N (fetched PR head) | --base REF (committed range) | --staged |
+--worktree (uncommitted + untracked work vs the base ref; always a full round).
 Exit codes: 0 ok, 1 usage/environment error, 2 git/gh failure.
 """
 
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # keep the tracked skill tree free of __pycache__
+
+from _common import freeze_snapshot, glob_to_regex
+
+ROUND_KEEP = {"state.json", "round.json", "rounds"}
+
+
+def archive_prior_round(out_dir: Path, round_n: int) -> None:
+    """A new round starts clean: stale stage artifacts (prior-round agent
+    outputs would otherwise pass validation and pollute this round's corpus)
+    move to rounds/round-<n>/ for audit. Same-round re-runs archive nothing."""
+    marker = out_dir / "round.json"
+    prior = None
+    if marker.is_file():
+        try:
+            prior = json.loads(marker.read_text(encoding="utf-8")).get("round")
+        except ValueError:
+            prior = None
+    if prior is not None and prior != round_n:
+        archive = out_dir / "rounds" / f"round-{prior}"
+        archive.mkdir(parents=True, exist_ok=True)
+        moved = 0
+        for entry in sorted(out_dir.iterdir()):
+            if entry.name in ROUND_KEEP:
+                continue
+            shutil.move(str(entry), str(archive / entry.name))
+            moved += 1
+        print(f"archived round {prior} ({moved} artifacts) -> {archive}")
+    marker.write_text(json.dumps({"round": round_n}) + "\n", encoding="utf-8")
+
 DEFAULT_FILTERS = [
+    "!.deep-review/**",
     "!**/*.lock", "!**/*.sum", "!**/package-lock.json", "!**/bun.lock", "!**/yarn.lock",
     "!**/pnpm-lock.yaml", "!**/*.min.js", "!**/*.min.css", "!**/*.map",
     "!**/vendor/**", "!**/node_modules/**", "!**/dist/**", "!**/build/**",
@@ -35,24 +72,6 @@ def run(cmd, cwd, check=True):
         sys.stderr.write(f"command failed ({proc.returncode}): {' '.join(cmd)}\n{proc.stderr}\n")
         sys.exit(2)
     return proc
-
-
-def glob_to_regex(pat: str) -> re.Pattern:
-    out, i = [], 0
-    while i < len(pat):
-        c = pat[i]
-        if c == "*":
-            if pat[i:i + 3] == "**/":
-                out.append("(?:.*/)?"); i += 3
-            elif pat[i:i + 2] == "**":
-                out.append(".*"); i += 2
-            else:
-                out.append("[^/]*"); i += 1
-        elif c == "?":
-            out.append("[^/]"); i += 1
-        else:
-            out.append(re.escape(c)); i += 1
-    return re.compile("^" + "".join(out) + "$")
 
 
 def parse_path_filters(config_path: Path):
@@ -132,11 +151,18 @@ def resolve_pr(repo_root: Path, pr: int):
     return data["baseRefOid"], head, data
 
 
-def diff_name_status(repo_root: Path, base, head, staged=False):
-    cmd = ["git", "diff", "--name-status", "-M50"]
-    cmd += ["--staged"] if staged else [f"{base}..{head}"]
+def diff_spec(base, head, staged, worktree):
+    """The git-diff revision arguments for the review scope."""
+    if staged:
+        return ["--staged"]
+    if worktree:
+        return [base]  # single rev = committed base vs the working tree
+    return [f"{base}..{head}"]
+
+
+def diff_name_status(repo_root: Path, spec):
     entries = []
-    for line in run(cmd, repo_root).stdout.splitlines():
+    for line in run(["git", "diff", "--name-status", "-M50", *spec], repo_root).stdout.splitlines():
         parts = line.split("\t")
         status = parts[0]
         if status.startswith("R") and len(parts) == 3:
@@ -146,11 +172,9 @@ def diff_name_status(repo_root: Path, base, head, staged=False):
     return entries
 
 
-def numstat(repo_root: Path, base, head, staged=False, extra=()):
-    cmd = ["git", "diff", "--numstat", "-M50", *extra]
-    cmd += ["--staged"] if staged else [f"{base}..{head}"]
+def numstat(repo_root: Path, spec, extra=()):
     stats = {}
-    for line in run(cmd, repo_root).stdout.splitlines():
+    for line in run(["git", "diff", "--numstat", "-M50", *extra, *spec], repo_root).stdout.splitlines():
         parts = line.split("\t")
         if len(parts) < 3:
             continue
@@ -178,22 +202,52 @@ def looks_generated(repo_root: Path, path: str) -> bool:
     return any(marker in head_bytes for marker in GENERATED_MARKERS)
 
 
-def collect_hunks(repo_root: Path, base, head, staged=False):
-    """New-side line ranges per file (the PR-diff view; also the publish anchors)."""
-    cmd = ["git", "diff", "-U0", "-M50"]
-    cmd += ["--staged"] if staged else [f"{base}..{head}"]
-    hunks, current = {}, None
-    for line in run(cmd, repo_root).stdout.splitlines():
-        if line.startswith("+++ "):
-            path = line[4:].strip()
-            current = None if path == "/dev/null" else (path[2:] if path.startswith("b/") else path)
+def parse_range(value: str):
+    start_and_lines = value[1:].split(",", 1)
+    start = int(start_and_lines[0])
+    lines = int(start_and_lines[1]) if len(start_and_lines) == 2 else 1
+    return start, lines
+
+
+def collect_hunks(repo_root: Path, spec):
+    """Per-file hunk ranges: new-side for edits/additions (the publish anchors),
+    old-side for pure deletions so removed code still gets judged."""
+    hunks, current, old_path = {}, None, None
+    for line in run(["git", "diff", "-U0", "-M50", *spec], repo_root).stdout.splitlines():
+        if line.startswith("--- "):
+            raw = line[4:].strip()
+            old_path = None if raw == "/dev/null" else raw.removeprefix("a/")
+        elif line.startswith("+++ "):
+            raw = line[4:].strip()
+            current = old_path if raw == "/dev/null" else raw.removeprefix("b/")
         elif line.startswith("@@") and current:
-            m = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", line)
-            if m:
-                start = int(m.group(1))
-                n = int(m.group(2)) if m.group(2) is not None else 1
-                hunks.setdefault(current, []).append({"start": start, "lines": n})
+            m = re.match(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", line)
+            if not m:
+                continue
+            old_start, old_lines = int(m.group(1)), int(m.group(2) or 1)
+            new_start, new_lines = int(m.group(3)), int(m.group(4) or 1)
+            if new_lines > 0:
+                hunk = {"start": new_start, "lines": new_lines, "side": "new"}
+            else:
+                hunk = {"start": old_start, "lines": old_lines, "side": "old"}
+            hunks.setdefault(current, []).append(hunk)
     return hunks
+
+
+def untracked_paths(repo_root: Path, out_rel: str):
+    paths = []
+    for path in run(["git", "ls-files", "--others", "--exclude-standard"], repo_root).stdout.splitlines():
+        if path.startswith(".deep-review/") or (out_rel and path.startswith(out_rel + "/")):
+            continue
+        paths.append(path)
+    return paths
+
+
+def untracked_stat(repo_root: Path, path: str):
+    data = (repo_root / path).read_bytes()
+    if b"\0" in data:
+        return None, None
+    return len(data.splitlines()), 0
 
 
 def prior_head(state_path: Path):
@@ -215,47 +269,76 @@ def main():
     ap.add_argument("--base")
     ap.add_argument("--head", default="HEAD")
     ap.add_argument("--staged", action="store_true")
+    ap.add_argument("--worktree", action="store_true",
+                    help="review uncommitted + untracked work against the base ref")
     ap.add_argument("--files", help="comma-separated subset")
     ap.add_argument("--full", action="store_true")
     args = ap.parse_args()
-    if args.pr and (args.base or args.staged):
-        ap.error("--pr conflicts with --base/--staged")
+    if args.pr and (args.base or args.staged or args.worktree):
+        ap.error("--pr conflicts with --base/--staged/--worktree")
+    if args.staged and args.worktree:
+        ap.error("--staged conflicts with --worktree")
 
     top = run(["git", "rev-parse", "--show-toplevel"], Path.cwd())
     repo_root = Path(top.stdout.strip())
     out_dir = Path(args.out); out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        out_rel = str(out_dir.resolve().relative_to(repo_root))
+    except ValueError:
+        out_rel = ""
 
     pr_meta = None
     if args.pr:
         base, head, pr_meta = resolve_pr(repo_root, args.pr)
         target = f"pr:{args.pr}"
+        diff_command = f"git diff {base[:12]}..{head[:12]} -- <file>"
     elif args.staged:
         base, head, target = "HEAD", "STAGED", "staged"
+        diff_command = "git diff --staged -- <file>"
     else:
         base_ref = args.base or resolve_default_base(repo_root)
-        base = run(["git", "merge-base", base_ref, args.head], repo_root).stdout.strip()
-        head = run(["git", "rev-parse", args.head], repo_root).stdout.strip()
-        target = f"diff:{base_ref}"
+        base = run(["git", "merge-base", base_ref, "HEAD" if args.worktree else args.head],
+                   repo_root).stdout.strip()
+        head = run(["git", "rev-parse", "HEAD" if args.worktree else args.head], repo_root).stdout.strip()
+        if args.worktree:
+            target = f"worktree:{base_ref}"
+            diff_command = f"git diff {base[:12]} -- <file>"
+        else:
+            target = f"diff:{base_ref}"
+            diff_command = f"git diff {base[:12]}..{head[:12]} -- <file>"
 
     filters, filter_source = load_filters(repo_root)
     profile, profile_source = resolve_profile(repo_root)
     excludes = [(p, glob_to_regex(p[1:])) for p in filters if p.startswith("!")]
     includes = [(p, glob_to_regex(p)) for p in filters if not p.startswith("!")]
 
-    mode, effective_base, round_n = "full", base, 1
-    if not args.full and not args.staged:
-        last_head, last_n = prior_head(out_dir / "state.json")
+    last_head, last_n = prior_head(out_dir / "state.json")
+    mode, effective_base, round_n = "full", base, last_n + 1
+    if not args.full and not args.staged and not args.worktree:
         if last_head and run(["git", "merge-base", "--is-ancestor", last_head, head],
                              repo_root, check=False).returncode == 0 and last_head != head:
-            mode, effective_base, round_n = "incremental", last_head, last_n + 1
+            mode, effective_base = "incremental", last_head
+    archive_prior_round(out_dir, round_n)
 
-    entries = diff_name_status(repo_root, base, head, args.staged)
-    stats = numstat(repo_root, base, head, args.staged)
-    ws_stats = numstat(repo_root, base, head, args.staged, extra=("-w", "--ignore-blank-lines"))
-    hunk_map = collect_hunks(repo_root, base, head, args.staged)
+    spec = diff_spec(base, head, args.staged, args.worktree)
+    entries = diff_name_status(repo_root, spec)
+    stats = numstat(repo_root, spec)
+    ws_stats = numstat(repo_root, spec, extra=("-w", "--ignore-blank-lines"))
+    hunk_map = collect_hunks(repo_root, spec)
+    if args.worktree:
+        tracked = {e["path"] for e in entries}
+        for path in untracked_paths(repo_root, out_rel):
+            if path in tracked:
+                continue
+            entries.append({"path": path, "status": "A", "old_path": None})
+            stats[path] = untracked_stat(repo_root, path)
+            ws_stats[path] = stats[path]
+            adds = stats[path][0]
+            if adds:
+                hunk_map[path] = [{"start": 1, "lines": adds, "side": "new"}]
     delta_paths = None
     if mode == "incremental":
-        delta_paths = {e["path"] for e in diff_name_status(repo_root, effective_base, head)}
+        delta_paths = {e["path"] for e in diff_name_status(repo_root, [f"{effective_base}..{head}"])}
 
     subset = {p.strip() for p in args.files.split(",")} if args.files else None
     files, counts = [], {"selected": 0, "ignored": 0, "skipped": 0, "carried": 0}
@@ -295,9 +378,11 @@ def main():
         counts[disposition] += 1
         files.append(rec)
 
+    snapshot = freeze_snapshot(repo_root, out_dir.resolve())
     manifest = {
         "target": target, "mode": "staged" if args.staged else mode, "round": round_n,
         "base": base, "effective_base": effective_base, "head": head,
+        "diff_command": diff_command, "worktree_snapshot": snapshot,
         "filter_source": filter_source, "profile": profile, "counts": counts, "files": files,
     }
     if pr_meta:
@@ -310,6 +395,7 @@ def main():
     print(f"base={base[:12]} effective_base={effective_base[:12] if effective_base != base else '(same)'} head={head[:12]}")
     print(f"files: {total} changed -> {counts['selected']} selected, {counts['ignored']} ignored, "
           f"{counts['skipped']} skipped, {counts['carried']} carried (filters: {filter_source})")
+    print(f"freeze: worktree_snapshot={snapshot[:12]} (run_jobs.py and render_review.py enforce it)")
     print(f"profile: {profile} (from {profile_source})" if profile
           else "profile: unset (skill defaults to chill)")
     if counts["selected"] == 0:

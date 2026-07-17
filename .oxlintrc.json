@@ -107,6 +107,7 @@
         "compozy-design-system/no-banned-imports": "error",
         "compozy-design-system/no-inline-design-tuples": "error",
         "compozy-design-system/prefer-bare-token-utility": "error",
+        "compozy-design-system/no-low-contrast-focus-ring": "error",
         "compozy-ui-reuse/no-shadow-ui-primitive": "error",
         "compozy-data-boundaries/require-canonical-query-options": "error",
         "compozy-data-boundaries/no-inline-query-key": "error"

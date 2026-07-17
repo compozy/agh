@@ -33,11 +33,13 @@ Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_ta
 
 1. Generate the `qa-report` task row using the template:
    - Title: `QA Plan and Session Charters`
+   - Frontmatter type: `qa-report`
    - Status: `pending`
    - Complexity: `high`
    - Dependencies: last implementation task ID
 2. Generate the `qa-execution` task row:
    - Title: `Real-User QA Execution`
+   - Frontmatter type: `qa-execution`
    - Status: `pending`
    - Complexity: `critical`
    - Dependencies: the new `qa-report` task ID

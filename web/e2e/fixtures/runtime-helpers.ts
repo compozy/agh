@@ -1,3 +1,4 @@
+import path from "node:path";
 import process from "node:process";
 
 import { isLikelyViteDevHTML } from "./artifacts";
@@ -14,9 +15,11 @@ interface RuntimeModeLaunch {
 export type RuntimeMode = RuntimeModeAttach | RuntimeModeLaunch;
 
 export interface RuntimeConfigInput {
+  extensionsAllowUnverified?: boolean;
   host: string;
   includeMockAgentProvider?: boolean;
   modelsDevEnabled?: boolean;
+  marketplaceCatalogBaseURL?: string;
   networkEnabled?: boolean;
   port: number;
   skillsMarketplaceBaseURL?: string;
@@ -69,12 +72,28 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     ...(input.networkEnabled === undefined
       ? []
       : ["[network]", `enabled = ${input.networkEnabled ? "true" : "false"}`, ""]),
+    ...(input.extensionsAllowUnverified === undefined
+      ? []
+      : [
+          "[extensions.marketplace]",
+          `allow_unverified = ${input.extensionsAllowUnverified ? "true" : "false"}`,
+          "",
+        ]),
     ...(input.skillsMarketplaceBaseURL === undefined
       ? []
       : [
           "[skills.marketplace]",
           'registry = "clawhub"',
           `base_url = ${tomlString(input.skillsMarketplaceBaseURL)}`,
+          "",
+        ]),
+    ...(input.marketplaceCatalogBaseURL === undefined
+      ? []
+      : [
+          "[marketplace.catalog]",
+          `base_url = ${tomlString(input.marketplaceCatalogBaseURL)}`,
+          'ttl = "1h"',
+          'timeout = "5s"',
           "",
         ]),
     ...(input.toolsExternalDefault === undefined
@@ -141,6 +160,13 @@ export function prependPath(prefix: string, currentPath: string | undefined): st
     return prefix;
   }
   return `${prefix}${process.platform === "win32" ? ";" : ":"}${currentPath}`;
+}
+
+export function buildLaunchRuntimeEnv(repoRoot: string, env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...env,
+    AGH_WEB_DIST_DIR: path.join(repoRoot, "web", "dist"),
+  };
 }
 
 function tomlString(value: string): string {

@@ -16,6 +16,7 @@ Canonical row shape for the QA pair. Mirror this exactly when appending to a fre
 
 Body content for the task file (`task_NN.md`):
 
+- Frontmatter `type: qa-report` (required by the loop phase detector).
 - `<critical>ALWAYS READ _techspec.md, every ADR, and every per-task memory file before planning.</critical>`
 - Activate the `qa-report` skill with `qa-docs-path=docs/qa` (bootstrap the tree if absent).
 - Output: journey flowcharts updated in `docs/qa/journeys/`, scenario files minted/updated in `docs/qa/scenarios/`, session charters in `docs/qa/charters/` for this cycle.
@@ -30,6 +31,7 @@ Body content for the task file (`task_NN.md`):
 
 Body content:
 
+- Frontmatter `type: qa-execution` (required by the loop phase detector).
 - `<critical>ALWAYS READ the in-scope docs/qa/scenarios/ files, open docs/qa/bugs/, and the cycle's charters in docs/qa/charters/ before executing.</critical>`
 - Activate `qa-execution` with `qa-docs-path=docs/qa`. For release-grade scope on the AGH runtime, also activate `real-scenario-qa` (playbook lab + operator kickoff + runtime observation).
 - Activate `agh-worktree-isolation` (unique `AGH_HOME` + ports + tmux socket) when concurrency is signaled.

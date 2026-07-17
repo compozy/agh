@@ -1,0 +1,19 @@
+{
+  "kind": "critique-panel",
+  "score": 4,
+  "scope": ["task-detail.html", "task-detail-states.html", "task-run-detail.html"],
+  "plan": "TASK-DETAILS-REDESIGN-PLAN.md",
+  "axes": {
+    "clarity": { "score": 4, "notes": "Single status source (one pill, pulse when live); exception-based pills; humanized events with raw type demoted to mono microtext; zero raw enums as primary text." },
+    "hierarchy": { "score": 4, "notes": "One accent primary action per state from the plan's state machine; now-strip leads Overview; 320px rail stays quiet; 3 tabs with foreground underline per Tabs contract (not accent)." },
+    "typography": { "score": 4, "notes": "Verbatim token scale: H1 1.4rem/600/-.028em (compact 1.1rem on run page), body 13.5, section labels 10.5 uppercase, mono strictly for ids/event types/durations with tabular numerals." },
+    "motion": { "score": 4, "notes": "State-conveying only per product register: live pulse, ticking elapsed, 200ms sheet slide; all guarded by prefers-reduced-motion; no page-load choreography." },
+    "brand": { "score": 4, "notes": "Token block copied verbatim from agent-detail.html (packages/ui lineage); accent budget held (primary CTA + sanctioned live-state tints); flat depth, no side-stripes, no gradients; canonical RuntimeSelector geometry with 7-bar meter reused, not rebuilt." }
+  },
+  "checks": {
+    "plan_acceptance": "Tabs 7→3; pills ≤3 default; destructive verbs in overflow; operator tier (lease/heartbeat/claim-hash/seq/bridges/stream) only inside Inspect drawer; no set-status control (status is derived); no delete-run verb; nullable result renders em-dash placeholder; CLI hints use `agh task` singular.",
+    "structure": "style 1/1, script 1/1, sections balanced in all three files (grep-verified).",
+    "states": "in_progress (task-detail.html) · blocked+approval, failed, needs_attention, completed (task-detail-states.html) · running, failed (task-run-detail.html).",
+    "visual_capture": "Skipped: the render/screenshot helper is blocked in this environment (known limitation); validation relies on the preview pane."
+  }
+}

@@ -163,7 +163,7 @@ software-delivery, sidebar "Runs" count = 3 active).
    Loop's declared inputs (typed fields: string/number/bool/file/agent/ref) with required
    validation; **Advanced** panel = per-run limit overrides bounded by the daemon ceiling
    (greyed at ceiling); live contract/preview pane. Two-column form+preview, matching the
-   `trigger-create-redesign.html` / `task-create-redesign.html` / `job-create-redesign.html`
+   `create-trigger-redesign.html` / `create-task-redesign.html` / `create-job-redesign.html`
    pattern (but content-only). Run + Dry-run.
 3. **`loop-configure.html` — Configure (light; power ceiling, never the hero).** No-fork
    tweaks: verification-check select, human-approval gate toggle, re-attempt granularity

@@ -2,7 +2,7 @@
 
 Project personas for AGH QA. Derived from the seed catalog (`.agents/skills/qa-report/references/personas.md`) and grounded in AGH's real audience: operators who run/observe/configure durable agent work, autonomous agents that manage that work through structured surfaces, and the humans who evaluate and approve it. Personas are durable instance data — update when the audience changes, not per cycle. The `Persona Affected:` field in bug reports and the `persona` field in scenario files use each persona's `name`.
 
-Three persona families share this tree: the **Loops** surface (Bruno / Lea / Marina / Ada / Sol), **Bridge operations** (Tessa / Maya / Omar, with Ada driving structured surfaces), and the **Session experience** — the ACP agent conversation/transcript thread (Théo / Nia / Rafa, with Ada driving it headless and Sol/Marina as accessibility/mobile lenses). A persona is defined by its goal on a surface, not just its archetype: the same human can wear a different operating role on each surface.
+Four persona families share this tree: the **Loops** surface (Bruno / Lea / Marina / Ada / Sol), **Bridge operations** (Tessa / Maya / Omar, with Ada driving structured surfaces), the **Session experience** — the ACP agent conversation/transcript thread (Théo / Nia / Rafa, with Ada driving it headless and Sol/Marina as accessibility/mobile lenses) — and **Marketplace & acquisition** (Bruno as the mid-session acquirer, Ada as the agent plane, plus Vera / Iris below for the administrative and remote-operator roles the Marketplace program introduced). A persona is defined by its goal on a surface, not just its archetype: the same human can wear a different operating role on each surface.
 
 > **Mobile & accessibility coverage.** A dedicated mobile persona is not maintained because AGH's primary surface is a desktop web SPA + CLI; mobile is covered as a device *lens* on Marina (the read/approve surfaces are the realistic phone use — approving a merge gate, or glancing at a running session, between meetings). The **loop visual editor canvas is explicitly desktop-only** (DAG canvas, drag, inspector) — mobile is a recorded skip for that surface, not a gap. Accessibility is a first-class persona (Sol), whose lens extends over the redesigned session thread (live SSE announcements, status never color-only, reduced-motion streaming pulse — see J-13/CH-020).
 
@@ -213,6 +213,42 @@ persona:
 - **Who:** someone meeting a session for the first time (shared permalink, or first list click). Judges AGH by the open. The session-surface counterpart to Lea; hypersensitive to first-impression friction.
 - **What they reveal:** double-spinner flashes, more than one loading phase, unbounded full-history fetches that stall the open, permalink that resolves twice, unclear not-found state for an unknown session id, a cold open that reads as "empty" before it paints.
 - **Owns journeys:** J-12 open-session-fast (primary); regression canary on J-11 adjacents (create/attach/approve/workspace, CH-019).
+
+## Vera — Policy Administrator (marketplace & acquisition)
+
+```yaml
+persona:
+  name: Vera
+  base: Power User
+  goal: "Own the runtime's acquisition trust posture: keep unverified side-loads blocked by default, flip policy deliberately when a team needs an exception, govern the curated-catalog configuration, and prove a pulled entry actually disappears."
+  device: desktop
+  network: wifi-fast
+  modality: mouse-keyboard
+  locale: en-US
+  patience_seconds: 30
+```
+
+- **Who:** the administrator-operator the Marketplace PRD names as policy owner. She rarely acquires capabilities herself; she configures `Settings › Extensions` (registry, base_url, `allow_unverified`), the `[marketplace.catalog]` keys, and reacts to curation incidents (kill-switch verification). Distinct from Bruno: her surface is administrative settings and config lifecycle, not the acquisition scene.
+- **What they reveal:** policy flips that don't apply live, blocked affordances that don't explain themselves or point at the wrong settings page, two-level consent collapsing into one, digest-mismatch installs that leave residue, config validation that accepts garbage or loses the prior good value, settings-split leakage (extension policy resurfacing on the Hooks page), and pulled catalog entries that remain visible past TTL.
+- **Owns journeys:** J-extension-policy-admin.
+
+## Iris — Remote Operator (away from the daemon host)
+
+```yaml
+persona:
+  name: Iris
+  base: Power User
+  goal: "Operate a daemon that runs on another machine: install and authorize a remote MCP server even though the OAuth callback can never reach my browser, using the copyable link and manual code/redirect paste-back."
+  device: laptop
+  network: wifi-slow
+  modality: mouse-keyboard
+  locale: en-US
+  patience_seconds: 45
+```
+
+- **Who:** the operator whose AGH daemon lives on a homelab box, VM, or remote dev server while her browser and terminal are local. The ADR-011 authorization floor exists for her: the always-copyable authorization URL, the browser-optional flow, and the manual `exchange` completion path (paste a code or the full redirect URL). She also verifies the non-loopback hardening — the auto-callback must refuse to exist on her deployment.
+- **What they reveal:** dead or non-copyable authorization links, success toasts before the credential is confirmed present (`authenticated && token_present`), manual paste fields that reject full redirect URLs or echo secrets, expired/superseded PKCE sessions with unhelpful errors, failed exchanges that destroy a previously valid token, and remote flows that silently assume a local browser.
+- **Owns journeys:** J-mcp-authorize-repair (manual-completion lane).
 
 ## Rafa — Transcript Reviewer
 

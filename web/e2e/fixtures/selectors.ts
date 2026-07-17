@@ -227,21 +227,41 @@ export const skillsOperatorTestIds = {
   enabledSwitch: "skill-enabled-switch",
   enabledToggle: "skill-enabled-toggle",
   listPanel: "skill-list-panel",
-  marketplaceEmpty: "marketplace-empty",
-  marketplaceError: "marketplace-error",
-  marketplaceGrid: "marketplace-grid",
-  marketplaceLoading: "marketplace-loading",
-  marketplaceSearchPrompt: "marketplace-search-prompt",
-  marketplaceSearchInput: "marketplace-search-input",
-  marketplaceView: "marketplace-view",
   navSkills: "nav-skills",
   searchInput: "skill-search-input",
   shell: "skills-shell",
-  tabInstalled: "tab-installed",
-  tabMarketplace: "tab-marketplace",
   viewFullContent: "view-full-content-btn",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
+} as const;
+
+export const marketplaceOperatorTestIds = {
+  bundleActivateConfirm: "bundle-activate-confirm",
+  bundleActivationDialog: "bundle-activation-dialog",
+  bundlePreviewError: "bundle-preview-error",
+  detail: "marketplace-detail",
+  detailAction: "marketplace-detail-action",
+  extensionTrustConfirm: "extension-trust-confirm",
+  extensionTrustDialog: "extension-trust-dialog",
+  grid: "marketplace-grid",
+  kindNavigation: "marketplace-kind-navigation",
+  landing: "marketplace-landing",
+  mcpInstallConfirm: "mcp-install-confirm",
+  mcpInstallDialog: "mcp-install-dialog",
+  mcpInstallError: "mcp-install-error",
+  refresh: "marketplace-refresh",
+  resultAnnouncement: "marketplace-result-announcement",
+} as const;
+
+export const extensionsOperatorTestIds = {
+  bundleDetail: "bundle-activation-detail",
+  bundleList: "bundle-activation-list",
+  bundlePage: "bundle-activations-page",
+  deactivateDialog: "deactivate-bundle-dialog",
+  detail: "extension-detail",
+  list: "extension-list",
+  page: "extensions-page",
+  removeDialog: "remove-extension-dialog",
 } as const;
 
 export const sandboxOperatorTestIds = {
@@ -491,22 +511,49 @@ export interface SkillsOperatorSelectors {
   enabledToggle: Locator;
   item(name: string): Locator;
   listPanel: Locator;
-  marketplaceEmpty: Locator;
-  marketplaceError: Locator;
-  marketplaceGrid: Locator;
-  marketplaceLoading: Locator;
-  marketplaceRow(name: string): Locator;
-  marketplaceSearchPrompt: Locator;
-  marketplaceSearchInput: Locator;
-  marketplaceView: Locator;
   navSkills: Locator;
   searchInput: Locator;
   shell: Locator;
-  tabInstalled: Locator;
-  tabMarketplace: Locator;
   viewFullContent: Locator;
   workspaceOnboarding: Locator;
   workspaceUseGlobal: Locator;
+}
+
+export interface MarketplaceOperatorSelectors {
+  action(entryId: string): Locator;
+  bundleActivateConfirm: Locator;
+  bundleActivationDialog: Locator;
+  bundlePreviewError: Locator;
+  card(entryId: string): Locator;
+  detail: Locator;
+  detailAction: Locator;
+  extensionTrustConfirm: Locator;
+  extensionTrustDialog: Locator;
+  grid: Locator;
+  kind(kind: string): Locator;
+  kindNavigation: Locator;
+  landing: Locator;
+  mcpCreateSecret(envName: string): Locator;
+  mcpInstallConfirm: Locator;
+  mcpInstallDialog: Locator;
+  mcpInstallError: Locator;
+  mcpVaultSelector(envName: string): Locator;
+  refresh: Locator;
+  resultAnnouncement: Locator;
+  section(kind: string): Locator;
+}
+
+export interface ExtensionsOperatorSelectors {
+  bundleDetail: Locator;
+  bundleList: Locator;
+  bundlePage: Locator;
+  bundleRow(id: string): Locator;
+  deactivateDialog: Locator;
+  detail: Locator;
+  list: Locator;
+  page: Locator;
+  removeDialog: Locator;
+  row(name: string): Locator;
 }
 
 export interface SandboxOperatorSelectors {
@@ -607,23 +654,26 @@ export const settingsMCPServersTestIds = {
   editorCommandInput: "settings-mcp-servers-editor-command-input",
   editorTargetInput: "settings-mcp-servers-editor-target-input",
   editorSave: "settings-mcp-servers-editor-save",
+  editorRemove: "settings-mcp-servers-editor-remove",
   deleteDialog: "settings-mcp-servers-delete",
   deleteConfirm: "settings-mcp-servers-delete-confirm",
   restartBanner: "settings-page-mcp-servers-restart-banner",
 } as const;
 
-export const settingsHooksExtensionsTestIds = {
-  page: "settings-page-hooks-extensions",
-  hooksList: "settings-page-hooks-extensions-hooks-list",
-  extensionsList: "settings-page-hooks-extensions-extensions-list",
-  transportParity: "settings-page-hooks-extensions-transport-parity",
-  actionResult: "settings-page-hooks-extensions-action-result",
-  actionResultDismiss: "settings-page-hooks-extensions-action-result-dismiss",
-  policyControls: "settings-page-hooks-extensions-policy-controls",
-  policyRegistryInput: "settings-page-hooks-extensions-policy-registry-input",
-  policyBaseURLInput: "settings-page-hooks-extensions-policy-base-url-input",
-  policySave: "settings-page-hooks-extensions-policy-save",
-  restartBanner: "settings-page-hooks-extensions-restart-banner",
+export const settingsHooksTestIds = {
+  hooksList: "settings-page-hooks-list",
+  page: "settings-page-hooks",
+  restartBanner: "settings-page-hooks-restart-banner",
+} as const;
+
+export const settingsExtensionsTestIds = {
+  allowUnverified: "settings-page-extensions-policy-allow-unverified-input",
+  page: "settings-page-extensions",
+  policyBaseURLInput: "settings-page-extensions-policy-base-url-input",
+  policyControls: "settings-page-extensions-policy-controls",
+  policyRegistryInput: "settings-page-extensions-policy-registry-input",
+  policySave: "settings-page-extensions-policy-save",
+  restartBanner: "settings-page-extensions-restart-banner",
 } as const;
 
 interface SettingsShellSelectors {
@@ -692,11 +742,11 @@ interface SettingsMCPServersSelectors {
   create: Locator;
   deleteConfirm: Locator;
   deleteDialog: Locator;
-  deleteRow(name: string): Locator;
   editRow(name: string): Locator;
   editor: Locator;
   editorCommandInput: Locator;
   editorNameInput: Locator;
+  editorRemove: Locator;
   editorSave: Locator;
   editorTargetInput: Locator;
   list: Locator;
@@ -709,26 +759,28 @@ interface SettingsMCPServersSelectors {
   scopeWorkspace: Locator;
 }
 
-interface SettingsHooksExtensionsSelectors {
-  actionResult: Locator;
-  actionResultDismiss: Locator;
-  extensionsList: Locator;
-  extensionToggle(name: string): Locator;
+interface SettingsHooksSelectors {
   hooksList: Locator;
   hookToggle(name: string): Locator;
+  page: Locator;
+  restartBanner: Locator;
+}
+
+interface SettingsExtensionsSelectors {
+  allowUnverified: Locator;
   page: Locator;
   policyBaseURLInput: Locator;
   policyControls: Locator;
   policyRegistryInput: Locator;
   policySave: Locator;
   restartBanner: Locator;
-  transportParity: Locator;
 }
 
 export interface SettingsOperatorSelectors {
   shell: SettingsShellSelectors;
+  extensions: SettingsExtensionsSelectors;
   general: SettingsGeneralSelectors;
-  hooksExtensions: SettingsHooksExtensionsSelectors;
+  hooks: SettingsHooksSelectors;
   mcpServers: SettingsMCPServersSelectors;
   providers: SettingsProvidersSelectors;
   skills: SettingsSkillsSelectors;
@@ -1026,22 +1078,57 @@ export function skillsOperatorSelectors(page: Pick<Page, "getByTestId">): Skills
     enabledToggle: page.getByTestId(skillsOperatorTestIds.enabledToggle),
     item: (name: string) => page.getByTestId(`skill-item-${name}`),
     listPanel: page.getByTestId(skillsOperatorTestIds.listPanel),
-    marketplaceEmpty: page.getByTestId(skillsOperatorTestIds.marketplaceEmpty),
-    marketplaceError: page.getByTestId(skillsOperatorTestIds.marketplaceError),
-    marketplaceGrid: page.getByTestId(skillsOperatorTestIds.marketplaceGrid),
-    marketplaceLoading: page.getByTestId(skillsOperatorTestIds.marketplaceLoading),
-    marketplaceSearchPrompt: page.getByTestId(skillsOperatorTestIds.marketplaceSearchPrompt),
-    marketplaceRow: (name: string) => page.getByTestId(`marketplace-row-${name}`),
-    marketplaceSearchInput: page.getByTestId(skillsOperatorTestIds.marketplaceSearchInput),
-    marketplaceView: page.getByTestId(skillsOperatorTestIds.marketplaceView),
     navSkills: page.getByTestId(skillsOperatorTestIds.navSkills),
     searchInput: page.getByTestId(skillsOperatorTestIds.searchInput),
     shell: page.getByTestId(skillsOperatorTestIds.shell),
-    tabInstalled: page.getByTestId(skillsOperatorTestIds.tabInstalled),
-    tabMarketplace: page.getByTestId(skillsOperatorTestIds.tabMarketplace),
     viewFullContent: page.getByTestId(skillsOperatorTestIds.viewFullContent),
     workspaceOnboarding: page.getByTestId(skillsOperatorTestIds.workspaceOnboarding),
     workspaceUseGlobal: page.getByTestId(skillsOperatorTestIds.workspaceUseGlobal),
+  };
+}
+
+export function marketplaceOperatorSelectors(
+  page: Pick<Page, "getByTestId">
+): MarketplaceOperatorSelectors {
+  return {
+    action: (entryId: string) => page.getByTestId(`marketplace-action-${entryId}`),
+    bundleActivateConfirm: page.getByTestId(marketplaceOperatorTestIds.bundleActivateConfirm),
+    bundleActivationDialog: page.getByTestId(marketplaceOperatorTestIds.bundleActivationDialog),
+    bundlePreviewError: page.getByTestId(marketplaceOperatorTestIds.bundlePreviewError),
+    card: (entryId: string) => page.getByTestId(`marketplace-card-${entryId}`),
+    detail: page.getByTestId(marketplaceOperatorTestIds.detail),
+    detailAction: page.getByTestId(marketplaceOperatorTestIds.detailAction),
+    extensionTrustConfirm: page.getByTestId(marketplaceOperatorTestIds.extensionTrustConfirm),
+    extensionTrustDialog: page.getByTestId(marketplaceOperatorTestIds.extensionTrustDialog),
+    grid: page.getByTestId(marketplaceOperatorTestIds.grid),
+    kind: (kind: string) => page.getByTestId(`marketplace-kind-${kind}`),
+    kindNavigation: page.getByTestId(marketplaceOperatorTestIds.kindNavigation),
+    landing: page.getByTestId(marketplaceOperatorTestIds.landing),
+    mcpCreateSecret: (envName: string) => page.getByTestId(`mcp-create-secret-${envName}`),
+    mcpInstallConfirm: page.getByTestId(marketplaceOperatorTestIds.mcpInstallConfirm),
+    mcpInstallDialog: page.getByTestId(marketplaceOperatorTestIds.mcpInstallDialog),
+    mcpInstallError: page.getByTestId(marketplaceOperatorTestIds.mcpInstallError),
+    mcpVaultSelector: (envName: string) => page.getByTestId(`mcp-vault-selector-${envName}`),
+    refresh: page.getByTestId(marketplaceOperatorTestIds.refresh),
+    resultAnnouncement: page.getByTestId(marketplaceOperatorTestIds.resultAnnouncement),
+    section: (kind: string) => page.getByTestId(`marketplace-section-${kind}`),
+  };
+}
+
+export function extensionsOperatorSelectors(
+  page: Pick<Page, "getByTestId">
+): ExtensionsOperatorSelectors {
+  return {
+    bundleDetail: page.getByTestId(extensionsOperatorTestIds.bundleDetail),
+    bundleList: page.getByTestId(extensionsOperatorTestIds.bundleList),
+    bundlePage: page.getByTestId(extensionsOperatorTestIds.bundlePage),
+    bundleRow: (id: string) => page.getByTestId(`bundle-row-${id}`),
+    deactivateDialog: page.getByTestId(extensionsOperatorTestIds.deactivateDialog),
+    detail: page.getByTestId(extensionsOperatorTestIds.detail),
+    list: page.getByTestId(extensionsOperatorTestIds.list),
+    page: page.getByTestId(extensionsOperatorTestIds.page),
+    removeDialog: page.getByTestId(extensionsOperatorTestIds.removeDialog),
+    row: (name: string) => page.getByTestId(`extension-row-${name}`),
   };
 }
 
@@ -1322,30 +1409,28 @@ export function settingsOperatorSelectors(
       editorCommandInput: page.getByTestId(settingsMCPServersTestIds.editorCommandInput),
       editorTargetInput: page.getByTestId(settingsMCPServersTestIds.editorTargetInput),
       editorSave: page.getByTestId(settingsMCPServersTestIds.editorSave),
+      editorRemove: page.getByTestId(settingsMCPServersTestIds.editorRemove),
       deleteDialog: page.getByTestId(settingsMCPServersTestIds.deleteDialog),
       deleteConfirm: page.getByTestId(settingsMCPServersTestIds.deleteConfirm),
       restartBanner: page.getByTestId(settingsMCPServersTestIds.restartBanner),
       row: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}`),
       rowSource: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-source`),
       editRow: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-edit`),
-      deleteRow: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-delete`),
     },
-    hooksExtensions: {
-      page: page.getByTestId(settingsHooksExtensionsTestIds.page),
-      hooksList: page.getByTestId(settingsHooksExtensionsTestIds.hooksList),
-      extensionsList: page.getByTestId(settingsHooksExtensionsTestIds.extensionsList),
-      transportParity: page.getByTestId(settingsHooksExtensionsTestIds.transportParity),
-      actionResult: page.getByTestId(settingsHooksExtensionsTestIds.actionResult),
-      actionResultDismiss: page.getByTestId(settingsHooksExtensionsTestIds.actionResultDismiss),
-      policyControls: page.getByTestId(settingsHooksExtensionsTestIds.policyControls),
-      policyRegistryInput: page.getByTestId(settingsHooksExtensionsTestIds.policyRegistryInput),
-      policyBaseURLInput: page.getByTestId(settingsHooksExtensionsTestIds.policyBaseURLInput),
-      policySave: page.getByTestId(settingsHooksExtensionsTestIds.policySave),
-      restartBanner: page.getByTestId(settingsHooksExtensionsTestIds.restartBanner),
-      hookToggle: (name: string) =>
-        page.getByTestId(`settings-page-hooks-extensions-hooks-row-${name}-toggle`),
-      extensionToggle: (name: string) =>
-        page.getByTestId(`settings-page-hooks-extensions-extensions-item-${name}-toggle`),
+    hooks: {
+      page: page.getByTestId(settingsHooksTestIds.page),
+      hooksList: page.getByTestId(settingsHooksTestIds.hooksList),
+      restartBanner: page.getByTestId(settingsHooksTestIds.restartBanner),
+      hookToggle: (name: string) => page.getByTestId(`settings-page-hooks-row-${name}-toggle`),
+    },
+    extensions: {
+      allowUnverified: page.getByTestId(settingsExtensionsTestIds.allowUnverified),
+      page: page.getByTestId(settingsExtensionsTestIds.page),
+      policyControls: page.getByTestId(settingsExtensionsTestIds.policyControls),
+      policyRegistryInput: page.getByTestId(settingsExtensionsTestIds.policyRegistryInput),
+      policyBaseURLInput: page.getByTestId(settingsExtensionsTestIds.policyBaseURLInput),
+      policySave: page.getByTestId(settingsExtensionsTestIds.policySave),
+      restartBanner: page.getByTestId(settingsExtensionsTestIds.restartBanner),
     },
   };
 }
