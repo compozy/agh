@@ -566,6 +566,126 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 	})
 }
 
+func TestSchedulerHoldsSerialBacklogBehindCompatibleCapacityIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wait through repeated busy cycles and wake the queued run after release", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		base := time.Date(2026, 7, 15, 18, 0, 0, 0, time.UTC)
+		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "agh.db"))
+		workspaceID := registerSchedulerWorkspace(t, db, "serial-capacity", filepath.Join(t.TempDir(), "workspace"))
+		manager := newSchedulerTaskManagerWithOptions(
+			t,
+			db,
+			taskpkg.WithManagerNow(func() time.Time { return base }),
+		)
+		activeExecution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Active serial work")
+		queuedExecution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Queued serial work")
+		actor, err := taskpkg.DeriveAgentSessionActorContext("sess-serial")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+		}
+		activeClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                 taskpkg.ScopeWorkspace,
+			WorkspaceID:           workspaceID,
+			ClaimerSessionID:      "sess-serial",
+			CoordinationChannelID: activeExecution.Run.CoordinationChannelID,
+			LeaseDuration:         time.Hour,
+			Now:                   base.Add(time.Second),
+		}, actor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(active) error = %v", err)
+		}
+		if got, want := activeClaim.Run.ID, activeExecution.Run.ID; got != want {
+			t.Fatalf("active claim run = %q, want %q", got, want)
+		}
+
+		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
+			integrationSessionSnapshot(
+				"sess-serial",
+				workspaceID,
+				queuedExecution.Run.CoordinationChannelID,
+				"active",
+				false,
+				nil,
+				base,
+			),
+		}}
+		waker := &fakeWaker{}
+		escalator := &fakeEscalationActor{}
+		scheduler := newTestScheduler(
+			t,
+			integrationTaskSource{manager: manager, store: db},
+			sessions,
+			waker,
+			WithClock(clockwork.NewFakeClockAt(base.Add(10*time.Minute))),
+			WithEscalationActor(escalator),
+			WithStarvationStore(db),
+			WithStarvationThresholds(StarvationThresholds{
+				FanOutAfter:         1,
+				SpawnAfter:          2,
+				EventAfter:          3,
+				NeedsAttentionAfter: 4,
+				MinQueuedAge:        time.Second,
+			}),
+		)
+
+		for cycle := 1; cycle <= 12; cycle++ {
+			result, err := scheduler.RunOnce(ctx)
+			if err != nil {
+				t.Fatalf("RunOnce(busy cycle %d) error = %v", cycle, err)
+			}
+			if result.CapacityWaitingRuns != 1 || result.StarvedRuns != 0 || result.NoMatchRuns != 0 {
+				t.Fatalf("busy cycle %d result = %#v, want one capacity wait only", cycle, result)
+			}
+		}
+		if got := len(waker.targetsSnapshot()); got != 0 {
+			t.Fatalf("wake targets while capacity busy = %d, want 0", got)
+		}
+		if len(escalator.spawns()) != 0 || len(escalator.emitted()) != 0 || len(escalator.attention()) != 0 {
+			t.Fatalf("busy serial backlog produced convergence side effects: %#v", escalator)
+		}
+		if _, ok, err := db.LoadRunStarvation(ctx, queuedExecution.Run.ID); err != nil || ok {
+			t.Fatalf("LoadRunStarvation(busy) = (ok %t, err %v), want (false, nil)", ok, err)
+		}
+
+		if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			RunID:      activeClaim.Run.ID,
+			ClaimToken: activeClaim.ClaimToken,
+			Result:     taskpkg.RunResult{Value: []byte(`{"serial":true}`)},
+		}, actor); err != nil {
+			t.Fatalf("CompleteRunLease(active) error = %v", err)
+		}
+		released, err := scheduler.RunOnce(ctx)
+		if err != nil {
+			t.Fatalf("RunOnce(after release) error = %v", err)
+		}
+		if released.CapacityWaitingRuns != 0 || released.WakeSucceeded != 1 {
+			t.Fatalf("after-release result = %#v, want one wake and no capacity wait", released)
+		}
+		targets := waker.targetsSnapshot()
+		if got, want := targets[len(targets)-1].Work.Run.ID, queuedExecution.Run.ID; got != want {
+			t.Fatalf("after-release wake run = %q, want %q", got, want)
+		}
+		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                 taskpkg.ScopeWorkspace,
+			WorkspaceID:           workspaceID,
+			ClaimerSessionID:      "sess-serial",
+			CoordinationChannelID: queuedExecution.Run.CoordinationChannelID,
+			LeaseDuration:         time.Hour,
+			Now:                   base.Add(11 * time.Minute),
+		}, actor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(queued) error = %v", err)
+		}
+		if got, want := claim.Run.ID, queuedExecution.Run.ID; got != want {
+			t.Fatalf("queued claim run = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestSchedulerNoEligibleSessionDoesNotClaimIntegration(t *testing.T) {
 	t.Parallel()
 
@@ -649,9 +769,9 @@ func (s integrationTaskSource) GetRunStatus(
 	run, err := s.store.GetTaskRun(ctx, runID)
 	if err != nil {
 		if errors.Is(err, taskpkg.ErrTaskRunNotFound) {
-			return "", false, nil
+			return taskpkg.TaskRunStatusUnknown, false, nil
 		}
-		return "", false, err
+		return taskpkg.TaskRunStatusUnknown, false, err
 	}
 	return run.Status, true, nil
 }
@@ -725,13 +845,14 @@ func integrationSessionSnapshot(
 	createdAt time.Time,
 ) SessionSnapshot {
 	return SessionSnapshot{
-		ID:           id,
-		WorkspaceID:  workspaceID,
-		Channel:      channel,
-		State:        state,
-		Prompting:    prompting,
-		Capabilities: append([]string(nil), capabilities...),
-		CreatedAt:    createdAt,
+		ID:              id,
+		WorkspaceID:     workspaceID,
+		Channel:         channel,
+		State:           state,
+		Prompting:       prompting,
+		Capabilities:    append([]string(nil), capabilities...),
+		CapabilityState: CapabilityStateKnown,
+		CreatedAt:       createdAt,
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -243,56 +242,6 @@ func (h *BaseHandlers) DisableSkill(c *gin.Context) {
 
 	h.Logger.Info("skills: disable skill", "name", name)
 	c.JSON(http.StatusOK, contract.SkillActionResponse{OK: true})
-}
-
-// SearchSkillMarketplace searches the configured remote marketplace for skills.
-func (h *BaseHandlers) SearchSkillMarketplace(c *gin.Context) {
-	query := strings.TrimSpace(c.Query("query"))
-	limit := skillmarketplace.DefaultSearchLimit
-	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
-		parsedLimit, err := strconv.Atoi(rawLimit)
-		if err != nil {
-			h.respondError(
-				c,
-				http.StatusBadRequest,
-				fmt.Errorf("%w: marketplace search limit must be an integer", skillmarketplace.ErrValidation),
-			)
-			return
-		}
-		limit = parsedLimit
-	}
-
-	listings, err := h.skillMarketplaceService().Search(c.Request.Context(), query, limit)
-	if err != nil {
-		h.respondError(c, StatusForSkillMarketplaceError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.SkillMarketplaceSearchResponse{
-		Skills: SkillMarketplaceListingPayloadsFromListings(listings),
-	})
-}
-
-// GetSkillMarketplaceInfo returns remote marketplace metadata for one skill slug.
-func (h *BaseHandlers) GetSkillMarketplaceInfo(c *gin.Context) {
-	slug := strings.TrimSpace(c.Query("slug"))
-	if slug == "" {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
-			fmt.Errorf("%w: skill slug is required", skillmarketplace.ErrValidation),
-		)
-		return
-	}
-	detail, err := h.skillMarketplaceService().Info(c.Request.Context(), slug)
-	if err != nil {
-		h.respondError(c, StatusForSkillMarketplaceError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.SkillMarketplaceDetailResponse{
-		Skill: SkillMarketplaceDetailPayloadFromDetail(detail),
-	})
 }
 
 // InstallSkillMarketplace installs one remote marketplace skill.

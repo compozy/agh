@@ -35,7 +35,7 @@ export const ThinkingBlock = memo(
             "group/reasoning flex min-h-6 w-full min-w-0 cursor-pointer items-center gap-1.5",
             "rounded-sm px-1 text-left",
             "transition-colors duration-base ease-out hover:bg-hover",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong"
+            "focus-visible:outline-none focus-visible:shadow-focus-ring"
           )}
           data-testid="thinking-trigger"
         >

@@ -81,6 +81,8 @@ const (
 	CodeExtensionBlockedByBundle      = "extension_blocked_by_bundle"
 	CodeExtensionChecksumUnverified   = "extension_checksum_unverified"
 	CodeExtensionInstallFailed        = "extension_install_failed"
+	CodeExtensionRemoveCleanupFailed  = "extension_remove_cleanup_failed"
+	CodeExtensionUpdateCleanupFailed  = "extension_update_cleanup_failed"
 	CodeExtensionInUse                = "extension_in_use"
 	CodeExtensionNotFound             = "extension_not_found"
 	CodeFlagNotApplicable             = "flag_not_applicable"
@@ -102,6 +104,7 @@ const (
 	CodeModelNotFound                 = "model_not_found"
 	CodeModelUnavailable              = "model_unavailable"
 	CodeMCPAuthRequired               = "mcp_auth_required"
+	CodeMCPInstallEventPersistFailed  = "mcp_install_event_persist_failed"
 	CodeMCPServerReady                = "mcp_server_ready"
 	CodeMCPServerUnavailable          = "mcp_server_unavailable"
 	CodeMigrationsPending             = "migrations_pending"
@@ -155,6 +158,12 @@ const (
 	CodeVaultRefUnresolved     = "vault_ref_unresolved"
 )
 
+const (
+	CodeExtensionArchiveDigestMismatch   = "extension_archive_digest_mismatch"
+	CodeExtensionRegistryTierUnverified  = "extension_registry_tier_unverified"
+	CodeExtensionUnverifiedPolicyBlocked = "extension_unverified_policy_blocked"
+)
+
 // DiagnosticCodeSpec records the canonical owner metadata for one code.
 type DiagnosticCodeSpec struct {
 	Code     string
@@ -189,8 +198,13 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeDaemonUnavailable, Category: CategoryDaemon},
 	{Code: CodeDiskWriteFailed, Category: CategoryDaemon},
 	{Code: CodeExtensionBlockedByBundle, Category: CategoryExtension},
+	{Code: CodeExtensionArchiveDigestMismatch, Category: CategoryExtension},
 	{Code: CodeExtensionChecksumUnverified, Category: CategoryExtension},
+	{Code: CodeExtensionRegistryTierUnverified, Category: CategoryExtension},
+	{Code: CodeExtensionUnverifiedPolicyBlocked, Category: CategoryExtension},
 	{Code: CodeExtensionInstallFailed, Category: CategoryExtension},
+	{Code: CodeExtensionRemoveCleanupFailed, Category: CategoryExtension},
+	{Code: CodeExtensionUpdateCleanupFailed, Category: CategoryExtension},
 	{Code: CodeExtensionInUse, Category: CategoryExtension},
 	{Code: CodeExtensionNotFound, Category: CategoryExtension},
 	{Code: CodeFlagNotApplicable, Category: CategoryDaemon},
@@ -212,6 +226,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeModelNotFound, Category: CategoryProvider},
 	{Code: CodeModelUnavailable, Category: CategoryProvider},
 	{Code: CodeMCPAuthRequired, Category: CategoryMCP},
+	{Code: CodeMCPInstallEventPersistFailed, Category: CategoryMCP},
 	{Code: CodeMCPServerReady, Category: CategoryMCP},
 	{Code: CodeMCPServerUnavailable, Category: CategoryMCP},
 	{Code: CodeMigrationsPending, Category: CategoryMigrations},

@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type SetStateAction } from "react";
+import { useRef, useState, type SetStateAction } from "react";
 import { toast } from "sonner";
 
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "@/systems/tasks";
@@ -63,20 +63,16 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
     appliedTemplateId: templateId,
   }));
 
-  const draft = resolveTaskCreateDraft(draftState, templateId, draftKey, createDraftWorkspaceId);
-
-  useEffect(() => {
-    setDraftState(current => {
-      if (current.key === draftKey && current.appliedTemplateId === templateId) {
-        return current;
-      }
-      return {
-        draft: resolveTaskCreateDraft(current, templateId, draftKey, createDraftWorkspaceId),
-        key: draftKey,
-        appliedTemplateId: templateId,
-      };
-    });
-  }, [createDraftWorkspaceId, draftKey, search.template, templateId]);
+  let currentDraftState = draftState;
+  if (draftState.key !== draftKey || draftState.appliedTemplateId !== templateId) {
+    currentDraftState = {
+      draft: resolveTaskCreateDraft(draftState, templateId, draftKey, createDraftWorkspaceId),
+      key: draftKey,
+      appliedTemplateId: templateId,
+    };
+    setDraftState(currentDraftState);
+  }
+  const draft = currentDraftState.draft;
 
   const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
     setDraftState(current => {

@@ -295,6 +295,7 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 		Triggers:                    triggers,
 		Bridges:                     bridges,
 		Inventory:                   inventory,
+		SpecDrift:                   item.SpecDrift,
 		CreatedAt:                   item.Activation.CreatedAt,
 		UpdatedAt:                   item.Activation.UpdatedAt,
 	}

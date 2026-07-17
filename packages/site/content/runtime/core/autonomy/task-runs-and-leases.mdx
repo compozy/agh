@@ -236,6 +236,20 @@ Scheduler drain returns a final JSON result over CLI, HTTP, and UDS. The v1 runt
 a scheduler-drain SSE progress stream; clients should poll scheduler status or backlog separately
 when they need an independent progress view.
 
+### Capacity waits and starvation
+
+Queued work does not become starved just because every compatible session is busy. A compatible
+session that is starting, waiting at a prompt, processing another run, or already reserved for an
+earlier run in the same scheduler cycle is still usable capacity. AGH keeps later work queued and
+freezes its escalation budget until that capacity becomes available. The daemon records structured
+`scheduler.capacity_waiting` diagnostics for this condition.
+
+True starvation begins only when a claimable run enters the scheduler's durable escalation ladder.
+`starved_run_count` therefore counts active escalation episodes for queued, claimable runs rather
+than every run older than `[autonomy.scheduler].min_queued_age`. Capacity-waiting work remains part
+of `queued_run_count`; a run appears in `needs_attention_run_count` only after the bounded ladder
+parks it for recovery. The same projection is returned by CLI, HTTP, and UDS scheduler status.
+
 | Event                       | When AGH emits it                                     |
 | --------------------------- | ----------------------------------------------------- |
 | `scheduler.paused`          | Scheduler dispatch was paused or drain was requested. |

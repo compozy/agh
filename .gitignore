@@ -31,12 +31,15 @@ ai-docs/
 .firecrawl
 .kodebase
 .compozy/tasks/final-qa/_runs
+.deep-review/*
+!.deep-review/learnings.md
 .peer-reviews
 .agh
 .clawpatch
 .claude/analysis
 .claude/ledger
 .impeccable
+.coderabbit/reviews/
 
 # Python
 __pycache__/

@@ -29,6 +29,7 @@ test.use({
       ...process.env,
       AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
     },
+    extensionsAllowUnverified: true,
     seed: {
       mockAgents: [
         {

@@ -11,11 +11,34 @@ import (
 )
 
 const deleteMCPAuthToken = `-- name: DeleteMCPAuthToken :execrows
-DELETE FROM mcp_auth_tokens WHERE server_name = ?1
+DELETE FROM mcp_auth_tokens
+WHERE scope = ?1
+  AND workspace_id = ?2
+  AND server_name = ?3
 `
 
-func (q *Queries) DeleteMCPAuthToken(ctx context.Context, serverName string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteMCPAuthToken, serverName)
+type DeleteMCPAuthTokenParams struct {
+	Scope       string `json:"scope"`
+	WorkspaceID string `json:"workspace_id"`
+	ServerName  string `json:"server_name"`
+}
+
+func (q *Queries) DeleteMCPAuthToken(ctx context.Context, arg DeleteMCPAuthTokenParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteMCPAuthToken, arg.Scope, arg.WorkspaceID, arg.ServerName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteMCPAuthTokensByWorkspace = `-- name: DeleteMCPAuthTokensByWorkspace :execrows
+DELETE FROM mcp_auth_tokens
+WHERE scope = 'workspace'
+  AND workspace_id = ?1
+`
+
+func (q *Queries) DeleteMCPAuthTokensByWorkspace(ctx context.Context, workspaceID string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteMCPAuthTokensByWorkspace, workspaceID)
 	if err != nil {
 		return 0, err
 	}
@@ -35,16 +58,29 @@ func (q *Queries) DeleteVaultSecret(ctx context.Context, ref string) (int64, err
 }
 
 const getMCPAuthToken = `-- name: GetMCPAuthToken :one
-SELECT server_name, issuer, client_id, scopes_json, access_token_ref, refresh_token_ref,
+SELECT scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+       access_token_ref, refresh_token_ref,
        token_type, expires_at, obtained_at, updated_at
-FROM mcp_auth_tokens WHERE server_name = ?1
+FROM mcp_auth_tokens
+WHERE scope = ?1
+  AND workspace_id = ?2
+  AND server_name = ?3
 `
 
-func (q *Queries) GetMCPAuthToken(ctx context.Context, serverName string) (McpAuthToken, error) {
-	row := q.db.QueryRowContext(ctx, getMCPAuthToken, serverName)
+type GetMCPAuthTokenParams struct {
+	Scope       string `json:"scope"`
+	WorkspaceID string `json:"workspace_id"`
+	ServerName  string `json:"server_name"`
+}
+
+func (q *Queries) GetMCPAuthToken(ctx context.Context, arg GetMCPAuthTokenParams) (McpAuthToken, error) {
+	row := q.db.QueryRowContext(ctx, getMCPAuthToken, arg.Scope, arg.WorkspaceID, arg.ServerName)
 	var i McpAuthToken
 	err := row.Scan(
+		&i.Scope,
+		&i.WorkspaceID,
 		&i.ServerName,
+		&i.DefinitionFingerprint,
 		&i.Issuer,
 		&i.ClientID,
 		&i.ScopesJson,
@@ -60,16 +96,25 @@ func (q *Queries) GetMCPAuthToken(ctx context.Context, serverName string) (McpAu
 
 const getMCPAuthTokenRefs = `-- name: GetMCPAuthTokenRefs :one
 SELECT access_token_ref, refresh_token_ref
-FROM mcp_auth_tokens WHERE server_name = ?1
+FROM mcp_auth_tokens
+WHERE scope = ?1
+  AND workspace_id = ?2
+  AND server_name = ?3
 `
+
+type GetMCPAuthTokenRefsParams struct {
+	Scope       string `json:"scope"`
+	WorkspaceID string `json:"workspace_id"`
+	ServerName  string `json:"server_name"`
+}
 
 type GetMCPAuthTokenRefsRow struct {
 	AccessTokenRef  string `json:"access_token_ref"`
 	RefreshTokenRef string `json:"refresh_token_ref"`
 }
 
-func (q *Queries) GetMCPAuthTokenRefs(ctx context.Context, serverName string) (GetMCPAuthTokenRefsRow, error) {
-	row := q.db.QueryRowContext(ctx, getMCPAuthTokenRefs, serverName)
+func (q *Queries) GetMCPAuthTokenRefs(ctx context.Context, arg GetMCPAuthTokenRefsParams) (GetMCPAuthTokenRefsRow, error) {
+	row := q.db.QueryRowContext(ctx, getMCPAuthTokenRefs, arg.Scope, arg.WorkspaceID, arg.ServerName)
 	var i GetMCPAuthTokenRefsRow
 	err := row.Scan(&i.AccessTokenRef, &i.RefreshTokenRef)
 	return i, err
@@ -93,10 +138,47 @@ func (q *Queries) GetVaultSecret(ctx context.Context, ref string) (VaultSecret, 
 	return i, err
 }
 
+const listMCPAuthTokenRefsByWorkspace = `-- name: ListMCPAuthTokenRefsByWorkspace :many
+SELECT access_token_ref, refresh_token_ref
+FROM mcp_auth_tokens
+WHERE scope = 'workspace'
+  AND workspace_id = ?1
+ORDER BY server_name ASC
+`
+
+type ListMCPAuthTokenRefsByWorkspaceRow struct {
+	AccessTokenRef  string `json:"access_token_ref"`
+	RefreshTokenRef string `json:"refresh_token_ref"`
+}
+
+func (q *Queries) ListMCPAuthTokenRefsByWorkspace(ctx context.Context, workspaceID string) ([]ListMCPAuthTokenRefsByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMCPAuthTokenRefsByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMCPAuthTokenRefsByWorkspaceRow{}
+	for rows.Next() {
+		var i ListMCPAuthTokenRefsByWorkspaceRow
+		if err := rows.Scan(&i.AccessTokenRef, &i.RefreshTokenRef); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMCPAuthTokens = `-- name: ListMCPAuthTokens :many
-SELECT server_name, issuer, client_id, scopes_json, access_token_ref, refresh_token_ref,
+SELECT scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+       access_token_ref, refresh_token_ref,
        token_type, expires_at, obtained_at, updated_at
-FROM mcp_auth_tokens ORDER BY server_name ASC
+FROM mcp_auth_tokens ORDER BY scope ASC, workspace_id ASC, server_name ASC
 `
 
 func (q *Queries) ListMCPAuthTokens(ctx context.Context) ([]McpAuthToken, error) {
@@ -109,7 +191,10 @@ func (q *Queries) ListMCPAuthTokens(ctx context.Context) ([]McpAuthToken, error)
 	for rows.Next() {
 		var i McpAuthToken
 		if err := rows.Scan(
+			&i.Scope,
+			&i.WorkspaceID,
 			&i.ServerName,
+			&i.DefinitionFingerprint,
 			&i.Issuer,
 			&i.ClientID,
 			&i.ScopesJson,
@@ -135,36 +220,45 @@ func (q *Queries) ListMCPAuthTokens(ctx context.Context) ([]McpAuthToken, error)
 
 const upsertMCPAuthToken = `-- name: UpsertMCPAuthToken :exec
 INSERT INTO mcp_auth_tokens (
-  server_name, issuer, client_id, scopes_json, access_token_ref, refresh_token_ref,
+  scope, workspace_id, server_name, definition_fingerprint, issuer, client_id, scopes_json,
+  access_token_ref, refresh_token_ref,
   token_type, expires_at, obtained_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
-  ?8, ?9, ?10
+  ?8, ?9, ?10,
+  ?11, ?12, ?13
 )
-ON CONFLICT(server_name) DO UPDATE SET
-  issuer = excluded.issuer, client_id = excluded.client_id, scopes_json = excluded.scopes_json,
+ON CONFLICT(scope, workspace_id, server_name) DO UPDATE SET
+  definition_fingerprint = excluded.definition_fingerprint, issuer = excluded.issuer,
+  client_id = excluded.client_id, scopes_json = excluded.scopes_json,
   access_token_ref = excluded.access_token_ref, refresh_token_ref = excluded.refresh_token_ref,
   token_type = excluded.token_type, expires_at = excluded.expires_at,
   obtained_at = excluded.obtained_at, updated_at = excluded.updated_at
 `
 
 type UpsertMCPAuthTokenParams struct {
-	ServerName      string         `json:"server_name"`
-	Issuer          string         `json:"issuer"`
-	ClientID        string         `json:"client_id"`
-	ScopesJson      string         `json:"scopes_json"`
-	AccessTokenRef  string         `json:"access_token_ref"`
-	RefreshTokenRef string         `json:"refresh_token_ref"`
-	TokenType       string         `json:"token_type"`
-	ExpiresAt       sql.NullString `json:"expires_at"`
-	ObtainedAt      string         `json:"obtained_at"`
-	UpdatedAt       string         `json:"updated_at"`
+	Scope                 string         `json:"scope"`
+	WorkspaceID           string         `json:"workspace_id"`
+	ServerName            string         `json:"server_name"`
+	DefinitionFingerprint string         `json:"definition_fingerprint"`
+	Issuer                string         `json:"issuer"`
+	ClientID              string         `json:"client_id"`
+	ScopesJson            string         `json:"scopes_json"`
+	AccessTokenRef        string         `json:"access_token_ref"`
+	RefreshTokenRef       string         `json:"refresh_token_ref"`
+	TokenType             string         `json:"token_type"`
+	ExpiresAt             sql.NullString `json:"expires_at"`
+	ObtainedAt            string         `json:"obtained_at"`
+	UpdatedAt             string         `json:"updated_at"`
 }
 
 func (q *Queries) UpsertMCPAuthToken(ctx context.Context, arg UpsertMCPAuthTokenParams) error {
 	_, err := q.db.ExecContext(ctx, upsertMCPAuthToken,
+		arg.Scope,
+		arg.WorkspaceID,
 		arg.ServerName,
+		arg.DefinitionFingerprint,
 		arg.Issuer,
 		arg.ClientID,
 		arg.ScopesJson,

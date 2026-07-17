@@ -5,20 +5,28 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
 	registrypkg "github.com/compozy/agh/internal/registry"
 )
 
 type lifecycleSource struct {
 	name          string
+	extensionName string
+	slug          string
 	latestVersion string
 	archives      map[string][]byte
 	closeErr      error
@@ -45,8 +53,8 @@ func (s *lifecycleSource) Search(
 ) ([]registrypkg.Listing, error) {
 	return []registrypkg.Listing{
 		{
-			Slug:    "acme/lifecycle-ext",
-			Name:    "lifecycle-ext",
+			Slug:    s.packageSlug(),
+			Name:    s.packageName(),
 			Version: s.latestVersion,
 			Source:  s.Name(),
 			Type:    registrypkg.PackageTypeExtension,
@@ -57,8 +65,8 @@ func (s *lifecycleSource) Search(
 func (s *lifecycleSource) Info(context.Context, string) (*registrypkg.Detail, error) {
 	return &registrypkg.Detail{
 		Listing: registrypkg.Listing{
-			Slug:    "acme/lifecycle-ext",
-			Name:    "lifecycle-ext",
+			Slug:    s.packageSlug(),
+			Name:    s.packageName(),
 			Version: s.latestVersion,
 			Source:  s.Name(),
 			Type:    registrypkg.PackageTypeExtension,
@@ -81,7 +89,7 @@ func (s *lifecycleSource) Download(
 	}
 	return &registrypkg.DownloadResult{
 		Reader:      io.NopCloser(bytes.NewReader(archive)),
-		Slug:        "acme/lifecycle-ext",
+		Slug:        s.packageSlug(),
 		Version:     version,
 		ContentSize: -1,
 		ContentType: "application/gzip",
@@ -91,6 +99,20 @@ func (s *lifecycleSource) Download(
 func (s *lifecycleSource) Close() error {
 	s.closeCount++
 	return s.closeErr
+}
+
+func (s *lifecycleSource) packageName() string {
+	if strings.TrimSpace(s.extensionName) == "" {
+		return "lifecycle-ext"
+	}
+	return s.extensionName
+}
+
+func (s *lifecycleSource) packageSlug() string {
+	if strings.TrimSpace(s.slug) == "" {
+		return "acme/" + s.packageName()
+	}
+	return s.slug
 }
 
 func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testing.T) {
@@ -107,21 +129,16 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			return []registrypkg.Source{source}, nil
 		}
 
-		listings, err := SearchMarketplaceExtensions(t.Context(), loader, "life", "github", 10)
-		if err != nil {
-			t.Fatalf("SearchMarketplaceExtensions() error = %v", err)
-		}
-		if len(listings) != 1 || listings[0].Slug != "acme/lifecycle-ext" {
-			t.Fatalf("SearchMarketplaceExtensions() = %#v, want lifecycle listing", listings)
-		}
-
 		source.latestVersion = "1.0.0"
 		installed, err := InstallMarketplaceManaged(
 			t.Context(),
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", SourceFilter: "github", AllowUnverified: true},
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext", SourceFilter: "github",
+				PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
 		)
 		if err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
@@ -160,8 +177,11 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}},
 			nil,
 		)
-		if !errors.Is(err, ErrExtensionChecksumUnverified) {
-			t.Fatalf("UpdateMarketplaceManaged(unverified) error = %v, want ErrExtensionChecksumUnverified", err)
+		if !errors.Is(err, ErrExtensionUnverifiedPolicyBlocked) {
+			t.Fatalf(
+				"UpdateMarketplaceManaged(policy blocked) error = %v, want ErrExtensionUnverifiedPolicyBlocked",
+				err,
+			)
 		}
 
 		updates, err := UpdateMarketplaceManaged(
@@ -169,7 +189,9 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}, AllowUnverified: true},
+			MarketplaceUpdateRequest{
+				Names: []string{"lifecycle-ext"}, PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
 			func(context.Context) error {
 				reloads++
 				return nil
@@ -209,6 +231,102 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			t.Fatalf("os.Stat(managed dir after remove) error = %v, want not exist", err)
 		}
 	})
+
+	t.Run("Should close the registry source before moving an installation into place", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		closeErr := errors.New("registry close failed")
+		source := newLifecycleSource(t, "1.0.0")
+		source.closeErr = closeErr
+		_, err = InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{source}, nil
+			},
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
+		)
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("InstallMarketplaceManaged() error = %v, want source close failure", err)
+		}
+		if got, want := source.closeCount, 1; got != want {
+			t.Fatalf("source close count = %d, want %d", got, want)
+		}
+		if _, statErr := os.Stat(ManagedInstallPath(homePaths, "lifecycle-ext")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(managed install) error = %v, want not-exist", statErr)
+		}
+	})
+
+	t.Run("Should keep removal committed when backup cleanup partially fails", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		source := newLifecycleSource(t, "1.0.0")
+		installed, err := InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) { return []registrypkg.Source{source}, nil },
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
+		)
+		if err != nil {
+			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
+		}
+		installDir, err := InstalledExtensionDir(*installed)
+		if err != nil {
+			t.Fatalf("InstalledExtensionDir() error = %v", err)
+		}
+		change, err := stageExtensionDirRemoval(installDir)
+		if err != nil {
+			t.Fatalf("stageExtensionDirRemoval() error = %v", err)
+		}
+		if err := env.registry.Uninstall(installed.Name); err != nil {
+			t.Fatalf("registry.Uninstall() error = %v", err)
+		}
+		manifestPath := filepath.Join(change.backupDir, manifestTOMLFileName)
+		cleanupErr := errors.New("forced partial backup cleanup failure")
+		change.removeBackup = func(string) error {
+			if removeErr := os.Remove(manifestPath); removeErr != nil {
+				return errors.Join(cleanupErr, removeErr)
+			}
+			return cleanupErr
+		}
+
+		result := finalizeManagedExtensionRemoval(installed.Name, installDir, change)
+		if result.Status != "removed" || result.Name != installed.Name {
+			t.Fatalf("finalizeManagedExtensionRemoval() = %#v, want committed removal", result)
+		}
+		if len(result.Warnings) != 1 ||
+			result.Warnings[0].Code != diagnosticcontract.CodeExtensionRemoveCleanupFailed {
+			t.Fatalf("removal warnings = %#v, want cleanup warning", result.Warnings)
+		}
+		if _, getErr := env.registry.Get(installed.Name); !errors.Is(getErr, ErrExtensionNotFound) {
+			t.Fatalf("registry.Get(removed extension) error = %v, want ErrExtensionNotFound", getErr)
+		}
+		if _, statErr := os.Stat(installDir); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(removed install dir) error = %v, want not exist", statErr)
+		}
+		if _, statErr := os.Stat(change.backupDir); statErr != nil {
+			t.Fatalf("os.Stat(backup residue) error = %v, want retained residue", statErr)
+		}
+		if _, statErr := os.Stat(manifestPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(partially removed manifest) error = %v, want not exist", statErr)
+		}
+	})
 }
 
 func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
@@ -231,7 +349,9 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", AllowUnverified: true},
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
 		); err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
 		}
@@ -243,7 +363,9 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}, AllowUnverified: true},
+			MarketplaceUpdateRequest{
+				Names: []string{"lifecycle-ext"}, PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
 			func(context.Context) error {
 				return reloadErr
 			},
@@ -263,6 +385,186 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 	})
 }
 
+func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return committed updates in a typed partial failure", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		good := newLifecycleSourceNamed(t, "a-good", "good-registry", "1.0.0", "2.0.0")
+		bad := newLifecycleSourceNamed(t, "z-bad", "bad-registry", "1.0.0", "2.0.0")
+		loader := func(context.Context) ([]registrypkg.Source, error) {
+			return []registrypkg.Source{good, bad}, nil
+		}
+
+		for _, source := range []*lifecycleSource{good, bad} {
+			source.latestVersion = "1.0.0"
+			if _, err := InstallMarketplaceManaged(
+				t.Context(),
+				homePaths,
+				env.registry,
+				loader,
+				MarketplaceInstallRequest{
+					Slug:                   source.packageSlug(),
+					SourceFilter:           source.Name(),
+					PolicyAllowsUnverified: true,
+					AllowUnverified:        true,
+				},
+			); err != nil {
+				t.Fatalf("InstallMarketplaceManaged(%s) error = %v", source.packageName(), err)
+			}
+			source.latestVersion = "2.0.0"
+		}
+		bad.archives["2.0.0"] = lifecycleTarGzNamed(t, "wrong-identity", "2.0.0")
+
+		updates, err := UpdateMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			loader,
+			MarketplaceUpdateRequest{All: true, PolicyAllowsUnverified: true, AllowUnverified: true},
+			nil,
+		)
+		var batchErr *MarketplaceUpdateBatchError
+		if !errors.As(err, &batchErr) {
+			t.Fatalf("UpdateMarketplaceManaged() error = %T %v, want *MarketplaceUpdateBatchError", err, err)
+		}
+		if len(updates) != 1 || updates[0].Name != "a-good" || updates[0].Status != MarketplaceUpdateStatusUpdated {
+			t.Fatalf("UpdateMarketplaceManaged() updates = %#v, want committed a-good update", updates)
+		}
+		if batchErr.FailedName != "z-bad" || len(batchErr.Completed) != 1 ||
+			!reflect.DeepEqual(batchErr.Completed[0], updates[0]) {
+			t.Fatalf("MarketplaceUpdateBatchError = %#v, want z-bad after committed a-good", batchErr)
+		}
+		for name, version := range map[string]string{"a-good": "2.0.0", "z-bad": "1.0.0"} {
+			info, getErr := env.registry.Get(name)
+			if getErr != nil {
+				t.Fatalf("registry.Get(%s) error = %v", name, getErr)
+			}
+			if info.Version != version {
+				t.Fatalf("registry.Get(%s).Version = %q, want %q", name, info.Version, version)
+			}
+			requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, name), "VERSION.txt"), version)
+		}
+	})
+}
+
+func TestMarketplaceLifecycleReportsPostCommitCleanupFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		target      string
+		wantBackups int
+		configure   func(*MarketplaceUpdateRequest, error)
+	}{
+		{
+			name:   "Should preserve backup residue after backup cleanup fails",
+			target: marketplaceUpdateCleanupBackup, wantBackups: 1,
+			configure: func(req *MarketplaceUpdateRequest, cleanupErr error) {
+				req.commitChange = func(*stagedExtensionDirChange) error { return cleanupErr }
+			},
+		},
+		{
+			name:   "Should preserve the committed update after staging cleanup fails",
+			target: marketplaceUpdateCleanupStaging,
+			configure: func(req *MarketplaceUpdateRequest, cleanupErr error) {
+				req.removeStaging = func(string) error { return cleanupErr }
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assertMarketplacePostCommitCleanupFailure(t, tt.target, tt.wantBackups, tt.configure)
+		})
+	}
+}
+
+func assertMarketplacePostCommitCleanupFailure(
+	t *testing.T,
+	target string,
+	wantBackups int,
+	configure func(*MarketplaceUpdateRequest, error),
+) {
+	t.Helper()
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	env := newRegistryTestEnv(t)
+	source := newLifecycleSource(t, "1.0.0", "2.0.0")
+	loader := func(context.Context) ([]registrypkg.Source, error) {
+		return []registrypkg.Source{source}, nil
+	}
+	source.latestVersion = "1.0.0"
+	if _, err := InstallMarketplaceManaged(
+		t.Context(),
+		homePaths,
+		env.registry,
+		loader,
+		MarketplaceInstallRequest{
+			Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true, AllowUnverified: true,
+		},
+	); err != nil {
+		t.Fatalf("InstallMarketplaceManaged() error = %v", err)
+	}
+	source.latestVersion = "2.0.0"
+	cleanupErr := errors.New("post-commit cleanup denied")
+	reloads := 0
+	req := MarketplaceUpdateRequest{
+		Names: []string{"lifecycle-ext"}, PolicyAllowsUnverified: true, AllowUnverified: true,
+	}
+	configure(&req, cleanupErr)
+
+	updates, err := UpdateMarketplaceManaged(
+		t.Context(),
+		homePaths,
+		env.registry,
+		loader,
+		req,
+		func(context.Context) error {
+			reloads++
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("UpdateMarketplaceManaged() error = %v, want committed update with warning", err)
+	}
+	if len(updates) != 1 || updates[0].Status != MarketplaceUpdateStatusUpdated {
+		t.Fatalf("UpdateMarketplaceManaged() = %#v, want updated result", updates)
+	}
+	if len(updates[0].Warnings) != 1 ||
+		updates[0].Warnings[0].Code != diagnosticcontract.CodeExtensionUpdateCleanupFailed ||
+		updates[0].Warnings[0].Evidence["cleanup_target"] != target {
+		t.Fatalf("UpdateMarketplaceManaged().Warnings = %#v, want %s cleanup diagnostic", updates[0].Warnings, target)
+	}
+	if reloads != 1 {
+		t.Fatalf("reload calls = %d, want 1 successful activation", reloads)
+	}
+	info, err := env.registry.Get("lifecycle-ext")
+	if err != nil {
+		t.Fatalf("registry.Get() error = %v", err)
+	}
+	if info.Version != "2.0.0" {
+		t.Fatalf("registry version = %q, want committed 2.0.0", info.Version)
+	}
+	installDir := ManagedInstallPath(homePaths, "lifecycle-ext")
+	requireFileContains(t, filepath.Join(installDir, "VERSION.txt"), "2.0.0")
+	backups, err := filepath.Glob(installDir + ".agh-backup-*")
+	if err != nil {
+		t.Fatalf("filepath.Glob(backup) error = %v", err)
+	}
+	if len(backups) != wantBackups {
+		t.Fatalf("backup paths = %#v, want %d", backups, wantBackups)
+	}
+}
+
 func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 	t.Run("Should validate marketplace sources and lifecycle inputs", func(t *testing.T) {
 		t.Parallel()
@@ -273,15 +575,6 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 		}
 		env := newRegistryTestEnv(t)
 		source := newLifecycleSource(t, "1.0.0")
-
-		if _, err := SearchMarketplaceExtensions(t.Context(), nil, "life", "", 10); err == nil {
-			t.Fatal("SearchMarketplaceExtensions(nil loader) error = nil, want failure")
-		}
-		if _, err := SearchMarketplaceExtensions(t.Context(), func(context.Context) ([]registrypkg.Source, error) {
-			return []registrypkg.Source{source}, nil
-		}, "life", "", 0); err == nil {
-			t.Fatal("SearchMarketplaceExtensions(limit 0) error = nil, want failure")
-		}
 
 		primary := newLifecycleSource(t, "1.0.0")
 		secondary := newLifecycleSource(t, "1.0.0")
@@ -333,16 +626,30 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext"},
-		); !errors.Is(err, ErrExtensionChecksumUnverified) {
-			t.Fatalf("InstallMarketplaceManaged(unverified) error = %v, want ErrExtensionChecksumUnverified", err)
+			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", AllowUnverified: true},
+		); !errors.Is(err, ErrExtensionUnverifiedPolicyBlocked) {
+			t.Fatalf(
+				"InstallMarketplaceManaged(policy blocked) error = %v, want ErrExtensionUnverifiedPolicyBlocked",
+				err,
+			)
 		}
 		if _, err := InstallMarketplaceManaged(
 			t.Context(),
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", AllowUnverified: true},
+			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true},
+		); !errors.Is(err, ErrExtensionChecksumUnverified) {
+			t.Fatalf("InstallMarketplaceManaged(unconfirmed) error = %v, want ErrExtensionChecksumUnverified", err)
+		}
+		if _, err := InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			loader,
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
 		); err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
 		}
@@ -351,7 +658,9 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", AllowUnverified: true},
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext", PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
 		); !errors.Is(err, ErrExtensionExists) {
 			t.Fatalf("InstallMarketplaceManaged(duplicate) error = %v, want ErrExtensionExists", err)
 		}
@@ -394,7 +703,9 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}, AllowUnverified: true},
+			MarketplaceUpdateRequest{
+				Names: []string{"lifecycle-ext"}, PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
 			nil,
 		); err == nil || !strings.Contains(err.Error(), "identity mismatch") {
 			t.Fatalf("UpdateMarketplaceManaged(identity mismatch) error = %v, want identity mismatch", err)
@@ -413,24 +724,581 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 	})
 }
 
+func TestMarketplaceLifecycleVerifiesCuratedArchiveDigest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should install and update a curated HTTPS artifact without registry fallback", func(t *testing.T) {
+		t.Parallel()
+
+		archives := map[string][]byte{
+			"/repository-orientation-v1.0.0.tar.gz": lifecycleTarGzNamed(t, "repository-orientation", "1.0.0"),
+			"/repository-orientation-v1.1.0.tar.gz": lifecycleTarGzNamed(t, "repository-orientation", "1.1.0"),
+		}
+		server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			archive, ok := archives[request.URL.Path]
+			if !ok {
+				http.NotFound(writer, request)
+				return
+			}
+			writer.Header().Set("Content-Type", "application/gzip")
+			if _, err := writer.Write(archive); err != nil {
+				t.Fatalf("writer.Write() error = %v", err)
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		loader := func(context.Context) ([]registrypkg.Source, error) {
+			return nil, errors.New("registry fallback must not run for a curated artifact")
+		}
+		v1 := &MarketplaceTrustEvidence{
+			CatalogEntryID:      "repository-orientation",
+			Version:             "1.0.0",
+			ArchiveDigestSHA256: lifecycleArchiveDigest(archives["/repository-orientation-v1.0.0.tar.gz"]),
+			RegistryTier:        ExtensionRegistryTierOfficial,
+			ArtifactURL:         server.URL + "/repository-orientation-v1.0.0.tar.gz",
+			Repository:          "https://github.com/compozy/agh",
+		}
+		installed, err := InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			loader,
+			MarketplaceInstallRequest{
+				Slug: "compozy/repository-orientation", Trust: v1, ArtifactHTTPClient: server.Client(),
+			},
+		)
+		if err != nil {
+			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
+		}
+		if got := dereferenceOptionalString(installed.RegistryName); got != MarketplaceCatalogRegistryName {
+			t.Fatalf("installed registry = %q, want %q", got, MarketplaceCatalogRegistryName)
+		}
+		if installed.Provenance.SourceURL != v1.Repository {
+			t.Fatalf("installed source URL = %q, want %q", installed.Provenance.SourceURL, v1.Repository)
+		}
+
+		v2 := &MarketplaceTrustEvidence{
+			CatalogEntryID:      "repository-orientation",
+			Version:             "1.1.0",
+			ArchiveDigestSHA256: lifecycleArchiveDigest(archives["/repository-orientation-v1.1.0.tar.gz"]),
+			RegistryTier:        ExtensionRegistryTierOfficial,
+			ArtifactURL:         server.URL + "/repository-orientation-v1.1.0.tar.gz",
+			Repository:          v1.Repository,
+		}
+		updates, err := UpdateMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			loader,
+			MarketplaceUpdateRequest{
+				Names: []string{"repository-orientation"}, ArtifactHTTPClient: server.Client(),
+				ResolveTrust: func(_ context.Context, slug string, version string) (*MarketplaceTrustEvidence, error) {
+					if slug != "compozy/repository-orientation" || version != "" {
+						t.Fatalf("ResolveTrust(%q, %q), want catalog latest lookup", slug, version)
+					}
+					return v2, nil
+				},
+			},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("UpdateMarketplaceManaged() error = %v", err)
+		}
+		if len(updates) != 1 || updates[0].Status != MarketplaceUpdateStatusUpdated ||
+			updates[0].LatestVersion != "1.1.0" {
+			t.Fatalf("UpdateMarketplaceManaged() = %#v, want curated v1.1.0 update", updates)
+		}
+		info, err := env.registry.Get("repository-orientation")
+		if err != nil {
+			t.Fatalf("registry.Get() error = %v", err)
+		}
+		if info.Version != "1.1.0" || info.Provenance.ArchiveDigestSHA256 != v2.ArchiveDigestSHA256 {
+			t.Fatalf("updated extension = %#v, want catalog-pinned v1.1.0", info)
+		}
+	})
+
+	t.Run("Should install a matching curated archive without unverified consent", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		source := newLifecycleSource(t, "1.0.0")
+		archiveDigest := lifecycleArchiveDigest(source.archives["1.0.0"])
+
+		installed, err := InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) { return []registrypkg.Source{source}, nil },
+			MarketplaceInstallRequest{
+				Slug: "acme/lifecycle-ext",
+				Trust: &MarketplaceTrustEvidence{
+					CatalogEntryID:      "lifecycle-ext-v1",
+					Version:             "1.0.0",
+					ArchiveDigestSHA256: archiveDigest,
+					RegistryTier:        ExtensionRegistryTierOfficial,
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
+		}
+		if !installed.Provenance.ChecksumVerified || installed.Provenance.AllowUnverified {
+			t.Fatalf("installed provenance = %#v, want verified without unverified consent", installed.Provenance)
+		}
+		if installed.Provenance.CatalogEntryID != "lifecycle-ext-v1" ||
+			installed.Provenance.ArchiveDigestSHA256 != archiveDigest ||
+			installed.Provenance.RegistryTier != ExtensionRegistryTierOfficial {
+			t.Fatalf("installed provenance = %#v, want curated catalog identity", installed.Provenance)
+		}
+		if len(installed.Provenance.Warnings) != 0 {
+			t.Fatalf("installed warnings = %#v, want none", installed.Provenance.Warnings)
+		}
+	})
+
+	t.Run("Should reject a curated digest mismatch even with unverified consent", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		source := newLifecycleSource(t, "1.0.0")
+
+		_, err = InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			func(context.Context) ([]registrypkg.Source, error) { return []registrypkg.Source{source}, nil },
+			MarketplaceInstallRequest{
+				Slug:            "acme/lifecycle-ext",
+				AllowUnverified: true,
+				Trust: &MarketplaceTrustEvidence{
+					CatalogEntryID:      "lifecycle-ext-v1",
+					Version:             "1.0.0",
+					ArchiveDigestSHA256: strings.Repeat("0", sha256.Size*2),
+					RegistryTier:        ExtensionRegistryTierOfficial,
+				},
+			},
+		)
+		if !errors.Is(err, ErrExtensionArchiveDigestMismatch) {
+			t.Fatalf("InstallMarketplaceManaged() error = %v, want ErrExtensionArchiveDigestMismatch", err)
+		}
+		if !strings.Contains(err.Error(), "lifecycle-ext-v1") || !strings.Contains(err.Error(), "1.0.0") {
+			t.Fatalf("InstallMarketplaceManaged() error = %v, want entry and version identity", err)
+		}
+		if _, statErr := os.Stat(ManagedInstallPath(homePaths, "lifecycle-ext")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(managed install) error = %v, want not-exist", statErr)
+		}
+	})
+
+	t.Run("Should enforce unverified catalog publisher policy and consent on install", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name         string
+			policyAllows bool
+			allow        bool
+			wantErr      error
+		}{
+			{
+				name:    "Should block without policy or consent",
+				wantErr: ErrExtensionUnverifiedPolicyBlocked,
+			},
+			{
+				name:    "Should block despite consent when policy forbids",
+				allow:   true,
+				wantErr: ErrExtensionUnverifiedPolicyBlocked,
+			},
+			{
+				name:         "Should require consent when policy allows",
+				policyAllows: true,
+				wantErr:      ErrExtensionChecksumUnverified,
+			},
+			{
+				name:         "Should install with policy and consent",
+				policyAllows: true,
+				allow:        true,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+				if err != nil {
+					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+				}
+				env := newRegistryTestEnv(t)
+				source := newLifecycleSource(t, "1.0.0")
+				archiveDigest := lifecycleArchiveDigest(source.archives["1.0.0"])
+
+				installed, err := InstallMarketplaceManaged(
+					t.Context(),
+					homePaths,
+					env.registry,
+					func(context.Context) ([]registrypkg.Source, error) { return []registrypkg.Source{source}, nil },
+					MarketplaceInstallRequest{
+						Slug:                   "acme/lifecycle-ext",
+						PolicyAllowsUnverified: tt.policyAllows,
+						AllowUnverified:        tt.allow,
+						Trust: &MarketplaceTrustEvidence{
+							CatalogEntryID:      "lifecycle-ext-v1",
+							Version:             "1.0.0",
+							ArchiveDigestSHA256: archiveDigest,
+							RegistryTier:        ExtensionRegistryTierUnverified,
+						},
+					},
+				)
+				if tt.wantErr != nil {
+					if !errors.Is(err, tt.wantErr) {
+						t.Fatalf("InstallMarketplaceManaged() error = %v, want %v", err, tt.wantErr)
+					}
+					_, statErr := os.Stat(ManagedInstallPath(homePaths, "lifecycle-ext"))
+					if !errors.Is(statErr, os.ErrNotExist) {
+						t.Fatalf("os.Stat(managed install) error = %v, want not-exist", statErr)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("InstallMarketplaceManaged() error = %v", err)
+				}
+				if installed == nil {
+					t.Fatal("InstallMarketplaceManaged() installed = nil")
+				}
+				assertUnverifiedCatalogProvenance(t, installed.Provenance)
+			})
+		}
+	})
+
+	t.Run("Should enforce unverified catalog publisher policy and consent on update", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name         string
+			policyAllows bool
+			allow        bool
+			wantErr      error
+		}{
+			{
+				name:    "Should block without policy or consent",
+				wantErr: ErrExtensionUnverifiedPolicyBlocked,
+			},
+			{
+				name:    "Should block despite consent when policy forbids",
+				allow:   true,
+				wantErr: ErrExtensionUnverifiedPolicyBlocked,
+			},
+			{
+				name:         "Should require consent when policy allows",
+				policyAllows: true,
+				wantErr:      ErrExtensionChecksumUnverified,
+			},
+			{
+				name:         "Should update with policy and consent",
+				policyAllows: true,
+				allow:        true,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+				if err != nil {
+					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+				}
+				env := newRegistryTestEnv(t)
+				source := newLifecycleSource(t, "1.0.0", "2.0.0")
+				loader := func(context.Context) ([]registrypkg.Source, error) {
+					return []registrypkg.Source{source}, nil
+				}
+				source.latestVersion = "1.0.0"
+				if _, err := InstallMarketplaceManaged(
+					t.Context(),
+					homePaths,
+					env.registry,
+					loader,
+					MarketplaceInstallRequest{
+						Slug: "acme/lifecycle-ext",
+						Trust: &MarketplaceTrustEvidence{
+							CatalogEntryID:      "lifecycle-ext-v1",
+							Version:             "1.0.0",
+							ArchiveDigestSHA256: lifecycleArchiveDigest(source.archives["1.0.0"]),
+							RegistryTier:        ExtensionRegistryTierOfficial,
+						},
+					},
+				); err != nil {
+					t.Fatalf("InstallMarketplaceManaged() error = %v", err)
+				}
+				source.latestVersion = "2.0.0"
+
+				updates, err := UpdateMarketplaceManaged(
+					t.Context(),
+					homePaths,
+					env.registry,
+					loader,
+					MarketplaceUpdateRequest{
+						Names:                  []string{"lifecycle-ext"},
+						PolicyAllowsUnverified: tt.policyAllows,
+						AllowUnverified:        tt.allow,
+						ResolveTrust: func(context.Context, string, string) (*MarketplaceTrustEvidence, error) {
+							return &MarketplaceTrustEvidence{
+								CatalogEntryID:      "lifecycle-ext-v2",
+								Version:             "2.0.0",
+								ArchiveDigestSHA256: lifecycleArchiveDigest(source.archives["2.0.0"]),
+								RegistryTier:        ExtensionRegistryTierUnverified,
+							}, nil
+						},
+					},
+					nil,
+				)
+				if tt.wantErr != nil {
+					if !errors.Is(err, tt.wantErr) {
+						t.Fatalf("UpdateMarketplaceManaged() error = %v, want %v", err, tt.wantErr)
+					}
+					info, getErr := env.registry.Get("lifecycle-ext")
+					if getErr != nil {
+						t.Fatalf("registry.Get() error = %v", getErr)
+					}
+					if info.Version != "1.0.0" {
+						t.Fatalf("registry version = %q, want 1.0.0", info.Version)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("UpdateMarketplaceManaged() error = %v", err)
+				}
+				if len(updates) != 1 || updates[0].Status != MarketplaceUpdateStatusUpdated {
+					t.Fatalf("UpdateMarketplaceManaged() = %#v, want one updated result", updates)
+				}
+				info, err := env.registry.Get("lifecycle-ext")
+				if err != nil {
+					t.Fatalf("registry.Get() error = %v", err)
+				}
+				assertUnverifiedCatalogProvenance(t, info.Provenance)
+			})
+		}
+	})
+}
+
+func assertUnverifiedCatalogProvenance(t *testing.T, provenance ExtensionProvenance) {
+	t.Helper()
+
+	if !provenance.ChecksumVerified || provenance.RegistryTier != ExtensionRegistryTierUnverified ||
+		!provenance.AllowUnverified {
+		t.Fatalf("provenance = %#v, want digest-verified unverified-publisher consent", provenance)
+	}
+	if len(provenance.Warnings) != 1 ||
+		provenance.Warnings[0].Code != diagnosticcontract.CodeExtensionRegistryTierUnverified {
+		t.Fatalf("provenance warnings = %#v, want unverified publisher diagnostic", provenance.Warnings)
+	}
+	if decision := extensionTrustDecision(provenance); decision != ExtensionTrustDecisionAllowedUnverified {
+		t.Fatalf("extensionTrustDecision() = %q, want %q", decision, ExtensionTrustDecisionAllowedUnverified)
+	}
+}
+
+func TestMarketplaceTrustDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should project pre-install trust from registry tier and live policy", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name            string
+			tier            string
+			policyAllows    bool
+			wantDecision    string
+			wantWarningCode string
+		}{
+			{
+				name:         "Should trust a digest-pinned official catalog entry",
+				tier:         ExtensionRegistryTierOfficial,
+				wantDecision: ExtensionTrustDecisionVerified,
+			},
+			{
+				name:            "Should block an unverified tier when policy forbids it",
+				tier:            ExtensionRegistryTierUnverified,
+				wantDecision:    ExtensionTrustDecisionBlocked,
+				wantWarningCode: diagnosticcontract.CodeExtensionRegistryTierUnverified,
+			},
+			{
+				name:            "Should require confirmation for an unverified tier when policy allows it",
+				tier:            ExtensionRegistryTierUnverified,
+				policyAllows:    true,
+				wantDecision:    ExtensionTrustDecisionAllowedUnverified,
+				wantWarningCode: diagnosticcontract.CodeExtensionRegistryTierUnverified,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				report, err := MarketplaceEntryTrustReport(MarketplaceTrustEvidence{
+					CatalogEntryID: "extension.acme.catalog",
+					Version:        "1.0.0",
+					ArchiveDigestSHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" +
+						"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					RegistryTier: tt.tier,
+				}, tt.policyAllows)
+				if err != nil {
+					t.Fatalf("MarketplaceEntryTrustReport() error = %v", err)
+				}
+				if report.Decision != tt.wantDecision || report.RegistryTier != tt.tier ||
+					report.ChecksumVerified || report.AllowUnverified != tt.policyAllows {
+					t.Fatalf("MarketplaceEntryTrustReport() = %#v", report)
+				}
+				if tt.wantWarningCode == "" {
+					if len(report.Warnings) != 0 {
+						t.Fatalf("MarketplaceEntryTrustReport().Warnings = %#v, want none", report.Warnings)
+					}
+					return
+				}
+				if len(report.Warnings) != 1 || report.Warnings[0].Code != tt.wantWarningCode {
+					t.Fatalf(
+						"MarketplaceEntryTrustReport().Warnings = %#v, want code %q",
+						report.Warnings,
+						tt.wantWarningCode,
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve the typed policy diagnostic across error inspection", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidateUnverifiedSideLoad(" acme/blocked ", " local ", false, true)
+		if !errors.Is(err, ErrExtensionUnverifiedPolicyBlocked) {
+			t.Fatalf("ValidateUnverifiedSideLoad() error = %v, want ErrExtensionUnverifiedPolicyBlocked", err)
+		}
+		var blocked *ExtensionPolicyBlockedError
+		if !errors.As(err, &blocked) {
+			t.Fatalf("ValidateUnverifiedSideLoad() error = %T, want *ExtensionPolicyBlockedError", err)
+		}
+		if blocked.Error() != "extension: unverified install blocked by policy: acme/blocked" {
+			t.Fatalf("ExtensionPolicyBlockedError.Error() = %q", blocked.Error())
+		}
+		item := blocked.DiagnosticItem()
+		if item.Code != diagnosticcontract.CodeExtensionUnverifiedPolicyBlocked ||
+			item.SuggestedCommand != "agh config set extensions.marketplace.allow_unverified true" {
+			t.Fatalf("ExtensionPolicyBlockedError.DiagnosticItem() = %#v", item)
+		}
+		if got := item.Evidence["settings_path"]; got != "/settings/extensions" {
+			t.Fatalf("ExtensionPolicyBlockedError.DiagnosticItem().Evidence[settings_path] = %v", got)
+		}
+		if err := ValidateUnverifiedSideLoad("acme/allowed", "local", true, true); err != nil {
+			t.Fatalf("ValidateUnverifiedSideLoad(allowed) error = %v", err)
+		}
+	})
+
+	t.Run("Should reject incomplete curated evidence before download", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			trust MarketplaceTrustEvidence
+			want  string
+		}{
+			{name: "Should require catalog entry identity", want: "entry id is required"},
+			{
+				name: "Should require version", want: "version is required",
+				trust: MarketplaceTrustEvidence{CatalogEntryID: "extension.acme.curated"},
+			},
+			{
+				name: "Should require archive digest", want: "archive digest is required",
+				trust: MarketplaceTrustEvidence{CatalogEntryID: "extension.acme.curated", Version: "1.0.0"},
+			},
+			{
+				name: "Should require registry tier", want: "registry tier is required",
+				trust: MarketplaceTrustEvidence{
+					CatalogEntryID: "extension.acme.curated", Version: "1.0.0", ArchiveDigestSHA256: "digest",
+				},
+			},
+			{
+				name: "Should reject unsupported registry tier", want: `registry tier "partner" is unsupported`,
+				trust: MarketplaceTrustEvidence{
+					CatalogEntryID: "extension.acme.curated", Version: "1.0.0",
+					ArchiveDigestSHA256: "digest", RegistryTier: "partner",
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				if err := tt.trust.validate("acme/curated"); err == nil || !strings.Contains(err.Error(), tt.want) {
+					t.Fatalf("MarketplaceTrustEvidence.validate() error = %v, want %q", err, tt.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve curated digest mismatch identity and diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		cause := &registrypkg.ArchiveDigestMismatchError{ExpectedSHA256: "expected", ActualSHA256: "actual"}
+		err := wrapCuratedDigestMismatch(cause, &MarketplaceTrustEvidence{
+			CatalogEntryID: " extension.acme.curated ", Version: " 1.0.0 ",
+		})
+		if !errors.Is(err, ErrExtensionArchiveDigestMismatch) || !errors.Is(err, registrypkg.ErrArchiveDigestMismatch) {
+			t.Fatalf("wrapCuratedDigestMismatch() error = %v, want both digest mismatch identities", err)
+		}
+		var mismatch *ExtensionArchiveDigestMismatchError
+		if !errors.As(err, &mismatch) {
+			t.Fatalf("wrapCuratedDigestMismatch() error = %T, want *ExtensionArchiveDigestMismatchError", err)
+		}
+		if errors.Unwrap(mismatch) != cause {
+			t.Fatalf(
+				"errors.Unwrap(ExtensionArchiveDigestMismatchError) = %v, want original mismatch",
+				errors.Unwrap(mismatch),
+			)
+		}
+		if !strings.Contains(mismatch.Error(), `entry "extension.acme.curated" version "1.0.0"`) {
+			t.Fatalf("ExtensionArchiveDigestMismatchError.Error() = %q", mismatch.Error())
+		}
+		if item := mismatch.DiagnosticItem(); item.Code != diagnosticcontract.CodeExtensionArchiveDigestMismatch {
+			t.Fatalf("ExtensionArchiveDigestMismatchError.DiagnosticItem() = %#v", item)
+		}
+		var nilMismatch *ExtensionArchiveDigestMismatchError
+		if !errors.Is(nilMismatch, ErrExtensionArchiveDigestMismatch) || errors.Is(nilMismatch, cause) {
+			t.Fatalf("errors.Is(nil mismatch) did not preserve nil-safe sentinel matching")
+		}
+	})
+}
+
 func newLifecycleSource(t *testing.T, versions ...string) *lifecycleSource {
+	t.Helper()
+	return newLifecycleSourceNamed(t, "lifecycle-ext", "github", versions...)
+}
+
+func newLifecycleSourceNamed(
+	t *testing.T,
+	extensionName string,
+	registryName string,
+	versions ...string,
+) *lifecycleSource {
 	t.Helper()
 
 	archives := make(map[string][]byte, len(versions))
 	for _, version := range versions {
-		archives[version] = lifecycleTarGz(t, version)
+		archives[version] = lifecycleTarGzNamed(t, extensionName, version)
 	}
 	return &lifecycleSource{
-		name:          "github",
+		name:          registryName,
+		extensionName: extensionName,
+		slug:          "acme/" + extensionName,
 		latestVersion: versions[len(versions)-1],
 		archives:      archives,
 	}
-}
-
-func lifecycleTarGz(t *testing.T, version string) []byte {
-	t.Helper()
-
-	return lifecycleTarGzNamed(t, "lifecycle-ext", version)
 }
 
 func lifecycleTarGzNamed(t *testing.T, name string, version string) []byte {
@@ -469,6 +1337,11 @@ func lifecycleTarGzNamed(t *testing.T, name string, version string) []byte {
 		t.Fatalf("gzipWriter.Close() error = %v", err)
 	}
 	return buffer.Bytes()
+}
+
+func lifecycleArchiveDigest(archive []byte) string {
+	digest := sha256.Sum256(archive)
+	return hex.EncodeToString(digest[:])
 }
 
 func requireFileContains(t *testing.T, path string, want string) {

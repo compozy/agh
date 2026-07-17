@@ -14,6 +14,9 @@ func Operations() []OperationSpec {
 	ops = append(ops, append(loopsOperations(), goalOperations()...)...)
 	ops = applyLoopAutomationContract(ops)
 	ops = append(ops, modelCatalogOperations()...)
+	ops = append(ops, marketplaceOperations()...)
+	ops = append(ops, settingsMCPInstallOperation())
+	ops = append(ops, settingsMCPAuthOperations()...)
 	ops = append(ops, providerOperations()...)
 	sort.SliceStable(ops, func(i, j int) bool {
 		if ops[i].Path == ops[j].Path {

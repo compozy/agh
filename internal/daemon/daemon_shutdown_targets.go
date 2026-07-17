@@ -31,6 +31,7 @@ type shutdownTargets struct {
 	memoryStore         *memory.Store
 	localMemoryProvider memoryProviderShutdowner
 	modelCatalog        *modelCatalogRuntime
+	marketplace         *marketplaceRuntime
 	skillsCancel        context.CancelFunc
 	skillsDone          chan struct{}
 	loopsCancel         context.CancelFunc

@@ -77,6 +77,8 @@ func StatusForSettingsError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, settingspkg.ErrUnprocessable):
 		return http.StatusUnprocessableEntity
+	case errors.Is(err, settingspkg.ErrUnavailable):
+		return http.StatusServiceUnavailable
 	case errors.Is(err, ErrSettingsNotFound),
 		errors.Is(err, settingspkg.ErrNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),

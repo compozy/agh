@@ -57,7 +57,7 @@ Shared roots (created but not owned by a single workspace): `/shared/launch-week
 
 ## Knowledge files
 
-Seeded under `<WORKSPACE_PATH>/knowledge/`:
+Seeded canonically under the lab knowledge root, with global files projected into every agent workspace and scoped files projected only into the workspace declarations in the machine-readable spec:
 
 - `global/operator-style.md` — narrative voice rule.
 - `global/launch-week-brief.md` — KPI targets, cutover sequence.

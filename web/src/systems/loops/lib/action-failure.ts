@@ -1,13 +1,11 @@
 import { z } from "zod";
 
-const loopActionFailureSchema = z
-  .object({
-    kind: z.literal("action_failure"),
-    code: z.string().trim().min(1),
-    cause: z.string().trim().min(1),
-    recovery: z.string().trim().min(1),
-  })
-  .strict();
+const loopActionFailureSchema = z.strictObject({
+  kind: z.literal("action_failure"),
+  code: z.string().trim().min(1),
+  cause: z.string().trim().min(1),
+  recovery: z.string().trim().min(1),
+});
 
 export type LoopActionFailure = z.infer<typeof loopActionFailureSchema>;
 

@@ -28,8 +28,10 @@ travel with it.
 <OperatorNote>
   `agh workspace add` registers a directory. It does not create or own the directory, and `agh
   workspace remove` leaves your project files on disk. It removes the registration and AGH's
-  persisted history for stopped sessions in that workspace; active sessions must be stopped or
-  removed first. AGH creates `<workspace>/.agh/workspace.toml` on first daemon touch when
+  persisted history for stopped sessions in that workspace, plus workspace-scoped MCP OAuth token
+  rows and their encrypted Vault values. Global credentials and credentials owned by other
+  workspaces are preserved. Active sessions must be stopped or removed first. AGH creates
+  `<workspace>/.agh/workspace.toml` on first daemon touch when
   `[memory.workspace] auto_create = true`; commit it to git so collaborators share the same
   workspace identity.
 </OperatorNote>
@@ -243,15 +245,15 @@ Cache entries expire after 10 minutes of inactivity. The resolver also exposes a
 
 ## Errors To Expect
 
-| Case                             | Result                                                                                                |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Unknown ID, name, or path        | `workspace not found`; HTTP status `404`.                                                             |
-| Registered root no longer exists | `workspace root directory no longer exists`; HTTP status `410`.                                       |
-| Root exists but is a file        | Validation error; HTTP status `500` through resolver paths or `400` for API path validation failures. |
-| Duplicate name                   | `workspace name already in use`; HTTP status `409`.                                                   |
-| Duplicate canonical path         | `workspace path already registered`; HTTP status `409`.                                               |
-| Workspace still has sessions     | `workspace has sessions`; HTTP status `409` when unregistering.                                       |
-| Invalid config or agent file     | Resolution fails and the registration is not kept on a new add/auto-register.                         |
+| Case                             | Result                                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Unknown ID, name, or path        | `workspace not found`; HTTP status `404`.                                                                                |
+| Registered root no longer exists | `workspace root directory no longer exists`; HTTP status `410`.                                                          |
+| Root exists but is a file        | Validation error; HTTP status `500` through resolver paths or `400` for API path validation failures.                    |
+| Duplicate name                   | `workspace name already in use`; HTTP status `409`.                                                                      |
+| Duplicate canonical path         | `workspace path already registered`; HTTP status `409`.                                                                  |
+| Workspace still has sessions     | `workspace has sessions`; HTTP status `409` when unregistering. No registration, session, or credential data is deleted. |
+| Invalid config or agent file     | Resolution fails and the registration is not kept on a new add/auto-register.                                            |
 
 ## Related Pages
 

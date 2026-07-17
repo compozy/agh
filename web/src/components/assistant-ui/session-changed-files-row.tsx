@@ -74,7 +74,7 @@ export function SessionChangedFilesRowView({
         className={cn(
           "group flex w-full min-w-0 items-center gap-2 px-2.5 py-1.5 text-left",
           "transition-colors duration-base ease-out hover:bg-hover",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong"
+          "focus-visible:outline-none focus-visible:shadow-focus-ring"
         )}
       >
         <ChevronRight

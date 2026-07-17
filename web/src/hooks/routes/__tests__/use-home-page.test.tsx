@@ -61,7 +61,7 @@ import { statusFixture } from "@/systems/status/mocks/fixtures";
 import { fetchSessions } from "@/systems/session/adapters/session-api";
 import { fetchWorkspace, fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 
-import { formatUptimeSeconds, useHomePage } from "../use-home-page";
+import { useHomePage } from "../use-home-page";
 
 const HEALTH_FIXTURE: HealthPayload = {
   status: "ok",
@@ -414,28 +414,5 @@ describe("useHomePage", () => {
     expect(sessionsMetric?.value).toBe("—");
     expect(sessionsMetric?.detail).toBe("unavailable for main");
     expect(result.current.hasFatalError).toBe(false);
-  });
-});
-
-describe("formatUptimeSeconds", () => {
-  it("returns an em-dash for invalid input", () => {
-    expect(formatUptimeSeconds(undefined)).toBe("—");
-    expect(formatUptimeSeconds(null)).toBe("—");
-    expect(formatUptimeSeconds(-12)).toBe("—");
-    expect(formatUptimeSeconds(Number.NaN)).toBe("—");
-  });
-
-  it("formats sub-minute durations as seconds", () => {
-    expect(formatUptimeSeconds(0)).toBe("0s");
-    expect(formatUptimeSeconds(45)).toBe("45s");
-  });
-
-  it("formats minutes/hours/days with their largest two units", () => {
-    expect(formatUptimeSeconds(60)).toBe("1m");
-    expect(formatUptimeSeconds(125)).toBe("2m 5s");
-    expect(formatUptimeSeconds(3_600)).toBe("1h");
-    expect(formatUptimeSeconds(3_600 + 1_800)).toBe("1h 30m");
-    expect(formatUptimeSeconds(86_400)).toBe("1d");
-    expect(formatUptimeSeconds(86_400 + 3_600 * 5)).toBe("1d 5h");
   });
 });

@@ -16,62 +16,63 @@ const (
 )
 
 type handlerConfig struct {
-	sessions          core.SessionManager
-	sessionCatalog    core.SessionCatalog
-	tasks             core.TaskService
-	network           core.NetworkService
-	networkStore      core.NetworkStore
-	observer          core.Observer
-	schemaStreams     core.SchemaStreamStatusReader
-	resources         core.ResourceService
-	automation        core.AutomationManager
-	loops             core.LoopService
-	bridges           core.BridgeService
-	notifications     core.NotificationPresetService
-	bundles           core.BundleService
-	supportBundles    core.SupportBundleService
-	tools             core.ToolRegistry
-	toolsets          core.ToolsetRegistry
-	toolApprovals     core.ToolApprovalIssuer
-	settings          core.SettingsService
-	settingsRestart   core.SettingsRestartController
-	settingsUpdate    core.SettingsUpdateController
-	vault             core.VaultService
-	workspaces        core.WorkspaceService
-	onboarding        core.OnboardingStore
-	agentCatalog      core.AgentCatalog
-	agentSync         core.AgentDefinitionSync
-	modelCatalog      core.ModelCatalogService
-	agentContext      core.AgentContextService
-	coordinatorConfig core.CoordinatorConfigResolver
-	soulAuthoring     core.SoulAuthoringService
-	soulHistoryPurger core.SoulHistoryPurger
-	soulRefresher     core.SoulRefresher
-	heartbeatAuthor   core.HeartbeatAuthoringService
-	heartbeatPurger   core.HeartbeatHistoryPurger
-	heartbeatStatus   core.HeartbeatStatusService
-	heartbeatWake     core.HeartbeatWakeService
-	sessionHealth     core.SessionHealthReader
-	wakeEvents        core.HeartbeatWakeEventReader
-	skillsRegistry    core.SkillsRegistry
-	skillResources    core.SkillResourceSyncer
-	memoryStore       *memory.Store
-	dreamTrigger      core.DreamTrigger
-	memoryExtractor   core.MemoryExtractorService
-	memoryProviders   core.MemoryProviderService
-	memoryLedger      core.MemorySessionLedgerService
-	staticFS          fs.FS
-	homePaths         aghconfig.HomePaths
-	config            aghconfig.Config
-	boundHost         string
-	logger            *slog.Logger
-	startedAt         time.Time
-	now               func() time.Time
-	pollInterval      time.Duration
-	agentLoader       core.AgentLoader
-	httpPort          int
-	resourceAuth      []gin.HandlerFunc
-	extensions        ExtensionService
+	sessions           core.SessionManager
+	sessionCatalog     core.SessionCatalog
+	tasks              core.TaskService
+	network            core.NetworkService
+	networkStore       core.NetworkStore
+	observer           core.Observer
+	schemaStreams      core.SchemaStreamStatusReader
+	resources          core.ResourceService
+	automation         core.AutomationManager
+	loops              core.LoopService
+	bridges            core.BridgeService
+	notifications      core.NotificationPresetService
+	bundles            core.BundleService
+	supportBundles     core.SupportBundleService
+	tools              core.ToolRegistry
+	toolsets           core.ToolsetRegistry
+	toolApprovals      core.ToolApprovalIssuer
+	settings           core.SettingsService
+	settingsRestart    core.SettingsRestartController
+	settingsUpdate     core.SettingsUpdateController
+	vault              core.VaultService
+	workspaces         core.WorkspaceService
+	onboarding         core.OnboardingStore
+	agentCatalog       core.AgentCatalog
+	agentSync          core.AgentDefinitionSync
+	modelCatalog       core.ModelCatalogService
+	marketplaceCatalog core.MarketplaceCatalogService
+	agentContext       core.AgentContextService
+	coordinatorConfig  core.CoordinatorConfigResolver
+	soulAuthoring      core.SoulAuthoringService
+	soulHistoryPurger  core.SoulHistoryPurger
+	soulRefresher      core.SoulRefresher
+	heartbeatAuthor    core.HeartbeatAuthoringService
+	heartbeatPurger    core.HeartbeatHistoryPurger
+	heartbeatStatus    core.HeartbeatStatusService
+	heartbeatWake      core.HeartbeatWakeService
+	sessionHealth      core.SessionHealthReader
+	wakeEvents         core.HeartbeatWakeEventReader
+	skillsRegistry     core.SkillsRegistry
+	skillResources     core.SkillResourceSyncer
+	memoryStore        *memory.Store
+	dreamTrigger       core.DreamTrigger
+	memoryExtractor    core.MemoryExtractorService
+	memoryProviders    core.MemoryProviderService
+	memoryLedger       core.MemorySessionLedgerService
+	staticFS           fs.FS
+	homePaths          aghconfig.HomePaths
+	config             aghconfig.Config
+	boundHost          string
+	logger             *slog.Logger
+	startedAt          time.Time
+	now                func() time.Time
+	pollInterval       time.Duration
+	agentLoader        core.AgentLoader
+	httpPort           int
+	resourceAuth       []gin.HandlerFunc
+	extensions         ExtensionService
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
@@ -95,6 +96,8 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		cfg.httpPort = cfg.config.HTTP.Port
 	}
 	boundHost := handlerBoundHost(cfg)
+	coreConfig := cfg.config
+	coreConfig.HTTP.Host = boundHost
 
 	return &Handlers{
 		BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{
@@ -128,6 +131,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			AgentCatalog:                 cfg.agentCatalog,
 			AgentDefinitionSync:          cfg.agentSync,
 			ModelCatalog:                 cfg.modelCatalog,
+			MarketplaceCatalog:           cfg.marketplaceCatalog,
 			AgentContextService:          cfg.agentContext,
 			CoordinatorConfig:            cfg.coordinatorConfig,
 			SoulAuthoring:                cfg.soulAuthoring,
@@ -147,7 +151,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			MemoryProviders:              cfg.memoryProviders,
 			MemorySessionLedger:          cfg.memoryLedger,
 			HomePaths:                    cfg.homePaths,
-			Config:                       cfg.config,
+			Config:                       coreConfig,
 			Logger:                       cfg.logger,
 			StartedAt:                    cfg.startedAt,
 			Now:                          cfg.now,

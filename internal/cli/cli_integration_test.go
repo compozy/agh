@@ -3039,6 +3039,7 @@ type integrationDaemon struct {
 	driver           *integrationDriver
 	manager          *session.Manager
 	extensionSources []registrypkg.Source
+	extensionTrust   *extensionpkg.MarketplaceTrustEvidence
 }
 
 type integrationDaemonProcess struct {
@@ -3058,10 +3059,12 @@ func (d *integrationDaemon) extensionMarketplaceLoader() extensionpkg.Marketplac
 }
 
 type integrationExtensionService struct {
-	homePaths         aghconfig.HomePaths
-	registry          *extensionpkg.Registry
-	manager           *extensionpkg.Manager
-	marketplaceLoader extensionpkg.MarketplaceSourceLoader
+	homePaths                        aghconfig.HomePaths
+	registry                         *extensionpkg.Registry
+	manager                          *extensionpkg.Manager
+	marketplaceLoader                extensionpkg.MarketplaceSourceLoader
+	marketplacePolicyAllowUnverified bool
+	marketplaceTrust                 *extensionpkg.MarketplaceTrustEvidence
 }
 
 type integrationBridgeSecretStore interface {
@@ -3350,32 +3353,6 @@ func (s *integrationExtensionService) List(ctx context.Context) ([]contract.Exte
 	return items, nil
 }
 
-func (s *integrationExtensionService) SearchMarketplace(
-	ctx context.Context,
-	query string,
-	source string,
-	limit int,
-) ([]contract.ExtensionMarketplaceEntry, error) {
-	listings, err := extensionpkg.SearchMarketplaceExtensions(ctx, s.marketplaceLoader, query, source, limit)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]contract.ExtensionMarketplaceEntry, 0, len(listings))
-	for _, listing := range listings {
-		items = append(items, contract.ExtensionMarketplaceEntry{
-			Slug:        listing.Slug,
-			Name:        listing.Name,
-			Description: listing.Description,
-			Author:      listing.Author,
-			Version:     listing.Version,
-			Downloads:   listing.Downloads,
-			Source:      listing.Source,
-			Type:        string(listing.Type),
-		})
-	}
-	return items, nil
-}
-
 func (s *integrationExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
@@ -3388,12 +3365,14 @@ func (s *integrationExtensionService) Install(
 			s.registry,
 			s.marketplaceLoader,
 			extensionpkg.MarketplaceInstallRequest{
-				Slug:            req.Slug,
-				SourceFilter:    req.Source,
-				Version:         req.Version,
-				Asset:           req.Asset,
-				AllowUnverified: req.AllowUnverified,
-				InstalledBy:     "cli-integration",
+				Slug:                   req.Slug,
+				SourceFilter:           req.Source,
+				Version:                req.Version,
+				Asset:                  req.Asset,
+				PolicyAllowsUnverified: s.marketplacePolicyAllowUnverified,
+				AllowUnverified:        req.AllowUnverified,
+				InstalledBy:            "cli-integration",
+				Trust:                  s.marketplaceTrust,
 			},
 		)
 		if err != nil {
@@ -3406,6 +3385,14 @@ func (s *integrationExtensionService) Install(
 	}
 	manifest, err := extensionpkg.LoadManifest(req.Path)
 	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	if err := extensionpkg.ValidateUnverifiedSideLoad(
+		manifest.Name,
+		req.Path,
+		s.marketplacePolicyAllowUnverified,
+		req.AllowUnverified,
+	); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
 	if err := s.registry.Install(manifest, req.Path, req.Checksum); err != nil {
@@ -3429,11 +3416,12 @@ func (s *integrationExtensionService) Update(
 		s.registry,
 		s.marketplaceLoader,
 		extensionpkg.MarketplaceUpdateRequest{
-			Names:           []string{name},
-			CheckOnly:       req.CheckOnly,
-			Version:         req.Version,
-			AllowUnverified: req.AllowUnverified,
-			InstalledBy:     "cli-integration",
+			Names:                  []string{name},
+			CheckOnly:              req.CheckOnly,
+			Version:                req.Version,
+			PolicyAllowsUnverified: s.marketplacePolicyAllowUnverified,
+			AllowUnverified:        req.AllowUnverified,
+			InstalledBy:            "cli-integration",
 		},
 		func(context.Context) error {
 			return s.manager.Reload(ctx)
@@ -3522,27 +3510,17 @@ func (s *integrationExtensionService) Status(_ context.Context, name string) (co
 }
 
 func (s *integrationExtensionService) Provenance(
-	_ context.Context,
+	ctx context.Context,
 	name string,
 ) (contract.ExtensionProvenancePayload, error) {
-	info, err := s.registry.Get(name)
+	status, err := s.Status(ctx, name)
 	if err != nil {
 		return contract.ExtensionProvenancePayload{}, err
 	}
-	provenance := info.Provenance
-	return contract.ExtensionProvenancePayload{
-		Slug:             provenance.Slug,
-		InstalledFrom:    provenance.InstalledFrom,
-		SourceURL:        provenance.SourceURL,
-		ChecksumSHA256:   provenance.ChecksumSHA256,
-		ChecksumVerified: provenance.ChecksumVerified,
-		RegistryTier:     provenance.RegistryTier,
-		Permissions:      append([]string(nil), provenance.Permissions...),
-		InstalledAt:      provenance.InstalledAt,
-		InstalledBy:      provenance.InstalledBy,
-		AllowUnverified:  provenance.AllowUnverified,
-		Warnings:         append([]contract.DiagnosticItem(nil), provenance.Warnings...),
-	}, nil
+	if status.Provenance == nil {
+		return contract.ExtensionProvenancePayload{}, errors.New("integration extension provenance is missing")
+	}
+	return *status.Provenance, nil
 }
 
 func (b *lockedBuffer) Write(p []byte) (int, error) {
@@ -3781,10 +3759,12 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		_ = extManager.Stop(shutdownCtx)
 	}()
 	extService := &integrationExtensionService{
-		homePaths:         d.homePaths,
-		registry:          extRegistry,
-		manager:           extManager,
-		marketplaceLoader: d.extensionMarketplaceLoader(),
+		homePaths:                        d.homePaths,
+		registry:                         extRegistry,
+		manager:                          extManager,
+		marketplaceLoader:                d.extensionMarketplaceLoader(),
+		marketplacePolicyAllowUnverified: d.cfg.Extensions.Marketplace.AllowUnverified,
+		marketplaceTrust:                 d.extensionTrust,
 	}
 
 	automationManager, err := automationpkg.New(

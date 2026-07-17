@@ -118,11 +118,13 @@ describe("settings openapi contract", () => {
           refreshable: boolean;
           remote_url?: string;
           revocation_url?: string;
+          scope: string;
           scopes?: string[];
           server_name: string;
           status: string;
           token_present: boolean;
           updated_at?: string | null;
+          workspace_id?: string;
         }
       | null
       | undefined

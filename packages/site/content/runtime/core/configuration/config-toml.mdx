@@ -44,6 +44,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                         | empty list                                                                                       |
 | `[providers.<name>]`                 | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                                         |
 | `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                   |
+| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                             | AGH `main` catalog, 1 h TTL, 10 s timeout                                                        |
 | `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                                        |
 | `[observability]`                    | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                                           |
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                                     |
@@ -63,7 +64,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[memory.workspace]`                 | Workspace identity file location and auto-creation.                             | `<workspace>/.agh/workspace.toml`, auto-create on first touch                                    |
 | `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                                    |
 | `[skills.marketplace]`               | Skill registry override.                                                        | unset                                                                                            |
-| `[extensions.marketplace]`           | Extension registry override.                                                    | unset                                                                                            |
+| `[extensions.marketplace]`           | Extension registry override and side-load policy.                               | registry unset, unverified side-loads disabled                                                   |
 | `[automation]`                       | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                                  |
 | `[[automation.jobs]]`                | Scheduled automation jobs.                                                      | empty list                                                                                       |
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                               | empty list                                                                                       |
@@ -254,6 +255,14 @@ endpoint = "https://models.dev/api.json"
 ttl = "24h"
 timeout = "10s"
 
+[marketplace.catalog]
+# Base directory containing mcp.json, extensions.json, and skills.json.
+base_url = "https://raw.githubusercontent.com/compozy/agh/main/catalog"
+# A browse after this interval refreshes the affected kind before serving it.
+ttl = "1h"
+# Per-request deadline for fetching one catalog document.
+timeout = "10s"
+
 [[providers.claude.mcp_servers]]
 name = "github"
 command = "npx"
@@ -440,6 +449,7 @@ base_url = "https://registry.example.com"
 [extensions.marketplace]
 registry = "github"
 base_url = "https://api.github.com"
+allow_unverified = false
 
 [automation]
 enabled = true
@@ -754,43 +764,52 @@ and hosted MCP bind nonces are transient session launch state.
 Top-level MCP servers are merged with provider, agent, and skill MCP servers during session startup.
 They can point at local stdio processes or remote HTTP/SSE MCP endpoints.
 
-| Field        | Type         | Default             | Valid values                                       | Description                                                                                                 |
-| ------------ | ------------ | ------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `name`       | string       | required            | Non-empty after trimming.                          | Stable server key used for merge and replacement.                                                           |
-| `transport`  | string       | inferred            | `stdio`, `http`, `sse`.                            | Transport kind. Command servers default to `stdio`; URL servers default to `http`.                          |
-| `command`    | string       | required for stdio  | Non-empty command.                                 | Executable command for a local stdio MCP server. Invalid for remote transports.                             |
-| `url`        | string URL   | required for remote | Absolute URL.                                      | Remote MCP endpoint for `http` or `sse` transports. Invalid for `stdio`.                                    |
-| `auth`       | object       | empty               | OAuth 2.1 PKCE settings.                           | Remote auth metadata and client settings. Invalid for `stdio`.                                              |
-| `args`       | string array | empty               | Strings.                                           | Process arguments passed to the command.                                                                    |
-| `env`        | string map   | empty               | String keys and values.                            | Literal environment values passed to the MCP server. AGH does not perform shell expansion.                  |
-| `secret_env` | string map   | empty               | `env:NAME` or `vault:mcp/<server>/env/<KEY>` refs. | Secret environment bindings for stdio servers. Values are resolved at launch and redacted from diagnostics. |
+| Field        | Type         | Default             | Valid values                       | Description                                                                                                                 |
+| ------------ | ------------ | ------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `name`       | string       | required            | Non-empty after trimming.          | Stable server key used for merge and replacement.                                                                           |
+| `transport`  | string       | inferred            | `stdio`, `http`, `sse`.            | Transport kind. Command servers default to `stdio`; URL servers default to `http`.                                          |
+| `command`    | string       | required for stdio  | Non-empty command.                 | Executable command for a local stdio MCP server. Invalid for remote transports.                                             |
+| `url`        | string URL   | required for remote | Absolute URL.                      | Remote MCP endpoint for `http` or `sse` transports. Invalid for `stdio`.                                                    |
+| `auth`       | object       | empty               | OAuth 2.1 PKCE settings.           | Remote auth metadata and client settings. Invalid for `stdio`.                                                              |
+| `args`       | string array | empty               | Strings.                           | Process arguments passed to the command.                                                                                    |
+| `env`        | string map   | empty               | String keys and values.            | Literal environment values passed to the MCP server. AGH does not perform shell expansion.                                  |
+| `secret_env` | string map   | empty               | `env:NAME` or `vault:mcp/**` refs. | Scope-qualified secret environment bindings for stdio servers. Values are resolved at launch and redacted from diagnostics. |
 
-OAuth-enabled remote servers store only metadata in config. Token material is kept in the AGH
-Vault as encrypted refs and is exposed through API, settings, CLI, logs, and the agent-callable
-`agh__mcp_status` / `agh__mcp_auth_status` tools only as redacted status. Login/logout happen on
-CLI and HTTP. These are operator-only management flows.
+OAuth-enabled remote servers store only metadata in config. Token material is encrypted in the AGH
+Vault and is exposed through API, settings, CLI, logs, and the agent-callable `agh__mcp_status` /
+`agh__mcp_auth_status` tools only as redacted status. Authorization and logout are daemon-mediated
+operator flows available through CLI, HTTP, and UDS. The browser callback is HTTP-only and enabled
+only when the daemon binds to a loopback host.
 
-| `auth` field        | Type         | Required    | Description                                                                                             |
-| ------------------- | ------------ | ----------- | ------------------------------------------------------------------------------------------------------- |
-| `type`              | string       | yes         | Must be `oauth2_pkce`.                                                                                  |
-| `client_id`         | string       | yes         | OAuth client ID.                                                                                        |
-| `client_secret_ref` | string       | no          | `env:NAME` or `vault:mcp/<server>/oauth/client-secret` ref containing the client secret, when required. |
-| `issuer_url`        | string URL   | conditional | Issuer for OAuth metadata discovery.                                                                    |
-| `metadata_url`      | string URL   | conditional | Explicit OAuth authorization-server metadata URL.                                                       |
-| `authorization_url` | string URL   | conditional | Direct authorization endpoint. Pair with `token_url`.                                                   |
-| `token_url`         | string URL   | conditional | Direct token endpoint. Pair with `authorization_url`.                                                   |
-| `revocation_url`    | string URL   | no          | Optional endpoint used by `agh mcp auth logout`.                                                        |
-| `scopes`            | string array | no          | Requested OAuth scopes.                                                                                 |
+| `auth` field        | Type         | Required    | Description                                                                                                       |
+| ------------------- | ------------ | ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| `type`              | string       | yes         | Must be `oauth2_pkce`.                                                                                            |
+| `client_id`         | string       | yes         | OAuth client ID.                                                                                                  |
+| `client_secret_ref` | string       | no          | `env:NAME` or scope-qualified `vault:mcp/**/oauth/client-secret` ref containing the client secret, when required. |
+| `issuer_url`        | string URL   | conditional | Issuer for OAuth metadata discovery.                                                                              |
+| `metadata_url`      | string URL   | conditional | Explicit OAuth authorization-server metadata URL.                                                                 |
+| `authorization_url` | string URL   | conditional | Direct authorization endpoint. Pair with `token_url`.                                                             |
+| `token_url`         | string URL   | conditional | Direct token endpoint. Pair with `authorization_url`.                                                             |
+| `revocation_url`    | string URL   | no          | Optional endpoint used by `agh mcp auth logout`.                                                                  |
+| `scopes`            | string array | no          | Requested OAuth scopes.                                                                                           |
 
 Configure one of `metadata_url`, `issuer_url`, or both `authorization_url` and `token_url`, then
 authenticate with:
 
 ```bash
+agh mcp authorize remote-docs
+agh mcp authorize remote-docs --manual
 agh mcp auth login remote-docs
 agh mcp auth status remote-docs
-agh mcp auth status remote-docs --refresh
 agh mcp auth logout remote-docs
+
+agh mcp authorize remote-docs --scope workspace --workspace <workspace-id>
 ```
+
+`authorize` and `auth login` use the same daemon-owned PKCE session. Both print the live
+authorization URL. `--manual` accepts either the returned code or the full redirect URL, which is
+the supported path for remote operators and non-loopback HTTP binds. A command succeeds only after
+status confirms both `authenticated` and `token_present`.
 
 Agents can read the same redacted status from inside a session through `agh__mcp_status` or
 `agh__mcp_auth_status`. These tools never trigger an OAuth browser flow; missing or expired
@@ -990,6 +1009,45 @@ explicit deadline, and joins outstanding refresh workers during shutdown.
 Live provider discovery is configured per provider through `[providers.<id>.models.discovery]`.
 Discovery refresh is serialized per `provider_id` before any subprocess or provider-home work, and
 concurrent refresh requests for the same provider coalesce behind the in-flight refresh.
+
+## `[marketplace.catalog]`
+
+AGH fetches the curated MCP server, extension, and skill documents from this base URL. Each kind is
+validated independently and projected into the global database. If a fetch fails after a successful
+projection, AGH keeps serving the prior rows with stale status instead of replacing them with an
+invalid or incomplete document.
+
+This section is global-only because the projection and refresh service are global. Put it in
+`$AGH_HOME/config.toml`; workspace overlays and workspace-scoped CLI/native writes are rejected.
+
+| Key        | Type     | Default                                                      | Validation                  | Effect                                                                             |
+| ---------- | -------- | ------------------------------------------------------------ | --------------------------- | ---------------------------------------------------------------------------------- |
+| `base_url` | URL      | `https://raw.githubusercontent.com/compozy/agh/main/catalog` | Absolute `http` or `https`. | Base directory for `mcp.json`, `extensions.json`, and `skills.json`; applies live. |
+| `ttl`      | duration | `1h`                                                         | Positive Go duration.       | Age after which the next browse refreshes that kind; applies live.                 |
+| `timeout`  | duration | `10s`                                                        | Positive Go duration.       | Deadline for one feed request; applies live.                                       |
+
+```toml
+[marketplace.catalog]
+base_url = "https://catalog.example.com/agh"
+ttl = "30m"
+timeout = "5s"
+```
+
+These paths are `live` in the generated [lifecycle matrix](/runtime/core/configuration/lifecycle-matrix):
+the next feed fetch reads the applied values. Reconcile and inspect the active generation after a
+write:
+
+```bash
+agh config set marketplace.catalog.ttl 30m -o json
+agh config reload -o json
+agh config apply-history --limit 5 -o json
+```
+
+Agent-side config mutation is narrower than the operator CLI. `agh__config_set` accepts
+`marketplace.catalog.ttl` and `marketplace.catalog.timeout` with the same duration validation and
+live lifecycle. It rejects `marketplace.catalog.base_url` with
+`config_trust_root_forbidden`; changing the feed root remains an operator action through
+`agh config set`. Both surfaces require global scope for every `marketplace.catalog.*` write.
 
 ## `[observability]`
 
@@ -1249,10 +1307,18 @@ If `enabled = false`, skill polling and marketplace validation are skipped.
 
 ## `[extensions.marketplace]`
 
-| Field      | Type       | Default | Valid values                                        | Description                                                        |
-| ---------- | ---------- | ------- | --------------------------------------------------- | ------------------------------------------------------------------ |
-| `registry` | string     | empty   | Empty or `github`. Required when `base_url` is set. | Extension marketplace registry adapter.                            |
-| `base_url` | string URL | empty   | Empty or `http` or `https` URL with host.           | Registry base URL override. `http` is accepted but logs a warning. |
+`allow_unverified` controls non-curated side-loads only. Enabling it permits the install path, but each install must still include the `--allow-unverified` confirmation. Curated installs always verify the catalog-pinned archive digest before extraction; a mismatch cannot be bypassed. Policy changes apply live.
+
+| Field              | Type       | Default | Valid values                                        | Description                                                        |
+| ------------------ | ---------- | ------- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| `registry`         | string     | empty   | Empty or `github`. Required when `base_url` is set. | Extension marketplace registry adapter.                            |
+| `base_url`         | string URL | empty   | Empty or `http` or `https` URL with host.           | Registry base URL override. `http` is accepted but logs a warning. |
+| `allow_unverified` | boolean    | `false` | `true` or `false`                                   | Allows individually confirmed non-curated extension side-loads.    |
+
+`extensions.marketplace.allow_unverified` is the only live path in this key family; the registry
+and base URL remain restart-required under the broader `extensions.*` lifecycle. Verify the exact
+result through `agh config reload -o json` and `agh config apply-history -o json`. A policy-blocked
+side-load reports `extension_unverified_policy_blocked` and points to `/settings/extensions`.
 
 ## `[automation]`
 

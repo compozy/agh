@@ -18,18 +18,6 @@ const (
 
 var extensionTools = []toolspkg.Descriptor{
 	nativeExtensionDescriptor(
-		toolspkg.ToolIDExtensionsSearch,
-		"extensions_search",
-		"Extensions Search",
-		"Search configured extension marketplace sources.",
-		extensionSearchInputSchema,
-		toolspkg.RiskRead,
-		true,
-		false,
-		[]string{extensionsExtensionsKey, extensionsMarketplaceKey, extensionsCatalogKey},
-		[]string{"extension marketplace search", "find extensions"},
-	),
-	nativeExtensionDescriptor(
 		toolspkg.ToolIDExtensionsList,
 		"extensions_list",
 		"Extensions List",
@@ -146,17 +134,6 @@ func nativeExtensionDescriptor(
 		searchHints,
 	)
 }
-
-const extensionSearchInputSchema = `{
-	"type":"object",
-	"required":["query"],
-	"properties":{
-		"query":{"type":"string"},
-		"source":{"type":"string"},
-		"limit":{"type":"integer"}
-	},
-	"additionalProperties":false
-}`
 
 const extensionNameInputSchema = `{
 	"type":"object",

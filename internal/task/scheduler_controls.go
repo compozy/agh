@@ -36,7 +36,7 @@ type schedulerControlStore interface {
 	CountActiveTaskRunClaims(context.Context) (int, error)
 	CountQueuedTaskRuns(context.Context, bool) (int, error)
 	CountPausedTasks(context.Context) (int, error)
-	CountStarvedQueuedTaskRuns(context.Context, time.Time, time.Duration) (int, error)
+	CountEscalatingQueuedTaskRuns(context.Context) (int, error)
 	CountNeedsAttentionTaskRuns(context.Context) (int, error)
 	SchedulerBacklog(context.Context, SchedulerBacklogQuery) (SchedulerBacklog, error)
 }
@@ -404,49 +404,6 @@ func (m *Service) waitForSchedulerDrain(
 		case <-timer.C:
 		}
 	}
-}
-
-func (m *Service) schedulerStatus(
-	ctx context.Context,
-	controlStore schedulerControlStore,
-	asOf time.Time,
-) (SchedulerStatus, error) {
-	state, err := controlStore.GetSchedulerPause(ctx)
-	if err != nil {
-		return SchedulerStatus{}, err
-	}
-	active, err := controlStore.CountActiveTaskRunClaims(ctx)
-	if err != nil {
-		return SchedulerStatus{}, err
-	}
-	queued, err := controlStore.CountQueuedTaskRuns(ctx, true)
-	if err != nil {
-		return SchedulerStatus{}, err
-	}
-	pausedTasks, err := controlStore.CountPausedTasks(ctx)
-	if err != nil {
-		return SchedulerStatus{}, err
-	}
-	starved, err := controlStore.CountStarvedQueuedTaskRuns(ctx, asOf, m.starvationAge)
-	if err != nil {
-		return SchedulerStatus{}, err
-	}
-	needsAttention, err := controlStore.CountNeedsAttentionTaskRuns(ctx)
-	if err != nil {
-		return SchedulerStatus{}, err
-	}
-	return SchedulerStatus{
-		Paused:                 state.Paused,
-		PausedBy:               state.PausedBy,
-		PausedAt:               state.PausedAt,
-		PausedReason:           state.Reason,
-		ActiveClaimCount:       active,
-		QueuedRunCount:         queued,
-		PausedTaskCount:        pausedTasks,
-		StarvedRunCount:        starved,
-		NeedsAttentionRunCount: needsAttention,
-		AsOf:                   asOf,
-	}, nil
 }
 
 func (m *Service) requireTaskPauseStore() (taskPauseStore, error) {

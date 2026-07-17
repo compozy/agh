@@ -281,16 +281,6 @@ type SkillsResponse struct {
 	Skills []SkillPayload `json:"skills"`
 }
 
-// SkillMarketplaceSearchResponse wraps remote marketplace skill search results.
-type SkillMarketplaceSearchResponse struct {
-	Skills []SkillMarketplaceListingPayload `json:"skills"`
-}
-
-// SkillMarketplaceDetailResponse wraps one remote marketplace skill detail.
-type SkillMarketplaceDetailResponse struct {
-	Skill SkillMarketplaceDetailPayload `json:"skill"`
-}
-
 // SkillMarketplaceInstallResponse wraps one marketplace install result.
 type SkillMarketplaceInstallResponse struct {
 	Skill SkillMarketplaceInstallPayload `json:"skill"`
@@ -328,11 +318,6 @@ type ExtensionResponse struct {
 	Extension ExtensionPayload `json:"extension"`
 }
 
-// ExtensionMarketplaceResponse wraps daemon-owned extension marketplace results.
-type ExtensionMarketplaceResponse struct {
-	Extensions []ExtensionMarketplaceEntry `json:"extensions"`
-}
-
 // ExtensionProvenanceResponse wraps one installed extension provenance record.
 type ExtensionProvenanceResponse struct {
 	Provenance ExtensionProvenancePayload `json:"provenance"`
@@ -350,20 +335,22 @@ type ExtensionRemoveResponse struct {
 
 // ManagedExtensionUpdatePayload describes one daemon-owned extension update.
 type ManagedExtensionUpdatePayload struct {
-	Name           string `json:"name"`
-	Slug           string `json:"slug"`
-	Registry       string `json:"registry"`
-	CurrentVersion string `json:"current_version,omitempty"`
-	LatestVersion  string `json:"latest_version,omitempty"`
-	Path           string `json:"path"`
-	Status         string `json:"status"`
+	Name           string           `json:"name"`
+	Slug           string           `json:"slug"`
+	Registry       string           `json:"registry"`
+	CurrentVersion string           `json:"current_version,omitempty"`
+	LatestVersion  string           `json:"latest_version,omitempty"`
+	Path           string           `json:"path"`
+	Status         string           `json:"status"`
+	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
 }
 
 // ManagedExtensionRemovePayload describes one daemon-owned extension removal.
 type ManagedExtensionRemovePayload struct {
-	Name   string `json:"name"`
-	Path   string `json:"path"`
-	Status string `json:"status"`
+	Name     string           `json:"name"`
+	Path     string           `json:"path"`
+	Status   string           `json:"status"`
+	Warnings []DiagnosticItem `json:"warnings,omitempty"`
 }
 
 // ResourcesResponse wraps the shared desired-state resource list payload.

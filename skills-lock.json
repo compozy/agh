@@ -89,6 +89,12 @@
             "sourceType": "github",
             "computedHash": "f7564ab9f0fa0dc667f1fde56890a232a47d1cd34fcc5c37b58f0e92032f677b"
         },
+        "deep-review": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/deep-review/SKILL.md",
+            "computedHash": "ce4dee6691384a7027b8d4f3e4794863eef01a61a936fe68e402ae658253f2e6"
+        },
         "deslop": {
             "source": "pedronauck/skills",
             "sourceType": "github",

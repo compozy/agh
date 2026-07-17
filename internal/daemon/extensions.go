@@ -2,104 +2,20 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
-	"github.com/compozy/agh/internal/api/udsapi"
-	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	registrypkg "github.com/compozy/agh/internal/registry"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
-
-type daemonExtensionService struct {
-	registry          *extensionpkg.Registry
-	runtime           extensionRuntime
-	hookBinds         hookBindingPublisher
-	agentSkill        agentSkillPublisher
-	toolMCP           toolMCPPublisher
-	bundles           bundleResourcePublisher
-	loops             loopResourcePublisher
-	homePaths         aghconfig.HomePaths
-	logger            *slog.Logger
-	now               func() time.Time
-	marketplace       aghconfig.ExtensionsMarketplaceConfig
-	marketplaceLoader extensionMarketplaceSourceLoader
-	eventWriter       store.EventSummaryStore
-}
-
-var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
-
-type daemonExtensionServiceOption func(*daemonExtensionService)
-
-func withDaemonExtensionMarketplace(
-	cfg aghconfig.ExtensionsMarketplaceConfig,
-	loader extensionMarketplaceSourceLoader,
-) daemonExtensionServiceOption {
-	return func(service *daemonExtensionService) {
-		service.marketplace = cfg
-		service.marketplaceLoader = loader
-	}
-}
-
-func withDaemonExtensionEventWriter(writer store.EventSummaryStore) daemonExtensionServiceOption {
-	return func(service *daemonExtensionService) {
-		service.eventWriter = writer
-	}
-}
-
-func newDaemonExtensionService(
-	registry *extensionpkg.Registry,
-	runtime extensionRuntime,
-	hookBinds hookBindingPublisher,
-	agentSkill agentSkillPublisher,
-	toolMCP toolMCPPublisher,
-	bundles bundleResourcePublisher,
-	loops loopResourcePublisher,
-	homePaths aghconfig.HomePaths,
-	logger *slog.Logger,
-	now func() time.Time,
-	opts ...daemonExtensionServiceOption,
-) udsapi.ExtensionService {
-	if registry == nil {
-		return nil
-	}
-	if logger == nil {
-		logger = slog.Default()
-	}
-	if now == nil {
-		now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-	service := &daemonExtensionService{
-		registry:   registry,
-		runtime:    runtime,
-		hookBinds:  hookBinds,
-		agentSkill: agentSkill,
-		toolMCP:    toolMCP,
-		bundles:    bundles,
-		loops:      loops,
-		homePaths:  homePaths,
-		logger:     logger,
-		now:        now,
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(service)
-		}
-	}
-	return service
-}
 
 func extensionEventSummaryStore(registry Registry) store.EventSummaryStore {
 	writer, ok := registry.(store.EventSummaryStore)
@@ -130,28 +46,6 @@ func (s *daemonExtensionService) List(ctx context.Context) ([]contract.Extension
 	return items, nil
 }
 
-func (s *daemonExtensionService) SearchMarketplace(
-	ctx context.Context,
-	query string,
-	source string,
-	limit int,
-) ([]contract.ExtensionMarketplaceEntry, error) {
-	if err := s.checkReady(); err != nil {
-		return nil, err
-	}
-	items, err := extensionpkg.SearchMarketplaceExtensions(
-		ctx,
-		s.marketplaceSourceLoader(),
-		query,
-		source,
-		limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return extensionMarketplaceEntries(items), nil
-}
-
 func (s *daemonExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
@@ -166,19 +60,22 @@ func (s *daemonExtensionService) Install(
 	installedBy := extensionInstalledBy(actor)
 
 	if strings.TrimSpace(req.Slug) != "" || strings.TrimSpace(req.Path) == "" {
+		installReq, err := s.marketplaceInstallRequest(ctx, req, installedBy)
+		if err != nil {
+			return contract.ExtensionPayload{}, err
+		}
+		installReq.ObserveDigestVerification = func(
+			trust *extensionpkg.MarketplaceTrustEvidence,
+			verificationErr error,
+		) {
+			s.observeExtensionDigestVerification(ctx, actor, trust, verificationErr)
+		}
 		info, err := extensionpkg.InstallMarketplaceManaged(
 			ctx,
 			s.homePaths,
 			s.registry,
 			s.marketplaceSourceLoader(),
-			extensionpkg.MarketplaceInstallRequest{
-				Slug:            req.Slug,
-				SourceFilter:    req.Source,
-				Version:         req.Version,
-				Asset:           req.Asset,
-				AllowUnverified: req.AllowUnverified,
-				InstalledBy:     installedBy,
-			},
+			installReq,
 		)
 		if err != nil {
 			return contract.ExtensionPayload{}, err
@@ -186,22 +83,21 @@ func (s *daemonExtensionService) Install(
 		if err := s.reload(ctx); err != nil {
 			return contract.ExtensionPayload{}, s.rollbackFailedInstall(ctx, info.Name, err)
 		}
-		item, err := s.Status(ctx, info.Name)
-		if err != nil {
-			return contract.ExtensionPayload{}, err
-		}
-		if err := s.recordExtensionEvent(ctx, eventspkg.ExtensionInstalled, actor, item); err != nil {
-			return contract.ExtensionPayload{}, err
-		}
-		return item, nil
+		return s.completeExtensionInstall(ctx, actor, info.Name)
 	}
 
 	manifest, err := extensionpkg.LoadManifest(strings.TrimSpace(req.Path))
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	if !req.AllowUnverified {
-		return contract.ExtensionPayload{}, extensionpkg.NewExtensionChecksumUnverifiedError(manifest.Name, req.Path)
+	cfg := s.marketplaceConfig()
+	if err := extensionpkg.ValidateUnverifiedSideLoad(
+		manifest.Name,
+		req.Path,
+		cfg.AllowUnverified,
+		req.AllowUnverified,
+	); err != nil {
+		return contract.ExtensionPayload{}, err
 	}
 	provenance := extensionpkg.LocalPathProvenance(manifest, req.Path, req.Checksum, s.now(), req.AllowUnverified)
 	provenance.InstalledBy = installedBy
@@ -218,7 +114,15 @@ func (s *daemonExtensionService) Install(
 	if err := s.reload(ctx); err != nil {
 		return contract.ExtensionPayload{}, s.rollbackFailedInstall(ctx, manifest.Name, err)
 	}
-	item, err := s.Status(ctx, manifest.Name)
+	return s.completeExtensionInstall(ctx, actor, manifest.Name)
+}
+
+func (s *daemonExtensionService) completeExtensionInstall(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+	name string,
+) (contract.ExtensionPayload, error) {
+	item, err := s.Status(ctx, name)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
@@ -261,7 +165,16 @@ func (s *daemonExtensionService) UpdateBatch(
 		return nil, err
 	}
 	req.InstalledBy = extensionInstalledBy(actor)
-	items, err := extensionpkg.UpdateMarketplaceManaged(
+	cfg := s.marketplaceConfig()
+	req.PolicyAllowsUnverified = cfg.AllowUnverified
+	req.ResolveTrust = s.marketplaceTrustResolver()
+	req.ObserveDigestVerification = func(
+		trust *extensionpkg.MarketplaceTrustEvidence,
+		verificationErr error,
+	) {
+		s.observeExtensionDigestVerification(ctx, actor, trust, verificationErr)
+	}
+	items, updateErr := extensionpkg.UpdateMarketplaceManaged(
 		ctx,
 		s.homePaths,
 		s.registry,
@@ -269,20 +182,7 @@ func (s *daemonExtensionService) UpdateBatch(
 		req,
 		s.reload,
 	)
-	if err != nil {
-		return nil, err
-	}
-	payloads := make([]contract.ManagedExtensionUpdatePayload, 0, len(items))
-	for _, value := range items {
-		item := extensionUpdatePayload(value)
-		payloads = append(payloads, item)
-		if item.Status == extensionpkg.MarketplaceUpdateStatusUpdated {
-			if err := s.recordExtensionUpdateEvent(ctx, actor, item); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return payloads, nil
+	return s.finalizeMarketplaceUpdateBatch(ctx, actor, items, updateErr)
 }
 
 func (s *daemonExtensionService) Remove(
@@ -301,9 +201,10 @@ func (s *daemonExtensionService) Remove(
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
 	item := contract.ManagedExtensionRemovePayload{
-		Name:   removed.Name,
-		Path:   removed.Path,
-		Status: removed.Status,
+		Name:     removed.Name,
+		Path:     removed.Path,
+		Status:   removed.Status,
+		Warnings: append([]contract.DiagnosticItem(nil), removed.Warnings...),
 	}
 	if err := s.recordExtensionRemoveEvent(ctx, actor, item); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
@@ -534,7 +435,7 @@ func (s *daemonExtensionService) marketplaceSourceLoader() extensionpkg.Marketpl
 		if loader == nil {
 			loader = defaultDaemonExtensionMarketplaceSourceLoader
 		}
-		return loader(ctx, s.marketplace)
+		return loader(ctx, s.marketplaceConfig())
 	}
 }
 
@@ -570,30 +471,6 @@ func extensionInstalledBy(actor taskpkg.ActorContext) string {
 	return actorKind + ":" + actorRef
 }
 
-func extensionMarketplaceEntries(values []registrypkg.Listing) []contract.ExtensionMarketplaceEntry {
-	items := make([]contract.ExtensionMarketplaceEntry, 0, len(values))
-	for _, value := range values {
-		trust := contract.ExtensionTrustReportPayload{
-			Decision:         extensionpkg.ExtensionTrustDecisionBlocked,
-			RegistryTier:     extensionpkg.ExtensionRegistryTierUnverified,
-			ChecksumVerified: false,
-			AllowUnverified:  false,
-		}
-		items = append(items, contract.ExtensionMarketplaceEntry{
-			Slug:        value.Slug,
-			Name:        value.Name,
-			Description: value.Description,
-			Author:      value.Author,
-			Version:     value.Version,
-			Downloads:   value.Downloads,
-			Source:      value.Source,
-			Type:        string(value.Type),
-			Trust:       &trust,
-		})
-	}
-	return items
-}
-
 func extensionUpdatePayload(value extensionpkg.MarketplaceUpdateResult) contract.ManagedExtensionUpdatePayload {
 	return contract.ManagedExtensionUpdatePayload{
 		Name:           value.Name,
@@ -603,132 +480,6 @@ func extensionUpdatePayload(value extensionpkg.MarketplaceUpdateResult) contract
 		LatestVersion:  value.LatestVersion,
 		Path:           value.Path,
 		Status:         value.Status,
-	}
-}
-
-type extensionLifecycleEventPayload struct {
-	ActorKind        string `json:"actor_kind,omitempty"`
-	ActorID          string `json:"actor_id,omitempty"`
-	OriginKind       string `json:"origin_kind,omitempty"`
-	OriginRef        string `json:"origin_ref,omitempty"`
-	Name             string `json:"name"`
-	Slug             string `json:"slug,omitempty"`
-	Version          string `json:"version,omitempty"`
-	CurrentVersion   string `json:"current_version,omitempty"`
-	LatestVersion    string `json:"latest_version,omitempty"`
-	Status           string `json:"status,omitempty"`
-	InstalledFrom    string `json:"installed_from,omitempty"`
-	SourceURL        string `json:"source_url,omitempty"`
-	ChecksumSHA256   string `json:"checksum_sha256,omitempty"`
-	ChecksumVerified bool   `json:"checksum_verified"`
-	RegistryTier     string `json:"registry_tier,omitempty"`
-	AllowUnverified  bool   `json:"allow_unverified"`
-}
-
-func (s *daemonExtensionService) recordExtensionEvent(
-	ctx context.Context,
-	eventType string,
-	actor taskpkg.ActorContext,
-	item contract.ExtensionPayload,
-) error {
-	payload := extensionLifecycleEventPayload{}
-	payload.Name = firstNonEmpty(payload.Name, item.Name)
-	payload.Version = firstNonEmpty(payload.Version, item.Version)
-	payload.Status = firstNonEmpty(payload.Status, item.State)
-	if item.Provenance != nil {
-		payload.Slug = firstNonEmpty(payload.Slug, item.Provenance.Slug)
-		payload.InstalledFrom = firstNonEmpty(payload.InstalledFrom, item.Provenance.InstalledFrom)
-		payload.SourceURL = firstNonEmpty(payload.SourceURL, item.Provenance.SourceURL)
-		payload.ChecksumSHA256 = firstNonEmpty(payload.ChecksumSHA256, item.Provenance.ChecksumSHA256)
-		payload.ChecksumVerified = item.Provenance.ChecksumVerified
-		payload.RegistryTier = firstNonEmpty(payload.RegistryTier, item.Provenance.RegistryTier)
-		payload.AllowUnverified = item.Provenance.AllowUnverified
-	} else if item.Trust != nil {
-		payload.ChecksumVerified = item.Trust.ChecksumVerified
-		payload.RegistryTier = firstNonEmpty(payload.RegistryTier, item.Trust.RegistryTier)
-		payload.AllowUnverified = item.Trust.AllowUnverified
-	}
-	return s.recordExtensionLifecycleEvent(ctx, eventType, actor, payload)
-}
-
-func (s *daemonExtensionService) recordExtensionUpdateEvent(
-	ctx context.Context,
-	actor taskpkg.ActorContext,
-	item contract.ManagedExtensionUpdatePayload,
-) error {
-	return s.recordExtensionLifecycleEvent(ctx, eventspkg.ExtensionUpdated, actor, extensionLifecycleEventPayload{
-		Name:           item.Name,
-		Slug:           item.Slug,
-		CurrentVersion: item.CurrentVersion,
-		LatestVersion:  item.LatestVersion,
-		Status:         item.Status,
-	})
-}
-
-func (s *daemonExtensionService) recordExtensionRemoveEvent(
-	ctx context.Context,
-	actor taskpkg.ActorContext,
-	item contract.ManagedExtensionRemovePayload,
-) error {
-	return s.recordExtensionLifecycleEvent(ctx, eventspkg.ExtensionRemoved, actor, extensionLifecycleEventPayload{
-		Name:   item.Name,
-		Status: item.Status,
-	})
-}
-
-func (s *daemonExtensionService) recordExtensionLifecycleEvent(
-	ctx context.Context,
-	eventType string,
-	actor taskpkg.ActorContext,
-	payload extensionLifecycleEventPayload,
-) error {
-	if s.eventWriter == nil {
-		return nil
-	}
-	if ctx == nil {
-		return errors.New("daemon: extension event context is required")
-	}
-	payload.ActorKind = string(actor.Actor.Kind.Normalize())
-	payload.ActorID = strings.TrimSpace(actor.Actor.Ref)
-	payload.OriginKind = string(actor.Origin.Kind.Normalize())
-	payload.OriginRef = strings.TrimSpace(actor.Origin.Ref)
-	content, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("daemon: encode extension lifecycle event: %w", err)
-	}
-	if err := s.eventWriter.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
-		Type:      eventType,
-		Outcome:   string(eventspkg.OutcomeFor(eventType)),
-		Content:   content,
-		Summary:   extensionLifecycleEventSummary(eventType, payload),
-		Timestamp: s.now().UTC(),
-		EventCorrelation: store.EventCorrelation{
-			ActorKind: payload.ActorKind,
-			ActorID:   payload.ActorID,
-		},
-	}); err != nil {
-		return fmt.Errorf("daemon: record extension lifecycle event: %w", err)
-	}
-	return nil
-}
-
-func extensionLifecycleEventSummary(eventType string, payload extensionLifecycleEventPayload) string {
-	name := strings.TrimSpace(payload.Name)
-	if name == "" {
-		name = strings.TrimSpace(payload.Slug)
-	}
-	switch eventType {
-	case eventspkg.ExtensionInstalled:
-		return fmt.Sprintf("extension %s installed", name)
-	case eventspkg.ExtensionUpdated:
-		return fmt.Sprintf("extension %s updated", name)
-	case eventspkg.ExtensionRemoved:
-		return fmt.Sprintf("extension %s removed", name)
-	case eventspkg.ExtensionEnabled:
-		return fmt.Sprintf("extension %s enabled", name)
-	case eventspkg.ExtensionDisabled:
-		return fmt.Sprintf("extension %s disabled", name)
-	default:
-		return strings.TrimSpace(eventType)
+		Warnings:       append([]contract.DiagnosticItem(nil), value.Warnings...),
 	}
 }

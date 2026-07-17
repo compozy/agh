@@ -511,24 +511,8 @@ type marketplaceOverlay struct {
 	BaseURL  *string `toml:"base_url"`
 }
 
-type extensionsMarketplaceOverlay struct {
-	Registry *string `toml:"registry"`
-	BaseURL  *string `toml:"base_url"`
-}
-
 type hooksOverlay struct {
 	Declarations []parsedHookDeclaration `toml:"declarations"`
-}
-
-type mcpServerOverlay struct {
-	Name      *string             `toml:"name"`
-	Transport *MCPServerTransport `toml:"transport"`
-	Command   *string             `toml:"command"`
-	Args      *[]string           `toml:"args"`
-	Env       *map[string]string  `toml:"env"`
-	SecretEnv *map[string]string  `toml:"secret_env"`
-	URL       *string             `toml:"url"`
-	Auth      mcpAuthOverlay      `toml:"auth"`
 }
 
 type mcpAuthOverlay struct {
@@ -1595,15 +1579,6 @@ func (o marketplaceOverlay) Apply(dst *MarketplaceConfig) {
 	}
 }
 
-func (o extensionsMarketplaceOverlay) Apply(dst *ExtensionsMarketplaceConfig) {
-	if o.Registry != nil {
-		dst.Registry = *o.Registry
-	}
-	if o.BaseURL != nil {
-		dst.BaseURL = *o.BaseURL
-	}
-}
-
 func (o hooksOverlay) Apply(dst *HooksConfig) error {
 	if len(o.Declarations) == 0 {
 		return nil
@@ -1638,31 +1613,6 @@ func (o hooksOverlay) Apply(dst *HooksConfig) error {
 
 	dst.Declarations = merged
 	return nil
-}
-
-func (o mcpServerOverlay) Apply(dst *MCPServer) {
-	if o.Name != nil {
-		dst.Name = *o.Name
-	}
-	if o.Transport != nil {
-		dst.Transport = *o.Transport
-	}
-	if o.Command != nil {
-		dst.Command = *o.Command
-	}
-	if o.Args != nil {
-		dst.Args = append([]string(nil), (*o.Args)...)
-	}
-	if o.Env != nil {
-		dst.Env = mergeStringMaps(dst.Env, *o.Env)
-	}
-	if o.SecretEnv != nil {
-		dst.SecretEnv = mergeStringMaps(dst.SecretEnv, *o.SecretEnv)
-	}
-	if o.URL != nil {
-		dst.URL = *o.URL
-	}
-	o.Auth.Apply(&dst.Auth)
 }
 
 func (o mcpAuthOverlay) Apply(dst *MCPAuthConfig) {

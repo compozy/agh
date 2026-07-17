@@ -31,7 +31,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 1. Activate `agh-qa-bootstrap` with scenario `$PLAYBOOK_REF` and `--playbook "$PLAYBOOK_REF"`; complete its full procedure instead of calling its helper directly.
 2. Consume the canonical `BOOTSTRAP_MANIFEST` and its emitted paths. Never reconstruct provider, browser, proxy, audit, or teardown state here.
-3. Confirm the selected playbook, agent registrations, open-task tree, knowledge files, required deliverables/collaboration, and populated charter all belong to the same healthy manifest.
+3. Confirm the selected playbook, agent registrations, open-task tree, knowledge files, required deliverables/collaboration, and populated charter all belong to the same healthy manifest. Register only `RUNTIME_WORKSPACE_PATH` with AGH; agents must not see the lab's `qa-artifacts/` or audit contracts.
 
 *Done when:* bootstrap's completion criteria pass and the charter has no placeholders.
 
@@ -47,15 +47,19 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 **Step 4: Post the Operator Kickoff**
 
-1. Render and validate the kickoff with the helper (mutating):
+1. After runtime agents, sessions, channels, and the deterministic task ids from `.agh/tasks/open-tasks.json` exist under the shared `RUNTIME_WORKSPACE_PATH`, prepare task activation behind a scheduler barrier (mutating):
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py prepare --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --agh-bin "${AGH_BIN:-agh}"`
+2. Render and validate the kickoff payload (mutating only the inspectable payload file):
    `python3 .agents/skills/agh/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST"`
-2. The helper aborts with exit code 2 if the rendered kickoff contains any phrase from `references/forbidden-prompt-phrases.md`. Do not edit the helper to suppress the check; rewrite the playbook's `kickoff_brief` instead.
-3. Read `<WORKSPACE_PATH>/.agh/operator-kickoff.txt` for inspection. Use the same text verbatim when the AGH CLI is invoked to deliver the kickoff to the operator session:
+3. The helper aborts with exit code 2 if the rendered kickoff contains any phrase from `references/forbidden-prompt-phrases.md`. Rewrite the playbook's `kickoff_brief` when blocked.
+4. Read `<WORKSPACE_PATH>/.agh/operator-kickoff.txt`. Deliver that text verbatim once and capture the provider stream:
    `agh session prompt <operator-session-id> "$(cat $WORKSPACE_PATH/.agh/operator-kickoff.txt)" -o jsonl > $QA_OUTPUT_PATH/qa/operator-kickoff.jsonl`
-4. Confirm the manifest now reports `KICKOFF_POSTED=true` and `KICKOFF_TIMESTAMP` is set.
-5. From this point on, the QA observer must not send any further prompt to any agent under test. If an agent stalls, file a bug — do not patch over the stall with a prompt.
+5. Confirm the successful post from its non-empty evidence (mutating), then release the queued task runs (mutating):
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --confirm-posted "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl"`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/activate-playbook-tasks.py release --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST" --kickoff-evidence "$QA_OUTPUT_PATH/qa/operator-kickoff.jsonl" --agh-bin "${AGH_BIN:-agh}"`
+6. Confirm the manifest reports `KICKOFF_POSTED=true`, `KICKOFF_TIMESTAMP` is set, task activation is `released`, and the scheduler is unpaused. Send no further prompt to any agent under test; a stall becomes a bug.
 
-*Done when:* exactly one kickoff was posted, the manifest records it, and the observer has no path for a second agent prompt.
+*Done when:* every declared task has one queued run behind the barrier, exactly one evidenced kickoff is confirmed, dispatch is released, and the observer has no path for a second agent prompt.
 
 **Step 5: Observe the Runtime**
 
@@ -101,6 +105,8 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 - If bootstrap fails to load the playbook, validate the playbook against `.agents/skills/agh/real-scenario-qa/references/playbook-schema.json`; a real-scenario run never falls back to a generic charter.
 - If the kickoff helper aborts on a forbidden phrase, rewrite the playbook's `kickoff_brief`. Do not edit `references/forbidden-prompt-phrases.md` to remove the rule.
+- If task activation preparation fails, keep the owned scheduler barrier paused, inspect `qa/task-activation.json`, and retry with the same idempotency keys. Never post the kickoff with a partial task tree.
+- If kickoff delivery or confirmation fails, keep dispatch paused. Retry only the same unconfirmed delivery when no provider evidence exists; once evidence exists, confirmation is the only valid next step. Release refuses an empty kickoff transcript or an unconfirmed manifest.
 - If `observe-runtime.py` reports a stall, do NOT inject a prompt to wake the agent. The runtime stall IS the bug under test. File it in `docs/qa/bugs/` against the AGH runtime.
 - If a required deliverable type cannot be parsed by the auditor (e.g., a TSX file with non-standard exports), fix the artifact in the workspace via the agent that authored it (re-prompting in-persona is fine; new operator prompts are not). If the agent cannot fix it, that is a runtime bug.
 - If `browser-use:browser` is unavailable, follow the `agent-browser` fallback per the bootstrap browser policy. Do not silently drop the Web surface.

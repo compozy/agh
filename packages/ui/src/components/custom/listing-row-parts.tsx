@@ -25,12 +25,12 @@ type ListingRowNameContextValue = { mono: boolean };
 const ListingRowNameContext = React.createContext<ListingRowNameContextValue>({ mono: false });
 
 export function ListingRowLink({ className, render, ...props }: ListingRowLinkProps) {
-  return useRender({
+  const element = useRender({
     defaultTagName: "a",
     props: mergeProps<"a">(
       {
         className: cn(
-          "col-span-2 grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3.5 rounded-sm outline-none focus-visible:shadow-focus-ring-inset",
+          "col-span-2 grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3.5 rounded-sm outline-none focus-visible:shadow-focus-inset",
           className
         ),
       } as Record<string, unknown>,
@@ -40,6 +40,7 @@ export function ListingRowLink({ className, render, ...props }: ListingRowLinkPr
     render,
     state: { slot: "listing-row-link" },
   });
+  return <>{element}</>;
 }
 
 export function ListingRowIcon({ className, ...props }: ListingRowIconProps) {

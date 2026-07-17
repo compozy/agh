@@ -9,12 +9,11 @@ import {
   settingsAutomationSectionFixture,
   settingsSandboxesCollectionFixture,
   settingsSandboxFixtures,
-  settingsExtensionsCollectionFixture,
-  settingsExtensionMarketplaceCollectionFixture,
-  settingsExtensionFixtures,
   settingsGeneralSectionFixture,
   settingsHooksCollectionFixture,
   settingsHooksExtensionsSectionFixture,
+  mcpAuthBeginFixture,
+  mcpAuthStatusAuthenticatedFixture,
   settingsMCPServersCollectionFixture,
   settingsMemorySectionFixture,
   settingsNetworkSectionFixture,
@@ -56,6 +55,17 @@ function applyRecordsForUrl(request: Request) {
   }
 
   return { entries };
+}
+
+function mcpAuthTarget(request: Request, serverName: string) {
+  const url = new URL(request.url);
+  const scope = url.searchParams.get("scope") === "workspace" ? "workspace" : "global";
+  const workspaceId = url.searchParams.get("workspace_id")?.trim();
+  return {
+    server_name: serverName,
+    scope,
+    ...(scope === "workspace" && workspaceId ? { workspace_id: workspaceId } : {}),
+  };
 }
 
 export const handlers: HttpHandler[] = [
@@ -217,6 +227,24 @@ export const handlers: HttpHandler[] = [
   aghApiMock.delete("/api/settings/mcp-servers/{name}", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))
   ),
+  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/begin", () =>
+    HttpResponse.json(mcpAuthBeginFixture)
+  ),
+  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/exchange", ({ request, params }) =>
+    HttpResponse.json({
+      ...mcpAuthStatusAuthenticatedFixture,
+      ...mcpAuthTarget(request, String(params.name)),
+    })
+  ),
+  aghApiMock.post("/api/settings/mcp-servers/{name}/auth/logout", ({ request, params }) =>
+    HttpResponse.json({
+      ...mcpAuthStatusAuthenticatedFixture,
+      ...mcpAuthTarget(request, String(params.name)),
+      status: "needs_login",
+      token_present: false,
+      diagnostic: "login required",
+    })
+  ),
 
   aghApiMock.get("/api/settings/apply", ({ request }) =>
     HttpResponse.json(applyRecordsForUrl(request))
@@ -229,86 +257,4 @@ export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/settings/actions/restart/{operation_id}", () =>
     HttpResponse.json(settingsRestartStatusFixture)
   ),
-
-  aghApiMock.get("/api/extensions", () => HttpResponse.json(settingsExtensionsCollectionFixture)),
-  aghApiMock.get("/api/extensions/marketplace", () =>
-    HttpResponse.json(settingsExtensionMarketplaceCollectionFixture)
-  ),
-  aghApiMock.post("/api/extensions", async ({ request }) => {
-    const body = (await request.json()) as { slug?: string };
-    const marketplaceEntry = settingsExtensionMarketplaceCollectionFixture.extensions.find(
-      entry => entry.slug === body.slug
-    );
-    const installed = marketplaceEntry
-      ? {
-          ...settingsExtensionFixtures[0],
-          name: marketplaceEntry.name,
-          version: marketplaceEntry.version ?? settingsExtensionFixtures[0]!.version,
-        }
-      : settingsExtensionFixtures[0];
-
-    return HttpResponse.json({ extension: installed }, { status: 201 });
-  }),
-  aghApiMock.put("/api/extensions/{name}", ({ params }) => {
-    const name = String(params.name);
-    const extension = settingsExtensionFixtures.find(entry => entry.name === name);
-
-    if (!extension) {
-      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
-    }
-
-    return HttpResponse.json({
-      update: {
-        name,
-        slug: extension.provenance?.slug ?? name,
-        registry: "github",
-        path: `/tmp/agh/extensions/${name}`,
-        current_version: extension.version,
-        latest_version: extension.version,
-        status: "current",
-      },
-    });
-  }),
-  aghApiMock.delete("/api/extensions/{name}", ({ params }) => {
-    const name = String(params.name);
-    const extension = settingsExtensionFixtures.find(entry => entry.name === name);
-
-    if (!extension) {
-      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
-    }
-
-    return HttpResponse.json({
-      extension: { name, path: `/tmp/agh/extensions/${name}`, status: "removed" },
-    });
-  }),
-  aghApiMock.get("/api/extensions/{name}/provenance", ({ params }) => {
-    const name = String(params.name);
-    const extension = settingsExtensionFixtures.find(entry => entry.name === name);
-
-    if (!extension?.provenance) {
-      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
-    }
-
-    return HttpResponse.json({ provenance: extension.provenance });
-  }),
-  aghApiMock.post("/api/extensions/{name}/enable", ({ params }) => {
-    const name = String(params.name);
-    const extension = settingsExtensionFixtures.find(entry => entry.name === name);
-
-    if (!extension) {
-      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
-    }
-
-    return HttpResponse.json({ extension: { ...extension, enabled: true } });
-  }),
-  aghApiMock.post("/api/extensions/{name}/disable", ({ params }) => {
-    const name = String(params.name);
-    const extension = settingsExtensionFixtures.find(entry => entry.name === name);
-
-    if (!extension) {
-      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
-    }
-
-    return HttpResponse.json({ extension: { ...extension, enabled: false } });
-  }),
 ];

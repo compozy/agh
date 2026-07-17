@@ -37,7 +37,7 @@ Inline comments must land on lines the diff touches. The valid new-side ranges a
    "start_line": 38, "start_side": "RIGHT", "body": "<rendered finding block>" }]
 ```
 
-(`start_line`/`start_side` only for multi-line ranges.) Review body = `**Actionable comments posted: <n>**` + collapsed sections (Outside diff range, Duplicates, Nitpicks, Dropped-by-verification summary) + the scope line `Reviewing files that changed between <base> and <head>.`:
+(`start_line`/`start_side` only for multi-line ranges.) Review body = `**Actionable comments posted: <n>**` + collapsed sections (Outside diff range, Duplicates, Nitpicks) + the scope line `Reviewing files that changed between <base> and <head>.`:
 
 ```bash
 jq -n --rawfile body "$OUT/review-body.md" --slurpfile c "$OUT/comments.json" \

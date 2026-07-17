@@ -7,9 +7,14 @@ import {
   resolveBrowserRuntimeEnv,
   startSkillMarketplaceServer,
 } from "../runtime";
+import {
+  closeMarketplaceCatalogServer,
+  startMarketplaceCatalogServer,
+} from "../marketplace-server";
 import { stopBrowserDaemonProcess, stopRegisteredDaemon } from "../runtime-process";
 import {
   assertDaemonServedHTML,
+  buildLaunchRuntimeEnv,
   buildResolveWorkspaceRequest,
   normalizeBaseURL,
   requiresHTTPAPIReadinessProbe,
@@ -159,6 +164,17 @@ describe("runtime helpers", () => {
     ).toContain("[network]\nenabled = false\n");
   });
 
+  it("Should render unverified extension policy only when explicitly requested", () => {
+    expect(
+      renderRuntimeConfig({
+        extensionsAllowUnverified: true,
+        host: "127.0.0.1",
+        port: 4321,
+        socketPath: "/tmp/agh.sock",
+      })
+    ).toContain("[extensions.marketplace]\nallow_unverified = true\n");
+  });
+
   it("renders a seeded skill marketplace base URL for launch-mode browser E2E", () => {
     expect(
       renderRuntimeConfig({
@@ -175,6 +191,73 @@ describe("runtime helpers", () => {
         "",
       ].join("\n")
     );
+  });
+
+  it("renders a seeded curated marketplace base URL for launch-mode browser E2E", () => {
+    expect(
+      renderRuntimeConfig({
+        host: "127.0.0.1",
+        marketplaceCatalogBaseURL: "http://127.0.0.1:8765",
+        port: 4321,
+        socketPath: "/tmp/agh.sock",
+      })
+    ).toContain(
+      [
+        "[marketplace.catalog]",
+        'base_url = "http://127.0.0.1:8765"',
+        'ttl = "1h"',
+        'timeout = "5s"',
+        "",
+      ].join("\n")
+    );
+  });
+
+  it("serves strict per-kind curated marketplace documents", async () => {
+    const marketplace = await startMarketplaceCatalogServer({
+      generatedAt: "2026-07-14T00:00:00Z",
+      mcp: [
+        {
+          command: "npx",
+          description: "Read repository metadata",
+          entry_id: "browser-github-mcp",
+          name: "Browser GitHub MCP",
+          transport: "stdio",
+        },
+      ],
+      skills: [
+        {
+          description: "Review browser changes",
+          entry_id: "browser-review-skill",
+          install_slug: "@agh/browser-review-skill",
+          name: "Browser review skill",
+        },
+      ],
+    });
+    if (marketplace === undefined) {
+      throw new Error("expected seeded curated marketplace server");
+    }
+    try {
+      const mcpResponse = await fetch(`${marketplace.baseURL}/mcp.json`);
+      expect(mcpResponse.status).toBe(200);
+      await expect(mcpResponse.json()).resolves.toEqual({
+        manifest_version: 1,
+        generated_at: "2026-07-14T00:00:00Z",
+        entries: [
+          {
+            command: "npx",
+            description: "Read repository metadata",
+            entry_id: "browser-github-mcp",
+            name: "Browser GitHub MCP",
+            transport: "stdio",
+          },
+        ],
+      });
+      const extensionResponse = await fetch(`${marketplace.baseURL}/extensions.json`);
+      await expect(extensionResponse.json()).resolves.toMatchObject({ entries: [] });
+      expect((await fetch(`${marketplace.baseURL}/unknown.json`)).status).toBe(404);
+    } finally {
+      await closeMarketplaceCatalogServer(marketplace.server);
+    }
   });
 
   it("serves seeded skill marketplace listings through the ClawHub search contract", async () => {
@@ -222,6 +305,21 @@ describe("runtime helpers", () => {
           },
         ],
       });
+
+      const detailResponse = await fetch(
+        `${marketplace.baseURL}/api/v1/skills/${encodeURIComponent("@agh/browser-marketplace-skill")}`
+      );
+      expect(detailResponse.status).toBe(200);
+      await expect(detailResponse.json()).resolves.toMatchObject({
+        author: "agh",
+        name: "browser-marketplace-skill",
+        slug: "@agh/browser-marketplace-skill",
+        version: "2.0.0",
+      });
+      const downloadResponse = await fetch(
+        `${marketplace.baseURL}/api/v1/skills/${encodeURIComponent("@agh/browser-marketplace-skill")}/download`
+      );
+      expect(downloadResponse.status).toBe(404);
     } finally {
       await closeSkillMarketplaceServer(marketplace.server);
     }
@@ -303,5 +401,17 @@ describe("runtime helpers", () => {
         "http://127.0.0.1:4213"
       )
     ).not.toThrow();
+  });
+
+  it("serves the freshly built checkout bundle in launch mode", () => {
+    expect(
+      buildLaunchRuntimeEnv("/work/agh", {
+        AGH_WEB_DIST_DIR: "/tmp/stale-dist",
+        PATH: "/usr/bin",
+      })
+    ).toMatchObject({
+      AGH_WEB_DIST_DIR: "/work/agh/web/dist",
+      PATH: "/usr/bin",
+    });
   });
 });

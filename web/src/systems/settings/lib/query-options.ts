@@ -2,7 +2,6 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   SettingsApiError,
-  getSettingsExtensionProvenance,
   getSettingsAutomation,
   getSettingsSandbox,
   getSettingsGeneral,
@@ -17,17 +16,14 @@ import {
   getSettingsUpdate,
   listSettingsApplyRecords,
   listSettingsSandboxes,
-  listSettingsExtensions,
   listSettingsHooks,
   listSettingsMCPServers,
   listSettingsProviders,
-  searchSettingsExtensionMarketplace,
 } from "../adapters/settings-api";
 import { settingsKeys } from "./query-keys";
 import { isTerminalRestartStatus } from "./restart-status";
 import type {
   SettingsApplyRecordsFilter,
-  SettingsExtensionMarketplaceFilter,
   SettingsMCPServerListFilter,
   SettingsNotificationPresetFilter,
   SettingsSkillsFilter,
@@ -37,6 +33,7 @@ const SECTION_STALE_TIME = 15_000;
 const SECTION_REFETCH_INTERVAL = 60_000;
 const COLLECTION_STALE_TIME = 15_000;
 const COLLECTION_REFETCH_INTERVAL = 45_000;
+const MCP_AUTH_STATUS_POLL_INTERVAL = 1_000;
 const APPLY_RECORDS_STALE_TIME = 5_000;
 const APPLY_RECORDS_REFETCH_INTERVAL = 30_000;
 const RESTART_POLL_INTERVAL = 2_000;
@@ -184,47 +181,15 @@ export function settingsHooksListOptions() {
 
 export function settingsMCPServersListOptions(
   filter: SettingsMCPServerListFilter = {},
-  enabled = true
+  enabled = true,
+  refetchInterval = COLLECTION_REFETCH_INTERVAL
 ) {
   return queryOptions({
     queryKey: settingsKeys.mcpList(filter),
     queryFn: ({ signal }) => listSettingsMCPServers(filter, signal),
     staleTime: COLLECTION_STALE_TIME,
-    refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    refetchInterval,
     enabled,
-    retry: shouldRetrySettingsQuery,
-  });
-}
-
-export function settingsExtensionsListOptions() {
-  return queryOptions({
-    queryKey: settingsKeys.extensionsList(),
-    queryFn: ({ signal }) => listSettingsExtensions(signal),
-    staleTime: COLLECTION_STALE_TIME,
-    refetchInterval: COLLECTION_REFETCH_INTERVAL,
-    retry: shouldRetrySettingsQuery,
-  });
-}
-
-export function settingsExtensionMarketplaceOptions(
-  filter: SettingsExtensionMarketplaceFilter = {}
-) {
-  return queryOptions({
-    queryKey: settingsKeys.extensionsMarketplace(filter),
-    queryFn: ({ signal }) => searchSettingsExtensionMarketplace(filter, signal),
-    staleTime: COLLECTION_STALE_TIME,
-    refetchInterval: COLLECTION_REFETCH_INTERVAL,
-    retry: shouldRetrySettingsQuery,
-  });
-}
-
-export function settingsExtensionProvenanceOptions(name: string, enabled = true) {
-  return queryOptions({
-    queryKey: settingsKeys.extensionProvenance(name),
-    queryFn: ({ signal }) => getSettingsExtensionProvenance(name, signal),
-    enabled: Boolean(name) && enabled,
-    staleTime: COLLECTION_STALE_TIME,
-    refetchInterval: COLLECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,
   });
 }
@@ -269,6 +234,7 @@ export const SETTINGS_QUERY_INTERVALS = {
   sectionRefetchInterval: SECTION_REFETCH_INTERVAL,
   collectionStaleTime: COLLECTION_STALE_TIME,
   collectionRefetchInterval: COLLECTION_REFETCH_INTERVAL,
+  mcpAuthStatusPollInterval: MCP_AUTH_STATUS_POLL_INTERVAL,
   applyRecordsStaleTime: APPLY_RECORDS_STALE_TIME,
   applyRecordsRefetchInterval: APPLY_RECORDS_REFETCH_INTERVAL,
   restartPollInterval: RESTART_POLL_INTERVAL,

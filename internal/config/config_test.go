@@ -1623,6 +1623,15 @@ port = 9999
 	if got, want := cfg.HTTP.Port, 4242; got != want {
 		t.Fatalf("Load() HTTP.Port = %d, want %d", got, want)
 	}
+
+	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[marketplace.catalog]
+ttl = "30m"
+`)
+	_, err = Load(WithWorkspaceRoot(workspaceRoot))
+	if err == nil || !strings.Contains(err.Error(), "marketplace catalog settings are global-only") {
+		t.Fatalf("Load(workspace Marketplace config) error = %v, want global-only rejection", err)
+	}
 }
 
 func TestLoadRejectsUnknownConfigKeys(t *testing.T) {
@@ -1701,6 +1710,9 @@ func TestDefaultWithHomeLeavesMarketplaceConfigEmpty(t *testing.T) {
 	}
 	if cfg.Extensions.Marketplace != (ExtensionsMarketplaceConfig{}) {
 		t.Fatalf("DefaultWithHome() Extensions.Marketplace = %#v, want zero value", cfg.Extensions.Marketplace)
+	}
+	if cfg.Extensions.Marketplace.AllowUnverified {
+		t.Fatal("DefaultWithHome() Extensions.Marketplace.AllowUnverified = true, want false")
 	}
 	if len(cfg.Extensions.Resources.AllowedKinds) != 0 ||
 		cfg.Extensions.Resources.MaxScope != "" ||

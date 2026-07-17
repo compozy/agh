@@ -67,9 +67,10 @@ export function LoopEditorCriteria({
   allowedTypes = CRITERION_TYPES,
 }: LoopEditorCriteriaProps) {
   const defaultType = allowedTypes[0];
+  const allowedTypeSet = new Set(allowedTypes);
   const criteria = asCriteria(value).map(criterion => {
     const type = str(criterion.type) as CriterionType;
-    return defaultType && !allowedTypes.includes(type)
+    return defaultType && !allowedTypeSet.has(type)
       ? { ...criterion, type: defaultType }
       : criterion;
   });

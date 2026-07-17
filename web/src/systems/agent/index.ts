@@ -243,7 +243,8 @@ export { useAgentSettingsPage } from "./hooks/use-agent-settings-page";
 export { useAgentDeleteFlow, type UseAgentDeleteFlowResult } from "./hooks/use-agent-delete-flow";
 
 // Components
-export { AgentIcon, providerIconMap } from "./components/agent-icon";
+export { AgentIcon } from "./components/agent-icon";
+export { providerIconMap } from "./components/provider-icon-map";
 export {
   AgentPageActions,
   AgentPageMeta,

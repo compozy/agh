@@ -23,6 +23,7 @@ type GlobalDB struct {
 	*HeartbeatRepo
 	*SoulRepo
 	*ModelCatalogRepo
+	*MarketplaceRepo
 	*ObserveRepo
 	*NotificationRepo
 	*ToolRuntimeRepo

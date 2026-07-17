@@ -104,9 +104,12 @@ export interface BrowserSkillMarketplaceListingSeed {
   author?: string;
   description?: string;
   downloads?: number;
+  license?: string;
   name: string;
+  readme?: string;
   slug: string;
   source?: string;
+  tags?: string[];
   version?: string;
 }
 
@@ -114,7 +117,61 @@ export interface BrowserSkillMarketplaceSeed {
   listings: BrowserSkillMarketplaceListingSeed[];
 }
 
+interface BrowserMarketplaceEntrySeed {
+  description: string;
+  entry_id: string;
+  name: string;
+  published_at?: string;
+  updated_at?: string;
+  version?: string;
+}
+
+export interface BrowserMarketplaceMCPEntrySeed extends BrowserMarketplaceEntrySeed {
+  args?: string[];
+  command?: string;
+  default_scope?: "global" | "workspace";
+  env?: Array<{
+    default?: string;
+    name: string;
+    prompt?: string;
+    required: boolean;
+    secret: boolean;
+  }>;
+  oauth?: {
+    authorization_url?: string;
+    client_id: string;
+    issuer_url?: string;
+    scopes?: string[];
+    token_url?: string;
+  };
+  transport: "stdio" | "http" | "sse";
+  url?: string;
+}
+
+export interface BrowserMarketplaceExtensionEntrySeed extends BrowserMarketplaceEntrySeed {
+  author?: string;
+  digest_sha256: string;
+  install_slug: string;
+  repository?: string;
+  tier: "official" | "community" | "unverified";
+}
+
+export interface BrowserMarketplaceSkillEntrySeed extends BrowserMarketplaceEntrySeed {
+  author?: string;
+  display_name?: string;
+  install_slug: string;
+  tags?: string[];
+}
+
+export interface BrowserMarketplaceCatalogSeed {
+  extensions?: BrowserMarketplaceExtensionEntrySeed[];
+  generatedAt?: string;
+  mcp?: BrowserMarketplaceMCPEntrySeed[];
+  skills?: BrowserMarketplaceSkillEntrySeed[];
+}
+
 export interface BrowserRuntimeSeed {
+  marketplaceCatalog?: BrowserMarketplaceCatalogSeed;
   skillMarketplace?: BrowserSkillMarketplaceSeed;
   skills?: BrowserSkillSeed[];
   mockAgents?: BrowserMockAgentSeed[];
@@ -459,10 +516,8 @@ export const browserSettingsOperatorFlowScenario = {
     primarySessionTimeoutSeconds: 75,
     fallbackSessionTimeoutSeconds: 90,
   },
-  hooksExtensions: {
-    extensionName: BRIDGE_EXTENSION_NAME,
+  hooks: {
     hookName: "browser-turn-end",
-    policyRegistry: "browser-settings-registry",
   },
   mcpServers: {
     global: {

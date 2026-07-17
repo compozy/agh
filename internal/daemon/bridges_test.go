@@ -2128,6 +2128,46 @@ func TestBridgeRuntimeUpdateInstanceResourceBacked(t *testing.T) {
 }
 
 func TestBridgeRuntimeTransitionResourceBacked(t *testing.T) {
+	t.Run("Should reload once after projecting the starting state", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 16, 12, 55, 0, 0, time.UTC)
+		runtime, _ := newResourceBackedBridgeRuntime(t, now, nil)
+		created := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resource-start",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resource-start",
+			DisplayName:   "Resource Start",
+			Enabled:       false,
+			Status:        bridgepkg.BridgeStatusDisabled,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		extensions := &fakeExtensionRuntime{
+			onReload: func(ctx context.Context) error {
+				_, err := runtime.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
+					ID:        created.ID,
+					Enabled:   true,
+					Status:    bridgepkg.BridgeStatusReady,
+					UpdatedAt: now.Add(time.Second),
+				})
+				return err
+			},
+		}
+		runtime.setExtensionRuntime(extensions)
+
+		updated, err := runtime.StartInstance(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("StartInstance() error = %v", err)
+		}
+		if got, want := extensions.reloadCount, 1; got != want {
+			t.Fatalf("extension reload count = %d, want %d", got, want)
+		}
+		if got, want := updated.Status, bridgepkg.BridgeStatusReady; got != want {
+			t.Fatalf("StartInstance().Status = %q, want post-reload %q", got, want)
+		}
+	})
+
 	t.Run("ShouldRestorePreviousStateWhenReconcileFails", func(t *testing.T) {
 		t.Parallel()
 

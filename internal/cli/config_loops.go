@@ -24,10 +24,11 @@ func loopAndGoalConfigSetPathKinds() map[string]configSetValueKind {
 }
 
 func mergeConfigSetValueKinds(
-	base map[string]configSetValueKind,
-	overlay map[string]configSetValueKind,
+	groups ...map[string]configSetValueKind,
 ) map[string]configSetValueKind {
-	merged := maps.Clone(base)
-	maps.Copy(merged, overlay)
+	merged := make(map[string]configSetValueKind)
+	for _, group := range groups {
+		maps.Copy(merged, group)
+	}
 	return merged
 }

@@ -14,24 +14,28 @@ export interface DetailHeaderCrumb {
 }
 
 export interface DetailHeaderProps extends Omit<React.ComponentProps<"header">, "title"> {
-  /** Title row (24px Inter UC) — the sole H1 on a detail surface. */
+  /** The sole H1 on a detail surface. */
   title: React.ReactNode;
   /**
    * Optional crumb trail. Accepts either a structured list (rendered with `·` separators)
-   * or any ReactNode (rendered inside a single Eyebrow). Crumbs render in row 1 of the
-   * 6-row anatomy.
+   * or any ReactNode (rendered inside a single Eyebrow).
    */
   crumbs?: ReadonlyArray<DetailHeaderCrumb> | React.ReactNode;
-  /** Optional eyebrow-style pre-title row (row 2). */
+  /** Optional eyebrow-style pre-title. */
   preTitle?: React.ReactNode;
-  /** Optional pill row immediately under the title (row 4). */
+  /** Optional leading mark beside the title block. */
+  leading?: React.ReactNode;
+  /**
+   * Optional pills on the same flex row as the H1.
+   * Long titles truncate inside the title cell; pills stay start-aligned beside it.
+   */
   pills?: React.ReactNode;
-  /** Optional compact metadata row (row 5) — id, time, owner, etc. */
+  /** Optional compact metadata row — id, time, owner, etc. */
   meta?: React.ReactNode;
-  /** Trailing action cluster (row 6) — buttons, dropdowns. */
+  /** Trailing action cluster — end-aligned; wraps independently of the title/pill row. */
   actions?: React.ReactNode;
   /**
-   * Back-button slot Consumers wire `router.history.back` with a
+   * Back-button slot. Consumers wire `router.history.back` with a
    * parent-route fallback. When omitted the chevron is not rendered.
    */
   back?: () => void;
@@ -47,6 +51,7 @@ function DetailHeader({
   title,
   crumbs,
   preTitle,
+  leading,
   pills,
   meta,
   actions,
@@ -70,7 +75,7 @@ function DetailHeader({
               data-slot="detail-header-back"
               aria-label={backLabel}
               onClick={back}
-              className="-ml-1 inline-flex size-5 shrink-0 items-center justify-center rounded-xs text-muted transition-colors duration-base ease-out hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong"
+              className="-ml-1 inline-flex size-5 shrink-0 items-center justify-center rounded-xs text-muted transition-colors duration-base ease-out hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
             >
               <ChevronLeft width={12} height={12} strokeWidth={1.75} />
             </button>
@@ -85,19 +90,32 @@ function DetailHeader({
           {preTitle}
         </Eyebrow>
       ) : null}
-      <div data-slot="detail-header-row" className="flex min-w-0 flex-wrap items-start gap-3">
-        <div data-slot="detail-header-title-block" className="flex min-w-0 flex-col gap-1.5">
-          <h1
-            data-slot="detail-header-title"
-            className="truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong"
+      <div data-slot="detail-header-row" className="flex min-w-0 flex-wrap items-start gap-3.5">
+        {leading ? (
+          <div data-slot="detail-header-leading" className="shrink-0">
+            {leading}
+          </div>
+        ) : null}
+        <div data-slot="detail-header-title-block" className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div
+            data-slot="detail-header-title-row"
+            className="flex min-w-0 flex-wrap items-center gap-2"
           >
-            {title}
-          </h1>
-          {pills ? (
-            <div data-slot="detail-header-pills" className="flex flex-wrap items-center gap-1.5">
-              {pills}
-            </div>
-          ) : null}
+            <h1
+              data-slot="detail-header-title"
+              className="min-w-0 truncate text-detail-h1 font-medium tracking-detail-h1 text-fg-strong"
+            >
+              {title}
+            </h1>
+            {pills ? (
+              <div
+                data-slot="detail-header-pills"
+                className="flex shrink-0 flex-wrap items-center gap-1.5"
+              >
+                {pills}
+              </div>
+            ) : null}
+          </div>
           {meta ? (
             <div
               data-slot="detail-header-meta"
@@ -110,7 +128,7 @@ function DetailHeader({
         {actions ? (
           <div
             data-slot="detail-header-actions"
-            className="ml-auto flex shrink-0 items-center gap-2"
+            className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2"
           >
             {actions}
           </div>

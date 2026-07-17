@@ -1,8 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
-import { useEffect } from "react";
-import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -19,8 +17,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     layout: "fullscreen",
     docs: {
       description: {
-        component:
-          "Full-shell route stories for installed and marketplace skill browsing, including detail and content branches.",
+        component: "Full-shell route stories for installed skill management and detail routes.",
       },
     },
   },
@@ -28,25 +25,6 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-function MarketplaceTabAutoClick() {
-  useEffect(() => {
-    let raf = 0;
-    const tryClick = () => {
-      const tab = document.querySelector<HTMLButtonElement>("[data-testid='tab-marketplace']");
-      if (tab) {
-        tab.click();
-        return;
-      }
-      raf = window.requestAnimationFrame(tryClick);
-    };
-    tryClick();
-    return () => {
-      if (raf !== 0) window.cancelAnimationFrame(raf);
-    };
-  }, []);
-  return null;
-}
 
 /**
  * Populated installed-skills branch with list + auto-selected detail.
@@ -78,34 +56,4 @@ export const DetailOpen: Story = {
   args: {},
   parameters: appRouteParameters(`/skills/${primarySkillFixture.name}`),
   render: () => <StorybookWorkspaceSetup />,
-};
-
-/**
- * Marketplace tab active. Uses a minimal auto-click wrapper instead of a
- * Storybook play function so the story opens directly in the marketplace state.
- */
-export const MarketplaceGrid: Story = {
-  args: {},
-  parameters: appRouteParameters("/skills?tab=marketplace&q=compozy"),
-  render: () => (
-    <>
-      <StorybookWorkspaceSetup />
-      <MarketplaceTabAutoClick />
-    </>
-  ),
-};
-
-/**
- * Interaction test: clicking the marketplace tab surfaces the card grid.
- */
-export const MarketplaceInteraction: Story = {
-  args: {},
-  tags: ["play-fn"],
-  parameters: appRouteParameters("/skills"),
-  render: () => <StorybookWorkspaceSetup />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("tab-marketplace"));
-    await expect(canvas.findByTestId("marketplace-view")).resolves.toBeDefined();
-  },
 };

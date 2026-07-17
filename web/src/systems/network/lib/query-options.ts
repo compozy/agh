@@ -9,10 +9,8 @@ import {
   NetworkApiError,
   getNetworkChannel,
   getNetworkDirectRoom,
-  getNetworkPeer,
   getNetworkStatus,
   getNetworkThread,
-  getNetworkWork,
   listNetworkChannels,
   listNetworkDirectRoomMessages,
   listNetworkDirectRooms,
@@ -48,7 +46,6 @@ const STATUS_STALE_TIME = 10_000;
 const CHANNELS_REFETCH_INTERVAL = 30_000;
 const LIST_REFETCH_INTERVAL = 15_000;
 const LIST_STALE_TIME = 5_000;
-const WORK_REFETCH_INTERVAL = 3_000;
 const TAIL_REFRESH_INTERVAL = 5_000;
 const DETAIL_RETRY_LIMIT = 2;
 
@@ -342,17 +339,6 @@ export function networkMessageTailOptions(
   });
 }
 
-export function networkWorkOptions(workspaceId: string, workId: string, enabled = true) {
-  return queryOptions({
-    queryKey: networkKeys.work(workspaceId, workId),
-    queryFn: ({ signal }) => getNetworkWork(workspaceId, workId, signal),
-    staleTime: 2_000,
-    refetchInterval: WORK_REFETCH_INTERVAL,
-    refetchOnWindowFocus: true,
-    enabled: Boolean(workspaceId) && Boolean(workId) && enabled,
-  });
-}
-
 export function networkPeersOptions(workspaceId: string, channel?: string, enabled = true) {
   return queryOptions({
     queryKey: networkKeys.peers(workspaceId, channel),
@@ -361,16 +347,5 @@ export function networkPeersOptions(workspaceId: string, channel?: string, enabl
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
     enabled: Boolean(workspaceId) && enabled,
-  });
-}
-
-export function networkPeerDetailOptions(workspaceId: string, peerId: string, enabled = true) {
-  return queryOptions({
-    queryKey: networkKeys.peerDetail(workspaceId, peerId),
-    queryFn: ({ signal }) => getNetworkPeer(workspaceId, peerId, signal),
-    staleTime: LIST_STALE_TIME,
-    refetchInterval: LIST_REFETCH_INTERVAL,
-    refetchOnWindowFocus: true,
-    enabled: Boolean(workspaceId) && Boolean(peerId) && enabled,
   });
 }

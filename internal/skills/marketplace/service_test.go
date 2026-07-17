@@ -26,6 +26,7 @@ type fakeInstallRegistry struct {
 	detail         *registrypkg.Detail
 	updateInfo     *registrypkg.UpdateInfo
 	checkUpdateErr error
+	checkUpdateFn  func(string, string) (*registrypkg.UpdateInfo, error)
 }
 
 type fakeSkillResolver struct {
@@ -55,10 +56,13 @@ func (r fakeInstallRegistry) Info(context.Context, string) (*registrypkg.Detail,
 }
 
 func (r fakeInstallRegistry) CheckUpdate(
-	context.Context,
-	string,
-	string,
+	_ context.Context,
+	slug string,
+	currentVersion string,
 ) (*registrypkg.UpdateInfo, error) {
+	if r.checkUpdateFn != nil {
+		return r.checkUpdateFn(slug, currentVersion)
+	}
 	if r.checkUpdateErr != nil {
 		return nil, r.checkUpdateErr
 	}
@@ -105,8 +109,12 @@ func TestPathInsideRoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PathInsideRoot() error = %v", err)
 		}
-		if got := resolved; got != targetPath {
-			t.Fatalf("PathInsideRoot() = %q, want %q", got, targetPath)
+		want, err := filepath.EvalSymlinks(targetPath)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(target) error = %v", err)
+		}
+		if got := resolved; got != want {
+			t.Fatalf("PathInsideRoot() = %q, want resolved %q", got, want)
 		}
 	})
 
@@ -120,8 +128,43 @@ func TestPathInsideRoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PathInsideRoot() error = %v", err)
 		}
-		if got := resolved; got != targetPath {
-			t.Fatalf("PathInsideRoot() = %q, want %q", got, targetPath)
+		resolvedRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(root) error = %v", err)
+		}
+		want := filepath.Join(resolvedRoot, "review", "SKILL.md")
+		if got := resolved; got != want {
+			t.Fatalf("PathInsideRoot() = %q, want resolved %q", got, want)
+		}
+	})
+
+	t.Run("Should return the validated canonical target for an internal symlink", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		realDir := filepath.Join(root, "real")
+		if err := os.MkdirAll(realDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(real) error = %v", err)
+		}
+		target := filepath.Join(realDir, SkillMarkdownFileName)
+		if err := os.WriteFile(target, []byte("inside"), 0o644); err != nil {
+			t.Fatalf("WriteFile(target) error = %v", err)
+		}
+		alias := filepath.Join(root, "alias")
+		if err := os.Symlink(realDir, alias); err != nil {
+			t.Fatalf("Symlink(alias) error = %v", err)
+		}
+
+		resolved, err := PathInsideRoot(root, filepath.Join(alias, SkillMarkdownFileName))
+		if err != nil {
+			t.Fatalf("PathInsideRoot() error = %v", err)
+		}
+		want, err := filepath.EvalSymlinks(target)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(target) error = %v", err)
+		}
+		if resolved != want {
+			t.Fatalf("PathInsideRoot() = %q, want canonical %q", resolved, want)
 		}
 	})
 
@@ -343,6 +386,41 @@ func TestUpdateSkillClassifiesRegistryLookupFailures(t *testing.T) {
 	})
 }
 
+func TestUpdateWithRegistryPreservesSuccessfulBatchResults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return applied results alongside named aggregate failures", func(t *testing.T) {
+		t.Parallel()
+
+		skillsDir := t.TempDir()
+		writeMarketplaceInstalledSkill(t, skillsDir, "alpha", "@acme/alpha", "1.0.0")
+		writeMarketplaceInstalledSkill(t, skillsDir, "bravo", "@acme/bravo", "1.0.0")
+		registry := fakeInstallRegistry{
+			checkUpdateFn: func(slug string, _ string) (*registrypkg.UpdateInfo, error) {
+				if slug == "@acme/bravo" {
+					return nil, errors.New("registry offline")
+				}
+				return &registrypkg.UpdateInfo{CurrentVersion: "1.0.0", LatestVersion: "1.0.0"}, nil
+			},
+		}
+
+		items, err := UpdateWithRegistry(
+			context.Background(),
+			skillsDir,
+			registry,
+			UpdateRequest{All: true, CheckOnly: true},
+			timeNowForTest,
+		)
+		if err == nil || !strings.Contains(err.Error(), `update marketplace skill "bravo"`) ||
+			!strings.Contains(err.Error(), "registry offline") {
+			t.Fatalf("UpdateWithRegistry() error = %v, want named registry failure", err)
+		}
+		if len(items) != 1 || items[0].Name != "alpha" || items[0].Status != UpdateStatusCurrent {
+			t.Fatalf("UpdateWithRegistry() items = %#v, want successful alpha result", items)
+		}
+	})
+}
+
 func TestVerifyInstallVisible(t *testing.T) {
 	t.Parallel()
 
@@ -357,17 +435,13 @@ func TestVerifyInstallVisible(t *testing.T) {
 	}
 	visibleSkill := func() *skills.Skill {
 		return &skills.Skill{
-			Meta:   skills.SkillMeta{Name: "review"},
-			Source: skills.SourceMarketplace,
-			FilePath: filepath.Join(
-				"tmp",
-				"agh",
-				"skills",
-				"review",
-				SkillMarkdownFileName,
-			),
-			Enabled: true,
+			Meta:     skills.SkillMeta{Name: "review"},
+			Source:   skills.SourceMarketplace,
+			Dir:      result.Path,
+			FilePath: filepath.Join(result.Path, SkillMarkdownFileName),
+			Enabled:  true,
 			Provenance: &skills.Provenance{
+				Hash:     "sha256:abc",
 				Slug:     "@agh/review",
 				Registry: "clawhub",
 				Version:  "1.2.0",
@@ -420,6 +494,18 @@ func TestVerifyInstallVisible(t *testing.T) {
 			wantText: "missing provenance after skill discovery",
 		},
 		{
+			name: "Should classify a discovered path mismatch as unavailable",
+			resolver: fakeSkillResolver{skills: map[string]*skills.Skill{
+				"review": func() *skills.Skill {
+					skill := visibleSkill()
+					skill.Dir = "/tmp/other/review"
+					skill.FilePath = "/tmp/other/review/SKILL.md"
+					return skill
+				}(),
+			}},
+			wantText: "resolved from /tmp/other/review",
+		},
+		{
 			name: "Should classify slug mismatch as unavailable",
 			resolver: fakeSkillResolver{skills: map[string]*skills.Skill{
 				"review": func() *skills.Skill {
@@ -429,6 +515,28 @@ func TestVerifyInstallVisible(t *testing.T) {
 				}(),
 			}},
 			wantText: "resolved slug \"@other/review\" after skill discovery, want \"@agh/review\"",
+		},
+		{
+			name: "Should classify registry mismatch as unavailable",
+			resolver: fakeSkillResolver{skills: map[string]*skills.Skill{
+				"review": func() *skills.Skill {
+					skill := visibleSkill()
+					skill.Provenance.Registry = "other"
+					return skill
+				}(),
+			}},
+			wantText: "resolved registry \"other\" after skill discovery, want \"clawhub\"",
+		},
+		{
+			name: "Should classify hash mismatch as unavailable",
+			resolver: fakeSkillResolver{skills: map[string]*skills.Skill{
+				"review": func() *skills.Skill {
+					skill := visibleSkill()
+					skill.Provenance.Hash = "sha256:different"
+					return skill
+				}(),
+			}},
+			wantText: "resolved hash \"sha256:different\" after skill discovery, want \"sha256:abc\"",
 		},
 		{
 			name: "Should classify disabled skill as unavailable",
@@ -478,6 +586,34 @@ func marketplaceSkillArchive(t *testing.T, name string, description string, body
 		t.Fatalf("gzipWriter.Close() error = %v", err)
 	}
 	return buffer.Bytes()
+}
+
+func writeMarketplaceInstalledSkill(
+	t *testing.T,
+	skillsDir string,
+	name string,
+	slug string,
+	version string,
+) {
+	t.Helper()
+
+	skillDir := filepath.Join(skillsDir, name)
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v", name, err)
+	}
+	content := "---\nname: " + name + "\ndescription: Test skill\n---\nTest body\n"
+	if err := os.WriteFile(filepath.Join(skillDir, SkillMarkdownFileName), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", name, err)
+	}
+	hash, err := skills.ComputeDirectoryHash(skillDir)
+	if err != nil {
+		t.Fatalf("ComputeDirectoryHash(%s) error = %v", name, err)
+	}
+	if err := skills.WriteSidecar(skillDir, skills.Provenance{
+		Hash: hash, Registry: "test-registry", Slug: slug, Version: version, InstalledAt: timeNowForTest(),
+	}); err != nil {
+		t.Fatalf("WriteSidecar(%s) error = %v", name, err)
+	}
 }
 
 func writeMarketplaceTarEntry(t *testing.T, writer *tar.Writer, name string, content string) {

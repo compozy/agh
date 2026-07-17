@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	installModelKey = "model"
+	installCommandKey = "install"
+	installModelKey   = "model"
 )
 
 const (
@@ -80,7 +81,7 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 	var model string
 
 	cmd := &cobra.Command{
-		Use:   "install",
+		Use:   installCommandKey,
 		Short: "Bootstrap AGH and create the default general agent",
 		Example: `  # Create ~/.agh/config.toml and ~/.agh/agents/general/AGENT.md
   agh install
@@ -275,7 +276,7 @@ func installBundle(record installRecord) outputBundle {
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("install", []string{
+			return renderToonObject(installCommandKey, []string{
 				installAgentNameKey,
 				cliProviderKey,
 				installModelKey,

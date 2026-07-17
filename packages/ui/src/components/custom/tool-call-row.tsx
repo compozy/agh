@@ -208,7 +208,7 @@ function ToolCallRowInner({
             data-slot="tool-call-row-trigger"
             aria-expanded={isExpanded}
             aria-labelledby={`${toolNameId} ${triggerDescriptionId}`}
-            className="absolute inset-0 rounded-sm outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:ring-2 focus-visible:ring-line-strong"
+            className="absolute inset-0 rounded-sm outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:shadow-focus-inset"
             onClick={toggle}
           />
           <span id={triggerDescriptionId} className="sr-only">

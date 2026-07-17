@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -150,6 +151,34 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			wantApplied:   true,
 		},
 		{
+			name:          "Should apply the extension side-load policy live",
+			path:          "extensions.marketplace.allow_unverified",
+			value:         "true",
+			wantLifecycle: "live",
+			wantApplied:   true,
+		},
+		{
+			name:          "Should apply the Marketplace catalog base URL live",
+			path:          "marketplace.catalog.base_url",
+			value:         "http://127.0.0.1:64135",
+			wantLifecycle: "live",
+			wantApplied:   true,
+		},
+		{
+			name:          "Should apply the Marketplace catalog TTL live",
+			path:          "marketplace.catalog.ttl",
+			value:         "30m",
+			wantLifecycle: "live",
+			wantApplied:   true,
+		},
+		{
+			name:          "Should apply the Marketplace catalog timeout live",
+			path:          "marketplace.catalog.timeout",
+			value:         "5s",
+			wantLifecycle: "live",
+			wantApplied:   true,
+		},
+		{
 			name:             "Should report daemon restart for loop defaults",
 			path:             "loops.defaults.delivery.fan_out_width",
 			value:            "3",
@@ -199,6 +228,32 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should reject global-only Marketplace catalog writes at workspace scope", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		workspaceRoot := t.TempDir()
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"marketplace.catalog.ttl",
+			"30m",
+			"--scope",
+			"workspace",
+			"--workspace",
+			workspaceRoot,
+		)
+		if err == nil || !strings.Contains(err.Error(), "global-only") {
+			t.Fatalf("config set workspace Marketplace error = %v, want global-only rejection", err)
+		}
+		workspaceConfig := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.ConfigName)
+		if _, statErr := os.Stat(workspaceConfig); !os.IsNotExist(statErr) {
+			t.Fatalf("workspace config stat error = %v, want no file", statErr)
+		}
+	})
 }
 
 func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
@@ -273,6 +328,60 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 	}
 	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied {
 		t.Fatalf("config set disabled skills record = %#v, want live/applied=true", record)
+	}
+}
+
+func TestConfigSetReloadsReachableDaemonWhenProcessTimestampMetadataLags(t *testing.T) {
+	t.Parallel()
+
+	reloadCalled := false
+	client := &stubClient{
+		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+			return DaemonStatus{Status: "running", PID: 42}, nil
+		},
+		reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+			reloadCalled = true
+			return SettingsMutationRecord{
+				Lifecycle:        contract.SettingsApplyLifecycleLive,
+				ApplyRecordID:    "cfgapp-late-metadata",
+				Applied:          true,
+				ActiveGeneration: 2,
+				ActiveConfigHash: "sha256:late-metadata",
+				NextAction:       contract.SettingsApplyNextActionNone,
+			}, nil
+		},
+	}
+
+	deps := newTestDeps(t, client)
+	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+		return aghdaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+	deps.processMatchesStartTime = func(int, time.Time) bool { return false }
+
+	out, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"marketplace.catalog.base_url",
+		"http://127.0.0.1:64135",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config set marketplace catalog base URL error = %v", err)
+	}
+	if !reloadCalled {
+		t.Fatal("ReloadSettings was not called through the reachable daemon")
+	}
+
+	var record configSetRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(config set marketplace catalog base URL) error = %v", err)
+	}
+	if record.ApplyRecordID != "cfgapp-late-metadata" || record.ActiveGeneration != 2 || !record.Applied {
+		t.Fatalf("config set record = %#v, want daemon-confirmed active generation", record)
 	}
 }
 
@@ -869,6 +978,24 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 				name:        "Should allow sandbox Daytona image",
 				path:        "sandboxes.dev.daytona.image",
 				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow Marketplace catalog base URL",
+				path:        "marketplace.catalog.base_url",
+				wantKind:    configSetString,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow Marketplace catalog TTL",
+				path:        "marketplace.catalog.ttl",
+				wantKind:    configSetDuration,
+				wantAllowed: true,
+			},
+			{
+				name:        "Should allow Marketplace catalog timeout",
+				path:        "marketplace.catalog.timeout",
+				wantKind:    configSetDuration,
 				wantAllowed: true,
 			},
 			{name: "Should reject unknown sandbox values", path: "sandboxes.dev.unknown.value", wantAllowed: false},

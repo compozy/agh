@@ -21,7 +21,7 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
     <CatalogCard actionable data-agent={agent.name} data-testid={`agent-fleet-card-${agent.name}`}>
       <Link
         aria-label={ariaLabel}
-        className="flex min-w-0 flex-col gap-3 outline-none focus-visible:shadow-focus-ring-inset"
+        className="flex min-w-0 flex-col gap-3 outline-none focus-visible:shadow-focus-inset"
         data-testid={`agent-fleet-card-link-${agent.name}`}
         params={{ name: agent.name }}
         to="/agents/$name"

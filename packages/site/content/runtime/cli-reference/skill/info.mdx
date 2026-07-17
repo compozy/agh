@@ -1,29 +1,27 @@
 ---
 title: "agh skill info"
-description: "Show detailed metadata for one skill"
+description: "Show one Marketplace skill entry"
 ---
 
 ## agh skill info
 
-Show detailed metadata for one skill
+Show one Marketplace skill entry
 
 ```
-agh skill info <name> [flags]
+agh skill info <entry_id> [flags]
 ```
 
 ### Examples
 
 ```
-  # Inspect a skill's metadata and resource list
-  agh skill info code-review
+  # Inspect a Marketplace skill before installation
+  agh skill info skill_code_review
 ```
 
 ### Options
 
 ```
-      --for-agent string   Resolve the effective skill set for one logical agent
-  -h, --help               help for info
-      --workspace string   Resolve the daemon-managed skill from a workspace id, name, or path
+  -h, --help   help for info
 ```
 
 ### Options inherited from parent commands
@@ -45,5 +43,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh skill info <name> -o json
+agh skill info <entry_id> -o json
 ```

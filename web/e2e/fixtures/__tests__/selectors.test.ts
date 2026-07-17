@@ -8,10 +8,15 @@ import {
   automationOperatorTestIds,
   bridgeOperatorSelectors,
   bridgeOperatorTestIds,
+  extensionsOperatorSelectors,
+  extensionsOperatorTestIds,
+  marketplaceOperatorSelectors,
+  marketplaceOperatorTestIds,
   networkOperatorSelectors,
   networkOperatorTestIds,
+  settingsExtensionsTestIds,
   settingsGeneralTestIds,
-  settingsHooksExtensionsTestIds,
+  settingsHooksTestIds,
   settingsMCPServersTestIds,
   settingsOperatorSelectors,
   settingsProvidersTestIds,
@@ -247,7 +252,7 @@ describe("bridge operator selectors", () => {
 });
 
 describe("skills operator selectors", () => {
-  it("maps the Skills catalog, detail, marketplace, and workspace guard surfaces to stable test IDs", () => {
+  it("maps the installed Skills catalog, detail, and workspace guard surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
     const selectors = skillsOperatorSelectors({
       getByTestId,
@@ -259,24 +264,9 @@ describe("skills operator selectors", () => {
     expect(selectors.enabledSwitch).toBe(`locator:${skillsOperatorTestIds.enabledSwitch}`);
     expect(selectors.enabledToggle).toBe(`locator:${skillsOperatorTestIds.enabledToggle}`);
     expect(selectors.listPanel).toBe(`locator:${skillsOperatorTestIds.listPanel}`);
-    expect(selectors.marketplaceEmpty).toBe(`locator:${skillsOperatorTestIds.marketplaceEmpty}`);
-    expect(selectors.marketplaceError).toBe(`locator:${skillsOperatorTestIds.marketplaceError}`);
-    expect(selectors.marketplaceGrid).toBe(`locator:${skillsOperatorTestIds.marketplaceGrid}`);
-    expect(selectors.marketplaceLoading).toBe(
-      `locator:${skillsOperatorTestIds.marketplaceLoading}`
-    );
-    expect(selectors.marketplaceSearchPrompt).toBe(
-      `locator:${skillsOperatorTestIds.marketplaceSearchPrompt}`
-    );
-    expect(selectors.marketplaceSearchInput).toBe(
-      `locator:${skillsOperatorTestIds.marketplaceSearchInput}`
-    );
-    expect(selectors.marketplaceView).toBe(`locator:${skillsOperatorTestIds.marketplaceView}`);
     expect(selectors.navSkills).toBe(`locator:${skillsOperatorTestIds.navSkills}`);
     expect(selectors.searchInput).toBe(`locator:${skillsOperatorTestIds.searchInput}`);
     expect(selectors.shell).toBe(`locator:${skillsOperatorTestIds.shell}`);
-    expect(selectors.tabInstalled).toBe(`locator:${skillsOperatorTestIds.tabInstalled}`);
-    expect(selectors.tabMarketplace).toBe(`locator:${skillsOperatorTestIds.tabMarketplace}`);
     expect(selectors.viewFullContent).toBe(`locator:${skillsOperatorTestIds.viewFullContent}`);
     expect(selectors.workspaceOnboarding).toBe(
       `locator:${skillsOperatorTestIds.workspaceOnboarding}`
@@ -287,9 +277,66 @@ describe("skills operator selectors", () => {
     expect(selectors.item("browser-context-skill")).toBe(
       "locator:skill-item-browser-context-skill"
     );
-    expect(selectors.marketplaceRow("browser-marketplace-skill")).toBe(
-      "locator:marketplace-row-browser-marketplace-skill"
+  });
+});
+
+describe("marketplace operator selectors", () => {
+  it("maps acquisition, detail, and overlay surfaces to stable test IDs", () => {
+    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const selectors = marketplaceOperatorSelectors({ getByTestId });
+
+    expect(selectors.landing).toBe(`locator:${marketplaceOperatorTestIds.landing}`);
+    expect(selectors.kindNavigation).toBe(`locator:${marketplaceOperatorTestIds.kindNavigation}`);
+    expect(selectors.detail).toBe(`locator:${marketplaceOperatorTestIds.detail}`);
+    expect(selectors.detailAction).toBe(`locator:${marketplaceOperatorTestIds.detailAction}`);
+    expect(selectors.mcpInstallDialog).toBe(
+      `locator:${marketplaceOperatorTestIds.mcpInstallDialog}`
     );
+    expect(selectors.mcpInstallConfirm).toBe(
+      `locator:${marketplaceOperatorTestIds.mcpInstallConfirm}`
+    );
+    expect(selectors.bundleActivationDialog).toBe(
+      `locator:${marketplaceOperatorTestIds.bundleActivationDialog}`
+    );
+    expect(selectors.bundleActivateConfirm).toBe(
+      `locator:${marketplaceOperatorTestIds.bundleActivateConfirm}`
+    );
+    expect(selectors.extensionTrustDialog).toBe(
+      `locator:${marketplaceOperatorTestIds.extensionTrustDialog}`
+    );
+    expect(selectors.extensionTrustConfirm).toBe(
+      `locator:${marketplaceOperatorTestIds.extensionTrustConfirm}`
+    );
+    expect(selectors.card("browser-skill")).toBe("locator:marketplace-card-browser-skill");
+    expect(selectors.action("browser-skill")).toBe("locator:marketplace-action-browser-skill");
+    expect(selectors.kind("skill")).toBe("locator:marketplace-kind-skill");
+    expect(selectors.section("mcp")).toBe("locator:marketplace-section-mcp");
+    expect(selectors.mcpVaultSelector("BROWSER_TOKEN")).toBe(
+      "locator:mcp-vault-selector-BROWSER_TOKEN"
+    );
+    expect(selectors.mcpCreateSecret("BROWSER_TOKEN")).toBe(
+      "locator:mcp-create-secret-BROWSER_TOKEN"
+    );
+  });
+});
+
+describe("extensions operator selectors", () => {
+  it("maps installed extension and bundle management surfaces to stable test IDs", () => {
+    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const selectors = extensionsOperatorSelectors({ getByTestId });
+
+    expect(selectors.page).toBe(`locator:${extensionsOperatorTestIds.page}`);
+    expect(selectors.list).toBe(`locator:${extensionsOperatorTestIds.list}`);
+    expect(selectors.detail).toBe(`locator:${extensionsOperatorTestIds.detail}`);
+    expect(selectors.bundlePage).toBe(`locator:${extensionsOperatorTestIds.bundlePage}`);
+    expect(selectors.bundleList).toBe(`locator:${extensionsOperatorTestIds.bundleList}`);
+    expect(selectors.bundleDetail).toBe(`locator:${extensionsOperatorTestIds.bundleDetail}`);
+    expect(selectors.removeDialog).toBe(`locator:${extensionsOperatorTestIds.removeDialog}`);
+    expect(selectors.deactivateDialog).toBe(
+      `locator:${extensionsOperatorTestIds.deactivateDialog}`
+    );
+    expect(selectors.row("browser-extension")).toBe("locator:extension-row-browser-extension");
+    expect(selectors.bundleRow("activation-1")).toBe("locator:bundle-row-activation-1");
   });
 });
 
@@ -334,7 +381,7 @@ describe("sandbox operator selectors", () => {
 });
 
 describe("settings operator selectors", () => {
-  it("maps shell, restart-aware sections, collection rows, and hooks/extensions toggles to stable test IDs", () => {
+  it("maps shell, restart-aware sections, collections, hooks, and extension policy to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
     const locator = vi.fn((selector: string) => `locator:${selector}` as unknown as Locator);
     const selectors = settingsOperatorSelectors({
@@ -419,25 +466,22 @@ describe("settings operator selectors", () => {
     expect(selectors.mcpServers.editRow("browser-global-mcp")).toBe(
       "locator:settings-page-mcp-servers-row-browser-global-mcp-edit"
     );
-    expect(selectors.mcpServers.deleteRow("browser-global-mcp")).toBe(
-      "locator:settings-page-mcp-servers-row-browser-global-mcp-delete"
+    expect(selectors.mcpServers.editorRemove).toBe("locator:settings-mcp-servers-editor-remove");
+
+    expect(selectors.hooks.page).toBe(`locator:${settingsHooksTestIds.page}`);
+    expect(selectors.hooks.hookToggle("browser-turn-end")).toBe(
+      "locator:settings-page-hooks-row-browser-turn-end-toggle"
     );
 
-    expect(selectors.hooksExtensions.page).toBe(`locator:${settingsHooksExtensionsTestIds.page}`);
-    expect(selectors.hooksExtensions.transportParity).toBe(
-      `locator:${settingsHooksExtensionsTestIds.transportParity}`
+    expect(selectors.extensions.page).toBe(`locator:${settingsExtensionsTestIds.page}`);
+    expect(selectors.extensions.policyControls).toBe(
+      `locator:${settingsExtensionsTestIds.policyControls}`
     );
-    expect(selectors.hooksExtensions.policyControls).toBe(
-      `locator:${settingsHooksExtensionsTestIds.policyControls}`
+    expect(selectors.extensions.policyBaseURLInput).toBe(
+      `locator:${settingsExtensionsTestIds.policyBaseURLInput}`
     );
-    expect(selectors.hooksExtensions.policyBaseURLInput).toBe(
-      `locator:${settingsHooksExtensionsTestIds.policyBaseURLInput}`
-    );
-    expect(selectors.hooksExtensions.hookToggle("browser-turn-end")).toBe(
-      "locator:settings-page-hooks-extensions-hooks-row-browser-turn-end-toggle"
-    );
-    expect(selectors.hooksExtensions.extensionToggle("telegram-reference")).toBe(
-      "locator:settings-page-hooks-extensions-extensions-item-telegram-reference-toggle"
+    expect(selectors.extensions.allowUnverified).toBe(
+      `locator:${settingsExtensionsTestIds.allowUnverified}`
     );
   });
 });

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	registrypkg "github.com/compozy/agh/internal/registry"
@@ -21,10 +22,9 @@ const (
 )
 
 const (
-	defaultExtensionToolSearchLimit = 20
-	extensionToolSourceLocal        = "local"
-	extensionToolSourceMarketplace  = "marketplace"
-	extensionRegistryGitHub         = "github"
+	extensionToolSourceLocal       = "local"
+	extensionToolSourceMarketplace = "marketplace"
+	extensionRegistryGitHub        = "github"
 )
 
 var (
@@ -36,12 +36,6 @@ type extensionMarketplaceSourceLoader func(
 	context.Context,
 	aghconfig.ExtensionsMarketplaceConfig,
 ) ([]registrypkg.Source, error)
-
-type extensionSearchInput struct {
-	Query  string `json:"query"`
-	Source string `json:"source"`
-	Limit  int    `json:"limit"`
-}
 
 type extensionNameInput struct {
 	Name string `json:"name"`
@@ -70,10 +64,6 @@ func (n *daemonNativeTools) extensionToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDExtensionsSearch: {
-			call:         n.extensionSearch,
-			availability: availability,
-		},
 		toolspkg.ToolIDExtensionsList: {
 			call:         n.extensionList,
 			availability: availability,
@@ -103,39 +93,6 @@ func (n *daemonNativeTools) extensionToolBindings(
 			availability: availability,
 		},
 	}
-}
-
-func (n *daemonNativeTools) extensionSearch(
-	ctx context.Context,
-	_ toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input extensionSearchInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	query, err := requiredNativeString(req.ToolID, "query", input.Query)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	limit := input.Limit
-	if limit == 0 {
-		limit = defaultExtensionToolSearchLimit
-	}
-	listings, err := extensionpkg.SearchMarketplaceExtensions(
-		ctx,
-		n.extensionMarketplaceLoader(),
-		query,
-		input.Source,
-		limit,
-	)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
-	}
-	return structuredResult(
-		map[string]any{nativeExtensionToolsExtensionsKey: listings},
-		fmt.Sprintf("%d extension listings", len(listings)),
-	)
 }
 
 func (n *daemonNativeTools) extensionList(
@@ -376,6 +333,9 @@ func (n *daemonNativeTools) extensionInstallMarketplace(
 }
 
 func (n *daemonNativeTools) extensionService() *daemonExtensionService {
+	if service, ok := n.extensionDependency().(*daemonExtensionService); ok && service != nil {
+		return service
+	}
 	runtime := extensionRuntime(nil)
 	if n.deps.ExtensionRuntime != nil {
 		runtime = n.deps.ExtensionRuntime()
@@ -400,6 +360,20 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 	return service
 }
 
+func (n *daemonNativeTools) extensionCoreService() core.ExtensionService {
+	if service := n.extensionDependency(); service != nil {
+		return service
+	}
+	return n.extensionService()
+}
+
+func (n *daemonNativeTools) extensionDependency() core.ExtensionService {
+	if n == nil || n.deps == nil || n.deps.Extensions == nil {
+		return nil
+	}
+	return n.deps.Extensions()
+}
+
 func nativeExtensionActorContext(req toolspkg.CallRequest) (taskpkg.ActorContext, error) {
 	if sessionID := strings.TrimSpace(req.SessionID); sessionID != "" {
 		return taskpkg.DeriveAgentSessionActorContextForOrigin(
@@ -409,16 +383,6 @@ func nativeExtensionActorContext(req toolspkg.CallRequest) (taskpkg.ActorContext
 		)
 	}
 	return taskpkg.DeriveDaemonActorContext("native-tools", strings.TrimSpace(string(req.ToolID)))
-}
-
-func (n *daemonNativeTools) extensionMarketplaceLoader() extensionpkg.MarketplaceSourceLoader {
-	return func(ctx context.Context) ([]registrypkg.Source, error) {
-		loader := n.deps.ExtensionSources
-		if loader == nil {
-			loader = defaultDaemonExtensionMarketplaceSourceLoader
-		}
-		return loader(ctx, n.deps.ExtensionMarket)
-	}
 }
 
 func defaultDaemonExtensionMarketplaceSourceLoader(
@@ -488,7 +452,8 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			toolspkg.ReasonExtensionNotInstalled,
 		)
 	case errors.Is(err, extensionpkg.ErrExtensionExists),
-		errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch):
+		errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch),
+		errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch):
 		return nativeExtensionValidationError(id, err)
 	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
 		return toolspkg.NewToolError(
@@ -528,6 +493,7 @@ func nativeExtensionSourceError(id toolspkg.ToolID, err error) error {
 func isExtensionSourceError(err error) bool {
 	return errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable) ||
 		errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) ||
+		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked) ||
 		errors.Is(err, errExtensionMarketplaceNotConfigured) ||
 		errors.Is(err, errExtensionRegistryUnsupported)
 }

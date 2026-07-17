@@ -112,8 +112,29 @@ type SettingsMCPSecretValuesPayload struct {
 	OAuthClientSecret *string           `json:"oauth_client_secret,omitempty"`
 }
 
+// SettingsMCPSecretPreservationPayload identifies existing bindings to retain without exposing their refs.
+type SettingsMCPSecretPreservationPayload struct {
+	SecretEnv         []string `json:"secret_env,omitempty"`
+	OAuthClientSecret bool     `json:"oauth_client_secret,omitempty"`
+}
+
+// SettingsMCPAuthConfigViewPayload is the public, binding-free OAuth configuration projection.
+type SettingsMCPAuthConfigViewPayload struct {
+	Type                   string   `json:"type,omitempty"`
+	IssuerURL              string   `json:"issuer_url,omitempty"`
+	MetadataURL            string   `json:"metadata_url,omitempty"`
+	AuthorizationURL       string   `json:"authorization_url,omitempty"`
+	TokenURL               string   `json:"token_url,omitempty"`
+	RevocationURL          string   `json:"revocation_url,omitempty"`
+	ClientID               string   `json:"client_id,omitempty"`
+	ClientSecretConfigured bool     `json:"client_secret_configured"`
+	Scopes                 []string `json:"scopes,omitempty"`
+}
+
 type SettingsMCPAuthStatusPayload struct {
 	ServerName       string     `json:"server_name"`
+	Scope            string     `json:"scope"`
+	WorkspaceID      string     `json:"workspace_id,omitempty"`
 	Status           string     `json:"status"`
 	RemoteURL        string     `json:"remote_url,omitempty"`
 	AuthType         string     `json:"auth_type,omitempty"`
@@ -144,14 +165,16 @@ type SettingsMCPServerItemPayload struct {
 	Transport      string                                 `json:"transport"`
 	Command        string                                 `json:"command,omitempty"`
 	Args           []string                               `json:"args,omitempty"`
-	Env            map[string]string                      `json:"env,omitempty"`
-	SecretEnv      map[string]string                      `json:"secret_env,omitempty"`
+	EnvKeys        []string                               `json:"env_keys,omitempty"`
+	SecretEnvKeys  []string                               `json:"secret_env_keys,omitempty"`
 	URL            string                                 `json:"url,omitempty"`
-	Auth           *SettingsMCPAuthConfigPayload          `json:"auth,omitempty"`
+	Auth           *SettingsMCPAuthConfigViewPayload      `json:"auth,omitempty"`
 	AuthStatus     *SettingsMCPAuthStatusPayload          `json:"auth_status,omitempty"`
 	RuntimeStatus  *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitempty"`
 	Scope          SettingsScopeKind                      `json:"scope"`
 	WorkspaceID    string                                 `json:"workspace_id,omitempty"`
+	CatalogEntry   string                                 `json:"catalog_entry,omitempty"`
+	CatalogVersion string                                 `json:"catalog_version,omitempty"`
 	SourceMetadata SettingsSourceMetadataPayload          `json:"source_metadata"`
 }
 
@@ -196,6 +219,7 @@ type SettingsHookDeclarationPayload struct {
 	Event        hookspkg.HookEvent        `json:"event"`
 	Mode         hookspkg.HookMode         `json:"mode,omitempty"`
 	Required     bool                      `json:"required,omitempty"`
+	Enabled      *bool                     `json:"enabled,omitempty"`
 	Priority     int                       `json:"priority,omitempty"`
 	Timeout      string                    `json:"timeout,omitempty"`
 	Matcher      hookspkg.HookMatcher      `json:"matcher"`

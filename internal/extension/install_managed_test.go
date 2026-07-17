@@ -63,7 +63,7 @@ func TestManagedInstallHelpers(t *testing.T) {
 	) {
 		t.Fatalf("ManagedInstallPathChecked() = %q, %v; want contained path", got, err)
 	}
-	for _, name := range []string{"../escape", "nested/name", `nested\name`, ".", "..", "/abs"} {
+	for _, name := range []string{"../escape", "nested/name", `nested\name`, ".", "..", "marketplace", "/abs"} {
 		t.Run("Should reject unsafe name "+name, func(t *testing.T) {
 			t.Parallel()
 

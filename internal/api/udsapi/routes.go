@@ -25,6 +25,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerLoopRoutes(api, handlers)
 	registerTaskRoutes(api, handlers)
 	registerTaskRunRoutes(api, handlers)
+	registerMarketplaceRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
 	registerNetworkRoutes(api, handlers)
@@ -263,8 +264,6 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 	skillsGroup := api.Group("/skills")
 	{
 		skillsGroup.GET("", handlers.ListSkills)
-		skillsGroup.GET("/marketplace/search", handlers.SearchSkillMarketplace)
-		skillsGroup.GET("/marketplace/info", handlers.GetSkillMarketplaceInfo)
 		skillsGroup.POST("/marketplace/install", handlers.InstallSkillMarketplace)
 		skillsGroup.POST("/marketplace/update", handlers.UpdateSkillMarketplace)
 		skillsGroup.DELETE("/marketplace/:name", handlers.RemoveSkillMarketplace)
@@ -273,6 +272,16 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 		skillsGroup.GET("/:name/shadows", handlers.GetSkillShadows)
 		skillsGroup.POST("/:name/enable", handlers.EnableSkill)
 		skillsGroup.POST("/:name/disable", handlers.DisableSkill)
+	}
+}
+
+func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
+	marketplace := api.Group("/marketplace")
+	{
+		marketplace.GET("/search", handlers.SearchMarketplace)
+		marketplace.GET("/:kind", handlers.BrowseMarketplaceKind)
+		marketplace.GET("/:kind/:entry_id", handlers.GetMarketplaceEntry)
+		marketplace.POST("/refresh", handlers.RefreshMarketplaceCatalog)
 	}
 }
 
@@ -371,7 +380,6 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	extensions := api.Group("/extensions")
 	{
 		extensions.GET("", handlers.ListExtensions)
-		extensions.GET("/marketplace", handlers.SearchExtensionMarketplace)
 		extensions.POST("", handlers.InstallExtension)
 		extensions.PUT("/:name", handlers.UpdateExtension)
 		extensions.DELETE("/:name", handlers.RemoveExtension)
@@ -413,6 +421,10 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.DELETE("/providers/:name", handlers.DeleteSettingsProvider)
 
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
+	settings.POST("/mcp-servers/install", handlers.InstallSettingsMCPServer)
+	settings.POST("/mcp-servers/:name/auth/begin", handlers.BeginSettingsMCPAuth)
+	settings.POST("/mcp-servers/:name/auth/exchange", handlers.ExchangeSettingsMCPAuth)
+	settings.POST("/mcp-servers/:name/auth/logout", handlers.LogoutSettingsMCPAuth)
 	settings.PUT("/mcp-servers/:name", handlers.PutSettingsMCPServer)
 	settings.DELETE("/mcp-servers/:name", handlers.DeleteSettingsMCPServer)
 

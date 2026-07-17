@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -340,6 +341,244 @@ func TestUDSTransportProjectionParityMatchesHTTPAndCLI(t *testing.T) {
 	}
 	if got, want := cliRun.TriggerID, trigger.ID; got != want {
 		t.Fatalf("cliRun.TriggerID = %q, want %q", got, want)
+	}
+}
+
+func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
+	t.Parallel()
+
+	catalogServer := newTransportMarketplaceCatalogServer(t)
+	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			Mutate: func(cfg *aghconfig.Config) {
+				cfg.Marketplace.Catalog.BaseURL = catalogServer.URL
+				cfg.Marketplace.Catalog.TTL = time.Hour.String()
+				cfg.Marketplace.Catalog.Timeout = time.Second.String()
+			},
+		},
+	})
+	clients, err := runtimeHarness.TransportClients()
+	if err != nil {
+		t.Fatalf("TransportClients() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	t.Run("Should return the same grouped search payload over HTTP, UDS, and CLI", func(t *testing.T) {
+		path := "/api/marketplace/search?limit=20"
+		var httpValue aghcontract.MarketplaceSearchResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
+			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+		}
+		var udsValue aghcontract.MarketplaceSearchResponse
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
+			t.Fatalf("UDSJSON(%s) error = %v", path, err)
+		}
+		var cliValue aghcontract.MarketplaceSearchResponse
+		if err := clients.CLI.RunJSON(ctx, &cliValue, "marketplace", "search", "--limit", "20", "-o", "json"); err != nil {
+			t.Fatalf("CLI marketplace search error = %v", err)
+		}
+		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
+	})
+
+	t.Run("Should return the same kind browse payload over HTTP, UDS, and CLI", func(t *testing.T) {
+		path := "/api/marketplace/extension?limit=20"
+		var httpValue aghcontract.MarketplaceKindResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
+			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+		}
+		var udsValue aghcontract.MarketplaceKindResponse
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
+			t.Fatalf("UDSJSON(%s) error = %v", path, err)
+		}
+		var cliValue aghcontract.MarketplaceKindResponse
+		if err := clients.CLI.RunJSON(
+			ctx,
+			&cliValue,
+			"marketplace",
+			"search",
+			"--kind",
+			"extension",
+			"--limit",
+			"20",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI marketplace kind search error = %v", err)
+		}
+		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
+	})
+
+	t.Run("Should return the same entry detail payload over HTTP, UDS, and CLI", func(t *testing.T) {
+		path := "/api/marketplace/extension/bridge-github"
+		var httpValue aghcontract.MarketplaceEntryResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpValue); err != nil {
+			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+		}
+		var udsValue aghcontract.MarketplaceEntryResponse
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, &udsValue); err != nil {
+			t.Fatalf("UDSJSON(%s) error = %v", path, err)
+		}
+		var cliValue aghcontract.MarketplaceEntryResponse
+		if err := clients.CLI.RunJSON(
+			ctx,
+			&cliValue,
+			"marketplace",
+			"info",
+			"extension",
+			"bridge-github",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI marketplace info error = %v", err)
+		}
+		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
+	})
+
+	t.Run("Should install the same catalog MCP payload over HTTP, UDS, and CLI", func(t *testing.T) {
+		path := "/api/settings/mcp-servers/install"
+		request := aghcontract.InstallSettingsMCPServerRequest{
+			EntryID: "filesystem",
+			Name:    "filesystem-parity",
+			Scope:   aghcontract.SettingsWorkspaceScopeGlobal,
+			Values:  &aghcontract.SettingsMCPCatalogInstallValuesPayload{},
+		}
+		var httpValue aghcontract.InstallSettingsMCPServerResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, path, request, &httpValue); err != nil {
+			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+		}
+		var udsValue aghcontract.InstallSettingsMCPServerResponse
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, path, request, &udsValue); err != nil {
+			t.Fatalf("UDSJSON(%s) error = %v", path, err)
+		}
+		var cliValue aghcontract.InstallSettingsMCPServerResponse
+		if err := clients.CLI.RunJSON(
+			ctx,
+			&cliValue,
+			"mcp",
+			"install",
+			"filesystem",
+			"--name",
+			"filesystem-parity",
+			"--scope",
+			"global",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI mcp install error = %v", err)
+		}
+		assertTransportMarketplaceParity(t, path, httpValue, udsValue, cliValue)
+		if httpValue.MCPServer.CatalogEntry != "filesystem" ||
+			httpValue.MCPServer.CatalogVersion != "1.0.0" ||
+			httpValue.NextStep != aghcontract.SettingsMCPInstallNextStepNone {
+			t.Fatalf("catalog MCP install response = %#v", httpValue)
+		}
+	})
+
+	t.Run("Should retarget extension search without changing its output fields", func(t *testing.T) {
+		var cliValue []struct {
+			Slug        string `json:"slug"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			Version     string `json:"version"`
+			Source      string `json:"source"`
+		}
+		if err := clients.CLI.RunJSON(
+			ctx,
+			&cliValue,
+			"extension",
+			"search",
+			"bridge",
+			"--limit",
+			"20",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI extension search error = %v", err)
+		}
+		if len(cliValue) != 1 {
+			t.Fatalf("CLI extension search items = %#v, want one curated entry", cliValue)
+		}
+		item := cliValue[0]
+		if item.Slug != "compozy/bridge-github" ||
+			item.Name != "GitHub bridge" ||
+			item.Description != "Connect GitHub events to AGH" ||
+			item.Version != "1.0.0" ||
+			item.Source != "agh-catalog" {
+			t.Fatalf("CLI extension search item = %#v, want unchanged extension search fields", item)
+		}
+	})
+
+	t.Run("Should refresh the same curated kind over guarded HTTP and unguarded UDS", func(t *testing.T) {
+		path := "/api/marketplace/refresh?kind=extension"
+		var httpValue aghcontract.MarketplaceRefreshResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, path, nil, &httpValue); err != nil {
+			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+		}
+		var udsValue aghcontract.MarketplaceRefreshResponse
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, path, nil, &udsValue); err != nil {
+			t.Fatalf("UDSJSON(%s) error = %v", path, err)
+		}
+		assertTransportMarketplaceParity(t, path, httpValue, udsValue)
+	})
+}
+
+func newTransportMarketplaceCatalogServer(t testing.TB) *httptest.Server {
+	t.Helper()
+
+	documents := map[string]string{
+		"/mcp.json": `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+			`"entry_id":"filesystem","name":"Filesystem","description":"Read approved local files",` +
+			`"version":"1.0.0","transport":"stdio","command":"npx","args":["server-filesystem"]}]}`,
+		"/extensions.json": `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+			`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to AGH",` +
+			`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
+			`"artifact_url":"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",` +
+			`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
+			`"tier":"official"}]}`,
+		"/skills.json": `{"manifest_version":1,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+			`"entry_id":"agh","name":"AGH","display_name":"AGH operator",` +
+			`"description":"Operate AGH through structured surfaces","version":"1.0.0",` +
+			`"install_slug":"compozy/agh","author":"Compozy","tags":["agh","operations"]}]}`,
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		document, ok := documents[request.URL.Path]
+		if !ok {
+			http.NotFound(response, request)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		if _, err := io.WriteString(response, document); err != nil {
+			t.Errorf("write marketplace catalog response error = %v", err)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func assertTransportMarketplaceParity(t testing.TB, path string, values ...any) {
+	t.Helper()
+	if len(values) < 2 {
+		t.Fatalf("%s transport values = %d, want at least 2", path, len(values))
+	}
+	expected := values[0]
+	for index, value := range values[1:] {
+		if reflect.DeepEqual(expected, value) {
+			continue
+		}
+		expectedJSON, expectedErr := json.Marshal(expected)
+		valueJSON, valueErr := json.Marshal(value)
+		if expectedErr != nil || valueErr != nil {
+			t.Fatalf(
+				"%s parity mismatch at transport %d; expected marshal error = %v, value marshal error = %v",
+				path,
+				index+1,
+				expectedErr,
+				valueErr,
+			)
+		}
+		t.Fatalf("%s transport 0 payload = %s, want parity with transport %d payload %s", path, expectedJSON, index+1, valueJSON)
 	}
 }
 

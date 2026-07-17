@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +21,7 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 	apitestutil "github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/session"
 	settingspkg "github.com/compozy/agh/internal/settings"
@@ -109,7 +112,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/extensions",
 		"GET /api/extensions/:name",
 		"GET /api/extensions/:name/provenance",
-		"GET /api/extensions/marketplace",
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
 		"GET /api/notifications/presets",
@@ -119,6 +121,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/logs/stream",
 		"GET /api/memory",
 		"GET /api/memory/:filename",
+		"GET /api/mcp/oauth/callback",
 		"GET /api/memory/config",
 		"GET /api/memory/daily",
 		"GET /api/memory/decisions",
@@ -134,6 +137,9 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/memory/providers/:provider_name",
 		"GET /api/memory/recall-traces/:session_id/:turn_seq",
 		"GET /api/memory/scope-show",
+		"GET /api/marketplace/:kind",
+		"GET /api/marketplace/:kind/:entry_id",
+		"GET /api/marketplace/search",
 		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 		"GET /api/workspaces/:workspace_id/network/inbox",
 		"GET /api/workspaces/:workspace_id/network/peers",
@@ -185,6 +191,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
 		"GET /api/settings/mcp-servers",
+		"POST /api/settings/mcp-servers/install",
+		"POST /api/settings/mcp-servers/:name/auth/begin",
+		"POST /api/settings/mcp-servers/:name/auth/exchange",
+		"POST /api/settings/mcp-servers/:name/auth/logout",
 		"GET /api/settings/memory",
 		"GET /api/settings/network",
 		"GET /api/settings/observability",
@@ -198,8 +208,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/skills/:name",
 		"GET /api/skills/:name/content",
 		"GET /api/skills/:name/shadows",
-		"GET /api/skills/marketplace/info",
-		"GET /api/skills/marketplace/search",
 		"GET /api/scheduler",
 		"GET /api/scheduler/backlog",
 		"GET /api/tasks",
@@ -286,6 +294,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/memory/search",
 		"POST /api/memory/sessions/prune",
 		"POST /api/memory/sessions/repair",
+		"POST /api/marketplace/refresh",
 		"POST /api/workspaces/:workspace_id/memory/sessions/:session_id/replay",
 		"POST /api/model-catalog/*catalog_path",
 		"POST /api/providers/:provider_id/auth/probe",
@@ -420,6 +429,35 @@ func TestRegisterRoutesRejectsLegacyStatusSurfaces(t *testing.T) {
 		if resp.Code != http.StatusNotFound {
 			t.Fatalf("GET %s status = %d, want %d", path, resp.Code, http.StatusNotFound)
 		}
+	}
+}
+
+func TestRegisterRoutesRejectsLegacyMarketplaceSurfaces(t *testing.T) {
+	t.Parallel()
+
+	engine := newTestRouter(
+		t,
+		newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
+	)
+	for _, path := range []string{
+		"/api/skills/marketplace/search",
+		"/api/skills/marketplace/info",
+		"/api/extensions/marketplace",
+	} {
+		t.Run("Should return 404 for "+path, func(t *testing.T) {
+			t.Parallel()
+
+			response := performRequest(t, engine, http.MethodGet, path, nil)
+			if response.Code != http.StatusNotFound {
+				t.Fatalf(
+					"GET %s status = %d, want %d; body=%s",
+					path,
+					response.Code,
+					http.StatusNotFound,
+					response.Body.String(),
+				)
+			}
+		})
 	}
 }
 
@@ -1005,6 +1043,27 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		t,
 		"0.0.0.0",
 		&stubSettingsService{
+			BeginMCPAuthFn: func(
+				context.Context,
+				settingspkg.MCPAuthBeginRequest,
+			) (mcpauth.BeginResult, error) {
+				t.Fatal("BeginMCPAuth should not be called when HTTP mutations are blocked")
+				return mcpauth.BeginResult{}, nil
+			},
+			ExchangeMCPAuthFn: func(
+				context.Context,
+				settingspkg.MCPAuthExchangeRequest,
+			) (mcpauth.Status, error) {
+				t.Fatal("ExchangeMCPAuth should not be called when HTTP mutations are blocked")
+				return mcpauth.Status{}, nil
+			},
+			LogoutMCPAuthFn: func(
+				context.Context,
+				settingspkg.MCPAuthTargetRequest,
+			) (mcpauth.Status, error) {
+				t.Fatal("LogoutMCPAuth should not be called when HTTP mutations are blocked")
+				return mcpauth.Status{}, nil
+			},
 			UpdateSectionFn: func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error) {
 				t.Fatal("UpdateSection should not be called when HTTP mutations are blocked")
 				return settingspkg.MutationResult{}, nil
@@ -1057,6 +1116,21 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		{method: http.MethodPut, path: "/api/settings/providers/demo", body: []byte(`{}`)},
 		{method: http.MethodDelete, path: "/api/settings/providers/demo"},
 		{method: http.MethodPut, path: "/api/settings/mcp-servers/server-a", body: []byte(`{}`)},
+		{method: http.MethodPost, path: "/api/settings/mcp-servers/install", body: []byte(`{}`)},
+		{
+			method: http.MethodPost,
+			path:   "/api/settings/mcp-servers/server-a/auth/begin?scope=global",
+			body:   []byte(`{"mode":"automatic"}`),
+		},
+		{
+			method: http.MethodPost,
+			path:   "/api/settings/mcp-servers/server-a/auth/exchange?scope=global",
+			body:   []byte(`{"code":"secret-code"}`),
+		},
+		{
+			method: http.MethodPost,
+			path:   "/api/settings/mcp-servers/server-a/auth/logout?scope=global",
+		},
 		{method: http.MethodDelete, path: "/api/settings/mcp-servers/server-a"},
 		{method: http.MethodPut, path: "/api/settings/sandboxes/demo", body: []byte(`{}`)},
 		{method: http.MethodDelete, path: "/api/settings/sandboxes/demo"},
@@ -1066,6 +1140,7 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		{method: http.MethodPost, path: "/api/extensions", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/api/extensions/demo/enable", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/api/extensions/demo/disable", body: []byte(`{}`)},
+		{method: http.MethodPost, path: "/api/marketplace/refresh", body: []byte(`{}`)},
 	}
 
 	for _, tc := range tests {
@@ -1091,11 +1166,168 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 	}
 }
 
+func TestMCPAuthCallbackHonorsLoopbackBindAndReturnsStaticPages(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse automatic callback on a non-loopback bind", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		handlers := newTestHandlersWithSettingsAndExtensions(
+			t,
+			"0.0.0.0",
+			&stubSettingsService{
+				CompleteMCPAuthFn: func(context.Context, string) (mcpauth.Status, error) {
+					t.Fatal("CompleteMCPAuthCallback should not run on a non-loopback bind")
+					return mcpauth.Status{}, nil
+				},
+			},
+			&stubSettingsRestartController{},
+			stubExtensionService{},
+			homePaths,
+		)
+		response := performRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodGet,
+			"/api/mcp/oauth/callback?code=sensitive-code&state=public-state",
+			nil,
+		)
+		if response.Code != http.StatusForbidden {
+			t.Fatalf(
+				"callback status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusForbidden,
+				response.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		decodeJSONResponse(t, response, &payload)
+		if payload.Error != errLoopbackMCPCallbackRequired.Error() {
+			t.Fatalf("callback error = %q, want %q", payload.Error, errLoopbackMCPCallbackRequired.Error())
+		}
+		if strings.Contains(response.Body.String(), "sensitive-code") ||
+			strings.Contains(response.Body.String(), "public-state") {
+			t.Fatalf("callback refusal leaked inbound OAuth material: %s", response.Body.String())
+		}
+	})
+
+	t.Run("Should complete on loopback without reflecting callback material", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		handlers := newTestHandlersWithSettingsAndExtensions(
+			t,
+			"127.0.0.1",
+			&stubSettingsService{
+				CompleteMCPAuthFn: func(_ context.Context, callbackURL string) (mcpauth.Status, error) {
+					if !strings.Contains(callbackURL, "code=sensitive-code") ||
+						!strings.Contains(callbackURL, "state=public-state") {
+						t.Fatalf("callback URL = %q", callbackURL)
+					}
+					return mcpauth.Status{
+						Status:       mcpauth.StatusAuthenticated,
+						TokenPresent: true,
+					}, nil
+				},
+			},
+			&stubSettingsRestartController{},
+			stubExtensionService{},
+			homePaths,
+		)
+		response := performRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodGet,
+			"/api/mcp/oauth/callback?code=sensitive-code&state=public-state",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf(
+				"callback status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusOK,
+				response.Body.String(),
+			)
+		}
+		if !strings.Contains(response.Body.String(), "Authorization complete") {
+			t.Fatalf("callback body = %q, want static completion page", response.Body.String())
+		}
+		if strings.Contains(response.Body.String(), "sensitive-code") ||
+			strings.Contains(response.Body.String(), "public-state") {
+			t.Fatalf("callback success leaked inbound OAuth material: %s", response.Body.String())
+		}
+	})
+
+	t.Run("Should omit callback query and exchange body from request logs", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		engine := gin.New()
+		engine.Use(requestLoggingMiddleware(logger))
+		engine.GET("/api/mcp/oauth/callback", func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+		engine.POST("/api/settings/mcp-servers/:name/auth/exchange", func(c *gin.Context) {
+			c.Status(http.StatusOK)
+		})
+		callback := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/mcp/oauth/callback?code=sensitive-log-code&state=sensitive-log-state",
+			nil,
+		)
+		if callback.Code != http.StatusOK {
+			t.Fatalf("callback log probe status = %d, want %d", callback.Code, http.StatusOK)
+		}
+		exchange := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/settings/mcp-servers/linear/auth/exchange?scope=global",
+			[]byte(`{"code":"sensitive-body-code","redirect_url":"sensitive-redirect-url"}`),
+		)
+		if exchange.Code != http.StatusOK {
+			t.Fatalf("exchange log probe status = %d, want %d", exchange.Code, http.StatusOK)
+		}
+		serialized := logs.String()
+		for _, forbidden := range []string{
+			"sensitive-log-code",
+			"sensitive-log-state",
+			"sensitive-body-code",
+			"sensitive-redirect-url",
+		} {
+			if strings.Contains(serialized, forbidden) {
+				t.Fatalf("request logs leaked %q: %s", forbidden, serialized)
+			}
+		}
+		if !strings.Contains(serialized, "/api/mcp/oauth/callback") ||
+			!strings.Contains(serialized, "/api/settings/mcp-servers/:name/auth/exchange") {
+			t.Fatalf("request logs are missing redacted route paths: %s", serialized)
+		}
+	})
+}
+
 func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	settingsService := &stubSettingsService{}
+	settingsService := &stubSettingsService{
+		InstallMCPCatalogFn: func(
+			_ context.Context,
+			req settingspkg.MCPCatalogInstallRequest,
+		) (settingspkg.MCPCatalogInstallResult, error) {
+			return settingspkg.MCPCatalogInstallResult{
+				Item: settingspkg.MCPServerItem{
+					Name: req.Name, Scope: req.Scope, WorkspaceID: req.WorkspaceID,
+					CatalogEntry: req.EntryID,
+				},
+				NextStep: settingspkg.MCPCatalogInstallNextStepNone,
+			}, nil
+		},
+	}
 	restartController := &stubSettingsRestartController{}
 	var (
 		installedReq contract.InstallExtensionRequest
@@ -1132,6 +1364,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 		body       []byte
 		wantStatus int
 		assert     func(t *testing.T)
+		assertBody func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
 		{
 			name:       "patch section",
@@ -1175,6 +1408,49 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 					settingsService.LastPutCollectionRequest.Scope != settingspkg.ScopeWorkspace ||
 					settingsService.LastPutCollectionRequest.WorkspaceID != "ws-1" {
 					t.Fatalf("LastPutCollectionRequest = %#v", settingsService.LastPutCollectionRequest)
+				}
+			},
+		},
+		{
+			name:       "Should install a catalog MCP server with strict request and response mapping",
+			method:     http.MethodPost,
+			path:       "/api/settings/mcp-servers/install",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.InstallSettingsMCPServerRequest{
+				EntryID:     "github",
+				Name:        "github-workspace",
+				Scope:       contract.SettingsWorkspaceScopeWorkspace,
+				WorkspaceID: "ws-1",
+				Values: &contract.SettingsMCPCatalogInstallValuesPayload{
+					Env: map[string]contract.SettingsMCPSecretInputPayload{
+						"TOKEN": {VaultRef: "vault:mcp/shared/token"},
+					},
+				},
+			}),
+			assert: func(t *testing.T) {
+				t.Helper()
+				if settingsService.LastMCPCatalogInstall.EntryID != "github" ||
+					settingsService.LastMCPCatalogInstall.Name != "github-workspace" ||
+					settingsService.LastMCPCatalogInstall.Scope != settingspkg.ScopeWorkspace ||
+					settingsService.LastMCPCatalogInstall.WorkspaceID != "ws-1" {
+					t.Fatalf("LastMCPCatalogInstall = %#v", settingsService.LastMCPCatalogInstall)
+				}
+				if got, want := settingsService.LastMCPCatalogInstall.Values.Env["TOKEN"].VaultRef, "vault:mcp/shared/token"; got != want {
+					t.Fatalf("LastMCPCatalogInstall.Values.Env[TOKEN].VaultRef = %q, want %q", got, want)
+				}
+			},
+			assertBody: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+				var response contract.InstallSettingsMCPServerResponse
+				if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+					t.Fatalf("json.Unmarshal(MCP install response) error = %v; body=%s", err, recorder.Body.String())
+				}
+				if response.MCPServer.Name != "github-workspace" ||
+					response.MCPServer.Scope != contract.SettingsScopeWorkspace ||
+					response.MCPServer.WorkspaceID != "ws-1" ||
+					response.MCPServer.CatalogEntry != "github" ||
+					response.NextStep != contract.SettingsMCPInstallNextStepNone {
+					t.Fatalf("MCP install response = %#v, want persisted workspace catalog item", response)
 				}
 			},
 		},
@@ -1264,6 +1540,9 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			}
 			if tc.assert != nil {
 				tc.assert(t)
+			}
+			if tc.assertBody != nil {
+				tc.assertBody(t, recorder)
 			}
 		})
 	}

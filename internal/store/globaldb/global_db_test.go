@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	memorypkg "github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -113,7 +114,7 @@ func reportTestMainError(format string, args ...any) {
 }
 
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
-	t.Run("Should apply the global migration stream before repository use", func(t *testing.T) {
+	t.Run("Should apply the complete global migration stream before repository use", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openFreshTestGlobalDB(t)
@@ -190,8 +191,8 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(global) error = %v", err)
 		}
-		if status.Version != 3 || status.AppliedCount != 3 {
-			t.Fatalf("Status(global) = %#v, want version/applied count 3", status)
+		if status.Version != 7 || status.AppliedCount != 7 {
+			t.Fatalf("Status(global) = %#v, want version/applied count 7", status)
 		}
 		workspaces, err := globalDB.ListWorkspaces(testutil.Context(t))
 		if err != nil {
@@ -1033,17 +1034,166 @@ func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
 func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"ws-no-sessions",
-		filepath.Join(t.TempDir(), "ws-no-sessions"),
-	)
+	t.Run("Should delete a workspace without sessions", func(t *testing.T) {
+		t.Parallel()
 
-	if err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID); err != nil {
-		t.Fatalf("DeleteWorkspace() error = %v, want nil", err)
-	}
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"ws-no-sessions",
+			filepath.Join(t.TempDir(), "ws-no-sessions"),
+		)
+
+		if err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID); err != nil {
+			t.Fatalf("DeleteWorkspace() error = %v, want nil", err)
+		}
+		if _, err := globalDB.GetWorkspace(testutil.Context(t), workspaceID); !errors.Is(
+			err,
+			aghworkspace.ErrWorkspaceNotFound,
+		) {
+			t.Fatalf("GetWorkspace(deleted) error = %v, want ErrWorkspaceNotFound", err)
+		}
+	})
+
+	t.Run("Should delete only scoped MCP credentials and prevent same ID recovery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"ws-oauth-delete",
+			filepath.Join(t.TempDir(), "ws-oauth-delete"),
+		)
+		siblingID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"ws-oauth-sibling",
+			filepath.Join(t.TempDir(), "ws-oauth-sibling"),
+		)
+		deletedWorkspace, err := globalDB.GetWorkspace(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("GetWorkspace(before delete) error = %v", err)
+		}
+		targets := []mcpauth.Target{
+			{Scope: mcpauth.ScopeWorkspace, WorkspaceID: workspaceID, ServerName: "linear"},
+			{Scope: mcpauth.ScopeWorkspace, WorkspaceID: siblingID, ServerName: "linear"},
+			globalMCPAuthTarget("linear"),
+		}
+		issuedAt := time.Date(2026, 7, 16, 18, 0, 0, 0, time.UTC)
+		for index, target := range targets {
+			if err := globalDB.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
+				Target:                target,
+				DefinitionFingerprint: testMCPDefinitionFingerprint,
+				ClientID:              "client-id",
+				AccessToken:           fmt.Sprintf("access-%d", index),
+				RefreshToken:          fmt.Sprintf("refresh-%d", index),
+				ObtainedAt:            issuedAt,
+				UpdatedAt:             issuedAt,
+			}); err != nil {
+				t.Fatalf("SaveMCPAuthToken(%#v) error = %v", target, err)
+			}
+		}
+		var accessRef, refreshRef string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT access_token_ref, refresh_token_ref FROM mcp_auth_tokens
+			 WHERE scope = ? AND workspace_id = ? AND server_name = ?`,
+			string(mcpauth.ScopeWorkspace),
+			workspaceID,
+			"linear",
+		).Scan(&accessRef, &refreshRef); err != nil {
+			t.Fatalf("query deleted workspace token refs error = %v", err)
+		}
+
+		if err := globalDB.DeleteWorkspace(ctx, workspaceID); err != nil {
+			t.Fatalf("DeleteWorkspace() error = %v", err)
+		}
+		if _, err := globalDB.GetMCPAuthToken(ctx, targets[0]); !errors.Is(err, mcpauth.ErrTokenNotFound) {
+			t.Fatalf("GetMCPAuthToken(deleted workspace) error = %v, want ErrTokenNotFound", err)
+		}
+		for _, ref := range []string{accessRef, refreshRef} {
+			assertVaultRefPresence(ctx, t, globalDB.db, ref, false)
+		}
+		for _, target := range targets[1:] {
+			if _, err := globalDB.GetMCPAuthToken(ctx, target); err != nil {
+				t.Fatalf("GetMCPAuthToken(preserved %#v) error = %v", target, err)
+			}
+		}
+
+		if err := globalDB.InsertWorkspace(ctx, deletedWorkspace); err != nil {
+			t.Fatalf("InsertWorkspace(same ID) error = %v", err)
+		}
+		if _, err := globalDB.GetMCPAuthToken(ctx, targets[0]); !errors.Is(err, mcpauth.ErrTokenNotFound) {
+			t.Fatalf("GetMCPAuthToken(re-registered workspace) error = %v, want ErrTokenNotFound", err)
+		}
+	})
+
+	t.Run("Should roll back workspace deletion when MCP secret cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"ws-oauth-rollback",
+			filepath.Join(t.TempDir(), "ws-oauth-rollback"),
+		)
+		target := mcpauth.Target{
+			Scope: mcpauth.ScopeWorkspace, WorkspaceID: workspaceID, ServerName: "linear",
+		}
+		issuedAt := time.Date(2026, 7, 16, 18, 30, 0, 0, time.UTC)
+		if err := globalDB.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
+			Target:                target,
+			DefinitionFingerprint: testMCPDefinitionFingerprint,
+			ClientID:              "client-id",
+			AccessToken:           "access-token",
+			RefreshToken:          "refresh-token",
+			ObtainedAt:            issuedAt,
+			UpdatedAt:             issuedAt,
+		}); err != nil {
+			t.Fatalf("SaveMCPAuthToken() error = %v", err)
+		}
+		var accessRef, refreshRef string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT access_token_ref, refresh_token_ref FROM mcp_auth_tokens
+			 WHERE scope = ? AND workspace_id = ? AND server_name = ?`,
+			string(mcpauth.ScopeWorkspace),
+			workspaceID,
+			"linear",
+		).Scan(&accessRef, &refreshRef); err != nil {
+			t.Fatalf("query rollback token refs error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`CREATE TRIGGER fail_workspace_mcp_secret_cleanup
+			 BEFORE DELETE ON vault_secrets
+			 WHEN OLD.kind = 'mcp_oauth_access_token'
+			 BEGIN
+			   SELECT RAISE(ABORT, 'forced MCP secret cleanup failure');
+			 END`,
+		); err != nil {
+			t.Fatalf("create cleanup failure trigger error = %v", err)
+		}
+
+		err := globalDB.DeleteWorkspace(ctx, workspaceID)
+		if err == nil || !strings.Contains(err.Error(), "forced MCP secret cleanup failure") {
+			t.Fatalf("DeleteWorkspace() error = %v, want forced cleanup failure", err)
+		}
+		if _, err := globalDB.GetWorkspace(ctx, workspaceID); err != nil {
+			t.Fatalf("GetWorkspace(after rollback) error = %v", err)
+		}
+		if _, err := globalDB.GetMCPAuthToken(ctx, target); err != nil {
+			t.Fatalf("GetMCPAuthToken(after rollback) error = %v", err)
+		}
+		for _, ref := range []string{accessRef, refreshRef} {
+			assertVaultRefPresence(ctx, t, globalDB.db, ref, true)
+		}
+	})
 }
 
 func TestGlobalDBDeleteWorkspaceRejectsActiveSessions(t *testing.T) {

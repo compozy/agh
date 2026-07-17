@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -15,23 +14,21 @@ import (
 )
 
 const (
-	defaultExtensionMarketplaceLimit = 20
 	extensionActionInstall           = "install"
 	extensionActionUpdate            = "update"
 	extensionActionRemove            = "remove"
 	extensionActionEnable            = "enable"
 	extensionActionDisable           = "disable"
+	extensionReservedMarketplaceName = "marketplace"
 )
 
 // ExtensionService exposes daemon-backed extension management to API transports.
 type ExtensionService interface {
 	List(ctx context.Context) ([]contract.ExtensionPayload, error)
-	SearchMarketplace(
+	MarketplaceTrust(
 		ctx context.Context,
-		query string,
-		source string,
-		limit int,
-	) ([]contract.ExtensionMarketplaceEntry, error)
+		evidence extensionpkg.MarketplaceTrustEvidence,
+	) (contract.ExtensionTrustReportPayload, error)
 	Install(
 		ctx context.Context,
 		req contract.InstallExtensionRequest,
@@ -62,31 +59,10 @@ func (h *BaseHandlers) ListExtensions(c *gin.Context) {
 		h.respondExtensionError(c, http.StatusInternalServerError, err)
 		return
 	}
+	if err := h.joinInstalledExtensionMarketplace(c.Request.Context(), items); err != nil {
+		h.Logger.Warn("api: installed extension marketplace enrichment failed", "error", err)
+	}
 	c.JSON(http.StatusOK, contract.ExtensionsResponse{Extensions: items})
-}
-
-// SearchExtensionMarketplace returns daemon-owned marketplace search results.
-func (h *BaseHandlers) SearchExtensionMarketplace(c *gin.Context) {
-	service, ok := h.extensionService(c)
-	if !ok {
-		return
-	}
-
-	limit, ok := extensionMarketplaceLimit(h, c)
-	if !ok {
-		return
-	}
-	items, err := service.SearchMarketplace(
-		c.Request.Context(),
-		strings.TrimSpace(c.Query("q")),
-		strings.TrimSpace(c.Query("source")),
-		limit,
-	)
-	if err != nil {
-		h.respondExtensionError(c, ExtensionStatusCode(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ExtensionMarketplaceResponse{Extensions: items})
 }
 
 // InstallExtension installs either a local path or a marketplace slug via the daemon.
@@ -222,7 +198,10 @@ func ExtensionStatusCode(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch):
 		return http.StatusBadRequest
-	case errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified):
+	case errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch):
+		return http.StatusBadRequest
+	case errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified),
+		errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, extensionpkg.ErrManifestInvalid):
 		return http.StatusBadRequest
@@ -272,13 +251,21 @@ func (h *BaseHandlers) mutateExtensionEnabled(c *gin.Context, enabled bool) {
 }
 
 func (h *BaseHandlers) namedExtensionService(c *gin.Context) (ExtensionService, string, bool) {
-	service, ok := h.extensionService(c)
-	if !ok {
-		return nil, "", false
-	}
 	name := strings.TrimSpace(c.Param("name"))
 	if name == "" {
 		h.respondExtensionError(c, http.StatusBadRequest, errors.New("name is required"))
+		return nil, "", false
+	}
+	if name == extensionReservedMarketplaceName {
+		h.respondExtensionError(
+			c,
+			http.StatusNotFound,
+			&extensionpkg.ExtensionNotFoundError{Name: name},
+		)
+		return nil, "", false
+	}
+	service, ok := h.extensionService(c)
+	if !ok {
 		return nil, "", false
 	}
 	return service, name, true
@@ -325,19 +312,6 @@ func (h *BaseHandlers) extensionActorContext(c *gin.Context, action string) (tas
 		return taskpkg.ActorContext{}, false
 	}
 	return actor, true
-}
-
-func extensionMarketplaceLimit(h *BaseHandlers, c *gin.Context) (int, bool) {
-	limit := defaultExtensionMarketplaceLimit
-	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
-		parsed, err := strconv.Atoi(rawLimit)
-		if err != nil || parsed <= 0 {
-			h.respondExtensionError(c, http.StatusBadRequest, errors.New("limit must be a positive integer"))
-			return 0, false
-		}
-		limit = parsed
-	}
-	return limit, true
 }
 
 func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err error) {

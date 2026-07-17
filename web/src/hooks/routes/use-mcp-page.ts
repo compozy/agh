@@ -1,37 +1,36 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
+import { useMCPAuthorize } from "@/hooks/routes/use-mcp-authorize";
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
+  emptyDraft,
+  SETTINGS_QUERY_INTERVALS,
+  type MCPDraft,
+  type SettingsMCPAuthFilter,
   SettingsApiError,
-  useDeleteSettingsMCPServer,
-  usePutSettingsMCPServer,
-  useSettingsMCPServers,
   type SettingsMCPServerEntry,
-  type SettingsMCPServerRequest,
   type SettingsMCPServerTarget,
   type SettingsMutationResult,
   type SettingsScope,
+  toDraft,
+  toRequest,
+  useDeleteSettingsMCPServer,
+  usePutSettingsMCPServer,
+  useSettingsMCPServers,
+  validateDraft,
+  withoutMCPSecretPreservation,
 } from "@/systems/settings";
+import { vaultSecretsListOptions } from "@/systems/vault";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-export type MCPEnvPair = { key: string; value: string };
-
-export type MCPDraft = {
-  name: string;
-  command: string;
-  args: string[];
-  env: MCPEnvPair[];
-};
+export type { MCPDraft, MCPEnvPair } from "@/systems/settings";
 
 export type MCPActiveScope = "workspace" | "global";
 
 export type MCPEditorState =
   | { mode: "closed" }
-  | {
-      mode: "create";
-      draft: MCPDraft;
-      target: SettingsMCPServerTarget;
-    }
+  | { mode: "create"; draft: MCPDraft; target: SettingsMCPServerTarget }
   | {
       mode: "edit";
       name: string;
@@ -54,41 +53,6 @@ export type MCPLastAction =
     };
 
 type LastAction = MCPLastAction | null;
-
-function emptyDraft(): MCPDraft {
-  return { name: "", command: "", args: [], env: [] };
-}
-
-function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
-  const env = entry.env ? Object.entries(entry.env).map(([key, value]) => ({ key, value })) : [];
-  return {
-    name: entry.name,
-    command: entry.command ?? "",
-    args: [...(entry.args ?? [])],
-    env,
-  };
-}
-
-function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
-  const name = draft.name.trim();
-  const command = draft.command.trim();
-  const args = draft.args.flatMap(arg => {
-    const value = arg.trim();
-    return value ? [value] : [];
-  });
-  const envEntries = draft.env.flatMap(entry => {
-    const key = entry.key.trim();
-    return key ? [{ key, value: entry.value }] : [];
-  });
-  const env: Record<string, string> = {};
-  for (const entry of envEntries) {
-    env[entry.key] = entry.value;
-  }
-  const server: SettingsMCPServerRequest["server"] = { name, transport: "stdio", command };
-  if (args.length > 0) server.args = args;
-  if (envEntries.length > 0) server.env = env;
-  return { server };
-}
 
 function errorMessage(error: unknown): string | null {
   if (error instanceof SettingsApiError) return error.message;
@@ -119,17 +83,84 @@ function resolveAvailableTargets(
   return result;
 }
 
-interface UseMcpPageOptions {
-  initialScope?: MCPActiveScope;
+function effectiveEditTarget(
+  entry: SettingsMCPServerEntry,
+  scope: SettingsScope
+): SettingsMCPServerTarget | null {
+  const source = entry.source_metadata.effective_source;
+  if (source.scope !== scope) return null;
+  if (source.kind === "global-config" || source.kind === "workspace-config") return "config";
+  if (source.kind === "global-mcp-sidecar" || source.kind === "workspace-mcp-sidecar") {
+    return "sidecar";
+  }
+  return null;
 }
 
-export function useMcpPage(options: UseMcpPageOptions = {}) {
-  const page = useSettingsPage({ currentSlug: "mcp-servers" });
-  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+// Route owns the URL search; the page hook consumes scope/server and reports
+// changes back so scope and selection stay deep-linkable and refresh-safe.
+export interface UseMcpPageOptions {
+  scope: MCPActiveScope;
+  workspaceId?: string;
+  selectedServer: string;
+  onScopeChange: (scope: MCPActiveScope) => void;
+  onWorkspaceChange: (workspaceId: string) => void;
+  onSelectServer: (server: string) => void;
+}
 
-  const [activeScope, setActiveScope] = useState<MCPActiveScope>(
-    options.initialScope ?? "workspace"
+export function useMcpPage(options: UseMcpPageOptions) {
+  const page = useSettingsPage({ currentSlug: "mcp-servers" });
+  const {
+    activeWorkspace: selectedWorkspace,
+    activeWorkspaceId: selectedWorkspaceId,
+    hasHydrated: workspaceHasHydrated,
+    setActiveWorkspaceId,
+    workspaces,
+  } = useActiveWorkspace();
+  const requestedWorkspaceId =
+    options.scope === "workspace" ? (options.workspaceId?.trim() ?? "") : "";
+  const requestedWorkspace = workspaceHasHydrated
+    ? workspaces.find(workspace => workspace.id === requestedWorkspaceId)
+    : undefined;
+  const [pendingWorkspaceDeepLink, setPendingWorkspaceDeepLink] = useState(() =>
+    options.scope === "workspace" ? (options.workspaceId?.trim() ?? "") : ""
   );
+  const initialRequestedWorkspace =
+    pendingWorkspaceDeepLink !== "" && requestedWorkspace?.id === pendingWorkspaceDeepLink
+      ? requestedWorkspace
+      : undefined;
+  if (
+    pendingWorkspaceDeepLink !== "" &&
+    workspaceHasHydrated &&
+    (!initialRequestedWorkspace || selectedWorkspaceId === pendingWorkspaceDeepLink)
+  ) {
+    setPendingWorkspaceDeepLink("");
+  }
+  const activeWorkspaceId = initialRequestedWorkspace?.id ?? selectedWorkspaceId;
+  const activeWorkspace = initialRequestedWorkspace ?? selectedWorkspace;
+
+  useEffect(() => {
+    if (!workspaceHasHydrated || options.scope !== "workspace") return;
+    if (pendingWorkspaceDeepLink !== "" && initialRequestedWorkspace) {
+      if (initialRequestedWorkspace.id !== selectedWorkspaceId) {
+        setActiveWorkspaceId(initialRequestedWorkspace.id);
+      }
+      return;
+    }
+    if (selectedWorkspaceId && requestedWorkspaceId !== selectedWorkspaceId) {
+      options.onWorkspaceChange(selectedWorkspaceId);
+    }
+  }, [
+    options.scope,
+    options.onWorkspaceChange,
+    initialRequestedWorkspace,
+    pendingWorkspaceDeepLink,
+    requestedWorkspaceId,
+    selectedWorkspaceId,
+    setActiveWorkspaceId,
+    workspaceHasHydrated,
+  ]);
+
+  const activeScope = options.scope;
   const putMutation = usePutSettingsMCPServer();
   const deleteMutation = useDeleteSettingsMCPServer();
 
@@ -144,13 +175,41 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
         ? { scope: "workspace" as const, workspace_id: activeWorkspaceId }
         : null;
 
+  const authFilter: SettingsMCPAuthFilter | null =
+    filter === null
+      ? null
+      : filter.scope === "workspace"
+        ? { scope: "workspace", workspace_id: filter.workspace_id }
+        : { scope: "global" };
+  const authorize = useMCPAuthorize(authFilter);
   const queryEnabled = filter !== null;
-  const query = useSettingsMCPServers(filter ?? { scope: "global" }, { enabled: queryEnabled });
+  const query = useSettingsMCPServers(filter ?? { scope: "global" }, {
+    enabled: queryEnabled,
+    refetchInterval: authorize.isAwaiting
+      ? SETTINGS_QUERY_INTERVALS.mcpAuthStatusPollInterval
+      : SETTINGS_QUERY_INTERVALS.collectionRefetchInterval,
+  });
 
   const envelope = queryEnabled ? (query.data ?? null) : null;
   const servers = envelope?.mcp_servers ?? [];
   const availableScopes = envelope?.available_scopes ?? ["global", "workspace"];
   const workspaceScopeAvailable = availableScopes.includes("workspace");
+
+  const editorOpen = editor.mode !== "closed";
+  const vaultQuery = useQuery({
+    ...vaultSecretsListOptions({ namespace: "mcp" }),
+    enabled: editorOpen,
+  });
+  const vaultRefs = (vaultQuery.data ?? []).map(secret => secret.ref);
+  const editorVaultInventory = vaultQuery.isLoading
+    ? ({ status: "loading" } as const)
+    : vaultQuery.error
+      ? ({
+          status: "error",
+          message: errorMessage(vaultQuery.error) ?? "Vault inventory could not be loaded",
+          retry: () => void vaultQuery.refetch(),
+        } as const)
+      : ({ status: "ready", refs: vaultRefs } as const);
 
   const counts = {
     total: servers.length,
@@ -165,36 +224,71 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
     deleteMutation.reset();
     setEditor({ mode: "closed" });
     setDeleteTarget({ mode: "closed" });
+    authorize.cancel();
   };
   const resetTransientStateAfterWorkspaceChange = useEffectEvent(resetTransientState);
 
   const selectScope = (scope: MCPActiveScope) => {
     resetTransientState();
-    setActiveScope(scope);
+    options.onScopeChange(scope);
   };
 
+  // Active workspace is Zustand-backed (sidebar), not URL-scoped, so a switch never
+  // re-runs route scope validation. Clear any open editor/delete/authorize flow so a
+  // pending save/delete/authorize can't target the newly selected workspace.
   const previousWorkspaceIdRef = useRef(activeWorkspaceId);
   useEffect(() => {
-    if (previousWorkspaceIdRef.current === activeWorkspaceId) {
+    const currentWorkspaceId = initialRequestedWorkspace?.id ?? selectedWorkspaceId;
+    if (previousWorkspaceIdRef.current === currentWorkspaceId) {
       return;
     }
-    previousWorkspaceIdRef.current = activeWorkspaceId;
+    previousWorkspaceIdRef.current = currentWorkspaceId;
     resetTransientStateAfterWorkspaceChange();
-  }, [activeWorkspaceId]);
+  }, [initialRequestedWorkspace?.id, selectedWorkspaceId]);
+
+  const selectServer = (name: string) => options.onSelectServer(name);
+  const clearSelection = () => options.onSelectServer("");
+
+  const selectedServer = options.selectedServer;
+  const selectedEntry = selectedServer
+    ? (servers.find(entry => entry.name === selectedServer) ?? null)
+    : null;
+
+  // Auto-completion path: the browser step finishes server-side; when the polled
+  // list shows the authorizing server confirmed, advance the state machine.
+  const authServerEntry = authorize.server
+    ? (servers.find(entry => entry.name === authorize.server) ?? null)
+    : null;
+  useEffect(() => {
+    const authStatus = authServerEntry?.auth_status;
+    if (authorize.isAwaiting && authStatus?.status) {
+      authorize.acknowledgeStatus(authStatus.status, Boolean(authStatus.token_present));
+    }
+  }, [authorize.isAwaiting, authorize.acknowledgeStatus, authServerEntry]);
 
   const openCreate = () => {
     putMutation.reset();
-    setEditor({ mode: "create", draft: emptyDraft(), target: "auto" });
+    setEditor({ mode: "create", draft: emptyDraft("stdio"), target: "auto" });
   };
 
   const openEdit = (entry: SettingsMCPServerEntry) => {
     putMutation.reset();
+    const exactTarget = effectiveEditTarget(entry, activeScope);
+    const draft = exactTarget ? toDraft(entry) : withoutMCPSecretPreservation(toDraft(entry));
     setEditor({
       mode: "edit",
       name: entry.name,
-      draft: toDraft(entry),
+      draft,
       entry,
-      target: "auto",
+      target: exactTarget ?? "auto",
+    });
+  };
+
+  const openAuthorize = (entry: SettingsMCPServerEntry) => {
+    if (!authFilter) return;
+    void authorize.beginAuthorize(entry.name, {
+      status: entry.auth_status?.status ?? "needs_login",
+      tokenPresent: Boolean(entry.auth_status?.token_present),
     });
   };
 
@@ -217,25 +311,31 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
     });
   };
 
+  const draftValidation = editor.mode === "closed" ? null : validateDraft(editor.draft);
   const editorName = editor.mode === "closed" ? "" : editor.draft.name.trim();
-  const editorCommand = editor.mode === "closed" ? "" : editor.draft.command.trim();
-  const editorIsValid =
-    editor.mode !== "closed" &&
+  const nameConflict =
+    editor.mode === "create" &&
     editorName.length > 0 &&
-    editorCommand.length > 0 &&
-    (editor.mode !== "create" ||
-      !servers.some(entry => entry.name.toLowerCase() === editorName.toLowerCase()));
+    servers.some(entry => entry.name.toLowerCase() === editorName.toLowerCase());
+  const editorErrors =
+    draftValidation === null
+      ? {}
+      : nameConflict
+        ? { ...draftValidation.errors, name: `An MCP server named "${editorName}" already exists.` }
+        : draftValidation.errors;
+  const editorIsValid = draftValidation !== null && draftValidation.valid && !nameConflict;
 
   const editorAvailableTargets: SettingsMCPServerTarget[] =
     editor.mode === "edit"
-      ? resolveAvailableTargets(editor.entry, activeScope)
+      ? (() => {
+          const exactTarget = effectiveEditTarget(editor.entry, activeScope);
+          return exactTarget ? [exactTarget] : ["auto", "config", "sidecar"];
+        })()
       : ["auto", "config", "sidecar"];
 
   const saveEditor = () => {
-    if (editor.mode === "closed" || filter === null) return;
+    if (editor.mode === "closed" || filter === null || !editorIsValid) return;
     const name = editor.draft.name.trim();
-    const command = editor.draft.command.trim();
-    if (!name || !command) return;
     const body = toRequest(editor.draft);
     const target = editor.target;
     const filterPayload =
@@ -256,6 +356,13 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
   const openDelete = (entry: SettingsMCPServerEntry) => {
     deleteMutation.reset();
     setDeleteTarget({ mode: "open", entry, target: "auto" });
+  };
+
+  const requestRemoveFromEditor = () => {
+    if (editor.mode !== "edit") return;
+    const entry = editor.entry;
+    setEditor({ mode: "closed" });
+    openDelete(entry);
   };
 
   const closeDelete = () => {
@@ -291,12 +398,7 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
       { name: target.name, filter: deleteFilter },
       {
         onSuccess: result => {
-          setLastAction({
-            kind: "deleted",
-            name: target.name,
-            result,
-            remainingShadowed,
-          });
+          setLastAction({ kind: "deleted", name: target.name, result, remainingShadowed });
           setDeleteTarget({ mode: "closed" });
         },
       }
@@ -318,16 +420,23 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
     restart: page.restart,
     activeScope,
     selectScope,
+    selectServer,
+    clearSelection,
+    selectedServer,
+    selectedEntry,
     activeWorkspace,
     activeWorkspaceId,
     availableScopes,
     workspaceScopeAvailable,
     needsActiveWorkspace,
     queryEnabled,
+    refetch: query.refetch,
     editor,
+    editorErrors,
     editorIsValid,
     editorAvailableTargets,
-    editorError: errorMessage(putMutation.error),
+    editorVaultInventory,
+    editorSaveError: errorMessage(putMutation.error),
     editorWarnings: putMutation.data?.warnings,
     editorIsSaving: putMutation.isPending,
     openCreate,
@@ -336,6 +445,10 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
     updateDraft,
     setEditorTarget,
     saveEditor,
+    requestRemoveFromEditor,
+    authorize,
+    authorizeEntry: authServerEntry,
+    openAuthorize,
     deleteTarget,
     deleteAvailableTargets,
     deleteError: errorMessage(deleteMutation.error),

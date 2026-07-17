@@ -4,7 +4,6 @@ import { agentsListOptions } from "@/systems/agent";
 import { notificationPresetsOptions } from "@/systems/notifications";
 import {
   settingsApplyRecordsOptions,
-  settingsExtensionsListOptions,
   settingsGeneralOptions,
   settingsHooksExtensionsOptions,
   settingsMCPServersListOptions,
@@ -67,10 +66,13 @@ export function preloadSettingsObservabilityRoute(queryClient: QueryClient): Pro
   return settleRouteQueries([queryClient.ensureQueryData(settingsObservabilityOptions())]);
 }
 
-export function preloadSettingsHooksExtensionsRoute(queryClient: QueryClient): Promise<void> {
+export function preloadSettingsHooksRoute(queryClient: QueryClient): Promise<void> {
   return settleRouteQueries([
     queryClient.ensureQueryData(settingsHooksExtensionsOptions()),
-    queryClient.ensureQueryData(settingsExtensionsListOptions()),
     queryClient.ensureQueryData(notificationPresetsOptions()),
   ]);
+}
+
+export function preloadSettingsExtensionsRoute(queryClient: QueryClient): Promise<void> {
+  return settleRouteQueries([queryClient.ensureQueryData(settingsHooksExtensionsOptions())]);
 }

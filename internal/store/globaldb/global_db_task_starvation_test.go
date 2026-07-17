@@ -11,6 +11,148 @@ import (
 func TestGlobalDBRunStarvation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should count only queued runs with an active convergence episode", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-starvation-count")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		ageOnly := taskRunForTest("run-age-only", taskRecord.ID)
+		escalating := taskRunForTest("run-escalating", taskRecord.ID)
+		for _, run := range []taskpkg.Run{ageOnly, escalating} {
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+			}
+		}
+		now := time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
+		if _, err := globalDB.UpsertRunStarvation(ctx, taskpkg.RunStarvationMutation{
+			RunID:          escalating.ID,
+			WakeCount:      1,
+			FirstStarvedAt: now,
+			LastWakeAt:     now,
+			UpdatedAt:      now,
+		}); err != nil {
+			t.Fatalf("UpsertRunStarvation() error = %v", err)
+		}
+
+		count, err := globalDB.CountEscalatingQueuedTaskRuns(ctx)
+		if err != nil {
+			t.Fatalf("CountEscalatingQueuedTaskRuns() error = %v", err)
+		}
+		if got, want := count, 1; got != want {
+			t.Fatalf("CountEscalatingQueuedTaskRuns() = %d, want %d active episode", got, want)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name           string
+		runStatus      taskpkg.RunStatus
+		taskStatus     taskpkg.Status
+		directPaused   bool
+		ancestorPaused bool
+	}{
+		{
+			name:       "Should exclude a claimed run episode from scheduler pressure",
+			runStatus:  taskpkg.TaskRunStatusClaimed,
+			taskStatus: taskpkg.TaskStatusReady,
+		},
+		{
+			name:       "Should exclude a running run episode from scheduler pressure",
+			runStatus:  taskpkg.TaskRunStatusRunning,
+			taskStatus: taskpkg.TaskStatusReady,
+		},
+		{
+			name:       "Should exclude a terminal run episode from scheduler pressure",
+			runStatus:  taskpkg.TaskRunStatusCompleted,
+			taskStatus: taskpkg.TaskStatusCompleted,
+		},
+		{
+			name:         "Should exclude a directly paused task episode from scheduler pressure",
+			runStatus:    taskpkg.TaskRunStatusQueued,
+			taskStatus:   taskpkg.TaskStatusReady,
+			directPaused: true,
+		},
+		{
+			name:           "Should exclude an ancestor-paused task episode from scheduler pressure",
+			runStatus:      taskpkg.TaskRunStatusQueued,
+			taskStatus:     taskpkg.TaskStatusReady,
+			ancestorPaused: true,
+		},
+		{
+			name:       "Should exclude a blocked task episode from scheduler pressure",
+			runStatus:  taskpkg.TaskRunStatusQueued,
+			taskStatus: taskpkg.TaskStatusBlocked,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			globalDB := openTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			if testCase.ancestorPaused {
+				parent := taskRecordForTest("task-starvation-parent-paused")
+				parent.Status = taskpkg.TaskStatusReady
+				parent.Paused = true
+				parent.PausedBy = "scheduler-test"
+				parent.PausedReason = "hold descendants"
+				parent.PausedAt = parent.CreatedAt
+				if err := globalDB.CreateTask(ctx, parent); err != nil {
+					t.Fatalf("CreateTask(parent) error = %v", err)
+				}
+			}
+			taskRecord := taskRecordForTest("task-starvation-excluded")
+			taskRecord.Status = testCase.taskStatus
+			taskRecord.Paused = testCase.directPaused
+			if testCase.directPaused {
+				taskRecord.PausedBy = "scheduler-test"
+				taskRecord.PausedReason = "hold task"
+				taskRecord.PausedAt = taskRecord.CreatedAt
+			}
+			if testCase.ancestorPaused {
+				taskRecord.ParentTaskID = "task-starvation-parent-paused"
+			}
+			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask() error = %v", err)
+			}
+			run := taskRunForTest("run-starvation-excluded", taskRecord.ID)
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun() error = %v", err)
+			}
+			if testCase.runStatus.Normalize() != taskpkg.TaskRunStatusQueued {
+				if _, err := globalDB.db.ExecContext(
+					ctx,
+					`UPDATE task_runs SET status = ? WHERE id = ?`,
+					testCase.runStatus.String(),
+					run.ID,
+				); err != nil {
+					t.Fatalf("update run status error = %v", err)
+				}
+			}
+			now := time.Date(2026, 7, 15, 18, 0, 0, 0, time.UTC)
+			if _, err := globalDB.UpsertRunStarvation(ctx, taskpkg.RunStarvationMutation{
+				RunID:          run.ID,
+				WakeCount:      2,
+				FirstStarvedAt: now,
+				LastWakeAt:     now,
+				UpdatedAt:      now,
+			}); err != nil {
+				t.Fatalf("UpsertRunStarvation() error = %v", err)
+			}
+
+			count, err := globalDB.CountEscalatingQueuedTaskRuns(ctx)
+			if err != nil {
+				t.Fatalf("CountEscalatingQueuedTaskRuns() error = %v", err)
+			}
+			if count != 0 {
+				t.Fatalf("CountEscalatingQueuedTaskRuns() = %d, want 0", count)
+			}
+		})
+	}
+
 	t.Run("Should round-trip the escalation budget and clear it", func(t *testing.T) {
 		t.Parallel()
 

@@ -1,12 +1,12 @@
-import { KindIcon, providerKindIconRegistry, type KindIconProps } from "@agh/ui";
+import { KindIcon, type KindIconProps } from "@agh/ui";
+
+import { providerIconMap } from "./provider-icon-map";
 
 type AgentIconTone = KindIconProps["tone"];
 
 interface AgentIconProps extends Omit<KindIconProps, "kind" | "registry"> {
   provider: string;
 }
-
-const providerIconMap = providerKindIconRegistry;
 
 function AgentIcon({
   provider,
@@ -20,11 +20,11 @@ function AgentIcon({
       data-slot={dataSlot}
       data-provider={dataProvider ?? key}
       kind={key}
-      registry={providerKindIconRegistry}
+      registry={providerIconMap}
       {...props}
     />
   );
 }
 
-export { AgentIcon, providerIconMap };
+export { AgentIcon };
 export type { AgentIconProps, AgentIconTone };

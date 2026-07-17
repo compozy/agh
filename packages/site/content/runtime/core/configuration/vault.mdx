@@ -22,16 +22,16 @@ AGH accepts two secret ref families:
 
 Supported Vault namespaces are:
 
-| Namespace    | Typical refs                                                                     |
-| ------------ | -------------------------------------------------------------------------------- |
-| `providers`  | `vault:providers/openrouter/api-key`                                             |
-| `bridges`    | `vault:bridges/brg_123/bot_token`                                                |
-| `automation` | `vault:automation/deploy-webhook/signing-secret`                                 |
-| `mcp`        | `vault:mcp/github/env/GITHUB_TOKEN`, `vault:mcp/remote-docs/oauth/client-secret` |
-| `hooks`      | `vault:hooks/post-task/GITHUB_TOKEN`                                             |
-| `extensions` | `vault:extensions/slack/app-token`                                               |
-| `sandbox`    | `vault:sandbox/daytona-dev/api-token`                                            |
-| `sessions`   | `vault:sessions/sess_123/github-token`                                           |
+| Namespace    | Typical refs                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------ |
+| `providers`  | `vault:providers/openrouter/api-key`                                                       |
+| `bridges`    | `vault:bridges/brg_123/bot_token`                                                          |
+| `automation` | `vault:automation/deploy-webhook/signing-secret`                                           |
+| `mcp`        | `vault:mcp/global/github/env/GITHUB_TOKEN`, `vault:mcp/ws/acme/linear/oauth/client-secret` |
+| `hooks`      | `vault:hooks/post-task/GITHUB_TOKEN`                                                       |
+| `extensions` | `vault:extensions/slack/app-token`                                                         |
+| `sandbox`    | `vault:sandbox/daytona-dev/api-token`                                                      |
+| `sessions`   | `vault:sessions/sess_123/github-token`                                                     |
 
 Session Vault entries are normal Vault records under the `sessions` namespace. AGH filters them by
 the deterministic prefix `vault:sessions/<session_id>/`; there is no separate session-secret table.
@@ -65,6 +65,26 @@ The response shape is always redacted:
 
 Fields such as `secret_value`, `encrypted_value`, tokens, and API keys are never returned by list,
 get, delete, settings read, CLI output, or web views.
+
+## MCP Catalog Bindings
+
+`agh mcp install` supports two secret modes. `--set KEY` reads a typed value from stdin or a hidden
+terminal prompt and creates a scope-qualified canonical ref. A
+`--vault-ref KEY=vault:mcp/...` assignment binds an existing, present ref anywhere inside the `mcp`
+namespace.
+
+| Install scope | Canonical environment ref                             |
+| ------------- | ----------------------------------------------------- |
+| Global        | `vault:mcp/global/<server>/env/<KEY>`                 |
+| Workspace     | `vault:mcp/ws/<workspace-segment>/<server>/env/<KEY>` |
+
+OAuth client secrets use the same owner prefix with `oauth/client-secret`. AGH encodes workspace
+IDs that do not fit the Vault ref grammar, so two workspaces installing the same server do not
+share credential identity.
+
+Catalog uninstall removes only canonical refs created and owned by that install. It retains a
+shared ref supplied through `--vault-ref`. Settings reads expose configured field names and OAuth
+client-secret presence, never bound refs or stored plaintext.
 
 ## CLI Usage
 

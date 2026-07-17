@@ -125,16 +125,29 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 		}
 
 		expiresAt := time.Date(2126, 5, 1, 12, 0, 0, 0, time.UTC)
+		target := globalMCPTestTarget("remote-docs")
+		server := aghconfig.MCPServer{
+			Name: "remote-docs", Transport: aghconfig.MCPServerTransportHTTP, URL: "https://mcp.example.com",
+			Auth: aghconfig.MCPAuthConfig{
+				Type: aghconfig.MCPAuthTypeOAuth2PKCE, ClientID: "agh-cli",
+				AuthorizationURL: "https://issuer.example.com/oauth/authorize",
+				TokenURL:         "https://issuer.example.com/oauth/token",
+				Scopes:           []string{"mcp.read", "mcp.write"},
+			},
+		}
+		cfg, err := mcpauth.ServerConfigFromMCP(ctx, target, server, nil)
+		if err != nil {
+			t.Fatalf("ServerConfigFromMCP() error = %v", err)
+		}
+		fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+		if err != nil {
+			t.Fatalf("ServerDefinitionFingerprint() error = %v", err)
+		}
 		if err := first.SaveMCPAuthToken(ctx, mcpauth.TokenRecord{
-			ServerName:   "remote-docs",
-			Issuer:       "https://issuer.example.com",
-			ClientID:     "agh-cli",
-			Scopes:       []string{"mcp.read", "mcp.write"},
-			AccessToken:  "access-secret",
-			RefreshToken: "refresh-secret",
-			TokenType:    "Bearer",
-			ExpiresAt:    expiresAt,
-			ObtainedAt:   expiresAt.Add(-time.Hour),
+			Target: target, DefinitionFingerprint: fingerprint, Issuer: "https://issuer.example.com",
+			ClientID: "agh-cli", Scopes: []string{"mcp.read", "mcp.write"},
+			AccessToken: "access-secret", RefreshToken: "refresh-secret", TokenType: "Bearer",
+			ExpiresAt: expiresAt, ObtainedAt: expiresAt.Add(-time.Hour),
 		}); err != nil {
 			t.Fatalf("SaveMCPAuthToken() error = %v", err)
 		}
@@ -152,19 +165,12 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusSurvivesStoreReopen(t *testing.T) {
 			}
 		}()
 
-		surface := &settingsRuntimeSurface{mcpAuthStore: reopened}
-		status, err := surface.MCPAuthStatus(ctx, aghconfig.MCPServer{
-			Name:      "remote-docs",
-			Transport: aghconfig.MCPServerTransportHTTP,
-			URL:       "https://mcp.example.com",
-			Auth: aghconfig.MCPAuthConfig{
-				Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
-				ClientID:         "agh-cli",
-				AuthorizationURL: "https://issuer.example.com/oauth/authorize",
-				TokenURL:         "https://issuer.example.com/oauth/token",
-				Scopes:           []string{"mcp.read", "mcp.write"},
-			},
-		})
+		manager, err := newSettingsMCPAuthManager(reopened, nil)
+		if err != nil {
+			t.Fatalf("newSettingsMCPAuthManager() error = %v", err)
+		}
+		surface := &settingsRuntimeSurface{mcpAuthStore: reopened, mcpAuthManager: manager}
+		status, err := surface.MCPAuthStatus(ctx, target, server)
 		if err != nil {
 			t.Fatalf("MCPAuthStatus() error = %v", err)
 		}
@@ -189,21 +195,21 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 		surface := &settingsRuntimeSurface{
 			secretResolver: func(_ context.Context, ref string) (string, error) {
 				called = true
-				if ref != "vault:mcp/remote-docs/oauth/client-secret" {
+				if ref != "vault:mcp/global/remote-docs/oauth/client-secret" {
 					t.Fatalf("secret resolver ref = %q, want remote-docs client secret ref", ref)
 				}
 				return "client-secret", nil
 			},
 		}
 
-		status, err := surface.MCPAuthStatus(ctx, aghconfig.MCPServer{
+		status, err := surface.MCPAuthStatus(ctx, globalMCPTestTarget("remote-docs"), aghconfig.MCPServer{
 			Name:      "remote-docs",
 			Transport: aghconfig.MCPServerTransportHTTP,
 			URL:       "https://mcp.example.com",
 			Auth: aghconfig.MCPAuthConfig{
 				Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
 				ClientID:         "agh-cli",
-				ClientSecretRef:  "vault:mcp/remote-docs/oauth/client-secret",
+				ClientSecretRef:  "vault:mcp/global/remote-docs/oauth/client-secret",
 				AuthorizationURL: "https://issuer.example.com/oauth/authorize",
 				TokenURL:         "https://issuer.example.com/oauth/token",
 			},
@@ -253,7 +259,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		surface := &settingsRuntimeSurface{}
-		status, err := surface.MCPServerRuntimeStatus(ctx, aghconfig.MCPServer{
+		status, err := surface.MCPServerRuntimeStatus(ctx, globalMCPTestTarget("docs"), aghconfig.MCPServer{
 			Name:      "docs",
 			Transport: aghconfig.MCPServerTransportHTTP,
 			URL:       server.URL,
@@ -276,17 +282,21 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		t.Parallel()
 
 		surface := &settingsRuntimeSurface{}
-		status, err := surface.MCPServerRuntimeStatus(context.Background(), aghconfig.MCPServer{
-			Name:      "linear",
-			Transport: aghconfig.MCPServerTransportHTTP,
-			URL:       "https://mcp.linear.example/mcp",
-			Auth: aghconfig.MCPAuthConfig{
-				Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
-				AuthorizationURL: "https://auth.linear.example/authorize",
-				TokenURL:         "https://auth.linear.example/token",
-				ClientID:         "agh-desktop",
+		status, err := surface.MCPServerRuntimeStatus(
+			context.Background(),
+			globalMCPTestTarget("linear"),
+			aghconfig.MCPServer{
+				Name:      "linear",
+				Transport: aghconfig.MCPServerTransportHTTP,
+				URL:       "https://mcp.linear.example/mcp",
+				Auth: aghconfig.MCPAuthConfig{
+					Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+					AuthorizationURL: "https://auth.linear.example/authorize",
+					TokenURL:         "https://auth.linear.example/token",
+					ClientID:         "agh-desktop",
+				},
 			},
-		})
+		)
 		if err != nil {
 			t.Fatalf("MCPServerRuntimeStatus(auth) error = %v", err)
 		}
@@ -305,10 +315,14 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		t.Parallel()
 
 		surface := &settingsRuntimeSurface{}
-		status, err := surface.MCPServerRuntimeStatus(context.Background(), aghconfig.MCPServer{
-			Name:      "broken",
-			Transport: aghconfig.MCPServerTransportHTTP,
-		})
+		status, err := surface.MCPServerRuntimeStatus(
+			context.Background(),
+			globalMCPTestTarget("broken"),
+			aghconfig.MCPServer{
+				Name:      "broken",
+				Transport: aghconfig.MCPServerTransportHTTP,
+			},
+		)
 		if err != nil {
 			t.Fatalf("MCPServerRuntimeStatus(config error) error = %v", err)
 		}
@@ -322,6 +336,10 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			t.Fatal("MCPServerRuntimeStatus(config error).Diagnostic is empty")
 		}
 	})
+}
+
+func globalMCPTestTarget(serverName string) mcpauth.Target {
+	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
 }
 
 func newSettingsMCPTestServer() *mcpsrv.MCPServer {

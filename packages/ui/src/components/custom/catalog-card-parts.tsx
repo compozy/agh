@@ -89,7 +89,7 @@ export function CatalogCardMeta({ className, ...props }: CatalogCardMetaProps) {
   return (
     <div
       data-slot="catalog-card-meta"
-      className={cn("eyebrow flex flex-wrap items-center gap-2 text-subtle", className)}
+      className={cn("eyebrow flex flex-wrap items-center gap-2 text-muted", className)}
       {...props}
     />
   );

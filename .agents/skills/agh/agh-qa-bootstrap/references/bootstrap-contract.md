@@ -31,6 +31,7 @@ The bootstrap helper writes two canonical artifacts under:
   "env": {
     "SCENARIO_SLUG": "release-qa",
     "WORKSPACE_PATH": "/abs/path/to/lab",
+    "RUNTIME_WORKSPACE_PATH": "/abs/path/to/lab/project",
     "QA_OUTPUT_PATH": "/abs/path/to/lab/qa-artifacts",
     "AGH_HOME": "/abs/path/to/lab/.agh/runtime",
     "AGH_HTTP_PORT": "2235",
@@ -73,10 +74,13 @@ The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 
 - `.agh/playbook.json` — the resolved playbook spec (the canonical structured JSON parsed from `references/playbooks/<ref>.md`).
 - `.agh/agents/<agent-id>.json` — one file per agent declared by the playbook (id, role, persona, system_prompt, workspace_id, workspace_path, skills, playbook_ref).
-- `.agh/tasks/open-tasks.json` — array of open tasks with owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, channel, playbook_ref.
+- `.agh/tasks/open-tasks.json` — array of open tasks with deterministic `runtime_id`, owner_agent, owner_workspace_id, owner_workspace_path, deliverable_type, deliverable_path, review_required_by, channel, playbook_ref.
 - `.agh/disruption-seeds.json` — playbook disruption_probe_seeds for downstream consumers.
-- `workspaces/<workspace-name>/README.md` — per-workspace stub README.
-- `knowledge/<...>` — every knowledge file declared by the playbook.
+- `project/` — the only root registered with AGH for agents under test; it excludes `qa-artifacts/`, manifests, audit contracts, and provider evidence.
+- `project/workspaces/<workspace-name>/README.md` — per-workspace stub README.
+- `knowledge/<...>` — canonical copy of every knowledge file declared by the playbook.
+- `project/workspaces/<workspace-name>/knowledge/global/<...>` — every global knowledge file projected into each readable agent workspace.
+- `project/workspaces/<workspace-name>/knowledge/<...>` — only the scoped knowledge files declared by that workspace.
 
 `PLAYBOOK_REF` and `KICKOFF_POSTED=false` are written to the manifest env. `real-scenario-qa` Step 4 flips `KICKOFF_POSTED=true` and sets `KICKOFF_TIMESTAMP` after posting the single in-persona kickoff.
 

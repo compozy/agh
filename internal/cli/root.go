@@ -76,7 +76,6 @@ type commandDeps struct {
 	stopTimeout                 time.Duration
 	spawnDetached               func(context.Context, aghconfig.HomePaths) (daemonProcess, error)
 	newUpdateManager            func(aghconfig.HomePaths) (updateManager, error)
-	newMCPAuthClient            newMCPAuthClientFunc
 	runProviderAuthCommand      providerAuthCommandRunner
 	runProviderAuthLoginCommand providerAuthCommandRunner
 	inputIsTerminal             func(io.Reader) bool
@@ -128,6 +127,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newProviderCommand(deps))
 	cmd.AddCommand(newBridgeCommand(deps))
 	cmd.AddCommand(newNotificationsCommand(deps))
+	cmd.AddCommand(newMarketplaceCommand(deps))
 	cmd.AddCommand(newBundleCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))
@@ -349,7 +349,6 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	if d.newClient == nil {
 		d.newClient = NewClient
 	}
-	d = d.withMCPAuthDefaults()
 	d = d.withProviderAuthDefaults()
 	if d.newDaemon == nil {
 		d.newDaemon = func() (daemonRunner, error) {

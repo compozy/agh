@@ -3,32 +3,19 @@ import type { QueryClient } from "@tanstack/react-query";
 import {
   skillContentOptions,
   skillDetailOptions,
-  skillMarketplaceSearchOptions,
   skillShadowsOptions,
   skillsListOptions,
 } from "@/systems/skill";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
-interface SkillsPreloadSearch {
-  q?: string;
-  tab?: "installed" | "marketplace";
-}
-
-export async function preloadSkillsRoute(
-  queryClient: QueryClient,
-  search: SkillsPreloadSearch
-): Promise<void> {
+export async function preloadSkillsRoute(queryClient: QueryClient): Promise<void> {
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
   if (!workspaceId) {
     return;
   }
 
-  const queries: Promise<unknown>[] = [queryClient.ensureQueryData(skillsListOptions(workspaceId))];
-  if (search.tab === "marketplace" && search.q?.trim()) {
-    queries.push(queryClient.ensureQueryData(skillMarketplaceSearchOptions(search.q)));
-  }
-  await settleRouteQueries(queries);
+  await settleRouteQueries([queryClient.ensureQueryData(skillsListOptions(workspaceId))]);
 }
 
 interface SkillDetailPreloadSearch {

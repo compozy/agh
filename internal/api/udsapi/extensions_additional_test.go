@@ -131,6 +131,49 @@ func TestInstallExtensionHandler(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should return deterministic policy diagnostic for blocked side-loads", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{
+			InstallFn: func(
+				context.Context,
+				contract.InstallExtensionRequest,
+				taskpkg.ActorContext,
+			) (contract.ExtensionPayload, error) {
+				return contract.ExtensionPayload{}, extensionpkg.ValidateUnverifiedSideLoad(
+					"acme/blocked", "local", false, true,
+				)
+			},
+		}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/extensions",
+			[]byte(`{"path":"/tmp/blocked","checksum":"sha256:abc","allow_unverified":true}`),
+		)
+		if recorder.Code != http.StatusUnprocessableEntity {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusUnprocessableEntity,
+				recorder.Body.String(),
+			)
+		}
+		for _, want := range []string{
+			contract.CodeExtensionUnverifiedPolicyBlocked,
+			"Settings › Extensions",
+			"extensions.marketplace.allow_unverified",
+		} {
+			if !strings.Contains(recorder.Body.String(), want) {
+				t.Fatalf("body = %q, want %q", recorder.Body.String(), want)
+			}
+		}
+	})
 }
 
 func TestEnableDisableExtensionHandlers(t *testing.T) {
@@ -218,6 +261,16 @@ func TestExtensionStatusCodeMappings(t *testing.T) {
 			name: "ShouldMapChecksumMismatchToBadRequest",
 			err:  extensionpkg.ErrExtensionChecksumMismatch,
 			want: http.StatusBadRequest,
+		},
+		{
+			name: "ShouldMapCuratedDigestMismatchToBadRequest",
+			err:  extensionpkg.ErrExtensionArchiveDigestMismatch,
+			want: http.StatusBadRequest,
+		},
+		{
+			name: "ShouldMapUnverifiedPolicyBlockToUnprocessable",
+			err:  extensionpkg.ErrExtensionUnverifiedPolicyBlocked,
+			want: http.StatusUnprocessableEntity,
 		},
 		{
 			name: "ShouldMapExistingExtensionToConflict",

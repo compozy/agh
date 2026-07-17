@@ -76,6 +76,7 @@ type GoalRepo struct{ *repoBase }
 type HeartbeatRepo struct{ *repoBase }
 type SoulRepo struct{ *repoBase }
 type ModelCatalogRepo struct{ *repoBase }
+type MarketplaceRepo struct{ *repoBase }
 type ObserveRepo struct{ *repoBase }
 type ToolRuntimeRepo struct{ *repoBase }
 type VaultRepo struct{ *repoBase }
@@ -106,6 +107,7 @@ func (g *GlobalDB) initializeRepositories() {
 	g.HeartbeatRepo = &HeartbeatRepo{repoBase: base}
 	g.SoulRepo = &SoulRepo{repoBase: base}
 	g.ModelCatalogRepo = &ModelCatalogRepo{repoBase: base}
+	g.MarketplaceRepo = &MarketplaceRepo{repoBase: base}
 	g.ObserveRepo = &ObserveRepo{repoBase: base}
 	g.NotificationRepo = &NotificationRepo{repoBase: base}
 	g.ToolRuntimeRepo = &ToolRuntimeRepo{repoBase: base}

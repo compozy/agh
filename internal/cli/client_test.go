@@ -2267,7 +2267,7 @@ func TestUnixSocketClientRepairSession(t *testing.T) {
 	})
 }
 
-func TestUnixSocketClientSkillMarketplaceMethods(t *testing.T) {
+func TestUnixSocketClientSkillMarketplaceLifecycleMethods(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should map skill marketplace endpoints", func(t *testing.T) {
@@ -2278,17 +2278,6 @@ func TestUnixSocketClientSkillMarketplaceMethods(t *testing.T) {
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					switch {
-					case req.Method == http.MethodGet && req.URL.Path == "/api/skills/marketplace/search":
-						if got := req.URL.Query().Get("query"); got != "review" {
-							t.Fatalf("skill marketplace search query = %q, want review", got)
-						}
-						if got := req.URL.Query().Get("limit"); got != "7" {
-							t.Fatalf("skill marketplace search limit = %q, want 7", got)
-						}
-						return newHTTPResponse(
-							http.StatusOK,
-							`{"skills":[{"slug":"review","name":"review","description":"Review helper","author":"agh","version":"1.2.0","downloads":42,"source":"clawhub"}]}`,
-						), nil
 					case req.Method == http.MethodPost && req.URL.Path == "/api/skills/marketplace/install":
 						var body SkillMarketplaceInstallRequest
 						if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
@@ -2326,10 +2315,6 @@ func TestUnixSocketClientSkillMarketplaceMethods(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		search, err := client.SearchSkillMarketplace(ctx, "review", 7)
-		if err != nil || len(search) != 1 || search[0].Slug != "review" {
-			t.Fatalf("SearchSkillMarketplace() = %#v, %v", search, err)
-		}
 		installed, err := client.InstallSkillMarketplace(ctx, SkillMarketplaceInstallRequest{
 			Slug:    "review",
 			Version: "1.2.0",

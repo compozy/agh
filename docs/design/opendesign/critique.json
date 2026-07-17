@@ -1,26 +1,27 @@
 {
   "kind": "critique-panel",
+  "artifact": "shell/sidebar-sessions-02.html",
   "score": 4,
   "axes": {
     "clarity": {
       "score": 4,
-      "notes": "Session notices now read as neutral operator chrome with signal only on icons/pills; titles and body no longer compete in the same hue."
+      "notes": "Workspace switching is now a single labeled trigger with a searchable command popover; Add workspace is an explicit quiet row directly below instead of a row lost inside a list."
     },
     "hierarchy": {
       "score": 4,
-      "notes": "Alert title = small-body/fg-strong; description = form-input/muted; meta = eyebrow/subtle. ThinkingBlock label uses form-label medium instead of italic wash."
+      "notes": "One anchor at the sidebar top (workspace selector), sessions own the remaining height. Status dots, state labels and timestamps pin to the title line instead of floating between lines."
     },
     "typography": {
       "score": 4,
-      "notes": "Aligned to DESIGN.md type roles (small-body, form-input, form-label, eyebrow). Markdown links are fg-strong with accent on hover only."
+      "notes": "Scale matches @agh/ui tokens: 13px small-body for trigger/options, 11px eyebrow for group heading and avatar initials (mono, 0.06em), 10px badge for the Home workspace tag."
     },
     "motion": {
       "score": 4,
-      "notes": "No new motion; existing ThinkingBlock chevron/hover transitions unchanged and still respect reduced-motion."
+      "notes": "Popover uses the production 140ms scale(0.96)+fade with ease-out; running sessions get a subtle 2.6s ring pulse scoped to session rows; global prefers-reduced-motion guard covers both."
     },
     "brand": {
-      "score": 5,
-      "notes": "Matches web/CLAUDE.md signal rule (information, not solid semantic banners) and Synara/T3 restrained chrome: neutral surface, hairline border, icon-only signal."
+      "score": 4,
+      "notes": "Geometry transcribed 1:1 from CommandSelect/Command/Popover primitives and workspace-command-select.tsx; runtime token ramp only, accent budget untouched (no new accent surfaces)."
     }
   }
 }

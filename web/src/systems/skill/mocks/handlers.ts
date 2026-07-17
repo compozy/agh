@@ -6,10 +6,7 @@ import {
   skillContentFixtures,
   skillFixtures,
   skillShadowsFixtures,
-  skillMarketplaceDetailFixture,
   skillMarketplaceInstallFixture,
-  skillMarketplaceListingBySlug,
-  skillMarketplaceListingFixtures,
   skillMarketplaceRemoveFixture,
   skillMarketplaceUpdateFixtures,
 } from "./fixtures";
@@ -18,42 +15,6 @@ const skillByName = new Map(skillFixtures.map(skill => [skill.name, skill]));
 
 export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/skills", () => HttpResponse.json({ skills: skillFixtures })),
-  aghApiMock.get("/api/skills/marketplace/search", ({ request }) => {
-    const url = new URL(request.url);
-    const query = url.searchParams.get("query")?.trim() ?? "";
-    if (query === "") {
-      return HttpResponse.json({ error: "marketplace search query is required" }, { status: 400 });
-    }
-
-    const needle = query.toLowerCase();
-    const matches = skillMarketplaceListingFixtures.filter(listing => {
-      const haystack = [listing.name, listing.slug, listing.author, listing.description]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
-    });
-
-    return HttpResponse.json({ skills: matches });
-  }),
-  aghApiMock.get("/api/skills/marketplace/info", ({ request }) => {
-    const url = new URL(request.url);
-    const slug = url.searchParams.get("slug")?.trim() ?? "";
-    if (slug === "") {
-      return HttpResponse.json({ error: "slug is required" }, { status: 400 });
-    }
-
-    const listing = skillMarketplaceListingBySlug.get(slug);
-    if (!listing) {
-      return HttpResponse.json({ error: `marketplace skill not found: ${slug}` }, { status: 404 });
-    }
-
-    return HttpResponse.json({
-      skill: {
-        ...skillMarketplaceDetailFixture,
-        ...listing,
-      },
-    });
-  }),
   aghApiMock.post("/api/skills/marketplace/install", async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as {
       slug?: string;
@@ -62,19 +23,17 @@ export const handlers: HttpHandler[] = [
     if (!body.slug) {
       return HttpResponse.json({ error: "slug is required" }, { status: 400 });
     }
-    const listing = skillMarketplaceListingBySlug.get(body.slug);
-    if (!listing) {
+    if (body.slug !== skillMarketplaceInstallFixture.slug) {
       return HttpResponse.json(
-        { error: `marketplace skill not found: ${body.slug}` },
+        { error: `Marketplace skill not found: ${body.slug}` },
         { status: 404 }
       );
     }
     return HttpResponse.json({
       skill: {
         ...skillMarketplaceInstallFixture,
-        name: listing.name,
-        slug: listing.slug,
-        version: body.version ?? listing.version ?? "0.0.0",
+        slug: body.slug,
+        version: body.version ?? skillMarketplaceInstallFixture.version ?? "0.0.0",
       },
     });
   }),

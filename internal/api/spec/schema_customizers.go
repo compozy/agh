@@ -12,7 +12,9 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = "binary"
 	},
-	reflect.TypeFor[contract.LoopGraph](): customizeLoopGraphSchema,
+	reflect.TypeFor[contract.LoopGraph]():                      customizeLoopGraphSchema,
+	reflect.TypeFor[contract.SettingsMCPSecretInputPayload]():  customizeSettingsMCPSecretInputSchema,
+	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest](): customizeSettingsMCPAuthExchangeRequestSchema,
 	rawMessageType: func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewSchema()
 	},

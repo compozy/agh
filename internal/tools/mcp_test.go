@@ -315,12 +315,165 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 	})
 }
 
+func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
+	t.Run("Should Project Only Global And Current Workspace Sources", func(t *testing.T) {
+		t.Parallel()
+
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		provider := newTestMCPProvider(t, executor, []SourceRef{
+			{
+				Kind:          SourceMCP,
+				Owner:         "github",
+				RawServerName: "github",
+				Scope:         "global",
+			},
+			{
+				Kind:          SourceMCP,
+				Owner:         "linear",
+				RawServerName: "linear",
+				ResourceID:    "mcp-workspace-a",
+				Scope:         "workspace",
+				WorkspaceID:   "workspace-a",
+			},
+			{
+				Kind:          SourceMCP,
+				Owner:         "slack",
+				RawServerName: "slack",
+				ResourceID:    "mcp-workspace-b",
+				Scope:         "workspace",
+				WorkspaceID:   "workspace-b",
+			},
+		})
+		registry := newMCPRegistry(t, provider)
+
+		views, err := registry.OperatorProjection(context.Background(), Scope{
+			Operator:    true,
+			WorkspaceID: "workspace-a",
+		})
+		if err != nil {
+			t.Fatalf("registry.OperatorProjection() error = %v", err)
+		}
+		if got, want := len(views), 2; got != want {
+			t.Fatalf("len(registry.OperatorProjection()) = %d, want %d (%#v)", got, want, views)
+		}
+		for _, view := range views {
+			if view.Descriptor.Source.WorkspaceID == "workspace-b" {
+				t.Fatalf("registry.OperatorProjection() exposed foreign source = %#v", view.Descriptor.Source)
+			}
+		}
+		if executor.listedResource("mcp-workspace-b") {
+			t.Fatal("registry.OperatorProjection() probed the foreign workspace source")
+		}
+	})
+
+	t.Run("Should Prefer The Current Workspace Source Over A Homonymous Global Source", func(t *testing.T) {
+		t.Parallel()
+
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		provider := newTestMCPProvider(t, executor, []SourceRef{
+			{
+				Kind:          SourceMCP,
+				Owner:         "linear",
+				RawServerName: "linear",
+				Scope:         "global",
+			},
+			{
+				Kind:          SourceMCP,
+				Owner:         "linear",
+				RawServerName: "linear",
+				ResourceID:    "mcp-workspace-a",
+				Scope:         "workspace",
+				WorkspaceID:   "workspace-a",
+			},
+		})
+		registry := newMCPRegistry(t, provider)
+
+		views, err := registry.OperatorProjection(context.Background(), Scope{
+			Operator:    true,
+			WorkspaceID: "workspace-a",
+		})
+		if err != nil {
+			t.Fatalf("registry.OperatorProjection() error = %v", err)
+		}
+		if got, want := len(views), 1; got != want {
+			t.Fatalf("len(registry.OperatorProjection()) = %d, want %d (%#v)", got, want, views)
+		}
+		if got, want := views[0].Descriptor.Source.WorkspaceID, "workspace-a"; got != want {
+			t.Fatalf("registry.OperatorProjection() source workspace = %q, want %q", got, want)
+		}
+		if views[0].Availability.Conflicted {
+			t.Fatalf(
+				"registry.OperatorProjection() availability = %#v, want non-conflicted workspace override",
+				views[0].Availability,
+			)
+		}
+	})
+
+	t.Run("Should Refuse An Authenticated Foreign Source When The Current Source Needs Login", func(t *testing.T) {
+		t.Parallel()
+
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		executor.status = MCPAuthStatus{Status: "authenticated"}
+		executor.listErrByResource = map[string]error{
+			"mcp-workspace-a": NewToolError(
+				ErrorCodeUnavailable,
+				"mcp__linear__lookup",
+				"mcp login required",
+				ErrToolUnavailable,
+				ReasonMCPAuthRequired,
+			),
+		}
+		provider := newTestMCPProvider(t, executor, []SourceRef{
+			{
+				Kind:          SourceMCP,
+				Owner:         "linear",
+				RawServerName: "linear",
+				ResourceID:    "mcp-workspace-a",
+				Scope:         "workspace",
+				WorkspaceID:   "workspace-a",
+			},
+			{
+				Kind:          SourceMCP,
+				Owner:         "linear",
+				RawServerName: "linear",
+				ResourceID:    "mcp-workspace-b",
+				Scope:         "workspace",
+				WorkspaceID:   "workspace-b",
+			},
+		})
+		registry := newMCPRegistry(t, provider)
+
+		_, err := registry.Call(context.Background(), Scope{WorkspaceID: "workspace-a"}, CallRequest{
+			ToolID: "mcp__linear__lookup",
+			Input:  json.RawMessage(`{}`),
+		})
+		requireReason(t, err, ReasonToolUnknown)
+		if !errors.Is(err, ErrToolNotFound) {
+			t.Fatalf("registry.Call() error = %v, want ErrToolNotFound", err)
+		}
+		if executor.listedResource("mcp-workspace-b") {
+			t.Fatal("registry.Call() probed the authenticated foreign workspace source")
+		}
+	})
+}
+
 type fakeMCPExecutor struct {
-	mu      sync.Mutex
-	tools   []MCPToolDescriptor
-	status  MCPAuthStatus
-	listErr error
-	calls   []MCPToolCallRequest
+	mu                sync.Mutex
+	tools             []MCPToolDescriptor
+	status            MCPAuthStatus
+	listErr           error
+	listErrByResource map[string]error
+	listedSources     []SourceRef
+	calls             []MCPToolCallRequest
 }
 
 func newFakeMCPExecutor(tools []MCPToolDescriptor) *fakeMCPExecutor {
@@ -330,10 +483,14 @@ func newFakeMCPExecutor(tools []MCPToolDescriptor) *fakeMCPExecutor {
 	}
 }
 
-func (f *fakeMCPExecutor) ListTools(context.Context, SourceRef) ([]MCPToolDescriptor, error) {
+func (f *fakeMCPExecutor) ListTools(_ context.Context, source SourceRef) ([]MCPToolDescriptor, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	f.listedSources = append(f.listedSources, source)
+	if err := f.listErrByResource[source.ResourceID]; err != nil {
+		return nil, err
+	}
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
@@ -377,6 +534,17 @@ func (f *fakeMCPExecutor) lastCall() MCPToolCallRequest {
 		return MCPToolCallRequest{}
 	}
 	return f.calls[len(f.calls)-1]
+}
+
+func (f *fakeMCPExecutor) listedResource(resourceID string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, source := range f.listedSources {
+		if source.ResourceID == resourceID {
+			return true
+		}
+	}
+	return false
 }
 
 func newTestMCPProvider(t *testing.T, executor *fakeMCPExecutor, sources []SourceRef) *MCPProvider {

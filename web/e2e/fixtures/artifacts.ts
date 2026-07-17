@@ -109,12 +109,10 @@ export interface BrowserRouteState {
   knowledge_search_active?: boolean;
   knowledge_selected_item?: string;
   knowledge_view_visible?: boolean;
-  skills_active_tab?: "installed" | "marketplace";
   skills_content_visible?: boolean;
   skills_detail_visible?: boolean;
   skills_enabled_state?: "enabled" | "disabled";
   skills_item_count?: number;
-  skills_marketplace_count?: number;
   skills_search_active?: boolean;
   skills_selected_item?: string;
   skills_view_visible?: boolean;

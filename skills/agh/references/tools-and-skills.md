@@ -5,6 +5,7 @@
 - Tool-first operating model
 - Discovery loop
 - Tool presentation metadata
+- Marketplace discovery
 - Skill loading
 - Bundled skill resources
 - Skill provenance and shadows
@@ -49,6 +50,81 @@ workspace's registry projection.
 scalar field. The daemon selects and redacts the preview. See [Tool progress in
 bridges](https://agh.network/runtime/core/bridges/progress) for the rendering and validation
 contract.
+
+## Marketplace Discovery
+
+Use canonical `agh__marketplace_search` for read-only discovery across MCP servers, extensions,
+skills, and bundles. Its daemon-owned projection carries stable `entry_id` values and truthful
+installed state for the caller's scope. The structured CLI fallback is
+`agh marketplace search [query] [--kind mcp|extension|skill|bundle] [--scope global|workspace]
+[--workspace <id>] -o json`; exact detail accepts the same scope flags through
+`agh marketplace info <kind> <entry_id>`. Global is the default; pair `--scope workspace` with
+`--workspace <id>` to project workspace-installed MCP servers and bundles. Feed refresh is an
+operator mutation through `agh marketplace refresh [--kind]` or `POST /api/marketplace/refresh`;
+bundles are derived and cannot be refreshed directly. Inspect each discovery kind's `stale`,
+`error_class`, and `error` fields:
+failed feed refreshes preserve the last successful rows and return their per-kind stale outcome.
+On installed HTTP/UDS and structured CLI rows, use `installed_name` for lifecycle mutations;
+`name` is feed-owned display text, and `manage_path` is presentation-only. Treat `manage_path` as
+opaque: workspace-scoped MCP links include the exact `workspace_id` that owns the installation.
+
+Extension rows carry the daemon's pre-install `trust` report. Use its `decision`, `registry_tier`,
+`allow_unverified`, and `warnings` directly; `checksum_verified` remains false until download verification.
+Curated extension detail also carries an absolute HTTPS `artifact_url`. The daemon downloads that
+exact feed-owned archive and verifies `digest_sha256` before extraction; it does not guess among
+GitHub release assets. Manual non-curated installs continue through the configured registry.
+For non-curated side-loads, `extension_unverified_policy_blocked` means the live
+`extensions.marketplace.allow_unverified` gate is false; its diagnostic points to
+`/settings/extensions` and the config key. `extension_archive_digest_mismatch` means curated bytes
+do not match the catalog pin; do not retry with `--allow-unverified`.
+
+Install MCP catalog entries with
+`agh mcp install <entry> --scope global|workspace [--workspace <id>] -o json` or
+`POST /api/settings/mcp-servers/install`; no mutating native install tool exists. `--set KEY` reads
+one field from stdin/hidden prompt; `--vault-ref KEY=vault:mcp/...` binds a present ref. Confidential
+OAuth accepts exactly one of `--oauth-client-secret` or `--oauth-client-secret-vault-ref`.
+
+Reads expose configured field names/OAuth-secret presence, never refs. JSON returns provenance,
+full config `apply` truth, and `next_step=authorize` only for OAuth. Failed apply means desired config
+needs its returned repair action, not that runtime is active. HTTP/UDS requires `values` (`null` when
+input-free). `mcp_install_event_persist_failed` warns that install committed but its Marketplace
+event did not. Cleanup touches only superseded owned refs. Complete secret restoration rolls back;
+partial secret/definition restoration retains the commit and returns a residual-state warning.
+
+When `next_step=authorize`, run `agh mcp authorize <name>`; `agh mcp auth login <name>` reaches the
+same daemon-owned PKCE flow. Use `--manual` to paste a code or full redirect URL, especially for a
+remote operator or non-loopback HTTP bind. Workspace targets always carry both
+`--scope workspace --workspace <id>`. Treat authorization as complete only when redacted status is
+`authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual
+input and exchange, and the active PKCE session expiry may shorten it.
+
+Catalog OAuth templates are born-valid: they require `client_id` plus either an absolute HTTP(S)
+`issuer_url` or the complete absolute `authorization_url`/`token_url` pair. Treat validation failure
+as a feed-authoring error; the last valid stale projection remains authoritative.
+
+Authorization is bound to the exact scoped server definition. Replacing or deleting that definition
+invalidates pending completion, and a stored token is never sent when the transport, remote URL, or
+OAuth settings no longer match. A mismatched or pre-fingerprint token remains stored until explicit
+logout but status reports that login is required; begin a new authorization for the current definition.
+
+HTTP/UDS auth routes `/auth/begin`, `/auth/exchange`, and `/auth/logout` use explicit `scope` and
+optional `workspace_id`; begin requires `mode: "automatic" | "manual"`, with manual creating a fresh
+paste session. The HTTP-only callback auto-completes only on loopback, follows the effective listener
+(including IPv6), and returns documented `503` HTML when unavailable. Keep exchange codes/redirects
+out of status and events.
+
+Inspect MCP management truth with `agh__mcp_status`, `agh__mcp_auth_status`, or
+`GET /api/settings/mcp-servers`. Configuration, authorization, runtime, and probe are independent
+signals; `configured` alone never means ready. Edit stdio or remote HTTP/SSE definitions through
+`PUT /api/settings/mcp-servers/{name}` with explicit scope. A generic edit clears provenance; OAuth
+repair requires `authenticated` plus `token_present=true`. Reads project `env_keys` and
+`secret_env_keys`, never values/refs. Preserve exact-target fields with `preserve_env` or
+`preserve_secrets`; renames and target changes require replacement.
+
+The singular `agh skill search`, `agh skill info <entry_id>`, and `agh extension search` commands
+read the same discovery namespace. Use `agh skill inspect <installed-name>` for effective metadata
+and resources. Do not call the deleted skill- or extension-specific browse endpoints or invent a
+per-extension native search tool.
 
 ## Skill Loading
 

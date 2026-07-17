@@ -103,3 +103,45 @@ export const SelectedVsRest: Story = {
     </div>
   ),
 };
+
+/**
+ * Long vault-style refs wrap inside the title slot via `titleClassName`
+ * instead of truncating mid-path.
+ */
+export const WrapFriendlyTitle: Story = {
+  args: {},
+  render: () => (
+    <div role="radiogroup" aria-label="Vault references" className="flex flex-col gap-2">
+      <RadioCard
+        selected
+        onSelect={() => undefined}
+        title={
+          <code className="block break-all font-mono text-mono-id font-normal leading-snug tracking-normal text-fg">
+            vault/mcp/github/personal_access_token_with_a_very_long_operator_facing_ref
+          </code>
+        }
+        titleClassName="overflow-visible whitespace-normal font-normal tracking-normal"
+        badge={
+          <Pill mono size="xs" tone="success">
+            present
+          </Pill>
+        }
+      />
+      <RadioCard
+        selected={false}
+        onSelect={() => undefined}
+        title={
+          <code className="block break-all font-mono text-mono-id font-normal leading-snug tracking-normal text-fg">
+            vault/mcp/short-ref
+          </code>
+        }
+        titleClassName="overflow-visible whitespace-normal font-normal tracking-normal"
+        badge={
+          <Pill mono size="xs" tone="danger">
+            missing
+          </Pill>
+        }
+      />
+    </div>
+  ),
+};

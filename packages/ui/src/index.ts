@@ -51,14 +51,16 @@ export { UIProvider, type UIProviderProps } from "./components/custom/ui-provide
 export { Logo, type LogoProps, type LogoVariant } from "./components/custom/logo";
 export {
   KindIcon,
-  bridgeKindIconRegistry,
-  providerKindIconRegistry,
   type KindIconProps,
-  type KindIconRegistry,
-  type KindIconRegistryEntry,
   type KindIconSize,
   type KindIconTone,
 } from "./components/custom/kind-icon";
+export {
+  bridgeKindIconRegistry,
+  providerKindIconRegistry,
+  type KindIconRegistry,
+  type KindIconRegistryEntry,
+} from "./components/custom/kind-icon-registry";
 export {
   Dialog,
   DialogClose,

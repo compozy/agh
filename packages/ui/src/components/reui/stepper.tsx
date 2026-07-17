@@ -143,7 +143,7 @@ function StepperTrigger({
       data-state={state}
       data-loading={isLoading}
       className={cn(
-        "focus-visible:border-ring focus-visible:ring-ring/50 cursor-pointer outline-none focus-visible:z-10 focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60",
+        "cursor-pointer outline-none focus-visible:z-10 focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60",
         "group-data-[orientation=horizontal]/stepper-nav:inline-flex group-data-[orientation=horizontal]/stepper-nav:items-center group-data-[orientation=horizontal]/stepper-nav:gap-2.5 group-data-[orientation=horizontal]/stepper-nav:rounded-full",
         "group-data-[orientation=vertical]/stepper-nav:flex group-data-[orientation=vertical]/stepper-nav:w-full group-data-[orientation=vertical]/stepper-nav:items-start group-data-[orientation=vertical]/stepper-nav:gap-3 group-data-[orientation=vertical]/stepper-nav:rounded-md group-data-[orientation=vertical]/stepper-nav:text-left group-data-[orientation=vertical]/stepper-nav:enabled:hover:**:data-[slot=stepper-title]:text-fg",
         className
@@ -198,7 +198,7 @@ function StepperIndicator({ children, className }: ComponentProps<"div">) {
       data-state={state}
       className={cn(
         "relative flex size-button-icon-default shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold tabular-nums transition-all duration-base",
-        "data-[state=inactive]:bg-elevated data-[state=inactive]:text-subtle data-[state=inactive]:shadow-focus-ring-inset",
+        "data-[state=inactive]:bg-elevated data-[state=inactive]:text-subtle data-[state=inactive]:shadow-inset-strong",
         "data-[state=active]:bg-accent data-[state=active]:text-accent-ink data-[state=active]:shadow-[var(--shadow-highlight),0_0_0_4px_var(--color-accent-tint)]",
         "data-[state=completed]:bg-accent data-[state=completed]:text-accent-ink data-[state=completed]:shadow-highlight",
         className

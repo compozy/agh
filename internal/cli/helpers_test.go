@@ -19,121 +19,133 @@ import (
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
-	statusFn                     func(context.Context) (StatusRecord, error)
-	doctorFn                     func(context.Context, DoctorQuery) (DoctorRecord, error)
-	daemonStatusFn               func(context.Context) (DaemonStatus, error)
-	triggerSettingsRestartFn     func(context.Context) (SettingsRestartActionRecord, error)
-	getSettingsRestartStatusFn   func(context.Context, string) (SettingsRestartStatusRecord, error)
-	createSupportBundleFn        func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
-	getSupportBundleFn           func(context.Context, string) (SupportBundleOperationRecord, error)
-	downloadSupportBundleFn      func(context.Context, string, io.Writer) error
-	getSettingsUpdateFn          func(context.Context) (SettingsUpdateRecord, error)
-	updateSettingsSkillsFn       func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
-	reloadSettingsFn             func(context.Context) (SettingsMutationRecord, error)
-	listSettingsApplyRecordsFn   func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
-	getOnboardingStatusFn        func(context.Context) (contract.OnboardingStatusResponse, error)
-	completeOnboardingFn         func(context.Context) (contract.OnboardingStatusResponse, error)
-	resetOnboardingFn            func(context.Context) (contract.OnboardingStatusResponse, error)
-	listProvidersFn              func(context.Context) (contract.ProviderListResponse, error)
-	probeProviderAuthFn          func(context.Context, string) (contract.ProviderAuthProbeResponse, error)
-	listProviderModelsFn         func(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
-	refreshProviderModelsFn      func(context.Context, string, ProviderModelRefreshRequest) (ProviderModelRefreshRecord, error)
-	providerModelStatusFn        func(context.Context, string) (ProviderModelStatusRecord, error)
-	curateProviderModelFn        func(context.Context, string, ProviderModelCurationRequest) (ProviderModelCurationRecord, error)
-	listVaultSecretsFn           func(context.Context, VaultListQuery) ([]VaultRecord, error)
-	getVaultSecretFn             func(context.Context, string) (VaultRecord, error)
-	putVaultSecretFn             func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
-	deleteVaultSecretFn          func(context.Context, string) error
-	networkStatusFn              func(context.Context) (NetworkStatusRecord, error)
-	networkPeersFn               func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
-	networkChannelsFn            func(context.Context, string) ([]NetworkChannelRecord, error)
-	createNetworkChannelFn       func(context.Context, string, CreateNetworkChannelRequest) (NetworkChannelDetailRecord, error)
-	updateNetworkChannelFn       func(context.Context, string, string, UpdateNetworkChannelRequest) (NetworkChannelDetailRecord, error)
-	listNetworkSubscriptionsFn   func(context.Context, NetworkSubscriptionsQuery) ([]NetworkSubscriptionRecord, error)
-	setNetworkSubscriptionFn     func(context.Context, string, string, NetworkSubscriptionRequest) (NetworkSubscriptionRecord, error)
-	deleteNetworkSubscriptionFn  func(context.Context, string, string, string, string) error
-	networkThreadsFn             func(context.Context, NetworkThreadsQuery) (contract.NetworkThreadsResponse, error)
-	networkThreadFn              func(context.Context, string, string, string) (NetworkThreadRecord, error)
-	networkThreadMessagesFn      func(context.Context, NetworkConversationMessagesQuery) (contract.NetworkThreadMessagesResponse, error)
-	networkDirectsFn             func(context.Context, NetworkDirectsQuery) (contract.NetworkDirectRoomsResponse, error)
-	networkDirectResolveFn       func(context.Context, string, string, NetworkDirectResolveRequest) (NetworkDirectRoomRecord, error)
-	networkDirectFn              func(context.Context, string, string, string) (NetworkDirectRoomRecord, error)
-	networkDirectMessagesFn      func(context.Context, NetworkConversationMessagesQuery) (contract.NetworkDirectRoomMessagesResponse, error)
-	networkWorkFn                func(context.Context, string, string) (NetworkWorkRecord, error)
-	networkSendFn                func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
-	networkInboxFn               func(context.Context, string, string) ([]NetworkEnvelopeRecord, error)
-	promoteNetworkThreadTaskFn   func(context.Context, string, string, string, PromoteNetworkThreadTaskRequest) (PromoteNetworkThreadTaskRecord, error)
-	listExtensionsFn             func(context.Context) ([]ExtensionRecord, error)
-	searchExtensionMarketplaceFn func(context.Context, string, string, int) ([]ExtensionMarketplaceRecord, error)
-	installExtensionFn           func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
-	updateExtensionFn            func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
-	removeExtensionFn            func(context.Context, string) (ManagedExtensionRemoveRecord, error)
-	enableExtensionFn            func(context.Context, string) (ExtensionRecord, error)
-	disableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusFn            func(context.Context, string) (ExtensionRecord, error)
-	extensionProvenanceFn        func(context.Context, string) (ExtensionProvenanceRecord, error)
-	listBundleCatalogFn          func(context.Context) ([]BundleCatalogRecord, error)
-	previewBundleActivationFn    func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
-	activateBundleFn             func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
-	listBundleActivationsFn      func(context.Context) ([]BundleActivationRecord, error)
-	getBundleActivationFn        func(context.Context, string) (BundleActivationRecord, error)
-	updateBundleActivationFn     func(context.Context, string, UpdateBundleActivationRequest) (BundleActivationRecord, error)
-	deactivateBundleFn           func(context.Context, string) error
-	bundleNetworkSettingsFn      func(context.Context) (BundleNetworkSettingsRecord, error)
-	listBridgesFn                func(context.Context, BridgeListQuery) (BridgeListRecord, error)
-	createBridgeFn               func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
-	getBridgeFn                  func(context.Context, string) (BridgeRecord, error)
-	updateBridgeFn               func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
-	enableBridgeFn               func(context.Context, string) (BridgeRecord, error)
-	disableBridgeFn              func(context.Context, string) (BridgeRecord, error)
-	restartBridgeFn              func(context.Context, string) (BridgeRecord, error)
-	bridgeRoutesFn               func(context.Context, string) ([]BridgeRouteRecord, error)
-	bridgeTargetsFn              func(context.Context, string, string, int) (BridgeTargetsRecord, error)
-	resolveBridgeTargetFn        func(context.Context, string, string) (BridgeResolveTargetRecord, error)
-	listNotificationPresetsFn    func(context.Context, NotificationPresetQuery) (NotificationPresetListRecord, error)
-	getNotificationPresetFn      func(context.Context, string) (NotificationPresetRecord, error)
-	createNotificationPresetFn   func(context.Context, CreateNotificationPresetRequest) (NotificationPresetRecord, error)
-	updateNotificationPresetFn   func(context.Context, string, UpdateNotificationPresetRequest) (NotificationPresetRecord, error)
-	deleteNotificationPresetFn   func(context.Context, string) error
-	listBridgeSecretBindingsFn   func(context.Context, string) ([]BridgeSecretBindingRecord, error)
-	putBridgeSecretBindingFn     func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
-	deleteBridgeSecretBindingFn  func(context.Context, string, string) error
-	testBridgeDeliveryFn         func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
-	slackBridgeManifestFn        func(context.Context, string) (SlackManifestRecord, error)
-	verifyBridgeFn               func(context.Context, string) (BridgeVerifyRecord, error)
-	sendBridgeTestFn             func(context.Context, string, BridgeSendTestRequest) (BridgeSendTestRecord, error)
-	registerBridgeWebhookFn      func(context.Context, string) (BridgeWebhookRegistrationRecord, error)
-	listSessionsFn               func(context.Context, SessionListQuery) ([]SessionRecord, error)
-	listSessionPageFn            func(context.Context, SessionListQuery) (SessionListPage, error)
-	createSessionFn              func(context.Context, CreateSessionRequest) (SessionRecord, error)
-	getSessionFn                 func(context.Context, string) (SessionRecord, error)
-	getSessionHealthFn           func(context.Context, string) (SessionHealthRecord, error)
-	getSessionStatusFn           func(context.Context, string) (SessionStatusRecord, error)
-	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
-	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
-	stopSessionFn                func(context.Context, string) error
-	deleteSessionFn              func(context.Context, string) error
-	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
-	sessionRecapFn               func(context.Context, string, int) (SessionRecapRecord, error)
-	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
-	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
-	promptSessionFn              func(context.Context, string, string) ([]AgentEventRecord, error)
-	sendSessionPromptFn          func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
-	steerSessionPromptFn         func(context.Context, string, string) (SessionPromptRecord, error)
-	cancelQueuedSessionPromptFn  func(context.Context, string, string) (SessionPromptRecord, error)
-	streamPromptSessionFn        func(context.Context, string, string, SSEHandler) error
-	sessionEventsFn              func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
-	streamSessionFn              func(context.Context, string, SessionEventQuery, string, SSEHandler) error
-	sessionHistoryFn             func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
-	createWorkspaceFn            func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
-	listWorkspacesFn             func(context.Context) ([]WorkspaceRecord, error)
-	getWorkspaceFn               func(context.Context, string) (WorkspaceDetailRecord, error)
-	updateWorkspaceFn            func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
-	deleteWorkspaceFn            func(context.Context, string) error
-	listLoopsFn                  func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
-	createLoopFn                 func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
-	getLoopFn                    func(context.Context, string, string) (contract.LoopResponse, error)
-	patchLoopFn                  func(
+	statusFn                    func(context.Context) (StatusRecord, error)
+	doctorFn                    func(context.Context, DoctorQuery) (DoctorRecord, error)
+	daemonStatusFn              func(context.Context) (DaemonStatus, error)
+	triggerSettingsRestartFn    func(context.Context) (SettingsRestartActionRecord, error)
+	getSettingsRestartStatusFn  func(context.Context, string) (SettingsRestartStatusRecord, error)
+	createSupportBundleFn       func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
+	getSupportBundleFn          func(context.Context, string) (SupportBundleOperationRecord, error)
+	downloadSupportBundleFn     func(context.Context, string, io.Writer) error
+	getSettingsUpdateFn         func(context.Context) (SettingsUpdateRecord, error)
+	updateSettingsSkillsFn      func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	reloadSettingsFn            func(context.Context) (SettingsMutationRecord, error)
+	listSettingsApplyRecordsFn  func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
+	getOnboardingStatusFn       func(context.Context) (contract.OnboardingStatusResponse, error)
+	completeOnboardingFn        func(context.Context) (contract.OnboardingStatusResponse, error)
+	resetOnboardingFn           func(context.Context) (contract.OnboardingStatusResponse, error)
+	listProvidersFn             func(context.Context) (contract.ProviderListResponse, error)
+	probeProviderAuthFn         func(context.Context, string) (contract.ProviderAuthProbeResponse, error)
+	listProviderModelsFn        func(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
+	refreshProviderModelsFn     func(context.Context, string, ProviderModelRefreshRequest) (ProviderModelRefreshRecord, error)
+	providerModelStatusFn       func(context.Context, string) (ProviderModelStatusRecord, error)
+	curateProviderModelFn       func(context.Context, string, ProviderModelCurationRequest) (ProviderModelCurationRecord, error)
+	listVaultSecretsFn          func(context.Context, VaultListQuery) ([]VaultRecord, error)
+	getVaultSecretFn            func(context.Context, string) (VaultRecord, error)
+	putVaultSecretFn            func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
+	deleteVaultSecretFn         func(context.Context, string) error
+	networkStatusFn             func(context.Context) (NetworkStatusRecord, error)
+	networkPeersFn              func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
+	networkChannelsFn           func(context.Context, string) ([]NetworkChannelRecord, error)
+	createNetworkChannelFn      func(context.Context, string, CreateNetworkChannelRequest) (NetworkChannelDetailRecord, error)
+	updateNetworkChannelFn      func(context.Context, string, string, UpdateNetworkChannelRequest) (NetworkChannelDetailRecord, error)
+	listNetworkSubscriptionsFn  func(context.Context, NetworkSubscriptionsQuery) ([]NetworkSubscriptionRecord, error)
+	setNetworkSubscriptionFn    func(context.Context, string, string, NetworkSubscriptionRequest) (NetworkSubscriptionRecord, error)
+	deleteNetworkSubscriptionFn func(context.Context, string, string, string, string) error
+	networkThreadsFn            func(context.Context, NetworkThreadsQuery) (contract.NetworkThreadsResponse, error)
+	networkThreadFn             func(context.Context, string, string, string) (NetworkThreadRecord, error)
+	networkThreadMessagesFn     func(context.Context, NetworkConversationMessagesQuery) (contract.NetworkThreadMessagesResponse, error)
+	networkDirectsFn            func(context.Context, NetworkDirectsQuery) (contract.NetworkDirectRoomsResponse, error)
+	networkDirectResolveFn      func(context.Context, string, string, NetworkDirectResolveRequest) (NetworkDirectRoomRecord, error)
+	networkDirectFn             func(context.Context, string, string, string) (NetworkDirectRoomRecord, error)
+	networkDirectMessagesFn     func(context.Context, NetworkConversationMessagesQuery) (contract.NetworkDirectRoomMessagesResponse, error)
+	networkWorkFn               func(context.Context, string, string) (NetworkWorkRecord, error)
+	networkSendFn               func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
+	networkInboxFn              func(context.Context, string, string) ([]NetworkEnvelopeRecord, error)
+	promoteNetworkThreadTaskFn  func(context.Context, string, string, string, PromoteNetworkThreadTaskRequest) (PromoteNetworkThreadTaskRecord, error)
+	listExtensionsFn            func(context.Context) ([]ExtensionRecord, error)
+	searchMarketplaceFn         func(context.Context, string, int, MarketplaceReadScope) (MarketplaceSearchRecord, error)
+	browseMarketplaceFn         func(context.Context, string, string, int, MarketplaceReadScope) (MarketplaceKindRecord, error)
+	marketplaceInfoFn           func(context.Context, string, string, MarketplaceReadScope) (MarketplaceEntryRecord, error)
+	refreshMarketplaceFn        func(context.Context, string) (MarketplaceRefreshRecord, error)
+	installSettingsMCPServerFn  func(context.Context, InstallSettingsMCPServerRequest) (InstallSettingsMCPServerRecord, error)
+	listSettingsMCPServersFn    func(context.Context, contract.SettingsWorkspaceScopeKind, string) (contract.SettingsMCPServersResponse, error)
+	beginSettingsMCPAuthFn      func(
+		context.Context,
+		SettingsMCPAuthTarget,
+		SettingsMCPAuthBeginRequest,
+	) (SettingsMCPAuthBeginRecord, error)
+	exchangeSettingsMCPAuthFn   func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
+	logoutSettingsMCPAuthFn     func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
+	installExtensionFn          func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	updateExtensionFn           func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
+	removeExtensionFn           func(context.Context, string) (ManagedExtensionRemoveRecord, error)
+	enableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
+	disableExtensionFn          func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusFn           func(context.Context, string) (ExtensionRecord, error)
+	extensionProvenanceFn       func(context.Context, string) (ExtensionProvenanceRecord, error)
+	listBundleCatalogFn         func(context.Context) ([]BundleCatalogRecord, error)
+	previewBundleActivationFn   func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
+	activateBundleFn            func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
+	listBundleActivationsFn     func(context.Context) ([]BundleActivationRecord, error)
+	getBundleActivationFn       func(context.Context, string) (BundleActivationRecord, error)
+	updateBundleActivationFn    func(context.Context, string, UpdateBundleActivationRequest) (BundleActivationRecord, error)
+	deactivateBundleFn          func(context.Context, string) error
+	bundleNetworkSettingsFn     func(context.Context) (BundleNetworkSettingsRecord, error)
+	listBridgesFn               func(context.Context, BridgeListQuery) (BridgeListRecord, error)
+	createBridgeFn              func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
+	getBridgeFn                 func(context.Context, string) (BridgeRecord, error)
+	updateBridgeFn              func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
+	enableBridgeFn              func(context.Context, string) (BridgeRecord, error)
+	disableBridgeFn             func(context.Context, string) (BridgeRecord, error)
+	restartBridgeFn             func(context.Context, string) (BridgeRecord, error)
+	bridgeRoutesFn              func(context.Context, string) ([]BridgeRouteRecord, error)
+	bridgeTargetsFn             func(context.Context, string, string, int) (BridgeTargetsRecord, error)
+	resolveBridgeTargetFn       func(context.Context, string, string) (BridgeResolveTargetRecord, error)
+	listNotificationPresetsFn   func(context.Context, NotificationPresetQuery) (NotificationPresetListRecord, error)
+	getNotificationPresetFn     func(context.Context, string) (NotificationPresetRecord, error)
+	createNotificationPresetFn  func(context.Context, CreateNotificationPresetRequest) (NotificationPresetRecord, error)
+	updateNotificationPresetFn  func(context.Context, string, UpdateNotificationPresetRequest) (NotificationPresetRecord, error)
+	deleteNotificationPresetFn  func(context.Context, string) error
+	listBridgeSecretBindingsFn  func(context.Context, string) ([]BridgeSecretBindingRecord, error)
+	putBridgeSecretBindingFn    func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
+	deleteBridgeSecretBindingFn func(context.Context, string, string) error
+	testBridgeDeliveryFn        func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
+	slackBridgeManifestFn       func(context.Context, string) (SlackManifestRecord, error)
+	verifyBridgeFn              func(context.Context, string) (BridgeVerifyRecord, error)
+	sendBridgeTestFn            func(context.Context, string, BridgeSendTestRequest) (BridgeSendTestRecord, error)
+	registerBridgeWebhookFn     func(context.Context, string) (BridgeWebhookRegistrationRecord, error)
+	listSessionsFn              func(context.Context, SessionListQuery) ([]SessionRecord, error)
+	listSessionPageFn           func(context.Context, SessionListQuery) (SessionListPage, error)
+	createSessionFn             func(context.Context, CreateSessionRequest) (SessionRecord, error)
+	getSessionFn                func(context.Context, string) (SessionRecord, error)
+	getSessionHealthFn          func(context.Context, string) (SessionHealthRecord, error)
+	getSessionStatusFn          func(context.Context, string) (SessionStatusRecord, error)
+	inspectSessionFn            func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
+	refreshSessionSoulFn        func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
+	stopSessionFn               func(context.Context, string) error
+	deleteSessionFn             func(context.Context, string) error
+	resumeSessionFn             func(context.Context, string) (SessionRecord, error)
+	sessionRecapFn              func(context.Context, string, int) (SessionRecapRecord, error)
+	repairSessionFn             func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
+	approveSessionFn            func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
+	promptSessionFn             func(context.Context, string, string) ([]AgentEventRecord, error)
+	sendSessionPromptFn         func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
+	steerSessionPromptFn        func(context.Context, string, string) (SessionPromptRecord, error)
+	cancelQueuedSessionPromptFn func(context.Context, string, string) (SessionPromptRecord, error)
+	streamPromptSessionFn       func(context.Context, string, string, SSEHandler) error
+	sessionEventsFn             func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
+	streamSessionFn             func(context.Context, string, SessionEventQuery, string, SSEHandler) error
+	sessionHistoryFn            func(context.Context, string, SessionEventQuery) ([]TurnHistoryRecord, error)
+	createWorkspaceFn           func(context.Context, WorkspaceCreateRequest) (WorkspaceRecord, error)
+	listWorkspacesFn            func(context.Context) ([]WorkspaceRecord, error)
+	getWorkspaceFn              func(context.Context, string) (WorkspaceDetailRecord, error)
+	updateWorkspaceFn           func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
+	deleteWorkspaceFn           func(context.Context, string) error
+	listLoopsFn                 func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
+	createLoopFn                func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
+	getLoopFn                   func(context.Context, string, string) (contract.LoopResponse, error)
+	patchLoopFn                 func(
 		context.Context,
 		string,
 		string,
@@ -205,7 +217,6 @@ type stubClient struct {
 	getSkillShadowsFn             func(context.Context, string, SkillQuery) (SkillShadowsRecord, error)
 	enableSkillFn                 func(context.Context, string, SkillQuery) (SkillActionRecord, error)
 	disableSkillFn                func(context.Context, string, SkillQuery) (SkillActionRecord, error)
-	searchSkillMarketplaceFn      func(context.Context, string, int) ([]SkillMarketplaceRecord, error)
 	installSkillMarketplaceFn     func(context.Context, SkillMarketplaceInstallRequest) (SkillMarketplaceInstallRecord, error)
 	updateSkillMarketplaceFn      func(context.Context, SkillMarketplaceUpdateRequest) ([]SkillMarketplaceUpdateRecord, error)
 	removeSkillMarketplaceFn      func(context.Context, string) (SkillMarketplaceRemoveRecord, error)
@@ -803,16 +814,101 @@ func (s *stubClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, err
 	return nil, errors.New("unexpected ListExtensions call")
 }
 
-func (s *stubClient) SearchExtensionMarketplace(
+func (s *stubClient) SearchMarketplace(
 	ctx context.Context,
 	query string,
-	source string,
 	limit int,
-) ([]ExtensionMarketplaceRecord, error) {
-	if s.searchExtensionMarketplaceFn != nil {
-		return s.searchExtensionMarketplaceFn(ctx, query, source, limit)
+	scope MarketplaceReadScope,
+) (MarketplaceSearchRecord, error) {
+	if s.searchMarketplaceFn != nil {
+		return s.searchMarketplaceFn(ctx, query, limit, scope)
 	}
-	return nil, errors.New("unexpected SearchExtensionMarketplace call")
+	return MarketplaceSearchRecord{}, errors.New("unexpected SearchMarketplace call")
+}
+
+func (s *stubClient) BrowseMarketplace(
+	ctx context.Context,
+	kind string,
+	query string,
+	limit int,
+	scope MarketplaceReadScope,
+) (MarketplaceKindRecord, error) {
+	if s.browseMarketplaceFn != nil {
+		return s.browseMarketplaceFn(ctx, kind, query, limit, scope)
+	}
+	return MarketplaceKindRecord{}, errors.New("unexpected BrowseMarketplace call")
+}
+
+func (s *stubClient) MarketplaceInfo(
+	ctx context.Context,
+	kind string,
+	entryID string,
+	scope MarketplaceReadScope,
+) (MarketplaceEntryRecord, error) {
+	if s.marketplaceInfoFn != nil {
+		return s.marketplaceInfoFn(ctx, kind, entryID, scope)
+	}
+	return MarketplaceEntryRecord{}, errors.New("unexpected MarketplaceInfo call")
+}
+
+func (s *stubClient) RefreshMarketplace(ctx context.Context, kind string) (MarketplaceRefreshRecord, error) {
+	if s.refreshMarketplaceFn != nil {
+		return s.refreshMarketplaceFn(ctx, kind)
+	}
+	return MarketplaceRefreshRecord{}, errors.New("unexpected RefreshMarketplace call")
+}
+
+func (s *stubClient) InstallSettingsMCPServer(
+	ctx context.Context,
+	request InstallSettingsMCPServerRequest,
+) (InstallSettingsMCPServerRecord, error) {
+	if s.installSettingsMCPServerFn != nil {
+		return s.installSettingsMCPServerFn(ctx, request)
+	}
+	return InstallSettingsMCPServerRecord{}, errors.New("unexpected InstallSettingsMCPServer call")
+}
+
+func (s *stubClient) ListSettingsMCPServers(
+	ctx context.Context,
+	scope contract.SettingsWorkspaceScopeKind,
+	workspaceID string,
+) (contract.SettingsMCPServersResponse, error) {
+	if s.listSettingsMCPServersFn != nil {
+		return s.listSettingsMCPServersFn(ctx, scope, workspaceID)
+	}
+	return contract.SettingsMCPServersResponse{}, errors.New("unexpected ListSettingsMCPServers call")
+}
+
+func (s *stubClient) BeginSettingsMCPAuth(
+	ctx context.Context,
+	target SettingsMCPAuthTarget,
+	request SettingsMCPAuthBeginRequest,
+) (SettingsMCPAuthBeginRecord, error) {
+	if s.beginSettingsMCPAuthFn != nil {
+		return s.beginSettingsMCPAuthFn(ctx, target, request)
+	}
+	return SettingsMCPAuthBeginRecord{}, errors.New("unexpected BeginSettingsMCPAuth call")
+}
+
+func (s *stubClient) ExchangeSettingsMCPAuth(
+	ctx context.Context,
+	target SettingsMCPAuthTarget,
+	request SettingsMCPAuthExchangeRequest,
+) (SettingsMCPAuthStatusRecord, error) {
+	if s.exchangeSettingsMCPAuthFn != nil {
+		return s.exchangeSettingsMCPAuthFn(ctx, target, request)
+	}
+	return SettingsMCPAuthStatusRecord{}, errors.New("unexpected ExchangeSettingsMCPAuth call")
+}
+
+func (s *stubClient) LogoutSettingsMCPAuth(
+	ctx context.Context,
+	target SettingsMCPAuthTarget,
+) (SettingsMCPAuthStatusRecord, error) {
+	if s.logoutSettingsMCPAuthFn != nil {
+		return s.logoutSettingsMCPAuthFn(ctx, target)
+	}
+	return SettingsMCPAuthStatusRecord{}, errors.New("unexpected LogoutSettingsMCPAuth call")
 }
 
 func (s *stubClient) InstallExtension(
@@ -1880,17 +1976,6 @@ func (s *stubClient) DisableSkill(ctx context.Context, name string, query SkillQ
 		return s.disableSkillFn(ctx, name, query)
 	}
 	return SkillActionRecord{}, errors.New("unexpected DisableSkill call")
-}
-
-func (s *stubClient) SearchSkillMarketplace(
-	ctx context.Context,
-	query string,
-	limit int,
-) ([]SkillMarketplaceRecord, error) {
-	if s.searchSkillMarketplaceFn != nil {
-		return s.searchSkillMarketplaceFn(ctx, query, limit)
-	}
-	return nil, errors.New("unexpected SearchSkillMarketplace call")
 }
 
 func (s *stubClient) InstallSkillMarketplace(

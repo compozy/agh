@@ -192,136 +192,126 @@ var (
 		"observability.transcripts.enabled":               configSetBool,
 		"observability.transcripts.segment_bytes":         configSetInt,
 		"observability.transcripts.max_bytes_per_session": configSetInt64,
-		"log.level":                                               configSetString,
-		"log.max_size_mb":                                         configSetInt,
-		"log.max_backups":                                         configSetInt,
-		"log.max_age_days":                                        configSetInt,
-		"log.compress_backups":                                    configSetBool,
-		"memory.enabled":                                          configSetBool,
-		"memory.global_dir":                                       configSetString,
-		"memory.controller.mode":                                  configSetString,
-		"memory.controller.max_latency":                           configSetDuration,
-		"memory.controller.default_op_on_fail":                    configSetString,
-		"memory.controller.llm.enabled":                           configSetBool,
-		"memory.controller.llm.model":                             configSetString,
-		"memory.controller.llm.top_k":                             configSetInt,
-		"memory.controller.llm.prompt_version":                    configSetString,
-		"memory.controller.llm.timeout":                           configSetDuration,
-		"memory.controller.llm.max_tokens_out":                    configSetInt,
-		"memory.controller.policy.max_content_chars":              configSetInt,
-		"memory.controller.policy.max_writes_per_min":             configSetInt,
-		"memory.controller.policy.allow_origins":                  configSetStringSlice,
-		"memory.recall.top_k":                                     configSetInt,
-		"memory.recall.raw_candidates":                            configSetInt,
-		"memory.recall.fusion":                                    configSetString,
-		"memory.recall.include_already_surfaced":                  configSetBool,
-		"memory.recall.include_system":                            configSetBool,
-		"memory.recall.weights.bm25_unicode":                      configSetFloat,
-		"memory.recall.weights.bm25_trigram":                      configSetFloat,
-		"memory.recall.weights.recency":                           configSetFloat,
-		"memory.recall.weights.recall_signal":                     configSetFloat,
-		"memory.recall.freshness.banner_after_days":               configSetInt,
-		"memory.recall.signals.queue_capacity":                    configSetInt,
-		"memory.recall.signals.worker_retry_max":                  configSetInt,
-		"memory.recall.signals.metrics_enabled":                   configSetBool,
-		"memory.decisions.prune_after_applied_days":               configSetInt,
-		"memory.decisions.keep_audit_summary":                     configSetBool,
-		"memory.decisions.max_post_content_bytes":                 configSetInt64,
-		"memory.extractor.enabled":                                configSetBool,
-		"memory.extractor.mode":                                   configSetString,
-		"memory.extractor.throttle_turns":                         configSetInt,
-		"memory.extractor.deadline":                               configSetDuration,
-		"memory.extractor.sandbox_inbox_only":                     configSetBool,
-		"memory.extractor.inbox_path":                             configSetString,
-		"memory.extractor.dlq_path":                               configSetString,
-		"memory.extractor.model":                                  configSetString,
-		"memory.extractor.queue.capacity":                         configSetInt,
-		"memory.extractor.queue.coalesce_max":                     configSetInt,
-		"memory.dream.enabled":                                    configSetBool,
-		"memory.dream.agent":                                      configSetString,
-		"memory.dream.min_hours":                                  configSetFloat,
-		"memory.dream.min_sessions":                               configSetInt,
-		"memory.dream.debounce":                                   configSetDuration,
-		"memory.dream.prompt_version":                             configSetString,
-		"memory.dream.check_interval":                             configSetDuration,
-		"memory.dream.gates.min_unpromoted":                       configSetInt,
-		"memory.dream.gates.min_recall_count":                     configSetInt,
-		"memory.dream.gates.min_score":                            configSetFloat,
-		"memory.dream.scoring.recency_half_life_days":             configSetInt,
-		"memory.dream.scoring.weights.frequency":                  configSetFloat,
-		"memory.dream.scoring.weights.relevance":                  configSetFloat,
-		"memory.dream.scoring.weights.recency":                    configSetFloat,
-		"memory.dream.scoring.weights.freshness":                  configSetFloat,
-		"memory.session.ledger_format":                            configSetString,
-		"memory.session.ledger_root":                              configSetString,
-		"memory.session.events_purge_grace":                       configSetDuration,
-		"memory.session.cold_archive_days":                        configSetInt,
-		"memory.session.hard_delete_days":                         configSetInt,
-		"memory.session.max_archive_bytes":                        configSetInt64,
-		"memory.session.unbound_partition":                        configSetString,
-		"memory.daily.max_bytes":                                  configSetInt64,
-		"memory.daily.max_lines":                                  configSetInt,
-		"memory.daily.rotate_format":                              configSetString,
-		"memory.daily.dreaming_window":                            configSetInt,
-		"memory.daily.cold_archive_days":                          configSetInt,
-		"memory.daily.hard_delete_days":                           configSetInt,
-		"memory.daily.max_archive_bytes":                          configSetInt64,
-		"memory.daily.sweep_hour":                                 configSetInt,
-		"memory.daily.archive_path":                               configSetString,
-		"memory.file.max_lines":                                   configSetInt,
-		"memory.file.max_bytes":                                   configSetInt64,
-		"memory.provider.name":                                    configSetString,
-		"memory.provider.timeout":                                 configSetDuration,
-		"memory.provider.failure_threshold":                       configSetInt,
-		"memory.provider.cooldown":                                configSetDuration,
-		"memory.workspace.auto_create":                            configSetBool,
-		"skills.enabled":                                          configSetBool,
-		"skills.disabled_skills":                                  configSetStringSlice,
-		"skills.poll_interval":                                    configSetDuration,
-		"skills.allowed_marketplace_mcp":                          configSetStringSlice,
-		"skills.allowed_marketplace_hooks":                        configSetStringSlice,
-		"skills.marketplace.registry":                             configSetString,
-		"skills.marketplace.base_url":                             configSetString,
-		"extensions.marketplace.registry":                         configSetString,
-		"extensions.marketplace.base_url":                         configSetString,
-		"extensions.resources.allowed_kinds":                      configSetStringSlice,
-		"extensions.resources.max_scope":                          configSetString,
-		"extensions.resources.snapshot_rate_limit.requests":       configSetInt,
-		"extensions.resources.snapshot_rate_limit.window":         configSetDuration,
-		"extensions.resources.snapshot_rate_limit.queue":          configSetInt,
-		"extensions.resources.operator_write_rate_limit.requests": configSetInt,
-		"extensions.resources.operator_write_rate_limit.window":   configSetDuration,
-		"extensions.resources.operator_write_rate_limit.queue":    configSetInt,
-		"model_catalog.sources.models_dev.enabled":                configSetBool,
-		"model_catalog.sources.models_dev.endpoint":               configSetString,
-		"model_catalog.sources.models_dev.ttl":                    configSetDuration,
-		"model_catalog.sources.models_dev.timeout":                configSetDuration,
-		"automation.enabled":                                      configSetBool,
-		"automation.timezone":                                     configSetString,
-		"automation.max_concurrent_jobs":                          configSetInt,
-		"agents.soul.enabled":                                     configSetBool,
-		"agents.soul.max_body_bytes":                              configSetInt64,
-		"agents.soul.context_projection_bytes":                    configSetInt64,
-		"agents.heartbeat.enabled":                                configSetBool,
-		"agents.heartbeat.max_body_bytes":                         configSetInt64,
-		"agents.heartbeat.context_projection_bytes":               configSetInt64,
-		"agents.heartbeat.min_interval":                           configSetDuration,
-		"agents.heartbeat.default_interval":                       configSetDuration,
-		"agents.heartbeat.wake_cooldown":                          configSetDuration,
-		"agents.heartbeat.max_wakes_per_cycle":                    configSetInt,
-		"agents.heartbeat.active_session_only":                    configSetBool,
-		"agents.heartbeat.allow_active_hours_preferences":         configSetBool,
-		"agents.heartbeat.wake_event_retention":                   configSetDuration,
-		"agents.heartbeat.session_health_stale_after":             configSetDuration,
-		"agents.heartbeat.session_health_hook_min_interval":       configSetDuration,
-		"network.enabled":                                         configSetBool,
-		"network.default_channel":                                 configSetString,
-		"network.port":                                            configSetInt,
-		"network.max_payload":                                     configSetInt,
-		"network.greet_interval":                                  configSetInt,
-		"network.max_replay_age":                                  configSetInt,
-		"network.max_queue_depth":                                 configSetInt,
-	}, loopAndGoalConfigSetPathKinds())
+		"log.level":                                         configSetString,
+		"log.max_size_mb":                                   configSetInt,
+		"log.max_backups":                                   configSetInt,
+		"log.max_age_days":                                  configSetInt,
+		"log.compress_backups":                              configSetBool,
+		"memory.enabled":                                    configSetBool,
+		"memory.global_dir":                                 configSetString,
+		"memory.controller.mode":                            configSetString,
+		"memory.controller.max_latency":                     configSetDuration,
+		"memory.controller.default_op_on_fail":              configSetString,
+		"memory.controller.llm.enabled":                     configSetBool,
+		"memory.controller.llm.model":                       configSetString,
+		"memory.controller.llm.top_k":                       configSetInt,
+		"memory.controller.llm.prompt_version":              configSetString,
+		"memory.controller.llm.timeout":                     configSetDuration,
+		"memory.controller.llm.max_tokens_out":              configSetInt,
+		"memory.controller.policy.max_content_chars":        configSetInt,
+		"memory.controller.policy.max_writes_per_min":       configSetInt,
+		"memory.controller.policy.allow_origins":            configSetStringSlice,
+		"memory.recall.top_k":                               configSetInt,
+		"memory.recall.raw_candidates":                      configSetInt,
+		"memory.recall.fusion":                              configSetString,
+		"memory.recall.include_already_surfaced":            configSetBool,
+		"memory.recall.include_system":                      configSetBool,
+		"memory.recall.weights.bm25_unicode":                configSetFloat,
+		"memory.recall.weights.bm25_trigram":                configSetFloat,
+		"memory.recall.weights.recency":                     configSetFloat,
+		"memory.recall.weights.recall_signal":               configSetFloat,
+		"memory.recall.freshness.banner_after_days":         configSetInt,
+		"memory.recall.signals.queue_capacity":              configSetInt,
+		"memory.recall.signals.worker_retry_max":            configSetInt,
+		"memory.recall.signals.metrics_enabled":             configSetBool,
+		"memory.decisions.prune_after_applied_days":         configSetInt,
+		"memory.decisions.keep_audit_summary":               configSetBool,
+		"memory.decisions.max_post_content_bytes":           configSetInt64,
+		"memory.extractor.enabled":                          configSetBool,
+		"memory.extractor.mode":                             configSetString,
+		"memory.extractor.throttle_turns":                   configSetInt,
+		"memory.extractor.deadline":                         configSetDuration,
+		"memory.extractor.sandbox_inbox_only":               configSetBool,
+		"memory.extractor.inbox_path":                       configSetString,
+		"memory.extractor.dlq_path":                         configSetString,
+		"memory.extractor.model":                            configSetString,
+		"memory.extractor.queue.capacity":                   configSetInt,
+		"memory.extractor.queue.coalesce_max":               configSetInt,
+		"memory.dream.enabled":                              configSetBool,
+		"memory.dream.agent":                                configSetString,
+		"memory.dream.min_hours":                            configSetFloat,
+		"memory.dream.min_sessions":                         configSetInt,
+		"memory.dream.debounce":                             configSetDuration,
+		"memory.dream.prompt_version":                       configSetString,
+		"memory.dream.check_interval":                       configSetDuration,
+		"memory.dream.gates.min_unpromoted":                 configSetInt,
+		"memory.dream.gates.min_recall_count":               configSetInt,
+		"memory.dream.gates.min_score":                      configSetFloat,
+		"memory.dream.scoring.recency_half_life_days":       configSetInt,
+		"memory.dream.scoring.weights.frequency":            configSetFloat,
+		"memory.dream.scoring.weights.relevance":            configSetFloat,
+		"memory.dream.scoring.weights.recency":              configSetFloat,
+		"memory.dream.scoring.weights.freshness":            configSetFloat,
+		"memory.session.ledger_format":                      configSetString,
+		"memory.session.ledger_root":                        configSetString,
+		"memory.session.events_purge_grace":                 configSetDuration,
+		"memory.session.cold_archive_days":                  configSetInt,
+		"memory.session.hard_delete_days":                   configSetInt,
+		"memory.session.max_archive_bytes":                  configSetInt64,
+		"memory.session.unbound_partition":                  configSetString,
+		"memory.daily.max_bytes":                            configSetInt64,
+		"memory.daily.max_lines":                            configSetInt,
+		"memory.daily.rotate_format":                        configSetString,
+		"memory.daily.dreaming_window":                      configSetInt,
+		"memory.daily.cold_archive_days":                    configSetInt,
+		"memory.daily.hard_delete_days":                     configSetInt,
+		"memory.daily.max_archive_bytes":                    configSetInt64,
+		"memory.daily.sweep_hour":                           configSetInt,
+		"memory.daily.archive_path":                         configSetString,
+		"memory.file.max_lines":                             configSetInt,
+		"memory.file.max_bytes":                             configSetInt64,
+		"memory.provider.name":                              configSetString,
+		"memory.provider.timeout":                           configSetDuration,
+		"memory.provider.failure_threshold":                 configSetInt,
+		"memory.provider.cooldown":                          configSetDuration,
+		"memory.workspace.auto_create":                      configSetBool,
+		"skills.enabled":                                    configSetBool,
+		"skills.disabled_skills":                            configSetStringSlice,
+		"skills.poll_interval":                              configSetDuration,
+		"skills.allowed_marketplace_mcp":                    configSetStringSlice,
+		"skills.allowed_marketplace_hooks":                  configSetStringSlice,
+		"skills.marketplace.registry":                       configSetString,
+		"skills.marketplace.base_url":                       configSetString,
+		"model_catalog.sources.models_dev.enabled":          configSetBool,
+		"model_catalog.sources.models_dev.endpoint":         configSetString,
+		"model_catalog.sources.models_dev.ttl":              configSetDuration,
+		"model_catalog.sources.models_dev.timeout":          configSetDuration,
+		"automation.enabled":                                configSetBool,
+		"automation.timezone":                               configSetString,
+		"automation.max_concurrent_jobs":                    configSetInt,
+		"agents.soul.enabled":                               configSetBool,
+		"agents.soul.max_body_bytes":                        configSetInt64,
+		"agents.soul.context_projection_bytes":              configSetInt64,
+		"agents.heartbeat.enabled":                          configSetBool,
+		"agents.heartbeat.max_body_bytes":                   configSetInt64,
+		"agents.heartbeat.context_projection_bytes":         configSetInt64,
+		"agents.heartbeat.min_interval":                     configSetDuration,
+		"agents.heartbeat.default_interval":                 configSetDuration,
+		"agents.heartbeat.wake_cooldown":                    configSetDuration,
+		"agents.heartbeat.max_wakes_per_cycle":              configSetInt,
+		"agents.heartbeat.active_session_only":              configSetBool,
+		"agents.heartbeat.allow_active_hours_preferences":   configSetBool,
+		"agents.heartbeat.wake_event_retention":             configSetDuration,
+		"agents.heartbeat.session_health_stale_after":       configSetDuration,
+		"agents.heartbeat.session_health_hook_min_interval": configSetDuration,
+		"network.enabled":                                   configSetBool,
+		"network.default_channel":                           configSetString,
+		"network.port":                                      configSetInt,
+		"network.max_payload":                               configSetInt,
+		"network.greet_interval":                            configSetInt,
+		"network.max_replay_age":                            configSetInt,
+		"network.max_queue_depth":                           configSetInt,
+	}, loopAndGoalConfigSetPathKinds(), extensionConfigSetPathKinds(), marketplaceConfigSetPathKinds())
 )
 
 func newConfigCommand(deps commandDeps) *cobra.Command {
@@ -449,22 +439,19 @@ func runConfigSetCommand(
 	if err != nil {
 		return err
 	}
-	if err := ensureWriteTargetParent(target); err != nil {
-		return err
-	}
 	path, kind, redacted, err := configMutationPath(args[0])
 	if err != nil {
 		return err
 	}
-	lifecycle, err := classifyConfigSetLifecycle(path)
-	if err != nil {
+	if err := prepareConfigMutationTarget(target, path); err != nil {
 		return err
 	}
+	lifecycle := classifyConfigSetLifecycle(path)
 	value, err := parseConfigSetValue(kind, args[1])
 	if err != nil {
 		return err
 	}
-	liveRecord, err := maybeApplyConfigSetViaDaemon(cmd.Context(), deps, homePaths, target, path, value, redacted)
+	liveRecord, err := maybeApplyConfigSetViaDaemon(cmd.Context(), deps, target, path, value, redacted)
 	if err != nil {
 		return err
 	}
@@ -477,7 +464,7 @@ func runConfigSetCommand(
 		return err
 	}
 	record := configSetRecordForLocalWrite(path, value, target, redacted, lifecycle)
-	reloadRecord, err := maybeReloadConfigAfterLocalWrite(cmd.Context(), deps, homePaths, target, record)
+	reloadRecord, err := maybeReloadConfigAfterLocalWrite(cmd.Context(), deps, target, record)
 	if err != nil {
 		return err
 	}
@@ -1118,7 +1105,6 @@ func flattenConfigValue(entries *[]configEntry, path string, value any, redacted
 func maybeApplyConfigSetViaDaemon(
 	ctx context.Context,
 	deps commandDeps,
-	homePaths aghconfig.HomePaths,
 	target aghconfig.WriteTarget,
 	path []string,
 	value any,
@@ -1128,9 +1114,9 @@ func maybeApplyConfigSetViaDaemon(
 		return nil, nil
 	}
 
-	_, running, err := daemonInfo(homePaths, deps)
+	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
-		return nil, fmt.Errorf("cli: inspect daemon state for config set: %w", err)
+		return nil, fmt.Errorf("cli: inspect daemon reachability for config set: %w", err)
 	}
 	if !running {
 		return nil, nil
@@ -1151,10 +1137,6 @@ func maybeApplyConfigSetViaDaemon(
 	}
 	cfg.Skills.DisabledSkills = append([]string(nil), disabledSkills...)
 
-	client, err := clientFromDeps(deps)
-	if err != nil {
-		return nil, fmt.Errorf("cli: create daemon client for config set: %w", err)
-	}
 	result, err := client.UpdateSettingsSkills(ctx, UpdateSettingsSkillsRequest{
 		Config: settingsSkillsPayloadFromConfig(cfg.Skills),
 	})
@@ -1186,23 +1168,18 @@ func maybeApplyConfigSetViaDaemon(
 func maybeReloadConfigAfterLocalWrite(
 	ctx context.Context,
 	deps commandDeps,
-	homePaths aghconfig.HomePaths,
 	target aghconfig.WriteTarget,
 	record configSetRecord,
 ) (*configSetRecord, error) {
 	if target.Scope() != aghconfig.WriteScopeGlobal {
 		return nil, nil
 	}
-	_, running, err := daemonInfo(homePaths, deps)
+	client, running, err := daemonClientIfRunning(ctx, deps)
 	if err != nil {
-		return nil, fmt.Errorf("cli: inspect daemon state for config reload: %w", err)
+		return nil, fmt.Errorf("cli: inspect daemon reachability for config reload: %w", err)
 	}
 	if !running {
 		return nil, nil
-	}
-	client, err := clientFromDeps(deps)
-	if err != nil {
-		return nil, fmt.Errorf("cli: create daemon client for config reload: %w", err)
 	}
 	result, err := client.ReloadSettings(ctx)
 	if err != nil {

@@ -572,6 +572,90 @@ func TestServiceCatalogPreviewListAndGetUseCanonicalResources(t *testing.T) {
 	}
 }
 
+func TestServiceActivationSpecDriftUsesContentHashAndClearsOnReapply(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose drift on list and get then clear it after update reapply", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
+		activated, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		})
+		if err != nil {
+			t.Fatalf("Activate() error = %v", err)
+		}
+		if activated.SpecDrift {
+			t.Fatal("Activate() SpecDrift = true, want false for a new activation")
+		}
+
+		storedBefore := store.activations[activated.Activation.ID]
+		store.bundles[0].Spec.Bundle.Profiles[0].Description = "Updated profile contract"
+
+		listed, err := service.ListActivations(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListActivations() error = %v", err)
+		}
+		if len(listed) != 1 || !listed[0].SpecDrift {
+			t.Fatalf("ListActivations() = %#v, want one drifted activation", listed)
+		}
+		loaded, err := service.GetActivation(testutil.Context(t), activated.Activation.ID)
+		if err != nil {
+			t.Fatalf("GetActivation() error = %v", err)
+		}
+		if !loaded.SpecDrift {
+			t.Fatal("GetActivation() SpecDrift = false, want true")
+		}
+
+		reapplied, err := service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
+			ID:                          activated.Activation.ID,
+			BindPrimaryChannelAsDefault: activated.Activation.BindPrimaryChannelAsDefault,
+		})
+		if err != nil {
+			t.Fatalf("UpdateActivation() error = %v", err)
+		}
+		if reapplied.SpecDrift {
+			t.Fatal("UpdateActivation() SpecDrift = true, want false after reapply")
+		}
+		storedAfter := store.activations[activated.Activation.ID]
+		if storedAfter.SpecContentHash == storedBefore.SpecContentHash {
+			t.Fatalf("UpdateActivation() SpecContentHash = %q, want refreshed hash", storedAfter.SpecContentHash)
+		}
+	})
+
+	t.Run("Should treat a missing stored hash as drift regardless of timestamps", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
+		activated, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		})
+		if err != nil {
+			t.Fatalf("Activate() error = %v", err)
+		}
+		stored := store.activations[activated.Activation.ID]
+		stored.SpecContentHash = ""
+		stored.UpdatedAt = time.Now().UTC().Add(24 * time.Hour)
+		store.activations[stored.ID] = stored
+
+		loaded, err := service.GetActivation(testutil.Context(t), stored.ID)
+		if err != nil {
+			t.Fatalf("GetActivation() error = %v", err)
+		}
+		if !loaded.SpecDrift {
+			t.Fatal("GetActivation() SpecDrift = false, want true for missing stored hash")
+		}
+	})
+}
+
 func TestServiceAgentValidation(t *testing.T) {
 	t.Parallel()
 

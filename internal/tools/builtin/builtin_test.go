@@ -185,7 +185,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDLoopConfigure,
 			toolspkg.ToolIDLoopApprove,
 			toolspkg.ToolIDLoopDelete,
-			toolspkg.ToolIDExtensionsSearch,
+			toolspkg.ToolIDMarketplaceSearch,
 			toolspkg.ToolIDExtensionsList,
 			toolspkg.ToolIDExtensionsInfo,
 			toolspkg.ToolIDExtensionsInstall,
@@ -776,7 +776,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			true,
 			false,
 		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsSearch], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMarketplaceSearch], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDExtensionsInfo], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(
@@ -1232,6 +1232,14 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(extensions, toolspkg.ToolIDExtensionsRemove) ||
 			slices.Contains(extensions, toolspkg.ToolID("agh__extensions_trust_root_set")) {
 			t.Fatalf("extensions toolset expansion = %#v, want bounded extension lifecycle tools", extensions)
+		}
+
+		marketplace, err := catalog.Expand(toolspkg.ToolsetIDMarketplace, universe)
+		if err != nil {
+			t.Fatalf("Expand(marketplace) error = %v", err)
+		}
+		if !slices.Equal(marketplace, []toolspkg.ToolID{toolspkg.ToolIDMarketplaceSearch}) {
+			t.Fatalf("marketplace toolset expansion = %#v, want marketplace search", marketplace)
 		}
 
 		bundles, err := catalog.Expand(toolspkg.ToolsetIDBundles, universe)

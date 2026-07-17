@@ -92,6 +92,42 @@ func TestRegistryMetadata(t *testing.T) {
 		if _, ok := Lookup("skills.shadow"); ok {
 			t.Fatal("Lookup(skills.shadow) = true, want false after hard cut")
 		}
+		catalogRefresh, ok := Lookup(MarketplaceCatalogRefresh)
+		if !ok {
+			t.Fatal("Lookup(MarketplaceCatalogRefresh) = false")
+		}
+		if catalogRefresh.Family != "marketplace.catalog" ||
+			catalogRefresh.Component != ComponentMarketplace ||
+			catalogRefresh.Outcome != OutcomeInfo || !catalogRefresh.GlobalScope {
+			t.Fatalf("MarketplaceCatalogRefresh metadata = %#v", catalogRefresh)
+		}
+		install, ok := Lookup(MarketplaceInstall)
+		if !ok {
+			t.Fatal("Lookup(MarketplaceInstall) = false")
+		}
+		if install.Family != "marketplace.install" ||
+			install.Component != ComponentMarketplace ||
+			install.Outcome != OutcomeInfo || !install.GlobalScope {
+			t.Fatalf("MarketplaceInstall metadata = %#v", install)
+		}
+		digestVerify, ok := Lookup(ExtensionDigestVerify)
+		if !ok {
+			t.Fatal("Lookup(ExtensionDigestVerify) = false")
+		}
+		if digestVerify.Family != "extension.digest" || digestVerify.Component != ComponentExtension ||
+			digestVerify.Outcome != OutcomeInfo || !digestVerify.GlobalScope {
+			t.Fatalf("ExtensionDigestVerify metadata = %#v", digestVerify)
+		}
+		for _, name := range []string{MCPAuthBegin, MCPAuthExchange, MCPAuthLogout} {
+			metadata, ok := Lookup(name)
+			if !ok {
+				t.Fatalf("Lookup(%q) = false", name)
+			}
+			if metadata.Family != "mcp.auth" || metadata.Component != ComponentMCP ||
+				metadata.Outcome != OutcomeInfo || !metadata.GlobalScope || metadata.NotificationEligible {
+				t.Fatalf("MCP auth metadata for %q = %#v", name, metadata)
+			}
+		}
 	})
 
 	t.Run("Should keep memory operation projections out of direct global writes", func(t *testing.T) {

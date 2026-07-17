@@ -127,7 +127,7 @@
           "path": {
             "type": "string",
             "minLength": 1,
-            "description": "Relative path under WORKSPACE_PATH/knowledge/."
+            "description": "Relative canonical path under WORKSPACE_PATH/knowledge/. global/ paths project into every agent workspace; other paths must be assigned by workspaces[].knowledge_files."
           },
           "content": { "type": "string", "minLength": 1 }
         }

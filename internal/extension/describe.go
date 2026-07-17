@@ -142,18 +142,20 @@ func extensionProvenancePayload(
 		return nil
 	}
 	return &contract.ExtensionProvenancePayload{
-		Slug:             value.Slug,
-		InstalledFrom:    value.InstalledFrom,
-		SourceURL:        value.SourceURL,
-		ChecksumSHA256:   value.ChecksumSHA256,
-		ChecksumVerified: value.ChecksumVerified,
-		RegistryTier:     value.RegistryTier,
-		Permissions:      append([]string(nil), value.Permissions...),
-		InstalledAt:      value.InstalledAt,
-		InstalledBy:      value.InstalledBy,
-		AllowUnverified:  value.AllowUnverified,
-		Warnings:         append([]contract.DiagnosticItem(nil), value.Warnings...),
-		Trust:            extensionTrustPayload(value),
+		Slug:                value.Slug,
+		CatalogEntryID:      value.CatalogEntryID,
+		InstalledFrom:       value.InstalledFrom,
+		SourceURL:           value.SourceURL,
+		ChecksumSHA256:      value.ChecksumSHA256,
+		ArchiveDigestSHA256: value.ArchiveDigestSHA256,
+		ChecksumVerified:    value.ChecksumVerified,
+		RegistryTier:        value.RegistryTier,
+		Permissions:         append([]string(nil), value.Permissions...),
+		InstalledAt:         value.InstalledAt,
+		InstalledBy:         value.InstalledBy,
+		AllowUnverified:     value.AllowUnverified,
+		Warnings:            append([]contract.DiagnosticItem(nil), value.Warnings...),
+		Trust:               extensionTrustPayload(value),
 	}
 }
 
@@ -172,9 +174,11 @@ func extensionTrustPayload(value ExtensionProvenance) *contract.ExtensionTrustRe
 
 func hasExtensionProvenance(value ExtensionProvenance) bool {
 	return value.Slug != "" ||
+		value.CatalogEntryID != "" ||
 		value.InstalledFrom != "" ||
 		value.SourceURL != "" ||
 		value.ChecksumSHA256 != "" ||
+		value.ArchiveDigestSHA256 != "" ||
 		value.RegistryTier != "" ||
 		!value.InstalledAt.IsZero() ||
 		value.InstalledBy != "" ||

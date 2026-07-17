@@ -33,5 +33,25 @@ describe("MonoId", () => {
     render(<MonoId value="RUN_ABC" copy />);
     fireEvent.click(screen.getByRole("button", { name: /copy/i }));
     expect(writeText).toHaveBeenCalledWith("run_abc");
+    // Settle the async copied-state update inside act (aria-label flips to copiedLabel).
+    await screen.findByRole("button", { name: /copied/i });
+  });
+
+  it("Should preserve casing in the rendered value when preserveCase is set", () => {
+    const ref = "vault:mcp/ws/ws-platform/github-local/env/QA_TYPED_TOKEN";
+    const { container } = render(<MonoId value={ref} preserveCase />);
+    const value = container.querySelector<HTMLElement>('[data-slot="mono-id-value"]');
+    expect(value?.textContent).toBe(ref);
+  });
+
+  it("Should copy the case-preserved value when preserveCase and copy are set", async () => {
+    const ref = "vault:mcp/ws/ws-platform/github-local/env/QA_TYPED_TOKEN";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<MonoId value={ref} preserveCase copy />);
+    fireEvent.click(screen.getByRole("button", { name: /copy/i }));
+    expect(writeText).toHaveBeenCalledWith(ref);
+    // Settle the async copied-state update inside act (aria-label flips to copiedLabel).
+    await screen.findByRole("button", { name: /copied/i });
   });
 });

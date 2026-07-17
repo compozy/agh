@@ -1185,8 +1185,8 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 	})
 }
 
-func TestBootTasksWiresSchedulerStarvationAgeToTaskManager(t *testing.T) {
-	t.Run("Should wire scheduler min queued age into task manager starvation status", func(t *testing.T) {
+func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
+	t.Run("Should count active convergence episodes and honor the configured resume grace", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -1272,8 +1272,52 @@ func TestBootTasksWiresSchedulerStarvationAgeToTaskManager(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SchedulerStatus(2h old) error = %v", err)
 		}
+		if status.StarvedRunCount != 0 {
+			t.Fatalf("StarvedRunCount for age-only 2h run = %d, want 0", status.StarvedRunCount)
+		}
+
+		starvationStore, ok := state.tasks.store.(interface {
+			UpsertRunStarvation(
+				context.Context,
+				taskpkg.RunStarvationMutation,
+			) (taskpkg.RunStarvation, error)
+		})
+		if !ok {
+			t.Fatal("task store does not expose durable starvation episodes")
+		}
+		now := time.Now().UTC()
+		if _, err := starvationStore.UpsertRunStarvation(ctx, taskpkg.RunStarvationMutation{
+			RunID:          runRecord.ID,
+			WakeCount:      1,
+			FirstStarvedAt: now,
+			LastWakeAt:     now,
+			UpdatedAt:      now,
+		}); err != nil {
+			t.Fatalf("UpsertRunStarvation() error = %v", err)
+		}
+		status, err = state.tasks.manager.SchedulerStatus(ctx, actor)
+		if err != nil {
+			t.Fatalf("SchedulerStatus(active episode) error = %v", err)
+		}
 		if status.StarvedRunCount != 1 {
-			t.Fatalf("StarvedRunCount for 2h old run = %d, want 1 with 1h min_queued_age", status.StarvedRunCount)
+			t.Fatalf("StarvedRunCount for active episode = %d, want 1", status.StarvedRunCount)
+		}
+
+		pauseStore, ok := state.tasks.store.(interface {
+			SetSchedulerResumed(context.Context) (taskpkg.SchedulerPauseState, error)
+		})
+		if !ok {
+			t.Fatal("task store does not expose scheduler resume state")
+		}
+		if _, err := pauseStore.SetSchedulerResumed(ctx); err != nil {
+			t.Fatalf("SetSchedulerResumed() error = %v", err)
+		}
+		status, err = state.tasks.manager.SchedulerStatus(ctx, actor)
+		if err != nil {
+			t.Fatalf("SchedulerStatus(resume grace) error = %v", err)
+		}
+		if status.StarvedRunCount != 0 {
+			t.Fatalf("StarvedRunCount during 1h resume grace = %d, want 0", status.StarvedRunCount)
 		}
 	})
 }

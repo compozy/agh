@@ -327,7 +327,10 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 	}
 
 	if _, err := extensionsConfigFromPayload(contract.SettingsExtensionsConfigPayload{
-		Marketplace: contract.SettingsMarketplacePayload{Registry: "github"},
+		Marketplace: contract.SettingsExtensionMarketplacePayload{
+			Registry:        "github",
+			AllowUnverified: true,
+		},
 		Resources: contract.SettingsExtensionResourcesPayload{
 			AllowedKinds: []string{string(resources.ResourceKind("tool"))},
 			MaxScope:     resources.ResourceScopeKindWorkspace,
@@ -379,6 +382,35 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		},
 	}); err != nil {
 		t.Fatalf("observabilityConfigFromPayload(valid) error = %v", err)
+	}
+}
+
+func TestExtensionsConfigFromPayload(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		allowedKinds []string
+	}{
+		{name: "Should preserve omitted allowed kinds as nil"},
+		{name: "Should normalize explicit empty allowed kinds as nil", allowedKinds: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config, err := extensionsConfigFromPayload(contract.SettingsExtensionsConfigPayload{
+				Resources: contract.SettingsExtensionResourcesPayload{
+					AllowedKinds: tt.allowedKinds,
+				},
+			})
+			if err != nil {
+				t.Fatalf("extensionsConfigFromPayload() error = %v", err)
+			}
+			if config.Resources.AllowedKinds != nil {
+				t.Fatalf("AllowedKinds = %#v, want nil", config.Resources.AllowedKinds)
+			}
+		})
 	}
 }
 

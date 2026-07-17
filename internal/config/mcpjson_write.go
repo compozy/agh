@@ -314,13 +314,15 @@ func (c *mcpJSONCollection) delete(name string) bool {
 
 func marshalMCPJSONServer(server MCPServer) (json.RawMessage, error) {
 	type writableMCPJSONServer struct {
-		Transport MCPServerTransport `json:"transport,omitempty"`
-		Command   string             `json:"command,omitempty"`
-		Args      []string           `json:"args,omitempty"`
-		Env       map[string]string  `json:"env,omitempty"`
-		SecretEnv map[string]string  `json:"secret_env,omitempty"`
-		URL       string             `json:"url,omitempty"`
-		Auth      *MCPAuthConfig     `json:"auth,omitempty"`
+		Transport      MCPServerTransport `json:"transport,omitempty"`
+		Command        string             `json:"command,omitempty"`
+		Args           []string           `json:"args,omitempty"`
+		Env            map[string]string  `json:"env,omitempty"`
+		SecretEnv      map[string]string  `json:"secret_env,omitempty"`
+		URL            string             `json:"url,omitempty"`
+		Auth           *MCPAuthConfig     `json:"auth,omitempty"`
+		CatalogEntry   string             `json:"catalog_entry,omitempty"`
+		CatalogVersion string             `json:"catalog_version,omitempty"`
 	}
 	var auth *MCPAuthConfig
 	normalizedAuth := normalizeMCPAuthConfig(server.Auth)
@@ -328,13 +330,15 @@ func marshalMCPJSONServer(server MCPServer) (json.RawMessage, error) {
 		auth = &normalizedAuth
 	}
 	payload, err := json.Marshal(writableMCPJSONServer{
-		Transport: MCPServerTransport(strings.TrimSpace(string(server.Transport))),
-		Command:   strings.TrimSpace(server.Command),
-		Args:      append([]string(nil), server.Args...),
-		Env:       mergeStringMaps(nil, server.Env),
-		SecretEnv: mergeStringMaps(nil, server.SecretEnv),
-		URL:       strings.TrimSpace(server.URL),
-		Auth:      auth,
+		Transport:      MCPServerTransport(strings.TrimSpace(string(server.Transport))),
+		Command:        strings.TrimSpace(server.Command),
+		Args:           append([]string(nil), server.Args...),
+		Env:            mergeStringMaps(nil, server.Env),
+		SecretEnv:      mergeStringMaps(nil, server.SecretEnv),
+		URL:            strings.TrimSpace(server.URL),
+		Auth:           auth,
+		CatalogEntry:   strings.TrimSpace(server.CatalogEntry),
+		CatalogVersion: strings.TrimSpace(server.CatalogVersion),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("config: encode MCP server %q: %w", server.Name, err)

@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 const metadataWellKnownPath = "/.well-known/oauth-authorization-server"
 const defaultMetadataClientTimeout = 10 * time.Second
 
-func discoverMetadata(ctx context.Context, client *http.Client, cfg ServerConfig) (Metadata, error) {
+func discoverMetadata(ctx context.Context, client *http.Client, cfg ServerConfig) (metadata Metadata, err error) {
 	if ctx == nil {
 		return Metadata{}, errors.New("mcp auth: metadata context is required")
 	}
@@ -57,14 +58,11 @@ func discoverMetadata(ctx context.Context, client *http.Client, cfg ServerConfig
 	if err != nil {
 		return Metadata{}, fmt.Errorf("mcp auth: fetch OAuth metadata: %w", err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer func() { err = errors.Join(err, drainAndCloseResponseBody(resp.Body)) }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return Metadata{}, fmt.Errorf("mcp auth: fetch OAuth metadata: HTTP %d", resp.StatusCode)
 	}
 
-	var metadata Metadata
 	decoder := json.NewDecoder(resp.Body)
 	if err := decoder.Decode(&metadata); err != nil {
 		return Metadata{}, fmt.Errorf("mcp auth: decode OAuth metadata: %w", err)
@@ -132,28 +130,8 @@ func (m Metadata) Validate() error {
 }
 
 func validateAbsoluteHTTPURL(label string, raw string) error {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return fmt.Errorf("mcp auth: %s must be an absolute URL", label)
+	if err := aghconfig.ValidateMCPOAuthURL(label, raw); err != nil {
+		return fmt.Errorf("mcp auth: %w", err)
 	}
-	switch parsed.Scheme {
-	case "https":
-		return nil
-	case "http":
-		if mcpAuthLoopbackHost(parsed.Hostname()) {
-			return nil
-		}
-		return fmt.Errorf("mcp auth: %s must use https unless host is loopback", label)
-	default:
-		return fmt.Errorf("mcp auth: %s must use https", label)
-	}
-}
-
-func mcpAuthLoopbackHost(host string) bool {
-	normalized := strings.Trim(strings.TrimSpace(host), "[]")
-	if strings.EqualFold(normalized, "localhost") {
-		return true
-	}
-	ip := net.ParseIP(normalized)
-	return ip != nil && ip.IsLoopback()
+	return nil
 }

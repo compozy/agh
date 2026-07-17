@@ -73,7 +73,7 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
     return (
       <Link
         aria-label={`${ariaLabel} · Loop run ${run.loop_run_id}`}
-        className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-line-strong"
+        className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:shadow-focus-inset"
         data-testid={testId}
         params={{ runId: run.loop_run_id }}
         to="/loop-runs/$runId"
@@ -94,7 +94,7 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
     return (
       <Link
         aria-label={ariaLabel}
-        className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-line-strong"
+        className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:shadow-focus-inset"
         data-testid={testId}
         params={{ id: run.session_id }}
         to="/session/$id"

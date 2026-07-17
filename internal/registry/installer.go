@@ -333,40 +333,9 @@ func (i *Installer) downloadInstallArchive(
 	if err := validateDownloadContentType(download.ContentType); err != nil {
 		return nil, err
 	}
+	download.expectedSHA256 = strings.TrimSpace(opts.ExpectedSHA256)
 	readerOwned = false
 	return download, nil
-}
-
-func (i *Installer) installDownloadedPackage(
-	download *DownloadResult,
-	trimmedSlug string,
-	tempRoot string,
-	absTarget string,
-) (*InstallResult, error) {
-	extractRoot := filepath.Join(tempRoot, "extract")
-	if err := os.MkdirAll(extractRoot, 0o755); err != nil {
-		return nil, fmt.Errorf("registry: create extraction root %q: %w", extractRoot, err)
-	}
-
-	packageRoot, metadata, err := i.extractInstallPackage(download.Reader, extractRoot)
-	if err != nil {
-		return nil, err
-	}
-	checksum, err := computeInstallChecksum(packageRoot)
-	if err != nil {
-		return nil, err
-	}
-	if err := MoveInstalledDir(packageRoot, absTarget, true); err != nil {
-		return nil, err
-	}
-
-	return &InstallResult{
-		Slug:        firstNonEmpty(download.Slug, trimmedSlug),
-		Name:        metadata.name,
-		Version:     firstNonEmpty(download.Version, metadata.version),
-		InstallPath: absTarget,
-		Checksum:    checksum,
-	}, nil
 }
 
 func (i *Installer) extractInstallPackage(

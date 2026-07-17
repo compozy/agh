@@ -34,7 +34,7 @@ function getStateElementState(child: React.ReactElement): DataSurfaceState | und
   return undefined;
 }
 
-function DataSurface({ state, children, className, ...props }: DataSurfaceProps) {
+function DataSurfaceRoot({ state, children, className, ...props }: DataSurfaceProps) {
   const selectedChild = React.Children.toArray(children).find(
     child => isStateElement(child) && getStateElementState(child) === state
   );
@@ -74,20 +74,14 @@ function DataSurfaceContent({ className, ...props }: DataSurfaceContentProps) {
   );
 }
 
-const DataSurfaceCompound = Object.assign(DataSurface, {
+const DataSurface = Object.assign(DataSurfaceRoot, {
   Loading: DataSurfaceLoading,
   Empty: DataSurfaceEmpty,
   Error: DataSurfaceError,
   Content: DataSurfaceContent,
 });
 
-export {
-  DataSurfaceCompound as DataSurface,
-  DataSurfaceLoading,
-  DataSurfaceEmpty,
-  DataSurfaceError,
-  DataSurfaceContent,
-};
+export { DataSurface, DataSurfaceLoading, DataSurfaceEmpty, DataSurfaceError, DataSurfaceContent };
 export type {
   DataSurfaceContentProps,
   DataSurfaceEmptyProps,

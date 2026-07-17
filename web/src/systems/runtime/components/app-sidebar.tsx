@@ -10,9 +10,11 @@ import {
   ListChecks,
   Network,
   Plus,
+  Puzzle,
   Repeat2,
   Server,
   Settings,
+  Store,
   Users2,
   Waypoints,
   Wrench,
@@ -262,15 +264,17 @@ const OPERATE_NAV_ITEMS: NavItemProps[] = [
 ];
 
 const CATALOG_NAV_ITEMS: NavItemProps[] = [
-  { to: "/knowledge", icon: Book, label: "Knowledge" },
-  { to: "/skills", icon: Wrench, label: "Skills" },
+  { to: "/marketplace", icon: Store, label: "Marketplace", fuzzy: true },
+  { to: "/extensions", icon: Puzzle, label: "Extensions", fuzzy: true },
   { to: "/bridges", icon: Waypoints, label: "Bridges" },
+  { to: "/skills", icon: Wrench, label: "Skills" },
+  { to: "/mcp", icon: Server, label: "MCP" },
+  { to: "/knowledge", icon: Book, label: "Knowledge" },
 ];
 
 const SYSTEM_NAV_ITEMS: NavItemProps[] = [
   { to: "/sandbox", icon: Boxes, label: "Sandbox" },
   { to: "/vault", icon: KeyRound, label: "Vault" },
-  { to: "/mcp", icon: Server, label: "MCP" },
   { to: "/settings", icon: Settings, label: "Settings", fuzzy: true },
 ];
 

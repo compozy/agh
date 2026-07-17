@@ -303,14 +303,14 @@ type AgentDiagnosticPayload struct {
 
 // AgentMCPServerJSON is the shared MCP server response payload.
 type AgentMCPServerJSON struct {
-	Name      string                        `json:"name"`
-	Transport string                        `json:"transport,omitempty"`
-	Command   string                        `json:"command,omitempty"`
-	Args      []string                      `json:"args,omitempty"`
-	Env       map[string]string             `json:"env,omitempty"`
-	SecretEnv map[string]string             `json:"secret_env,omitempty"`
-	URL       string                        `json:"url,omitempty"`
-	Auth      *SettingsMCPAuthConfigPayload `json:"auth,omitempty"`
+	Name      string                            `json:"name"`
+	Transport string                            `json:"transport,omitempty"`
+	Command   string                            `json:"command,omitempty"`
+	Args      []string                          `json:"args,omitempty"`
+	Env       map[string]string                 `json:"env,omitempty"`
+	SecretEnv map[string]string                 `json:"secret_env,omitempty"`
+	URL       string                            `json:"url,omitempty"`
+	Auth      *SettingsMCPAuthConfigViewPayload `json:"auth,omitempty"`
 }
 
 // AgentEventPayload is the shared raw agent-event streaming payload.
@@ -1002,96 +1002,6 @@ type NetworkPeerDetailPayload struct {
 	Metrics            NetworkPeerMetricsPayload        `json:"metrics"`
 }
 
-// InstallExtensionRequest is the shared extension install request payload.
-type InstallExtensionRequest struct {
-	Path            string `json:"path,omitempty"`
-	Checksum        string `json:"checksum,omitempty"`
-	Slug            string `json:"slug,omitempty"`
-	Version         string `json:"version,omitempty"`
-	Source          string `json:"source,omitempty"`
-	Asset           string `json:"asset,omitempty"`
-	AllowUnverified bool   `json:"allow_unverified,omitempty"`
-}
-
-// UpdateExtensionRequest is the shared marketplace extension update payload.
-type UpdateExtensionRequest struct {
-	Version         string `json:"version,omitempty"`
-	CheckOnly       bool   `json:"check_only,omitempty"`
-	AllowUnverified bool   `json:"allow_unverified,omitempty"`
-}
-
-// ExtensionTrustReportPayload records the trust decision for an installed or
-// marketplace extension.
-type ExtensionTrustReportPayload struct {
-	Decision         string           `json:"decision"`
-	RegistryTier     string           `json:"registry_tier"`
-	ChecksumVerified bool             `json:"checksum_verified"`
-	AllowUnverified  bool             `json:"allow_unverified"`
-	Warnings         []DiagnosticItem `json:"warnings,omitempty"`
-}
-
-// ExtensionProvenancePayload is the persisted source and trust record for one
-// installed extension.
-type ExtensionProvenancePayload struct {
-	Slug             string                       `json:"slug,omitempty"`
-	InstalledFrom    string                       `json:"installed_from"`
-	SourceURL        string                       `json:"source_url,omitempty"`
-	ChecksumSHA256   string                       `json:"checksum_sha256"`
-	ChecksumVerified bool                         `json:"checksum_verified"`
-	RegistryTier     string                       `json:"registry_tier"`
-	Permissions      []string                     `json:"permissions,omitempty"`
-	InstalledAt      time.Time                    `json:"installed_at"`
-	InstalledBy      string                       `json:"installed_by"`
-	AllowUnverified  bool                         `json:"allow_unverified"`
-	Warnings         []DiagnosticItem             `json:"warnings,omitempty"`
-	Trust            *ExtensionTrustReportPayload `json:"trust,omitempty"`
-}
-
-// ExtensionMarketplaceEntry is one daemon-owned extension marketplace result.
-type ExtensionMarketplaceEntry struct {
-	Slug        string                       `json:"slug"`
-	Name        string                       `json:"name"`
-	Description string                       `json:"description,omitempty"`
-	Author      string                       `json:"author,omitempty"`
-	Version     string                       `json:"version,omitempty"`
-	Downloads   int                          `json:"downloads,omitempty"`
-	Source      string                       `json:"source"`
-	Type        string                       `json:"type"`
-	Trust       *ExtensionTrustReportPayload `json:"trust,omitempty"`
-}
-
-// ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
-type ExtensionPayload struct {
-	Name          string                          `json:"name"`
-	Version       string                          `json:"version"`
-	Type          string                          `json:"type"`
-	Source        string                          `json:"source"`
-	Enabled       bool                            `json:"enabled"`
-	State         string                          `json:"state"`
-	Capabilities  []string                        `json:"capabilities,omitempty"`
-	Actions       []string                        `json:"actions,omitempty"`
-	RequiresEnv   []string                        `json:"requires_env,omitempty"`
-	MissingEnv    []string                        `json:"missing_env,omitempty"`
-	PID           int                             `json:"pid,omitempty"`
-	UptimeSeconds int64                           `json:"uptime_seconds,omitempty"`
-	Health        string                          `json:"health,omitempty"`
-	HealthMessage string                          `json:"health_message,omitempty"`
-	LastError     string                          `json:"last_error,omitempty"`
-	DaemonRunning bool                            `json:"daemon_running"`
-	Bundles       []ExtensionBundleSummaryPayload `json:"bundles,omitempty"`
-	Provenance    *ExtensionProvenancePayload     `json:"provenance,omitempty"`
-	Trust         *ExtensionTrustReportPayload    `json:"trust,omitempty"`
-	Diagnostics   []DiagnosticItem                `json:"diagnostics,omitempty"`
-}
-
-// ExtensionBundleSummaryPayload captures the installed bundle catalog surfaced
-// alongside extension status.
-type ExtensionBundleSummaryPayload struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Profiles    []string `json:"profiles,omitempty"`
-}
-
 // ErrorPayload is the shared error response payload.
 type ErrorPayload struct {
 	Error      string          `json:"error"`
@@ -1283,34 +1193,6 @@ type SkillPayload struct {
 	Metadata    map[string]any           `json:"metadata,omitempty"`
 	Provenance  *ProvenancePayload       `json:"provenance,omitempty"`
 	Diagnostics []SkillDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// SkillMarketplaceListingPayload is one remote marketplace skill search result.
-type SkillMarketplaceListingPayload struct {
-	Slug        string `json:"slug"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Author      string `json:"author"`
-	Version     string `json:"version,omitempty"`
-	Downloads   int    `json:"downloads"`
-	Source      string `json:"source"`
-}
-
-// SkillMarketplaceDetailPayload is the full remote marketplace metadata for one skill.
-type SkillMarketplaceDetailPayload struct {
-	Slug        string   `json:"slug"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Author      string   `json:"author"`
-	Version     string   `json:"version,omitempty"`
-	Downloads   int      `json:"downloads"`
-	Source      string   `json:"source"`
-	Readme      string   `json:"readme,omitempty"`
-	MCPServers  []string `json:"mcp_servers,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	License     string   `json:"license,omitempty"`
-	Repository  string   `json:"repository,omitempty"`
-	Versions    []string `json:"versions,omitempty"`
 }
 
 // SkillMarketplaceInstallRequest installs one remote marketplace skill.

@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "mcp-management.html",
+  "entry": "mcp-management.html",
+  "renderer": "html",
+  "status": "canonical",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-14T22:30:00.000Z",
+  "updatedAt": "2026-07-14T22:30:00.000Z",
+  "metadata": {
+    "inferred": false,
+    "reconciled": true,
+    "normativeFor": "Task 08 Web /mcp management parity",
+    "register": "product",
+    "scene": "A technical operator repairs a remote MCP server in the running AGH runtime.",
+    "dials": {
+      "visualVariance": 4,
+      "motionIntensity": 3,
+      "informationDensity": 7
+    },
+    "routeContract": "/mcp?scope=workspace|global&server=<name>",
+    "querySchema": {
+      "scope": ["workspace", "global"],
+      "server": "exact configured server name",
+      "state": [
+        "matrix",
+        "authorize",
+        "manual",
+        "auth-failure",
+        "authenticated",
+        "editor-stdio",
+        "editor-http",
+        "editor-sse",
+        "loading",
+        "empty",
+        "error"
+      ]
+    },
+    "publicStateVocabulary": {
+      "auth": ["unconfigured", "needs_login", "authenticated", "expired", "invalid"],
+      "runtime": ["ready", "config_error", "auth_required", "auth_expired", "auth_invalid", "auth_refresh_failed", "permission_denied", "runtime_unavailable"],
+      "probe": ["skipped", "succeeded", "failed"]
+    },
+    "invariants": [
+      "Configured, authorization, runtime, and probe signals remain independent.",
+      "OAuth success is rendered only for authenticated with token_present.",
+      "The live auth/begin authorization_url remains visible and copyable while waiting or completing manually.",
+      "Failed authorization preserves and displays the prior public status.",
+      "Remote transports omit command, args, env, and secret_env; stdio omits URL and OAuth.",
+      "Remote OAuth is optional; its metadata triad and credentials render only when OAuth is selected.",
+      "Secret values are never rendered; a typed write-only value creates its computed canonical Vault ref, while Use Vault selects an existing ref only.",
+      "Tool count renders only with a succeeded probe.",
+      "No probe or Test control is specified by this artifact."
+    ],
+    "dataOdInventory": [
+      "mcp-management-shell",
+      "mcp-management-topbar",
+      "mcp-management-scope",
+      "mcp-management-page",
+      "mcp-management-content",
+      "mcp-selected-server",
+      "mcp-status-matrix",
+      "mcp-row-<server-name>",
+      "mcp-loading",
+      "mcp-empty",
+      "mcp-error",
+      "mcp-authorize-scrim",
+      "mcp-authorize-dialog",
+      "mcp-authorization-url",
+      "mcp-manual-completion",
+      "mcp-auth-snapshot",
+      "mcp-editor-scrim",
+      "mcp-stdio-editor",
+      "mcp-stdio-args",
+      "mcp-stdio-env",
+      "mcp-stdio-secret-bindings",
+      "mcp-http-editor",
+      "mcp-sse-editor",
+      "mcp-remote-oauth",
+      "mcp-remote-oauth-fields",
+      "mcp-remote-oauth-none"
+    ],
+    "captureQueries": [
+      {"id":"matrix-desktop","viewport":"1440x900","query":"?state=matrix&scope=workspace"},
+      {"id":"selected-needs-login-desktop","viewport":"1440x900","query":"?scope=workspace&server=linear"},
+      {"id":"authorize-waiting-desktop","viewport":"1440x900","query":"?state=authorize&scope=workspace&server=linear"},
+      {"id":"authorize-manual-desktop","viewport":"1440x900","query":"?state=manual&scope=workspace&server=linear"},
+      {"id":"auth-failure-desktop","viewport":"1440x900","query":"?state=auth-failure&scope=workspace&server=linear"},
+      {"id":"authenticated-token-desktop","viewport":"1440x900","query":"?state=authenticated&scope=workspace&server=linear"},
+      {"id":"editor-stdio-desktop","viewport":"1440x900","query":"?state=editor-stdio&scope=workspace&server=github-local"},
+      {"id":"editor-http-desktop","viewport":"1440x900","query":"?state=editor-http&scope=workspace&server=linear"},
+      {"id":"editor-sse-desktop","viewport":"1440x900","query":"?state=editor-sse&scope=workspace&server=sentry"},
+      {"id":"loading-desktop","viewport":"1440x900","query":"?state=loading&scope=workspace"},
+      {"id":"empty-desktop","viewport":"1440x900","query":"?state=empty&scope=global"},
+      {"id":"error-desktop","viewport":"1440x900","query":"?state=error&scope=workspace"},
+      {"id":"matrix-mobile","viewport":"320x800","query":"?state=matrix&scope=workspace&server=linear"},
+      {"id":"authorize-mobile","viewport":"320x800","query":"?state=authorize&scope=workspace&server=linear"},
+      {"id":"remote-editor-mobile","viewport":"320x800","query":"?state=editor-http&scope=workspace&server=linear"}
+    ]
+  }
+}

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghdaemon "github.com/compozy/agh/internal/daemon"
@@ -17,26 +18,30 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 
 	called := false
 	deps, _ := newExtensionLocalDeps(t, &stubClient{
-		searchExtensionMarketplaceFn: func(
+		browseMarketplaceFn: func(
 			_ context.Context,
+			kind string,
 			query string,
-			source string,
 			limit int,
-		) ([]ExtensionMarketplaceRecord, error) {
+			scope MarketplaceReadScope,
+		) (MarketplaceKindRecord, error) {
 			called = true
-			if query != "bridge" || source != "registry" || limit != 7 {
-				t.Fatalf("SearchExtensionMarketplace(%q, %q, %d), want bridge registry 7", query, source, limit)
+			if kind != "extension" || query != "bridge" || limit != 7 {
+				t.Fatalf("BrowseMarketplace(%q, %q, %d), want extension bridge 7", kind, query, limit)
 			}
-			return []ExtensionMarketplaceRecord{{
-				Slug:        "acme/bridge-ext",
+			if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
+				t.Fatalf("Marketplace read scope = %#v, want global", scope)
+			}
+			return MarketplaceKindRecord{Kind: "extension", Items: []MarketplaceListingRecord{{
+				Kind:        "extension",
+				EntryID:     "bridge-ext",
 				Name:        "bridge-ext",
 				Description: "Bridge extension",
 				Author:      "acme",
 				Version:     "1.0.0",
-				Downloads:   42,
+				InstallSlug: "acme/bridge-ext",
 				Source:      "registry",
-				Type:        "extension",
-			}}, nil
+			}}}, nil
 		},
 	})
 	markExtensionDaemonRunning(&deps)
@@ -47,8 +52,6 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 		"extension",
 		"search",
 		"bridge",
-		"--from",
-		"registry",
 		"--limit",
 		"7",
 		"-o",
@@ -58,9 +61,9 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 		t.Fatalf("extension search error = %v", err)
 	}
 	if !called {
-		t.Fatal("SearchExtensionMarketplace was not called")
+		t.Fatal("BrowseMarketplace was not called")
 	}
-	var payload []ExtensionMarketplaceRecord
+	var payload []marketplaceExtensionSearchItem
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 		t.Fatalf("json.Unmarshal(search) error = %v; stdout=%s", err, stdout)
 	}
@@ -137,6 +140,47 @@ func TestExtensionInstallCommandUsesDaemonForMarketplaceInstalls(t *testing.T) {
 	}
 }
 
+func TestExtensionInstallUsesReachableDaemonWhenProcessTimestampMetadataLags(t *testing.T) {
+	t.Parallel()
+
+	installCalled := false
+	deps, _ := newExtensionLocalDeps(t, &stubClient{
+		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+			return DaemonStatus{Status: "running", PID: 999}, nil
+		},
+		installExtensionFn: func(_ context.Context, request InstallExtensionRequest) (ExtensionRecord, error) {
+			installCalled = true
+			return ExtensionRecord{
+				Name:          "late-boot-ext",
+				Version:       request.Version,
+				Source:        extensionpkg.SourceMarketplace.String(),
+				State:         "active",
+				DaemonRunning: true,
+			}, nil
+		},
+	})
+	markExtensionDaemonRunning(&deps)
+	deps.processMatchesStartTime = func(int, time.Time) bool { return false }
+
+	_, _, err := executeRootCommand(
+		t,
+		deps,
+		"extension",
+		"install",
+		"acme/late-boot-ext",
+		"--version",
+		"1.0.0",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("extension install marketplace error = %v", err)
+	}
+	if !installCalled {
+		t.Fatal("InstallExtension was not called through the reachable daemon")
+	}
+}
+
 func TestExtensionMarketplaceInstallRequiresDaemon(t *testing.T) {
 	t.Parallel()
 
@@ -210,6 +254,9 @@ func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 				LatestVersion:  "1.2.0",
 				Path:           "/tmp/" + name,
 				Status:         extensionpkg.MarketplaceUpdateStatusUpdated,
+				Warnings: []contract.DiagnosticItem{{
+					Code: contract.CodeExtensionUpdateCleanupFailed,
+				}},
 			}, nil
 		},
 	})
@@ -244,6 +291,16 @@ func TestExtensionUpdateCommandUsesDaemonClient(t *testing.T) {
 	}
 	if len(payload) != 1 || payload[0].Status != extensionpkg.MarketplaceUpdateStatusUpdated {
 		t.Fatalf("update payload = %#v, want updated", payload)
+	}
+	if len(payload[0].Warnings) != 1 || payload[0].Warnings[0].Code != contract.CodeExtensionUpdateCleanupFailed {
+		t.Fatalf("update payload warnings = %#v, want cleanup warning", payload[0].Warnings)
+	}
+	humanOut, _, err := executeRootCommand(t, deps, "extension", "update", "update-ext")
+	if err != nil {
+		t.Fatalf("extension update human output error = %v", err)
+	}
+	if !strings.Contains(humanOut, contract.CodeExtensionUpdateCleanupFailed) {
+		t.Fatalf("extension update human output = %q, want cleanup warning code", humanOut)
 	}
 }
 

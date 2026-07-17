@@ -50,6 +50,7 @@ type BaseHandlerConfig struct {
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync
 	ModelCatalog                 ModelCatalogService
+	MarketplaceCatalog           MarketplaceCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
@@ -65,6 +66,7 @@ type BaseHandlerConfig struct {
 	SkillsRegistry               SkillsRegistry
 	SkillResources               SkillResourceSyncer
 	SkillMarketplace             SkillMarketplaceService
+	InstalledSkillMarketplace    InstalledSkillMarketplaceService
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
@@ -115,6 +117,7 @@ type BaseHandlers struct {
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync
 	ModelCatalog                 ModelCatalogService
+	MarketplaceCatalog           MarketplaceCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
@@ -130,6 +133,7 @@ type BaseHandlers struct {
 	SkillsRegistry               SkillsRegistry
 	SkillResources               SkillResourceSyncer
 	SkillMarketplace             SkillMarketplaceService
+	InstalledSkillMarketplace    InstalledSkillMarketplaceService
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
@@ -189,6 +193,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		AgentCatalog:                 cfg.AgentCatalog,
 		AgentDefinitionSync:          cfg.AgentDefinitionSync,
 		ModelCatalog:                 cfg.ModelCatalog,
+		MarketplaceCatalog:           cfg.MarketplaceCatalog,
 		ProviderAuthRunner:           defaults.providerAuthRunner,
 		AgentContextService:          cfg.AgentContextService,
 		SoulHistoryPurger:            cfg.SoulHistoryPurger,
@@ -197,6 +202,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		SkillsRegistry:               cfg.SkillsRegistry,
 		SkillResources:               cfg.SkillResources,
 		SkillMarketplace:             cfg.SkillMarketplace,
+		InstalledSkillMarketplace:    cfg.InstalledSkillMarketplace,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		MemoryStore:                  cfg.MemoryStore,
 		DreamTrigger:                 cfg.DreamTrigger,

@@ -30,7 +30,7 @@ func TestOpenLocalGlobalDatabaseMigrationErrors(t *testing.T) {
 			t.Fatalf("EvalSymlinks(legacy database) error = %v", err)
 		}
 
-		for _, surface := range []string{"provider auth", "extension", "MCP auth"} {
+		for _, surface := range []string{"provider auth", "extension"} {
 			t.Run("Should return "+surface+" refusal", func(t *testing.T) {
 				t.Parallel()
 
@@ -106,7 +106,6 @@ func TestExecuteContextLocalDatabaseMigrationErrors(t *testing.T) {
 			prepareConfig: true,
 		},
 		{name: "extension", args: []string{"extension", "list", "-o", "json"}, surface: "extension"},
-		{name: "MCP auth", args: []string{"mcp", "auth", "status", "-o", "json"}, surface: "MCP auth"},
 	}
 	states := []struct {
 		name string

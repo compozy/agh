@@ -60,7 +60,7 @@ func bridgeCatalogOperations() []OperationSpec {
 			Parameters: []ParameterSpec{
 				queryParam("bridge_ids", "Comma-separated bridge ids from the current catalog page; maximum 200", true),
 				enumQueryParam(
-					"scope",
+					specScopeKey,
 					"Filter by bridge scope",
 					[]string{specAllKey, specGlobalKey, specWorkspaceKey},
 				),

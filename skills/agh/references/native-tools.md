@@ -9,7 +9,7 @@
 - Network tools
 - Task and autonomy tools
 - Loop tools
-- Config, hooks, automation, extensions, bundles, resources, and MCP tools
+- Config, hooks, automation, marketplace, extensions, bundles, resources, and MCP tools
 - Observability and bridge tools
 - CLI/HTTP-only management surfaces
 - Descriptor discipline
@@ -50,6 +50,8 @@ Workspace tools: `agh__workspace_list`, `agh__workspace_info`, `agh__workspace_d
 Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `agh__workspace_list` should return at least that workspace on a clean install.
 
 A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `agh__workspace_list`, `agh workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
+
+Workspace unregister is atomic with credential cleanup: it removes workspace-scoped MCP OAuth rows and their encrypted access/refresh values, preserves global and sibling-workspace credentials, and leaves all state intact when cleanup fails.
 
 The managed `onboarding` agent is internal to first-run setup and is not granted the full workspace or coordination toolsets. It receives only `agh__workspace_list`, `agh__workspace_describe`, `agh__network_channels`, `agh__network_channel_create`, and `agh__agent_create`.
 
@@ -93,15 +95,29 @@ Toolset `agh__loops` (16 tools):
 No `agh__loop_edit`. See references/loops.md for publishing, approval/self-approval, and Goal report
 binding semantics.
 
-## Config, Hooks, Automation, Extensions, Bundles, Resources, And MCP Tools
+## Config, Hooks, Automation, Marketplace, Extensions, Bundles, Resources, And MCP Tools
 
 Config tools live under `agh__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `agh__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
-Automation job/trigger catalogs are available through CLI, HTTP/UDS, and `agh__automation_jobs_list` / `agh__automation_triggers_list`. They return counted cursor pages and support scope/workspace, source, enabled, Loop-target, search, and trigger-event filters. Run/history reads remain separate uncounted `runs` collections; bound them explicitly. Other automation tools under `agh__automation_*` cover detail, mutation, enable/disable, and manual trigger. Extension tools live under `agh__extensions_*` for search/list/info/install/update/remove/enable/disable.
+Automation job/trigger catalogs are available through CLI, HTTP/UDS, and `agh__automation_jobs_list` / `agh__automation_triggers_list`. They return counted cursor pages and support scope/workspace, source, enabled, Loop-target, search, and trigger-event filters. Run/history reads remain separate uncounted `runs` collections; bound them explicitly. Other automation tools under `agh__automation_*` cover detail, mutation, enable/disable, and manual trigger.
+
+Marketplace discovery has its own `agh__marketplace` toolset with `agh__marketplace_search` for MCP,
+extension, skill, and bundle rows. Its installed-state projection uses the caller's exact workspace;
+never reuse a result across workspace scopes. Extension lifecycle tools remain under `agh__extensions_*` for
+list/info/install/update/remove/enable/disable; there is no extension-specific native search tool.
+When `agh__extensions_update` with `all=true` stops on a later target, its error identifies the failed
+extension and completed count, and every earlier committed update retains an `extension.updated`
+event. Inspect those events before retrying the failed remainder.
+Successful update results may also contain `extension_update_cleanup_failed`; this is cleanup debt,
+not an activation failure, and the active version remains the reported latest version.
+Successful `agh__extensions_remove` results may similarly contain `extension_remove_cleanup_failed`.
+The removal remains committed; use the warning's residual path for operator cleanup.
 
 Bundle tools live under `agh__bundles_*` for list/info/activate/deactivate/status. Resource tools live under `agh__resources_*` for list/info/snapshot of desired-state resources.
 
 MCP tools expose `agh__mcp_status` and `agh__mcp_auth_status` for redacted diagnostics. Browser/OAuth login and raw auth material remain management-surface operations unless AGH exposes a scoped tool for them.
+Curated MCP installation is likewise a management-surface mutation through `agh mcp install` or
+`POST /api/settings/mcp-servers/install`; do not invent `agh__mcp_install`.
 
 ## Observability And Bridge Tools
 

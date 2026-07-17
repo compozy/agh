@@ -10,6 +10,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 
 	api := router.Group("/api")
 	registerWebhookRoutes(api, handlers)
+	api.GET("/mcp/oauth/callback", handlers.completeMCPAuthCallback)
 
 	if !isLoopbackHost(canonicalHost(handlers.boundHost)) {
 		api = api.Group("", loopbackAPIGuard(handlers.boundHost))
@@ -32,6 +33,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerAutomationRoutes(api, handlers)
 	registerLoopRoutes(api, handlers)
 	registerTaskRoutes(api, handlers)
+	registerMarketplaceRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
 	registerNetworkRoutes(api, handlers)
@@ -232,8 +234,6 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 	privileged := handlers.privilegedMutationGuard()
 	skillsGroup := api.Group("/skills")
 	skillsGroup.GET("", handlers.ListSkills)
-	skillsGroup.GET("/marketplace/search", handlers.SearchSkillMarketplace)
-	skillsGroup.GET("/marketplace/info", handlers.GetSkillMarketplaceInfo)
 	skillsGroup.POST("/marketplace/install", privileged, handlers.InstallSkillMarketplace)
 	skillsGroup.POST("/marketplace/update", privileged, handlers.UpdateSkillMarketplace)
 	skillsGroup.DELETE("/marketplace/:name", privileged, handlers.RemoveSkillMarketplace)
@@ -242,6 +242,14 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 	skillsGroup.GET("/:name/shadows", handlers.GetSkillShadows)
 	skillsGroup.POST("/:name/enable", handlers.EnableSkill)
 	skillsGroup.POST("/:name/disable", handlers.DisableSkill)
+}
+
+func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
+	marketplace := api.Group("/marketplace")
+	marketplace.GET("/search", handlers.SearchMarketplace)
+	marketplace.GET("/:kind", handlers.BrowseMarketplaceKind)
+	marketplace.GET("/:kind/:entry_id", handlers.GetMarketplaceEntry)
+	marketplace.POST("/refresh", handlers.privilegedMutationGuard(), handlers.RefreshMarketplaceCatalog)
 }
 
 func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
@@ -331,7 +339,6 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	privileged := handlers.privilegedMutationGuard()
 	extensions := api.Group("/extensions")
 	extensions.GET("", handlers.ListExtensions)
-	extensions.GET("/marketplace", handlers.SearchExtensionMarketplace)
 	extensions.POST("", privileged, handlers.InstallExtension)
 	extensions.PUT("/:name", privileged, handlers.UpdateExtension)
 	extensions.DELETE("/:name", privileged, handlers.RemoveExtension)
@@ -373,6 +380,10 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.DELETE("/providers/:name", privileged, handlers.DeleteSettingsProvider)
 
 	settings.GET("/mcp-servers", handlers.ListSettingsMCPServers)
+	settings.POST("/mcp-servers/install", privileged, handlers.InstallSettingsMCPServer)
+	settings.POST("/mcp-servers/:name/auth/begin", privileged, handlers.BeginSettingsMCPAuth)
+	settings.POST("/mcp-servers/:name/auth/exchange", privileged, handlers.ExchangeSettingsMCPAuth)
+	settings.POST("/mcp-servers/:name/auth/logout", privileged, handlers.LogoutSettingsMCPAuth)
 	settings.PUT("/mcp-servers/:name", privileged, handlers.PutSettingsMCPServer)
 	settings.DELETE("/mcp-servers/:name", privileged, handlers.DeleteSettingsMCPServer)
 

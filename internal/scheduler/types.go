@@ -33,6 +33,33 @@ var (
 	ErrSpawnUnresolvable = errors.New("scheduler: starvation spawn has no capable agent")
 )
 
+// CapabilityState records whether a session's capability projection is authoritative.
+type CapabilityState string
+
+const (
+	// CapabilityStateKnown means Capabilities is authoritative, including an empty slice.
+	CapabilityStateKnown CapabilityState = "known"
+	// CapabilityStateUnknown means capability projection failed for this cycle.
+	CapabilityStateUnknown CapabilityState = "unknown"
+)
+
+// CapacityKind separates structural compatibility from momentary availability.
+type CapacityKind string
+
+const (
+	CapacityAvailable     CapacityKind = "available"
+	CapacityWaiting       CapacityKind = "capacity_waiting"
+	CapacityUnmatched     CapacityKind = "unmatched"
+	CapacityIndeterminate CapacityKind = "indeterminate"
+)
+
+// CapacityDisposition is one run's mutually exclusive scheduler-capacity classification.
+type CapacityDisposition struct {
+	Kind      CapacityKind
+	Available []SessionSnapshot
+	Reason    string
+}
+
 // TaskSource provides durable task-run snapshots and lease recovery.
 type TaskSource interface {
 	PendingRuns(ctx context.Context) ([]RunSnapshot, error)
@@ -153,15 +180,16 @@ type RunSnapshot struct {
 
 // SessionSnapshot is the scheduler's rebuildable view of one live session.
 type SessionSnapshot struct {
-	ID           string
-	AgentName    string
-	WorkspaceID  string
-	Channel      string
-	Type         string
-	State        string
-	Prompting    bool
-	Capabilities []string
-	CreatedAt    time.Time
+	ID              string
+	AgentName       string
+	WorkspaceID     string
+	Channel         string
+	Type            string
+	State           string
+	Prompting       bool
+	Capabilities    []string
+	CapabilityState CapabilityState
+	CreatedAt       time.Time
 }
 
 // WakeTarget records the exact run/session pair selected for notification.
@@ -173,28 +201,30 @@ type WakeTarget struct {
 
 // CycleResult reports one mechanical scheduler pass.
 type CycleResult struct {
-	PendingRuns          int
-	ActiveRuns           int
-	SessionsScanned      int
-	RecoveredLeases      int
-	ExpiredBlocks        int
-	WakeAttempts         int
-	WakeSucceeded        int
-	WakeFailed           int
-	NoMatchRuns          int
-	RecentlyNotified     int
-	UnclaimableRuns      int
-	Paused               bool
-	StarvedRuns          int
-	SpawnRequested       int
-	NeedsAttention       int
-	SelectedRunIDs       []string
-	NoMatchRunIDs        []string
-	RecoveredRunIDs      []string
-	ExpiredBlockIDs      []string
-	StarvedRunIDs        []string
-	SpawnRequestedRunIDs []string
-	NeedsAttentionRunIDs []string
+	PendingRuns           int
+	ActiveRuns            int
+	SessionsScanned       int
+	RecoveredLeases       int
+	ExpiredBlocks         int
+	WakeAttempts          int
+	WakeSucceeded         int
+	WakeFailed            int
+	NoMatchRuns           int
+	RecentlyNotified      int
+	UnclaimableRuns       int
+	Paused                bool
+	StarvedRuns           int
+	CapacityWaitingRuns   int
+	SpawnRequested        int
+	NeedsAttention        int
+	SelectedRunIDs        []string
+	NoMatchRunIDs         []string
+	RecoveredRunIDs       []string
+	ExpiredBlockIDs       []string
+	StarvedRunIDs         []string
+	CapacityWaitingRunIDs []string
+	SpawnRequestedRunIDs  []string
+	NeedsAttentionRunIDs  []string
 }
 
 // RebuildResult reports the durable state discovered while rebuilding
@@ -209,26 +239,27 @@ type RebuildResult struct {
 
 // Stats is a lock-protected snapshot of scheduler observability counters.
 type Stats struct {
-	Cycles            int
-	Rebuilds          int
-	RecoveredLeases   int
-	ExpiredBlocks     int
-	RecoveryErrors    int
-	ExpiryErrors      int
-	WakeAttempts      int
-	WakeSucceeded     int
-	WakeFailed        int
-	NoMatchRuns       int
-	RecentlyNotified  int
-	UnclaimableRuns   int
-	StarvedRuns       int
-	SpawnRequested    int
-	NeedsAttention    int
-	LastCycleAt       time.Time
-	LastRebuildAt     time.Time
-	LastRecoveryError string
-	LastExpiryError   string
-	LastWakeError     string
+	Cycles              int
+	Rebuilds            int
+	RecoveredLeases     int
+	ExpiredBlocks       int
+	RecoveryErrors      int
+	ExpiryErrors        int
+	WakeAttempts        int
+	WakeSucceeded       int
+	WakeFailed          int
+	NoMatchRuns         int
+	RecentlyNotified    int
+	UnclaimableRuns     int
+	StarvedRuns         int
+	CapacityWaitingRuns int
+	SpawnRequested      int
+	NeedsAttention      int
+	LastCycleAt         time.Time
+	LastRebuildAt       time.Time
+	LastRecoveryError   string
+	LastExpiryError     string
+	LastWakeError       string
 }
 
 // Option customizes scheduler runtime behavior.

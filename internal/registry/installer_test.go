@@ -3,6 +3,8 @@ package registry
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"math/rand"
@@ -13,6 +15,74 @@ import (
 	"testing"
 	"time"
 )
+
+func TestInstallerVerifiesPinnedArchiveDigestBeforeExtraction(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist the verified archive digest separately from the tree checksum", func(t *testing.T) {
+		t.Parallel()
+
+		archive := mustTarGz(t, []tarEntry{
+			{name: "extension/extension.toml", content: "name = \"digest-ext\"\nversion = \"1.0.0\"\n"},
+		})
+		digest := sha256.Sum256(archive)
+		expected := hex.EncodeToString(digest[:])
+		downloader := &stubDownloader{
+			downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+				return &DownloadResult{
+					ContentType: "application/gzip",
+					Reader:      io.NopCloser(bytes.NewReader(archive)),
+				}, nil
+			},
+		}
+
+		result, err := NewInstaller(downloader).Install(
+			context.Background(),
+			"acme/digest-ext",
+			DownloadOpts{ExpectedSHA256: expected},
+			filepath.Join(t.TempDir(), "digest-ext"),
+		)
+		if err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		if result.ArchiveDigestSHA256 != expected {
+			t.Fatalf("Install() ArchiveDigestSHA256 = %q, want %q", result.ArchiveDigestSHA256, expected)
+		}
+		if result.Checksum == result.ArchiveDigestSHA256 {
+			t.Fatal("Install() tree checksum equals archive digest, want distinct provenance facts")
+		}
+	})
+
+	t.Run("Should reject a mismatch before parsing the archive and leave no target", func(t *testing.T) {
+		t.Parallel()
+
+		parent := t.TempDir()
+		target := filepath.Join(parent, "digest-ext")
+		archive := []byte("not a gzip archive")
+		downloader := &stubDownloader{
+			downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+				return &DownloadResult{
+					ContentType: "application/gzip",
+					Reader:      io.NopCloser(bytes.NewReader(archive)),
+				}, nil
+			},
+		}
+
+		_, err := NewInstaller(downloader).Install(
+			context.Background(),
+			"acme/digest-ext",
+			DownloadOpts{ExpectedSHA256: strings.Repeat("0", sha256.Size*2)},
+			target,
+		)
+		if !errors.Is(err, ErrArchiveDigestMismatch) {
+			t.Fatalf("Install() error = %v, want ErrArchiveDigestMismatch", err)
+		}
+		if _, statErr := os.Stat(target); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(target) error = %v, want not-exist", statErr)
+		}
+		assertNoTempInstallDirs(t, parent)
+	})
+}
 
 type stubDownloader struct {
 	downloadFunc func(context.Context, string, DownloadOpts) (*DownloadResult, error)

@@ -21,6 +21,7 @@ import (
 	apispec "github.com/compozy/agh/internal/api/spec"
 	apitestutil "github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/observe"
@@ -34,15 +35,15 @@ import (
 )
 
 type stubExtensionService struct {
-	ListFn              func(context.Context) ([]contract.ExtensionPayload, error)
-	SearchMarketplaceFn func(context.Context, string, string, int) ([]contract.ExtensionMarketplaceEntry, error)
-	InstallFn           func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	UpdateFn            func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
-	RemoveFn            func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
-	EnableFn            func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	DisableFn           func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	StatusFn            func(context.Context, string) (contract.ExtensionPayload, error)
-	ProvenanceFn        func(context.Context, string) (contract.ExtensionProvenancePayload, error)
+	ListFn             func(context.Context) ([]contract.ExtensionPayload, error)
+	MarketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
+	InstallFn          func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	UpdateFn           func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
+	RemoveFn           func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
+	EnableFn           func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	DisableFn          func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	StatusFn           func(context.Context, string) (contract.ExtensionPayload, error)
+	ProvenanceFn       func(context.Context, string) (contract.ExtensionProvenancePayload, error)
 }
 
 func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -52,16 +53,14 @@ func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPay
 	return s.ListFn(ctx)
 }
 
-func (s stubExtensionService) SearchMarketplace(
+func (s stubExtensionService) MarketplaceTrust(
 	ctx context.Context,
-	query string,
-	source string,
-	limit int,
-) ([]contract.ExtensionMarketplaceEntry, error) {
-	if s.SearchMarketplaceFn == nil {
-		return nil, nil
+	evidence extensionpkg.MarketplaceTrustEvidence,
+) (contract.ExtensionTrustReportPayload, error) {
+	if s.MarketplaceTrustFn == nil {
+		return extensionpkg.MarketplaceEntryTrustReport(evidence, false)
 	}
-	return s.SearchMarketplaceFn(ctx, query, source, limit)
+	return s.MarketplaceTrustFn(ctx, evidence)
 }
 
 func (s stubExtensionService) Install(
@@ -210,7 +209,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/extensions",
 		"GET /api/extensions/:name",
 		"GET /api/extensions/:name/provenance",
-		"GET /api/extensions/marketplace",
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
 		"GET /api/notifications/presets",
@@ -237,6 +235,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/memory/providers/:provider_name",
 		"GET /api/memory/recall-traces/:session_id/:turn_seq",
 		"GET /api/memory/scope-show",
+		"GET /api/marketplace/:kind",
+		"GET /api/marketplace/:kind/:entry_id",
+		"GET /api/marketplace/search",
 		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 		"GET /api/workspaces/:workspace_id/network/inbox",
 		"GET /api/workspaces/:workspace_id/network/peers",
@@ -290,6 +291,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
 		"GET /api/settings/mcp-servers",
+		"POST /api/settings/mcp-servers/install",
+		"POST /api/settings/mcp-servers/:name/auth/begin",
+		"POST /api/settings/mcp-servers/:name/auth/exchange",
+		"POST /api/settings/mcp-servers/:name/auth/logout",
 		"GET /api/settings/memory",
 		"GET /api/settings/network",
 		"GET /api/settings/observability",
@@ -303,8 +308,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/skills/:name",
 		"GET /api/skills/:name/content",
 		"GET /api/skills/:name/shadows",
-		"GET /api/skills/marketplace/info",
-		"GET /api/skills/marketplace/search",
 		"GET /api/scheduler",
 		"GET /api/scheduler/backlog",
 		"GET /api/task-runs/:id",
@@ -409,6 +412,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/memory/search",
 		"POST /api/memory/sessions/prune",
 		"POST /api/memory/sessions/repair",
+		"POST /api/marketplace/refresh",
 		"POST /api/workspaces/:workspace_id/memory/sessions/:session_id/replay",
 		"POST /api/model-catalog/*catalog_path",
 		"POST /api/providers/:provider_id/auth/probe",
@@ -559,6 +563,35 @@ func TestRegisterRoutesRejectsLegacyStatusSurfaces(t *testing.T) {
 	}
 }
 
+func TestRegisterRoutesRejectsLegacyMarketplaceSurfaces(t *testing.T) {
+	t.Parallel()
+
+	engine := newTestRouter(
+		t,
+		newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
+	)
+	for _, path := range []string{
+		"/api/skills/marketplace/search",
+		"/api/skills/marketplace/info",
+		"/api/extensions/marketplace",
+	} {
+		t.Run("Should return 404 for "+path, func(t *testing.T) {
+			t.Parallel()
+
+			response := performRequest(t, engine, http.MethodGet, path, nil)
+			if response.Code != http.StatusNotFound {
+				t.Fatalf(
+					"GET %s status = %d, want %d; body=%s",
+					path,
+					response.Code,
+					http.StatusNotFound,
+					response.Body.String(),
+				)
+			}
+		})
+	}
+}
+
 func TestRegisterRoutesRejectsLegacyProviderModelCatalogSurfaces(t *testing.T) {
 	t.Parallel()
 
@@ -656,7 +689,20 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 		t.Fatalf("os.WriteFile(%q) error = %v", homePaths.LogFile, err)
 	}
 
-	settingsService := &stubSettingsService{}
+	settingsService := &stubSettingsService{
+		InstallMCPCatalogFn: func(
+			_ context.Context,
+			req settingspkg.MCPCatalogInstallRequest,
+		) (settingspkg.MCPCatalogInstallResult, error) {
+			return settingspkg.MCPCatalogInstallResult{
+				Item: settingspkg.MCPServerItem{
+					Name: req.Name, Scope: req.Scope, WorkspaceID: req.WorkspaceID,
+					CatalogEntry: req.EntryID,
+				},
+				NextStep: settingspkg.MCPCatalogInstallNextStepNone,
+			}, nil
+		},
+	}
 	restartController := &stubSettingsRestartController{}
 	handlers := newTestHandlersWithSettingsAndExtensions(
 		t,
@@ -789,6 +835,32 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 						"LastPutCollectionRequest.MCPServer = %#v, want parsed server payload",
 						settingsService.LastPutCollectionRequest.MCPServer,
 					)
+				}
+			},
+		},
+		{
+			name:       "Should install catalog MCP server",
+			method:     http.MethodPost,
+			path:       "/api/settings/mcp-servers/install",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.InstallSettingsMCPServerRequest{
+				EntryID:     "github",
+				Name:        "github-workspace",
+				Scope:       contract.SettingsWorkspaceScopeWorkspace,
+				WorkspaceID: "ws-1",
+				Values:      &contract.SettingsMCPCatalogInstallValuesPayload{},
+			}),
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+				var response contract.InstallSettingsMCPServerResponse
+				decodeJSONResponse(t, recorder, &response)
+				if response.MCPServer.Name != "github-workspace" || response.NextStep != "none" {
+					t.Fatalf("response = %#v", response)
+				}
+				if settingsService.LastMCPCatalogInstall.EntryID != "github" ||
+					settingsService.LastMCPCatalogInstall.Scope != settingspkg.ScopeWorkspace ||
+					settingsService.LastMCPCatalogInstall.WorkspaceID != "ws-1" {
+					t.Fatalf("LastMCPCatalogInstall = %#v", settingsService.LastMCPCatalogInstall)
 				}
 			},
 		},

@@ -1,23 +1,24 @@
 import { mkdir, mkdtemp, readFile, symlink, writeFile, copyFile } from "node:fs/promises";
 import { createWriteStream, existsSync } from "node:fs";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createServer, type Server } from "node:http";
+import type { Server } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { ArtifactCollector } from "./artifacts";
+import { closeMarketplaceCatalogServer, startMarketplaceCatalogServer } from "./marketplace-server";
 import {
   applyBrowserRuntimeSeed,
   seedBrowserRuntimeHome,
-  type BrowserSkillMarketplaceListingSeed,
   type BrowserRuntimeSeed,
   type BrowserRuntimeSeedResult,
   type WorkspacePayload,
 } from "./runtime-seed";
 import {
   assertDaemonServedHTML,
+  buildLaunchRuntimeEnv,
   buildResolveWorkspaceRequest,
   prependPath,
   requiresHTTPAPIReadinessProbe,
@@ -27,6 +28,17 @@ import {
   type RuntimeMode,
 } from "./runtime-helpers";
 import { stopBrowserDaemonProcess, stopSpawnedDaemonProcess } from "./runtime-process";
+import {
+  closeSkillMarketplaceServer,
+  startSkillMarketplaceServer,
+  type SkillMarketplaceTestServer,
+} from "./skill-marketplace-server";
+
+export {
+  closeSkillMarketplaceServer,
+  startSkillMarketplaceServer,
+  type SkillMarketplaceTestServer,
+} from "./skill-marketplace-server";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
@@ -52,6 +64,7 @@ export interface RuntimePaths {
 export interface BrowserRuntimeOptions {
   artifactRootDir: string;
   env?: NodeJS.ProcessEnv;
+  extensionsAllowUnverified?: boolean;
   host?: string;
   modelsDevEnabled?: boolean;
   networkEnabled?: boolean;
@@ -110,14 +123,10 @@ export {
   type WorkspacePayload,
 } from "./runtime-seed";
 interface RuntimeLaunchState {
+  marketplaceCatalogServer?: Server;
   process: ChildProcessWithoutNullStreams;
   repoRoot: string;
   skillMarketplaceServer?: Server;
-}
-
-export interface SkillMarketplaceTestServer {
-  baseURL: string;
-  server: Server;
 }
 
 export async function createBrowserRuntime(
@@ -149,9 +158,11 @@ export async function createBrowserRuntime(
   const httpPort = await reserveFreePort();
   const boundHost = options.host ?? DEFAULT_HOST;
   const skillMarketplace = await startSkillMarketplaceServer(options.seed?.skillMarketplace);
+  let marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>> = undefined;
   let runtime: RuntimeLaunchState | undefined;
 
   try {
+    marketplaceCatalog = await startMarketplaceCatalogServer(options.seed?.marketplaceCatalog);
     await seedBrowserRuntimeHome(
       {
         homeDir: paths.homeDir,
@@ -162,9 +173,11 @@ export async function createBrowserRuntime(
     await writeFile(
       paths.configFile,
       renderRuntimeConfig({
+        extensionsAllowUnverified: options.extensionsAllowUnverified,
         host: boundHost,
         includeMockAgentProvider: (options.seed?.mockAgents?.length ?? 0) > 0,
         modelsDevEnabled: options.modelsDevEnabled,
+        marketplaceCatalogBaseURL: marketplaceCatalog?.baseURL,
         networkEnabled: options.networkEnabled,
         port: httpPort,
         skillsMarketplaceBaseURL: skillMarketplace?.baseURL,
@@ -174,8 +187,9 @@ export async function createBrowserRuntime(
       "utf8"
     );
 
-    const runtimeEnv = await createRuntimeEnv(paths, binaryPath, env);
+    const runtimeEnv = await createRuntimeEnv(paths, binaryPath, repoRoot, env);
     runtime = startDaemonProcess(binaryPath, repoRoot, runtimeEnv, paths.daemonLog);
+    runtime.marketplaceCatalogServer = marketplaceCatalog?.server;
     runtime.skillMarketplaceServer = skillMarketplace?.server;
     const baseURL = `http://${DEFAULT_HOST}:${httpPort}`;
     const requireHTTPAPIStatus = requiresHTTPAPIReadinessProbe(boundHost);
@@ -198,7 +212,7 @@ export async function createBrowserRuntime(
     const seeded = await applyBrowserRuntimeSeed(activeRuntime, options.seed);
     return activeRuntime.withSeeded(seeded);
   } catch (error) {
-    return await cleanupFailedRuntimeLaunch(error, runtime, skillMarketplace);
+    return await cleanupFailedRuntimeLaunch(error, runtime, skillMarketplace, marketplaceCatalog);
   }
 }
 
@@ -313,7 +327,10 @@ class ActiveBrowserRuntime implements BrowserRuntime {
         });
       }
     } finally {
-      await closeSkillMarketplaceServer(this.launchState.skillMarketplaceServer);
+      await Promise.all([
+        closeSkillMarketplaceServer(this.launchState.skillMarketplaceServer),
+        closeMarketplaceCatalogServer(this.launchState.marketplaceCatalogServer),
+      ]);
     }
   }
 }
@@ -339,122 +356,11 @@ async function validateDaemonServedRuntime(
   assertDaemonServedHTML(html, baseURL);
 }
 
-export async function startSkillMarketplaceServer(
-  seed: BrowserRuntimeSeed["skillMarketplace"] | undefined
-): Promise<SkillMarketplaceTestServer | undefined> {
-  if (seed === undefined || seed.listings.length === 0) {
-    return undefined;
-  }
-
-  const listings = seed.listings.map(normalizeSkillMarketplaceListing);
-  const server = createServer((request, response) => {
-    const requestURL = new URL(request.url ?? "/", `http://${DEFAULT_HOST}`);
-    if (request.method !== "GET" || requestURL.pathname !== "/api/v1/search") {
-      response.statusCode = 404;
-      response.setHeader("content-type", "application/json");
-      response.end(JSON.stringify({ error: "not_found" }));
-      return;
-    }
-    if (requestURL.searchParams.get("type") !== "skill") {
-      response.statusCode = 400;
-      response.setHeader("content-type", "application/json");
-      response.end(JSON.stringify({ error: "skill_type_required" }));
-      return;
-    }
-
-    const query = requestURL.searchParams.get("q")?.trim().toLowerCase() ?? "";
-    const limit = parseMarketplaceLimit(requestURL.searchParams.get("limit"), listings.length);
-    const results = (
-      query ? listings.filter(listing => marketplaceListingMatchesQuery(listing, query)) : listings
-    ).slice(0, limit);
-
-    response.statusCode = 200;
-    response.setHeader("content-type", "application/json");
-    response.end(JSON.stringify({ results }));
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    const handleError = (error: Error) => {
-      cleanup();
-      reject(error);
-    };
-    const handleListening = () => {
-      cleanup();
-      resolve();
-    };
-    const cleanup = () => {
-      server.off("error", handleError);
-      server.off("listening", handleListening);
-    };
-
-    server.once("error", handleError);
-    server.once("listening", handleListening);
-    server.listen(0, DEFAULT_HOST);
-  });
-
-  const address = server.address();
-  if (address === null || typeof address === "string") {
-    await closeSkillMarketplaceServer(server);
-    throw new Error("failed to resolve browser skill marketplace server address");
-  }
-
-  return {
-    baseURL: `http://${DEFAULT_HOST}:${address.port}`,
-    server,
-  };
-}
-
-function normalizeSkillMarketplaceListing(listing: BrowserSkillMarketplaceListingSeed) {
-  return {
-    author: listing.author ?? "",
-    description: listing.description ?? "",
-    downloads: listing.downloads ?? 0,
-    name: listing.name,
-    slug: listing.slug,
-    source: listing.source ?? "clawhub",
-    type: "skill",
-    version: listing.version ?? "",
-  };
-}
-
-function marketplaceListingMatchesQuery(
-  listing: ReturnType<typeof normalizeSkillMarketplaceListing>,
-  query: string
-): boolean {
-  return [listing.name, listing.slug, listing.author, listing.description]
-    .join(" ")
-    .toLowerCase()
-    .includes(query);
-}
-
-function parseMarketplaceLimit(rawValue: string | null, fallback: number): number {
-  const parsed = Number.parseInt(rawValue ?? "", 10);
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed;
-  }
-  return fallback;
-}
-
-export async function closeSkillMarketplaceServer(server: Server | undefined): Promise<void> {
-  if (server === undefined || !server.listening) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    server.close(error => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
-}
-
 async function cleanupFailedRuntimeLaunch(
   cause: unknown,
   runtime: RuntimeLaunchState | undefined,
-  skillMarketplace: SkillMarketplaceTestServer | undefined
+  skillMarketplace: SkillMarketplaceTestServer | undefined,
+  marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>>
 ): Promise<never> {
   const cleanupErrors: Error[] = [];
   if (runtime !== undefined) {
@@ -467,6 +373,11 @@ async function cleanupFailedRuntimeLaunch(
 
   try {
     await closeSkillMarketplaceServer(skillMarketplace?.server);
+  } catch (error) {
+    cleanupErrors.push(errorFromUnknown(error));
+  }
+  try {
+    await closeMarketplaceCatalogServer(marketplaceCatalog?.server);
   } catch (error) {
     cleanupErrors.push(errorFromUnknown(error));
   }
@@ -569,18 +480,19 @@ async function createRuntimePaths(): Promise<RuntimePaths> {
 async function createRuntimeEnv(
   paths: RuntimePaths,
   binaryPath: string,
+  repoRoot: string,
   env: NodeJS.ProcessEnv
 ): Promise<NodeJS.ProcessEnv> {
   await installCLIShim(binaryPath, paths.cliShim);
 
-  return {
+  return buildLaunchRuntimeEnv(repoRoot, {
     ...env,
     AGH_E2E_CLI_BIN: paths.cliShim,
     [DAEMON_BINARY_ENV_VAR]: binaryPath,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: prependPath(path.dirname(paths.cliShim), env.PATH),
-  };
+  });
 }
 
 async function installCLIShim(binaryPath: string, targetPath: string): Promise<void> {

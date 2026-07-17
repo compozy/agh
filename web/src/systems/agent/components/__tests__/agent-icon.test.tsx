@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { AgentIcon, providerIconMap } from "../agent-icon";
+import { AgentIcon } from "../agent-icon";
+import { providerIconMap } from "../provider-icon-map";
 
 describe("AgentIcon", () => {
   it('maps "claude" provider to BrainCircuit icon', () => {

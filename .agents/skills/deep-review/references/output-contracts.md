@@ -1,6 +1,6 @@
 # Output Contracts
 
-Exact templates for every artifact. Placeholders in `<angle brackets>`; keep section order and marker strings byte-stable — fingerprints and upserts depend on them.
+Exact templates for every artifact. Placeholders in `<angle brackets>`; keep section order and marker strings byte-stable — fingerprints and upserts depend on them. walkthrough.md is orchestrator-authored; review.md and state.json are rendered from findings.json by `scripts/render_review.py`, which implements these templates and the verdict rule — this file is the contract it must keep.
 
 ## walkthrough.md
 
@@ -29,7 +29,7 @@ one mermaid sequenceDiagram per flow, actors = real components>
 
 - **Scope**: <base sha short> → <head sha short> (<incremental round N | full review>)
 - **Files**: <n> selected · <n> ignored by filters · <n> skipped (trivial/similar)
-- **Profile**: <chill|assertive> · **Mode**: <workflow|agent-fallback>
+- **Profile**: <chill|assertive> · **Mode**: <workflow|agent-fallback|subagent:runtime>
 - **Rubric**: <sources consulted, comma-separated paths>
 - **Linters**: <lane: ran/unavailable, ...>
 ```
@@ -56,16 +56,7 @@ symbols and line numbers. State what happens, under which input/state, and why.>
 
 [Also applies to: <path>:<lines>, <path>:<lines>]
 [As per coding guidelines [R<NN>] (`<source path>`): "<verbatim rule>"]
-[Based on learnings: "<learning text>"]
-[Verification: `<command>` → <one-line result>]
-
-<details>
-<summary>🔧 Suggested fix</summary>
-
-```diff
-<minimal diff, - old / + new>
-```
-</details>
+[Verification: <first evidence[] entry — command or file:line → what it showed>]
 
 <details>
 <summary>📝 Committable suggestion</summary>
@@ -89,7 +80,7 @@ symbols and the target behavior>. Reference symbols: <sym1>, <sym2>.
 <!-- deep-review:fp:<fingerprint> -->
 ```
 
-Bracketed lines appear only when they apply. The committable `suggestion` block only when the replacement is exact and self-contained; otherwise the diff alone. The AI-agents prompt on **every** finding.
+Bracketed lines appear only when they apply. The committable `suggestion` block only when the replacement is exact and self-contained; otherwise nothing. The AI-agents prompt only on **Critical and Major** findings.
 
 ## review.md
 
@@ -97,8 +88,7 @@ Bracketed lines appear only when they apply. The committable `suggestion` block 
 # Deep Review — <target> (round <N>)
 
 **Verdict: <SHIP | FIX_BEFORE_SHIP | REWORK>** — <one-line rationale>
-**Actionable findings: <n>** (🔴 <n> · 🟠 <n> · 🟡 <n>) · nitpicks: <n> · duplicates: <n> · resolved since last round: <n> · dropped by skeptics: <n>
-**Rule coverage: <n> hunks × mapped rules → <n> checks · <n> violations · <n> n/a**
+**Actionable findings: <n>** (🔴 <n> · 🟠 <n> · 🟡 <n>) · nitpicks: <n> · duplicates: <n> · resolved since last round: <n> · merged duplicate reports: <n>
 
 <walkthrough.md content, inlined>
 
@@ -128,26 +118,20 @@ Bracketed lines appear only when they apply. The committable `suggestion` block 
 <details><summary>🧹 <n> nitpicks</summary>
 <compact one-liners: `path:line` — claim [— suggestion]>
 </details>
-
-## Dropped by verification
-
-<details><summary><n> findings did not survive the skeptics</summary>
-<one-liners: claim → skeptic's refutation, with evidence>
-</details>
 ```
 
-`review.md` orders files by max severity, then path. The Dropped section is mandatory when nonempty — it is the audit trail that keeps skeptics honest.
+`review.md` orders files by max severity, then path.
 
 ## ReportFindings mapping
 
-When the harness exposes the ReportFindings tool, call it once after review.md is written: one entry per confirmed actionable finding, ranked most-severe first — `file`/`line` from the anchor, `summary` = the claim line, `failure_scenario` = the evidence paragraph's failure mode, `category` = kebab-case (`potential-issue`, `refactor`, `nitpick`), `verdict` = `CONFIRMED` for skeptic-passed findings, `PLAUSIBLE` for unverified Minors.
+When the harness exposes the ReportFindings tool, call it once after review.md is written: one entry per actionable finding, ranked most-severe first — `file`/`line` from the anchor, `summary` = the claim line, `failure_scenario` = the evidence paragraph's failure mode, `category` = kebab-case (`potential-issue`, `refactor`, `nitpick`). Omit `verdict` — no separate verify pass runs; the reviewer's own `evidence[]` is the confidence signal.
 
 ## Verdict rule
 
-Derive after Step 5 from the confirmed findings:
+Derive after Step 4's merge from the open findings:
 
-- **SHIP** — no confirmed Critical or Major open; Minors and nitpicks ship as follow-ups. With `--spec`: additionally requires the Spec conformance section complete (every artifact assessed) with zero open parity violations — a review that never assessed conformance cannot SHIP.
-- **FIX_BEFORE_SHIP** — at least one confirmed Critical/Major, and remediation is local: the change's shape is right and each finding names a bounded fix.
-- **REWORK** — the findings show structural failure needing redesign (often a new TechSpec): a parity violation the implementation approach cannot express, the same root cause confirmed across ≥ 3 cohorts, or a Critical whose fix rewrites the change's core. REWORK always carries a named rationale in the verdict line; when no structural trigger holds, FIX_BEFORE_SHIP is the ceiling.
+- **SHIP** — no Critical or Major open; Minors and nitpicks ship as follow-ups. With `--spec`: additionally requires the Spec conformance section complete (every artifact assessed) with zero open parity violations — a review that never assessed conformance cannot SHIP.
+- **FIX_BEFORE_SHIP** — at least one open Critical/Major, and remediation is local: the change's shape is right and each finding names a bounded fix.
+- **REWORK** — the findings show structural failure needing redesign (often a new TechSpec): a parity violation the implementation approach cannot express, the same root cause reported across ≥ 3 cohorts, or a Critical whose fix rewrites the change's core. REWORK always carries a named rationale in the verdict line; when no structural trigger holds, FIX_BEFORE_SHIP is the ceiling.
 
-The verdict lands in review.md's header line, the round's state.json entry, and the final message.
+The verdict lands in review.md's header line, the round's state.json entry, and the final message. render_review.py derives SHIP / FIX_BEFORE_SHIP mechanically (open = findings with round status new or duplicate) and only accepts REWORK through `--rework "<rationale>"`; it rejects a report whose verdict contradicts the open findings.

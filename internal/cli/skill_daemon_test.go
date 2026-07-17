@@ -106,7 +106,7 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 			t,
 			deps,
 			"skill",
-			"info",
+			"inspect",
 			record.Name,
 			"--workspace",
 			workspace,
@@ -114,14 +114,14 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 			"json",
 		)
 		if err != nil {
-			t.Fatalf("skill info --workspace error = %v", err)
+			t.Fatalf("skill inspect --workspace error = %v", err)
 		}
 		var info skillInfoItem
 		if err := json.Unmarshal([]byte(stdout), &info); err != nil {
-			t.Fatalf("json.Unmarshal(skill info) error = %v; stdout=%s", err, stdout)
+			t.Fatalf("json.Unmarshal(skill inspect) error = %v; stdout=%s", err, stdout)
 		}
 		if info.Name != record.Name || info.Source != "user" || info.Path != record.Dir {
-			t.Fatalf("skill info = %#v, want daemon skill record", info)
+			t.Fatalf("skill inspect = %#v, want daemon skill record", info)
 		}
 
 		stdout, _, err = executeRootCommand(
@@ -165,24 +165,32 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 
 		called := false
 		deps := newTestDeps(t, &stubClient{
-			searchSkillMarketplaceFn: func(
+			browseMarketplaceFn: func(
 				_ context.Context,
+				kind string,
 				query string,
 				limit int,
-			) ([]SkillMarketplaceRecord, error) {
+				scope MarketplaceReadScope,
+			) (MarketplaceKindRecord, error) {
 				called = true
-				if query != "review" || limit != 7 {
-					t.Fatalf("SearchSkillMarketplace(%q, %d), want review 7", query, limit)
+				if kind != "skill" || query != "review" || limit != 7 {
+					t.Fatalf("BrowseMarketplace(%q, %q, %d), want skill review 7", kind, query, limit)
 				}
-				return []SkillMarketplaceRecord{{
-					Slug:        "review",
+				if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
+					t.Fatalf("Marketplace read scope = %#v, want global", scope)
+				}
+				downloads := 42
+				return MarketplaceKindRecord{Kind: "skill", Items: []MarketplaceListingRecord{{
+					Kind:        "skill",
+					EntryID:     "skill_review",
 					Name:        "review",
 					Description: "Review helper",
 					Author:      "agh",
 					Version:     "1.2.0",
-					Downloads:   42,
+					Downloads:   &downloads,
+					InstallSlug: "review",
 					Source:      "clawhub",
-				}}, nil
+				}}}, nil
 			},
 		})
 		markExtensionDaemonRunning(&deps)
@@ -192,7 +200,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 			t.Fatalf("skill search error = %v", err)
 		}
 		if !called {
-			t.Fatal("SearchSkillMarketplace was not called")
+			t.Fatal("BrowseMarketplace was not called")
 		}
 		var payload []registrypkg.Listing
 		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
@@ -200,6 +208,59 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 		}
 		if len(payload) != 1 || payload[0].Slug != "review" || payload[0].Source != "clawhub" {
 			t.Fatalf("skill search payload = %#v, want daemon marketplace review", payload)
+		}
+	})
+
+	t.Run("Should read marketplace skill detail through daemon client", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		want := MarketplaceEntryRecord{
+			Entry: MarketplaceListingRecord{
+				Kind:        contract.MarketplaceKindSkill,
+				EntryID:     "skill_review",
+				Name:        "review",
+				Description: "Review helper",
+				Version:     "1.2.0",
+				Source:      "clawhub",
+			},
+			Skill: &contract.MarketplaceSkillDetailPayload{
+				InstallSlug: "review",
+				Tags:        []string{"review", "quality"},
+			},
+		}
+		deps := newTestDeps(t, &stubClient{
+			marketplaceInfoFn: func(
+				_ context.Context,
+				kind string,
+				entryID string,
+				scope MarketplaceReadScope,
+			) (MarketplaceEntryRecord, error) {
+				called = true
+				if kind != contract.MarketplaceKindSkill || entryID != "skill_review" {
+					t.Fatalf("MarketplaceInfo(%q, %q), want skill skill_review", kind, entryID)
+				}
+				if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
+					t.Fatalf("Marketplace read scope = %#v, want global", scope)
+				}
+				return want, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+
+		stdout, _, err := executeRootCommand(t, deps, "skill", "info", "skill_review", "-o", "json")
+		if err != nil {
+			t.Fatalf("skill info error = %v", err)
+		}
+		if !called {
+			t.Fatal("MarketplaceInfo was not called")
+		}
+		var got MarketplaceEntryRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("json.Unmarshal(skill info) error = %v; stdout=%s", err, stdout)
+		}
+		if got.Entry.EntryID != want.Entry.EntryID || got.Skill == nil || got.Skill.InstallSlug != "review" {
+			t.Fatalf("skill info = %#v, want marketplace detail %#v", got, want)
 		}
 	})
 

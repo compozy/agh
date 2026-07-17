@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 )
 
@@ -36,21 +37,55 @@ type extensionRemoveItem = ManagedExtensionRemoveRecord
 
 type extensionUpdateItem = ExtensionUpdateRecord
 
+type marketplaceExtensionSearchItem struct {
+	Slug        string `json:"slug"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Author      string `json:"author"`
+	Version     string `json:"version"`
+	Downloads   int    `json:"downloads"`
+	Source      string `json:"source"`
+}
+
 func searchExtensions(
 	ctx context.Context,
 	deps commandDeps,
 	query string,
-	sourceFilter string,
 	limit int,
-) ([]ExtensionMarketplaceRecord, error) {
+) ([]marketplaceExtensionSearchItem, error) {
 	if limit <= 0 {
 		return nil, fmt.Errorf("cli: search limit must be positive: %d", limit)
 	}
-	client, err := requireExtensionDaemonClient(deps)
+	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
-	return client.SearchExtensionMarketplace(ctx, query, sourceFilter, limit)
+	response, err := client.BrowseMarketplace(
+		ctx,
+		"extension",
+		query,
+		limit,
+		MarketplaceReadScope{Scope: contract.SettingsWorkspaceScopeGlobal},
+	)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]marketplaceExtensionSearchItem, 0, len(response.Items))
+	for _, listing := range response.Items {
+		installSlug := strings.TrimSpace(listing.InstallSlug)
+		if installSlug == "" {
+			return nil, fmt.Errorf("cli: marketplace extension %q has no install slug", listing.EntryID)
+		}
+		downloads := 0
+		if listing.Downloads != nil {
+			downloads = *listing.Downloads
+		}
+		items = append(items, marketplaceExtensionSearchItem{
+			Slug: installSlug, Name: listing.Name, Description: listing.Description,
+			Author: listing.Author, Version: listing.Version, Downloads: downloads, Source: listing.Source,
+		})
+	}
+	return items, nil
 }
 
 func installMarketplaceExtension(
@@ -62,7 +97,7 @@ func installMarketplaceExtension(
 	asset string,
 	allowUnverified bool,
 ) (ExtensionRecord, error) {
-	client, err := requireExtensionDaemonClient(deps)
+	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
 		return ExtensionRecord{}, err
 	}
@@ -84,7 +119,7 @@ func removeInstalledExtension(
 	deps commandDeps,
 	name string,
 ) (extensionRemoveItem, error) {
-	client, err := requireExtensionDaemonClient(deps)
+	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
 		return extensionRemoveItem{}, err
 	}
@@ -100,7 +135,7 @@ func updateMarketplaceExtensions(
 	version string,
 	allowUnverified bool,
 ) ([]extensionUpdateItem, error) {
-	client, err := requireExtensionDaemonClient(deps)
+	client, err := requireExtensionDaemonClient(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +214,7 @@ func daemonExtensionUpdateItem(
 		LatestVersion:  firstNonEmpty(after.LatestVersion, before.Version),
 		Path:           after.Path,
 		Status:         status,
+		Warnings:       append([]contract.DiagnosticItem(nil), after.Warnings...),
 	}
 }
 
@@ -196,7 +232,7 @@ func extensionRecordMarketplaceRegistry(item ExtensionRecord) string {
 	return strings.TrimSpace(item.Provenance.RegistryTier)
 }
 
-func extensionSearchBundle(items []ExtensionMarketplaceRecord) outputBundle {
+func extensionSearchBundle(items []marketplaceExtensionSearchItem) outputBundle {
 	return listBundle(
 		items,
 		items,
@@ -208,7 +244,7 @@ func extensionSearchBundle(items []ExtensionMarketplaceRecord) outputBundle {
 			"Author",
 			daemonVersionValue,
 			"Downloads",
-			"Source",
+			authoredContextSourceValue,
 		},
 		"extensions",
 		[]string{
@@ -220,7 +256,7 @@ func extensionSearchBundle(items []ExtensionMarketplaceRecord) outputBundle {
 			"downloads",
 			automationSourceKey,
 		},
-		func(item ExtensionMarketplaceRecord) []string {
+		func(item marketplaceExtensionSearchItem) []string {
 			return []string{
 				stringOrDash(item.Slug),
 				stringOrDash(item.Name),
@@ -231,7 +267,7 @@ func extensionSearchBundle(items []ExtensionMarketplaceRecord) outputBundle {
 				stringOrDash(item.Source),
 			}
 		},
-		func(item ExtensionMarketplaceRecord) []string {
+		func(item marketplaceExtensionSearchItem) []string {
 			return []string{
 				item.Slug,
 				item.Name,
@@ -282,6 +318,7 @@ func extensionUpdateBundle(items []extensionUpdateItem) outputBundle {
 			"Latest",
 			extensionMarketplacePathValue,
 			extensionMarketplaceStatusValue,
+			"Warnings",
 		},
 		"extension_updates",
 		[]string{
@@ -292,6 +329,7 @@ func extensionUpdateBundle(items []extensionUpdateItem) outputBundle {
 			"latest_version",
 			extensionMarketplacePathKey,
 			automationStatusKey,
+			"warnings",
 		},
 		func(item extensionUpdateItem) []string {
 			return []string{
@@ -302,6 +340,7 @@ func extensionUpdateBundle(items []extensionUpdateItem) outputBundle {
 				stringOrDash(item.LatestVersion),
 				stringOrDash(item.Path),
 				stringOrDash(item.Status),
+				stringOrDash(extensionUpdateWarningCodes(item.Warnings)),
 			}
 		},
 		func(item extensionUpdateItem) []string {
@@ -313,7 +352,19 @@ func extensionUpdateBundle(items []extensionUpdateItem) outputBundle {
 				item.LatestVersion,
 				item.Path,
 				item.Status,
+				extensionUpdateWarningCodes(item.Warnings),
 			}
 		},
 	)
+}
+
+func extensionUpdateWarningCodes(warnings []contract.DiagnosticItem) string {
+	codes := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		code := strings.TrimSpace(warning.Code)
+		if code != "" {
+			codes = append(codes, code)
+		}
+	}
+	return strings.Join(codes, ", ")
 }

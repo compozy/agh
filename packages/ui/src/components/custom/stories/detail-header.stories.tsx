@@ -10,7 +10,7 @@ const meta: Meta<typeof DetailHeader> = {
     docs: {
       description: {
         component:
-          "Six-row detail hero — crumbs / pre-title / 24 px H1 / pills / meta / actions. Bottom hairline on --line; surface stays canvas. Pass `back` to wire the chevron back affordance (router.history.back with parent-route fallback).",
+          "Detail hero — crumbs / pre-title / title+pills / meta / actions. Bottom hairline on --line; surface stays canvas. When `pills` is set they share the H1 flex row. Pass `back` to wire the chevron back affordance (router.history.back with parent-route fallback).",
       },
     },
   },
@@ -59,6 +59,39 @@ export const Full: Story = {
           <Button size="sm">Resume</Button>
         </>
       }
+    />
+  ),
+};
+
+/** Leading mark beside the title block (management detail chrome). */
+export const WithLeading: Story = {
+  args: {},
+  render: () => (
+    <DetailHeader
+      crumbs={[
+        { id: "extensions", label: "Extensions", to: "/extensions" },
+        { id: "cost-guard", label: "cost-guard" },
+      ]}
+      leading={
+        <span className="grid size-(--size-provider-logo-well) place-items-center rounded-lg bg-elevated text-muted">
+          <span className="text-small-body">◇</span>
+        </span>
+      }
+      meta={<span>registry · installed 2d ago</span>}
+      pills={
+        <>
+          <Pill mono size="xs">
+            hook
+          </Pill>
+          <Pill mono size="xs">
+            v0.3.2
+          </Pill>
+          <Pill mono size="xs" tone="success">
+            healthy
+          </Pill>
+        </>
+      }
+      title="cost-guard"
     />
   ),
 };

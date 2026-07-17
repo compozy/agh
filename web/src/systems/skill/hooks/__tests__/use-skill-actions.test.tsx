@@ -188,7 +188,7 @@ describe("useInstallSkillMarketplace", () => {
     vi.restoreAllMocks();
   });
 
-  it("installs by slug and invalidates installed list plus marketplace cache", async () => {
+  it("installs by slug and invalidates the installed list", async () => {
     vi.mocked(installSkillMarketplace).mockResolvedValue({
       name: "demo",
       slug: "@compozy/demo",
@@ -224,9 +224,6 @@ describe("useInstallSkillMarketplace", () => {
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["skills", "list", "ws_123"],
     });
-    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "marketplace"],
-    });
   });
 });
 
@@ -239,7 +236,7 @@ describe("useUpdateSkillMarketplace", () => {
     vi.restoreAllMocks();
   });
 
-  it("updates the named skill and invalidates installed/marketplace caches", async () => {
+  it("updates the named skill and invalidates the installed list", async () => {
     vi.mocked(updateSkillMarketplace).mockResolvedValue([]);
 
     const queryClient = new QueryClient({
@@ -267,9 +264,6 @@ describe("useUpdateSkillMarketplace", () => {
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["skills", "list", "ws_123"],
     });
-    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "marketplace"],
-    });
   });
 });
 
@@ -282,7 +276,7 @@ describe("useRemoveSkillMarketplace", () => {
     vi.restoreAllMocks();
   });
 
-  it("removes by name and invalidates installed/marketplace caches", async () => {
+  it("removes by name and invalidates the installed list", async () => {
     vi.mocked(removeSkillMarketplace).mockResolvedValue({
       name: "demo",
       slug: "@compozy/demo",
@@ -311,9 +305,6 @@ describe("useRemoveSkillMarketplace", () => {
     expect(removeSkillMarketplace).toHaveBeenCalledWith("demo");
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["skills", "list", "ws_123"],
-    });
-    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "marketplace"],
     });
   });
 });

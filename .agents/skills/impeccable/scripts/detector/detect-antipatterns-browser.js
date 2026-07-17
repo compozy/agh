@@ -123,6 +123,7 @@ const ANTIPATTERNS = [
   {
     id: 'overused-font',
     category: 'slop',
+    scopes: ['type'],
     name: 'Overused font',
     description:
       'Inter, Roboto, Fraunces, Geist, Plus Jakarta Sans, and Space Grotesk are used on so many sites they no longer feel distinctive. Each new wave of AI-generated UIs converges on the same handful of faces. Choose a face that gives your interface personality.',
@@ -132,6 +133,7 @@ const ANTIPATTERNS = [
   {
     id: 'single-font',
     category: 'slop',
+    scopes: ['type'],
     name: 'Single font for everything',
     description:
       'Only one font family is used for the entire page. Pair a distinctive display font with a refined body font to create typographic hierarchy.',
@@ -141,6 +143,7 @@ const ANTIPATTERNS = [
   {
     id: 'flat-type-hierarchy',
     category: 'slop',
+    scopes: ['type'],
     name: 'Flat type hierarchy',
     description:
       'Font sizes are too close together — no clear visual hierarchy. Use fewer sizes with more contrast (aim for at least a 1.25 ratio between steps).',
@@ -177,6 +180,7 @@ const ANTIPATTERNS = [
   {
     id: 'nested-cards',
     category: 'slop',
+    scopes: ['layout'],
     name: 'Nested cards',
     description:
       'Cards inside cards create visual noise and excessive depth. Flatten the hierarchy — use spacing, typography, and dividers instead of nesting containers.',
@@ -186,6 +190,7 @@ const ANTIPATTERNS = [
   {
     id: 'monotonous-spacing',
     category: 'slop',
+    scopes: ['layout'],
     name: 'Monotonous spacing',
     description:
       'The same spacing value used everywhere — no rhythm, no variation. Use tight groupings for related items and generous separations between sections.',
@@ -213,6 +218,7 @@ const ANTIPATTERNS = [
   {
     id: 'icon-tile-stack',
     category: 'slop',
+    scopes: ['layout'],
     name: 'Icon tile stacked above heading',
     description:
       'A small rounded-square icon container above a heading is the universal AI feature-card template — every generator outputs this exact shape. Try a side-by-side icon and heading, or let the icon sit in flow without its own container.',
@@ -222,6 +228,7 @@ const ANTIPATTERNS = [
   {
     id: 'italic-serif-display',
     category: 'slop',
+    scopes: ['type'],
     name: 'Italic serif display headline',
     description:
       'Oversized italic serif (Fraunces, Recoleta, Playfair, Newsreader-italic) as the primary hero headline reads as taste in isolation but has become the universal AI-startup landing page hero. Set roman, or move to a non-serif display face. Editorial / magazine register may legitimately want this — judge by context.',
@@ -231,6 +238,7 @@ const ANTIPATTERNS = [
   {
     id: 'hero-eyebrow-chip',
     category: 'slop',
+    scopes: ['type'],
     name: 'Hero eyebrow / pill chip',
     description:
       'A tiny uppercase letter-spaced label sitting immediately above an oversized hero headline — or the same shape rendered as a pill chip — is now the default AI SaaS hero. Drop the eyebrow, integrate the kicker into the headline, or run it as a navigation breadcrumb instead.',
@@ -240,6 +248,7 @@ const ANTIPATTERNS = [
   {
     id: 'repeated-section-kickers',
     category: 'slop',
+    scopes: ['type'],
     severity: 'advisory',
     name: 'Repeated section kicker labels',
     description:
@@ -250,6 +259,7 @@ const ANTIPATTERNS = [
   {
     id: 'numbered-section-markers',
     category: 'slop',
+    scopes: ['layout'],
     severity: 'advisory',
     name: 'Numbered section markers (01 / 02 / 03)',
     description:
@@ -287,6 +297,7 @@ const ANTIPATTERNS = [
   {
     id: 'oversized-h1',
     category: 'slop',
+    scopes: ['type'],
     name: 'Oversized hero headline',
     description:
       'A full-sentence headline set at display size ends up dominating the viewport, leaving no room for anything else above the fold. A punchy one- or two-word headline at that size is fine — the problem is a long headline blown up too large. Set long headlines smaller, or tighten the copy.',
@@ -296,6 +307,7 @@ const ANTIPATTERNS = [
   {
     id: 'extreme-negative-tracking',
     category: 'slop',
+    scopes: ['type'],
     name: 'Crushed letter spacing',
     description:
       'Letter-spacing pulled tighter than the point where characters keep their own shapes costs legibility. Tighten display type optically, not destructively.',
@@ -341,6 +353,7 @@ const ANTIPATTERNS = [
   {
     id: 'line-length',
     category: 'quality',
+    scopes: ['type', 'layout'],
     name: 'Line length too long',
     description:
       'Text lines wider than ~80 characters are hard to read. The eye loses its place tracking back to the start of the next line. Add a max-width (65ch to 75ch) to text containers.',
@@ -350,6 +363,7 @@ const ANTIPATTERNS = [
   {
     id: 'cramped-padding',
     category: 'quality',
+    scopes: ['layout'],
     name: 'Cramped padding',
     description:
       'Text is too close to the edge of its container. Two shapes: (1) an element with its own text where the padding is too low for the font size, and (2) a wrapper with text-bearing children and near-zero padding against a visible boundary (border, outline, or non-transparent background) — children land flush against the boundary line. Add at least 8px (ideally 12–16px) of padding inside bordered, outlined, or colored containers.',
@@ -359,6 +373,7 @@ const ANTIPATTERNS = [
   {
     id: 'body-text-viewport-edge',
     category: 'quality',
+    scopes: ['layout'],
     name: 'Body text touching viewport edge',
     description:
       'Body paragraphs render flush against the left or right viewport edge with no container providing horizontal padding. Wrap content in a container with at least 16px (ideally 24-32px) of horizontal padding, or apply max-width with mx-auto.',
@@ -366,6 +381,7 @@ const ANTIPATTERNS = [
   {
     id: 'tight-leading',
     category: 'quality',
+    scopes: ['type'],
     name: 'Tight line height',
     description:
       'Line height below 1.3x the font size makes multi-line text hard to read. Use 1.5 to 1.7 for body text so lines have room to breathe.',
@@ -373,6 +389,7 @@ const ANTIPATTERNS = [
   {
     id: 'skipped-heading',
     category: 'quality',
+    scopes: ['type'],
     name: 'Skipped heading level',
     description:
       'Heading levels should not skip (e.g. h1 then h3 with no h2). Screen readers use heading hierarchy for navigation. Skipping levels breaks the document outline.',
@@ -380,6 +397,7 @@ const ANTIPATTERNS = [
   {
     id: 'justified-text',
     category: 'quality',
+    scopes: ['type'],
     name: 'Justified text',
     description:
       'Justified text without hyphenation creates uneven word spacing ("rivers of white"). Use text-align: left for body text, or enable hyphens: auto if you must justify.',
@@ -387,6 +405,7 @@ const ANTIPATTERNS = [
   {
     id: 'tiny-text',
     category: 'quality',
+    scopes: ['type'],
     name: 'Tiny body text',
     description:
       'Body text below 12px is hard to read, especially on high-DPI screens. Use at least 14px for body content, 16px is ideal.',
@@ -394,6 +413,7 @@ const ANTIPATTERNS = [
   {
     id: 'all-caps-body',
     category: 'quality',
+    scopes: ['type'],
     name: 'All-caps body text',
     description:
       'Long passages in uppercase are hard to read. We recognize words by shape (ascenders and descenders), which all-caps removes. Reserve uppercase for short labels and headings.',
@@ -403,6 +423,7 @@ const ANTIPATTERNS = [
   {
     id: 'wide-tracking',
     category: 'quality',
+    scopes: ['type'],
     name: 'Wide letter spacing on body text',
     description:
       'Letter spacing above 0.05em on body text disrupts natural character groupings and slows reading. Reserve wide tracking for short uppercase labels only.',
@@ -410,6 +431,7 @@ const ANTIPATTERNS = [
   {
     id: 'text-overflow',
     category: 'quality',
+    scopes: ['layout'],
     name: 'Content overflowing its container',
     description:
       'Content renders wider than its container, spilling out or forcing a horizontal scrollbar. Let text wrap, constrain widths, or give the region a deliberate scroll affordance.',
@@ -419,11 +441,53 @@ const ANTIPATTERNS = [
   {
     id: 'clipped-overflow-container',
     category: 'quality',
+    scopes: ['layout'],
     name: 'Positioned child clipped by overflow container',
     description:
       'A clipping container (overflow hidden or clip) wrapping an absolutely-positioned child cuts off tooltips, menus, and popovers that need to escape. Let the overflow be visible, or move the positioned layer out of the clip.',
     skillSection: 'Layout & Space',
     skillGuideline: 'overflow container clipping positioned children',
+  },
+  {
+    id: 'design-system-font',
+    category: 'quality',
+    scopes: ['type'],
+    name: 'Font outside DESIGN.md',
+    description:
+      'A font is used that is not declared in DESIGN.md typography. Use the documented type system or update DESIGN.md if this is an intentional brand addition.',
+    skillSection: 'Typography',
+    skillGuideline: 'font family outside the project design system',
+  },
+  {
+    id: 'design-system-color',
+    category: 'quality',
+    severity: 'advisory',
+    name: 'Color outside DESIGN.md',
+    description:
+      'A literal color is outside the DESIGN.md palette and sidecar tonal ramps. This may be legitimate, but it should be an intentional design-system addition rather than drift.',
+    skillSection: 'Color & Contrast',
+    skillGuideline: 'literal color outside the project design system',
+  },
+  {
+    id: 'design-system-radius',
+    category: 'quality',
+    severity: 'advisory',
+    name: 'Radius outside DESIGN.md',
+    description:
+      'A border-radius value is outside the DESIGN.md rounded scale. Use a documented radius token or update the design system if the new shape is intentional.',
+    skillSection: 'Visual Details',
+    skillGuideline: 'border radius outside the project design system',
+  },
+  {
+    id: 'design-system-font-size',
+    category: 'quality',
+    severity: 'advisory',
+    scopes: ['type'],
+    name: 'Font size outside DESIGN.md',
+    description:
+      'A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.',
+    skillSection: 'Typography',
+    skillGuideline: 'font size outside the project design system',
   },
 
   // ── Provider tells: opt-in via --gpt / --gemini (gated off by default) ──
@@ -448,6 +512,17 @@ const ANTIPATTERNS = [
       'Repeating-gradient stripes used as surface decoration are a recurring generated-UI signature. Reach for a deliberate texture or leave the surface plain.',
     skillSection: 'Visual Details',
     skillGuideline: 'repeating-gradient decorative stripes',
+  },
+  {
+    id: 'codex-grid-background',
+    category: 'slop',
+    severity: 'advisory',
+    gated: 'gpt',
+    name: 'Decorative grid-line background',
+    description:
+      'A two-axis grid drawn with hairline linear-gradient layers ("1px, transparent 1px" on both axes) is a recurring generated-UI signature. Reserve grid overlays for actual canvas, map, blueprint, or measurement surfaces; elsewhere use product structure or a plain surface.',
+    skillSection: 'Visual Details',
+    skillGuideline: 'two-axis grid-line gradient background',
   },
   {
     id: 'theater-slop-phrase',
@@ -586,6 +661,36 @@ function getHue(c) {
 function colorToHex(c) {
   if (!c) return '?';
   return '#' + [c.r, c.g, c.b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+// --- cli/engine/shared/fonts.mjs ---
+const GOOGLE_FONTS_URL_RE = /fonts\.googleapis\.com\/css2?\?[^"'\s)<>]*/gi;
+
+function normalizeGoogleFontFamilyParam(value) {
+  return String(value || '')
+    .split('|')
+    .map(part => part.split(':')[0].trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function extractGoogleFontFamilies(text) {
+  const families = [];
+  if (!text) return families;
+
+  GOOGLE_FONTS_URL_RE.lastIndex = 0;
+  let urlMatch;
+  while ((urlMatch = GOOGLE_FONTS_URL_RE.exec(text)) !== null) {
+    const url = urlMatch[0];
+    const queryStart = url.indexOf('?');
+    if (queryStart === -1) continue;
+
+    const params = new URLSearchParams(url.slice(queryStart + 1).replace(/&amp;/g, '&'));
+    for (const value of params.getAll('family')) {
+      families.push(...normalizeGoogleFontFamilyParam(value));
+    }
+  }
+
+  return families;
 }
 
 // --- cli/engine/rules/checks.mjs ---
@@ -1084,9 +1189,13 @@ function checkHtmlPatterns(html) {
   // --- Motion ---
 
   // Bounce/elastic animation names
-  const bounceRe = /animation(?:-name)?\s*:\s*[^;]*\b(bounce|elastic|wobble|jiggle|spring)\b/gi;
-  if (bounceRe.test(html)) {
-    findings.push({ id: 'bounce-easing', snippet: 'Bounce/elastic animation in CSS' });
+  const bounceRe = /animation(?:-name)?\s*:\s*([^;{}]*(?:bounce|elastic|wobble|jiggle|spring)[^;{}]*)/gi;
+  const bounceMatch = bounceRe.exec(html);
+  if (bounceMatch) {
+    const animationToken = bounceMatch[1]
+      .split(/[,\s]+/)
+      .find((part) => /bounce|elastic|wobble|jiggle|spring/i.test(part));
+    findings.push({ id: 'bounce-easing', snippet: `animation: ${animationToken || bounceMatch[1].trim()}` });
   }
 
   // Overshoot cubic-bezier
@@ -1137,6 +1246,42 @@ function checkHtmlPatterns(html) {
   // --- Provider tells (gated): repeating-gradient stripes (GPT) ---
   if (/repeating-(?:linear|radial|conic)-gradient\s*\(/i.test(html)) {
     findings.push({ id: 'repeating-stripes-gradient', snippet: 'repeating-gradient decorative stripes' });
+  }
+
+  // --- Provider tells (gated): two-axis grid-line background (Codex/GPT) ---
+  // The Codex grid tell is two hairline `linear-gradient(... <color> 1px,
+  // transparent 1px)` layers (one per axis) tiled by a repeating
+  // `background-size` cell. Both signals must co-occur in the SAME style block
+  // (a CSS rule body or one inline `style="..."`): two hairline stops WITHOUT a
+  // tiling background-size is a fixed crosshair, not a grid, and a single
+  // hairline is a legitimate ruled line. Scoping to one block also stops
+  // unrelated single-axis rules on separate elements from adding up across the
+  // page. Count hairlines only inside `background`/`background-image` values so
+  // a hairline in an unrelated property (mask-image, border-image) can't stand
+  // in for the second axis. Colors like `oklch(96% 0.012 82 / 0.055)` carry
+  // nested parens, so match the hairline stop directly rather than parsing
+  // whole gradient layers.
+  {
+    const hairlineRe = /\b\d{1,3}px\s*,\s*transparent\s+\d{1,3}px/gi;
+    const gridSizeRe = /background-size\s*:[^;{}"']*\b\d{1,3}px\b/i;
+    const bgDeclRe = /\bbackground(?:-image)?\s*:\s*([^;{}"']*)/gi;
+    const blockRe = /\{([^{}]*)\}|style\s*=\s*"([^"]*)"|style\s*=\s*'([^']*)'/gi;
+    let blk;
+    while ((blk = blockRe.exec(html)) !== null) {
+      const block = blk[1] || blk[2] || blk[3] || '';
+      if (!gridSizeRe.test(block)) continue;
+      let hairlineCount = 0;
+      let bm;
+      bgDeclRe.lastIndex = 0;
+      while ((bm = bgDeclRe.exec(block)) !== null) {
+        const stops = bm[1].match(hairlineRe);
+        if (stops) hairlineCount += stops.length;
+      }
+      if (hairlineCount >= 2) {
+        findings.push({ id: 'codex-grid-background', snippet: 'two-axis grid-line gradient background' });
+        break;
+      }
+    }
   }
 
   // --- Provider tells (gated): "X theater" framing copy (GPT) ---
@@ -1544,11 +1689,16 @@ function parseAnyColor(s) {
   // OKLCH parser. Tailwind v4's CSS minifier squishes the space after
   // `%` ("21.5%.02 50"), so the separator between L and C may be absent.
   // Match L (with optional %), then C and H separated permissively.
-  m = str.match(/oklch\(\s*([\d.]+)(%?)\s*[\s,]*\s*([\d.]+)\s*[\s,]+\s*([-\d.]+)(?:deg)?\s*\)/i);
+  m = str.match(/oklch\(\s*([\d.]+)(%?)\s*[\s,]*\s*([\d.]+)\s*[\s,]+\s*([-\d.]+)(?:deg)?(?:\s*\/\s*([\d.]+)(%)?)?\s*\)/i);
   if (m) {
     const Lnum = parseFloat(m[1]);
     const L = m[2] === '%' ? Lnum / 100 : Lnum;
-    return oklchToRgb(L, parseFloat(m[3]), parseFloat(m[4]));
+    const rgb = oklchToRgb(L, parseFloat(m[3]), parseFloat(m[4]));
+    if (m[5] !== undefined) {
+      const alpha = parseFloat(m[5]);
+      rgb.a = m[6] === '%' ? alpha / 100 : alpha;
+    }
+    return rgb;
   }
   return null;
 }
@@ -1577,7 +1727,17 @@ const REPEATED_KICKER_SKIP_SELECTOR = [
   '[role="navigation"]',
   '[aria-label*="breadcrumb" i]',
   '[class*="breadcrumb" i]',
+  '[aria-hidden="true"]',
   '[data-impeccable-allow-kickers]',
+].join(',');
+
+const REPEATED_KICKER_CARD_CONTEXT_SELECTOR = [
+  'article',
+  'button',
+  'a',
+  'li',
+  '[role="listitem"]',
+  '[role="option"]',
 ].join(',');
 
 function cleanInlineText(el) {
@@ -1587,6 +1747,11 @@ function cleanInlineText(el) {
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function isRepeatedKickerCardContext(heading, kicker) {
+  const item = heading.closest?.(REPEATED_KICKER_CARD_CONTEXT_SELECTOR);
+  return Boolean(item && (!item.contains || item.contains(kicker)));
 }
 
 function isRepeatedKickerCandidate(opts) {
@@ -1602,6 +1767,7 @@ function isRepeatedKickerCandidate(opts) {
   } = opts;
   if (!['h2', 'h3', 'h4'].includes(headingTag)) return false;
   if (!headingText || headingText.length < 3) return false;
+  if (/^\/[\w-]+/i.test(headingText.replace(/^"|"$/g, '').trim())) return false;
   if (!(headingFontSize >= 20)) return false;
   if (!kickerTag || HEADING_TAGS.has(kickerTag)) return false;
   if (!['p', 'span', 'div', 'small'].includes(kickerTag)) return false;
@@ -1623,6 +1789,7 @@ function collectRepeatedSectionKickerCandidates(doc, getStyle, resolveLetterSpac
     if (heading.closest?.(REPEATED_KICKER_SKIP_SELECTOR)) continue;
     const kicker = heading.previousElementSibling;
     if (!kicker || kicker.closest?.(REPEATED_KICKER_SKIP_SELECTOR)) continue;
+    if (isRepeatedKickerCardContext(heading, kicker)) continue;
 
     const headingStyle = getStyle(heading);
     const kickerStyle = getStyle(kicker);
@@ -1805,6 +1972,84 @@ function resolveLengthPx(value, fontSizePx) {
   return num * fontSizePx;
 }
 
+function cssColorIsTransparent(value) {
+  if (!value) return true;
+  const str = String(value).trim().toLowerCase();
+  if (!str || str === 'transparent' || str === 'rgba(0, 0, 0, 0)') return true;
+  const parsed = parseAnyColor(str);
+  if (parsed) return (parsed.a ?? 1) <= 0.05;
+  return /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0(?:\.0+)?\s*\)$/.test(str);
+}
+
+function colorsNearlyMatch(a, b) {
+  const ca = parseAnyColor(a);
+  const cb = parseAnyColor(b);
+  if (!ca || !cb) return false;
+  const alphaDelta = Math.abs((ca.a ?? 1) - (cb.a ?? 1));
+  const channelDelta = Math.max(
+    Math.abs(ca.r - cb.r),
+    Math.abs(ca.g - cb.g),
+    Math.abs(ca.b - cb.b),
+  );
+  return alphaDelta <= 0.03 && channelDelta <= 3;
+}
+
+function getComputedStyleFor(win, el) {
+  if (win && typeof win.getComputedStyle === 'function') {
+    try { return win.getComputedStyle(el); } catch {}
+  }
+  if (typeof getComputedStyle === 'function') {
+    try { return getComputedStyle(el); } catch {}
+  }
+  return null;
+}
+
+function hasVisibleBackgroundBoundary(style, el, win) {
+  const bg = style?.backgroundColor || '';
+  if (cssColorIsTransparent(bg)) return false;
+
+  let parent = el?.parentElement || null;
+  while (parent) {
+    const parentStyle = getComputedStyleFor(win, parent);
+    const parentBg = parentStyle?.backgroundColor || '';
+    if (!cssColorIsTransparent(parentBg)) {
+      return !colorsNearlyMatch(bg, parentBg);
+    }
+    parent = parent.parentElement;
+  }
+
+  return true;
+}
+
+const TEXT_EDGE_TAGS = new Set(['A', 'BUTTON', 'CODE', 'DD', 'DT', 'FIGCAPTION', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'P', 'PRE', 'SPAN', 'TD', 'TH']);
+
+function hasMeaningfulDirectText(node) {
+  if (!node?.childNodes) return false;
+  for (const child of node.childNodes) {
+    if (child.nodeType === 3 && child.textContent.trim().length > 4) return true;
+  }
+  return false;
+}
+
+function textDescendantsFlushSides(el, rect) {
+  const flush = { top: false, right: false, bottom: false, left: false };
+  if (!rect || !el?.querySelectorAll) return flush;
+  const TEXT_EDGE_THRESHOLD = 4;
+  const candidates = el.querySelectorAll('a, button, code, dd, dt, figcaption, h1, h2, h3, h4, h5, h6, li, p, pre, span, td, th');
+  for (const node of candidates) {
+    if (!TEXT_EDGE_TAGS.has(node.tagName) || !hasMeaningfulDirectText(node)) continue;
+    let nodeRect = null;
+    try { nodeRect = node.getBoundingClientRect(); } catch {}
+    if (!nodeRect || nodeRect.width <= 0 || nodeRect.height <= 0) continue;
+    if (nodeRect.bottom < rect.top || nodeRect.top > rect.bottom || nodeRect.right < rect.left || nodeRect.left > rect.right) continue;
+    if (nodeRect.top - rect.top <= TEXT_EDGE_THRESHOLD) flush.top = true;
+    if (rect.right - nodeRect.right <= TEXT_EDGE_THRESHOLD) flush.right = true;
+    if (rect.bottom - nodeRect.bottom <= TEXT_EDGE_THRESHOLD) flush.bottom = true;
+    if (nodeRect.left - rect.left <= TEXT_EDGE_THRESHOLD) flush.left = true;
+  }
+  return flush;
+}
+
 // Pure quality checks. Most run on computed CSS and DOM-only inputs (work in
 // jsdom and the browser). Two checks (line-length, cramped-padding) gate on
 // element rect dimensions, which jsdom can't compute — pass `rect: null` from
@@ -1834,7 +2079,8 @@ function checkQuality(opts) {
   // font-size — bigger text demands proportionally more padding.
   //   vertical:   max(4px, fontSize × 0.3)
   //   horizontal: max(8px, fontSize × 0.5)
-  if (rect && hasDirectText && textLen > 20 && rect.width > 100 && rect.height > 30) {
+  const isInlineCode = tag === 'code' && !(el.closest && el.closest('pre'));
+  if (!isInlineCode && rect && hasDirectText && textLen > 20 && rect.width > 100 && rect.height > 30) {
     const borders = {
       top: parseFloat(style.borderTopWidth) || 0,
       right: parseFloat(style.borderRightWidth) || 0,
@@ -1842,7 +2088,7 @@ function checkQuality(opts) {
       left: parseFloat(style.borderLeftWidth) || 0,
     };
     const borderCount = Object.values(borders).filter(w => w > 0).length;
-    const hasBg = style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)';
+    const hasBg = hasVisibleBackgroundBoundary(style, el, win);
     if (borderCount >= 2 || hasBg) {
       const vPads = [], hPads = [];
       if (hasBg || borders.top > 0) vPads.push(parseFloat(style.paddingTop) || 0);
@@ -1890,10 +2136,6 @@ function checkQuality(opts) {
       !['fixed', 'absolute'].includes(elPosition) &&
       el.children && el.children.length > 0
     ) {
-      const isTransparent = (c) =>
-        !c || c === 'transparent' || c === 'rgba(0, 0, 0, 0)' ||
-        /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0(?:\.0+)?\s*\)$/.test(c);
-
       const borderW = {
         top:    parseFloat(style.borderTopWidth)    || 0,
         right:  parseFloat(style.borderRightWidth)  || 0,
@@ -1901,10 +2143,10 @@ function checkQuality(opts) {
         left:   parseFloat(style.borderLeftWidth)   || 0,
       };
       const borderVisible = {
-        top:    borderW.top    > 0 && !isTransparent(style.borderTopColor),
-        right:  borderW.right  > 0 && !isTransparent(style.borderRightColor),
-        bottom: borderW.bottom > 0 && !isTransparent(style.borderBottomColor),
-        left:   borderW.left   > 0 && !isTransparent(style.borderLeftColor),
+        top:    borderW.top    > 0 && !cssColorIsTransparent(style.borderTopColor),
+        right:  borderW.right  > 0 && !cssColorIsTransparent(style.borderRightColor),
+        bottom: borderW.bottom > 0 && !cssColorIsTransparent(style.borderBottomColor),
+        left:   borderW.left   > 0 && !cssColorIsTransparent(style.borderLeftColor),
       };
       // Outline detection. jsdom decomposes `border` shorthand into
       // border{Top,…}Width/Color but does NOT decompose `outline` —
@@ -1924,8 +2166,8 @@ function checkQuality(opts) {
           if (cMatch) outlineColorVal = cMatch[1];
         }
       }
-      const outlineVisible = outlineW > 0 && !isTransparent(outlineColorVal) && outlineStyleVal && outlineStyleVal !== 'none';
-      const bgVisible = !isTransparent(style.backgroundColor);
+      const outlineVisible = outlineW > 0 && !cssColorIsTransparent(outlineColorVal) && outlineStyleVal && outlineStyleVal !== 'none';
+      const bgVisible = hasVisibleBackgroundBoundary(style, el, win);
 
       const anyVisible = borderVisible.top || borderVisible.right || borderVisible.bottom || borderVisible.left || outlineVisible || bgVisible;
       if (anyVisible) {
@@ -1953,13 +2195,7 @@ function checkQuality(opts) {
         const CHILD_INSULATE_THRESHOLD = 4;
         const childrenInsulate = { top: false, right: false, bottom: false, left: false };
         for (const child of el.children) {
-          let childStyle = null;
-          if (win && typeof win.getComputedStyle === 'function') {
-            try { childStyle = win.getComputedStyle(child); } catch {}
-          }
-          if (!childStyle && typeof getComputedStyle === 'function') {
-            try { childStyle = getComputedStyle(child); } catch {}
-          }
+          let childStyle = getComputedStyleFor(win, child);
           if (!childStyle) continue;
           const childPad = {
             top:    resolveLengthPx(childStyle.paddingTop,    fontSize) ?? 0,
@@ -1967,15 +2203,37 @@ function checkQuality(opts) {
             bottom: resolveLengthPx(childStyle.paddingBottom, fontSize) ?? 0,
             left:   resolveLengthPx(childStyle.paddingLeft,   fontSize) ?? 0,
           };
+          const childMargin = {
+            top:    resolveLengthPx(childStyle.marginTop,    fontSize) ?? 0,
+            right:  resolveLengthPx(childStyle.marginRight,  fontSize) ?? 0,
+            bottom: resolveLengthPx(childStyle.marginBottom, fontSize) ?? 0,
+            left:   resolveLengthPx(childStyle.marginLeft,   fontSize) ?? 0,
+          };
+          if (rect && typeof child.getBoundingClientRect === 'function') {
+            try {
+              const childRect = child.getBoundingClientRect();
+              if (childRect && childRect.width > 0 && childRect.height > 0) {
+                if (childRect.top - rect.top >= CHILD_INSULATE_THRESHOLD) childrenInsulate.top = true;
+                if (rect.right - childRect.right >= CHILD_INSULATE_THRESHOLD) childrenInsulate.right = true;
+                if (rect.bottom - childRect.bottom >= CHILD_INSULATE_THRESHOLD) childrenInsulate.bottom = true;
+                if (childRect.left - rect.left >= CHILD_INSULATE_THRESHOLD) childrenInsulate.left = true;
+              }
+            } catch {}
+          }
           for (const s of ['top', 'right', 'bottom', 'left']) {
-            if (childPad[s] >= CHILD_INSULATE_THRESHOLD) childrenInsulate[s] = true;
+            if (childPad[s] >= CHILD_INSULATE_THRESHOLD || childMargin[s] >= CHILD_INSULATE_THRESHOLD) {
+              childrenInsulate[s] = true;
+            }
           }
         }
 
+        const textFlush = rect ? textDescendantsFlushSides(el, rect) : null;
+        const fullBleedBgBand = rect && viewportWidth > 0 && rect.width >= viewportWidth * 0.94 && bgVisible && !outlineVisible;
         const flushSides = [];
         for (const side of ['top', 'right', 'bottom', 'left']) {
-          const sideBounded = borderVisible[side] || outlineVisible || bgVisible;
-          if (sideBounded && pad[side] <= PAD_THRESHOLD && !childrenInsulate[side]) {
+          const bgBoundsSide = bgVisible && !(fullBleedBgBand && (side === 'left' || side === 'right'));
+          const sideBounded = borderVisible[side] || outlineVisible || bgBoundsSide;
+          if (sideBounded && pad[side] <= PAD_THRESHOLD && !childrenInsulate[side] && (!textFlush || textFlush[side])) {
             flushSides.push(side);
           }
         }
@@ -2069,7 +2327,7 @@ function checkQuality(opts) {
   // Only flag actual body content, not UI labels (buttons, tabs, badges, captions, footer text, etc.)
   if (hasDirectText && textLen > 20 && fontSize < 12) {
     const skipTags = ['sub', 'sup', 'code', 'kbd', 'samp', 'var', 'caption', 'figcaption'];
-    const inUIContext = el.closest && el.closest('button, a, label, summary, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="option"], nav, footer, [class*="badge" i], [class*="chip" i], [class*="pill" i], [class*="tag" i], [class*="label" i], [class*="caption" i]');
+    const inUIContext = el.closest && el.closest('button, a, label, summary, pre, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="option"], nav, footer, [aria-hidden="true"], [class*="badge" i], [class*="caption" i], [class*="chip" i], [class*="code" i], [class*="console" i], [class*="diff" i], [class*="label" i], [class*="meta" i], [class*="mock" i], [class*="pill" i], [class*="preview" i], [class*="tag" i], [class*="terminal" i], [class*="writes" i]');
     const isUppercase = style.textTransform === 'uppercase';
     if (!skipTags.includes(tag) && !inUIContext && !isUppercase) {
       findings.push({ id: 'tiny-text', snippet: `${fontSize}px body text` });
@@ -2489,14 +2747,9 @@ function checkPageTypography(doc, win) {
 
   // Check Google Fonts links in HTML
   const html = doc.documentElement?.outerHTML || '';
-  const gfRe = /fonts\.googleapis\.com\/css2?\?family=([^&"'\s]+)/gi;
-  let m;
-  while ((m = gfRe.exec(html)) !== null) {
-    const families = m[1].split('|').map(f => f.split(':')[0].replace(/\+/g, ' ').toLowerCase());
-    for (const f of families) {
-      fonts.add(f);
-      if (OVERUSED_FONTS.has(f)) overusedFound.add(f);
-    }
+  for (const f of extractGoogleFontFamilies(html)) {
+    fonts.add(f);
+    if (OVERUSED_FONTS.has(f)) overusedFound.add(f);
   }
 
   // Also parse raw HTML/style content for font-family (jsdom may not expose all via CSSOM)
@@ -2677,17 +2930,28 @@ function checkCreamPalette(doc, win) {
 }
 
 // ─── Oversized hero headline ────────────────────────────────────────────────
-// Fires when a *long* headline is set at display size, so a full sentence ends
-// up dominating the viewport. A punchy one- or two-word headline at the same
-// size is a legitimate stylistic choice and must pass — length, not size
-// alone, is the tell.
+// Fires when a *long* headline is set at display size and actually dominates
+// the viewport. A punchy one- or two-word headline at the same size is a
+// legitimate stylistic choice, and a large-but-contained two-line hero should
+// pass too — length and viewport share together are the tell.
 const OVERSIZED_H1_FONT_PX = 72;
 const OVERSIZED_H1_MIN_CHARS = 40;
-function checkOversizedH1({ tag, fontSize, headingText }) {
+const OVERSIZED_H1_MIN_VIEWPORT_HEIGHT_RATIO = 0.28;
+const OVERSIZED_H1_MIN_VIEWPORT_AREA_RATIO = 0.25;
+function checkOversizedH1({ tag, fontSize, headingText, rect = null, viewportWidth = 0, viewportHeight = 0 }) {
   if (tag !== 'h1') return [];
   const textLen = headingText.length;
   if (fontSize >= OVERSIZED_H1_FONT_PX && textLen >= OVERSIZED_H1_MIN_CHARS) {
-    return [{ id: 'oversized-h1', snippet: `${Math.round(fontSize)}px h1, ${textLen} chars "${headingText.slice(0, 60)}"` }];
+    let viewportDetail = '';
+    if (rect && viewportWidth > 0 && viewportHeight > 0) {
+      const heightRatio = rect.height / viewportHeight;
+      const areaRatio = (rect.width * rect.height) / (viewportWidth * viewportHeight);
+      const dominatesViewport = heightRatio >= OVERSIZED_H1_MIN_VIEWPORT_HEIGHT_RATIO
+        || areaRatio >= OVERSIZED_H1_MIN_VIEWPORT_AREA_RATIO;
+      if (!dominatesViewport) return [];
+      viewportDetail = `, ${Math.round(heightRatio * 100)}vh`;
+    }
+    return [{ id: 'oversized-h1', snippet: `${Math.round(fontSize)}px h1, ${textLen} chars${viewportDetail} "${headingText.slice(0, 60)}"` }];
   }
   return [];
 }
@@ -2705,31 +2969,54 @@ function checkElementOversizedH1DOM(el) {
   const style = getComputedStyle(el);
   const fontSize = parseFloat(style.fontSize) || 0;
   const headingText = (el.textContent || '').trim().replace(/\s+/g, ' ');
-  return checkOversizedH1({ tag, fontSize, headingText });
+  const rect = el.getBoundingClientRect();
+  const viewportWidth = (typeof window !== 'undefined' ? window.innerWidth : 0) || 0;
+  const viewportHeight = (typeof window !== 'undefined' ? window.innerHeight : 0) || 0;
+  return checkOversizedH1({ tag, fontSize, headingText, rect, viewportWidth, viewportHeight });
 }
 
 // ─── GPT tell: hairline border + wide diffuse shadow (gated --gpt) ────────────
-function shadowMaxBlurPx(boxShadow) {
+const CSS_COLOR_TOKEN_RE = /(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\([^)]*\)|#[0-9a-fA-F]{3,8}\b|\b(?:black|white|transparent|currentcolor)\b/gi;
+
+function shadowLayerAlpha(layer) {
+  CSS_COLOR_TOKEN_RE.lastIndex = 0;
+  const match = CSS_COLOR_TOKEN_RE.exec(layer);
+  if (!match) return 1;
+  if (match[0].toLowerCase() === 'transparent') return 0;
+  const parsed = parseAnyColor(match[0]);
+  return parsed ? (parsed.a ?? 1) : 1;
+}
+
+function shadowMaxBlurPx(boxShadow, { minAlpha = 0 } = {}) {
   if (!boxShadow || boxShadow === 'none') return 0;
   let maxBlur = 0;
   // Split into layers on commas not inside parentheses (rgba(...) etc.).
   for (const layer of boxShadow.split(/,(?![^()]*\))/)) {
+    if (shadowLayerAlpha(layer) < minAlpha) continue;
     // Strip colors and keywords (rgba()/hsl()/hex/named/inset/px), leaving the
     // ordered length tokens: offsetX offsetY blur [spread]. Static jsdom keeps
     // unitless zeros ("0 0 24px"); browsers normalize to px ("0px 0px 24px") —
     // both reduce to the same numbers here.
-    const cleaned = layer.replace(/rgba?\([^)]*\)|hsla?\([^)]*\)|#[0-9a-f]+|\b[a-z]+\b/gi, ' ');
+    const cleaned = layer.replace(CSS_COLOR_TOKEN_RE, ' ').replace(/\b[a-z]+\b/gi, ' ');
     const nums = [...cleaned.matchAll(/-?\d*\.?\d+/g)].map(m => parseFloat(m[0]));
     if (nums.length >= 3) maxBlur = Math.max(maxBlur, nums[2]);
   }
   return maxBlur;
 }
 
-function checkGptThinBorderWideShadow({ borderWidths, boxShadow }) {
-  const maxBorder = Math.max(0, ...borderWidths);
-  const hasThinBorder = maxBorder > 0 && maxBorder <= 1.5;
-  const blur = shadowMaxBlurPx(boxShadow);
-  if (hasThinBorder && blur >= 16) {
+function cssColorAlpha(value) {
+  if (cssColorIsTransparent(value)) return 0;
+  const parsed = parseAnyColor(value);
+  return parsed ? (parsed.a ?? 1) : 1;
+}
+
+function checkGptThinBorderWideShadow({ borderWidths, borderColors, boxShadow }) {
+  const visibleThinBorders = borderWidths
+    .map((width, index) => ({ width, alpha: cssColorAlpha(borderColors?.[index] || '') }))
+    .filter(({ width, alpha }) => width > 0 && width <= 1.5 && alpha >= 0.28);
+  const maxBorder = Math.max(0, ...visibleThinBorders.map(({ width }) => width));
+  const blur = shadowMaxBlurPx(boxShadow, { minAlpha: 0.12 });
+  if (visibleThinBorders.length >= 2 && blur >= 16) {
     return [{ id: 'gpt-thin-border-wide-shadow', snippet: `${maxBorder}px border + ${Math.round(blur)}px shadow blur` }];
   }
   return [];
@@ -2744,13 +3031,22 @@ function borderWidthsFromStyle(style) {
   ];
 }
 
+function borderColorsFromStyle(style) {
+  return [
+    style.borderTopColor || '',
+    style.borderRightColor || '',
+    style.borderBottomColor || '',
+    style.borderLeftColor || '',
+  ];
+}
+
 function checkElementGptBorderShadow(el, style) {
-  return checkGptThinBorderWideShadow({ borderWidths: borderWidthsFromStyle(style), boxShadow: style.boxShadow || '' });
+  return checkGptThinBorderWideShadow({ borderWidths: borderWidthsFromStyle(style), borderColors: borderColorsFromStyle(style), boxShadow: style.boxShadow || '' });
 }
 
 function checkElementGptBorderShadowDOM(el) {
   const style = getComputedStyle(el);
-  return checkGptThinBorderWideShadow({ borderWidths: borderWidthsFromStyle(style), boxShadow: style.boxShadow || '' });
+  return checkGptThinBorderWideShadow({ borderWidths: borderWidthsFromStyle(style), borderColors: borderColorsFromStyle(style), boxShadow: style.boxShadow || '' });
 }
 
 // ─── Clipped overflow container ───────────────────────────────────────────────
@@ -2763,17 +3059,131 @@ function classSelector(el) {
   return tokens.length ? `${tag}.${tokens.join('.')}` : tag;
 }
 
+function positionedChildIsDecorative(child) {
+  if (!child || typeof child.getAttribute !== 'function') return false;
+  if (child.closest?.('[aria-hidden="true"]')) return true;
+  const role = (child.getAttribute('role') || '').toLowerCase();
+  if (role === 'none' || role === 'presentation') return true;
+  const tag = child.tagName ? child.tagName.toLowerCase() : '';
+  if (['img', 'svg', 'canvas', 'video'].includes(tag)) return true;
+  const ident = `${child.getAttribute('class') || ''} ${child.getAttribute('id') || ''}`;
+  if (
+    /\b(art|bg|background|badge|blob|crop|decor|dot|glow|grain|image|mask|ornament|overlay|photo|scrim|shadow|shine|texture)\b/i.test(ident) &&
+    !positionedChildHasSubstantiveContent(child)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+const POSITIONED_CHILD_INTERACTIVE_SELECTOR = [
+  'a[href]',
+  'button',
+  'input',
+  'select',
+  'summary',
+  'textarea',
+  '[tabindex]:not([tabindex="-1"])',
+  '[role="button"]',
+  '[role="dialog"]',
+  '[role="link"]',
+  '[role="listbox"]',
+  '[role="menu"]',
+  '[role="menuitem"]',
+  '[role="option"]',
+  '[role="tooltip"]',
+].join(',');
+
+function positionedChildHasSubstantiveContent(child) {
+  const text = (child.textContent || '').replace(/\s+/g, ' ').trim();
+  if (text.length > 0) return true;
+  if (typeof child.matches === 'function') {
+    try {
+      if (child.matches(POSITIONED_CHILD_INTERACTIVE_SELECTOR)) return true;
+    } catch {}
+  }
+  if (typeof child.querySelector === 'function') {
+    try {
+      if (child.querySelector(POSITIONED_CHILD_INTERACTIVE_SELECTOR)) return true;
+    } catch {}
+  }
+  return false;
+}
+
+function clippingContainerIsIntentionalViewport(el) {
+  if (!el || typeof el.getAttribute !== 'function') return false;
+  const roleDescription = (el.getAttribute('aria-roledescription') || '').toLowerCase();
+  if (/\b(carousel|slider)\b/.test(roleDescription)) return true;
+  const ident = `${el.getAttribute('class') || ''} ${el.getAttribute('id') || ''}`.toLowerCase();
+  return /\b(carousel|comparison|compare|fisheye|marquee|preview|scroller|slider|slideshow|split|viewport)\b/.test(ident) ||
+    /\b(demo-area|demo-stage|demo-viewport)\b/.test(ident);
+}
+
+function elementRect(el) {
+  if (!el || typeof el.getBoundingClientRect !== 'function') return null;
+  try {
+    const rect = el.getBoundingClientRect();
+    if (!rect) return null;
+    const values = [rect.top, rect.right, rect.bottom, rect.left, rect.width, rect.height];
+    if (!values.every(Number.isFinite)) return null;
+    if (rect.width <= 0 && rect.height <= 0) return null;
+    return rect;
+  } catch {
+    return null;
+  }
+}
+
+function positionedStyleImpliesEscape(style) {
+  const values = [
+    style.top,
+    style.right,
+    style.bottom,
+    style.left,
+    style.inset,
+    style.insetBlock,
+    style.insetInline,
+    style.insetBlockStart,
+    style.insetBlockEnd,
+    style.insetInlineStart,
+    style.insetInlineEnd,
+  ].filter(Boolean).map(value => String(value).trim().toLowerCase());
+  for (const value of values) {
+    if (/(^|[\s(])-+(?:\d|\.)/.test(value)) return true;
+    if (/(^|[\s(])100(?:\.0+)?%/.test(value)) return true;
+  }
+  return false;
+}
+
+function positionedChildEscapesClip(el, child, clipX, clipY) {
+  const parentRect = elementRect(el);
+  const childRect = elementRect(child);
+  if (!parentRect || !childRect) return null;
+  const threshold = 2;
+  return Boolean(
+    (clipX && (childRect.left < parentRect.left - threshold || childRect.right > parentRect.right + threshold)) ||
+    (clipY && (childRect.top < parentRect.top - threshold || childRect.bottom > parentRect.bottom + threshold))
+  );
+}
+
 function checkClippedOverflow(el, style, getStyle) {
   const clips = (v) => v === 'hidden' || v === 'clip';
   const scrolls = (v) => v === 'auto' || v === 'scroll';
   const ox = style.overflowX || '', oy = style.overflowY || '', ov = style.overflow || '';
-  const anyClip = clips(ox) || clips(oy) || clips(ov);
+  const clipX = clips(ox) || clips(ov);
+  const clipY = clips(oy) || clips(ov);
+  const anyClip = clipX || clipY;
   const anyScroll = scrolls(ox) || scrolls(oy) || scrolls(ov);
   if (!anyClip || anyScroll) return [];
+  if (clippingContainerIsIntentionalViewport(el)) return [];
   if (!el.querySelectorAll) return [];
   for (const child of el.querySelectorAll('*')) {
-    const pos = (getStyle(child).position) || '';
+    const childStyle = getStyle(child);
+    const pos = childStyle.position || '';
     if (pos === 'absolute' || pos === 'fixed') {
+      if (positionedChildIsDecorative(child)) continue;
+      const escapes = positionedChildEscapesClip(el, child, clipX, clipY);
+      if (escapes === false) continue;
+      if (escapes === null && !positionedStyleImpliesEscape(childStyle)) continue;
       return [{ id: 'clipped-overflow-container', snippet: `${classSelector(el)} clips a positioned child` }];
     }
   }
@@ -2792,14 +3202,94 @@ function checkElementClippedOverflowDOM(el) {
 // ─── Text overflow (browser-only: needs scrollWidth/clientWidth) ──────────────
 const TEXT_OVERFLOW_SKIP_TAGS = new Set(['pre', 'code', 'textarea', 'svg', 'canvas', 'select', 'option', 'marquee']);
 
+function metricLengthPx(value, fontSizePx = 16) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return null;
+  return resolveLengthPx(value, fontSizePx);
+}
+
+function firstMetricLengthPx(fontSizePx, ...values) {
+  for (const value of values) {
+    const parsed = metricLengthPx(value, fontSizePx);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
+function expandBoxShorthand(parts) {
+  if (parts.length === 1) return [parts[0], parts[0], parts[0], parts[0]];
+  if (parts.length === 2) return [parts[0], parts[1], parts[0], parts[1]];
+  if (parts.length === 3) return [parts[0], parts[1], parts[2], parts[1]];
+  return [parts[0], parts[1], parts[2], parts[3]];
+}
+
+function clippedByInset(clipPath) {
+  const match = String(clipPath || '').trim().toLowerCase().match(/^inset\s*\(([^)]*)\)$/);
+  if (!match) return false;
+  const beforeRound = match[1].split(/\s+round\s+/)[0].trim();
+  if (!beforeRound) return false;
+  const values = expandBoxShorthand(beforeRound.split(/\s+/).slice(0, 4));
+  const percents = values.map(value => String(value).trim().match(/^(-?\d+(?:\.\d+)?)%$/));
+  if (percents.some(match => !match)) return false;
+  const [top, right, bottom, left] = percents.map(match => parseFloat(match[1]));
+  return top + bottom >= 100 || left + right >= 100;
+}
+
+function clippedByRect(clip) {
+  const match = String(clip || '').trim().toLowerCase().match(/^rect\s*\(([^)]*)\)$/);
+  if (!match) return false;
+  const values = match[1].split(/[,\s]+/).map(value => value.trim()).filter(Boolean);
+  if (values.length !== 4) return false;
+  const [top, right, bottom, left] = values.map(value => metricLengthPx(value, 16));
+  if ([top, right, bottom, left].some(value => value === null)) return false;
+  return bottom <= top || right <= left;
+}
+
+function isScreenReaderOnlyTextStyle(style, metrics = {}) {
+  if (!style) return false;
+  const overflowValues = [style.overflow, style.overflowX, style.overflowY]
+    .map(value => String(value || '').toLowerCase());
+  const clipsOverflow = overflowValues.some(value => value === 'hidden' || value === 'clip');
+
+  const fontSize = metricLengthPx(style.fontSize, 16) || 16;
+  const width = firstMetricLengthPx(fontSize, metrics.width, metrics.clientWidth, style.width, style.inlineSize);
+  const height = firstMetricLengthPx(fontSize, metrics.height, metrics.clientHeight, style.height, style.blockSize);
+  const isTiny = width !== null && height !== null && width <= 2 && height <= 2;
+  const isAbsolutelyHidden = String(style.position || '').toLowerCase() === 'absolute' && isTiny && clipsOverflow;
+
+  const clipPath = String(style.clipPath || style.webkitClipPath || '').trim();
+  const clip = String(style.clip || '').trim();
+  return isAbsolutelyHidden || clippedByInset(clipPath) || clippedByRect(clip);
+}
+
+function isRenderedForBrowserRule(el) {
+  for (let cur = el; cur && cur.nodeType === 1; cur = cur.parentElement) {
+    if (cur.getAttribute?.('aria-hidden') === 'true') return false;
+    const style = getComputedStyle(cur);
+    const visibility = String(style.visibility || '').toLowerCase();
+    if (style.display === 'none' || visibility === 'hidden' || visibility === 'collapse') return false;
+    if ((parseFloat(style.opacity) || 0) <= 0.01) return false;
+    if (String(style.contentVisibility || '').toLowerCase() === 'hidden') return false;
+  }
+  return true;
+}
+
 function checkElementTextOverflowDOM(el) {
   const tag = el.tagName.toLowerCase();
   if (TEXT_OVERFLOW_SKIP_TAGS.has(tag)) return [];
+  if (!isRenderedForBrowserRule(el)) return [];
   // Only the element that actually owns overflowing text — not its ancestors,
   // which inherit a wider scrollWidth from the spilling descendant.
   const hasDirectText = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim().length > 0);
   if (!hasDirectText) return [];
   const style = getComputedStyle(el);
+  const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+  if (isScreenReaderOnlyTextStyle(style, {
+    width: rect?.width,
+    height: rect?.height,
+    clientWidth: el.clientWidth,
+    clientHeight: el.clientHeight,
+  })) return [];
   const isScrollRegion = (s) => /(auto|scroll)/.test(s.overflowX || '') || /(auto|scroll)/.test(s.overflow || '');
   if (isScrollRegion(style)) return [];
   // A scrollable ancestor means this overflow is intentional and scrollable.
@@ -3476,6 +3966,7 @@ if (IS_BROWSER) {
       if (el.closest('.impeccable-overlay, .impeccable-label, .impeccable-banner, .impeccable-tooltip')) continue;
       if (el.closest('[id^="impeccable-live-"]')) continue;
       if (el === document.body || el === document.documentElement) continue;
+      if (!isRenderedForBrowserRule(el)) continue;
 
       const tag = el.tagName.toLowerCase();
       const style = getComputedStyle(el);
@@ -3907,6 +4398,7 @@ if (IS_BROWSER) {
       return { ...candidate, status: 'unresolved', confidence: 'none', reason: 'stale selector' };
     }
     if (!el) return { ...candidate, status: 'unresolved', confidence: 'none', reason: 'missing element' };
+    if (!isRenderedForBrowserRule(el)) return { ...candidate, status: 'unresolved', confidence: 'none', reason: 'hidden element' };
 
     const blockingReason = (candidate.reasons || []).find(reason =>
       reason === 'background-clip text' ||
@@ -4038,6 +4530,7 @@ if (IS_BROWSER) {
           category: ap ? ap.category : 'quality',
           severity: ap?.severity || 'warning',
           detail: f.detail || f.snippet,
+          ignoreValue: f.ignoreValue || f.value || '',
           name: ap ? ap.name : (f.type || f.id),
           description: ap ? ap.description : '',
         };
@@ -4074,10 +4567,203 @@ if (IS_BROWSER) {
     return [...groupMap.entries()].map(([el, findings]) => ({ el, findings }));
   }
 
+  const DESIGN_COLOR_TOLERANCE = 6;
+  const DESIGN_RADIUS_TOLERANCE_PX = 0.5;
+  const DESIGN_SKIP_TAGS = new Set(['head', 'title', 'meta', 'link', 'style', 'script', 'noscript', 'template', 'source']);
+
+  function normalizeBrowserFontName(value) {
+    return String(value || '')
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .replace(/\+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
+  }
+
+  function browserPrimaryFont(stack) {
+    if (!stack || /var\(/i.test(stack)) return '';
+    return String(stack || '')
+      .split(',')
+      .map(normalizeBrowserFontName)
+      .find(font => font && !GENERIC_FONTS.has(font)) || '';
+  }
+
+  function browserDesignSystemConfig() {
+    const raw = window.__IMPECCABLE_CONFIG__?.designSystem;
+    if (!raw?.present) return null;
+    const allowedFonts = new Set((raw.allowedFonts || []).map(normalizeBrowserFontName).filter(Boolean));
+    const allowedColors = (raw.allowedColors || [])
+      .filter(color => color && Number.isFinite(color.r) && Number.isFinite(color.g) && Number.isFinite(color.b))
+      .map(color => ({ r: color.r, g: color.g, b: color.b }));
+    const allowedRadii = (raw.allowedRadii || [])
+      .map(Number)
+      .filter(px => Number.isFinite(px));
+    return {
+      present: true,
+      hasFonts: raw.hasFonts === true && allowedFonts.size > 0,
+      allowedFonts,
+      hasColors: raw.hasColors === true && allowedColors.length > 0,
+      allowedColors,
+      hasRadii: raw.hasRadii === true && allowedRadii.length > 0,
+      allowedRadii,
+      hasPillRadius: raw.hasPillRadius === true,
+    };
+  }
+
+  function browserColorsClose(a, b) {
+    if (!a || !b) return false;
+    return Math.max(
+      Math.abs(a.r - b.r),
+      Math.abs(a.g - b.g),
+      Math.abs(a.b - b.b),
+    ) <= DESIGN_COLOR_TOLERANCE;
+  }
+
+  function isBrowserDesignColorAllowed(raw, designSystem) {
+    if (!designSystem?.hasColors) return true;
+    const text = String(raw || '').trim().toLowerCase();
+    if (!text || text === 'transparent' || text === 'currentcolor' || text === 'inherit' || text === 'initial') return true;
+    if (text.includes('var(')) return true;
+    const parsed = parseAnyColor(text);
+    if (!parsed) return true;
+    if ((parsed.a ?? 1) <= 0.05) return true;
+    return designSystem.allowedColors.some(color => browserColorsClose(parsed, color));
+  }
+
+  function isBrowserTransparentCss(value) {
+    const text = String(value || '').trim().toLowerCase();
+    if (!text || text === 'transparent') return true;
+    const parsed = parseAnyColor(text);
+    return parsed ? (parsed.a ?? 1) <= 0.05 : false;
+  }
+
+  function isBrowserDesignRadiusAllowed(raw, designSystem) {
+    if (!designSystem?.hasRadii) return true;
+    const text = String(raw || '').trim().toLowerCase();
+    if (!text || text === '0' || text === 'none' || text === 'initial' || text === 'inherit') return true;
+    if (text.includes('var(') || text.includes('%')) return true;
+    const px = resolveLengthPx(text, 16);
+    if (px == null || !Number.isFinite(px) || px <= DESIGN_RADIUS_TOLERANCE_PX) return true;
+    if (designSystem.hasPillRadius && px >= 99) return true;
+    return designSystem.allowedRadii.some(allowed => Math.abs(allowed - px) <= DESIGN_RADIUS_TOLERANCE_PX);
+  }
+
+  function browserRadiusTokens(value) {
+    return String(value || '')
+      .replace(/\s*\/\s*/g, ' ')
+      .split(/\s+/)
+      .map(token => token.trim())
+      .filter(Boolean);
+  }
+
+  function browserHasDirectText(el) {
+    return [...(el.childNodes || [])].some(node => node.nodeType === 3 && node.textContent.trim().length > 0);
+  }
+
+  function browserSampleText(el) {
+    const text = String(el.textContent || '').replace(/\s+/g, ' ').trim();
+    return text ? ` "${text.slice(0, 40)}"` : '';
+  }
+
+  function shouldSkipDesignElement(el) {
+    const tag = el.tagName?.toLowerCase?.() || '';
+    return DESIGN_SKIP_TAGS.has(tag) || isElementHidden(el);
+  }
+
+  function checkElementDesignSystemDOM(el, designSystem, seen) {
+    if (!designSystem?.present || shouldSkipDesignElement(el)) return [];
+    const findings = [];
+    const tag = el.tagName?.toLowerCase?.() || 'unknown';
+    const style = getComputedStyle(el);
+
+    if (designSystem.hasFonts && browserHasDirectText(el)) {
+      const font = browserPrimaryFont(style.fontFamily || '');
+      if (font && !designSystem.allowedFonts.has(font) && !seen.fonts.has(font)) {
+        seen.fonts.add(font);
+        findings.push({
+          type: 'design-system-font',
+          detail: `${tag}${browserSampleText(el)} uses ${font}; not declared in DESIGN.md typography`,
+          ignoreValue: font,
+        });
+      }
+    }
+
+    if (designSystem.hasColors) {
+      const colorChecks = [];
+      if (browserHasDirectText(el)) colorChecks.push(['text color', style.color]);
+      if (!isBrowserTransparentCss(style.backgroundColor)) colorChecks.push(['background', style.backgroundColor]);
+      for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
+        if ((parseFloat(style[`border${side}Width`]) || 0) > 0) {
+          colorChecks.push([`border-${side.toLowerCase()}`, style[`border${side}Color`]]);
+        }
+      }
+      if ((parseFloat(style.outlineWidth) || 0) > 0) colorChecks.push(['outline', style.outlineColor]);
+
+      for (const [kind, raw] of colorChecks) {
+        const label = String(raw || '').trim().replace(/\s+/g, ' ');
+        if (isBrowserDesignColorAllowed(label, designSystem)) continue;
+        const key = `${kind}:${label}`;
+        if (seen.colors.has(key)) continue;
+        seen.colors.add(key);
+        findings.push({
+          type: 'design-system-color',
+          detail: `${kind} ${label} on ${tag}${browserSampleText(el)} is outside DESIGN.md colors`,
+          ignoreValue: label,
+        });
+      }
+    }
+
+    if (designSystem.hasRadii) {
+      for (const token of browserRadiusTokens(style.borderRadius || '')) {
+        if (isBrowserDesignRadiusAllowed(token, designSystem)) continue;
+        if (seen.radii.has(token)) continue;
+        seen.radii.add(token);
+        findings.push({
+          type: 'design-system-radius',
+          detail: `border-radius ${token} on ${tag}${browserSampleText(el)} is outside the DESIGN.md rounded scale`,
+          ignoreValue: token,
+        });
+      }
+    }
+
+    return findings;
+  }
+
+  function decodeBrowserGoogleFamily(value) {
+    const family = String(value || '').split(':')[0].replace(/\+/g, ' ');
+    try {
+      return decodeURIComponent(family);
+    } catch {
+      return family;
+    }
+  }
+
+  function checkBrowserDesignSystemSources(designSystem, seen) {
+    if (!designSystem?.hasFonts) return [];
+    const findings = [];
+    for (const link of document.querySelectorAll('link[href*="fonts.googleapis.com/css"]')) {
+      const href = link.getAttribute('href') || '';
+      for (const match of href.matchAll(/[?&]family=([^&]+)/g)) {
+        const display = decodeBrowserGoogleFamily(match[1]);
+        const font = normalizeBrowserFontName(display);
+        if (!font || designSystem.allowedFonts.has(font) || seen.fonts.has(font)) continue;
+        seen.fonts.add(font);
+        findings.push({
+          type: 'design-system-font',
+          detail: `Google Fonts: ${display} is not declared in DESIGN.md typography`,
+          ignoreValue: display,
+        });
+      }
+    }
+    return findings;
+  }
+
   function collectBrowserFindings() {
     const groupMap = new Map();
     const _disabled = EXTENSION_MODE ? (window.__IMPECCABLE_CONFIG__?.disabledRules || []) : [];
     const _ruleOk = (id) => !_disabled.length || !_disabled.includes(id);
+    const designSystem = browserDesignSystemConfig();
+    const designSeen = { fonts: new Set(), colors: new Set(), radii: new Set() };
     // Note: provider-gated rules (--gpt / --gemini) are NOT filtered here. In a
     // real browser env (detector page, live overlay, extension) running every
     // check is free, so we always surface them; the gating is purely a CLI
@@ -4108,6 +4794,7 @@ if (IS_BROWSER) {
         ...checkElementClippedOverflowDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
         ...checkElementGptBorderShadowDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
         ...checkElementTextOverflowDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
+        ...checkElementDesignSystemDOM(el, designSystem, designSeen),
       ].filter(f => _ruleOk(f.type));
 
       addBrowserFindings(groupMap, el, findings);
@@ -4123,6 +4810,13 @@ if (IS_BROWSER) {
     }
 
     const pageLevelFindings = [];
+
+    const designSourceFindings = checkBrowserDesignSystemSources(designSystem, designSeen)
+      .filter(f => _ruleOk(f.type));
+    if (designSourceFindings.length > 0) {
+      pageLevelFindings.push(...designSourceFindings);
+      addBrowserFindings(groupMap, document.body, designSourceFindings);
+    }
 
     const typoFindings = checkTypography().filter(f => _ruleOk(f.type));
     if (typoFindings.length > 0) {

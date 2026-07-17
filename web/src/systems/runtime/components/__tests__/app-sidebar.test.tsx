@@ -485,12 +485,14 @@ describe("AppSidebar", () => {
         "nav-loops",
         "nav-jobs",
         "nav-triggers",
-        "nav-knowledge",
-        "nav-skills",
+        "nav-marketplace",
+        "nav-extensions",
         "nav-bridges",
+        "nav-skills",
+        "nav-mcp",
+        "nav-knowledge",
         "nav-sandbox",
         "nav-vault",
-        "nav-mcp",
         "nav-settings",
       ]);
     });
@@ -503,6 +505,8 @@ describe("AppSidebar", () => {
       ["loops", "/loops"],
       ["jobs", "/jobs"],
       ["triggers", "/triggers"],
+      ["marketplace", "/marketplace"],
+      ["extensions", "/extensions"],
       ["knowledge", "/knowledge"],
       ["skills", "/skills"],
       ["bridges", "/bridges"],
@@ -528,6 +532,7 @@ describe("AppSidebar", () => {
       ["network", "/network"],
       ["jobs", "/jobs"],
       ["triggers", "/triggers"],
+      ["marketplace", "/marketplace"],
       ["knowledge", "/knowledge"],
       ["skills", "/skills"],
       ["bridges", "/bridges"],
@@ -544,6 +549,12 @@ describe("AppSidebar", () => {
       matchedRouteFuzzy["/tasks"] = true;
       renderSidebar(makeProps());
       expect(screen.getByTestId("nav-active-tasks")).toBeInTheDocument();
+    });
+
+    it("Should keep Marketplace active for entry detail routes (fuzzy)", () => {
+      matchedRouteFuzzy["/marketplace"] = true;
+      renderSidebar(makeProps());
+      expect(screen.getByTestId("nav-active-marketplace")).toBeInTheDocument();
     });
 
     it("Should keep Loops active for loop detail and editor deep links (fuzzy)", () => {

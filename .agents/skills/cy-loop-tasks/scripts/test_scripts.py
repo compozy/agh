@@ -452,6 +452,92 @@ class CyLoopTasksScriptTests(unittest.TestCase):
                 "phase=D action=peer_review round=2",
             )
 
+    def test_detect_phase_routes_canonical_qa_task_types_in_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "qa-tail"
+            slug_dir = tasks_root / slug
+            state_path = self.write_state(
+                tasks_root,
+                slug,
+                mode="tasks",
+                tasks={
+                    "total": 2,
+                    "completed": [],
+                    "current": None,
+                    "pending": ["task_01", "task_02"],
+                },
+                qa={"report_done": False, "execution_done": False},
+            )
+            (slug_dir / "task_01.md").write_text(
+                "---\nstatus: pending\ntitle: QA Plan and Session Charters\ntype: qa-report\n---\n",
+                encoding="utf-8",
+            )
+            (slug_dir / "task_02.md").write_text(
+                "---\nstatus: pending\ntitle: Real-User QA Execution\ntype: qa-execution\n---\n",
+                encoding="utf-8",
+            )
+
+            report = self.run_script(
+                "detect-phase.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+            )
+
+            self.assertEqual(report.returncode, 0, report.stderr)
+            self.assertEqual(report.stdout.strip(), "phase=C action=qa_report")
+
+            state = state_io.load(state_path)
+            state["tasks"]["pending"] = ["task_02"]
+            state["qa"]["report_done"] = True
+            state_io.dump(state, state_path)
+
+            execution = self.run_script(
+                "detect-phase.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+            )
+
+            self.assertEqual(execution.returncode, 0, execution.stderr)
+            self.assertEqual(execution.stdout.strip(), "phase=C action=qa_execution")
+
+    def test_detect_phase_does_not_infer_qa_lane_from_title(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "qa-title-only"
+            slug_dir = tasks_root / slug
+            self.write_state(
+                tasks_root,
+                slug,
+                mode="tasks",
+                tasks={
+                    "total": 1,
+                    "completed": [],
+                    "current": None,
+                    "pending": ["task_01"],
+                },
+                qa={"report_done": False, "execution_done": False},
+            )
+            (slug_dir / "task_01.md").write_text(
+                "---\nstatus: pending\ntitle: QA Plan and Session Charters\ntype: test\n---\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_script(
+                "detect-phase.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                result.stdout.strip(),
+                "phase=B action=execute_task task=task_01",
+            )
+
     def test_detect_phase_appends_frontend_lane_only_for_frontend_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tasks_root = Path(tmp) / "tasks"

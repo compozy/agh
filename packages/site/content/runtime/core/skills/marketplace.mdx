@@ -1,14 +1,14 @@
 ---
-title: Marketplace
+title: Skills Marketplace
 description: How to discover, install, update, and remove marketplace skills with AGH.
 ---
 
 AGH can install community skills from a marketplace registry into the same local skill hierarchy as
 manual skills. The default registry adapter is ClawHub.
 
-Marketplace operations are available through the CLI and the daemon API. The web Skills page uses
-the daemon API for remote search, install, update, and removal; the CLI can perform the same
-operations without requiring the daemon to be running.
+Marketplace operations are available through the CLI and the daemon API. The web Skills page shows
+installed skills; use the discovery CLI or API when you need the remote catalog. The skill-specific
+CLI can perform its registry operations without requiring the daemon to be running.
 
 <OperatorNote>
   Marketplace skills are installed into `$AGH_HOME/skills/`. AGH marks them as marketplace-sourced
@@ -60,8 +60,8 @@ Use the slug for install commands:
 
 Slugs must match `@author/name`. Version suffixes are not accepted in the user-facing slug syntax.
 
-The web Marketplace tab performs the same remote search once a query is present. Empty search input
-does not call the registry because the current ClawHub search API requires a non-empty query.
+The grouped discovery namespace returns a curated skill slice for an empty query. A non-empty skill
+query uses the configured registry; the ClawHub client itself still rejects empty searches.
 
 ## Install
 
@@ -95,16 +95,23 @@ rename a higher-precedence declaration, or remove the broken install directory a
 
 ## Daemon API
 
-The daemon exposes marketplace skill operations under `/api/skills/marketplace` on both HTTP and
-UDS transports:
+Discovery uses the shared `/api/marketplace` namespace on both HTTP and UDS. Rows include a stable
+`entry_id` plus server-computed installed and update state:
 
-| Operation | Endpoint                                                    | Behavior                                                                     |
-| --------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Search    | `GET /api/skills/marketplace/search?query=<text>&limit=<n>` | Searches remote marketplace skills.                                          |
-| Info      | `GET /api/skills/marketplace/info?slug=<@author/name>`      | Returns full remote marketplace metadata for one skill.                      |
-| Install   | `POST /api/skills/marketplace/install`                      | Installs a remote skill into `$AGH_HOME/skills/`.                            |
-| Update    | `POST /api/skills/marketplace/update`                       | Checks or applies updates for one skill or all marketplace-installed skills. |
-| Remove    | `DELETE /api/skills/marketplace/{name}`                     | Removes one installed marketplace skill by local skill name.                 |
+| Operation      | Endpoint                                         | Behavior                                                          |
+| -------------- | ------------------------------------------------ | ----------------------------------------------------------------- |
+| Grouped search | `GET /api/marketplace/search?q=<text>&limit=<n>` | Returns MCP, extension, skill, and bundle groups.                 |
+| Skill browse   | `GET /api/marketplace/skill?q=<text>&limit=<n>`  | Returns only skill rows; empty `q` uses the curated slice.        |
+| Skill detail   | `GET /api/marketplace/skill/{entry_id}`          | Resolves full metadata by stable entry ID, never by display name. |
+| Refresh        | `POST /api/marketplace/refresh?kind=skill`       | Refreshes the feed-backed skill projection.                       |
+
+The existing lifecycle routes remain under `/api/skills/marketplace`:
+
+| Operation | Endpoint                                | Behavior                                                                     |
+| --------- | --------------------------------------- | ---------------------------------------------------------------------------- |
+| Install   | `POST /api/skills/marketplace/install`  | Installs a remote skill into `$AGH_HOME/skills/`.                            |
+| Update    | `POST /api/skills/marketplace/update`   | Checks or applies updates for one skill or all marketplace-installed skills. |
+| Remove    | `DELETE /api/skills/marketplace/{name}` | Removes one installed marketplace skill by local skill name.                 |
 
 Install, update, and remove mutations reject manual skills without marketplace provenance. Successful
 mutations refresh the daemon skills registry before returning.
@@ -253,6 +260,7 @@ attempts.
 
 ## Related Pages
 
+- [Unified Marketplace](/runtime/core/marketplace) covers cross-kind discovery and per-kind install flows.
 - [SKILL.md Format](/runtime/core/skills/skill-md) documents `.agh-meta.json`, MCP declarations, and hooks.
 - [Bundled Skill](/runtime/core/skills/bundled) documents the trusted `agh` skill shipped with AGH.
 - [Skill CLI Reference](/runtime/cli-reference/skill) lists every generated skill command.

@@ -53,6 +53,7 @@ func (d *Daemon) runtimeDeps(
 		WorkspaceResolver:   state.workspaceResolver,
 		WorkspaceService:    state.workspaceResolver,
 		ModelCatalog:        state.modelCatalog,
+		MarketplaceCatalog:  state.marketplace,
 		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,

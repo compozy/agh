@@ -149,7 +149,9 @@ func TestBundleCommands(t *testing.T) {
 
 		deps := newTestDeps(t, &stubClient{
 			listBundleActivationsFn: func(context.Context) ([]BundleActivationRecord, error) {
-				return []BundleActivationRecord{sampleBundleActivationRecord()}, nil
+				item := sampleBundleActivationRecord()
+				item.SpecDrift = true
+				return []BundleActivationRecord{item}, nil
 			},
 		})
 		stdout, _, err := executeRootCommand(t, deps, "bundle", "list", "--json")
@@ -168,6 +170,9 @@ func TestBundleCommands(t *testing.T) {
 		}
 		if got, want := len(payload.Activations[0].Agents), 1; got != want {
 			t.Fatalf("len(payload.Activations[0].Agents) = %d, want %d", got, want)
+		}
+		if !payload.Activations[0].SpecDrift {
+			t.Fatal("payload.Activations[0].SpecDrift = false, want true")
 		}
 	})
 

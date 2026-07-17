@@ -149,7 +149,7 @@ func TestProductionMigrationStreams(t *testing.T) {
 			t.Fatalf("Apply(memory) error = %v", err)
 		}
 		wantStatus := map[string]store.StreamStatus{
-			globalStream.Name: {Version: 3, AppliedCount: 3},
+			globalStream.Name: {Version: 7, AppliedCount: 7},
 			memoryStream.Name: {Version: 1, AppliedCount: 1},
 		}
 		for _, stream := range []store.MigrationStream{globalStream, memoryStream} {
@@ -457,5 +457,7 @@ func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {
 }
 
 func normalizeSchemaSQL(statement string) string {
-	return strings.Join(strings.Fields(strings.ReplaceAll(statement, "`", "")), " ")
+	normalized := strings.Join(strings.Fields(strings.ReplaceAll(statement, "`", "")), " ")
+	normalized = strings.ReplaceAll(normalized, "( ", "(")
+	return strings.ReplaceAll(normalized, " )", ")")
 }

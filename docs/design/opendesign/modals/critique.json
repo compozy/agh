@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "surface": "AGH modal OpenDesign system",
+  "register": "product",
+  "status": "markup_migration_complete",
+  "score": 4,
+  "p0": 0,
+  "p1": 0,
+  "resolved_findings": [
+    "Inputs/selects/CommandSelect triggers moved from translucent input-fill to production bg-elevated at 36px with subtle placeholders (input.tsx).",
+    "Buttons corrected to production geometry: 22/26/30px, radius 8, 12px/500 labels, neutral/outline/ghost/danger/primary variants (button-variants.ts).",
+    "Dialog header adopted the production icon-well + eyebrow editor pattern (36px well, accent-dim inset ring, 15px/500 tracking-tight title, 13px muted description) from task-editor-modal.tsx.",
+    "PillGroup track de-bordered to production anatomy (2px padding, 1px gap, radius-xs segments, subtle→muted→fg-strong states).",
+    "RadioCard selection kept neutral (surface-glaze + line-strong rim) per radio-card.tsx; accent selection reserved for the runtime catalog popup (accent-tint row, accent-tint-strong effort, warning favorite) per model-row.tsx/reasoning-bar.tsx.",
+    "Reasoning meter replaced unicode glyphs with the production 7-bar IntensityMeter (2.5px bars, 3→12px, accent-strong fill).",
+    "Provider rail rebuilt: 52px canvas rail, 36px items, 2px accent active bar; popup rows gained 28px icon wells and metadata lines.",
+    "Design-system page rebuilt as rendered specimens: surface ramp, true-size type scale, control-metric gauges, full-anatomy Create MCP server dialog, enriched playground popovers.",
+    "Switch thumb corrected to fg-strong (production); previous muted/accent-ink thumb removed.",
+    "Per-modal markup migration (MIGRATION-HANDOFF.md §4): 14 dialogs gained head-icon + eyebrow; CommandSelect/runtime chevrons, search icons, refresh, stars, chip ×, and .im meters are SVG/.im components; popover options use opt-ic/opt-copy/opt-check; createChip injects SVG; MCP eyebrow taxonomy is System · MCP server.",
+    "add-workspace rebuilt as a two-pane 1180px split dialog (trigger-redesign anatomy): left Location pane hosts the new DirectoryBrowser system component (onboarding directory-browser.tsx parity — home/up toolbar, mono path, Use this folder, hover-reveal row pick, reading/empty states, selected-root card, name autofill); right rail carries Session defaults on canvas. Root path input replaced by browser selection feeding a hidden required data-absolute-path field. Shell (.dialog--split/.pane) and DirectoryBrowser CSS live in modal-system.css; behavior in modal-system.js; marker owned by verify.mjs; component documented in MODAL-STANDARD.md."
+  ],
+  "pending_evidence": [
+    "All-surface responsive capture matrix at 360/760px",
+    "Keyboard, zoom, and long-string inspection across the 16 surfaces",
+    "Rendered captures for create-agent / start-session / edit-mcp-server at 1440×2000 and create-agent at 390px — OD screenshot helper unavailable in this daemon run (Electron helper init failed); structural greps + verify.mjs PASS recorded instead"
+  ],
+  "evidence": [
+    "evidence/visual/final/ds-top.png",
+    "evidence/visual/final/ds-runtime-open.png",
+    "verify.mjs PASS (2026-07-14)",
+    "glyph sweep clean: no ⌄ ★ ▮ >×< in modal HTMLs",
+    "head-icon count: 16 surfaces (14 migrated + 2 sheets)",
+    "verify.mjs: add-workspace zero failures after split rebuild; node --check modal-system.js PASS (2026-07-16)"
+  ],
+  "completion_claim": "Markup migration complete per MIGRATION-HANDOFF.md; verify.mjs PASS. 2026-07-16: sanctioned system extension for add-workspace — DirectoryBrowser component + .dialog--split shell added to modal-system.css/js, marker owned by verify.mjs, documented in MODAL-STANDARD.md. Visual capture matrix still pending when the OD screenshot helper is available."
+}

@@ -491,66 +491,70 @@ func TestSkillViewCommandRejectsSymlinkEscape(t *testing.T) {
 	}
 }
 
-func TestSkillInfoCommandShowsMetadataSourcePathAndResources(t *testing.T) {
+func TestSkillInspectCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 	t.Parallel()
 
-	env := newSkillTestEnv(t, nil)
-	skillFile := writeUserSkill(t, env.homePaths, "info-skill", strings.Join([]string{
-		"---",
-		"name: info-skill",
-		"description: Show all metadata.",
-		"version: 1.2.3",
-		"metadata:",
-		"  author: test-suite",
-		"  tags:",
-		"    - go",
-		"    - cli",
-		"---",
-		"# Info Skill",
-		"",
-		"Use this skill for metadata inspection.",
-	}, "\n"))
-	writeSkillResource(
-		t,
-		filepath.Dir(skillFile),
-		"references/notes.md",
-		"Useful notes.\n",
-	)
+	t.Run("Should show metadata source path and resources", func(t *testing.T) {
+		t.Parallel()
 
-	stdout, _, err := executeRootCommand(t, env.deps, "skill", "info", "info-skill", "-o", "json")
-	if err != nil {
-		t.Fatalf("skill info json error = %v", err)
-	}
+		env := newSkillTestEnv(t, nil)
+		skillFile := writeUserSkill(t, env.homePaths, "info-skill", strings.Join([]string{
+			"---",
+			"name: info-skill",
+			"description: Show all metadata.",
+			"version: 1.2.3",
+			"metadata:",
+			"  author: test-suite",
+			"  tags:",
+			"    - go",
+			"    - cli",
+			"---",
+			"# Info Skill",
+			"",
+			"Use this skill for metadata inspection.",
+		}, "\n"))
+		writeSkillResource(
+			t,
+			filepath.Dir(skillFile),
+			"references/notes.md",
+			"Useful notes.\n",
+		)
 
-	var payload skillInfoItem
-	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(skill info) error = %v; stdout=%s", err, stdout)
-	}
+		stdout, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill", "-o", "json")
+		if err != nil {
+			t.Fatalf("skill inspect json error = %v", err)
+		}
 
-	if payload.Name != "info-skill" || payload.Version != "1.2.3" {
-		t.Fatalf("payload = %#v, want name/version populated", payload)
-	}
-	if payload.Source != "user" {
-		t.Fatalf("payload.Source = %q, want user", payload.Source)
-	}
-	if !strings.HasSuffix(payload.Path, filepath.ToSlash(filepath.Join("info-skill", skillMarkdownFileName))) &&
-		!strings.HasSuffix(payload.Path, filepath.Join("info-skill", skillMarkdownFileName)) {
-		t.Fatalf("payload.Path = %q, want SKILL.md suffix", payload.Path)
-	}
-	if len(payload.Resources) != 1 || payload.Resources[0] != "references/notes.md" {
-		t.Fatalf("payload.Resources = %#v, want notes resource", payload.Resources)
-	}
-	if payload.Metadata["author"] != "test-suite" {
-		t.Fatalf("payload.Metadata = %#v, want author", payload.Metadata)
-	}
+		var payload skillInfoItem
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill inspect) error = %v; stdout=%s", err, stdout)
+		}
 
-	humanOut, _, err := executeRootCommand(t, env.deps, "skill", "info", "info-skill")
-	if err != nil {
-		t.Fatalf("skill info human error = %v", err)
-	}
-	if !strings.Contains(humanOut, "Metadata") || !strings.Contains(humanOut, "references/notes.md") {
-		t.Fatalf("skill info human output missing metadata/resources:\n%s", humanOut)
-	}
+		if payload.Name != "info-skill" || payload.Version != "1.2.3" {
+			t.Fatalf("payload = %#v, want name/version populated", payload)
+		}
+		if payload.Source != "user" {
+			t.Fatalf("payload.Source = %q, want user", payload.Source)
+		}
+		if !strings.HasSuffix(payload.Path, filepath.ToSlash(filepath.Join("info-skill", skillMarkdownFileName))) &&
+			!strings.HasSuffix(payload.Path, filepath.Join("info-skill", skillMarkdownFileName)) {
+			t.Fatalf("payload.Path = %q, want SKILL.md suffix", payload.Path)
+		}
+		if len(payload.Resources) != 1 || payload.Resources[0] != "references/notes.md" {
+			t.Fatalf("payload.Resources = %#v, want notes resource", payload.Resources)
+		}
+		if payload.Metadata["author"] != "test-suite" {
+			t.Fatalf("payload.Metadata = %#v, want author", payload.Metadata)
+		}
+
+		humanOut, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill")
+		if err != nil {
+			t.Fatalf("skill inspect human error = %v", err)
+		}
+		if !strings.Contains(humanOut, "Metadata") || !strings.Contains(humanOut, "references/notes.md") {
+			t.Fatalf("skill inspect human output missing metadata/resources:\n%s", humanOut)
+		}
+	})
 }
 
 func TestSkillListCommandRejectsInvalidSource(t *testing.T) {
@@ -696,7 +700,7 @@ func TestSkillCommandsWorkWithoutDaemonAndSupportToonOutput(t *testing.T) {
 		{args: []string{"skill", "list", "-o", "toon"}, contains: "skills["},
 		{args: []string{"skill", "view", "toon-skill", "-o", "toon"}, contains: `<skill_content name="toon-skill">`},
 		{
-			args:     []string{"skill", "info", "toon-skill", "-o", "toon"},
+			args:     []string{"skill", "inspect", "toon-skill", "-o", "toon"},
 			contains: "skill{name,description,version,source,path,enabled}:",
 		},
 		{
@@ -1763,8 +1767,12 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 				defaultMarketplaceRegistry,
 			)
 		}
-		if item.Path != targetDir {
-			t.Fatalf("installMarketplaceSkill(fallbacks) path = %q, want %q", item.Path, targetDir)
+		canonicalTarget, err := filepath.EvalSymlinks(targetDir)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(targetDir) error = %v", err)
+		}
+		if item.Path != canonicalTarget {
+			t.Fatalf("installMarketplaceSkill(fallbacks) path = %q, want %q", item.Path, canonicalTarget)
 		}
 
 		provenance, err := skills.ReadSidecar(targetDir)
@@ -2110,8 +2118,12 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 
 		expectedDir := filepath.Join(env.homePaths.SkillsDir, "review")
-		if item.Path != expectedDir {
-			t.Fatalf("updateMarketplaceSkill(rename) path = %q, want %q", item.Path, expectedDir)
+		canonicalExpectedDir, err := filepath.EvalSymlinks(expectedDir)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(expectedDir) error = %v", err)
+		}
+		if item.Path != canonicalExpectedDir {
+			t.Fatalf("updateMarketplaceSkill(rename) path = %q, want %q", item.Path, canonicalExpectedDir)
 		}
 		if _, statErr := os.Stat(
 			filepath.Join(env.homePaths.SkillsDir, "renamed-review"),

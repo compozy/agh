@@ -369,22 +369,8 @@ func validateEffectiveConfigWrite(
 	if err != nil {
 		return Config{}, err
 	}
-	if strings.TrimSpace(resolvedWorkspaceRoot) != "" {
-		workspaceOverlay, err := loadConfigOverlayForWrite(workspaceConfigFile(resolvedWorkspaceRoot), target, rendered)
-		if err != nil {
-			return Config{}, err
-		}
-		if err := workspaceOverlay.Apply(&cfg); err != nil {
-			return Config{}, fmt.Errorf("apply workspace config overlay: %w", err)
-		}
-		if err := applyConfigMCPSidecarContent(
-			workspaceMCPJSONFile(resolvedWorkspaceRoot),
-			target,
-			rendered,
-			&cfg,
-		); err != nil {
-			return Config{}, fmt.Errorf("load workspace MCP JSON: %w", err)
-		}
+	if err := applyWorkspaceConfigWrite(resolvedWorkspaceRoot, target, rendered, &cfg); err != nil {
+		return Config{}, err
 	}
 
 	if err := normalizeConfigPaths(&cfg); err != nil {

@@ -1575,7 +1575,7 @@ func formatAutomationRetry(cfg automationpkg.RetryConfig) string {
 	case automationpkg.RetryStrategyBackoff:
 		return fmt.Sprintf("backoff:%d:%s", cfg.MaxRetries, strings.TrimSpace(cfg.BaseDelay))
 	default:
-		return "none"
+		return string(automationpkg.RetryStrategyNone)
 	}
 }
 

@@ -11,6 +11,7 @@ type configOverlay struct {
 	MCPServers    []mcpServerOverlay         `toml:"mcp_servers"`
 	Providers     map[string]providerOverlay `toml:"providers"`
 	ModelCatalog  modelCatalogOverlay        `toml:"model_catalog"`
+	Marketplace   *marketplaceRuntimeOverlay `toml:"marketplace"`
 	Sandboxes     map[string]sandboxOverlay  `toml:"sandboxes"`
 	Observability observabilityOverlay       `toml:"observability"`
 	Log           logOverlay                 `toml:"log"`
@@ -40,6 +41,9 @@ func (o *configOverlay) Apply(dst *Config) error {
 	}
 	applyProviderOverlays(dst, o.Providers)
 	o.ModelCatalog.Apply(&dst.ModelCatalog)
+	if o.Marketplace != nil {
+		o.Marketplace.Apply(&dst.Marketplace)
+	}
 	applySandboxOverlays(dst, o.Sandboxes)
 	o.Observability.Apply(&dst.Observability)
 	o.Log.Apply(&dst.Log)

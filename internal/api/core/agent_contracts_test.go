@@ -1,6 +1,8 @@
 package core_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -8,6 +10,40 @@ import (
 	"github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
 )
+
+func TestAgentPayloadDoesNotExposeMCPSecretBindings(t *testing.T) {
+	t.Run("Should project MCP bindings as redacted presence without Vault refs", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.AgentPayloadFromDef(aghconfig.AgentDef{
+			Name:     "reviewer",
+			Provider: "codex",
+			MCPServers: []aghconfig.MCPServer{{
+				Name:      "github",
+				Command:   "npx",
+				SecretEnv: map[string]string{"GITHUB_TOKEN": "vault:mcp/global/github/env/GITHUB_TOKEN"},
+				Auth: aghconfig.MCPAuthConfig{
+					Type:            aghconfig.MCPAuthTypeOAuth2PKCE,
+					ClientSecretRef: "vault:mcp/global/github/oauth/client-secret",
+				},
+			}},
+		})
+
+		if got, want := payload.MCPServers[0].SecretEnv["GITHUB_TOKEN"], aghconfig.RedactedValue(); got != want {
+			t.Fatalf("MCP secret env projection = %q, want %q", got, want)
+		}
+		if !payload.MCPServers[0].Auth.ClientSecretConfigured {
+			t.Fatal("MCP OAuth client secret configured = false, want presence metadata")
+		}
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal(agent payload) error = %v", err)
+		}
+		if strings.Contains(string(encoded), "vault:mcp/") {
+			t.Fatalf("agent payload exposed MCP Vault binding: %s", encoded)
+		}
+	})
+}
 
 func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {
 	t.Parallel()

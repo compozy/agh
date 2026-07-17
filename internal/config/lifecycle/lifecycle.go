@@ -77,6 +77,8 @@ var Matrix = []Rule{
 	{Pattern: pathDaemonReloadTimeoutBridges, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*.models.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "marketplace.catalog.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "extensions.marketplace.allow_unverified", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp-servers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "sandboxes.*", Lifecycle: SessionRebind, DiffClass: DiffClassSessionRebind},

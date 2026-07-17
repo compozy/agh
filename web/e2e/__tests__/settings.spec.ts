@@ -19,6 +19,7 @@ test.use({
       ...process.env,
       AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
     },
+    extensionsAllowUnverified: true,
   },
 });
 
@@ -46,7 +47,8 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Automation",
       "Network",
       "Observability",
-      "Hooks & Extensions",
+      "Hooks",
+      "Extensions",
     ]);
 
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/general");
@@ -57,14 +59,18 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/network");
   await expect(settingsUI.shell.sectionActive("network")).toBeVisible();
 
-  await settingsUI.shell.sectionLink("hooks-extensions").click();
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/hooks-extensions");
-  await expect(settingsUI.shell.sectionActive("hooks-extensions")).toBeVisible();
+  await settingsUI.shell.sectionLink("hooks").click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/hooks");
+  await expect(settingsUI.shell.sectionActive("hooks")).toBeVisible();
+
+  await settingsUI.shell.sectionLink("extensions").click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/extensions");
+  await expect(settingsUI.shell.sectionActive("extensions")).toBeVisible();
 
   await appPage.goBack({ waitUntil: "domcontentloaded" });
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/network");
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/hooks");
   await appPage.goForward({ waitUntil: "domcontentloaded" });
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/hooks-extensions");
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/extensions");
 
   await settingsUI.shell.sectionLink("general").click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/general");
@@ -306,8 +312,10 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   ).toBeVisible();
 
   await settingsUI.mcpServers
-    .deleteRow(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
+    .editRow(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
     .click();
+  await expect(settingsUI.mcpServers.editor).toBeVisible();
+  await settingsUI.mcpServers.editorRemove.click();
   await expect(settingsUI.mcpServers.deleteDialog).toBeVisible();
   await settingsUI.mcpServers.deleteConfirm.click();
 
@@ -320,7 +328,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   await browserArtifacts.captureScreenshot("tc-int-011-mcp-workspace-scope", appPage);
 });
 
-test("operator can distinguish restart-aware hook edits from immediate extension operations on hooks and extensions", async ({
+test("operator can manage restart-aware hooks and extension policy on split settings routes", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -330,71 +338,66 @@ test("operator can distinguish restart-aware hook edits from immediate extension
   const seeded = await seedBrowserSettingsFixtures(runtime, {
     hooks: [
       {
-        name: browserSettingsOperatorFlowScenario.hooksExtensions.hookName,
+        name: browserSettingsOperatorFlowScenario.hooks.hookName,
         declaration: {
-          name: browserSettingsOperatorFlowScenario.hooksExtensions.hookName,
+          name: browserSettingsOperatorFlowScenario.hooks.hookName,
           event: "turn.end",
           mode: "sync",
           command: "/bin/echo",
           args: ["settings-hook"],
           matcher: {},
           required: true,
+          enabled: true,
         },
       },
     ],
-    installBridgeExtension: true,
   });
 
   try {
     await ensureGlobalWorkspace(runtime);
     await useGlobalWorkspaceIfPrompted(sessionUI);
-    await appPage.goto(runtime.url("/settings/hooks-extensions"), {
+    await appPage.goto(runtime.url("/settings/hooks"), {
       waitUntil: "domcontentloaded",
     });
 
-    await expect(settingsUI.hooksExtensions.page).toBeVisible();
+    await expect(settingsUI.hooks.page).toBeVisible();
     await expect(
-      settingsUI.hooksExtensions.hookToggle(
-        browserSettingsOperatorFlowScenario.hooksExtensions.hookName
-      )
-    ).toBeVisible();
-    await expect(
-      settingsUI.hooksExtensions.extensionToggle(
-        browserSettingsOperatorFlowScenario.hooksExtensions.extensionName
-      )
+      settingsUI.hooks.hookToggle(browserSettingsOperatorFlowScenario.hooks.hookName)
     ).toBeVisible();
 
-    await settingsUI.hooksExtensions
-      .hookToggle(browserSettingsOperatorFlowScenario.hooksExtensions.hookName)
-      .click();
-    await expect(settingsUI.hooksExtensions.actionResult).toContainText(
-      `Hook "${browserSettingsOperatorFlowScenario.hooksExtensions.hookName}" disabled`
-    );
-    await expect(settingsUI.hooksExtensions.actionResult).toContainText(
-      "restart required to reload"
-    );
-    await expect(settingsUI.hooksExtensions.restartBanner).toBeVisible();
+    await settingsUI.hooks.hookToggle(browserSettingsOperatorFlowScenario.hooks.hookName).click();
+    await expect(
+      settingsUI.hooks.hookToggle(browserSettingsOperatorFlowScenario.hooks.hookName)
+    ).not.toBeChecked();
+    await expect(settingsUI.hooks.restartBanner).toBeVisible();
 
-    await settingsUI.hooksExtensions
-      .extensionToggle(browserSettingsOperatorFlowScenario.hooksExtensions.extensionName)
-      .click();
-    await expect(settingsUI.hooksExtensions.actionResult).toContainText(
-      `Extension "${browserSettingsOperatorFlowScenario.hooksExtensions.extensionName}" disabled`
+    // Prove failure-fatality (`required`) and dispatch enablement (`enabled`) are
+    // independent fields: disabling the hook flips `enabled` to false while
+    // `required` stays true in the real daemon response.
+    const hooksResponse = await runtime.requestJSON<{
+      hooks: Array<{ name: string; declaration: { enabled?: boolean; required?: boolean } }>;
+    }>("/api/settings/hooks");
+    const toggledHook = hooksResponse.hooks.find(
+      hook => hook.name === browserSettingsOperatorFlowScenario.hooks.hookName
     );
-    await expect(settingsUI.hooksExtensions.actionResult).toContainText("applied immediately");
-    await expect(settingsUI.hooksExtensions.restartBanner).toBeVisible();
+    expect(toggledHook?.declaration.enabled).toBe(false);
+    expect(toggledHook?.declaration.required).toBe(true);
 
-    await settingsUI.hooksExtensions.policyRegistryInput.fill("github");
-    await settingsUI.hooksExtensions.policyBaseURLInput.fill(
+    await appPage.goto(runtime.url("/settings/extensions"), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(settingsUI.extensions.page).toBeVisible();
+    await expect(settingsUI.hooks.hooksList).toHaveCount(0);
+
+    await settingsUI.extensions.policyRegistryInput.fill("github");
+    await settingsUI.extensions.policyBaseURLInput.fill(
       "https://extensions.example/browser-updated"
     );
-    await expect(settingsUI.hooksExtensions.policySave).toBeEnabled();
-    await settingsUI.hooksExtensions.policySave.click();
+    await expect(settingsUI.extensions.policySave).toBeEnabled();
+    await settingsUI.extensions.policySave.click();
 
-    await expect(settingsUI.hooksExtensions.actionResult).toContainText("Policy saved");
-    await expect(settingsUI.hooksExtensions.actionResult).toContainText("restart required");
-    await expect(settingsUI.hooksExtensions.restartBanner).toBeVisible();
-    await browserArtifacts.captureScreenshot("tc-func-012-hooks-extensions-hybrid", appPage);
+    await expect(settingsUI.extensions.restartBanner).toBeVisible();
+    await browserArtifacts.captureScreenshot("tc-func-012-extensions-policy", appPage);
   } finally {
     await cleanupBrowserSettingsFixtures(runtime, seeded);
   }

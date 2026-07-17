@@ -540,7 +540,7 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 
 		globalDB, err := OpenGlobalDB(ctx, path)
 		if err != nil {
-			t.Fatalf("OpenGlobalDB(v3 upgrade) error = %v", err)
+			t.Fatalf("OpenGlobalDB(full-stream upgrade) error = %v", err)
 		}
 		t.Cleanup(func() {
 			if err := globalDB.Close(testutil.Context(t)); err != nil {
@@ -555,8 +555,8 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(upgraded global DB) error = %v", err)
 		}
-		if status.Version != 3 || status.AppliedCount != 3 {
-			t.Fatalf("Status(upgraded global DB) = %#v, want version/applied count 3", status)
+		if status.Version != 7 || status.AppliedCount != 7 {
+			t.Fatalf("Status(upgraded global DB) = %#v, want version/applied count 7", status)
 		}
 
 		if err := globalDB.DeleteSession(ctx, targetID); err != nil {

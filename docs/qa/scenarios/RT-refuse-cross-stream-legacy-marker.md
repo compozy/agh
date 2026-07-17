@@ -5,7 +5,7 @@ title: Refuse either legacy marker in the shared database
 persona: Bruno
 journey: J-operate-daemon-schema
 expected: Every global or memory opener refuses the shared agh.db before mutation when either legacy migration marker exists, regardless of which stream owns the marker.
-entry_points: agh daemon start; agh daemon start --foreground; agh extension list -o json; agh mcp auth status -o json
+entry_points: agh daemon start; agh daemon start --foreground; agh extension list -o json; agh provider auth status <bound-secret-provider> -o json
 qa_status: untested
 bug_ids:
 fix_status:

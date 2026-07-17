@@ -702,17 +702,44 @@ type LoopUiAnnotation struct {
 	Y           float64 `json:"y"`
 }
 
+type MarketplaceCatalogEntry struct {
+	Kind         string         `json:"kind"`
+	EntryID      string         `json:"entry_id"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description"`
+	Version      string         `json:"version"`
+	PublishedAt  sql.NullString `json:"published_at"`
+	UpdatedAt    sql.NullString `json:"updated_at"`
+	DigestSha256 sql.NullString `json:"digest_sha256"`
+	Tier         sql.NullString `json:"tier"`
+	InstallSlug  sql.NullString `json:"install_slug"`
+	PayloadJson  string         `json:"payload_json"`
+	FetchedAt    string         `json:"fetched_at"`
+}
+
+type MarketplaceCatalogState struct {
+	Kind            string         `json:"kind"`
+	ManifestVersion int64          `json:"manifest_version"`
+	GeneratedAt     sql.NullString `json:"generated_at"`
+	FetchedAt       string         `json:"fetched_at"`
+	Stale           int64          `json:"stale"`
+	LastError       string         `json:"last_error"`
+}
+
 type McpAuthToken struct {
-	ServerName      string         `json:"server_name"`
-	Issuer          string         `json:"issuer"`
-	ClientID        string         `json:"client_id"`
-	ScopesJson      string         `json:"scopes_json"`
-	AccessTokenRef  string         `json:"access_token_ref"`
-	RefreshTokenRef string         `json:"refresh_token_ref"`
-	TokenType       string         `json:"token_type"`
-	ExpiresAt       sql.NullString `json:"expires_at"`
-	ObtainedAt      string         `json:"obtained_at"`
-	UpdatedAt       string         `json:"updated_at"`
+	Scope                 string         `json:"scope"`
+	WorkspaceID           string         `json:"workspace_id"`
+	ServerName            string         `json:"server_name"`
+	DefinitionFingerprint string         `json:"definition_fingerprint"`
+	Issuer                string         `json:"issuer"`
+	ClientID              string         `json:"client_id"`
+	ScopesJson            string         `json:"scopes_json"`
+	AccessTokenRef        string         `json:"access_token_ref"`
+	RefreshTokenRef       string         `json:"refresh_token_ref"`
+	TokenType             string         `json:"token_type"`
+	ExpiresAt             sql.NullString `json:"expires_at"`
+	ObtainedAt            string         `json:"obtained_at"`
+	UpdatedAt             string         `json:"updated_at"`
 }
 
 type ModelCatalogReasoningEffort struct {

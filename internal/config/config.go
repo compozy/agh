@@ -419,12 +419,6 @@ type MarketplaceConfig struct {
 	BaseURL  string `toml:"base_url,omitempty"`
 }
 
-// ExtensionsMarketplaceConfig controls the external extension registry used by CLI extension commands.
-type ExtensionsMarketplaceConfig struct {
-	Registry string `toml:"registry"`
-	BaseURL  string `toml:"base_url,omitempty"`
-}
-
 // SkillsConfig controls skill loading and discovery.
 type SkillsConfig struct {
 	Enabled                 bool              `toml:"enabled"`
@@ -516,6 +510,7 @@ type Config struct {
 	MCPServers    []MCPServer               `toml:"mcp_servers,omitempty"`
 	Providers     map[string]ProviderConfig `toml:"providers"`
 	ModelCatalog  ModelCatalogConfig        `toml:"model_catalog"`
+	Marketplace   MarketplaceRuntimeConfig  `toml:"marketplace"`
 	Sandboxes     map[string]SandboxProfile `toml:"sandboxes"`
 	Observability ObservabilityConfig       `toml:"observability"`
 	Log           LogConfig                 `toml:"log"`
@@ -649,7 +644,7 @@ func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool, 
 		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}
 	if workspaceRoot != "" {
-		if err := ApplyConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
+		if err := applyWorkspaceConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace config: %w", err)
 		}
 		if err := applyConfigMCPSidecarFile(workspaceMCPJSONFile(workspaceRoot), &cfg); err != nil {
@@ -667,15 +662,6 @@ func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool, 
 	}
 
 	return cfg, nil
-}
-
-func defaultConfig() (Config, error) {
-	homePaths, err := ResolveHomePaths()
-	if err != nil {
-		return Config{}, err
-	}
-
-	return DefaultWithHome(homePaths), nil
 }
 
 // DefaultWithHome returns the built-in default configuration for the supplied AGH home.
@@ -709,6 +695,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		},
 		Providers:    map[string]ProviderConfig{},
 		ModelCatalog: DefaultModelCatalogConfig(),
+		Marketplace:  DefaultMarketplaceRuntimeConfig(),
 		Sandboxes:    map[string]SandboxProfile{},
 		Observability: ObservabilityConfig{
 			Enabled:           true,

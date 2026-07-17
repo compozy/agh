@@ -15,16 +15,14 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/ginutil"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	serverLocalhostKey = "localhost"
-)
-
-const (
+	serverLocalhostKey       = "localhost"
 	defaultPollInterval      = 100 * time.Millisecond
 	defaultReadHeaderTimeout = 5 * time.Second
 	defaultIdleTimeout       = 60 * time.Second
@@ -37,62 +35,63 @@ type Option func(*Server)
 type Server struct {
 	mu sync.Mutex
 
-	homePaths         aghconfig.HomePaths
-	config            aghconfig.Config
-	configSet         bool
-	host              string
-	port              int
-	logger            *slog.Logger
-	startedAt         time.Time
-	now               func() time.Time
-	pollInterval      time.Duration
-	sessions          core.SessionManager
-	sessionCatalog    core.SessionCatalog
-	tasks             core.TaskService
-	network           core.NetworkService
-	networkStore      core.NetworkStore
-	observer          core.Observer
-	schemaStreams     core.SchemaStreamStatusReader
-	automation        core.AutomationManager
-	loops             core.LoopService
-	bridges           core.BridgeService
-	notifications     core.NotificationPresetService
-	bundles           core.BundleService
-	supportBundles    core.SupportBundleService
-	tools             core.ToolRegistry
-	toolsets          core.ToolsetRegistry
-	toolApprovals     core.ToolApprovalIssuer
-	settings          core.SettingsService
-	settingsRestart   core.SettingsRestartController
-	settingsUpdate    core.SettingsUpdateController
-	vault             core.VaultService
-	workspaces        core.WorkspaceService
-	onboarding        core.OnboardingStore
-	agentCatalog      core.AgentCatalog
-	agentSync         core.AgentDefinitionSync
-	modelCatalog      core.ModelCatalogService
-	agentContext      core.AgentContextService
-	coordinatorConfig core.CoordinatorConfigResolver
-	soulAuthoring     core.SoulAuthoringService
-	soulHistoryPurger core.SoulHistoryPurger
-	soulRefresher     core.SoulRefresher
-	heartbeatAuthor   core.HeartbeatAuthoringService
-	heartbeatPurger   core.HeartbeatHistoryPurger
-	heartbeatStatus   core.HeartbeatStatusService
-	heartbeatWake     core.HeartbeatWakeService
-	sessionHealth     core.SessionHealthReader
-	wakeEvents        core.HeartbeatWakeEventReader
-	skillsRegistry    core.SkillsRegistry
-	skillResources    core.SkillResourceSyncer
-	memoryStore       *memory.Store
-	dreamTrigger      core.DreamTrigger
-	memoryExtractor   core.MemoryExtractorService
-	memoryProviders   core.MemoryProviderService
-	memoryLedger      core.MemorySessionLedgerService
-	agentLoader       core.AgentLoader
-	resources         core.ResourceService
-	resourceAuth      []gin.HandlerFunc
-	extensions        ExtensionService
+	homePaths          aghconfig.HomePaths
+	config             aghconfig.Config
+	configSet          bool
+	host               string
+	port               int
+	logger             *slog.Logger
+	startedAt          time.Time
+	now                func() time.Time
+	pollInterval       time.Duration
+	sessions           core.SessionManager
+	sessionCatalog     core.SessionCatalog
+	tasks              core.TaskService
+	network            core.NetworkService
+	networkStore       core.NetworkStore
+	observer           core.Observer
+	schemaStreams      core.SchemaStreamStatusReader
+	automation         core.AutomationManager
+	loops              core.LoopService
+	bridges            core.BridgeService
+	notifications      core.NotificationPresetService
+	bundles            core.BundleService
+	supportBundles     core.SupportBundleService
+	tools              core.ToolRegistry
+	toolsets           core.ToolsetRegistry
+	toolApprovals      core.ToolApprovalIssuer
+	settings           core.SettingsService
+	settingsRestart    core.SettingsRestartController
+	settingsUpdate     core.SettingsUpdateController
+	vault              core.VaultService
+	workspaces         core.WorkspaceService
+	onboarding         core.OnboardingStore
+	agentCatalog       core.AgentCatalog
+	agentSync          core.AgentDefinitionSync
+	modelCatalog       core.ModelCatalogService
+	marketplaceCatalog core.MarketplaceCatalogService
+	agentContext       core.AgentContextService
+	coordinatorConfig  core.CoordinatorConfigResolver
+	soulAuthoring      core.SoulAuthoringService
+	soulHistoryPurger  core.SoulHistoryPurger
+	soulRefresher      core.SoulRefresher
+	heartbeatAuthor    core.HeartbeatAuthoringService
+	heartbeatPurger    core.HeartbeatHistoryPurger
+	heartbeatStatus    core.HeartbeatStatusService
+	heartbeatWake      core.HeartbeatWakeService
+	sessionHealth      core.SessionHealthReader
+	wakeEvents         core.HeartbeatWakeEventReader
+	skillsRegistry     core.SkillsRegistry
+	skillResources     core.SkillResourceSyncer
+	memoryStore        *memory.Store
+	dreamTrigger       core.DreamTrigger
+	memoryExtractor    core.MemoryExtractorService
+	memoryProviders    core.MemoryProviderService
+	memoryLedger       core.MemorySessionLedgerService
+	agentLoader        core.AgentLoader
+	resources          core.ResourceService
+	resourceAuth       []gin.HandlerFunc
+	extensions         ExtensionService
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -315,13 +314,6 @@ func WithSkillResourceSyncer(syncer core.SkillResourceSyncer) Option {
 	}
 }
 
-// WithModelCatalogService injects the daemon-owned provider model catalog service.
-func WithModelCatalogService(service core.ModelCatalogService) Option {
-	return func(server *Server) {
-		server.modelCatalog = service
-	}
-}
-
 // WithAgentContext injects the bounded agent situation context service.
 func WithAgentContext(service core.AgentContextService) Option {
 	return func(server *Server) {
@@ -468,7 +460,7 @@ func New(opts ...Option) (*Server, error) {
 	server.ensureEngine()
 	server.staticSource = staticSource.source
 	server.handlers = newHandlers(server.handlerConfig(staticSource.fs))
-	RegisterRoutes(server.engine, server.handlers)
+	ginutil.QuietDebug(func() { RegisterRoutes(server.engine, server.handlers) })
 
 	return server, nil
 }
@@ -560,7 +552,7 @@ func (s *Server) ensureEngine() {
 		return
 	}
 
-	s.engine = gin.New()
+	s.engine = ginutil.NewEngine()
 	s.engine.Use(gin.Recovery())
 	s.engine.Use(requestLoggingMiddleware(s.logger))
 	s.engine.Use(corsMiddleware(s.host))
@@ -570,62 +562,63 @@ func (s *Server) ensureEngine() {
 
 func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 	return &handlerConfig{
-		sessions:          s.sessions,
-		sessionCatalog:    s.sessionCatalog,
-		tasks:             s.tasks,
-		network:           s.network,
-		networkStore:      s.networkStore,
-		observer:          s.observer,
-		schemaStreams:     s.schemaStreams,
-		resources:         s.resources,
-		automation:        s.automation,
-		loops:             s.loops,
-		bridges:           s.bridges,
-		notifications:     s.notifications,
-		bundles:           s.bundles,
-		supportBundles:    s.supportBundles,
-		tools:             s.tools,
-		toolsets:          s.toolsets,
-		toolApprovals:     s.toolApprovals,
-		settings:          s.settings,
-		settingsRestart:   s.settingsRestart,
-		settingsUpdate:    s.settingsUpdate,
-		vault:             s.vault,
-		workspaces:        s.workspaces,
-		onboarding:        s.onboarding,
-		agentCatalog:      s.agentCatalog,
-		agentSync:         s.agentSync,
-		modelCatalog:      s.modelCatalog,
-		agentContext:      s.agentContext,
-		coordinatorConfig: s.coordinatorConfig,
-		soulAuthoring:     s.soulAuthoring,
-		soulHistoryPurger: s.soulHistoryPurger,
-		soulRefresher:     s.soulRefresher,
-		heartbeatAuthor:   s.heartbeatAuthor,
-		heartbeatPurger:   s.heartbeatPurger,
-		heartbeatStatus:   s.heartbeatStatus,
-		heartbeatWake:     s.heartbeatWake,
-		sessionHealth:     s.sessionHealth,
-		wakeEvents:        s.wakeEvents,
-		skillsRegistry:    s.skillsRegistry,
-		skillResources:    s.skillResources,
-		memoryStore:       s.memoryStore,
-		dreamTrigger:      s.dreamTrigger,
-		memoryExtractor:   s.memoryExtractor,
-		memoryProviders:   s.memoryProviders,
-		memoryLedger:      s.memoryLedger,
-		staticFS:          staticFS,
-		homePaths:         s.homePaths,
-		config:            s.config,
-		boundHost:         s.host,
-		logger:            s.logger,
-		startedAt:         s.startedAt,
-		now:               s.now,
-		pollInterval:      s.pollInterval,
-		agentLoader:       s.agentLoader,
-		httpPort:          s.port,
-		resourceAuth:      append([]gin.HandlerFunc(nil), s.resourceAuth...),
-		extensions:        s.extensions,
+		sessions:           s.sessions,
+		sessionCatalog:     s.sessionCatalog,
+		tasks:              s.tasks,
+		network:            s.network,
+		networkStore:       s.networkStore,
+		observer:           s.observer,
+		schemaStreams:      s.schemaStreams,
+		resources:          s.resources,
+		automation:         s.automation,
+		loops:              s.loops,
+		bridges:            s.bridges,
+		notifications:      s.notifications,
+		bundles:            s.bundles,
+		supportBundles:     s.supportBundles,
+		tools:              s.tools,
+		toolsets:           s.toolsets,
+		toolApprovals:      s.toolApprovals,
+		settings:           s.settings,
+		settingsRestart:    s.settingsRestart,
+		settingsUpdate:     s.settingsUpdate,
+		vault:              s.vault,
+		workspaces:         s.workspaces,
+		onboarding:         s.onboarding,
+		agentCatalog:       s.agentCatalog,
+		agentSync:          s.agentSync,
+		modelCatalog:       s.modelCatalog,
+		marketplaceCatalog: s.marketplaceCatalog,
+		agentContext:       s.agentContext,
+		coordinatorConfig:  s.coordinatorConfig,
+		soulAuthoring:      s.soulAuthoring,
+		soulHistoryPurger:  s.soulHistoryPurger,
+		soulRefresher:      s.soulRefresher,
+		heartbeatAuthor:    s.heartbeatAuthor,
+		heartbeatPurger:    s.heartbeatPurger,
+		heartbeatStatus:    s.heartbeatStatus,
+		heartbeatWake:      s.heartbeatWake,
+		sessionHealth:      s.sessionHealth,
+		wakeEvents:         s.wakeEvents,
+		skillsRegistry:     s.skillsRegistry,
+		skillResources:     s.skillResources,
+		memoryStore:        s.memoryStore,
+		dreamTrigger:       s.dreamTrigger,
+		memoryExtractor:    s.memoryExtractor,
+		memoryProviders:    s.memoryProviders,
+		memoryLedger:       s.memoryLedger,
+		staticFS:           staticFS,
+		homePaths:          s.homePaths,
+		config:             s.config,
+		boundHost:          s.host,
+		logger:             s.logger,
+		startedAt:          s.startedAt,
+		now:                s.now,
+		pollInterval:       s.pollInterval,
+		agentLoader:        s.agentLoader,
+		httpPort:           s.port,
+		resourceAuth:       append([]gin.HandlerFunc(nil), s.resourceAuth...),
+		extensions:         s.extensions,
 	}
 }
 

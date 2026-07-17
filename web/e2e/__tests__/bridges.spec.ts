@@ -72,6 +72,7 @@ test.setTimeout(120_000);
 test.use({
   runtimeOptions: {
     env: bridgeRuntimeEnv,
+    extensionsAllowUnverified: true,
     seed: {
       mockAgents: [
         {

@@ -320,19 +320,29 @@ def load_playbook_snapshot(workspace_path: Path | None) -> dict[str, Any] | None
     return data if isinstance(data, dict) else None
 
 
-def workspace_path_from_manifest(manifest_path: Path) -> Path | None:
+def workspace_paths_from_manifest(manifest_path: Path) -> tuple[Path | None, Path | None]:
     if not manifest_path.is_file():
-        return None
+        return None, None
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return None
+        return None, None
     if isinstance(manifest, dict):
         env = manifest.get("env", {}) if isinstance(manifest.get("env"), dict) else {}
-        candidate = env.get("WORKSPACE_PATH") or manifest.get("workspace_path")
-        if isinstance(candidate, str) and candidate.strip():
-            return Path(candidate).resolve()
-    return None
+        lab_candidate = env.get("WORKSPACE_PATH") or manifest.get("workspace_path")
+        runtime_candidate = env.get("RUNTIME_WORKSPACE_PATH")
+        lab_path = (
+            Path(lab_candidate).resolve()
+            if isinstance(lab_candidate, str) and lab_candidate.strip()
+            else None
+        )
+        runtime_path = (
+            Path(runtime_candidate).resolve()
+            if isinstance(runtime_candidate, str) and runtime_candidate.strip()
+            else None
+        )
+        return lab_path, runtime_path
+    return None, None
 
 
 def collect_prompt_corpus(qa_root: Path, log_entries: list[dict[str, Any]], provider_attempt: dict[str, Any]) -> list[dict[str, str]]:
@@ -555,7 +565,8 @@ def check_required_deliverables(
                 Finding("C16", f"unknown deliverable_type {deliverable_type!r} in playbook", "playbook")
             )
             continue
-        candidates = [path for path in files if path.name.endswith(ext)]
+        suffixes = (ext, ".test.tsx") if deliverable_type == "ts_test" else (ext,)
+        candidates = [path for path in files if path.name.endswith(suffixes)]
         valid = 0
         invalid_notes: list[str] = []
         for candidate in candidates:
@@ -842,9 +853,12 @@ def audit(args: argparse.Namespace) -> tuple[list[Finding], list[Finding], dict[
     if args.api_base_url:
         warnings.append(Finding("C99", "API deep equality check is not implemented; rely on captured CLI/API/Web/runtime evidence", args.api_base_url))
 
-    workspace_path = workspace_path_from_manifest(manifest_path)
-    playbook_snapshot = load_playbook_snapshot(workspace_path)
-    metadata["workspace_path"] = str(workspace_path) if workspace_path else None
+    lab_workspace_path, runtime_workspace_path = workspace_paths_from_manifest(manifest_path)
+    playbook_snapshot = load_playbook_snapshot(lab_workspace_path)
+    metadata["lab_workspace_path"] = str(lab_workspace_path) if lab_workspace_path else None
+    metadata["runtime_workspace_path"] = (
+        str(runtime_workspace_path) if runtime_workspace_path else None
+    )
     metadata["playbook_ref"] = playbook_snapshot.get("playbook_ref") if playbook_snapshot else None
 
     if load_forbidden_rules is not None:
@@ -863,7 +877,10 @@ def audit(args: argparse.Namespace) -> tuple[list[Finding], list[Finding], dict[
             metadata["prompt_corpus_size"] = len(corpus)
             blockers.extend(scan_forbidden_phrases(corpus, forbidden_rules, playbook_snapshot))
 
-    deliverable_findings, deliverable_summary = check_required_deliverables(workspace_path, playbook_snapshot)
+    deliverable_findings, deliverable_summary = check_required_deliverables(
+        runtime_workspace_path,
+        playbook_snapshot,
+    )
     blockers.extend(deliverable_findings)
     if deliverable_summary:
         metadata["playbook_compliance"] = deliverable_summary

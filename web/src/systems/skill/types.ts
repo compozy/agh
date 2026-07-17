@@ -9,12 +9,6 @@ export type SkillShadowEntryPayload = SkillShadowsResponse["shadows"][number];
 export type SkillActionResponse = OperationResponse<"enableSkill", 200>;
 export type ProvenancePayload = NonNullable<SkillPayload["provenance"]>;
 
-export type SkillMarketplaceSearchResponse = OperationResponse<"searchSkillMarketplace", 200>;
-export type SkillMarketplaceListingPayload = SkillMarketplaceSearchResponse["skills"][number];
-
-export type SkillMarketplaceInfoResponse = OperationResponse<"getSkillMarketplaceInfo", 200>;
-export type SkillMarketplaceDetailPayload = SkillMarketplaceInfoResponse["skill"];
-
 export type SkillMarketplaceInstallResponse = OperationResponse<"installSkillMarketplace", 200>;
 export type SkillMarketplaceInstallPayload = SkillMarketplaceInstallResponse["skill"];
 export type SkillMarketplaceInstallRequest = OperationRequestBody<"installSkillMarketplace">;

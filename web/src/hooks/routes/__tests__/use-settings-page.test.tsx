@@ -59,7 +59,8 @@ describe("useSettingsPage", () => {
       "automation",
       "network",
       "observability",
-      "hooks-extensions",
+      "hooks",
+      "extensions",
     ]);
     expect(result.current.rootPath).toBe("/settings");
     expect(result.current.sectionPath("general")).toBe("/settings/general");

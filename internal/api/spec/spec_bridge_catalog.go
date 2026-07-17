@@ -4,7 +4,7 @@ import bridgepkg "github.com/compozy/agh/internal/bridges"
 
 func bridgeCatalogQueryParams() []ParameterSpec {
 	return []ParameterSpec{
-		enumQueryParam("scope", "Filter by bridge scope", []string{"all", specGlobalKey, specWorkspaceKey}),
+		enumQueryParam(specScopeKey, "Filter by bridge scope", []string{specAllKey, specGlobalKey, specWorkspaceKey}),
 		queryParam("workspace_id", "Filter by active workspace id", false),
 		queryParam(specWorkspaceKey, "Filter by workspace id, name, or path", false),
 		queryParam("q", "Search display name, platform, extension, or effective status", false),

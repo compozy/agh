@@ -1,9 +1,15 @@
 export { SettingsEditorDialog } from "./settings-editor-dialog";
 export type { EditorMode } from "./settings-editor-dialog";
 export { MCPActionResultBanner } from "./mcp-action-result-banner";
+export { MCPAuthorizeDialog } from "./mcp-authorize-dialog";
+export type { MCPAuthorizeDialogProps } from "./mcp-authorize-dialog";
+export { MCPSelectionStrip } from "./mcp-selection-strip";
+export type { MCPSelectionStripProps } from "./mcp-selection-strip";
 export { MCPServerDeleteDialog } from "./mcp-server-delete-dialog";
 export { MCPServerEditor } from "./mcp-server-editor";
+export type { MCPServerEditorProps } from "./mcp-server-editor";
 export { MCPServersTable } from "./mcp-servers-table";
+export type { MCPServersTableProps } from "./mcp-servers-table";
 export { ProviderCard } from "./provider-card";
 export { ProviderEditForm } from "./provider-edit-form";
 export { ProviderInspectorSheet } from "./provider-inspector-sheet";

@@ -27,14 +27,8 @@ function invalidateSkillQueries(
   ]);
 }
 
-function invalidateInstalledAndMarketplace(
-  queryClient: ReturnType<typeof useQueryClient>,
-  workspace: string
-) {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: skillKeys.list(workspace) }),
-    queryClient.invalidateQueries({ queryKey: skillKeys.marketplace() }),
-  ]);
+function invalidateInstalled(queryClient: ReturnType<typeof useQueryClient>, workspace: string) {
+  return queryClient.invalidateQueries({ queryKey: skillKeys.list(workspace) });
 }
 
 export function useEnableSkill() {
@@ -67,8 +61,7 @@ export function useInstallSkillMarketplace() {
 
   return useMutation({
     mutationFn: ({ body }: InstallSkillVariables) => installSkillMarketplace(body),
-    onSettled: (_data, _error, { workspace }) =>
-      invalidateInstalledAndMarketplace(queryClient, workspace),
+    onSettled: (_data, _error, { workspace }) => invalidateInstalled(queryClient, workspace),
   });
 }
 
@@ -82,8 +75,7 @@ export function useUpdateSkillMarketplace() {
 
   return useMutation({
     mutationFn: ({ body }: UpdateSkillVariables) => updateSkillMarketplace(body),
-    onSettled: (_data, _error, { workspace }) =>
-      invalidateInstalledAndMarketplace(queryClient, workspace),
+    onSettled: (_data, _error, { workspace }) => invalidateInstalled(queryClient, workspace),
   });
 }
 
@@ -97,7 +89,6 @@ export function useRemoveSkillMarketplace() {
 
   return useMutation({
     mutationFn: ({ name }: RemoveSkillVariables) => removeSkillMarketplace(name),
-    onSettled: (_data, _error, { workspace }) =>
-      invalidateInstalledAndMarketplace(queryClient, workspace),
+    onSettled: (_data, _error, { workspace }) => invalidateInstalled(queryClient, workspace),
   });
 }

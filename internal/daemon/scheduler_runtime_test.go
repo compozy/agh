@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,15 +12,101 @@ import (
 	"testing"
 	"time"
 
+	contractpkg "github.com/compozy/agh/internal/api/contract"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
 	loopdsl "github.com/compozy/agh/internal/loop/dsl"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	schedulerpkg "github.com/compozy/agh/internal/scheduler"
+	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
+
+type schedulerSituationContextStub struct {
+	payload contractpkg.AgentContextPayload
+	err     error
+}
+
+func (s *schedulerSituationContextStub) ContextForSession(
+	context.Context,
+	*session.Info,
+) (contractpkg.AgentContextPayload, error) {
+	return s.payload, s.err
+}
+
+func TestSchedulerSessionSourcePreservesCapabilityCertainty(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve a known empty capability projection", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{infos: []*session.Info{{
+			ID:          "sess-known-empty",
+			AgentName:   "frontend-agent",
+			WorkspaceID: "ws-1",
+			State:       session.StateActive,
+		}}}
+		source := schedulerSessionSource{
+			sessions:  sessions,
+			situation: &schedulerSituationContextStub{},
+			logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+
+		snapshots, err := source.Sessions(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("Sessions() error = %v", err)
+		}
+		if got, want := len(snapshots), 1; got != want {
+			t.Fatalf("len(Sessions()) = %d, want %d", got, want)
+		}
+		if snapshots[0].CapabilityState != schedulerpkg.CapabilityStateKnown {
+			t.Fatalf("CapabilityState = %q, want %q", snapshots[0].CapabilityState, schedulerpkg.CapabilityStateKnown)
+		}
+		if len(snapshots[0].Capabilities) != 0 {
+			t.Fatalf("Capabilities = %v, want known empty projection", snapshots[0].Capabilities)
+		}
+	})
+
+	t.Run("Should preserve an indeterminate session when capability projection fails", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		sessions := &fakeSessionManager{infos: []*session.Info{{
+			ID:          "sess-indeterminate",
+			AgentName:   "frontend-agent",
+			WorkspaceID: "ws-1",
+			State:       session.StateActive,
+		}}}
+		source := schedulerSessionSource{
+			sessions:  sessions,
+			situation: &schedulerSituationContextStub{err: context.DeadlineExceeded},
+			logger:    slog.New(slog.NewJSONHandler(&logs, nil)),
+		}
+
+		snapshots, err := source.Sessions(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("Sessions() error = %v", err)
+		}
+		if got, want := len(snapshots), 1; got != want {
+			t.Fatalf("len(Sessions()) = %d, want %d", got, want)
+		}
+		if snapshots[0].CapabilityState != schedulerpkg.CapabilityStateUnknown {
+			t.Fatalf(
+				"CapabilityState = %q, want %q",
+				snapshots[0].CapabilityState,
+				schedulerpkg.CapabilityStateUnknown,
+			)
+		}
+		logOutput := logs.String()
+		if !strings.Contains(logOutput, "scheduler.session_context.error") ||
+			!strings.Contains(logOutput, "sess-indeterminate") {
+			t.Fatalf("scheduler projection log = %q, want event and session id", logOutput)
+		}
+	})
+}
 
 func TestSchedulerTaskSourcePendingRunsShouldHideLoopActionRuns(t *testing.T) {
 	t.Parallel()

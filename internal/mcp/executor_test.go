@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -107,22 +108,20 @@ func TestMCPCallExecutor(t *testing.T) {
 		}))
 		t.Cleanup(testServer.Close)
 
+		configuredServer := authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, testServer.URL)
+		target := globalMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
-			ServerName:   "secure",
-			ClientID:     "client-id",
-			Scopes:       []string{"tools.read"},
-			AccessToken:  "secret-access",
-			RefreshToken: "secret-refresh",
-			TokenType:    "Bearer",
-			ExpiresAt:    time.Now().Add(time.Hour),
-			UpdatedAt:    time.Now(),
+			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, configuredServer),
+			ClientID: "client-id", Scopes: []string{"tools.read"}, AccessToken: "secret-access",
+			RefreshToken: "secret-refresh", TokenType: "Bearer",
+			ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
 		}); err != nil {
 			t.Fatalf("SaveMCPAuthToken() error = %v", err)
 		}
 		executor := newTestMCPExecutor(
 			t,
-			authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, testServer.URL),
+			configuredServer,
 			WithTokenStore(store),
 		)
 
@@ -136,6 +135,133 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 		assertJSONDoesNotContain(t, "descriptors", descriptor, "secret-access", "secret-refresh")
 		assertJSONDoesNotContain(t, "result", result, "secret-access", "secret-refresh")
+	})
+
+	t.Run("Should never send a token bound to a replaced server definition", func(t *testing.T) {
+		t.Parallel()
+
+		target := globalMCPExecutorTarget("secure")
+		original := authEnabledServer(
+			"secure",
+			aghconfig.MCPServerTransportHTTP,
+			"https://original.example/mcp",
+		)
+		replacement := authEnabledServer(
+			"secure",
+			aghconfig.MCPServerTransportHTTP,
+			"https://replacement.example/mcp",
+		)
+		store := newMemoryTokenStore()
+		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
+			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, original),
+			ClientID: "client-id", AccessToken: "original-secret", TokenType: "Bearer",
+			ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
+		}); err != nil {
+			t.Fatalf("SaveMCPAuthToken(original) error = %v", err)
+		}
+		executor := newTestMCPExecutor(t, replacement, WithTokenStore(store))
+		resolved := ResolvedServer{Server: replacement, Target: target}
+		if got := executor.authorizationHeader(t.Context(), resolved); got != "" {
+			t.Fatalf("authorizationHeader(replacement) = %q, want empty", got)
+		}
+		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: "secure", RawServerName: "secure",
+		})
+		requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
+	})
+
+	t.Run("Should isolate same-named workspace credentials at executor resolution", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceA := mcpauth.Target{
+			Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "linear",
+		}
+		workspaceB := mcpauth.Target{
+			Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-b", ServerName: "linear",
+		}
+		serverA := newAuthorizedMCPExecutorServer(t, "workspace-a-token")
+		serverB := newAuthorizedMCPExecutorServer(t, "workspace-b-token")
+		store := newMemoryTokenStore()
+		for _, fixture := range []struct {
+			record mcpauth.TokenRecord
+			server aghconfig.MCPServer
+		}{
+			{
+				record: mcpauth.TokenRecord{
+					Target: workspaceA, AccessToken: "workspace-a-token", TokenType: "Bearer",
+					ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
+				},
+				server: authEnabledServer("linear", aghconfig.MCPServerTransportHTTP, serverA.URL),
+			},
+			{
+				record: mcpauth.TokenRecord{
+					Target: workspaceB, AccessToken: "workspace-b-token", TokenType: "Bearer",
+					ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
+				},
+				server: authEnabledServer("linear", aghconfig.MCPServerTransportHTTP, serverB.URL),
+			},
+		} {
+			fixture.record.DefinitionFingerprint = definitionFingerprint(t, fixture.record.Target, fixture.server)
+			if err := store.SaveMCPAuthToken(context.Background(), fixture.record); err != nil {
+				t.Fatalf("SaveMCPAuthToken(%#v) error = %v", fixture.record.Target, err)
+			}
+		}
+		resolver := ServerResolverFunc(func(
+			_ context.Context,
+			source toolspkg.SourceRef,
+		) (ResolvedServer, error) {
+			switch source.ResourceID {
+			case "mcp-workspace-a":
+				return ResolvedServer{
+					Server: authEnabledServer("linear", aghconfig.MCPServerTransportHTTP, serverA.URL),
+					Target: workspaceA,
+				}, nil
+			case "mcp-workspace-b":
+				return ResolvedServer{
+					Server: authEnabledServer("linear", aghconfig.MCPServerTransportHTTP, serverB.URL),
+					Target: workspaceB,
+				}, nil
+			default:
+				return ResolvedServer{}, errors.New("unexpected MCP resource")
+			}
+		})
+		executor, err := NewMCPCallExecutor(resolver, WithTokenStore(store))
+		if err != nil {
+			t.Fatalf("NewMCPCallExecutor() error = %v", err)
+		}
+		for _, source := range []toolspkg.SourceRef{
+			{
+				Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear",
+				ResourceID: "mcp-workspace-a", Scope: "workspace", WorkspaceID: "workspace-a",
+			},
+			{
+				Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear",
+				ResourceID: "mcp-workspace-b", Scope: "workspace", WorkspaceID: "workspace-b",
+			},
+		} {
+			descriptors, err := executor.ListTools(testContext(t), source)
+			if err != nil {
+				t.Fatalf("ListTools(%s) error = %v", source.WorkspaceID, err)
+			}
+			if len(descriptors) != 1 {
+				t.Fatalf("ListTools(%s) count = %d, want 1", source.WorkspaceID, len(descriptors))
+			}
+		}
+
+		if err := store.DeleteMCPAuthToken(context.Background(), workspaceA); err != nil {
+			t.Fatalf("DeleteMCPAuthToken(workspace-a) error = %v", err)
+		}
+		_, err = executor.ListTools(testContext(t), toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear",
+			ResourceID: "mcp-workspace-a", Scope: "workspace", WorkspaceID: "workspace-a",
+		})
+		requireReason(t, err, toolspkg.ReasonMCPAuthRequired)
+		if _, err := executor.ListTools(testContext(t), toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear",
+			ResourceID: "mcp-workspace-b", Scope: "workspace", WorkspaceID: "workspace-b",
+		}); err != nil {
+			t.Fatalf("ListTools(workspace-b after workspace-a logout) error = %v", err)
+		}
 	})
 
 	t.Run("Should Return Auth Required Without Starting Login Flow", func(t *testing.T) {
@@ -162,20 +288,19 @@ func TestMCPCallExecutor(t *testing.T) {
 	t.Run("Should Return Invalid Auth For Token Missing Access Token", func(t *testing.T) {
 		t.Parallel()
 
+		server := authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp")
+		target := globalMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
-			ServerName:   "secure",
-			ClientID:     "client-id",
-			RefreshToken: "secret-refresh",
-			TokenType:    "Bearer",
-			ExpiresAt:    time.Now().Add(time.Hour),
-			UpdatedAt:    time.Now(),
+			Target: target, DefinitionFingerprint: definitionFingerprint(t, target, server),
+			ClientID: "client-id", RefreshToken: "secret-refresh", TokenType: "Bearer",
+			ExpiresAt: time.Now().Add(time.Hour), UpdatedAt: time.Now(),
 		}); err != nil {
 			t.Fatalf("SaveMCPAuthToken() error = %v", err)
 		}
 		executor := newTestMCPExecutor(
 			t,
-			authEnabledServer("secure", aghconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp"),
+			server,
 			WithTokenStore(store),
 		)
 
@@ -268,19 +393,29 @@ func TestMCPCallExecutor(t *testing.T) {
 	t.Run("Should Use Explicit MCP Constructors And Avoid OAuth Helpers", func(t *testing.T) {
 		t.Parallel()
 
-		data, err := os.ReadFile("executor.go")
+		paths, err := filepath.Glob("executor*.go")
 		if err != nil {
-			t.Fatalf("os.ReadFile(executor.go) error = %v", err)
+			t.Fatalf("filepath.Glob(executor files) error = %v", err)
 		}
-		source := string(data)
+		var source strings.Builder
+		for _, path := range paths {
+			if strings.HasSuffix(path, "_test.go") {
+				continue
+			}
+			data, readErr := os.ReadFile(path)
+			if readErr != nil {
+				t.Fatalf("os.ReadFile(%s) error = %v", path, readErr)
+			}
+			source.Write(data)
+		}
 		required := []string{
 			"NewStdioMCPClient",
 			"NewStreamableHttpClient",
 			"NewSSEMCPClient",
 		}
 		for _, needle := range required {
-			if !strings.Contains(source, needle) {
-				t.Fatalf("executor.go does not contain required constructor %q", needle)
+			if !strings.Contains(source.String(), needle) {
+				t.Fatalf("executor implementation does not contain required constructor %q", needle)
 			}
 		}
 		forbidden := []string{
@@ -292,8 +427,8 @@ func TestMCPCallExecutor(t *testing.T) {
 			"WithOAuth(",
 		}
 		for _, needle := range forbidden {
-			if strings.Contains(source, needle) {
-				t.Fatalf("executor.go contains forbidden OAuth helper %q", needle)
+			if strings.Contains(source.String(), needle) {
+				t.Fatalf("executor implementation contains forbidden OAuth helper %q", needle)
 			}
 		}
 		assertInternalToolsDoNotReferenceTokenMaterial(t)
@@ -693,7 +828,8 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			},
 		}
 		executor := newTestMCPExecutor(t, server, withAuthService(fakeAuth))
-		if err := executor.ensureAuthorized(testContext(t), server); err != nil {
+		resolved := ResolvedServer{Server: server, Target: globalMCPExecutorTarget("secure")}
+		if err := executor.ensureAuthorized(testContext(t), resolved); err != nil {
 			t.Fatalf("ensureAuthorized(refresh success) error = %v", err)
 		}
 		if got, want := fakeAuth.refreshCallCount(), 1; got != want {
@@ -715,7 +851,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			},
 		}
 		executor = newTestMCPExecutor(t, server, withAuthService(invalidAuth))
-		err := executor.ensureAuthorized(testContext(t), server)
+		err := executor.ensureAuthorized(testContext(t), resolved)
 		requireReason(t, err, toolspkg.ReasonMCPAuthInvalid)
 	})
 
@@ -724,7 +860,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
-			ServerName:  "github",
+			Target:      globalMCPExecutorTarget("github"),
 			AccessToken: "token",
 			TokenType:   "mac",
 		}); err != nil {
@@ -739,12 +875,16 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			},
 			WithTokenStore(store),
 		)
-		if got := executor.authorizationHeader(testContext(t), aghconfig.MCPServer{Name: "github"}); got != "" {
+		resolved := ResolvedServer{
+			Server: aghconfig.MCPServer{Name: "github"},
+			Target: globalMCPExecutorTarget("github"),
+		}
+		if got := executor.authorizationHeader(testContext(t), resolved); got != "" {
 			t.Fatalf("authorizationHeader(non-bearer) = %q, want empty", got)
 		}
 		if got := (&CallExecutor{}).authorizationHeader(
 			testContext(t),
-			aghconfig.MCPServer{Name: "github"},
+			resolved,
 		); got != "" {
 			t.Fatalf("authorizationHeader(nil store) = %q, want empty", got)
 		}
@@ -783,6 +923,21 @@ func newFakeSDKServer(handler mcpsrv.ToolHandlerFunc) *mcpsrv.MCPServer {
 	return server
 }
 
+func newAuthorizedMCPExecutorServer(t *testing.T, token string) *httptest.Server {
+	t.Helper()
+
+	handler := mcpsrv.NewStreamableHTTPServer(newFakeSDKServer(nil))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("Authorization"), "Bearer "+token; got != want {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
 func newTestMCPExecutor(
 	t *testing.T,
 	server aghconfig.MCPServer,
@@ -791,8 +946,8 @@ func newTestMCPExecutor(
 	t.Helper()
 
 	executor, err := NewMCPCallExecutor(
-		ServerResolverFunc(func(context.Context) ([]aghconfig.MCPServer, error) {
-			return []aghconfig.MCPServer{server}, nil
+		ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+			return ResolvedServer{Server: server, Target: globalMCPExecutorTarget(server.Name)}, nil
 		}),
 		options...,
 	)
@@ -888,6 +1043,23 @@ func authEnabledServer(name string, transport aghconfig.MCPServerTransport, url 
 	}
 }
 
+func definitionFingerprint(
+	t *testing.T,
+	target mcpauth.Target,
+	server aghconfig.MCPServer,
+) string {
+	t.Helper()
+	cfg, err := mcpauth.ServerConfigFromMCP(t.Context(), target, server, nil)
+	if err != nil {
+		t.Fatalf("ServerConfigFromMCP() error = %v", err)
+	}
+	fingerprint, err := mcpauth.ServerDefinitionFingerprint(cfg)
+	if err != nil {
+		t.Fatalf("ServerDefinitionFingerprint() error = %v", err)
+	}
+	return fingerprint
+}
+
 func requireReason(t *testing.T, err error, want toolspkg.ReasonCode) {
 	t.Helper()
 
@@ -981,7 +1153,7 @@ func (s *fakeAuthService) Status(ctx context.Context, cfg mcpauth.ServerConfig) 
 	s.lastConfig = cfg
 	status := s.status
 	if status.ServerName == "" {
-		status.ServerName = cfg.ServerName
+		status.ServerName = cfg.Target.ServerName
 	}
 	return status, nil
 }
@@ -999,7 +1171,7 @@ func (s *fakeAuthService) Refresh(ctx context.Context, cfg mcpauth.ServerConfig)
 	}
 	status := s.refresh
 	if status.ServerName == "" {
-		status.ServerName = cfg.ServerName
+		status.ServerName = cfg.Target.ServerName
 	}
 	return status, nil
 }
@@ -1032,18 +1204,29 @@ func (s *memoryTokenStore) SaveMCPAuthToken(ctx context.Context, token mcpauth.T
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.tokens[strings.TrimSpace(token.ServerName)] = cloneTokenRecord(token)
+	key, err := token.Target.Key()
+	if err != nil {
+		return err
+	}
+	s.tokens[key] = cloneTokenRecord(token)
 	return nil
 }
 
-func (s *memoryTokenStore) GetMCPAuthToken(ctx context.Context, serverName string) (mcpauth.TokenRecord, error) {
+func (s *memoryTokenStore) GetMCPAuthToken(
+	ctx context.Context,
+	target mcpauth.Target,
+) (mcpauth.TokenRecord, error) {
 	if err := ctx.Err(); err != nil {
 		return mcpauth.TokenRecord{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	token, ok := s.tokens[strings.TrimSpace(serverName)]
+	key, err := target.Key()
+	if err != nil {
+		return mcpauth.TokenRecord{}, err
+	}
+	token, ok := s.tokens[key]
 	if !ok {
 		return mcpauth.TokenRecord{}, mcpauth.ErrTokenNotFound
 	}
@@ -1062,23 +1245,33 @@ func (s *memoryTokenStore) ListMCPAuthTokens(ctx context.Context) ([]mcpauth.Tok
 		tokens = append(tokens, cloneTokenRecord(token))
 	}
 	slices.SortFunc(tokens, func(left, right mcpauth.TokenRecord) int {
-		return strings.Compare(left.ServerName, right.ServerName)
+		leftKey := string(left.Target.Scope) + "\x00" + left.Target.WorkspaceID + "\x00" + left.Target.ServerName
+		rightKey := string(right.Target.Scope) + "\x00" + right.Target.WorkspaceID + "\x00" + right.Target.ServerName
+		return strings.Compare(leftKey, rightKey)
 	})
 	return tokens, nil
 }
 
-func (s *memoryTokenStore) DeleteMCPAuthToken(ctx context.Context, serverName string) error {
+func (s *memoryTokenStore) DeleteMCPAuthToken(ctx context.Context, target mcpauth.Target) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.tokens, strings.TrimSpace(serverName))
+	key, err := target.Key()
+	if err != nil {
+		return err
+	}
+	delete(s.tokens, key)
 	return nil
 }
 
 func cloneTokenRecord(token mcpauth.TokenRecord) mcpauth.TokenRecord {
 	token.Scopes = append([]string(nil), token.Scopes...)
 	return token
+}
+
+func globalMCPExecutorTarget(serverName string) mcpauth.Target {
+	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
 }

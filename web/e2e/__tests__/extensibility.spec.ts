@@ -10,7 +10,7 @@ import { promisify } from "node:util";
 import type { Page } from "@playwright/test";
 
 import { captureRouteState } from "../fixtures/browser-artifact-session";
-import { settingsOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
+import { extensionsOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths, WorkspacePayload } from "../fixtures/runtime";
 import {
   assertNoSensitiveArtifactPayload,
@@ -197,6 +197,7 @@ test.use({
       ...process.env,
       AGH_BROWSER_EXTENSION_SECRET: extensionSecretSentinel,
     },
+    extensionsAllowUnverified: true,
     readyTimeoutMs: 45_000,
     seed: {
       mockAgents: [
@@ -224,7 +225,7 @@ test("operator installs a local extension tool provider, invokes it over transpo
   const extensionDir = await createBrowserToolProviderExtension();
   const checksumFailureDir = await createChecksumFailureExtension();
   const badManifestDir = await createInvalidExtensionManifest();
-  const ui = settingsOperatorSelectors(appPage);
+  const ui = extensionsOperatorSelectors(appPage);
 
   await useGlobalWorkspaceIfPrompted(appPage);
 
@@ -250,10 +251,10 @@ test("operator installs a local extension tool provider, invokes it over transpo
     })
     .toBe("active");
 
-  await appPage.goto(runtime.url("/settings/hooks-extensions"), { waitUntil: "domcontentloaded" });
-  await expect(ui.hooksExtensions.page).toBeVisible({ timeout: 20_000 });
-  await expect(ui.hooksExtensions.extensionToggle(extensionName)).toBeVisible();
-  await expect(ui.hooksExtensions.extensionToggle(extensionName)).toBeChecked();
+  await appPage.goto(runtime.url("/extensions"), { waitUntil: "domcontentloaded" });
+  await expect(ui.page).toBeVisible({ timeout: 20_000 });
+  await expect(ui.row(extensionName)).toBeVisible();
+  await expect(ui.row(extensionName).getByRole("switch")).toBeChecked();
 
   const routeState = await captureRouteState(appPage);
   const viewportEvidence = await captureViewportEvidence({
@@ -261,8 +262,8 @@ test("operator installs a local extension tool provider, invokes it over transpo
     browserArtifacts,
     moduleName: "extensibility-tools-resources",
     assertVisible: async () => {
-      await expect(ui.hooksExtensions.page).toBeVisible();
-      await expect(ui.hooksExtensions.extensionToggle(extensionName)).toBeVisible();
+      await expect(ui.page).toBeVisible();
+      await expect(ui.row(extensionName)).toBeVisible();
     },
   });
 
@@ -438,8 +439,8 @@ test("operator installs a local extension tool provider, invokes it over transpo
     })
     .toBe("ready");
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(ui.hooksExtensions.page).toBeVisible({ timeout: 20_000 });
-  await expect(ui.hooksExtensions.extensionToggle(extensionName)).toBeChecked();
+  await expect(ui.page).toBeVisible({ timeout: 20_000 });
+  await expect(ui.row(extensionName).getByRole("switch")).toBeChecked();
   await expect
     .poll(async () => {
       const payload = await runtime.requestJSON<ExtensionResponse>(

@@ -279,6 +279,21 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should keep process args and non-secret env valid for stdio", func(t *testing.T) {
+		t.Parallel()
+
+		server := MCPServer{
+			Name:      "local",
+			Transport: MCPServerTransportStdio,
+			Command:   "npx",
+			Args:      []string{"--verbose"},
+			Env:       map[string]string{"LOG_LEVEL": "debug"},
+		}
+		if err := server.Validate("mcp_servers[0]"); err != nil {
+			t.Fatalf("Validate(stdio MCP process fields) error = %v, want nil", err)
+		}
+	})
 }
 
 func providerCuratedModelsContain(models []ProviderModelConfig, id string) bool {
@@ -1228,26 +1243,64 @@ func TestMCPServerValidateRejectsUnsafeStdioEnv(t *testing.T) {
 			}
 		})
 	}
+
+	for _, tc := range tests[:5] {
+		t.Run(strings.Replace(tc.name, "Should reject", "Should reject secret", 1), func(t *testing.T) {
+			t.Parallel()
+
+			server := MCPServer{
+				Name:      "local",
+				Command:   "npx",
+				SecretEnv: map[string]string{tc.key: "vault:mcp/global/local/env/" + tc.key},
+			}
+			err := server.Validate("mcp_servers[0]")
+			if err == nil || !strings.Contains(err.Error(), ".secret_env."+tc.key+" is forbidden") {
+				t.Fatalf("Validate(secret_env %s) error = %v, want forbidden-key detail", tc.key, err)
+			}
+		})
+	}
 }
 
-func TestMCPServerValidateAllowsSafeRemoteEnvNames(t *testing.T) {
+func TestMCPServerValidateRejectsRemoteProcessFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should allow remote MCP env values", func(t *testing.T) {
-		t.Parallel()
-
-		server := MCPServer{
-			Name:      "remote",
-			Transport: MCPServerTransportHTTP,
-			URL:       "https://mcp.example/mcp",
-			Env: map[string]string{
-				"NODE_OPTIONS": "--require ./shim.js",
+	tests := []struct {
+		name   string
+		mutate func(*MCPServer)
+		field  string
+	}{
+		{
+			name: "Should reject remote MCP args",
+			mutate: func(server *MCPServer) {
+				server.Args = []string{"--verbose"}
 			},
-		}
-		if err := server.Validate("mcp_servers[0]"); err != nil {
-			t.Fatalf("Validate(remote MCP env) error = %v, want nil", err)
-		}
-	})
+			field: ".args",
+		},
+		{
+			name: "Should reject remote MCP env",
+			mutate: func(server *MCPServer) {
+				server.Env = map[string]string{"LOG_LEVEL": "debug"}
+			},
+			field: ".env",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := MCPServer{
+				Name:      "remote",
+				Transport: MCPServerTransportHTTP,
+				URL:       "https://mcp.example/mcp",
+			}
+			tc.mutate(&server)
+			err := server.Validate("mcp_servers[0]")
+			if err == nil || !strings.Contains(err.Error(), tc.field) {
+				t.Fatalf("Validate(remote MCP %s) error = %v, want field validation", tc.field, err)
+			}
+		})
+	}
 }
 
 func TestRedactedMCPServerDoesNotExposeEnvSecretValues(t *testing.T) {
@@ -1770,6 +1823,72 @@ func TestModelCatalogModelsDevConfigValidatesDefaultsAndOverrides(t *testing.T) 
 			}
 			if tc.wantErrDetails != "" && !strings.Contains(err.Error(), tc.wantErrDetails) {
 				t.Fatalf("ModelsDev Validate() error = %v, want parse details %q", err, tc.wantErrDetails)
+			}
+		})
+	}
+}
+
+func TestMarketplaceCatalogConfigValidatesDefaultsAndOverrides(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose the curated catalog defaults", func(t *testing.T) {
+		t.Parallel()
+
+		defaults := DefaultMarketplaceRuntimeConfig().Catalog
+		if got, want := defaults.EffectiveBaseURL(), DefaultMarketplaceCatalogBaseURL; got != want {
+			t.Fatalf("MarketplaceCatalog EffectiveBaseURL() = %q, want %q", got, want)
+		}
+		if got, want := defaults.EffectiveTTL(), DefaultMarketplaceCatalogTTL; got != want {
+			t.Fatalf("MarketplaceCatalog EffectiveTTL() = %q, want %q", got, want)
+		}
+		if got, want := defaults.EffectiveTimeout(), DefaultMarketplaceCatalogTimeout; got != want {
+			t.Fatalf("MarketplaceCatalog EffectiveTimeout() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should accept valid curated catalog overrides", func(t *testing.T) {
+		t.Parallel()
+
+		valid := MarketplaceCatalogConfig{
+			BaseURL: "https://catalog.example.test/v1",
+			TTL:     "30m",
+			Timeout: "5s",
+		}
+		if err := valid.Validate("marketplace.catalog"); err != nil {
+			t.Fatalf("MarketplaceCatalog Validate(valid) error = %v", err)
+		}
+	})
+
+	tests := []struct {
+		name    string
+		value   MarketplaceCatalogConfig
+		wantErr string
+	}{
+		{
+			name:    "Should reject a non-HTTP base URL",
+			value:   MarketplaceCatalogConfig{BaseURL: "file:///tmp/catalog"},
+			wantErr: "marketplace.catalog.base_url must be an absolute HTTP(S) URL",
+		},
+		{
+			name:    "Should reject a non-positive TTL",
+			value:   MarketplaceCatalogConfig{TTL: "0s"},
+			wantErr: "marketplace.catalog.ttl must be a positive duration",
+		},
+		{
+			name:    "Should reject a non-positive timeout",
+			value:   MarketplaceCatalogConfig{Timeout: "-1s"},
+			wantErr: "marketplace.catalog.timeout must be a positive duration",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := tc.value.Validate("marketplace.catalog")
+			if err == nil {
+				t.Fatal("MarketplaceCatalog Validate() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("MarketplaceCatalog Validate() error = %v, want %q", err, tc.wantErr)
 			}
 		})
 	}

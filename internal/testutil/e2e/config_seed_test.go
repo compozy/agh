@@ -92,6 +92,60 @@ func TestSeedConfigPersistsNetworkOverlay(t *testing.T) {
 	}
 }
 
+func TestSeedConfigPersistsMarketplaceCatalogOverlay(t *testing.T) {
+	t.Run("Should persist the configured catalog source for a real daemon", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := NewHomePaths(t)
+		SeedConfig(t, homePaths, ConfigSeedOptions{
+			Mutate: func(cfg *aghconfig.Config) {
+				cfg.Marketplace.Catalog = aghconfig.MarketplaceCatalogConfig{
+					BaseURL: "https://catalog.example.test/v1",
+					TTL:     "45m",
+					Timeout: "3s",
+				}
+			},
+		})
+
+		loaded, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if got, want := loaded.Marketplace.Catalog.BaseURL, "https://catalog.example.test/v1"; got != want {
+			t.Fatalf("loaded.Marketplace.Catalog.BaseURL = %q, want %q", got, want)
+		}
+		if got, want := loaded.Marketplace.Catalog.TTL, "45m"; got != want {
+			t.Fatalf("loaded.Marketplace.Catalog.TTL = %q, want %q", got, want)
+		}
+		if got, want := loaded.Marketplace.Catalog.Timeout, "3s"; got != want {
+			t.Fatalf("loaded.Marketplace.Catalog.Timeout = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestSeedConfigPersistsExtensionsMarketplaceOverlay(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist the extension marketplace overlay", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := NewHomePaths(t)
+		SeedConfig(t, homePaths, ConfigSeedOptions{
+			Mutate: func(cfg *aghconfig.Config) {
+				cfg.Extensions.Marketplace.AllowUnverified = true
+			},
+		})
+
+		loaded, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if !loaded.Extensions.Marketplace.AllowUnverified {
+			t.Fatal("Extensions.Marketplace.AllowUnverified = false, want true")
+		}
+	})
+}
+
 func TestSeedConfigPersistsSessionSupervisionOverlay(t *testing.T) {
 	t.Run("ShouldPersistSessionSupervisionOverlay", func(t *testing.T) {
 		t.Parallel()

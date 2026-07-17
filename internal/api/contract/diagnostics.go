@@ -68,6 +68,7 @@ const (
 	CodeExtensionBlockedByBundle      = diagnosticcontract.CodeExtensionBlockedByBundle
 	CodeExtensionChecksumUnverified   = diagnosticcontract.CodeExtensionChecksumUnverified
 	CodeExtensionInstallFailed        = diagnosticcontract.CodeExtensionInstallFailed
+	CodeExtensionUpdateCleanupFailed  = diagnosticcontract.CodeExtensionUpdateCleanupFailed
 	CodeExtensionInUse                = diagnosticcontract.CodeExtensionInUse
 	CodeExtensionNotFound             = diagnosticcontract.CodeExtensionNotFound
 	CodeFlagNotApplicable             = diagnosticcontract.CodeFlagNotApplicable
@@ -136,6 +137,11 @@ const (
 	CodeUnknownActorFormat            = diagnosticcontract.CodeUnknownActorFormat
 	CodeUnknownComponent              = diagnosticcontract.CodeUnknownComponent
 	CodeVaultRefUnresolved            = diagnosticcontract.CodeVaultRefUnresolved
+)
+
+const (
+	CodeExtensionArchiveDigestMismatch   = diagnosticcontract.CodeExtensionArchiveDigestMismatch
+	CodeExtensionUnverifiedPolicyBlocked = diagnosticcontract.CodeExtensionUnverifiedPolicyBlocked
 )
 
 // DiagnosticCodeSpecs returns the sorted canonical diagnostic code registry.
