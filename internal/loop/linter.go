@@ -45,6 +45,7 @@ func (l *DefinitionLinter) Lint(def dsl.Definition) []LintError {
 	ctx := newLintContext(def, l)
 	ctx.indexGraph()
 	ctx.lintContractShape()
+	ctx.lintNetworkParticipation()
 	ctx.lintNodeIDs()
 	ctx.lintKindsAndSchemas()
 	ctx.lintGraphShape()

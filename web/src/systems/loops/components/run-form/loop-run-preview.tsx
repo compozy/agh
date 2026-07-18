@@ -1,4 +1,5 @@
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow, MonoId, Pill } from "@agh/ui";
+import type { NetworkParticipationDraft } from "@/systems/network";
 
 import {
   resolveLoopEffectiveConfig,
@@ -19,6 +20,7 @@ interface LoopRunPreviewProps {
   effectiveConfig: LoopEffectiveConfig;
   configOverrides: LoopRunConfigOverrides | null;
   inputs?: LoopInputSchema;
+  networkParticipation: NetworkParticipationDraft;
   /** Present only after a successful Dry run. */
   plan?: LoopDryRunPreview | null;
 }
@@ -34,6 +36,7 @@ export function LoopRunPreview({
   effectiveConfig,
   configOverrides,
   inputs,
+  networkParticipation,
   plan,
 }: LoopRunPreviewProps) {
   const inputCount = inputs ? Object.keys(inputs).length : 0;
@@ -54,6 +57,20 @@ export function LoopRunPreview({
           generations with {reattemptLabel} re-attempts from {inputCount} declared input
           {inputCount === 1 ? "" : "s"}, ending honestly at one of its terminal outcomes.
         </p>
+        <div
+          className="mt-3 flex flex-wrap items-center gap-2 border-t border-line-soft pt-3"
+          data-testid="loop-run-participation-preview"
+        >
+          <span className="text-form-hint text-subtle">Participation</span>
+          <Pill tone="neutral">{networkParticipation.mode === "live" ? "Live" : "Local"}</Pill>
+          {networkParticipation.mode === "live" ? (
+            networkParticipation.channelId ? (
+              <MonoId value={networkParticipation.channelId} />
+            ) : (
+              <span className="text-form-hint text-faint">channel resolved at start</span>
+            )
+          ) : null}
+        </div>
       </div>
       <LoopContractPanel contract={contract} />
       <div className="rounded-lg border border-line-soft bg-canvas-soft px-4 py-3.5">

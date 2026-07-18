@@ -33,6 +33,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithMCPResolver(deps.MCPResolver),
 			session.WithModelCatalog(deps.ModelCatalog),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
+			session.WithParticipationResolver(deps.ParticipationResolver),
 			session.WithSandboxRegistry(deps.SandboxRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),
 			session.WithSessionBusyInputConfig(deps.SessionBusyInput),

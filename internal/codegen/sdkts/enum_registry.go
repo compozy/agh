@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/agh/internal/hooks"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/subprocess"
@@ -47,13 +48,27 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[memcontract.Scope]():                            memoryScopeValues(),
 	reflect.TypeFor[modelcatalog.ReasoningEffort]():                 modelcatalog.ReasoningEffortValues(),
 	reflect.TypeFor[modelcatalog.ReasoningSource]():                 modelcatalog.ReasoningSourceValues(),
+	reflect.TypeFor[participation.Mode]():                           participationModeValues(),
+	reflect.TypeFor[participation.ChannelStrategy]():                participationChannelStrategyValues(),
+	reflect.TypeFor[participation.Source]():                         participationSourceValues(),
+	reflect.TypeFor[participation.OwnerKind]():                      participationOwnerKindValues(),
 	reflect.TypeFor[session.State]():                                sessionStateValues(),
 	reflect.TypeFor[store.StopReason]():                             stopReasonValues(),
 	reflect.TypeFor[tools.ToolSource]():                             toolSourceValues(),
 }
 
 var generatedTypeNameOverrides = map[reflect.Type]string{
-	reflect.TypeFor[modelcatalog.ReasoningEffort](): "ReasoningEffort",
+	reflect.TypeFor[modelcatalog.ReasoningEffort]():  "ReasoningEffort",
+	reflect.TypeFor[participation.Request]():         "NetworkParticipationRequest",
+	reflect.TypeFor[participation.Spec]():            "NetworkParticipationSpec",
+	reflect.TypeFor[participation.BoundsRequest]():   "NetworkParticipationBoundsRequest",
+	reflect.TypeFor[participation.Bounds]():          "NetworkParticipationBounds",
+	reflect.TypeFor[participation.Mode]():            "NetworkParticipationMode",
+	reflect.TypeFor[participation.ChannelStrategy](): "NetworkParticipationChannelStrategy",
+	reflect.TypeFor[participation.Source]():          "NetworkParticipationSource",
+	reflect.TypeFor[participation.OwnerKind]():       "NetworkParticipationOwnerKind",
+	reflect.TypeFor[participation.OwnerRef]():        "NetworkParticipationOwnerRef",
+	reflect.TypeFor[participation.Status]():          "NetworkParticipationStatus",
 }
 
 func generatedTypeName(t reflect.Type) string {

@@ -24,7 +24,7 @@ func newNetworkThreadsListCommand(deps commandDeps, workspaceRef *string) *cobra
 				WorkspaceRef: workspace,
 				Channel:      strings.TrimSpace(flags.channel),
 				Query:        strings.TrimSpace(flags.query),
-				PeerID:       strings.TrimSpace(flags.peerID),
+				SessionID:    strings.TrimSpace(flags.participantSessionID),
 				Sort:         strings.TrimSpace(flags.sort),
 				HasWork:      optionalNetworkHasWork(cmd, flags.hasWork),
 				Limit:        flags.limit,
@@ -40,7 +40,7 @@ func newNetworkThreadsListCommand(deps commandDeps, workspaceRef *string) *cobra
 		cmd,
 		&flags.channel,
 		&flags.query,
-		&flags.peerID,
+		&flags.participantSessionID,
 		&flags.sort,
 		&flags.hasWork,
 		&flags.limit,
@@ -68,7 +68,7 @@ func newNetworkDirectsListCommand(deps commandDeps, workspaceRef *string) *cobra
 				WorkspaceRef: workspace,
 				Channel:      strings.TrimSpace(flags.channel),
 				Query:        strings.TrimSpace(flags.query),
-				PeerID:       strings.TrimSpace(flags.peerID),
+				SessionID:    strings.TrimSpace(flags.participantSessionID),
 				Sort:         strings.TrimSpace(flags.sort),
 				HasWork:      optionalNetworkHasWork(cmd, flags.hasWork),
 				Limit:        flags.limit,
@@ -84,7 +84,7 @@ func newNetworkDirectsListCommand(deps commandDeps, workspaceRef *string) *cobra
 		cmd,
 		&flags.channel,
 		&flags.query,
-		&flags.peerID,
+		&flags.participantSessionID,
 		&flags.sort,
 		&flags.hasWork,
 		&flags.limit,
@@ -98,7 +98,7 @@ func registerNetworkConversationListFlags(
 	cmd *cobra.Command,
 	channel *string,
 	search *string,
-	peerID *string,
+	sessionID *string,
 	sortOrder *string,
 	hasWork *bool,
 	limit *int,
@@ -107,7 +107,7 @@ func registerNetworkConversationListFlags(
 ) {
 	cmd.Flags().StringVar(channel, networkChannelKey, "", "Target channel")
 	cmd.Flags().StringVar(search, "query", "", "Filter by title, peer, or preview text")
-	cmd.Flags().StringVar(peerID, "peer", "", "Participant peer id filter")
+	cmd.Flags().StringVar(sessionID, "session", "", "Participant session id filter")
 	cmd.Flags().StringVar(sortOrder, "sort", "", "Order by recent_activity, created, or alphabetical")
 	cmd.Flags().BoolVar(hasWork, "has-work", false, "Filter by whether open work exists")
 	cmd.Flags().IntVar(limit, "limit", 0, "Maximum number of "+label+" to return")

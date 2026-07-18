@@ -6,6 +6,10 @@ import {
   type LoopAutomationStartKind,
   type LoopTargetDraft,
 } from "@/systems/loops";
+import {
+  isNetworkParticipationDraftValid,
+  networkParticipationDraftFromPayload,
+} from "@/systems/network";
 
 import {
   automationTargetMode,
@@ -59,7 +63,13 @@ function computeCanSubmit(
     (draft.scope === "global" || loopWorkspaceId === (draft.workspace_id ?? ""));
   const targetValid =
     automationTargetMode(draft) === "loop"
-      ? Boolean(draft.loop_target?.loop_name.trim()) && loopTargetCompatible && loopWorkspaceValid
+      ? Boolean(draft.loop_target?.loop_name.trim()) &&
+        loopTargetCompatible &&
+        loopWorkspaceValid &&
+        isNetworkParticipationDraftValid(
+          networkParticipationDraftFromPayload(draft.loop_target?.network_participation),
+          ["named", "loop_run"]
+        )
       : draft.agent_name.trim() !== "" && draft.prompt.trim() !== "";
   const baseValid =
     draft.name.trim() !== "" &&
@@ -92,6 +102,8 @@ export function useAutomationTriggerForm({
   const selection = parseEventSelection(draft.event);
   const def = getEventDef(selection.catalogId);
   const isWebhook = selection.family === "webhook";
+  const disabledCatalogIds =
+    mode === "edit" && draft.scope === "workspace" ? new Set(["webhook"]) : undefined;
   const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
   const eventKind = formatEventKind(selection, draft.event);
 
@@ -154,6 +166,7 @@ export function useAutomationTriggerForm({
   };
 
   const handleSelectEvent = (catalogId: string) => {
+    if (disabledCatalogIds?.has(catalogId)) return;
     const nextDef = getEventDef(catalogId);
     if (!nextDef) return;
     const event = composeEventId({
@@ -206,6 +219,7 @@ export function useAutomationTriggerForm({
   };
 
   return {
+    disabledCatalogIds,
     selection,
     isWebhook,
     retry,

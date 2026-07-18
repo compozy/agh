@@ -45,8 +45,6 @@ var (
 	ErrSessionAlreadyBound = errors.New("task: session already bound")
 	// ErrSessionAttachNotAllowed reports that a run cannot attach an existing session in its current state.
 	ErrSessionAttachNotAllowed = errors.New("task: session attach not allowed")
-	// ErrStaleNetworkChannel reports that a stored task or run channel no longer passes the active validator.
-	ErrStaleNetworkChannel = errors.New("task: stale network channel")
 	// ErrPermissionDenied reports that the resolved actor context lacks authority for the requested task action.
 	ErrPermissionDenied = errors.New("task: permission denied")
 	// ErrNoClaimableRun reports that no task run matched claim criteria.
@@ -61,6 +59,8 @@ var (
 	ErrSessionNotLive = errors.New("task: creator session is not live")
 	// ErrActiveRunLease reports that a session already owns an active task-run lease.
 	ErrActiveRunLease = errors.New("task: active run lease exists")
+	// ErrNetworkWakeSettlementConflict reports a terminal wake outcome that conflicts with durable truth.
+	ErrNetworkWakeSettlementConflict = errors.New("task: network wake settlement conflict")
 	// ErrForbiddenOperatorAction reports that config or policy forbids a force operation for the actor.
 	ErrForbiddenOperatorAction = errors.New("task: forbidden operator action")
 	// ErrForceOpRequiresReason reports that a force operation requires a non-empty reason.

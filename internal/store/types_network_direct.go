@@ -12,15 +12,15 @@ type NetworkDirectRoomEntry struct {
 	WorkspaceID    string
 	Channel        string
 	DirectID       string
-	PeerA          string
-	PeerB          string
+	SessionA       string
+	SessionB       string
 	OpenedAt       time.Time
 	LastActivityAt time.Time
 }
 
 // Validate ensures direct-room membership is stable and ordered.
 func (e NetworkDirectRoomEntry) Validate() error {
-	if err := validateNetworkDirectRoom(e.WorkspaceID, e.Channel, e.DirectID, e.PeerA, e.PeerB); err != nil {
+	if err := validateNetworkDirectRoom(e.WorkspaceID, e.Channel, e.DirectID, e.SessionA, e.SessionB); err != nil {
 		return err
 	}
 	if e.OpenedAt.IsZero() {
@@ -34,19 +34,18 @@ func (e NetworkDirectRoomEntry) Validate() error {
 
 // NetworkWorkEntry stores lifecycle metadata for work inside one conversation.
 type NetworkWorkEntry struct {
-	WorkID          string
-	WorkspaceID     string
-	Channel         string
-	Surface         string
-	ThreadID        string
-	DirectID        string
-	OpenedByPeerID  string
-	OpenedSessionID string
-	TargetPeerID    string
-	State           string
-	OpenedAt        time.Time
-	LastActivityAt  time.Time
-	TerminalAt      *time.Time
+	WorkID            string
+	WorkspaceID       string
+	Channel           string
+	Surface           string
+	ThreadID          string
+	DirectID          string
+	OpenedBySessionID string
+	TargetSessionID   string
+	State             string
+	OpenedAt          time.Time
+	LastActivityAt    time.Time
+	TerminalAt        *time.Time
 }
 
 // Validate ensures a work row is bound to exactly one conversation container.
@@ -64,7 +63,7 @@ func (e NetworkWorkEntry) Validate() error {
 	if err := ref.Validate(); err != nil {
 		return err
 	}
-	if err := requireField(e.OpenedByPeerID, "network work opened_by_peer_id"); err != nil {
+	if err := requireField(e.OpenedBySessionID, "network work opened_by_session_id"); err != nil {
 		return err
 	}
 	if err := validateNetworkWorkState(e.State); err != nil {

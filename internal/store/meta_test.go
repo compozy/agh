@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestWriteSessionMetaAndReadBack(t *testing.T) {
@@ -15,15 +17,15 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	path := filepath.Join(t.TempDir(), SessionMetaName)
 	stopReason := StopHookStopped
 	meta := SessionMeta{
-		ID:          "sess-meta",
-		Name:        "Session Meta",
-		AgentName:   "coder",
-		WorkspaceID: "ws-meta",
-		Channel:     "builders",
-		SessionType: "system",
-		State:       "stopped",
-		StopReason:  &stopReason,
-		StopDetail:  "hook denied continuation",
+		ID:                   "sess-meta",
+		Name:                 "Session Meta",
+		AgentName:            "coder",
+		WorkspaceID:          "ws-meta",
+		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		SessionType:          "system",
+		State:                "stopped",
+		StopReason:           &stopReason,
+		StopDetail:           "hook denied continuation",
 		Sandbox: &SessionSandboxMeta{
 			SandboxID:             "env-123",
 			Backend:               "daytona",
@@ -52,7 +54,7 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	if readBack.ID != meta.ID ||
 		readBack.AgentName != meta.AgentName ||
 		readBack.WorkspaceID != meta.WorkspaceID ||
-		readBack.Channel != meta.Channel ||
+		readBack.NetworkSpecSnapshot() != meta.NetworkSpecSnapshot() ||
 		readBack.State != meta.State ||
 		readBack.SessionType != meta.SessionType ||
 		readBack.StopDetail != meta.StopDetail {
@@ -103,12 +105,13 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), SessionMetaName)
 	base := SessionMeta{
-		ID:          "sess-meta-concurrent",
-		AgentName:   "coder",
-		WorkspaceID: "ws-meta-concurrent",
-		State:       "active",
-		CreatedAt:   time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
+		ID:                   "sess-meta-concurrent",
+		AgentName:            "coder",
+		WorkspaceID:          "ws-meta-concurrent",
+		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		State:                "active",
+		CreatedAt:            time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
+		UpdatedAt:            time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
 	}
 
 	var wg sync.WaitGroup
@@ -152,16 +155,89 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 	}
 }
 
-func TestReadSessionMetaLegacyStopFieldsOmitted(t *testing.T) {
-	t.Run("Should handle legacy stop fields omitted", func(t *testing.T) {
+func TestSessionMetaValidateRejectsParticipationOutsideCreationIdentity(t *testing.T) {
+	t.Parallel()
+
+	profile := SessionCreationProfile{
+		Version:     SessionCreationProfileVersion,
+		AgentName:   "coder",
+		Provider:    "codex",
+		WorkspaceID: "ws-meta-identity",
+		CWD:         "/work/meta-identity",
+		SandboxMode: SessionCreationSandboxNone,
+		Permissions: "approve-all",
+	}
+	options := SessionCreationOptions{
+		SessionID:            "sess-meta-identity",
+		NetworkOwnerKey:      "session:sess-meta-identity",
+		NetworkParticipation: participation.LocalSpec(),
+		SessionType:          "user",
+	}
+	profileRef, err := profile.Ref()
+	if err != nil {
+		t.Fatalf("SessionCreationProfile.Ref() error = %v", err)
+	}
+	policyDigest, err := profile.PolicySpecDigest()
+	if err != nil {
+		t.Fatalf("SessionCreationProfile.PolicySpecDigest() error = %v", err)
+	}
+	creationDigest, err := profile.CreationDigest(options)
+	if err != nil {
+		t.Fatalf("SessionCreationProfile.CreationDigest() error = %v", err)
+	}
+	live := participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     profile.WorkspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "other-channel",
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         4,
+			MaxWakeWallTime:  "30s",
+			MaxTotalWallTime: "2m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  4096,
+			MaxWakeDepth:     4,
+			CoalesceWindow:   "250ms",
+		},
+	}
+	meta := SessionMeta{
+		ID:                   options.SessionID,
+		AgentName:            profile.AgentName,
+		WorkspaceID:          profile.WorkspaceID,
+		NetworkParticipation: participation.CloneSpec(live),
+		SessionType:          options.SessionType,
+		State:                "stopped",
+		CreationProfile:      &profile,
+		CreationOptions:      &options,
+		CreationProfileRef:   profileRef,
+		PolicySpecDigest:     policyDigest,
+		CreationDigest:       creationDigest,
+		CreatedAt:            time.Date(2026, 4, 3, 19, 0, 0, 0, time.UTC),
+		UpdatedAt:            time.Date(2026, 4, 3, 19, 1, 0, 0, time.UTC),
+	}
+
+	if err := meta.Validate(); err == nil {
+		t.Fatal("SessionMeta.Validate() error = nil, want creation participation mismatch")
+	}
+}
+
+func TestReadSessionMetaStopFieldsOmitted(t *testing.T) {
+	t.Run("Should handle optional stop fields omitted", func(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), SessionMetaName)
 		payload := []byte(`{
-  "id": "sess-legacy",
-  "name": "Legacy Session",
+  "id": "sess-current",
+  "name": "Current Session",
   "agent_name": "coder",
-  "workspace_id": "ws-legacy",
+  "workspace_id": "ws-current",
+  "network_participation": {
+    "version": "network-participation/v1",
+    "mode": "local",
+    "source": "built_in_local"
+  },
   "session_type": "user",
   "state": "stopped",
   "created_at": "2026-04-03T17:00:00Z",

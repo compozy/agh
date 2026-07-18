@@ -257,9 +257,10 @@ func ParseTaskRunListQuery(c *gin.Context) (contract.TaskRunListQuery, error) {
 	}
 
 	return contract.TaskRunListQuery{
-		Status:    taskpkg.ParseRunStatus(c.Query("status")).Normalize(),
-		SessionID: strings.TrimSpace(c.Query("session_id")),
-		Limit:     limit,
+		Status:               taskpkg.ParseRunStatus(c.Query("status")).Normalize(),
+		SessionID:            strings.TrimSpace(c.Query("session_id")),
+		ParticipationChannel: strings.TrimSpace(c.Query("participation_channel")),
+		Limit:                limit,
 	}, nil
 }
 
@@ -293,12 +294,12 @@ func ParseTaskStreamQuery(c *gin.Context) (contract.TaskStreamQuery, error) {
 // ParseTaskDashboardQuery parses the shared task dashboard query parameters.
 func ParseTaskDashboardQuery(c *gin.Context) (contract.TaskDashboardQuery, error) {
 	query := contract.TaskDashboardQuery{
-		Scope:          taskpkg.Scope(strings.TrimSpace(c.Query("scope"))).Normalize(),
-		Workspace:      strings.TrimSpace(c.Query("workspace")),
-		OwnerKind:      taskpkg.OwnerKind(strings.TrimSpace(c.Query("owner_kind"))).Normalize(),
-		OwnerRef:       strings.TrimSpace(c.Query("owner_ref")),
-		NetworkChannel: strings.TrimSpace(c.Query("network_channel")),
-		OriginKind:     taskpkg.OriginKind(strings.TrimSpace(c.Query("origin_kind"))).Normalize(),
+		Scope:                taskpkg.Scope(strings.TrimSpace(c.Query("scope"))).Normalize(),
+		Workspace:            strings.TrimSpace(c.Query("workspace")),
+		OwnerKind:            taskpkg.OwnerKind(strings.TrimSpace(c.Query("owner_kind"))).Normalize(),
+		OwnerRef:             strings.TrimSpace(c.Query("owner_ref")),
+		ParticipationChannel: strings.TrimSpace(c.Query("participation_channel")),
+		OriginKind:           taskpkg.OriginKind(strings.TrimSpace(c.Query("origin_kind"))).Normalize(),
 	}
 	if err := validateParsedTaskDashboardQuery(query); err != nil {
 		return contract.TaskDashboardQuery{}, err
@@ -308,10 +309,11 @@ func ParseTaskDashboardQuery(c *gin.Context) (contract.TaskDashboardQuery, error
 
 func validateParsedTaskDashboardQuery(query contract.TaskDashboardQuery) error {
 	summaryQuery := observe.TaskSummaryQuery{
-		Scope:      query.Scope,
-		OwnerKind:  query.OwnerKind,
-		OwnerRef:   query.OwnerRef,
-		OriginKind: query.OriginKind,
+		Scope:                query.Scope,
+		OwnerKind:            query.OwnerKind,
+		OwnerRef:             query.OwnerRef,
+		ParticipationChannel: query.ParticipationChannel,
+		OriginKind:           query.OriginKind,
 	}
 	if err := summaryQuery.Validate(); err != nil {
 		return NewTaskValidationError(err)
@@ -321,9 +323,10 @@ func validateParsedTaskDashboardQuery(query contract.TaskDashboardQuery) error {
 
 func taskRunListDomainQuery(query contract.TaskRunListQuery) (taskpkg.RunQuery, error) {
 	domainQuery := taskpkg.RunQuery{
-		Status:    query.Status.Normalize(),
-		SessionID: strings.TrimSpace(query.SessionID),
-		Limit:     query.Limit,
+		Status:               query.Status.Normalize(),
+		SessionID:            strings.TrimSpace(query.SessionID),
+		ParticipationChannel: strings.TrimSpace(query.ParticipationChannel),
+		Limit:                query.Limit,
 	}
 	if err := domainQuery.Validate("task_run_query"); err != nil {
 		return taskpkg.RunQuery{}, err
@@ -375,11 +378,11 @@ func (h *BaseHandlers) taskDashboardDomainQuery(
 	query contract.TaskDashboardQuery,
 ) (observe.TaskDashboardQuery, error) {
 	domainQuery := observe.TaskDashboardQuery{
-		Scope:          query.Scope.Normalize(),
-		OwnerKind:      query.OwnerKind.Normalize(),
-		OwnerRef:       strings.TrimSpace(query.OwnerRef),
-		NetworkChannel: strings.TrimSpace(query.NetworkChannel),
-		OriginKind:     query.OriginKind.Normalize(),
+		Scope:                query.Scope.Normalize(),
+		OwnerKind:            query.OwnerKind.Normalize(),
+		OwnerRef:             strings.TrimSpace(query.OwnerRef),
+		ParticipationChannel: strings.TrimSpace(query.ParticipationChannel),
+		OriginKind:           query.OriginKind.Normalize(),
 	}
 
 	if workspaceRef := strings.TrimSpace(query.Workspace); workspaceRef != "" {
@@ -400,7 +403,10 @@ func (h *BaseHandlers) taskDashboardDomainQuery(
 		}
 	}
 
-	if err := validateTaskChannel("task_dashboard_query.network_channel", domainQuery.NetworkChannel); err != nil {
+	if err := validateParticipationChannel(
+		"task_dashboard_query.participation_channel",
+		domainQuery.ParticipationChannel,
+	); err != nil {
 		return observe.TaskDashboardQuery{}, err
 	}
 	if err := domainQuery.Validate(); err != nil {

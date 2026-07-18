@@ -18,7 +18,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	loopdsl "github.com/compozy/agh/internal/loop/dsl"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/procutil"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
@@ -27,6 +27,100 @@ import (
 	"github.com/compozy/agh/internal/testutil"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
+
+func seedNonLeasedClaimedRunForDaemonTest(
+	t *testing.T,
+	claimStore taskpkg.Store,
+	runID string,
+	actor taskpkg.ActorContext,
+) *taskpkg.Run {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	run, err := claimStore.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
+	}
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref}
+	run.ClaimedAt = time.Now().UTC()
+	run.SessionID = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	if err := claimStore.UpdateTaskRun(ctx, run); err != nil {
+		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
+	}
+	return &run
+}
+
+func networkWakeIntegrationAcceptance(
+	t *testing.T,
+	now time.Time,
+) store.AcceptNetworkMessageRequest {
+	t.Helper()
+
+	directID, _, _, err := store.NetworkDirectRoomIdentity(
+		"workspace-network",
+		"builders",
+		"session-sender",
+		"session-target",
+	)
+	if err != nil {
+		t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
+	}
+	spec := participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "workspace-network",
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "builders",
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         1,
+			MaxWakeWallTime:  "1s",
+			MaxTotalWallTime: "1s",
+			MaxInputTokens:   100,
+			MaxOutputTokens:  100,
+			MaxWakeDepth:     1,
+			CoalesceWindow:   "100ms",
+		},
+	}
+	return store.AcceptNetworkMessageRequest{
+		Message: store.NetworkConversationMessage{
+			MessageID:   "message-network-runner",
+			SessionID:   "session-sender",
+			WorkspaceID: "workspace-network",
+			Channel:     "builders",
+			Surface:     store.NetworkSurfaceDirect,
+			DirectID:    directID,
+			Direction:   "sent",
+			PeerFrom:    "session-sender",
+			PeerTo:      "session-target",
+			Kind:        store.NetworkKindSay,
+			Text:        "Review the durable wake",
+			PreviewText: "Review the durable wake",
+			Body:        []byte(`{"text":"Review the durable wake"}`),
+			Timestamp:   now,
+		},
+		Dispositions: []store.NetworkMessageDisposition{{
+			RecipientSessionID: "session-target",
+			Decision:           store.NetworkDispositionDeliver,
+		}},
+		Admissions: []store.NetworkWakeAdmissionInput{{
+			WorkspaceID:        "workspace-network",
+			RecipientSessionID: "session-target",
+			OwnerKey:           "session:session-target",
+			Spec:               spec,
+			Trigger:            store.NetworkWakeTriggerDirect,
+			Eligible:           true,
+			Addressed:          true,
+			RootID:             "message-network-runner",
+			Depth:              0,
+			WakeID:             "wake-network-runner",
+			TaskRunID:          "run-network-runner",
+		}},
+	}
+}
 
 func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing.T) {
 	t.Parallel()
@@ -40,6 +134,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 		wantPath      string
 		wantChannel   string
 		wantAgentName string
+		wantOwnerKey  string
 	}{
 		{
 			name: "Should use the workspace identifier for workspace-scoped tasks",
@@ -51,18 +146,17 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-engineer-agent"},
 			},
 			run: taskpkg.Run{
-				ID:                    "run-1",
-				TaskID:                "task-workspace",
-				Status:                taskpkg.TaskRunStatusStarting,
-				Attempt:               2,
-				Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
-				NetworkChannel:        "builders",
-				CoordinationChannelID: "coord-builders",
-				QueuedAt:              time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+				ID:       "run-1",
+				TaskID:   "task-workspace",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  2,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantWorkspace: "ws-123",
 			wantChannel:   "coord-builders",
 			wantAgentName: "frontend-engineer-agent",
+			wantOwnerKey:  "task_run:run-1",
 		},
 		{
 			name: "Should use the global workspace path for global tasks",
@@ -72,16 +166,37 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				Title: "Global Task",
 			},
 			run: taskpkg.Run{
-				ID:             "run-1",
-				TaskID:         "task-global",
-				Status:         taskpkg.TaskRunStatusStarting,
-				Attempt:        2,
-				Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
-				NetworkChannel: "builders",
-				QueuedAt:       time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+				ID:       "run-1",
+				TaskID:   "task-global",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  2,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
-			wantPath:    globalPath,
-			wantChannel: "builders",
+			wantPath:     globalPath,
+			wantChannel:  "builders",
+			wantOwnerKey: "task_run:run-1",
+		},
+		{
+			name: "Should bind a loop-correlated task session to the loop owner",
+			taskRecord: taskpkg.Task{
+				ID:          "task-loop-worker",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-loop-owner",
+				Title:       "Loop Worker Task",
+			},
+			run: taskpkg.Run{
+				ID:        "run-loop-worker",
+				TaskID:    "task-loop-worker",
+				LoopRunID: "loop-run-owner",
+				Status:    taskpkg.TaskRunStatusStarting,
+				Attempt:   1,
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop-run-owner"},
+				QueuedAt:  time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+			},
+			wantWorkspace: "ws-loop-owner",
+			wantChannel:   "loop-builders",
+			wantOwnerKey:  "loop_run:loop-run-owner",
 		},
 	}
 
@@ -95,9 +210,16 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				t.Fatalf("newTaskSessionBridge() error = %v", err)
 			}
 
+			run := tc.run
+			run.SetNetworkState(
+				daemonTestLiveParticipation(tc.taskRecord.WorkspaceID, tc.wantChannel),
+				"",
+				"",
+				"",
+			)
 			ref, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
 				Task: tc.taskRecord,
-				Run:  tc.run,
+				Run:  run,
 			})
 			if err != nil {
 				t.Fatalf("StartTaskSession() error = %v", err)
@@ -117,11 +239,16 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			if got := createCall.Provider; got != "" {
 				t.Fatalf("createCall.Provider = %q, want explicit empty provider", got)
 			}
-			if got, want := createCall.Channel, tc.wantChannel; got != want {
-				t.Fatalf("createCall.Channel = %q, want %q", got, want)
+			if got, want := participationSnapshotValue(
+				createCall.ResolvedNetworkParticipation,
+			).ChannelID, tc.wantChannel; got != want {
+				t.Fatalf("createCall resolved participation channel = %q, want %q", got, want)
 			}
 			if got, want := createCall.AgentName, tc.wantAgentName; got != want {
 				t.Fatalf("createCall.AgentName = %q, want %q", got, want)
+			}
+			if got := createCall.NetworkOwnerKey; got != tc.wantOwnerKey {
+				t.Fatalf("createCall.NetworkOwnerKey = %q, want %q", got, tc.wantOwnerKey)
 			}
 			if got, want := createCall.Workspace, tc.wantWorkspace; got != want {
 				t.Fatalf("createCall.Workspace = %q, want %q", got, want)
@@ -1047,6 +1174,7 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 		homePaths: homePaths,
 	}
 	state := &bootState{
+		cfg:      aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()},
 		logger:   discardLogger(),
 		registry: db,
 		sessions: &fakeSessionManager{},
@@ -1203,6 +1331,13 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("workspace.NewResolver() error = %v", err)
 		}
+		workspaceRecord, err := resolver.Register(ctx, workspacepkg.RegisterOptions{
+			RootDir: homePaths.HomeDir,
+			Name:    "scheduler-status-workspace",
+		})
+		if err != nil {
+			t.Fatalf("workspace.Register() error = %v", err)
+		}
 
 		cfg := aghconfig.DefaultWithHome(homePaths)
 		cfg.Autonomy.Scheduler.MinQueuedAge = time.Hour
@@ -1233,13 +1368,19 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 			}
 		})
 
-		actor, err := taskpkg.DeriveDaemonActorContext("scheduler-status-test", "daemon.test")
+		actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
+			"scheduler-status-test",
+			workspaceRecord.ID,
+			taskpkg.OriginKindHTTP,
+			"daemon.test",
+		)
 		if err != nil {
-			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+			t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
 		}
 		taskRecord, err := state.tasks.manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Verify scheduler status threshold wiring",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceRecord.ID,
+			Title:       "Verify scheduler status threshold wiring",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -1346,15 +1487,30 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 
 	db := openDaemonTestGlobalDB(t)
 	homePaths := testHomePaths(t)
+	now := time.Now().UTC()
+	if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID: "global", RootDir: homePaths.HomeDir, Name: "global",
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(global) error = %v", err)
+	}
+	for _, sessionID := range []string{"sess-wake-live", "sess-wake-sender"} {
+		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+			ID: sessionID, AgentName: "coder", Provider: "test",
+			WorkspaceID: "global", State: string(session.StateActive), CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
+		}
+	}
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
-				ID:          "sess-live",
-				Type:        session.SessionTypeSystem,
-				State:       session.StateActive,
-				WorkspaceID: "global",
-				Workspace:   homePaths.HomeDir,
-				Channel:     "builders",
+				ID:                   "sess-live",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				WorkspaceID:          "global",
+				Workspace:            homePaths.HomeDir,
+				NetworkParticipation: daemonTestLiveParticipation("global", "builders"),
 			},
 		},
 	}
@@ -1365,7 +1521,6 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	seedManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(db),
 		taskpkg.WithSessionExecutor(sessionBridge),
-		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
 	)
 	if err != nil {
@@ -1385,25 +1540,73 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	runRecord, err := seedManager.EnqueueRun(context.Background(), taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "enqueue-boot-recovery",
-		NetworkChannel: "builders",
 	}, seedActor)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	claimedRun, err := seedManager.ClaimRun(context.Background(), runRecord.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-boot-recovery",
-	}, seedActor)
-	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	claimedRun := seedNonLeasedClaimedRunForDaemonTest(t, db, runRecord.ID, seedActor)
 	if _, err := seedManager.AttachRunSession(context.Background(), claimedRun.ID, "sess-live", seedActor); err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
+	}
+	const wakeRunID = "run-wake-boot-recovery"
+	acceptance := networkWakeIntegrationAcceptance(t, now)
+	acceptance.Message.MessageID = "message-wake-boot-recovery"
+	acceptance.Message.SessionID = "sess-wake-sender"
+	acceptance.Message.WorkspaceID = "global"
+	acceptance.Message.PeerFrom = "sess-wake-sender"
+	acceptance.Message.PeerTo = "sess-wake-live"
+	directID, _, _, err := store.NetworkDirectRoomIdentity(
+		"global",
+		acceptance.Message.Channel,
+		"sess-wake-sender",
+		"sess-wake-live",
+	)
+	if err != nil {
+		t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
+	}
+	acceptance.Message.DirectID = directID
+	acceptance.Dispositions[0].RecipientSessionID = "sess-wake-live"
+	acceptance.Admissions[0].WorkspaceID = "global"
+	acceptance.Admissions[0].RecipientSessionID = "sess-wake-live"
+	acceptance.Admissions[0].OwnerKey = "session:sess-wake-live"
+	acceptance.Admissions[0].Spec.WorkspaceID = "global"
+	acceptance.Admissions[0].Spec.Bounds.MaxWakes = 2
+	acceptance.Admissions[0].Spec.Bounds.MaxTotalWallTime = "2s"
+	acceptance.Admissions[0].WakeID = "wake-boot-recovery"
+	acceptance.Admissions[0].TaskRunID = wakeRunID
+	wantWakeParticipation := acceptance.Admissions[0].Spec
+	acceptedWake, err := db.AcceptNetworkMessage(context.Background(), acceptance)
+	if err != nil {
+		t.Fatalf("AcceptNetworkMessage(network wake) error = %v", err)
+	}
+	if got, want := len(acceptedWake.Notify), 1; got != want {
+		t.Fatalf("len(AcceptNetworkMessage(network wake).Notify) = %d, want %d", got, want)
+	}
+	wakeActor, err := taskpkg.DeriveAgentSessionActorContext("sess-wake-live", "global")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext(network wake) error = %v", err)
+	}
+	wakeClaim, err := seedManager.ClaimNextRun(context.Background(), taskpkg.ClaimCriteria{
+		RunID: wakeRunID, RunKind: taskpkg.RunKindNetworkWake,
+		Scope: taskpkg.ScopeWorkspace, WorkspaceID: "global",
+		TargetSessionID: "sess-wake-live", ClaimerSessionID: "sess-wake-live",
+	}, wakeActor)
+	if err != nil {
+		t.Fatalf("ClaimNextRun(network wake) error = %v", err)
+	}
+	runningWake := wakeClaim.Run
+	runningWake.Status = taskpkg.TaskRunStatusRunning
+	runningWake.SessionID = "sess-wake-live"
+	runningWake.StartedAt = now.Add(time.Millisecond)
+	if err := db.UpdateTaskRun(context.Background(), runningWake); err != nil {
+		t.Fatalf("UpdateTaskRun(running network wake) error = %v", err)
 	}
 
 	daemon := &Daemon{
 		homePaths: homePaths,
 	}
 	state := &bootState{
+		cfg:      aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()},
 		logger:   discardLogger(),
 		registry: db,
 		sessions: sessions,
@@ -1433,6 +1636,79 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	}
 	if got, want := recoveredRun.Status, taskpkg.TaskRunStatusRunning; got != want {
 		t.Fatalf("recovered run status = %q, want %q", got, want)
+	}
+	recoveredWake, err := db.GetTaskRun(context.Background(), wakeRunID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(recovered network wake) error = %v", err)
+	}
+	if recoveredWake.Status != taskpkg.TaskRunStatusQueued || recoveredWake.TaskID != "" ||
+		recoveredWake.SessionID != "" || recoveredWake.ClaimTokenHash != "" {
+		t.Fatalf("recovered network wake = %#v, want taskless queued run", recoveredWake)
+	}
+	if got := recoveredWake.NetworkSpecSnapshot(); got != wantWakeParticipation {
+		t.Fatalf("recovered network wake participation = %#v, want %#v", got, wantWakeParticipation)
+	}
+	wakeID, targetSessionID, ownerKey := recoveredWake.NetworkWakeCorrelation()
+	if wakeID != "wake-boot-recovery" || targetSessionID != "sess-wake-live" || ownerKey != "session:sess-wake-live" {
+		t.Fatalf(
+			"recovered network wake correlation = (%q, %q, %q), want exact admission tuple",
+			wakeID,
+			targetSessionID,
+			ownerKey,
+		)
+	}
+
+	missingRecipientPrompter := &networkWakePrompterStub{
+		resume: func(context.Context, string, int) (*session.Session, error) {
+			return nil, session.ErrSessionNotFound
+		},
+	}
+	wakeRunner, err := newNetworkWakeRunner(
+		state.tasks.manager,
+		missingRecipientPrompter,
+		db,
+		nil,
+		1,
+	)
+	if err != nil {
+		t.Fatalf("newNetworkWakeRunner() error = %v", err)
+	}
+	if _, err := wakeRunner.processNotification(
+		context.Background(),
+		wakeActor,
+		acceptedWake.Notify[0],
+	); !errors.Is(
+		err,
+		session.ErrSessionNotFound,
+	) {
+		t.Fatalf("processNotification(missing recipient) error = %v, want %v", err, session.ErrSessionNotFound)
+	}
+	settledWake, err := db.GetTaskRun(context.Background(), wakeRunID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(settled network wake) error = %v", err)
+	}
+	if settledWake.Status != taskpkg.TaskRunStatusFailed || !settledWake.LeaseUntil.IsZero() {
+		t.Fatalf("settled network wake = %#v, want failed terminal run with no active lease", settledWake)
+	}
+
+	followUp := acceptance
+	followUp.Message.MessageID = "message-wake-after-boot-recovery"
+	followUp.Message.Text = "Verify the recovered wake released its reservation"
+	followUp.Message.PreviewText = followUp.Message.Text
+	followUp.Message.Body = []byte(`{"text":"Verify the recovered wake released its reservation"}`)
+	followUp.Message.Timestamp = now.Add(time.Second)
+	followUp.Admissions[0].RootID = followUp.Message.MessageID
+	followUp.Admissions[0].WakeID = "wake-after-boot-recovery"
+	followUp.Admissions[0].TaskRunID = "run-wake-after-boot-recovery"
+	followUpResult, err := db.AcceptNetworkMessage(context.Background(), followUp)
+	if err != nil {
+		t.Fatalf("AcceptNetworkMessage(after boot recovery) error = %v", err)
+	}
+	if got := len(followUpResult.Admitted); got != 0 {
+		t.Fatalf("len(AcceptNetworkMessage(after boot recovery).Admitted) = %d, want 0", got)
+	}
+	if got := followUpResult.Skipped; len(got) != 1 || got[0].Reason != store.NetworkWakeSkipBudgetExhausted {
+		t.Fatalf("AcceptNetworkMessage(after boot recovery).Skipped = %#v, want conservative budget exhaustion", got)
 	}
 }
 
@@ -1609,20 +1885,20 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:          "sess-owner",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-owner",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-wake",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-wake",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 	}
 
@@ -1633,7 +1909,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		WorkspaceID:    workspace.ID,
 		Summary:        "Workspace detached audit",
 		Description:    "Review the queued harness work.",
-		NetworkChannel: "builders",
 		TurnSource:     session.TurnSourceNetwork,
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
@@ -1716,12 +1991,10 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		OwnerSessionID:       "sess-owner",
 		OwnerSessionType:     string(session.SessionTypeSystem),
 		OwnerWorkspaceID:     workspace.ID,
-		OwnerChannel:         "builders",
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
 			WorkspaceID: workspace.ID,
-			Channel:     "builders",
 		},
 	}); got != want {
 		t.Fatalf("task metadata = %#v, want %#v", got, want)
@@ -1757,12 +2030,10 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		OwnerSessionID:       "sess-owner",
 		OwnerSessionType:     string(session.SessionTypeSystem),
 		OwnerWorkspaceID:     workspace.ID,
-		OwnerChannel:         "builders",
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
 			WorkspaceID: workspace.ID,
-			Channel:     "builders",
 		},
 	}); got != want {
 		t.Fatalf("run metadata = %#v, want %#v", got, want)
@@ -1794,20 +2065,20 @@ func TestTaskRuntimeDetachedHarnessSubmissionValidationErrors(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
-				ID:          "sess-owner",
-				Type:        session.SessionTypeSystem,
-				State:       session.StateActive,
-				WorkspaceID: "ws-owner",
-				Workspace:   "/tmp/ws-owner",
-				Channel:     "builders",
+				ID:                   "sess-owner",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				WorkspaceID:          "ws-owner",
+				Workspace:            "/tmp/ws-owner",
+				NetworkParticipation: daemonTestLiveParticipation("ws-owner", "builders"),
 			},
 			{
-				ID:          "sess-other-workspace",
-				Type:        session.SessionTypeSystem,
-				State:       session.StateActive,
-				WorkspaceID: "ws-other",
-				Workspace:   "/tmp/ws-other",
-				Channel:     "builders",
+				ID:                   "sess-other-workspace",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				WorkspaceID:          "ws-other",
+				Workspace:            "/tmp/ws-other",
+				NetworkParticipation: daemonTestLiveParticipation("ws-other", "builders"),
 			},
 		},
 	}
@@ -1875,28 +2146,28 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:          "sess-owner",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-owner",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-wake",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-wake",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-runtime",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-runtime",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 	}
 
@@ -1906,7 +2177,6 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Recover detached harness run",
-		NetworkChannel: "builders",
 		TurnSource:     session.TurnSourceSynthetic,
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
@@ -1920,12 +2190,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	claimed, err := runtime.manager.ClaimRun(context.Background(), submission.Run.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-detached-recovery-1",
-	}, actor)
-	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	claimed := seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, submission.Run.ID, actor)
 	starting, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-runtime", actor)
 	if err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
@@ -1976,36 +2241,36 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 
 	ownerInfo := &session.Info{
-		ID:          "sess-owner",
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-		Channel:     "builders",
+		ID:                   "sess-owner",
+		Type:                 session.SessionTypeSystem,
+		State:                session.StateActive,
+		WorkspaceID:          workspace.ID,
+		Workspace:            workspace.RootDir,
+		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 	}
 	wakeInfo := &session.Info{
-		ID:          "sess-wake",
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-		Channel:     "builders",
+		ID:                   "sess-wake",
+		Type:                 session.SessionTypeSystem,
+		State:                session.StateActive,
+		WorkspaceID:          workspace.ID,
+		Workspace:            workspace.RootDir,
+		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 	}
 	liveInfo := &session.Info{
-		ID:          "sess-live",
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-		Channel:     "builders",
+		ID:                   "sess-live",
+		Type:                 session.SessionTypeSystem,
+		State:                session.StateActive,
+		WorkspaceID:          workspace.ID,
+		Workspace:            workspace.RootDir,
+		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 	}
 	failedInfo := &session.Info{
-		ID:          "sess-fail",
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-		Channel:     "builders",
+		ID:                   "sess-fail",
+		Type:                 session.SessionTypeSystem,
+		State:                session.StateActive,
+		WorkspaceID:          workspace.ID,
+		Workspace:            workspace.RootDir,
+		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 	}
 	sessions.infos = []*session.Info{ownerInfo, wakeInfo, liveInfo, failedInfo}
 
@@ -2017,7 +2282,6 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    workspace.ID,
 			Summary:        "Recover " + key,
-			NetworkChannel: "builders",
 			TurnSource:     session.TurnSourceSynthetic,
 			WakeTarget: detachedHarnessWakeTargetInput{
 				SessionID: "sess-wake",
@@ -2034,26 +2298,12 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
 
-	if _, err := runtime.manager.ClaimRun(context.Background(), requeueSubmission.Run.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-requeue",
-	}, actor); err != nil {
-		t.Fatalf("ClaimRun(requeue) error = %v", err)
-	}
-	claimed, err := runtime.manager.ClaimRun(context.Background(), markSubmission.Run.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-mark",
-	}, actor)
-	if err != nil {
-		t.Fatalf("ClaimRun(mark) error = %v", err)
-	}
+	seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, requeueSubmission.Run.ID, actor)
+	claimed := seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, markSubmission.Run.ID, actor)
 	if _, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-live", actor); err != nil {
 		t.Fatalf("AttachRunSession(mark) error = %v", err)
 	}
-	claimed, err = runtime.manager.ClaimRun(context.Background(), failSubmission.Run.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-fail",
-	}, actor)
-	if err != nil {
-		t.Fatalf("ClaimRun(fail) error = %v", err)
-	}
+	claimed = seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, failSubmission.Run.ID, actor)
 	if _, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-fail", actor); err != nil {
 		t.Fatalf("AttachRunSession(fail) error = %v", err)
 	}
@@ -2085,11 +2335,8 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := requeuedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
 		t.Fatalf("requeued run status = %q, want %q", got, want)
 	}
-	if got, want := requeuedRun.NetworkChannel, "builders"; got != want {
-		t.Fatalf("requeued run network channel = %q, want %q", got, want)
-	}
-	if got, want := requeuedRun.CoordinationChannelID, "builders"; got != want {
-		t.Fatalf("requeued run coordination channel = %q, want %q", got, want)
+	if got, want := requeuedRun.NetworkSpec, participation.LocalSpec(); got != want {
+		t.Fatalf("requeued run NetworkSpec = %#v, want %#v", got, want)
 	}
 
 	markedRun, err := runtime.store.GetTaskRun(context.Background(), markSubmission.Run.ID)
@@ -2099,11 +2346,8 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := markedRun.Status, taskpkg.TaskRunStatusRunning; got != want {
 		t.Fatalf("marked run status = %q, want %q", got, want)
 	}
-	if got, want := markedRun.NetworkChannel, "builders"; got != want {
-		t.Fatalf("marked run network channel = %q, want %q", got, want)
-	}
-	if got, want := markedRun.CoordinationChannelID, "builders"; got != want {
-		t.Fatalf("marked run coordination channel = %q, want %q", got, want)
+	if got, want := markedRun.NetworkSpec, participation.LocalSpec(); got != want {
+		t.Fatalf("marked run NetworkSpec = %#v, want %#v", got, want)
 	}
 
 	failedRun, err := runtime.store.GetTaskRun(context.Background(), failSubmission.Run.ID)
@@ -2113,11 +2357,8 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := failedRun.Status, taskpkg.TaskRunStatusFailed; got != want {
 		t.Fatalf("failed run status = %q, want %q", got, want)
 	}
-	if got, want := failedRun.NetworkChannel, "builders"; got != want {
-		t.Fatalf("failed run network channel = %q, want %q", got, want)
-	}
-	if got, want := failedRun.CoordinationChannelID, "builders"; got != want {
-		t.Fatalf("failed run coordination channel = %q, want %q", got, want)
+	if got, want := failedRun.NetworkSpec, participation.LocalSpec(); got != want {
+		t.Fatalf("failed run NetworkSpec = %#v, want %#v", got, want)
 	}
 }
 
@@ -2145,6 +2386,15 @@ func TestDetachedHarnessWorkBridgeHelperValidation(t *testing.T) {
 	if _, err := decodeDetachedHarnessTaskMetadata(json.RawMessage(`{`)); !errors.Is(err, taskpkg.ErrValidation) {
 		t.Fatalf("decodeDetachedHarnessTaskMetadata(invalid json) error = %v, want %v", err, taskpkg.ErrValidation)
 	}
+	if _, err := decodeDetachedHarnessTaskMetadata(json.RawMessage(
+		`{"schema":"agh.harness.detached.v1","kind":"harness_detached_task","owner_channel":"legacy"}`,
+	)); !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf(
+			"decodeDetachedHarnessTaskMetadata(removed owner_channel) error = %v, want %v",
+			err,
+			taskpkg.ErrValidation,
+		)
+	}
 	if _, err := decodeDetachedHarnessRunMetadata(
 		json.RawMessage(`{"schema":"bad","kind":"other"}`),
 	); !errors.Is(
@@ -2156,12 +2406,18 @@ func TestDetachedHarnessWorkBridgeHelperValidation(t *testing.T) {
 	if _, err := decodeDetachedHarnessRunMetadata(json.RawMessage(`{`)); !errors.Is(err, taskpkg.ErrValidation) {
 		t.Fatalf("decodeDetachedHarnessRunMetadata(invalid json) error = %v, want %v", err, taskpkg.ErrValidation)
 	}
+	if _, err := decodeDetachedHarnessRunMetadata(json.RawMessage(
+		`{"schema":"agh.harness.detached.v1","kind":"harness_detached_run","wake_target":{"channel":"legacy"}}`,
+	)); !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf(
+			"decodeDetachedHarnessRunMetadata(removed wake_target.channel) error = %v, want %v",
+			err,
+			taskpkg.ErrValidation,
+		)
+	}
 
 	if got, want := detachedHarnessSummary("   "), defaultDetachedHarnessSummary; got != want {
 		t.Fatalf("detachedHarnessSummary(blank) = %q, want %q", got, want)
-	}
-	if got, want := detachedHarnessChannel("", " owners "), "owners"; got != want {
-		t.Fatalf("detachedHarnessChannel(owner fallback) = %q, want %q", got, want)
 	}
 	if got, want := normalizeDetachedHarnessTurnSource(
 		session.TurnSource("unexpected"),
@@ -2178,20 +2434,20 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:          "sess-owner",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-owner",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-wake",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-wake",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 	}
 
@@ -2201,7 +2457,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Original detached work",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
 		},
@@ -2216,7 +2471,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Changed detached work",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
 		},
@@ -2237,12 +2491,10 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		OwnerSessionID:       "sess-owner",
 		OwnerSessionType:     string(session.SessionTypeSystem),
 		OwnerWorkspaceID:     workspace.ID,
-		OwnerChannel:         "builders",
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
 			WorkspaceID: workspace.ID,
-			Channel:     "builders",
 		},
 	})
 	if err != nil {
@@ -2277,7 +2529,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Expected detached work",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
 		},
@@ -2291,7 +2542,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Missing wake target",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-missing",
 		},
@@ -2345,17 +2595,14 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 		WorkspaceID:      "ws-1",
 		Summary:          "Validator task",
 		Description:      "Ensure helper coverage",
-		NetworkChannel:   "builders",
 		TurnSource:       session.TurnSourceSynthetic,
 		OwnerSessionID:   "sess-owner",
 		OwnerSessionType: string(session.SessionTypeSystem),
 		OwnerWorkspaceID: "ws-1",
-		OwnerChannel:     "builders",
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
 			WorkspaceID: "ws-1",
-			Channel:     "builders",
 		},
 	}
 	actor, err := detachedHarnessActorContext(req.OwnerSessionID)
@@ -2377,7 +2624,6 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 		ID:             req.TaskID,
 		Scope:          req.Scope,
 		WorkspaceID:    req.WorkspaceID,
-		NetworkChannel: req.NetworkChannel,
 		Title:          req.Summary,
 		Description:    req.Description,
 		Status:         taskpkg.TaskStatusPending,
@@ -2419,7 +2665,6 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 		Attempt:        1,
 		Origin:         actor.Origin,
 		IdempotencyKey: req.SubmissionKey,
-		NetworkChannel: req.NetworkChannel,
 		Metadata:       runMetadataJSON,
 		QueuedAt:       time.Date(2026, 4, 18, 11, 5, 0, 0, time.UTC),
 	}
@@ -3182,12 +3427,7 @@ func completeDetachedHarnessRunForTest(
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	claimed, err := runtime.manager.ClaimRun(testutil.Context(t), runID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-" + runID,
-	}, actor)
-	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	claimed := seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, runID, actor)
 	started, err := runtime.manager.StartRun(testutil.Context(t), claimed.ID, taskpkg.StartRun{
 		IdempotencyKey: "start-" + runID,
 	}, actor)
@@ -3460,17 +3700,18 @@ func newDetachedHarnessTaskRuntimeForTest(
 		if agentName == "" {
 			agentName = "daemon-test-agent"
 		}
-		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+		storedInfo := store.SessionInfo{
 			ID:          info.ID,
 			Name:        info.Name,
 			AgentName:   agentName,
 			WorkspaceID: workspaceID,
-			Channel:     strings.TrimSpace(info.Channel),
 			SessionType: string(info.Type),
 			State:       string(info.State),
 			CreatedAt:   time.Now().UTC(),
 			UpdatedAt:   time.Now().UTC(),
-		}); err != nil {
+		}
+		storedInfo.SetNetworkSpec(info.NetworkParticipation)
+		if err := db.RegisterSession(testutil.Context(t), storedInfo); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}
 	}
@@ -3501,7 +3742,6 @@ func newDetachedHarnessTaskRuntimeForTest(
 		taskpkg.WithStore(db),
 		taskpkg.WithSessionExecutor(sessionBridge),
 		taskpkg.WithEventObserver(reentry),
-		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
 	)
 	if err != nil {

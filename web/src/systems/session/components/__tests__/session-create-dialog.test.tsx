@@ -91,8 +91,14 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     providersLoading: false,
     providersError: null,
     hasProviderOptions: true,
+    networkParticipation: {
+      mode: "local",
+      channelId: "",
+      channelStrategy: "",
+    },
     onAgentChange: vi.fn(),
     onRuntimeChange: vi.fn(),
+    onNetworkParticipationChange: vi.fn(),
     onCatalogRefresh: vi.fn(),
     onOpenProviderSettings: vi.fn(),
     onSubmit: vi.fn(),
@@ -190,6 +196,19 @@ describe("SessionCreateDialog", () => {
 
     fireEvent.click(screen.getByTestId("session-create-dialog-submit"));
     expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should block submit until named Live participation has a channel", () => {
+    const onSubmit = vi.fn();
+    renderDialog({
+      networkParticipation: { mode: "live", channelId: "", channelStrategy: "named" },
+      onSubmit,
+    });
+
+    expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
+    expect(screen.getByTestId("session-create-participation-channel")).toBeRequired();
+    fireEvent.click(screen.getByTestId("session-create-dialog-submit"));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("Should disable submit when no providers are available and surface an empty-state note", () => {

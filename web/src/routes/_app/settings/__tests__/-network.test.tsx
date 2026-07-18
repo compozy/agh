@@ -1,43 +1,12 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
+import { settingsNetworkSectionFixture } from "@/systems/settings/mocks";
+import type { SettingsNetworkSection } from "@/systems/settings";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const envelope = {
-  section: "network" as const,
-  scope: "global" as const,
-  available_scopes: ["global"] as const,
-  config: {
-    enabled: true,
-    port: 4222,
-    default_channel: "agh",
-    greet_interval: 30,
-    max_payload: 131072,
-    max_queue_depth: 1024,
-    max_replay_age: 86400,
-    activation_top_k: 3,
-    digest_flush_interval: "250ms",
-    digest_max_envelopes: 10,
-    response_guidance_max_bytes: 512,
-    delivery_structured_body_max_bytes: 4096,
-  },
-  runtime: {
-    available: true,
-    enabled: true,
-    status: "ready",
-    listener_host: "127.0.0.1",
-    listener_port: 4222,
-    local_peers: 2,
-    remote_peers: 1,
-    channels: 4,
-    queued_messages: 7,
-    queued_sessions: 0,
-    delivery_workers: 3,
-  },
-  links: [{ label: "network", path: "/network" }],
-};
-
-type Envelope = typeof envelope;
+const envelope = structuredClone(settingsNetworkSectionFixture);
+type Envelope = SettingsNetworkSection;
 
 type RestartBanner = {
   isVisible: boolean;
@@ -150,38 +119,30 @@ describe("NetworkSettingsPage", () => {
     expect(screen.getByTestId("settings-page-network-error")).toHaveTextContent("network boom");
   });
 
-  it("renders runtime summary, listener, and delivery config from the envelope", () => {
+  it("renders runtime truth and finite Live settings from the envelope", () => {
     render(<NetworkSettingsPage />);
-    expect(screen.getByTestId("settings-page-network-status-line")).toHaveTextContent("ready");
-    expect(screen.getByTestId("settings-page-network-runtime-listener")).toHaveTextContent(
-      "127.0.0.1:4222"
+    expect(screen.getByTestId("settings-page-network-status-line")).toHaveTextContent("active");
+    expect(screen.getByTestId("settings-page-network-runtime-live-participants")).toHaveTextContent(
+      "2"
     );
-    expect(screen.getByTestId("settings-page-network-runtime-local-peers")).toHaveTextContent("2");
     expect(screen.getByTestId("settings-page-network-runtime-channels")).toHaveTextContent("4");
-    expect(screen.getByTestId("settings-page-network-default-channel-input")).toHaveValue("agh");
-    expect(screen.getByTestId("settings-page-network-port-input")).toHaveValue("4222");
-    expect(screen.getByTestId("settings-page-network-max-queue-depth")).toHaveValue("1024");
-    expect(screen.getByTestId("settings-page-network-activation-top-k")).toHaveValue("3");
-    expect(screen.getByTestId("settings-page-network-digest-flush-interval")).toHaveValue("250ms");
-    expect(screen.getByTestId("settings-page-network-digest-max-envelopes")).toHaveValue("10");
-    expect(screen.getByTestId("settings-page-network-response-guidance-max-bytes")).toHaveValue(
-      "512"
+    expect(screen.getByTestId("settings-page-network-enrollment-note")).toHaveTextContent(
+      /do not opt/i
     );
-    expect(
-      screen.getByTestId("settings-page-network-delivery-structured-body-max-bytes")
-    ).toHaveValue("4096");
-    expect(screen.getByLabelText("Embedded network")).toBe(
+    expect(screen.getByTestId("settings-page-network-max-replay-age")).toHaveValue("300");
+    expect(screen.getByTestId("settings-page-network-live-default-max-wakes")).toHaveValue("8");
+    expect(screen.getByTestId("settings-page-network-live-limit-max-wakes")).toHaveValue("64");
+    expect(screen.getByTestId("settings-page-network-live-default-coalesce")).toHaveValue("500ms");
+    expect(screen.getByText("Messages delivered")).toBeInTheDocument();
+    expect(screen.getByLabelText("Network availability")).toBe(
       screen.getByTestId("settings-page-network-enabled-switch")
     );
-    expect(screen.getByLabelText("Listener port")).toBe(
-      screen.getByTestId("settings-page-network-port-input")
+    expect(screen.getByLabelText("Replay window")).toBe(
+      screen.getByTestId("settings-page-network-max-replay-age")
     );
-    expect(screen.getByLabelText("Max queue depth")).toBe(
-      screen.getByTestId("settings-page-network-max-queue-depth")
-    );
-    expect(screen.getByLabelText("Digest flush interval")).toBe(
-      screen.getByTestId("settings-page-network-digest-flush-interval")
-    );
+    expect(screen.queryByLabelText("Listener port")).toBeNull();
+    expect(screen.queryByLabelText("Activation top K")).toBeNull();
+    expect(screen.queryByLabelText("Digest flush interval")).toBeNull();
   });
 
   it("wires save bar buttons to the restart-required page handlers", () => {
@@ -198,19 +159,76 @@ describe("NetworkSettingsPage", () => {
     expect(pageState.handleReset).toHaveBeenCalledTimes(1);
   });
 
-  it("accepts the auto-assigned listener port sentinel without blocking other network saves", () => {
+  it("routes a finite Live default edit through the settings draft", () => {
     pageState.isDirty = true;
 
     render(<NetworkSettingsPage />);
 
-    fireEvent.change(screen.getByTestId("settings-page-network-port-input"), {
-      target: { value: "-1" },
+    fireEvent.change(screen.getByTestId("settings-page-network-live-default-max-wakes"), {
+      target: { value: "12" },
     });
 
-    expect(pageState.setDraft).toHaveBeenCalled();
-    expect(screen.getByTestId("settings-page-network-port-input")).toHaveValue("-1");
-    expect(screen.queryByTestId("settings-page-network-save-invalid")).not.toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-network-save")).not.toBeDisabled();
+    expect(pageState.setDraft).toHaveBeenCalledTimes(1);
+    const update = pageState.setDraft.mock.calls[0]?.[0] as (
+      current: Envelope["config"]
+    ) => Envelope["config"];
+    const current = structuredClone(envelope.config);
+    const next = update(current);
+    expect(next).toEqual({
+      ...current,
+      live: {
+        ...current.live,
+        defaults: {
+          ...current.live.defaults,
+          max_wakes: 12,
+        },
+      },
+    });
+    expect(next.live.limits).toEqual(envelope.config.live.limits);
+  });
+
+  it("shows the committed Live number after the draft is discarded", () => {
+    const view = render(<NetworkSettingsPage />);
+    const input = screen.getByTestId("settings-page-network-live-default-max-wakes");
+
+    fireEvent.change(input, { target: { value: "12" } });
+    expect(input).toHaveValue("12");
+
+    pageState.draft = {
+      ...structuredClone(envelope.config),
+      live: {
+        ...structuredClone(envelope.config.live),
+        defaults: { ...structuredClone(envelope.config.live.defaults), max_wakes: 12 },
+      },
+    };
+    view.rerender(<NetworkSettingsPage />);
+
+    pageState.draft = structuredClone(envelope.config);
+    view.rerender(<NetworkSettingsPage />);
+    expect(screen.getByTestId("settings-page-network-live-default-max-wakes")).toHaveValue("8");
+  });
+
+  it("normalizes duration whitespace before updating the settings draft", () => {
+    render(<NetworkSettingsPage />);
+
+    fireEvent.change(screen.getByTestId("settings-page-network-live-default-wake-time"), {
+      target: { value: " 5m " },
+    });
+
+    const update = pageState.setDraft.mock.calls.at(-1)?.[0] as (
+      current: Envelope["config"]
+    ) => Envelope["config"];
+    expect(update(structuredClone(envelope.config)).live.defaults.max_wake_wall_time).toBe("5m");
+  });
+
+  it("rejects token values outside the JavaScript safe integer range", () => {
+    render(<NetworkSettingsPage />);
+    const input = screen.getByTestId("settings-page-network-live-default-input-tokens");
+
+    fireEvent.change(input, { target: { value: "9007199254740993" } });
+
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(pageState.setDraft).not.toHaveBeenCalled();
   });
 
   it("surfaces the last-applied label when the save bar has a success message", () => {
@@ -225,6 +243,7 @@ describe("NetworkSettingsPage", () => {
     render(<NetworkSettingsPage />);
     const link = screen.getByTestId("settings-page-network-link-network");
     expect(link).toHaveAttribute("href", "/network");
+    expect(screen.queryByTestId("settings-page-network-link-usage")).toBeNull();
   });
 
   it("renders the restart banner when the restart state reports visible", () => {

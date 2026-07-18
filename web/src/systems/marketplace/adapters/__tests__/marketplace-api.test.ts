@@ -153,7 +153,6 @@ describe("marketplace acquisition transport", () => {
 
   it("Should preview a bundle without activating it", async () => {
     const body = {
-      bind_primary_channel_as_default: true,
       bundle_name: "review-team",
       extension_name: "review-pack",
       profile_name: "strict",
@@ -216,8 +215,8 @@ describe("marketplace acquisition transport", () => {
     });
 
     const activationBody = {
-      bind_primary_channel_as_default: false,
       bundle_name: "review-team",
+      confirm_network_requirement: true,
       extension_name: "review-pack",
       profile_name: "strict",
       scope: "global",
@@ -245,7 +244,6 @@ describe("marketplace acquisition transport", () => {
       "bundle preview",
       () =>
         previewMarketplaceBundle({
-          bind_primary_channel_as_default: false,
           bundle_name: "review-team",
           extension_name: "review-pack",
           profile_name: "strict",
@@ -256,8 +254,8 @@ describe("marketplace acquisition transport", () => {
       "bundle activation",
       () =>
         activateMarketplaceBundle({
-          bind_primary_channel_as_default: false,
           bundle_name: "review-team",
+          confirm_network_requirement: true,
           extension_name: "review-pack",
           profile_name: "strict",
           scope: "global",

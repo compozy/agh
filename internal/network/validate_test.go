@@ -384,29 +384,6 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 			wantMatch: "max_replay_age",
 		},
 		{
-			name: "Should reject greet task write capabilities without proof",
-			mutate: func(env Envelope) Envelope {
-				env.Kind = KindGreet
-				env.Surface = nil
-				env.ThreadID = nil
-				env.DirectID = nil
-				env.To = nil
-				env.WorkID = nil
-				env.Body = mustRawJSON(t, map[string]any{
-					"peer_card": map[string]any{
-						"peer_id":               "coder.sess-abc",
-						"profiles_supported":    []string{"agh-network/v0"},
-						"capabilities":          []string{networkTaskWriteCapability},
-						"artifacts_supported":   []string{"capability"},
-						"trust_modes_supported": []string{"unverified"},
-					},
-				})
-				return env
-			},
-			wantErr:   ErrVerificationFailed,
-			wantMatch: "requires proof",
-		},
-		{
 			name: "Should reject raw secrets in the body payload",
 			mutate: func(env Envelope) Envelope {
 				env.Body = mustRawJSON(t, map[string]any{
@@ -1065,120 +1042,6 @@ func TestNormalizeEnvelopeAllowsWhitespaceOnlyStrings(t *testing.T) {
 	})
 }
 
-func TestRouteTokenKnownVectors(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name   string
-		peerID string
-		want   string
-	}{
-		{
-			name:   "Should return the known route token for reviewer.sess-xyz",
-			peerID: "reviewer.sess-xyz",
-			want:   "790dd5515558f7784877abcbca51c5ba",
-		},
-		{
-			name:   "Should return the known route token for coder.sess-abc",
-			peerID: "coder.sess-abc",
-			want:   "07f9c1120ea61cb8f1a14ebec70c8912",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := RouteToken(tc.peerID)
-			if err != nil {
-				t.Fatalf("RouteToken() error = %v", err)
-			}
-			if got != tc.want {
-				t.Fatalf("RouteToken() = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestDirectRoomIdentityIsStableAndValidatesInputs(t *testing.T) {
-	t.Parallel()
-
-	forwardID, peerA, peerB, err := DirectRoomIdentity(
-		testWorkspaceID,
-		"builders",
-		"coder.sess-abc",
-		"reviewer.sess-xyz",
-	)
-	if err != nil {
-		t.Fatalf("DirectRoomIdentity(forward) error = %v", err)
-	}
-	reverseID, reverseA, reverseB, err := DirectRoomIdentity(
-		testWorkspaceID,
-		" builders ",
-		" reviewer.sess-xyz ",
-		" coder.sess-abc ",
-	)
-	if err != nil {
-		t.Fatalf("DirectRoomIdentity(reverse) error = %v", err)
-	}
-	if got, want := forwardID, "direct_fd3aece517c733f67bb4f4c6505a66dc"; got != want {
-		t.Fatalf("DirectRoomIdentity() = %q, want known vector %q", got, want)
-	}
-	if forwardID != reverseID || peerA != reverseA || peerB != reverseB {
-		t.Fatalf(
-			"DirectRoomIdentity reverse mismatch = (%q,%q,%q), want (%q,%q,%q)",
-			reverseID,
-			reverseA,
-			reverseB,
-			forwardID,
-			peerA,
-			peerB,
-		)
-	}
-	if err := ValidateConversationID(forwardID, "direct_id"); err != nil {
-		t.Fatalf("ValidateConversationID(%q, direct_id) error = %v", forwardID, err)
-	}
-	otherChannelID, _, _, err := DirectRoomIdentity(testWorkspaceID, "reviews", "coder.sess-abc", "reviewer.sess-xyz")
-	if err != nil {
-		t.Fatalf("DirectRoomIdentity(other channel) error = %v", err)
-	}
-	if otherChannelID == forwardID {
-		t.Fatalf("DirectRoomIdentity() returned same id across channels: %q", forwardID)
-	}
-	if _, _, _, err := DirectRoomIdentity(
-		testWorkspaceID,
-		"builders",
-		"coder.sess-abc",
-		"coder.sess-abc",
-	); !errors.Is(
-		err,
-		ErrInvalidField,
-	) {
-		t.Fatalf("DirectRoomIdentity(same peer) error = %v, want ErrInvalidField", err)
-	}
-	if err := ValidateDirectRoomPeers("coder.sess-abc", "reviewer.sess-xyz"); err != nil {
-		t.Fatalf("ValidateDirectRoomPeers() error = %v", err)
-	}
-	if err := ValidateDirectRoomBinding(
-		testWorkspaceID,
-		"builders",
-		forwardID,
-		"reviewer.sess-xyz",
-		"coder.sess-abc",
-	); err != nil {
-		t.Fatalf("ValidateDirectRoomBinding(reversed peers) error = %v", err)
-	}
-	if err := ValidateDirectRoomBinding(
-		testWorkspaceID,
-		"builders",
-		forwardID,
-		"coder.sess-abc",
-		"another.sess-123",
-	); !errors.Is(err, ErrDirectRoomCollision) {
-		t.Fatalf("ValidateDirectRoomBinding(collision) error = %v, want ErrDirectRoomCollision", err)
-	}
-}
-
 func TestExtRoundTripPreservesOpaqueKeys(t *testing.T) {
 	t.Parallel()
 
@@ -1290,15 +1153,6 @@ func mustCapabilityBodyJSON(t *testing.T, capability CapabilityEnvelopePayload) 
 	return mustRawJSON(t, CapabilityBody{Capability: canonicalCapabilityPayload(t, capability)})
 }
 
-func testThreadRef() ConversationRef {
-	return ConversationRef{
-		WorkspaceID: testWorkspaceID,
-		Channel:     "builders",
-		Surface:     SurfaceThread,
-		ThreadID:    "thread_patch_42",
-	}
-}
-
 func testDirectRef() ConversationRef {
 	return ConversationRef{
 		WorkspaceID: testWorkspaceID,
@@ -1314,28 +1168,6 @@ func withDirectSurface(env Envelope) Envelope {
 		env.DirectID = new(testDirectRef().DirectID)
 	}
 	return env
-}
-
-func withThreadSurface(env Envelope) Envelope {
-	if isConversationKind(env.Kind) && env.Surface == nil {
-		env.Surface = new(SurfaceThread)
-		env.ThreadID = new(testThreadRef().ThreadID)
-	}
-	return env
-}
-
-func withTestConversation(req SendRequest) SendRequest {
-	if !isConversationKind(req.Kind) || req.Surface != nil {
-		return req
-	}
-	if req.To != nil {
-		req.Surface = new(SurfaceDirect)
-		req.DirectID = new(testDirectRef().DirectID)
-		return req
-	}
-	req.Surface = new(SurfaceThread)
-	req.ThreadID = new(testThreadRef().ThreadID)
-	return req
 }
 
 func extSnapshot(ext ExtensionMap) map[string]any {

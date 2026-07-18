@@ -43,6 +43,13 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: resolve resume workspace for %q: %w", meta.ID, err)
 	}
+	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), resolvedWorkspace.ID); err != nil {
+		return sessionStartSpec{}, fmt.Errorf("session: validate resume participation for %q: %w", meta.ID, err)
+	}
+	cwd, err := resumeSessionCWD(meta, resolvedWorkspace.RootDir)
+	if err != nil {
+		return sessionStartSpec{}, fmt.Errorf("session: validate resume cwd for %q: %w", meta.ID, err)
+	}
 
 	return sessionStartSpec{
 		sessionID:               meta.ID,
@@ -56,8 +63,9 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		reasoningEffort:         strings.TrimSpace(meta.ReasoningEffort),
 		permissions:             aghconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
 		workspace:               resolvedWorkspace,
-		channel:                 strings.TrimSpace(meta.Channel),
-		cwd:                     resumeSessionCWD(meta, resolvedWorkspace.RootDir),
+		networkParticipation:    meta.NetworkSpecSnapshot(),
+		networkOwnerKey:         meta.NetworkOwnerKeySnapshot(),
+		cwd:                     cwd,
 		sessionType:             normalizeSessionType(Type(meta.SessionType)),
 		lineage:                 store.NormalizeSessionLineage(meta.ID, meta.Lineage),
 		postEvent:               hookspkg.HookSessionPostResume,
@@ -81,11 +89,12 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	}, nil
 }
 
-func resumeSessionCWD(meta store.SessionMeta, workspaceRoot string) string {
+func resumeSessionCWD(meta store.SessionMeta, workspaceRoot string) (string, error) {
+	requested := workspaceRoot
 	if meta.CreationProfile != nil {
-		return strings.TrimSpace(meta.CreationProfile.CWD)
+		requested = strings.TrimSpace(meta.CreationProfile.CWD)
 	}
-	return workspaceRoot
+	return ResolveSessionCWD(workspaceRoot, requested)
 }
 
 func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *Session, err error) {
@@ -156,6 +165,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	); err != nil {
 		return nil, fmt.Errorf("session: activate %s session %q: %w", spec.startAction, spec.sessionID, err)
 	}
+	m.observeCommittedParticipation(ctx, spec.participationObservation)
 
 	return session, nil
 }
@@ -308,17 +318,17 @@ func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.S
 func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupPromptContext {
 	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
 	return StartupPromptContext{
-		SessionID:    strings.TrimSpace(s.sessionID),
-		SessionName:  strings.TrimSpace(s.sessionName),
-		AgentName:    strings.TrimSpace(s.agentName),
-		Provider:     strings.TrimSpace(s.provider),
-		WorkspaceID:  ref.WorkspaceID,
-		Workspace:    ref.Workspace,
-		Channel:      strings.TrimSpace(s.channel),
-		SessionType:  normalizeSessionType(s.sessionType),
-		SoulSnapshot: cloneSoulSnapshotPointer(s.soulSnapshot),
-		CreatedAt:    s.createdAt,
-		UpdatedAt:    updatedAt,
+		SessionID:            strings.TrimSpace(s.sessionID),
+		SessionName:          strings.TrimSpace(s.sessionName),
+		AgentName:            strings.TrimSpace(s.agentName),
+		Provider:             strings.TrimSpace(s.provider),
+		WorkspaceID:          ref.WorkspaceID,
+		Workspace:            ref.Workspace,
+		NetworkParticipation: s.networkParticipation,
+		SessionType:          normalizeSessionType(s.sessionType),
+		SoulSnapshot:         cloneSoulSnapshotPointer(s.soulSnapshot),
+		CreatedAt:            s.createdAt,
+		UpdatedAt:            updatedAt,
 	}
 }
 

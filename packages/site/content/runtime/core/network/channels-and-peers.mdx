@@ -1,155 +1,119 @@
 ---
-title: Channels and Peers
-description: How AGH sessions join network channels, become local peers, discover remote peers, and advertise capabilities.
+title: Participation, Channels, and Peers
+description: How AGH resolves Local or Live participation, derives workspace channels, and registers Live sessions as peers.
 ---
 
-A channel is the runtime-visible audience scope for a group of peers and the boundary inside which
-public threads and direct rooms live. A peer is any local or remote participant that can emit or
-receive AGH Network envelopes. In AGH Runtime, the common local peer is a running session with a
-network channel.
+Participation belongs to an execution, not to the daemon and not to a bare channel string. Every
+execution resolves to Local or Live before it starts.
 
-Channels are protocol names scoped by workspace, not project folders or daemon-global slugs. They
-must use the network channel grammar: lowercase alphanumeric at the start, then lowercase
-alphanumeric, underscore, or hyphen.
+## Local is the default
 
-## Local peers
+Local executions do not join a channel. They have no peer identity, Network environment variables,
+Network tools, Network prompt section, conversation state, or Network-triggered turns.
 
-When AGH creates or resumes a session with a network channel, the network manager registers that
-session as a local peer. Registration does four things:
+This is a hard absence contract. A channel in a task selector, review route, bridge route, or
+unrelated payload does not infer Live participation.
 
-1. Validates the session ID, peer ID, and channel.
-2. Builds the peer card from the session and its capability catalog.
-3. Subscribes the daemon to the channel broadcast subject and the peer's direct subject.
-4. Starts a periodic `greet` heartbeat so other peers can discover it.
+## Live is explicit and bounded
 
-The session remains the unit of execution. Network does not create a separate worker type. It gives
-the session a peer identity, a channel mailbox, and access to public threads and direct rooms inside
-the channel. "Direct subject" here refers to the NATS transport subject targeted at one peer; it is
-not the same as `surface:"direct"`, which is a restricted two-party conversation container.
+A Live execution receives:
 
-## Remote peers
+- one workspace-qualified channel
+- a peer identity tied to its durable session
+- `AGH_SESSION_CHANNEL` and `AGH_PEER_ID`
+- the coordination toolset when policy permits it
+- finite wake and usage bounds
 
-Remote peers appear when their `greet` or `whois` responses reach the daemon. AGH stores them in an
-in-memory presence registry with last-seen and expiration data. A remote peer can disappear when its
-presence expires or when the transport disconnects.
+The immutable resolved snapshot is returned as `resolved_network_participation` on execution read
+surfaces. It includes the source and resolved bounds so an operator can explain exactly why the
+execution is Live.
 
-Peer listings combine:
+## Channel strategies
 
-- local peers owned by this daemon
-- remote peers currently visible in the selected channel
-- peer cards, including protocol profiles, capability briefs, artifact support, and trust modes
-- optional rich capability catalogs when explicit discovery data is available
+Channels are lowercase workspace-scoped names matching `[a-z0-9][a-z0-9_-]{0,63}`.
 
-## Presence states
+| Strategy   | Use                                                      |
+| ---------- | -------------------------------------------------------- |
+| `named`    | Join the explicit `channel_id`.                          |
+| `run`      | Derive the stable conversation channel for one task run. |
+| `loop_run` | Derive the stable conversation channel for one Loop run. |
 
-AGH derives peer presence from runtime activity only. The daemon captures one snapshot time, reads
-the peer's `last_seen` and `expires_at` values from the in-memory registry, and compares them with
-`[network].greet_interval`. There is no separate presence window, no persisted presence table, and
-no session-derived fallback.
+`named` requires `channel_id`. Derived strategies reject a supplied channel. Local rejects all
+channel and bound fields rather than silently ignoring them.
 
-| State      | Meaning                                                                    |
-| ---------- | -------------------------------------------------------------------------- |
-| `local`    | The peer is a local AGH session currently registered in the channel.       |
-| `active`   | A remote peer's last `greet` landed within one `greet_interval`.           |
-| `inactive` | The peer was last seen after one interval but before the expiry window.    |
-| `expired`  | The peer crossed the expiry window and is being removed from the registry. |
-| `unknown`  | The daemon has no recent `greet` timestamp for the peer.                   |
-
-`last_seen_age_seconds` is included for remote peers when the daemon can compute an age. Local and
-unknown peers omit it. Normal peer-list responses remove expired remote peers after the expiry
-sweep, but expiry can appear in lifecycle hooks and short-lived snapshots.
-
-Presence is intentionally independent from session UX fields such as badge, attachability, recap
-state, health, and busy-input queues. Those fields describe local session management; peer
-presence describes observed network activity.
-
-The network runtime emits `network.peer.joined` when a local peer joins a channel or when a remote
-peer is first observed by `greet`. It emits `network.peer.left` when a local peer leaves or when a
-remote peer crosses the expiry window and is swept from the registry. Attach, resume, health, and
-session badge changes do not emit peer lifecycle hooks.
-
-## Peer cards
-
-A peer card is the compact discovery record carried by `greet` and `whois`.
-
-| Field                   | Meaning                                                            |
-| ----------------------- | ------------------------------------------------------------------ |
-| `peer_id`               | Stable protocol identity for the visible peer.                     |
-| `display_name`          | Optional human-readable label.                                     |
-| `profiles_supported`    | Protocol profiles the peer claims, including `agh-network/v0`.     |
-| `capabilities`          | Brief capability summaries.                                        |
-| `artifacts_supported`   | Artifact types this peer can exchange, including `capability`.     |
-| `trust_modes_supported` | Trust modes advertised by the peer. Empty in basic v0 local peers. |
-| `ext`                   | Opaque extension metadata.                                         |
-
-The brief capability list is for routing attention, not for granting authority. A peer saying it can
-perform work is different from AGH allowing it to mutate runtime state.
-
-## Channel creation in the UI and API
-
-The Network UI creates a channel by starting one session per selected local agent. There is no
-standalone channel process. The materialized channel exists because sessions, peers, public
-threads, direct rooms, or work items reference that channel.
-
-The channel detail payload can include:
-
-- workspace and purpose metadata
-- fanout policy and coordinator peer metadata
-- active local sessions
-- visible peers
-- public-thread and direct-room counts plus aggregate work counters
-- last activity and preview text drawn from thread and direct-room summaries
-
-This keeps the UI honest: an empty name alone is not treated as active coordination.
-
-## Delivery policy
-
-Each channel stores a human-readable `purpose`, a `fanout_policy`, and an optional
-`coordinator_peer_id`. These fields guide prompt activation for unaddressed public-thread traffic;
-they do not change who can read durable channel history.
-
-`fanout_policy` accepts:
-
-- `capability_match` to select a small capability/text-matched peer set
-- `coordinator` to route unaddressed traffic to one named peer
-- `all_members` to deliver unaddressed traffic to every eligible local member
-
-Update the policy with `agh network channels update` or the Network UI. Use `coordinator` only when
-one peer is responsible for triage; use `capability_match` for general collaboration where the
-runtime should avoid prompting every local session.
-
-## Task-run coordination channels
-
-Autonomy uses network channels as conversation spaces for coordinated task runs. When publish,
-start, approval, or an equivalent run-enqueue API creates a workspace-scoped coordinated run, AGH
-binds that run to a stable `coordination_channel_id`. Task creation alone does not create a
-coordination channel.
-
-The channel is a mailbox for status, requests, blockers, handoffs, results, and reviews. It is not
-task ownership or task status authority. A coordinator or child agent still has to claim work with
-`agh task next`, keep the lease alive with `agh task heartbeat`, and finish through
-`agh task complete`, `agh task fail`, or `agh task release`.
-
-See [Task-Run Coordination Channels](/runtime/core/autonomy/coordination-channels) for the
-message kinds and metadata fields.
-
-## Inspecting presence
-
-Use the CLI when you need a quick operator view:
+Example session creation:
 
 ```bash
-agh network status
-agh network channels
-agh network peers builders
+agh session new \
+  --agent reviewer \
+  --workspace checkout-api \
+  --network live \
+  --network-channel-strategy named \
+  --network-channel release-readiness
 ```
 
-Use the API when another surface needs structured payloads:
+Example bounded task run:
 
-```text
-GET /api/network/status
-GET /api/workspaces/ws_alpha/network/channels
-GET /api/workspaces/ws_alpha/network/peers?channel=builders
+```bash
+agh task start task-123 \
+  --network live \
+  --network-channel-strategy run \
+  --network-bounds '{"max_wakes":4,"max_wake_depth":2}' \
+  -o json
 ```
 
-The CLI and API use the daemon control plane. Do not bypass the daemon to talk to the broker
-directly unless you are implementing or testing a transport profile.
+Omitted bound fields come from `[network.live.defaults]`; a request above
+`[network.live.limits]` is rejected.
+
+## Availability is not participation
+
+`[network].enabled` is the administrative availability switch. Turning it on changes status from
+`disabled` to `ready`, but it does not mutate definitions, create channels, join sessions, or enable
+coordination for future runs.
+
+Turning availability off blocks new Live resolution and Live wake admission. It does not rewrite
+the immutable snapshot of an existing execution.
+
+## Workspace coordination
+
+The workspace coordination record is a default for future coordinated task runs:
+
+```bash
+agh network coordination status --workspace checkout-api -o json
+agh network coordination enable --workspace checkout-api -o json
+agh network coordination disable --workspace checkout-api -o json
+```
+
+The web invitation writes the same workspace record. Accepting it does not change the current run;
+the next coordinated run resolves from the new revision unless an explicit request or task profile
+has higher precedence.
+
+## Peers and presence
+
+The current AGH Runtime registers only sessions whose resolved mode is Live. A local peer exists
+while its session is registered in the channel. Peer cards advertise protocol and capability
+claims for routing and inspection; they do not grant task, tool, or file authority.
+
+Use:
+
+```bash
+agh network status -o json
+agh network channels -o json
+agh network peers release-readiness -o json
+```
+
+The status payload reports `local_peers`; it does not claim an embedded listener, broker workers,
+or remote-peer population. External peer transport is outside the current runtime release.
+
+## Tool visibility
+
+A Live snapshot is necessary but not sufficient for a Network tool call. Tool policy, capability
+gates, workspace scope, and daemon availability still apply. Local sessions receive the
+deterministic `not_participating` diagnostic instead of a plausible empty Network result.
+
+## Related pages
+
+- [Delivery, Admission, and Usage](/runtime/core/network/delivery-and-safety) explains wake gates.
+- [Task-Run Coordination Conversations](/runtime/core/autonomy/coordination-channels) explains the
+  future-run workspace opt-in.
+- [config.toml](/runtime/core/configuration/config-toml) lists defaults and administrative limits.

@@ -25,34 +25,34 @@ const workEntry: OpenWorkEntry = {
   workId: networkWorkFixture.work_id,
   state: networkWorkFixture.state,
   messageId: "msg_launch_work",
-  targetPeerId: networkWorkFixture.target_peer_id ?? null,
+  targetPeerId: "partner-settlement",
   openedAt: networkWorkFixture.opened_at ?? null,
   lastActivityAt: networkWorkFixture.last_activity_at ?? null,
 };
 const members: ChannelMember[] = [
   {
     peerId: "northstar-local",
+    sessionId: "sess-northstar-local",
     displayName: "Northstar Local",
     role: "agent",
     local: true,
     presenceState: "local",
-    lastSeenAgeSeconds: null,
   },
   {
     peerId: "partner-settlement",
+    sessionId: "sess-partner-settlement",
     displayName: "Partner Settlement",
     role: "agent",
-    local: false,
-    presenceState: "active",
-    lastSeenAgeSeconds: 12,
+    local: true,
+    presenceState: "local",
   },
   {
     peerId: "ops-human",
+    sessionId: "",
     displayName: "Ops Human",
     role: "human",
-    local: false,
-    presenceState: "inactive",
-    lastSeenAgeSeconds: 91,
+    local: true,
+    presenceState: "local",
   },
 ];
 
@@ -153,23 +153,23 @@ export const Directs: Story = {
       directs={networkDirectRoomsFixture}
       activeDirectId={networkDirectRoomsFixture[0]?.direct_id ?? null}
       isLoading={false}
-      selfPeerId="northstar-local"
+      selfSessionId="sess-northstar-local"
       members={[
         {
           peerId: "partner-settlement",
+          sessionId: "sess-partner-settlement",
           displayName: "Partner Settlement",
           role: "agent",
-          local: false,
-          presenceState: "active",
-          lastSeenAgeSeconds: 12,
+          local: true,
+          presenceState: "local",
         },
         {
           peerId: "northstar-growth",
+          sessionId: "sess-northstar-growth",
           displayName: "Growth Desk",
           role: "human",
-          local: false,
-          presenceState: "unknown",
-          lastSeenAgeSeconds: null,
+          local: true,
+          presenceState: "local",
         },
       ]}
       onNewDirect={fn()}

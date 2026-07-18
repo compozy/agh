@@ -17,6 +17,30 @@ func (fakeStore) CreateTask(context.Context, taskpkg.Task) error { return nil }
 func (fakeStore) DeleteTask(context.Context, string) error { return nil }
 
 func (fakeStore) UpdateTask(context.Context, taskpkg.Task, taskpkg.ActorContext) error { return nil }
+func (fakeStore) CreateTaskDefinition(
+	context.Context,
+	taskpkg.CreateTaskDefinitionMutation,
+) error {
+	return nil
+}
+func (fakeStore) UpdateTaskDefinition(
+	context.Context,
+	*taskpkg.UpdateTaskDefinitionMutation,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
+func (fakeStore) SetTaskExecutionProfile(
+	context.Context,
+	*taskpkg.ExecutionProfileMutation,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
+func (fakeStore) DeleteTaskExecutionProfile(
+	context.Context,
+	taskpkg.ExecutionProfileDeleteMutation,
+) error {
+	return nil
+}
 
 func (fakeStore) GetTask(context.Context, string) (taskpkg.Task, error) { return taskpkg.Task{}, nil }
 
@@ -139,6 +163,13 @@ func (fakeStore) CompleteRunLeaseSettlement(
 
 func (fakeStore) FailRunLease(context.Context, taskpkg.LeaseFailure) (taskpkg.Run, error) {
 	return taskpkg.Run{}, nil
+}
+
+func (fakeStore) SettleNetworkWake(
+	context.Context,
+	taskpkg.NetworkWakeSettlement,
+) (taskpkg.NetworkWakeSettlementResult, error) {
+	return taskpkg.NetworkWakeSettlementResult{}, nil
 }
 
 func (fakeStore) MarkTaskRunNeedsAttention(context.Context, string, string) (taskpkg.Run, error) {

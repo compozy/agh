@@ -12,6 +12,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	"github.com/compozy/agh/internal/loop/dsl"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -69,6 +70,75 @@ func TestLoopDefinitionDocumentPreservesWatchEvents(t *testing.T) {
 		}
 		if subscription.Filter != "event.task_id == 'task-parent' && event.payload.to_status == 'completed'" {
 			t.Fatalf("subscription.Filter = %q, want authored CEL filter", subscription.Filter)
+		}
+	})
+}
+
+func TestLoopDefinitionDocumentPreservesNetworkParticipation(t *testing.T) {
+	t.Run("Should preserve definition participation across the public DTO boundary", func(t *testing.T) {
+		t.Parallel()
+
+		mode := participation.ModeLive
+		strategy := participation.StrategyNamed
+		channelID := "release-room"
+		definition := dsl.Definition{
+			APIVersion: dsl.APIVersion,
+			Kind:       dsl.KindLoop,
+			Meta:       dsl.Meta{Name: "network-contract"},
+			DefinitionExtensionState: &dsl.DefinitionExtensionState{
+				NetworkParticipation: &participation.Request{
+					Mode:            &mode,
+					ChannelStrategy: &strategy,
+					ChannelID:       &channelID,
+				},
+			},
+		}
+
+		document, err := contract.NewLoopDefinitionDocument(definition)
+		if err != nil {
+			t.Fatalf("NewLoopDefinitionDocument() error = %v", err)
+		}
+		if document.NetworkParticipation == nil {
+			t.Fatal("document.NetworkParticipation = nil, want authored Live request")
+		}
+		if document.NetworkParticipation.Mode == nil || *document.NetworkParticipation.Mode != mode {
+			t.Fatalf("document.NetworkParticipation.Mode = %v, want %q", document.NetworkParticipation.Mode, mode)
+		}
+		if document.NetworkParticipation.ChannelStrategy == nil ||
+			*document.NetworkParticipation.ChannelStrategy != strategy {
+			t.Fatalf(
+				"document.NetworkParticipation.ChannelStrategy = %v, want %q",
+				document.NetworkParticipation.ChannelStrategy,
+				strategy,
+			)
+		}
+		if document.NetworkParticipation.ChannelID == nil || *document.NetworkParticipation.ChannelID != channelID {
+			t.Fatalf(
+				"document.NetworkParticipation.ChannelID = %v, want %q",
+				document.NetworkParticipation.ChannelID,
+				channelID,
+			)
+		}
+
+		var decoded dsl.Definition
+		if err := document.Decode(&decoded); err != nil {
+			t.Fatalf("LoopDefinitionDocument.Decode() error = %v", err)
+		}
+		if decoded.NetworkParticipation == nil || decoded.NetworkParticipation.ChannelID == nil ||
+			*decoded.NetworkParticipation.ChannelID != channelID {
+			t.Fatalf("decoded.NetworkParticipation = %#v, want channel %q", decoded.NetworkParticipation, channelID)
+		}
+
+		encoded, err := json.Marshal(document)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var publicShape map[string]json.RawMessage
+		if err := json.Unmarshal(encoded, &publicShape); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if _, ok := publicShape["network_participation"]; !ok {
+			t.Fatalf("encoded document keys = %v, want network_participation", publicShape)
 		}
 	})
 }
@@ -203,6 +273,19 @@ func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {
 		want string
 	}{
 		{
+			name: "Should reject unknown fields",
+			raw: `{
+				"session_id":"sess-a",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_launch_db",
+				"kind":"say",
+				"legacy":true,
+				"body":{"text":"hello"}
+			}`,
+			want: "unknown field",
+		},
+		{
 			name: "Should reject interaction id",
 			raw: `{
 				"session_id":"sess-a",
@@ -226,6 +309,32 @@ func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {
 				"body":{"text":"hello"}
 			}`,
 			want: "kind direct",
+		},
+		{
+			name: "Should reject caller supplied verified-format identity",
+			raw: `{
+				"session_id":"sess-a",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_launch_db",
+				"kind":"say",
+				"from":"alice@39f713d0a644253f04529421b9f51b9b",
+				"body":{"text":"hello"}
+			}`,
+			want: "sender identity and proof are daemon-derived",
+		},
+		{
+			name: "Should reject caller supplied proof",
+			raw: `{
+				"session_id":"sess-a",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_launch_db",
+				"kind":"say",
+				"proof":{"profile":"agh-network.trust.ed25519-jcs/v1"},
+				"body":{"text":"hello"}
+			}`,
+			want: "sender identity and proof are daemon-derived",
 		},
 	}
 
@@ -591,6 +700,9 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		nextRun := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+		liveMode := participation.ModeLive
+		namedStrategy := participation.StrategyNamed
+		channelID := "ops-automation"
 		payload := contract.JobPayload{
 			ID:          "job-1",
 			Scope:       automationpkg.AutomationScopeWorkspace,
@@ -603,11 +715,15 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 				Interval: "1h",
 			},
 			Task: &automationpkg.JobTaskConfig{
-				Title:          "Review findings",
-				NetworkChannel: "ops-automation",
+				Title: "Review findings",
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  "rule:nightly-review",
+				},
+				NetworkParticipation: &participation.Request{
+					Mode:            &liveMode,
+					ChannelStrategy: &namedStrategy,
+					ChannelID:       &channelID,
 				},
 			},
 			Enabled: true,
@@ -639,8 +755,18 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 			t.Fatalf("source = %#v, want %q", got["source"], automationpkg.JobSourceDynamic)
 		}
 		taskValue, ok := got["task"].(map[string]any)
-		if !ok || taskValue["title"] != "Review findings" || taskValue["network_channel"] != "ops-automation" {
+		if !ok || taskValue["title"] != "Review findings" {
 			t.Fatalf("task = %#v, want populated task config", got["task"])
+		}
+		participationValue, ok := taskValue["network_participation"].(map[string]any)
+		if !ok ||
+			participationValue["mode"] != string(participation.ModeLive) ||
+			participationValue["channel_strategy"] != string(participation.StrategyNamed) ||
+			participationValue["channel_id"] != channelID {
+			t.Fatalf("task.network_participation = %#v, want live named channel %q", participationValue, channelID)
+		}
+		if _, exists := taskValue["network_channel"]; exists {
+			t.Fatalf("task contains removed network_channel: %#v", taskValue)
 		}
 		if _, exists := got["next_run"]; !exists {
 			t.Fatalf("job payload missing next_run: %#v", got)
@@ -743,8 +869,6 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 	t.Parallel()
 
 	name := "updated"
-	agentName := "reviewer"
-	workspaceID := "ws-alpha"
 	prompt := "updated prompt"
 	schedule := automationpkg.ScheduleSpec{
 		Mode:     automationpkg.ScheduleModeEvery,
@@ -782,16 +906,6 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 			{
 				name: "Should return true when the job name is set",
 				req:  contract.UpdateJobRequest{Name: &name},
-				want: true,
-			},
-			{
-				name: "Should return true when the job agent name is set",
-				req:  contract.UpdateJobRequest{AgentName: &agentName},
-				want: true,
-			},
-			{
-				name: "Should return true when the job workspace id is set",
-				req:  contract.UpdateJobRequest{WorkspaceID: &workspaceID},
 				want: true,
 			},
 			{
@@ -848,16 +962,6 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 			{
 				name: "Should return true when the trigger name is set",
 				req:  contract.UpdateTriggerRequest{Name: &name},
-				want: true,
-			},
-			{
-				name: "Should return true when the trigger agent name is set",
-				req:  contract.UpdateTriggerRequest{AgentName: &agentName},
-				want: true,
-			},
-			{
-				name: "Should return true when the trigger workspace id is set",
-				req:  contract.UpdateTriggerRequest{WorkspaceID: &workspaceID},
 				want: true,
 			},
 			{
@@ -926,27 +1030,32 @@ func TestTaskPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		payload := contract.TaskPayload{
-			ID:             "task-1",
-			Identifier:     "TASK-1",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    "ws-alpha",
-			ParentTaskID:   "task-root",
-			NetworkChannel: "builders",
-			Title:          "Review task",
-			Description:    "Check the API layer",
-			Status:         taskpkg.TaskStatusInProgress,
-			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
-			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
-			CreatedAt:      time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
-			UpdatedAt:      time.Date(2026, 4, 14, 10, 5, 0, 0, time.UTC),
-			Metadata:       json.RawMessage(`{"priority":"high"}`),
+			ID:           "task-1",
+			Identifier:   "TASK-1",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-alpha",
+			ParentTaskID: "task-root",
+			ResolvedNetworkParticipation: &participation.Spec{
+				Version:   participation.SpecVersion,
+				Mode:      participation.ModeLive,
+				ChannelID: "builders",
+				Source:    participation.SourceExplicitRequest,
+			},
+			Title:       "Review task",
+			Description: "Check the API layer",
+			Status:      taskpkg.TaskStatusInProgress,
+			Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+			CreatedBy:   taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
+			CreatedAt:   time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 14, 10, 5, 0, 0, time.UTC),
+			Metadata:    json.RawMessage(`{"priority":"high"}`),
 		}
 
 		var got map[string]any
 		marshalJSON(t, payload, &got)
 
-		if got["workspace_id"] != "ws-alpha" || got["network_channel"] != "builders" {
+		if got["workspace_id"] != "ws-alpha" || resolvedChannelFromJSON(got) != "builders" {
 			t.Fatalf("task JSON = %#v", got)
 		}
 		createdBy, ok := got["created_by"].(map[string]any)
@@ -1005,10 +1114,15 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 			SessionID:      "sess-1",
 			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
 			IdempotencyKey: "key-1",
-			NetworkChannel: "builders",
-			QueuedAt:       time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
-			StartedAt:      &startedAt,
-			Result:         json.RawMessage(`{"ok":true}`),
+			ResolvedNetworkParticipation: &participation.Spec{
+				Version:   participation.SpecVersion,
+				Mode:      participation.ModeLive,
+				ChannelID: "builders",
+				Source:    participation.SourceExplicitRequest,
+			},
+			QueuedAt:  time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+			StartedAt: &startedAt,
+			Result:    json.RawMessage(`{"ok":true}`),
 		}
 
 		var got map[string]any
@@ -1017,7 +1131,7 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 		if got["session_id"] != "sess-1" || got["idempotency_key"] != "key-1" {
 			t.Fatalf("task run JSON = %#v", got)
 		}
-		if got["network_channel"] != "builders" || got["status"] != taskpkg.TaskRunStatusRunning.String() {
+		if resolvedChannelFromJSON(got) != "builders" || got["status"] != taskpkg.TaskRunStatusRunning.String() {
 			t.Fatalf("task run JSON = %#v", got)
 		}
 	})
@@ -1061,8 +1175,12 @@ func TestUpdateTaskRequestHasChanges(t *testing.T) {
 		{name: "Should return false when no task changes are set", req: contract.UpdateTaskRequest{}, want: false},
 		{name: "Should return true when title is set", req: contract.UpdateTaskRequest{Title: &title}, want: true},
 		{
-			name: "Should return true when network channel is set",
-			req:  contract.UpdateTaskRequest{NetworkChannel: &channel},
+			name: "Should return true when network participation is set",
+			req: contract.UpdateTaskRequest{
+				NetworkParticipation: &participation.Request{
+					ChannelID: &channel,
+				},
+			},
 			want: true,
 		},
 		{name: "Should return true when owner is set", req: contract.UpdateTaskRequest{Owner: owner}, want: true},
@@ -1096,12 +1214,11 @@ func TestNetworkPeerPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		payload := contract.NetworkPeerPayload{
-			PeerID:             "reviewer.sess-a",
-			DisplayName:        "Reviewer",
-			Channel:            "builders",
-			Local:              false,
-			PresenceState:      contract.NetworkPresenceActive,
-			LastSeenAgeSeconds: new(int64),
+			PeerID:        "reviewer.sess-a",
+			DisplayName:   "Reviewer",
+			Channel:       "builders",
+			Local:         true,
+			PresenceState: contract.NetworkPresenceLocal,
 			PeerCard: contract.NetworkPeerCardPayload{
 				PeerID: "reviewer.sess-a",
 				Capabilities: []contract.NetworkCapabilityBriefPayload{{
@@ -1119,11 +1236,8 @@ func TestNetworkPeerPayloadJSONShape(t *testing.T) {
 
 		var got map[string]any
 		marshalJSON(t, payload, &got)
-		if got["presence_state"] != contract.NetworkPresenceActive {
-			t.Fatalf("presence_state = %#v, want active", got["presence_state"])
-		}
-		if got["last_seen_age_seconds"] != float64(0) {
-			t.Fatalf("last_seen_age_seconds = %#v, want zero", got["last_seen_age_seconds"])
+		if got["presence_state"] != contract.NetworkPresenceLocal {
+			t.Fatalf("presence_state = %#v, want local", got["presence_state"])
 		}
 
 		peerCard, ok := got["peer_card"].(map[string]any)
@@ -1154,12 +1268,11 @@ func TestNetworkPeerDetailPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		payload := contract.NetworkPeerDetailPayload{
-			PeerID:             "reviewer.sess-a",
-			DisplayName:        "Reviewer",
-			Channel:            "builders",
-			Local:              true,
-			PresenceState:      contract.NetworkPresenceLocal,
-			LastSeenAgeSeconds: nil,
+			PeerID:        "reviewer.sess-a",
+			DisplayName:   "Reviewer",
+			Channel:       "builders",
+			Local:         true,
+			PresenceState: contract.NetworkPresenceLocal,
 			PeerCard: contract.NetworkPeerCardPayload{
 				PeerID: "reviewer.sess-a",
 				Capabilities: []contract.NetworkCapabilityBriefPayload{{

@@ -14,6 +14,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	goalpkg "github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
@@ -169,6 +170,14 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						if request.Inputs["target"] != "prod" {
 							t.Fatalf("RunLoop inputs = %#v, want target prod", request.Inputs)
 						}
+						if request.NetworkParticipation == nil ||
+							request.NetworkParticipation.Mode == nil ||
+							*request.NetworkParticipation.Mode != participation.ModeLocal {
+							t.Fatalf(
+								"RunLoop network participation = %#v, want local request",
+								request.NetworkParticipation,
+							)
+						}
 						capturedStartKind = startKind
 						capturedActor = actor
 						capturedDry = dry
@@ -182,11 +191,12 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-caller"},
+			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input: json.RawMessage(
-					`{"workspace_id":"ws-alpha","name":"release","inputs":{"target":"prod"},"dry":true}`,
+					`{"workspace_id":"ws-alpha","name":"release","inputs":{"target":"prod"},` +
+						`"network_participation":{"mode":"local"},"dry":true}`,
 				),
 			},
 		)
@@ -252,7 +262,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-author"},
+			toolspkg.Scope{SessionID: "sess-author", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopApprove,
 				Input: json.RawMessage(

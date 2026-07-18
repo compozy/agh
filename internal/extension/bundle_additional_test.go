@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestLoadBundleSpecsLoadsMixedFormatsAndSorts(t *testing.T) {
@@ -172,6 +173,29 @@ requirements = ["workspace-write"]
 	}
 }
 
+func TestBundleJobValidateUsesNormalizedParticipation(t *testing.T) {
+	t.Parallel()
+
+	mode := participation.ModeLive
+	strategy := participation.ChannelStrategy(" named ")
+	channel := " ops "
+	job := BundleJob{
+		Name: "daily-digest", AgentName: "planner", Prompt: "Summarize incidents.",
+		Schedule: automationpkg.ScheduleSpec{
+			Mode: automationpkg.ScheduleModeEvery, Interval: "1m",
+		},
+		Task: &automationpkg.JobTaskConfig{NetworkParticipation: &participation.Request{
+			Mode: &mode, ChannelStrategy: &strategy, ChannelID: &channel,
+		}},
+		Retry: automationpkg.DefaultRetryConfig(), FireLimit: automationpkg.DefaultFireLimitConfig(),
+	}
+
+	err := job.Validate("operations", "default", map[string]struct{}{"alerts": {}})
+	if !errors.Is(err, ErrBundleInvalid) || !strings.Contains(err.Error(), "undeclared channel \"ops\"") {
+		t.Fatalf("BundleJob.Validate() error = %v, want normalized undeclared channel", err)
+	}
+}
+
 func TestLoadBundleSpecsRejectsInvalidProfileAgents(t *testing.T) {
 	t.Parallel()
 
@@ -270,7 +294,9 @@ func TestBundleDocumentToBundleSpecNormalizesValuesAndDefaults(t *testing.T) {
 						Mode:     automationpkg.ScheduleModeEvery,
 						Interval: "1m",
 					},
-					Task:      &automationpkg.JobTaskConfig{NetworkChannel: "ops"},
+					Task: &automationpkg.JobTaskConfig{
+						NetworkParticipation: bundleNamedParticipation("ops"),
+					},
 					Retry:     automationpkg.DefaultRetryConfig(),
 					FireLimit: automationpkg.DefaultFireLimitConfig(),
 				}, {
@@ -344,8 +370,8 @@ func TestBundleDocumentToBundleSpecNormalizesValuesAndDefaults(t *testing.T) {
 		t.Fatalf("bridges[0].SecretSlots[0].Kind = %q, want api_token", profile.Bridges[0].SecretSlots[0].Kind)
 	}
 
-	profile.Jobs[0].Task.NetworkChannel = "changed"
-	if doc.Bundle.Profiles[0].Jobs[0].Task.NetworkChannel != "ops" {
+	*profile.Jobs[0].Task.NetworkParticipation.ChannelID = "changed"
+	if got := *doc.Bundle.Profiles[0].Jobs[0].Task.NetworkParticipation.ChannelID; got != "ops" {
 		t.Fatalf("raw job task mutated to %#v", doc.Bundle.Profiles[0].Jobs[0].Task)
 	}
 
@@ -357,6 +383,16 @@ func TestBundleDocumentToBundleSpecNormalizesValuesAndDefaults(t *testing.T) {
 	profile.Bridges[0].SecretSlots[0].Name = "changed"
 	if doc.Bundle.Profiles[0].Bridges[0].SecretSlots[0].Name != " bot_token " {
 		t.Fatalf("raw bridge secret slot mutated to %#v", doc.Bundle.Profiles[0].Bridges[0].SecretSlots)
+	}
+}
+
+func bundleNamedParticipation(channelID string) *participation.Request {
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	return &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		ChannelID:       &channelID,
 	}
 }
 

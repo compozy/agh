@@ -81,9 +81,10 @@ agent-callable tools, and gives the web UI, CLI, UDS API, and HTTP/SSE API one s
 truth.
 
 **AGH Network** is the protocol boundary. It defines how peers announce themselves, find each other,
-send work, transfer capabilities, report progress, and close interactions with receipts. AGH Runtime
-speaks it through an embedded NATS-backed v0 runtime, but the wire contract is deliberately
-open so another runtime can implement it without importing AGH internals.
+send work, transfer capabilities, report progress, and close interactions with receipts. The current
+runtime coordinates admitted conversations in process and persists each accepted message before
+notifying listeners. The protocol remains transport-neutral so another runtime can implement it
+without importing AGH internals.
 
 The operating model is small enough to understand in one pass:
 
@@ -91,7 +92,8 @@ The operating model is small enough to understand in one pass:
 2. The agent talks JSON-RPC over stdio using the provider's ACP adapter.
 3. AGH records prompts, responses, tool calls, approvals, usage, and lifecycle events.
 4. The same state is available through `agh`, the local socket, HTTP/SSE, and the browser UI.
-5. If the session joins a network channel, AGH maps it to a peer that can exchange protocol envelopes.
+5. If an execution explicitly selects Live participation, AGH resolves one immutable, bounded
+   channel context before the session starts.
 
 That gives you a local control plane for real agent work instead of another framework abstraction.
 
@@ -217,9 +219,11 @@ $ agh task complete run-123 --result '{"summary":"tests passed"}'
 - Channel-scoped peer discovery and message delivery.
 - Inbox, peers, channels, status, and send commands under `agh network`.
 - Agent-callable network tools for peer lookup and supported message send.
-- Seven message kinds, interaction lifecycle, receipts, traces, delivery safety, and controlled task
+- Six message kinds, interaction lifecycle, receipts, traces, delivery safety, and controlled task
   ingress.
-- Embedded NATS-backed v0 runtime for local and same-network coordination.
+- Local-by-default execution with explicit, finite Live participation for admitted conversations.
+- Commit-first delivery through the current in-process runtime, with a transport-neutral protocol
+  boundary for other implementations.
 
 ### Bridges
 

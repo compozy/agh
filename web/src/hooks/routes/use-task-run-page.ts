@@ -19,15 +19,19 @@ interface UseTaskRunPageOptions {
 }
 
 function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOptions = {}) {
-  const hasTaskId = Boolean(taskId);
   const hasRunId = Boolean(runId);
   const enableTaskDetail = options.enableTaskDetail ?? true;
   const enableInspect = options.enableInspect ?? true;
   const enableRunReviews = options.enableRunReviews ?? true;
 
   const runQuery = useTaskRunDetail(runId, { enabled: hasRunId });
+  const run = runQuery.data ?? null;
+  const authoritativeTaskId = run?.task?.id ?? "";
+  const routeTaskMismatch = Boolean(run?.task && run.task.id !== taskId);
   const inspectQuery = useTaskRunInspect(runId, { enabled: hasRunId && enableInspect });
-  const taskQuery = useTask(taskId, { enabled: hasTaskId && enableTaskDetail });
+  const taskQuery = useTask(authoritativeTaskId, {
+    enabled: Boolean(authoritativeTaskId) && enableTaskDetail,
+  });
   const reviewsQuery = useTaskRunReviews(runId, {}, { enabled: hasRunId && enableRunReviews });
   const cancelMutation = useCancelTaskRun();
   const forceReleaseMutation = useForceReleaseTaskRun();
@@ -35,14 +39,16 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
   const recoverMutation = useRecoverTaskRun();
   const retryMutation = useRetryTaskRun();
 
-  const run = runQuery.data ?? null;
   const inspect = inspectQuery.data ?? null;
   const task = taskQuery.data ?? null;
   const session = run?.session ?? null;
   const summary = run?.summary ?? null;
 
-  const fatalError =
-    hasRunId && hasTaskId ? (runQuery.error ?? null) : new Error("Missing task or run id");
+  const fatalError = !hasRunId
+    ? new Error("Missing run id")
+    : routeTaskMismatch
+      ? new Error(`Task run not found: ${runId}`)
+      : (runQuery.error ?? null);
 
   const runStatus = run?.run?.status;
   const isLive =
@@ -101,12 +107,12 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
   };
 
   const handleRecoverRun = async () => {
-    if (!hasRunId || recoverMutation.isPending) {
+    if (!hasRunId || !authoritativeTaskId || recoverMutation.isPending) {
       return;
     }
 
     try {
-      await recoverMutation.mutateAsync({ runId, taskId });
+      await recoverMutation.mutateAsync({ runId, taskId: authoritativeTaskId });
       toast.success("Run recovered.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to recover run");
@@ -131,7 +137,8 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     inspect,
     inspectError: inspectQuery.error ?? null,
     inspectLoading: inspectQuery.isLoading && !inspect,
-    notFound: runQuery.isError && runQuery.error?.message?.includes("not found"),
+    notFound:
+      routeTaskMismatch || (runQuery.isError && runQuery.error?.message?.includes("not found")),
     reviews,
     reviewsError: reviewsQuery.error ?? null,
     reviewsLoading: reviewsQuery.isLoading && reviews.length === 0,
@@ -143,7 +150,7 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     summary,
     task,
     taskError: taskQuery.error ?? null,
-    taskId,
+    taskId: authoritativeTaskId,
     taskLoading: taskQuery.isLoading && !task,
   };
 }

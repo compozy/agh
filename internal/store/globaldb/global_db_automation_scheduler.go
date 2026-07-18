@@ -9,6 +9,7 @@ import (
 	"time"
 
 	automation "github.com/compozy/agh/internal/automation/model"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
@@ -153,13 +154,14 @@ func (g *AutomationRepo) ClaimScheduledRun(
 	}
 
 	run := automation.Run{
-		ID:          normalized.RunID,
-		JobID:       normalized.JobID,
-		FireID:      normalized.FireID,
-		Status:      automation.RunScheduled,
-		Attempt:     1,
-		ScheduledAt: automationTimePointer(normalized.ScheduledAt),
-		StartedAt:   automationTimePointer(normalized.ClaimedAt),
+		ID:                   normalized.RunID,
+		JobID:                normalized.JobID,
+		FireID:               normalized.FireID,
+		Status:               automation.RunScheduled,
+		Attempt:              1,
+		ScheduledAt:          automationTimePointer(normalized.ScheduledAt),
+		StartedAt:            automationTimePointer(normalized.ClaimedAt),
+		NetworkParticipation: participation.CloneRequest(normalized.NetworkParticipation),
 	}
 	if err := insertAutomationRunTx(ctx, tx, run); err != nil {
 		return automation.SchedulerClaimResult{}, err
@@ -232,6 +234,7 @@ func (g *AutomationRepo) normalizeSchedulerClaim(claim automation.SchedulerClaim
 	if claim.ClaimedAt.IsZero() {
 		claim.ClaimedAt = g.now().UTC()
 	}
+	claim.NetworkParticipation = normalizeAutomationParticipationIntent(claim.NetworkParticipation)
 	if err := claim.Validate("scheduler_claim"); err != nil {
 		return automation.SchedulerClaim{}, err
 	}
@@ -271,7 +274,18 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 	if err != nil {
 		return err
 	}
-	if err := sqlcgen.New(tx).InsertAutomationRun(ctx, automationRunParams(run, metadataJSON)); err != nil {
+	networkParticipation, err := encodeOptionalAutomationParticipation(
+		run.NetworkParticipation,
+		run.NetworkParticipation == nil,
+		"run.network_participation",
+	)
+	if err != nil {
+		return err
+	}
+	if err := sqlcgen.New(tx).InsertAutomationRun(
+		ctx,
+		automationRunParams(run, networkParticipation, metadataJSON),
+	); err != nil {
 		if isSQLiteUniqueConstraint(err) {
 			return fmt.Errorf(
 				"store: automation scheduled fire %q: %w",

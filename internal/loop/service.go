@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	storepkg "github.com/compozy/agh/internal/store"
 )
 
@@ -28,17 +29,18 @@ const (
 )
 
 type service struct {
-	store            Store
-	resolver         DefinitionResolver
-	goalPolicy       GoalRunPolicyResolver
-	hooks            HookDispatcher
-	defaults         LoopDefaults
-	defaultsResolver DefaultsResolver
-	goalRunActivator GoalRunActivator
-	goalLeaseRevoker GoalPromptLeaseRevoker
-	logger           *slog.Logger
-	now              func() time.Time
-	newRunID         func() RunID
+	store                 Store
+	resolver              DefinitionResolver
+	goalPolicy            GoalRunPolicyResolver
+	hooks                 HookDispatcher
+	defaults              LoopDefaults
+	defaultsResolver      DefaultsResolver
+	goalRunActivator      GoalRunActivator
+	goalLeaseRevoker      GoalPromptLeaseRevoker
+	participationResolver participation.Resolver
+	logger                *slog.Logger
+	now                   func() time.Time
+	newRunID              func() RunID
 }
 
 // NewService creates the loop aggregate service.
@@ -98,13 +100,29 @@ func (s *service) DryRun(
 	if err != nil {
 		return nil, err
 	}
+	previewRunID := s.newRunID()
+	networkSpec, err := s.resolveRunParticipation(
+		ctx,
+		ws,
+		previewRunID,
+		inputs.NetworkParticipation,
+		inputs.NetworkParticipationSource,
+		resolved.Definition.NetworkParticipation,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateLoopParticipation(resolved.Definition.Graph, networkSpec); err != nil {
+		return nil, err
+	}
 	return &PlanPreview{
-		LoopName:        loopName,
-		ResolvedInputs:  resolvedInputs,
-		Generation:      1,
-		Nodes:           previewNodes(resolved.Definition.Graph),
-		Contract:        resolved.Definition.Contract,
-		EffectiveConfig: effective,
+		LoopName:                     loopName,
+		ResolvedInputs:               resolvedInputs,
+		Generation:                   1,
+		Nodes:                        previewNodes(resolved.Definition.Graph),
+		Contract:                     resolved.Definition.Contract,
+		EffectiveConfig:              effective,
+		ResolvedNetworkParticipation: networkSpec,
 	}, nil
 }
 

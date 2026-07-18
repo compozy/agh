@@ -19,6 +19,7 @@ interface EventCardProps {
   displayId: string;
   label: string;
   description: string;
+  disabled?: boolean;
   icon: EventIconKey;
   selected: boolean;
   onSelect: () => void;
@@ -30,6 +31,7 @@ export function EventCard({
   displayId,
   label,
   description,
+  disabled = false,
   icon,
   selected,
   onSelect,
@@ -38,11 +40,14 @@ export function EventCard({
   return (
     <button
       aria-pressed={selected}
+      disabled={disabled}
       className={cn(
         "flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors outline-none focus-visible:shadow-focus-ring",
-        selected
-          ? "border-transparent bg-accent-tint ring-1 ring-accent-dim ring-inset"
-          : "border-line-soft bg-canvas-tint hover:border-line hover:bg-elevated"
+        disabled
+          ? "cursor-not-allowed border-line-soft bg-canvas-tint opacity-50"
+          : selected
+            ? "border-transparent bg-accent-tint ring-1 ring-accent-dim ring-inset"
+            : "border-line-soft bg-canvas-tint hover:border-line hover:bg-elevated"
       )}
       data-testid={`trigger-event-${catalogId}`}
       onClick={onSelect}

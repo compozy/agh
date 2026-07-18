@@ -81,7 +81,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				Type:   dsl.CriterionAgentJudge,
 				Rubric: "Check the output",
 			}},
-		}, GateInput{Placement: PlacementInBody, Contract: validContract()})
+		}, GateInput{Placement: PlacementInBody, Contract: new(validContract())})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -160,7 +160,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 			},
 		}, GateInput{
 			Placement:  PlacementInBody,
-			Contract:   validContract(),
+			Contract:   new(validContract()),
 			JudgeModel: "default-judge-model",
 		})
 		if err != nil {
@@ -193,7 +193,7 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 				Type:   dsl.CriterionAgentJudge,
 				Rubric: "Check the output",
 			}},
-		}, GateInput{Placement: PlacementDefinitionOfDone, Contract: validContract()})
+		}, GateInput{Placement: PlacementDefinitionOfDone, Contract: new(validContract())})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -293,7 +293,7 @@ func TestEvaluatorEvaluateCriteriaBundle(t *testing.T) {
 				{ID: "unit_tests", Type: dsl.CriterionCommand, Check: "go test ./internal/loop/gate"},
 				{ID: "judge", Type: dsl.CriterionAgentJudge, Rubric: "Review the implementation"},
 			},
-		}, GateInput{Placement: PlacementDefinitionOfDone, Contract: validContract()})
+		}, GateInput{Placement: PlacementDefinitionOfDone, Contract: new(validContract())})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -449,7 +449,7 @@ func TestEvaluatorFailOpenStreakRouting(t *testing.T) {
 
 		inBody, err := evaluator.Evaluate(context.Background(), gate, GateInput{
 			Placement:         PlacementInBody,
-			Contract:          validContract(),
+			Contract:          new(validContract()),
 			BrokenJudgeStreak: 0,
 		})
 		if err != nil {
@@ -461,7 +461,7 @@ func TestEvaluatorFailOpenStreakRouting(t *testing.T) {
 
 		first, err := evaluator.Evaluate(context.Background(), gate, GateInput{
 			Placement:         PlacementDefinitionOfDone,
-			Contract:          validContract(),
+			Contract:          new(validContract()),
 			BrokenJudgeStreak: 0,
 		})
 		if err != nil {
@@ -476,7 +476,7 @@ func TestEvaluatorFailOpenStreakRouting(t *testing.T) {
 
 		third, err := evaluator.Evaluate(context.Background(), gate, GateInput{
 			Placement:         PlacementDefinitionOfDone,
-			Contract:          validContract(),
+			Contract:          new(validContract()),
 			BrokenJudgeStreak: 2,
 		})
 		if err != nil {
@@ -509,7 +509,7 @@ func TestEvaluatorFailOpenStreakRouting(t *testing.T) {
 			}},
 		}, GateInput{
 			Placement:         PlacementDefinitionOfDone,
-			Contract:          validContract(),
+			Contract:          new(validContract()),
 			Revision:          1,
 			BrokenJudgeStreak: 0,
 		})
@@ -546,7 +546,7 @@ func TestEvaluatorBrokenJudgeWithRealFailure(t *testing.T) {
 				{ID: "cmd", Type: dsl.CriterionCommand, Check: "verify"},
 				{ID: "judge", Type: dsl.CriterionAgentJudge, Rubric: "Check"},
 			},
-		}, GateInput{Placement: PlacementDefinitionOfDone, Contract: validContract()})
+		}, GateInput{Placement: PlacementDefinitionOfDone, Contract: new(validContract())})
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
@@ -1045,7 +1045,7 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 			},
 		}, GateInput{
 			Placement: PlacementInBody,
-			Contract:  validContract(),
+			Contract:  new(validContract()),
 			JudgeUsageReporter: JudgeUsageReporterFunc(func(tokens int64) {
 				reports = append(reports, tokens)
 			}),
@@ -1078,7 +1078,7 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 			}},
 		}, GateInput{
 			Placement: PlacementInBody,
-			Contract:  validContract(),
+			Contract:  new(validContract()),
 			JudgeUsageReporter: JudgeUsageReporterFunc(func(tokens int64) {
 				reports = append(reports, tokens)
 			}),

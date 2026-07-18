@@ -10,6 +10,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -384,14 +385,22 @@ func (r *spawnReaper) spawnLifecyclePayload(
 		payload.AgentName = child.AgentName
 		payload.WorkspaceID = child.WorkspaceID
 		payload.Workspace = child.Workspace
+		payload.ResolvedNetworkParticipation = participation.CloneSpec(child.NetworkParticipation)
 		payload.SoulSnapshotID = child.SoulSnapshotID
 		payload.SoulDigest = child.SoulDigest
 		payload.ParentSoulDigest = child.ParentSoulDigest
 	}
-	if candidate.parent != nil && candidate.parent.Lineage != nil {
-		payload.ParentPermissions = spawnReaperPermissionSet(candidate.parent.Lineage.PermissionPolicy)
+	if candidate.parent != nil {
+		if payload.ResolvedNetworkParticipation == nil {
+			payload.ResolvedNetworkParticipation = participation.CloneSpec(
+				candidate.parent.NetworkParticipation,
+			)
+		}
 		if strings.TrimSpace(payload.ParentSoulDigest) == "" {
 			payload.ParentSoulDigest = candidate.parent.SoulDigest
+		}
+		if candidate.parent.Lineage != nil {
+			payload.ParentPermissions = spawnReaperPermissionSet(candidate.parent.Lineage.PermissionPolicy)
 		}
 	}
 	if reapErr != nil {

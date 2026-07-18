@@ -825,12 +825,11 @@ func registerBridgeExtensionArtifacts(
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if err := harness.CaptureBridgeHealth(ctx); err != nil {
-			t.Logf("CaptureBridgeHealth() error = %v", err)
-		}
-
 		trimmedBridgeID := strings.TrimSpace(derefStringValue(bridgeID))
 		if trimmedBridgeID != "" {
+			if err := harness.CaptureBridgeHealth(ctx, trimmedBridgeID); err != nil {
+				t.Logf("CaptureBridgeHealth(%q) error = %v", trimmedBridgeID, err)
+			}
 			if err := harness.CaptureBridgeRoutes(ctx, trimmedBridgeID); err != nil {
 				t.Logf("CaptureBridgeRoutes(%q) error = %v", trimmedBridgeID, err)
 			}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 )
 
@@ -26,16 +27,18 @@ type taskLiveContext struct {
 type taskStreamSubscriber struct {
 	id        uint64
 	taskID    string
+	actor     ActorContext
 	deliver   chan StreamEvent
 	done      chan struct{}
 	out       chan StreamEvent
 	closeOnce sync.Once
 }
 
-func newTaskStreamSubscriber(id uint64, taskID string) *taskStreamSubscriber {
+func newTaskStreamSubscriber(id uint64, taskID string, actor ActorContext) *taskStreamSubscriber {
 	return &taskStreamSubscriber{
 		id:      id,
 		taskID:  taskID,
+		actor:   actor,
 		deliver: make(chan StreamEvent, taskStreamBufferSize),
 		done:    make(chan struct{}),
 		out:     make(chan StreamEvent),
@@ -76,7 +79,7 @@ func (m *Service) Timeline(
 	if trimmedTaskID == "" {
 		return nil, ErrValidation
 	}
-	if _, err := m.store.GetTask(ctx, trimmedTaskID); err != nil {
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedTaskID, actor); err != nil {
 		return nil, err
 	}
 
@@ -88,8 +91,11 @@ func (m *Service) Timeline(
 	if err != nil {
 		return nil, err
 	}
-
-	return m.timelineItemsFromRecords(ctx, records)
+	visible, err := m.filterAuthorizedEventRecords(ctx, actor, records)
+	if err != nil {
+		return nil, err
+	}
+	return m.timelineItemsFromRecords(ctx, visible)
 }
 
 func (m *Service) Stream(
@@ -109,12 +115,12 @@ func (m *Service) Stream(
 	if trimmedTaskID == "" {
 		return nil, ErrValidation
 	}
-	if _, err := m.store.GetTask(ctx, trimmedTaskID); err != nil {
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedTaskID, actor); err != nil {
 		return nil, err
 	}
 
-	subscriber := m.registerTaskSubscriber(trimmedTaskID)
-	backlog, err := m.streamBacklog(ctx, trimmedTaskID, query.AfterSequence)
+	subscriber := m.registerTaskSubscriber(trimmedTaskID, actor)
+	backlog, err := m.streamBacklog(ctx, trimmedTaskID, query.AfterSequence, actor)
 	if err != nil {
 		m.unregisterTaskSubscriber(subscriber.id)
 		subscriber.stop()
@@ -142,8 +148,12 @@ func (m *Service) Tree(ctx context.Context, taskID string, actor ActorContext) (
 	if len(tree) == 0 {
 		return nil, ErrTaskNotFound
 	}
+	if err := m.authorizeTaskResource(ctx, actor, tree[0]); err != nil {
+		return nil, err
+	}
+	tree = m.filterAuthorizedTaskTree(ctx, actor, tree)
 
-	nodes, err := m.buildTreeNodes(ctx, tree)
+	nodes, err := m.buildTreeNodes(ctx, tree, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +161,11 @@ func (m *Service) Tree(ctx context.Context, taskID string, actor ActorContext) (
 	return &view, nil
 }
 
-func (m *Service) buildTreeNodes(ctx context.Context, tree []Task) ([]TreeNode, error) {
+func (m *Service) buildTreeNodes(
+	ctx context.Context,
+	tree []Task,
+	actor ActorContext,
+) ([]TreeNode, error) {
 	depthByID := make(map[string]int, len(tree))
 	depthByID[tree[0].ID] = 0
 	childCountByID := make(map[string]int, len(tree))
@@ -161,7 +175,7 @@ func (m *Service) buildTreeNodes(ctx context.Context, tree []Task) ([]TreeNode, 
 
 	nodes := make([]TreeNode, 0, len(tree))
 	for _, record := range tree {
-		node, err := m.buildTreeNode(ctx, record, depthByID, childCountByID)
+		node, err := m.buildTreeNode(ctx, record, depthByID, childCountByID, actor)
 		if err != nil {
 			return nil, err
 		}
@@ -185,6 +199,7 @@ func (m *Service) buildTreeNode(
 	record Task,
 	depthByID map[string]int,
 	childCountByID map[string]int,
+	actor ActorContext,
 ) (TreeNode, error) {
 	if strings.TrimSpace(record.ParentTaskID) != "" {
 		depthByID[record.ID] = depthByID[record.ParentTaskID] + 1
@@ -195,6 +210,10 @@ func (m *Service) buildTreeNode(
 		return TreeNode{}, err
 	}
 	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
+	if err != nil {
+		return TreeNode{}, err
+	}
+	visibleRuns, err := m.filterAuthorizedRuns(ctx, actor, record, runs)
 	if err != nil {
 		return TreeNode{}, err
 	}
@@ -212,7 +231,7 @@ func (m *Service) buildTreeNode(
 		ParentTaskID:   record.ParentTaskID,
 		Depth:          depthByID[record.ID],
 		ChildCount:     childCountByID[record.ID],
-		ActiveRun:      summary.ActiveRun,
+		ActiveRun:      activeRunSummary(visibleRuns, record.MaxAttempts),
 		LastActivityAt: summary.LastActivityAt,
 	}, nil
 }
@@ -237,55 +256,13 @@ func splitTreeView(rootTaskID string, nodes []TreeNode) TreeView {
 	return TreeView{Root: root, Descendants: descendants}
 }
 
-func (m *Service) RunDetail(
-	ctx context.Context,
-	runID string,
-	actor ActorContext,
-) (*RunDetailView, error) {
-	if err := requireReadAuthority(actor); err != nil {
-		return nil, err
-	}
-
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
-	if err != nil {
-		return nil, err
-	}
-	dependencies, err := m.store.ListDependencies(ctx, taskRecord.ID)
-	if err != nil {
-		return nil, err
-	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: taskRecord.ID})
-	if err != nil {
-		return nil, err
-	}
-	status, err := m.canonicalTaskStatus(ctx, taskRecord, dependencies, runs)
-	if err != nil {
-		return nil, err
-	}
-
-	session := baseRunSessionRef(run.SessionID)
-	summary := RunOperationalSummary{}
-	if m.runtimeViews != nil && strings.TrimSpace(run.SessionID) != "" {
-		if enriched, runtimeErr := m.runtimeViews.GetSession(ctx, run.SessionID); runtimeErr == nil && enriched != nil {
-			session = enriched
-		}
-		summary = m.bestEffortRunOperationalSummary(ctx, run.SessionID)
-	}
-
-	return &RunDetailView{
-		Run:     run,
-		Task:    taskReferenceFromTask(taskRecord, status),
-		Session: session,
-		Summary: summary,
-	}, nil
-}
-
 func (m *Service) streamBacklog(
 	ctx context.Context,
 	rootTaskID string,
 	afterSequence int64,
+	actor ActorContext,
 ) ([]StreamEvent, error) {
-	records, err := m.listTaskTreeEventRecords(ctx, rootTaskID, afterSequence)
+	records, err := m.listTaskTreeEventRecords(ctx, rootTaskID, afterSequence, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -309,11 +286,13 @@ func (m *Service) listTaskTreeEventRecords(
 	ctx context.Context,
 	rootTaskID string,
 	afterSequence int64,
+	actor ActorContext,
 ) ([]EventRecord, error) {
 	tree, err := m.collectTaskTree(ctx, rootTaskID)
 	if err != nil {
 		return nil, err
 	}
+	tree = m.filterAuthorizedTaskTree(ctx, actor, tree)
 
 	records := make([]EventRecord, 0)
 	for _, record := range tree {
@@ -336,7 +315,77 @@ func (m *Service) listTaskTreeEventRecords(
 		}
 		return records[i].Event.ID < records[j].Event.ID
 	})
-	return records, nil
+	return m.filterAuthorizedEventRecords(ctx, actor, records)
+}
+
+func (m *Service) filterAuthorizedTaskTree(
+	ctx context.Context,
+	actor ActorContext,
+	tree []Task,
+) []Task {
+	if isTaskOperator(actor) {
+		return tree
+	}
+	hidden := make(map[string]struct{})
+	visible := make([]Task, 0, len(tree))
+	for _, record := range tree {
+		if _, parentHidden := hidden[strings.TrimSpace(record.ParentTaskID)]; parentHidden {
+			hidden[record.ID] = struct{}{}
+			continue
+		}
+		if err := m.authorizeTaskResource(ctx, actor, record); err != nil {
+			hidden[record.ID] = struct{}{}
+			continue
+		}
+		visible = append(visible, record)
+	}
+	return visible
+}
+
+func (m *Service) filterAuthorizedEventRecords(
+	ctx context.Context,
+	actor ActorContext,
+	records []EventRecord,
+) ([]EventRecord, error) {
+	if isTaskOperator(actor) {
+		return records, nil
+	}
+	visible := make([]EventRecord, 0, len(records))
+	for _, record := range records {
+		allowed, err := m.authorizeEventRecord(ctx, actor, record)
+		if err != nil {
+			return nil, err
+		}
+		if allowed {
+			visible = append(visible, record)
+		}
+	}
+	return visible, nil
+}
+
+func (m *Service) authorizeEventRecord(
+	ctx context.Context,
+	actor ActorContext,
+	record EventRecord,
+) (bool, error) {
+	taskRecord, err := m.store.GetTask(ctx, record.Event.TaskID)
+	if err != nil {
+		return false, err
+	}
+	if err := m.authorizeTaskResource(ctx, actor, taskRecord); err != nil {
+		return false, nil
+	}
+	if strings.TrimSpace(record.Event.RunID) == "" {
+		return true, nil
+	}
+	run, err := m.store.GetTaskRun(ctx, record.Event.RunID)
+	if err != nil {
+		return false, err
+	}
+	if err := m.runReadAuthorizer.AuthorizeRunRead(ctx, actor, run, &taskRecord); err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (m *Service) timelineItemsFromRecords(
@@ -383,67 +432,27 @@ func (m *Service) timelineItemsFromRecords(
 	return items, nil
 }
 
-func (m *Service) loadTaskLiveContext(
-	ctx context.Context,
-	taskID string,
-	cache map[string]*taskLiveContext,
-) (*taskLiveContext, error) {
-	if cached, ok := cache[taskID]; ok {
-		return cached, nil
-	}
-
-	record, err := m.store.GetTask(ctx, taskID)
-	if err != nil {
-		return nil, err
-	}
-	dependencies, err := m.store.ListDependencies(ctx, record.ID)
-	if err != nil {
-		return nil, err
-	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
-	if err != nil {
-		return nil, err
-	}
-	status, err := m.canonicalTaskStatus(ctx, record, dependencies, runs)
-	if err != nil {
-		return nil, err
-	}
-
-	runsByID := make(map[string]Run, len(runs))
-	for _, run := range runs {
-		runsByID[run.ID] = run
-	}
-
-	cached := &taskLiveContext{
-		record:    record,
-		reference: taskReferenceFromTask(record, status),
-		runsByID:  runsByID,
-	}
-	cache[taskID] = cached
-	return cached, nil
-}
-
 func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 	summary := &RunSummary{
-		ID:                    run.ID,
-		TaskID:                run.TaskID,
-		Status:                run.Status,
-		Attempt:               int(run.Attempt),
-		PreviousRunID:         run.PreviousRunID,
-		FailureKind:           run.FailureKind,
-		MaxAttempts:           maxAttempts,
-		SessionID:             run.SessionID,
-		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:        run.ClaimTokenHash,
-		LeaseUntil:            run.LeaseUntil,
-		HeartbeatAt:           run.HeartbeatAt,
-		CoordinationChannelID: run.CoordinationChannelID,
-		DesignationGroupID:    run.DesignationGroupID,
-		QueuedAt:              run.QueuedAt,
-		ClaimedAt:             run.ClaimedAt,
-		StartedAt:             run.StartedAt,
-		EndedAt:               run.EndedAt,
-		Error:                 run.Error,
+		ID:                           run.ID,
+		TaskID:                       run.TaskID,
+		Status:                       run.Status,
+		Attempt:                      int(run.Attempt),
+		PreviousRunID:                run.PreviousRunID,
+		FailureKind:                  run.FailureKind,
+		MaxAttempts:                  maxAttempts,
+		SessionID:                    run.SessionID,
+		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:               run.ClaimTokenHash,
+		LeaseUntil:                   run.LeaseUntil,
+		HeartbeatAt:                  run.HeartbeatAt,
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		DesignationGroupID:           run.DesignationGroupID,
+		QueuedAt:                     run.QueuedAt,
+		ClaimedAt:                    run.ClaimedAt,
+		StartedAt:                    run.StartedAt,
+		EndedAt:                      run.EndedAt,
+		Error:                        run.Error,
 	}
 	ApplyRunDesignationSummary(summary, run)
 	return summary
@@ -593,12 +602,12 @@ func mergeTokenStatsSummary(summary *RunOperationalSummary, stats []store.TokenS
 	}
 }
 
-func (m *Service) registerTaskSubscriber(taskID string) *taskStreamSubscriber {
+func (m *Service) registerTaskSubscriber(taskID string, actor ActorContext) *taskStreamSubscriber {
 	m.liveMu.Lock()
 	defer m.liveMu.Unlock()
 
 	m.nextSubscriberID++
-	subscriber := newTaskStreamSubscriber(m.nextSubscriberID, taskID)
+	subscriber := newTaskStreamSubscriber(m.nextSubscriberID, taskID, actor)
 	m.liveSubscribers[subscriber.id] = subscriber
 	return subscriber
 }
@@ -664,23 +673,28 @@ func (m *Service) emitTaskLiveEventBestEffort(ctx context.Context, eventID strin
 }
 
 func (m *Service) emitTaskLiveRecordBestEffort(ctx context.Context, record EventRecord) {
-	items, err := m.timelineItemsFromRecords(ctx, []EventRecord{record})
-	if err != nil || len(items) == 0 {
-		return
-	}
-
-	event := StreamEvent{
-		Sequence: items[0].Sequence,
-		Type:     items[0].EventType,
-		Timeline: items[0],
-	}
 	roots, err := m.ancestorTaskIDs(ctx, record.Event.TaskID)
 	if err != nil {
 		return
 	}
 
 	subscribers := m.taskSubscribersForRoots(roots)
+	eligible := make([]*taskStreamSubscriber, 0, len(subscribers))
 	for _, subscriber := range subscribers {
+		allowed, authorizeErr := m.authorizeEventRecord(ctx, subscriber.actor, record)
+		if authorizeErr == nil && allowed {
+			eligible = append(eligible, subscriber)
+		}
+	}
+	if len(eligible) == 0 {
+		return
+	}
+	items, err := m.timelineItemsFromRecords(ctx, []EventRecord{record})
+	if err != nil || len(items) == 0 {
+		return
+	}
+	event := StreamEvent{Sequence: items[0].Sequence, Type: items[0].EventType, Timeline: items[0]}
+	for _, subscriber := range eligible {
 		if subscriber.enqueue(event) {
 			continue
 		}

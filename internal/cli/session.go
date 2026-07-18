@@ -79,76 +79,6 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newSessionCreateCommand(deps commandDeps) *cobra.Command {
-	var (
-		agentName       string
-		cwd             string
-		name            string
-		channel         string
-		provider        string
-		model           string
-		reasoningEffort string
-		workspaceRef    string
-	)
-
-	cmd := &cobra.Command{
-		Use:   sessionNewKey,
-		Short: "Create a new session",
-		Example: `  # Start a session in the current workspace using the configured default agent
-  agh session new
-
-  # Start a named session for a specific registered workspace and agent
-  agh session new --workspace checkout-api --agent reviewer --name review-api
-
-  # Override provider, model, and reasoning effort for this session only
-  agh session new --provider codex --model gpt-5.6-sol --reasoning-effort max
-
-  # Auto-register an absolute workspace path before creating the session
-  agh session new --cwd "$PWD" --agent reviewer`,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			workspace, workspacePath, err := resolveSessionCreateWorkspace(deps, workspaceRef, cwd)
-			if err != nil {
-				return err
-			}
-
-			created, err := client.CreateSession(cmd.Context(), CreateSessionRequest{
-				AgentName:       agentName,
-				Provider:        strings.TrimSpace(provider),
-				Model:           strings.TrimSpace(model),
-				ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(reasoningEffort)),
-				Name:            name,
-				Workspace:       workspace,
-				WorkspacePath:   workspacePath,
-				Channel:         strings.TrimSpace(channel),
-			})
-			if err != nil {
-				return err
-			}
-
-			return writeCommandOutput(cmd, sessionBundle(created, deps.now))
-		},
-	}
-	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name (defaults to config default)")
-	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Registered workspace name or ID")
-	cmd.Flags().StringVar(&cwd, "cwd", "", "Absolute workspace directory to auto-register")
-	cmd.Flags().StringVar(&name, sessionNameKey, "", "Optional session label")
-	cmd.Flags().StringVar(&channel, sessionChannelKey, "", "Optional network channel opt-in for the session")
-	cmd.Flags().StringVar(&provider, sessionProviderKey, "", "Optional provider override for this session")
-	cmd.Flags().StringVar(&model, "model", "", "Optional model override for this session")
-	cmd.Flags().StringVar(
-		&reasoningEffort,
-		"reasoning-effort",
-		"",
-		"Optional reasoning effort (none|minimal|low|medium|high|xhigh|max); the active adapter must advertise it",
-	)
-	return cmd
-}
-
 func newSessionStopCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop <id>",
@@ -736,7 +666,7 @@ func renderSessionHuman(info SessionRecord, now func() time.Time) (string, error
 		{Label: sessionAgentValue, Value: stringOrDash(info.AgentName)},
 		{Label: sessionProviderValue, Value: stringOrDash(info.Provider)},
 		{Label: sessionWorkspaceValue, Value: stringOrDash(displaySessionWorkspace(info))},
-		{Label: sessionChannelValue, Value: stringOrDash(info.Channel)},
+		{Label: sessionChannelValue, Value: sessionResolvedChannel(info)},
 		{Label: sessionStateValue, Value: stringOrDash(string(info.State))},
 		{Label: sessionBadgeValue, Value: stringOrDash(string(info.Badge))},
 		{Label: "Attached To", Value: stringOrDash(info.AttachedTo)},
@@ -809,7 +739,7 @@ func renderSessionToon(info SessionRecord) (string, error) {
 		info.Provider,
 		sessionSandboxBackend(info),
 		displaySessionWorkspace(info),
-		info.Channel,
+		sessionResolvedChannelRaw(info),
 		string(info.State),
 		string(info.Badge),
 		info.AttachedTo,

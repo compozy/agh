@@ -26,5 +26,11 @@ export {
   updateNetworkChannel,
   upsertNetworkSubscription,
 } from "./network-write-api";
+export {
+  getNetworkCoordination,
+  getNetworkUsage,
+  putNetworkCoordination,
+  putNetworkCoordinationInvitation,
+} from "./network-coordination-api";
 
 export type { NetworkDirectsListQuery, NetworkThreadsListQuery } from "../types";

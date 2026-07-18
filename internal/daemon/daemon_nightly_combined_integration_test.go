@@ -22,6 +22,7 @@ import (
 	extensiontest "github.com/compozy/agh/internal/extensiontest"
 	"github.com/compozy/agh/internal/sandbox"
 	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
@@ -88,6 +89,15 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 		&diagnostics,
 		&combined,
 	)
+	if _, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
+		Channel:      "ops-nightly",
+		WorkspaceID:  harness.WorkspaceID,
+		Purpose:      "Nightly delegated task coordination",
+		FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
+		AgentNames:   []string{nightlyCombinedTaskAgentName},
+	}); err != nil {
+		t.Fatalf("CreateNetworkChannel(%q) error = %v", "ops-nightly", err)
+	}
 
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
 		Jobs: []aghcontract.CreateJobRequest{{
@@ -100,9 +110,9 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 				Interval: "24h",
 			},
 			Task: &automationpkg.JobTaskConfig{
-				Title:          "Nightly delegated regression follow-up",
-				Description:    "Resume the delegated regression and post the result to the shared channel.",
-				NetworkChannel: "ops-nightly",
+				Title:                "Nightly delegated regression follow-up",
+				Description:          "Resume the delegated regression and post the result to the shared channel.",
+				NetworkParticipation: daemonTestNamedParticipationRequest("ops-nightly"),
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  "job:nightly-triage",
@@ -129,8 +139,15 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	taskID = run.TaskID
 	taskRunID = run.TaskRunID
 
-	if _, err := harness.ClaimTaskRun(ctx, run.TaskRunID, aghcontract.ClaimTaskRunRequest{}); err != nil {
-		t.Fatalf("ClaimTaskRun(%q) error = %v", run.TaskRunID, err)
+	worker := createFixtureBackedSession(
+		t,
+		ctx,
+		harness,
+		nightlyCombinedTaskAgentName,
+		"nightly-task-claim-worker",
+	)
+	if _, err := harness.ClaimExactTaskRunForSession(ctx, run.TaskRunID, worker); err != nil {
+		t.Fatalf("ClaimExactTaskRunForSession(%q) error = %v", run.TaskRunID, err)
 	}
 	startedRun, err := harness.StartTaskRun(ctx, run.TaskRunID, aghcontract.StartTaskRunRequest{})
 	if err != nil {
@@ -167,8 +184,8 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	if got, want := resumed.State, sessionpkg.StateActive; got != want {
 		t.Fatalf("resumed.State = %q, want %q", got, want)
 	}
-	if got, want := resumed.Channel, "ops-nightly"; got != want {
-		t.Fatalf("resumed.Channel = %q, want %q", got, want)
+	if got, want := resolvedParticipationChannelID(resumed.ResolvedNetworkParticipation), "ops-nightly"; got != want {
+		t.Fatalf("resumed.ResolvedNetworkParticipation.ChannelID = %q, want %q", got, want)
 	}
 	if resumed.Sandbox == nil {
 		t.Fatal("resumed.Sandbox = nil, want sandbox metadata after resume")
@@ -267,7 +284,7 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	}
 
 	meta := mustReadSessionMeta(t, harness, sessionID)
-	if got, want := meta.Channel, "ops-nightly"; got != want {
+	if got, want := meta.NetworkParticipation.ChannelID, "ops-nightly"; got != want {
 		t.Fatalf("session meta channel = %q, want %q", got, want)
 	}
 	if meta.Sandbox == nil {
@@ -799,10 +816,10 @@ func registerNightlyBridgeCombinedArtifacts(
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if err := harness.CaptureBridgeHealth(ctx); err != nil {
-			t.Logf("CaptureBridgeHealth() error = %v", err)
-		}
 		if trimmedBridgeID := strings.TrimSpace(derefStringValue(bridgeID)); trimmedBridgeID != "" {
+			if err := harness.CaptureBridgeHealth(ctx, trimmedBridgeID); err != nil {
+				t.Logf("CaptureBridgeHealth(%q) error = %v", trimmedBridgeID, err)
+			}
 			if err := harness.CaptureBridgeRoutes(ctx, trimmedBridgeID); err != nil {
 				t.Logf("CaptureBridgeRoutes(%q) error = %v", trimmedBridgeID, err)
 			}

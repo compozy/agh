@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/testutil"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/notifications"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -30,21 +31,20 @@ func TestTaskPayloadBuildersPreserveIdentityOwnershipAndRunBindings(t *testing.T
 
 	view := &taskpkg.View{
 		Task: taskpkg.Task{
-			ID:             "task-1",
-			Identifier:     "TASK-1",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    "ws-alpha",
-			ParentTaskID:   "task-root",
-			NetworkChannel: "builders",
-			Title:          "Review task API",
-			Description:    "Check handler wiring",
-			Status:         taskpkg.TaskStatusInProgress,
-			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
-			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
-			CreatedAt:      time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
-			UpdatedAt:      time.Date(2026, 4, 14, 10, 1, 0, 0, time.UTC),
-			Metadata:       taskMetadata,
+			ID:           "task-1",
+			Identifier:   "TASK-1",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-alpha",
+			ParentTaskID: "task-root",
+			Title:        "Review task API",
+			Description:  "Check handler wiring",
+			Status:       taskpkg.TaskStatusInProgress,
+			Owner:        &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+			CreatedBy:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			Origin:       taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
+			CreatedAt:    time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+			UpdatedAt:    time.Date(2026, 4, 14, 10, 1, 0, 0, time.UTC),
+			Metadata:     taskMetadata,
 		},
 		Children: []taskpkg.Summary{{
 			ID:        "task-child",
@@ -63,18 +63,18 @@ func TestTaskPayloadBuildersPreserveIdentityOwnershipAndRunBindings(t *testing.T
 			CreatedAt:       time.Date(2026, 4, 14, 10, 3, 0, 0, time.UTC),
 		}},
 		Runs: []taskpkg.Run{{
-			ID:             "run-1",
-			TaskID:         "task-1",
-			Status:         taskpkg.TaskRunStatusRunning,
-			Attempt:        2,
-			ClaimedBy:      &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			SessionID:      "sess-1",
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
-			IdempotencyKey: "key-1",
-			NetworkChannel: "builders",
-			QueuedAt:       time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
-			StartedAt:      time.Date(2026, 4, 14, 10, 4, 0, 0, time.UTC),
-			Result:         runResult,
+			ID:              "run-1",
+			TaskID:          "task-1",
+			Status:          taskpkg.TaskRunStatusRunning,
+			Attempt:         2,
+			ClaimedBy:       &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			SessionID:       "sess-1",
+			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
+			IdempotencyKey:  "key-1",
+			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: testLiveParticipation("ws-alpha", "builders")},
+			QueuedAt:        time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+			StartedAt:       time.Date(2026, 4, 14, 10, 4, 0, 0, time.UTC),
+			Result:          runResult,
 		}},
 		Events: []taskpkg.Event{{
 			ID:        "evt-1",
@@ -136,7 +136,6 @@ func TestStatusForTaskError(t *testing.T) {
 		{name: "task not found", err: taskpkg.ErrTaskNotFound, want: http.StatusNotFound},
 		{name: "workspace missing", err: workspacepkg.ErrWorkspaceNotFound, want: http.StatusNotFound},
 		{name: "invalid transition", err: taskpkg.ErrInvalidStatusTransition, want: http.StatusConflict},
-		{name: "stale network channel", err: taskpkg.ErrStaleNetworkChannel, want: http.StatusConflict},
 	}
 
 	for _, tc := range testCases {
@@ -195,6 +194,7 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 			}
 			if profile == nil {
 				t.Fatal("SetExecutionProfile profile = nil")
+				return taskpkg.ExecutionProfile{}, nil
 			}
 			gotSetProfile = *profile
 			stored := *profile
@@ -1350,6 +1350,10 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 				resp.Body.String(),
 			)
 		}
+		body := resp.Body.String()
+		if !strings.Contains(body, "unknown_field") || !strings.Contains(body, "network_channel") {
+			t.Fatalf("channel create body = %s, want unknown_field with network_channel named", body)
+		}
 	})
 
 	t.Run("ShouldRejectUnknownWorkspaceAndInvalidOwnerInput", func(t *testing.T) {
@@ -1540,7 +1544,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 
-	var listedQuery taskpkg.Query
+	var listedQuery taskpkg.CatalogQuery
 	var createdSpec taskpkg.CreateTask
 	var childSpec taskpkg.CreateTask
 	var deletedTaskID string
@@ -1553,7 +1557,6 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	enqueuedRuns := make([]taskpkg.EnqueueRun, 0)
 	var listedRunTaskID string
 	var listedRunQuery taskpkg.RunQuery
-	var claimedRun taskpkg.ClaimRun
 	var startedRun taskpkg.StartRun
 	var attachedRunID string
 	var attachedSessionID string
@@ -1569,19 +1572,18 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 
 	taskView := &taskpkg.View{
 		Task: taskpkg.Task{
-			ID:             "task-1",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    "ws-alpha",
-			NetworkChannel: "builders",
-			Title:          "Review task API",
-			Description:    "Check handler wiring",
-			Status:         taskpkg.TaskStatusInProgress,
-			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
-			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
-			CreatedAt:      now,
-			UpdatedAt:      now,
-			Metadata:       json.RawMessage(`{"priority":"high"}`),
+			ID:          "task-1",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-alpha",
+			Title:       "Review task API",
+			Description: "Check handler wiring",
+			Status:      taskpkg.TaskStatusInProgress,
+			Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+			CreatedBy:   taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			Metadata:    json.RawMessage(`{"priority":"high"}`),
 		},
 		Dependencies: []taskpkg.Dependency{{
 			TaskID:          "task-1",
@@ -1621,22 +1623,32 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 
 	getTaskCalls := 0
 	tasks := &testutil.StubTaskManager{
-		ListTasksFn: func(_ context.Context, query taskpkg.Query, _ taskpkg.ActorContext) ([]taskpkg.Summary, error) {
+		ListTaskCatalogFn: func(
+			_ context.Context,
+			query taskpkg.CatalogQuery,
+			_ taskpkg.ActorContext,
+		) (taskpkg.CatalogPage, error) {
 			listedQuery = query
-			return []taskpkg.Summary{{
-				ID:             "task-1",
-				Scope:          query.Scope,
-				WorkspaceID:    query.WorkspaceID,
-				ParentTaskID:   query.ParentTaskID,
-				NetworkChannel: query.NetworkChannel,
-				Title:          "Review task API",
-				Status:         query.Status,
-				Owner:          &taskpkg.Ownership{Kind: query.OwnerKind, Ref: query.OwnerRef},
-				CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-				Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.list"},
-				CreatedAt:      now,
-				UpdatedAt:      now,
-			}}, nil
+			liveSpec := testLiveParticipation("ws-alpha", "builders")
+			return taskpkg.CatalogPage{Tasks: []taskpkg.Summary{{
+				ID:           "task-1",
+				Scope:        taskpkg.Scope(query.Scope),
+				WorkspaceID:  query.WorkspaceID,
+				ParentTaskID: query.ParentTaskID,
+				Title:        "Review task API",
+				Status:       query.Status,
+				Owner:        &taskpkg.Ownership{Kind: query.OwnerKind, Ref: query.OwnerRef},
+				CreatedBy:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+				Origin:       taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.list"},
+				CreatedAt:    now,
+				UpdatedAt:    now,
+				ActiveRun: &taskpkg.RunSummary{
+					ID:                           "run-1",
+					TaskID:                       "task-1",
+					Status:                       taskpkg.TaskRunStatusRunning,
+					ResolvedNetworkParticipation: &liveSpec,
+				},
+			}}, Total: 1, Limit: query.Limit}, nil
 		},
 		CreateTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 			createdSpec = spec
@@ -1719,23 +1731,9 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 				Attempt:            int32(len(enqueuedRuns) + 2),
 				Origin:             actor.Origin,
 				IdempotencyKey:     spec.IdempotencyKey,
-				NetworkChannel:     spec.NetworkChannel,
 				DesignationGroupID: spec.DesignationGroupID,
 				Metadata:           spec.Metadata,
 				QueuedAt:           now,
-			}, nil
-		},
-		ClaimRunFn: func(_ context.Context, _ string, claim taskpkg.ClaimRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
-			claimedRun = claim
-			return &taskpkg.Run{
-				ID:        "run-1",
-				TaskID:    "task-1",
-				Status:    taskpkg.TaskRunStatusClaimed,
-				Attempt:   1,
-				ClaimedBy: &actor.Actor,
-				Origin:    actor.Origin,
-				QueuedAt:  now,
-				ClaimedAt: now,
 			}, nil
 		},
 		StartRunFn: func(_ context.Context, _ string, req taskpkg.StartRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
@@ -1767,45 +1765,42 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		CompleteRunFn: func(_ context.Context, _ string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			completedRun = result
 			return &taskpkg.Run{
-				ID:                    "run-1",
-				TaskID:                "task-1",
-				Status:                taskpkg.TaskRunStatusCompleted,
-				Attempt:               1,
-				Origin:                actor.Origin,
-				QueuedAt:              now,
-				EndedAt:               now,
-				Result:                result.Value,
-				NetworkChannel:        "builders",
-				CoordinationChannelID: "builders",
+				ID:              "run-1",
+				TaskID:          "task-1",
+				Status:          taskpkg.TaskRunStatusCompleted,
+				Attempt:         1,
+				Origin:          actor.Origin,
+				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: testLiveParticipation("ws-alpha", "builders")},
+				QueuedAt:        now,
+				EndedAt:         now,
+				Result:          result.Value,
 			}, nil
 		},
 		FailRunFn: func(_ context.Context, _ string, failure taskpkg.RunFailure, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			failedRun = failure
 			return &taskpkg.Run{
-				ID:                    "run-2",
-				TaskID:                "task-1",
-				Status:                taskpkg.TaskRunStatusFailed,
-				Attempt:               2,
-				Origin:                actor.Origin,
-				QueuedAt:              now,
-				EndedAt:               now,
-				Error:                 failure.Error,
-				NetworkChannel:        "builders",
-				CoordinationChannelID: "builders",
+				ID:              "run-2",
+				TaskID:          "task-1",
+				Status:          taskpkg.TaskRunStatusFailed,
+				Attempt:         2,
+				Origin:          actor.Origin,
+				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: testLiveParticipation("ws-alpha", "builders")},
+				QueuedAt:        now,
+				EndedAt:         now,
+				Error:           failure.Error,
 			}, nil
 		},
 		CancelRunFn: func(_ context.Context, _ string, req taskpkg.CancelRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			cancelledRun = req
 			return &taskpkg.Run{
-				ID:                    "run-2",
-				TaskID:                "task-1",
-				Status:                taskpkg.TaskRunStatusCanceled,
-				Attempt:               2,
-				Origin:                actor.Origin,
-				QueuedAt:              now,
-				EndedAt:               now,
-				NetworkChannel:        "builders",
-				CoordinationChannelID: "builders",
+				ID:              "run-2",
+				TaskID:          "task-1",
+				Status:          taskpkg.TaskRunStatusCanceled,
+				Attempt:         2,
+				Origin:          actor.Origin,
+				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: testLiveParticipation("ws-alpha", "builders")},
+				QueuedAt:        now,
+				EndedAt:         now,
 			}, nil
 		},
 		ForceReleaseRunFn: func(
@@ -1946,7 +1941,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodGet,
-		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&limit=2",
+		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&participation_channel=builders&limit=2",
 		nil,
 	)
 	if resp.Code != http.StatusOK {
@@ -1959,7 +1954,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks",
 		[]byte(
-			`{"scope":"workspace","workspace":"alpha","title":"Review task API","description":"Check handler wiring","network_channel":"builders","owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
+			`{"scope":"workspace","workspace":"alpha","title":"Review task API","description":"Check handler wiring","owner":{"kind":"pool","ref":"reviewers"},"network_participation":{"mode":"live","channel_strategy":"run","bounds":{"max_wakes":4}},"metadata":{"priority":"high"}}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -1981,7 +1976,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		fixture.Engine,
 		http.MethodPatch,
 		"/tasks/task-1",
-		[]byte(`{"title":"Renamed task","network_channel":"builders","metadata":{"priority":"medium"}}`),
+		[]byte(`{"title":"Renamed task","metadata":{"priority":"medium"}}`),
 	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("update status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
@@ -2042,7 +2037,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs",
 		[]byte(
-			`{"idempotency_key":"key-3","network_channel":"builders","metadata":{"schema":"agh.harness.detached.v1","kind":"harness_detached_run"}}`,
+			`{"idempotency_key":"key-3","metadata":{"schema":"agh.harness.detached.v1","kind":"harness_detached_run"}}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -2055,7 +2050,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs/fan-out",
 		[]byte(
-			`{"network_channel":"builders","idempotency_key":"fanout-key","designations":[{"brief":"Review API handlers","metadata":{"lane":"api"}},{"brief":"Review web wiring","metadata":{"lane":"web"}}]}`,
+			`{"idempotency_key":"fanout-key","network_participation":{"mode":"live","channel_strategy":"named","channel_id":"release-room"},"designations":[{"brief":"Review API handlers","metadata":{"lane":"api"}},{"brief":"Review web wiring","metadata":{"lane":"web"}}]}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -2078,7 +2073,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs/fan-out",
 		[]byte(
-			`{"network_channel":"builders","idempotency_key":"invalid-fanout","designations":[{"brief":"Valid lane"},{"brief":"   "}]}`,
+			`{"idempotency_key":"invalid-fanout","designations":[{"brief":"Valid lane"},{"brief":"   "}]}`,
 		),
 	)
 	if resp.Code != http.StatusBadRequest {
@@ -2094,7 +2089,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs/fan-out",
 		[]byte(
-			`{"network_channel":"builders","designations":[{"brief":"Missing idempotency"}]}`,
+			`{"designations":[{"brief":"Missing idempotency"}]}`,
 		),
 	)
 	if resp.Code != http.StatusBadRequest {
@@ -2123,17 +2118,6 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		detailRollup.TaskID != "task-1" ||
 		string(detailRollup.Summary) != string(fanoutRollup.SummaryJSON) {
 		t.Fatalf("designation rollup payload = %#v, want stored rollup %#v", detailRollup, fanoutRollup)
-	}
-
-	resp = performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/task-runs/run-1/claim",
-		[]byte(`{"idempotency_key":"claim-1"}`),
-	)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("claim status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
 
 	resp = performRequest(
@@ -2170,8 +2154,8 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	var completedResp contract.TaskRunResponse
 	testutil.DecodeJSONResponse(t, resp, &completedResp)
-	if completedResp.Run.NetworkChannel != "builders" || completedResp.Run.CoordinationChannelID != "builders" {
-		t.Fatalf("completed response = %#v, want preserved network/coordination channel", completedResp.Run)
+	if resolvedParticipationChannelID(completedResp.Run.ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf("completed response = %#v, want preserved participation", completedResp.Run)
 	}
 
 	resp = performRequest(
@@ -2186,8 +2170,8 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	var failedResp contract.TaskRunResponse
 	testutil.DecodeJSONResponse(t, resp, &failedResp)
-	if failedResp.Run.NetworkChannel != "builders" || failedResp.Run.CoordinationChannelID != "builders" {
-		t.Fatalf("failed response = %#v, want preserved network/coordination channel", failedResp.Run)
+	if resolvedParticipationChannelID(failedResp.Run.ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf("failed response = %#v, want preserved participation", failedResp.Run)
 	}
 
 	resp = performRequest(
@@ -2202,8 +2186,8 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	var cancelledResp contract.TaskRunResponse
 	testutil.DecodeJSONResponse(t, resp, &cancelledResp)
-	if cancelledResp.Run.NetworkChannel != "builders" || cancelledResp.Run.CoordinationChannelID != "builders" {
-		t.Fatalf("canceled response = %#v, want preserved network/coordination channel", cancelledResp.Run)
+	if resolvedParticipationChannelID(cancelledResp.Run.ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf("canceled response = %#v, want preserved participation", cancelledResp.Run)
 	}
 
 	// not parallel: these cases share one fixture and captured request variables for the end-of-flow assertions.
@@ -2328,12 +2312,12 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		}
 	})
 
-	if listedQuery.WorkspaceID != "ws-alpha" || listedQuery.Scope != taskpkg.ScopeWorkspace ||
-		listedQuery.NetworkChannel != "builders" {
+	if listedQuery.WorkspaceID != "ws-alpha" || listedQuery.Scope != taskpkg.CatalogScopeWorkspace {
 		t.Fatalf("listed query = %#v", listedQuery)
 	}
 	if listedQuery.Status != taskpkg.TaskStatusReady || listedQuery.OwnerKind != taskpkg.OwnerKindPool ||
 		listedQuery.OwnerRef != "reviewers" ||
+		listedQuery.ParticipationChannel != "builders" ||
 		listedQuery.Limit != 2 {
 		t.Fatalf("listed query = %#v", listedQuery)
 	}
@@ -2347,9 +2331,22 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	if getTaskCalls != 4 {
 		t.Fatalf("GetTask() calls = %d, want 4 detail reads without extra run-list fetch", getTaskCalls)
 	}
-	if createdSpec.WorkspaceID != "ws-alpha" || createdSpec.NetworkChannel != "builders" || createdSpec.Owner == nil ||
+	if createdSpec.WorkspaceID != "ws-alpha" || createdSpec.Owner == nil ||
 		createdSpec.Owner.Ref != "reviewers" {
 		t.Fatalf("created spec = %#v", createdSpec)
+	}
+	if createdSpec.NetworkParticipation == nil ||
+		createdSpec.NetworkParticipation.Mode == nil ||
+		*createdSpec.NetworkParticipation.Mode != participation.ModeLive ||
+		createdSpec.NetworkParticipation.ChannelStrategy == nil ||
+		*createdSpec.NetworkParticipation.ChannelStrategy != participation.StrategyRun ||
+		createdSpec.NetworkParticipation.Bounds == nil ||
+		createdSpec.NetworkParticipation.Bounds.MaxWakes == nil ||
+		*createdSpec.NetworkParticipation.Bounds.MaxWakes != 4 {
+		t.Fatalf(
+			"created network participation = %#v, want bounded Live/run",
+			createdSpec.NetworkParticipation,
+		)
 	}
 	if childSpec.WorkspaceID != "ws-alpha" || childSpec.Title != "Child task" {
 		t.Fatalf("child spec = %#v", childSpec)
@@ -2369,7 +2366,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	if removedTaskID != "task-1" || removedDependsOnID != "task-blocker" {
 		t.Fatalf("removed dependency = task=%q dependsOn=%q", removedTaskID, removedDependsOnID)
 	}
-	if enqueuedRun.IdempotencyKey != "key-3" || enqueuedRun.NetworkChannel != "builders" {
+	if enqueuedRun.IdempotencyKey != "key-3" || enqueuedRun.NetworkParticipation != nil {
 		t.Fatalf("enqueued run = %#v", enqueuedRun)
 	}
 	if got, want := string(
@@ -2386,16 +2383,21 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	for idx, run := range fanoutEnqueues {
 		if run.TaskID != "task-1" ||
-			run.NetworkChannel != "builders" ||
 			run.DesignationGroupID != fanoutRollup.DesignationGroupID {
 			t.Fatalf("fanout enqueue %d = %#v", idx, run)
+		}
+		if run.NetworkParticipation == nil ||
+			run.NetworkParticipation.Mode == nil ||
+			*run.NetworkParticipation.Mode != participation.ModeLive ||
+			run.NetworkParticipation.ChannelStrategy == nil ||
+			*run.NetworkParticipation.ChannelStrategy != participation.StrategyNamed ||
+			run.NetworkParticipation.ChannelID == nil ||
+			*run.NetworkParticipation.ChannelID != "release-room" {
+			t.Fatalf("fanout enqueue %d participation = %#v", idx, run.NetworkParticipation)
 		}
 		if !strings.Contains(string(run.Metadata), `"designation"`) {
 			t.Fatalf("fanout enqueue %d metadata = %s, want designation payload", idx, run.Metadata)
 		}
-	}
-	if claimedRun.IdempotencyKey != "claim-1" {
-		t.Fatalf("claimed run = %#v", claimedRun)
 	}
 	if startedRun.IdempotencyKey != "start-1" {
 		t.Fatalf("started run = %#v", startedRun)
@@ -2454,7 +2456,6 @@ func TestBaseHandlersTaskActorResolverErrors(t *testing.T) {
 		{method: http.MethodDelete, path: "/tasks/task-1/dependencies/task-blocker"},
 		{method: http.MethodGet, path: "/tasks/task-1/runs"},
 		{method: http.MethodPost, path: "/tasks/task-1/runs", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/task-runs/run-1/claim", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/start", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/attach-session", body: []byte(`{"session_id":"sess-1"}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/complete", body: []byte(`{}`)},
@@ -2517,7 +2518,6 @@ func TestBaseHandlersTaskServiceUnavailable(t *testing.T) {
 		{method: http.MethodDelete, path: "/tasks/task-1/dependencies/task-blocker"},
 		{method: http.MethodGet, path: "/tasks/task-1/runs"},
 		{method: http.MethodPost, path: "/tasks/task-1/runs", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/task-runs/run-1/claim", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/start", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/attach-session", body: []byte(`{"session_id":"sess-1"}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/complete", body: []byte(`{}`)},
@@ -2583,9 +2583,6 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 			EnqueueRunFn: func(context.Context, taskpkg.EnqueueRun, taskpkg.ActorContext) (*taskpkg.Run, error) {
 				return nil, taskpkg.ErrInvalidStatusTransition
 			},
-			ClaimRunFn: func(context.Context, string, taskpkg.ClaimRun, taskpkg.ActorContext) (*taskpkg.Run, error) {
-				return nil, taskpkg.ErrTaskRunNotFound
-			},
 			StartRunFn: func(context.Context, string, taskpkg.StartRun, taskpkg.ActorContext) (*taskpkg.Run, error) {
 				return nil, taskpkg.ErrInvalidStatusTransition
 			},
@@ -2644,7 +2641,6 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 		{method: http.MethodDelete, path: "/tasks/task-1/dependencies/task-blocker", want: http.StatusNotFound},
 		{method: http.MethodGet, path: "/tasks/task-1/runs", want: http.StatusNotFound},
 		{method: http.MethodPost, path: "/tasks/task-1/runs", body: []byte(`{}`), want: http.StatusConflict},
-		{method: http.MethodPost, path: "/task-runs/run-1/claim", body: []byte(`{}`), want: http.StatusNotFound},
 		{method: http.MethodPost, path: "/task-runs/run-1/start", body: []byte(`{}`), want: http.StatusConflict},
 		{
 			method: http.MethodPost,
@@ -2703,7 +2699,6 @@ func TestBaseHandlersTaskDecodeErrors(t *testing.T) {
 		{method: http.MethodPost, path: "/tasks/task-root/children", body: []byte(`{"scope":`)},
 		{method: http.MethodPost, path: "/tasks/task-1/dependencies", body: []byte(`{"depends_on_task_id":`)},
 		{method: http.MethodPost, path: "/tasks/task-1/runs", body: []byte(`{"idempotency_key":`)},
-		{method: http.MethodPost, path: "/task-runs/run-1/claim", body: []byte(`{"idempotency_key":`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/start", body: []byte(`{"idempotency_key":`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/attach-session", body: []byte(`{"session_id":`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/complete", body: []byte(`{"result":`)},
@@ -2726,4 +2721,91 @@ func TestBaseHandlersTaskDecodeErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBaseHandlersUpdateTaskNetworkParticipation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist Live intent on the execution-profile owning stream", func(t *testing.T) {
+		t.Parallel()
+
+		const taskID = "task-np-update"
+		var (
+			gotPatch    taskpkg.Patch
+			updateCalls int
+		)
+		tasks := &testutil.StubTaskManager{
+			GetTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
+				if id != taskID {
+					t.Fatalf("GetTask id = %q, want %q", id, taskID)
+				}
+				return &taskpkg.View{
+					Task: taskpkg.Task{
+						ID:     taskID,
+						Title:  "Draft handoff",
+						Scope:  taskpkg.ScopeWorkspace,
+						Status: taskpkg.TaskStatusDraft,
+					},
+				}, nil
+			},
+			UpdateTaskFn: func(
+				_ context.Context,
+				id string,
+				patch taskpkg.Patch,
+				_ taskpkg.ActorContext,
+			) (*taskpkg.Task, error) {
+				updateCalls++
+				if id != taskID {
+					t.Fatalf("UpdateTask id = %q, want %q", id, taskID)
+				}
+				gotPatch = patch
+				return &taskpkg.Task{ID: taskID, Title: "Draft handoff", Scope: taskpkg.ScopeWorkspace}, nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/tasks/"+taskID,
+			[]byte(`{"network_participation":{"mode":"live","channel_strategy":"run"}}`),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		if updateCalls != 1 {
+			t.Fatalf("UpdateTask calls = %d, want 1", updateCalls)
+		}
+		if gotPatch.NetworkParticipation == nil {
+			t.Fatalf("UpdateTask patch = %#v, want network_participation", gotPatch)
+		}
+		if gotPatch.NetworkParticipation.Mode == nil ||
+			*gotPatch.NetworkParticipation.Mode != participation.ModeLive {
+			t.Fatalf("mode = %#v, want %q", gotPatch.NetworkParticipation.Mode, participation.ModeLive)
+		}
+		if gotPatch.NetworkParticipation.ChannelStrategy == nil ||
+			*gotPatch.NetworkParticipation.ChannelStrategy != participation.StrategyRun {
+			t.Fatalf(
+				"channel_strategy = %#v, want %q",
+				gotPatch.NetworkParticipation.ChannelStrategy,
+				participation.StrategyRun,
+			)
+		}
+
+		var response contract.TaskResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if response.Task.ID != taskID {
+			t.Fatalf("response task id = %q, want %q", response.Task.ID, taskID)
+		}
+	})
 }

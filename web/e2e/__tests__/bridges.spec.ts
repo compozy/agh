@@ -52,6 +52,9 @@ const bridgeSensitiveValues = [
 
 const bridgeRuntimeEnv = {
   AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
+  ...(process.env.AGH_WEB_DIST_DIR?.trim()
+    ? { AGH_WEB_DIST_DIR: process.env.AGH_WEB_DIST_DIR }
+    : {}),
   ...(process.env.PATH?.trim() ? { PATH: process.env.PATH } : {}),
   ...(process.platform === "win32" && process.env.PATHEXT?.trim()
     ? { PATHEXT: process.env.PATHEXT }
@@ -101,6 +104,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
 
   await expect(appPage).toHaveURL(/\/bridges$/);
   await expect(bridgeUI.listPanel).toBeVisible();
+  await expect(bridgeUI.addListFilter).toBeVisible();
 
   await bridgeUI.createBridgeButton.click();
   await expect(bridgeUI.createDialog).toBeVisible();
@@ -131,7 +135,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   await expect(bridgeUI.detailPanel).toContainText(createdBridgeName);
   await browserArtifacts.captureScreenshot("bridge-create-dialog-saved", appPage);
 
-  await bridgeUI.navBridges.click();
+  await bridgeUI.backToList.click();
   await expect(appPage).toHaveURL(/\/bridges$/);
   await expect(bridgeUI.listPanel).toBeVisible();
   await expect(bridgeUI.item(createdPayload.bridge.id)).toBeVisible();
@@ -192,6 +196,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
       timeout: 45_000,
     })
     .toContain("ready");
+  await expect(bridgeUI.activeRoutesMetric).toContainText("0");
   await browserArtifacts.captureScreenshot("bridge-operator-enabled", appPage);
 
   await bridgeUI.openTestDeliveryButton.click();
@@ -230,6 +235,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   expect(ingress.transcript).toContain(browserBridgeOperatorFlowScenario.ingress.assistant);
 
   await expect(bridgeUI.route(ingress.sessionId)).toBeVisible();
+  await expect(bridgeUI.activeRoutesMetric).toContainText("1");
   await expect
     .poll(async () =>
       /Last delivery\s*Never/.test((await bridgeUI.detailPanel.textContent()) ?? "")
@@ -411,7 +417,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
     .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
     .toContain("ready");
 
-  await assertBridgeDetailResponsive(appPage, bridgeUI);
+  await assertBridgeDetailResponsive(appPage, bridgeUI, createdBridge.id);
   const routeState = await captureRouteState(appPage);
   expect(routeState.bridge_view_visible).toBe(true);
   expect(routeState.bridge_selected_item).toBe(createdName);
@@ -622,7 +628,8 @@ async function requestOperatorJSONOrThrow<T>(
 
 async function assertBridgeDetailResponsive(
   appPage: Page,
-  bridgeUI: ReturnType<typeof bridgeOperatorSelectors>
+  bridgeUI: ReturnType<typeof bridgeOperatorSelectors>,
+  bridgeId: string
 ): Promise<void> {
   for (const viewport of [
     { height: 900, name: "mobile", width: 375 },
@@ -631,6 +638,8 @@ async function assertBridgeDetailResponsive(
   ]) {
     await appPage.setViewportSize({ height: viewport.height, width: viewport.width });
     await expect(bridgeUI.detailPanel).toBeVisible();
+    await expect(appPage).toHaveURL(new RegExp(`/bridges/${encodeURIComponent(bridgeId)}$`));
+    await expect(bridgeUI.backToList).toBeVisible();
     await expect(bridgeUI.restartBridgeButton).toBeVisible();
     await expect(bridgeUI.openTestDeliveryButton).toBeVisible();
   }

@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"strings"
 
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -30,21 +31,47 @@ func (s *StubTaskManager) ListTaskCatalog(
 	if s.ListTasksFn == nil {
 		return taskpkg.CatalogPage{Limit: query.Limit}, nil
 	}
+	limit := query.Limit
+	if strings.TrimSpace(query.ParticipationChannel) != "" {
+		limit = 0
+	}
 	tasks, err := s.ListTasksFn(ctx, taskpkg.Query{
-		Scope:          taskpkg.Scope(query.Scope),
-		WorkspaceID:    query.WorkspaceID,
-		Status:         query.Status,
-		Priority:       query.Priority,
-		ApprovalState:  query.ApprovalState,
-		OwnerKind:      query.OwnerKind,
-		OwnerRef:       query.OwnerRef,
-		ParentTaskID:   query.ParentTaskID,
-		NetworkChannel: query.NetworkChannel,
-		Search:         query.Search,
-		Limit:          query.Limit,
+		Scope:         taskpkg.Scope(query.Scope),
+		WorkspaceID:   query.WorkspaceID,
+		Status:        query.Status,
+		Priority:      query.Priority,
+		ApprovalState: query.ApprovalState,
+		OwnerKind:     query.OwnerKind,
+		OwnerRef:      query.OwnerRef,
+		ParentTaskID:  query.ParentTaskID,
+		Search:        query.Search,
+		Limit:         limit,
 	}, actor)
 	if err != nil {
 		return taskpkg.CatalogPage{}, err
 	}
-	return taskpkg.CatalogPage{Tasks: tasks, Total: len(tasks), Limit: query.Limit}, nil
+	channel := strings.TrimSpace(query.ParticipationChannel)
+	if channel != "" {
+		filtered := make([]taskpkg.Summary, 0, len(tasks))
+		for index := range tasks {
+			run := tasks[index].ActiveRun
+			if run != nil && run.ResolvedNetworkParticipation != nil &&
+				strings.TrimSpace(run.ResolvedNetworkParticipation.ChannelID) == channel {
+				filtered = append(filtered, tasks[index])
+			}
+		}
+		tasks = filtered
+	}
+	total := len(tasks)
+	page := taskpkg.CatalogPage{Tasks: tasks, Total: total, Limit: query.Limit}
+	if query.Limit <= 0 || len(page.Tasks) <= query.Limit {
+		return page, nil
+	}
+	page.HasMore = true
+	page.Tasks = page.Tasks[:query.Limit]
+	page.NextCursor, err = taskpkg.EncodeCatalogCursor(query, &page.Tasks[len(page.Tasks)-1])
+	if err != nil {
+		return taskpkg.CatalogPage{}, err
+	}
+	return page, nil
 }

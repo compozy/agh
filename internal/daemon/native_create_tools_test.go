@@ -23,12 +23,12 @@ import (
 func TestNativeNetworkChannelCreate(t *testing.T) {
 	t.Parallel()
 
-	var written store.NetworkChannelEntry
-	writeCalls := 0
+	var created store.NetworkChannelEntry
+	createCalls := 0
 	netStore := apitest.StubNetworkStore{
-		WriteNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
-			writeCalls++
-			written = entry
+		CreateNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
+			createCalls++
+			created = entry
 			return nil
 		},
 	}
@@ -50,13 +50,13 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 			t.Fatalf("Registry.Call(network_channel_create) error = %v", err)
 		}
 		requireNativeStructuredContains(t, result, []byte(`"design"`))
-		if writeCalls != 1 {
-			t.Fatalf("WriteNetworkChannel calls = %d, want 1", writeCalls)
+		if createCalls != 1 {
+			t.Fatalf("CreateNetworkChannel calls = %d, want 1", createCalls)
 		}
-		if written.Channel != "design" ||
-			written.WorkspaceID != nativeNetworkTestWorkspaceID ||
-			written.Purpose != "UI reviews" {
-			t.Fatalf("written entry = %#v, want design/native-workspace/UI reviews", written)
+		if created.Channel != "design" ||
+			created.WorkspaceID != nativeNetworkTestWorkspaceID ||
+			created.Purpose != "UI reviews" {
+			t.Fatalf("created entry = %#v, want design/native-workspace/UI reviews", created)
 		}
 	})
 
@@ -67,7 +67,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network: &nativeNetworkStub{},
 			NetworkStore: apitest.StubNetworkStore{
-				WriteNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
+				CreateNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
 					stored = entry
 					return nil
 				},

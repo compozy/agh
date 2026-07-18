@@ -8,6 +8,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -139,8 +140,8 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		if info.Type != SessionTypeSpawned {
 			t.Fatalf("child type = %q, want %q", info.Type, SessionTypeSpawned)
 		}
-		if info.Channel != parent.Info().Channel {
-			t.Fatalf("child channel = %q, want inherited %q", info.Channel, parent.Info().Channel)
+		if got, want := info.NetworkParticipation, participation.LocalSpec(); got != want {
+			t.Fatalf("child participation = %#v, want %#v", got, want)
 		}
 		if info.Lineage == nil {
 			t.Fatal("child lineage = nil, want durable lineage")
@@ -166,6 +167,92 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		if len(h.driver.startCalls) < 2 ||
 			!strings.Contains(h.driver.startCalls[len(h.driver.startCalls)-1].SystemPrompt, "Focus only on tests.") {
 			t.Fatalf("child prompt overlay was not appended to start prompt: %#v", h.driver.startCalls)
+		}
+	})
+
+	t.Run("Should keep children local by default and enforce their delegated channel scope", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithParticipationResolver(newTestSessionParticipationResolver(t, true)))
+		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:                    "coder",
+			Workspace:                    h.workspaceID,
+			ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
+			Lineage: &store.SessionLineage{
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1},
+				PermissionPolicy: store.SessionPermissionPolicy{
+					Tools:           []string{testToolRead},
+					NetworkChannels: []string{"builders", "restricted"},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, parent.ID)
+
+		localChild, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools: []string{testToolRead},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Spawn(local) error = %v", err)
+		}
+		cleanupSessionStop(t, h, localChild.ID)
+		if got, want := localChild.Info().NetworkParticipation, participation.LocalSpec(); got != want {
+			t.Fatalf("local child participation = %#v, want %#v", got, want)
+		}
+
+		live := participation.ModeLive
+		named := participation.StrategyNamed
+		builders := "builders"
+		liveChild, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+			NetworkParticipation: &participation.Request{
+				Mode:            &live,
+				ChannelStrategy: &named,
+				ChannelID:       &builders,
+			},
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools:           []string{testToolRead},
+				NetworkChannels: []string{"builders"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Spawn(live) error = %v", err)
+		}
+		cleanupSessionStop(t, h, liveChild.ID)
+		if got, want := liveChild.Info().NetworkParticipation.ChannelID, builders; got != want {
+			t.Fatalf("live child channel = %q, want %q", got, want)
+		}
+
+		activeBefore := len(h.manager.List())
+		restricted := "restricted"
+		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+			NetworkParticipation: &participation.Request{
+				Mode:            &live,
+				ChannelStrategy: &named,
+				ChannelID:       &restricted,
+			},
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools:           []string{testToolRead},
+				NetworkChannels: []string{"builders"},
+			},
+		})
+		if !errors.Is(err, participation.ErrAuthorityDenied) {
+			t.Fatalf("Spawn(denied) error = %v, want %v", err, participation.ErrAuthorityDenied)
+		}
+		if got := len(h.manager.List()); got != activeBefore {
+			t.Fatalf("active sessions after denial = %d, want %d", got, activeBefore)
 		}
 	})
 }
@@ -327,11 +414,11 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 
 		h := newHarness(t)
 		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Name:      "networked parent",
-			Workspace: h.workspaceID,
-			Channel:   "builders",
-			Type:      SessionTypeUser,
+			AgentName:                    "coder",
+			Name:                         "networked parent",
+			Workspace:                    h.workspaceID,
+			ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
+			Type:                         SessionTypeUser,
 			Lineage: &store.SessionLineage{
 				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
 				PermissionPolicy: store.SessionPermissionPolicy{
@@ -350,7 +437,6 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
 			ParentSessionID:    parent.ID,
 			AgentName:          "coder",
-			Channel:            "builders",
 			SpawnRole:          SpawnRoleMemoryExtractor,
 			TTL:                time.Minute,
 			AllowStoppedParent: true,
@@ -363,11 +449,11 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 		}
 		cleanupSessionStop(t, h, child.ID)
 
-		if got := child.Info().Channel; got != "" {
-			t.Fatalf("child channel = %q, want empty for memory extractor", got)
+		if got, want := child.Info().NetworkParticipation, participation.LocalSpec(); got != want {
+			t.Fatalf("child participation = %#v, want %#v", got, want)
 		}
-		if got := readMeta(t, child.MetaPath()).Channel; got != "" {
-			t.Fatalf("persisted child channel = %q, want empty for memory extractor", got)
+		if got, want := readMeta(t, child.MetaPath()).NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
+			t.Fatalf("persisted child participation = %#v, want %#v", got, want)
 		}
 
 		lineage := child.Info().Lineage

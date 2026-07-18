@@ -9,8 +9,8 @@ audit across `docs/rfcs/`, `internal/network/`, `packages/site/content/protocol/
 ## Context
 
 Commit `76afabb8 feat: hard cut workspace isolation` performed a greenfield, zero-legacy rewrite of
-the AGH Network wire and NATS subject grammar so every envelope carries `workspace_id` and every
-NATS subject is workspace-qualified (`agh.network.v0.<workspace_id>.<channel>....`). The runtime
+the AGH Network wire and routing grammar so every envelope carries `workspace_id` and every
+conversation identity is workspace-qualified. The runtime
 contract _changed_, but no public user existed on the previous shape.
 
 In the follow-up commit `6fb41e8d docs: add workspace-qualified network v2 RFC`, the agent
@@ -53,11 +53,11 @@ _invent a new one_.
 ## Operationalization
 
 - Before adding a new version identifier to any RFC, ask: **does a published peer speak the old
-  version?** If no, hard-cut the current version's RFC, code constants, NATS subjects, envelope
+  version?** If no, hard-cut the current version's RFC, code constants, routing fields, envelope
   schema, tests, docs, copy, and landing/slides in one change.
 - The hard cut sweeps every surface in one commit. Renames of protocol version strings touch:
   - RFC files under `docs/rfcs/` (current contract + any historical archive marker).
-  - Go constants under `internal/network/` (e.g. `ProtocolV0`, `subjectPrefix`).
+  - Go constants under `internal/network/` (for example, `ProtocolV0`).
   - Generated artifacts: `openapi/agh.json`, `web/src/generated/agh-openapi.d.ts`, runtime/API
     reference pages.
   - Site content: `packages/site/content/protocol/**`, `packages/site/content/runtime/core/network/**`,
@@ -94,8 +94,8 @@ _invent a new one_.
   cut.
 - `docs/rfcs/004_agh-network-v1.md` — future auth/proofs/trust profile, depends on v0; the slot
   the erroneous v2 was poaching.
-- `internal/network/envelope.go` (`ProtocolV0`) and `internal/network/transport.go`
-  (`subjectPrefix = "agh.network.v0"`) — the single-source-of-truth constants.
+- `internal/network/envelope.go` (`ProtocolV0`) — the single-source-of-truth protocol constant; delivery
+  is commit-first and in-process under ADR-010.
 - `packages/site/lib/__tests__/protocol-rfc-hard-cut.test.ts` — the truth test that now asserts
   `agh-network/v0` is current and forbids `agh-network/v2` / `ProtocolV2` / `006_agh-network-v2`.
 - [L-006](L-006-greenfield-delete-not-adapt.md) — the broader posture this lesson specializes to

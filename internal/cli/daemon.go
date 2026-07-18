@@ -23,13 +23,13 @@ import (
 const (
 	daemonStartedValue = "Started"
 	daemonStatusValue  = "Status"
-	daemonVersionValue = "Version"
+	versionValue       = "Version"
 	daemonDaemonKey    = "daemon"
 	daemonDisabledKey  = "disabled"
 	daemonStartKey     = "start"
 	daemonStartedAtKey = "started_at"
 	daemonStatusKey    = "status"
-	daemonVersionKey   = "version"
+	versionKey         = "version"
 )
 
 const internalChildFlagName = "internal-child"
@@ -380,7 +380,7 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 		{Label: "HTTP", Value: stringOrDash(strings.TrimSpace(status.HTTPHost) + ":" + intOrDash(status.HTTPPort))},
 		{Label: "Active Sessions", Value: strconv.Itoa(status.ActiveSessions)},
 		{Label: "Total Sessions", Value: strconv.Itoa(status.TotalSessions)},
-		{Label: daemonVersionValue, Value: stringOrDash(status.Version)},
+		{Label: versionValue, Value: stringOrDash(status.Version)},
 	}
 	labels := []string{
 		daemonStatusKey,
@@ -392,7 +392,7 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 		"http_port",
 		"active_sessions",
 		"total_sessions",
-		daemonVersionKey,
+		versionKey,
 	}
 	values := []string{
 		status.Status,
@@ -425,63 +425,44 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 }
 
 func daemonNetworkStatusFields(info *contract.NetworkStatusPayload) ([]keyValue, []string, []string) {
-	listener := networkListener(info)
-
 	return []keyValue{
 			{Label: "Network", Value: stringOrDash(info.Status)},
-			{Label: "Network Listener", Value: stringOrDash(listener)},
-			{Label: "Network Local Peers", Value: strconv.Itoa(info.LocalPeers)},
-			{Label: "Network Remote Peers", Value: strconv.Itoa(info.RemotePeers)},
+			{Label: "Network Live Participants", Value: strconv.Itoa(info.LocalPeers)},
 			{Label: "Network Channels", Value: strconv.Itoa(info.Channels)},
-			{Label: "Network Queued Messages", Value: strconv.Itoa(info.QueuedMessages)},
-			{Label: "Network Delivery Workers", Value: strconv.Itoa(info.DeliveryWorkers)},
 			{Label: "Network Messages Sent", Value: strconv.FormatInt(info.MessagesSent, 10)},
 			{Label: "Network Messages Received", Value: strconv.FormatInt(info.MessagesReceived, 10)},
 			{Label: "Network Messages Rejected", Value: strconv.FormatInt(info.MessagesRejected, 10)},
 			{Label: "Network Messages Delivered", Value: strconv.FormatInt(info.MessagesDelivered, 10)},
 			{Label: "Network Workflow Tagged", Value: strconv.FormatInt(info.WorkflowTaggedEvents, 10)},
 			{Label: "Network Handoff Tagged", Value: strconv.FormatInt(info.HandoffTaggedEvents, 10)},
-			{Label: "Network Last Disconnect", Value: stringOrDash(info.LastDisconnect)},
 		}, []string{
 			"network_status",
-			"network_listener",
 			"network_local_peers",
-			"network_remote_peers",
 			"network_channels",
-			"network_queued_messages",
-			"network_delivery_workers",
 			"network_messages_sent",
 			"network_messages_received",
 			"network_messages_rejected",
 			"network_messages_delivered",
 			"network_workflow_tagged_events",
 			"network_handoff_tagged_events",
-			"network_last_disconnect",
 		}, []string{
 			info.Status,
-			listener,
 			strconv.Itoa(info.LocalPeers),
-			strconv.Itoa(info.RemotePeers),
 			strconv.Itoa(info.Channels),
-			strconv.Itoa(info.QueuedMessages),
-			strconv.Itoa(info.DeliveryWorkers),
 			strconv.FormatInt(info.MessagesSent, 10),
 			strconv.FormatInt(info.MessagesReceived, 10),
 			strconv.FormatInt(info.MessagesRejected, 10),
 			strconv.FormatInt(info.MessagesDelivered, 10),
 			strconv.FormatInt(info.WorkflowTaggedEvents, 10),
 			strconv.FormatInt(info.HandoffTaggedEvents, 10),
-			info.LastDisconnect,
 		}
 }
 
 func daemonNetworkStatusFromInfo(cfg *aghconfig.Config, info *aghdaemon.NetworkInfo) *contract.NetworkStatusPayload {
 	if info != nil {
 		return &contract.NetworkStatusPayload{
-			Enabled:      info.Enabled,
-			Status:       strings.TrimSpace(info.Status),
-			ListenerHost: strings.TrimSpace(info.ListenerHost),
-			ListenerPort: info.ListenerPort,
+			Enabled: info.Enabled,
+			Status:  strings.TrimSpace(info.Status),
 		}
 	}
 	if !cfg.Network.Enabled {
@@ -491,23 +472,6 @@ func daemonNetworkStatusFromInfo(cfg *aghconfig.Config, info *aghdaemon.NetworkI
 		}
 	}
 	return nil
-}
-
-func networkListener(info *contract.NetworkStatusPayload) string {
-	if info == nil {
-		return ""
-	}
-	host := strings.TrimSpace(info.ListenerHost)
-	switch {
-	case host == "" && info.ListenerPort <= 0:
-		return ""
-	case host == "":
-		return intOrDash(info.ListenerPort)
-	case info.ListenerPort <= 0:
-		return host
-	default:
-		return host + ":" + strconv.Itoa(info.ListenerPort)
-	}
 }
 
 func spawnDetachedDaemonProcess(

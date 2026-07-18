@@ -72,11 +72,21 @@ Memory admin tools include health, scope, reindex, promote, reset, reload, decis
 
 ## Network Tools
 
-Coordination tools: `agh__network_status`, `agh__network_channels`, `agh__network_channel_create`, `agh__network_channel_update`, `agh__network_inbox`, `agh__network_peers`, `agh__network_send`, `agh__network_threads`, `agh__network_thread_messages`, `agh__task_promote_from_thread`, `agh__network_subscriptions`, `agh__network_subscribe`, `agh__network_digest_mode`, `agh__network_mute`, `agh__network_unmute`, `agh__network_directs`, `agh__network_direct_resolve`, `agh__network_direct_messages`, `agh__network_work`.
+Coordination tools: `agh__network_status`, `agh__network_channels`, `agh__network_channel_create`, `agh__network_channel_update`, `agh__network_inbox`, `agh__network_peers`, `agh__network_send`, `agh__network_threads`, `agh__network_thread_messages`, `agh__task_promote_from_thread`, `agh__network_subscriptions`, `agh__network_subscribe`, `agh__network_mute`, `agh__network_unmute`, `agh__network_directs`, `agh__network_direct_resolve`, `agh__network_direct_messages`, `agh__network_work`.
 
-Channel create/update are mutating. Channel names are lowercase `[a-z0-9][a-z0-9_-]{0,63}`; coordinator fanout requires `coordinator_peer_id`.
+Channel create/update are mutating. Channel names are lowercase `[a-z0-9][a-z0-9_-]{0,63}`;
+coordinator routing metadata requires `coordinator_peer_id`. Routing metadata never enrolls or wakes
+an execution.
 
-Use these only inside a policy scope that permits network coordination. Read references/network.md before sending or interpreting network messages.
+The coordination toolset is projected only when the caller's immutable participation snapshot is
+Live, then narrowed by policy and dependency gates. Daemon availability alone never exposes it. A
+Local caller receives `not_participating`; create a new explicitly Live execution instead of
+retrying. The reserved onboarding agent has only its documented first-run provisioning subset.
+
+Read references/network.md before sending or interpreting messages. Direct/mention `say` is the
+only current model-wake path; other messages may persist without activation. Use `agh network usage
+-o json` through CLI/HTTP/UDS for usage because it is a management read, not a native coordination
+tool ID.
 
 ## Task And Autonomy Tools
 

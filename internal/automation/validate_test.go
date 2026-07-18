@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestScheduleSpecValidate(t *testing.T) {
@@ -498,6 +500,38 @@ func TestJobValidateRejectsMissingRequiredFields(t *testing.T) {
 				Source:    JobSourceConfig,
 			},
 		},
+		{
+			name:    "global direct task with live participation",
+			wantErr: "global direct task has no workspace binding",
+			job: Job{
+				Scope:    AutomationScopeGlobal,
+				Name:     "live-task",
+				Schedule: &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "15m"},
+				Task: &JobTaskConfig{
+					Title:                "Live task",
+					NetworkParticipation: testNamedParticipation("builders"),
+				},
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+		},
+		{
+			name:    "agent target with participation-only loop data",
+			wantErr: `job.loop_target must be empty when target_kind is "agent"`,
+			job: Job{
+				Scope:      AutomationScopeGlobal,
+				Name:       "daily-report",
+				TargetKind: TargetKindAgent,
+				AgentName:  "researcher",
+				Prompt:     "Generate daily report",
+				Schedule:   &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "15m"},
+				LoopTarget: &LoopTarget{NetworkParticipation: &participation.Request{}},
+				Retry:      DefaultRetryConfig(),
+				FireLimit:  DefaultFireLimitConfig(),
+				Source:     JobSourceConfig,
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -640,6 +674,22 @@ func TestTriggerValidate(t *testing.T) {
 				WebhookID: "wh_123",
 			},
 			wantErr: "webhook_id",
+		},
+		{
+			name: "agent target with participation-only loop data",
+			trigger: Trigger{
+				Scope:      AutomationScopeGlobal,
+				Name:       "deploy",
+				TargetKind: TargetKindAgent,
+				AgentName:  "reviewer",
+				Prompt:     `{{ .Kind }}`,
+				Event:      "session.stopped",
+				LoopTarget: &LoopTarget{NetworkParticipation: &participation.Request{}},
+				Retry:      DefaultRetryConfig(),
+				FireLimit:  DefaultFireLimitConfig(),
+				Source:     JobSourceConfig,
+			},
+			wantErr: `trigger.loop_target must be empty when target_kind is "agent"`,
 		},
 	}
 
@@ -867,11 +917,25 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 	}
 
 	if err := (JobTaskConfig{
-		NetworkChannel: "bad channel",
+		NetworkParticipation: testNamedParticipation("bad channel"),
 	}).Validate("job.task"); err == nil {
 		t.Fatal("JobTaskConfig.Validate(invalid channel) error = nil, want non-nil")
-	} else if got := err.Error(); !strings.Contains(got, "job.task.network_channel is invalid") {
-		t.Fatalf("JobTaskConfig.Validate(invalid channel) error = %q, want network_channel validation", got)
+	} else if got := err.Error(); !strings.Contains(got, "job.task.network_participation is invalid") ||
+		!strings.Contains(got, participation.ErrStrategyInvalid.Error()) {
+		t.Fatalf("JobTaskConfig.Validate(invalid channel) error = %q, want participation validation", got)
+	}
+	loopRunStrategy := participation.StrategyLoopRun
+	liveMode := participation.ModeLive
+	if err := (JobTaskConfig{
+		NetworkParticipation: &participation.Request{
+			Mode:            &liveMode,
+			ChannelStrategy: &loopRunStrategy,
+		},
+	}).Validate("job.task"); err == nil {
+		t.Fatal("JobTaskConfig.Validate(loop run strategy) error = nil, want non-nil")
+	} else if got := err.Error(); !strings.Contains(got, participation.ErrStrategyInvalid.Error()) ||
+		!strings.Contains(got, "direct Automation tasks") {
+		t.Fatalf("JobTaskConfig.Validate(loop run strategy) error = %q, want direct-task strategy failure", got)
 	}
 
 	envelope := ActivationEnvelope{

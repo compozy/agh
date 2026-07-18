@@ -10,7 +10,73 @@ import (
 	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/dsl/refs"
+	"github.com/compozy/agh/internal/network/participation"
 )
+
+func TestLinterShouldValidateDefinitionNetworkParticipation(t *testing.T) {
+	t.Parallel()
+
+	modeLocal := participation.ModeLocal
+	modeLive := participation.ModeLive
+	strategyNamed := participation.StrategyNamed
+	channel := " builders "
+	testCases := []struct {
+		name        string
+		request     *participation.Request
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			name:        "Should reject default Local participation for a Network node",
+			wantCode:    loop.CodeLoopRequiresLive,
+			wantMessage: "agent",
+		},
+		{
+			name:        "Should reject explicit Local participation for a Network node",
+			request:     &participation.Request{Mode: &modeLocal},
+			wantCode:    loop.CodeLoopRequiresLive,
+			wantMessage: "agh__network_send",
+		},
+		{
+			name: "Should accept and canonicalize valid Live participation during compile",
+			request: &participation.Request{
+				Mode:            &modeLive,
+				ChannelStrategy: &strategyNamed,
+				ChannelID:       &channel,
+			},
+		},
+		{
+			name: "Should reject an invalid Local participation envelope",
+			request: &participation.Request{
+				Mode:            &modeLocal,
+				ChannelStrategy: &strategyNamed,
+				ChannelID:       &channel,
+			},
+			wantCode:    loop.CodeNetworkParticipationInvalid,
+			wantMessage: "local mode",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			def := validDefinition()
+			def.NetworkParticipation = tc.request
+			def.Graph.Nodes[2].Kind = "agh__network_send"
+			linter := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{
+				"agh__network_send": {ToolID: "agh__network_send"},
+			}))
+			errs := linter.Lint(def)
+			if tc.wantCode == "" {
+				requireLintCodes(t, errs)
+				return
+			}
+			requireLintCodes(t, errs, tc.wantCode)
+			requireLintMessageContains(t, errs, tc.wantCode, tc.wantMessage)
+		})
+	}
+}
 
 func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 	t.Parallel()
@@ -1161,7 +1227,9 @@ func validDefinition() dsl.Definition {
 				{From: "fan", To: "agent"},
 			},
 		},
-		Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		},
 	}
 }
 
@@ -1245,7 +1313,9 @@ func singleNodeDefinition(node dsl.Node) dsl.Definition {
 			Nodes: []dsl.Node{node},
 			Edges: []dsl.Edge{},
 		},
-		Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		},
 	}
 }
 

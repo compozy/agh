@@ -13,7 +13,7 @@ var phaseCWatchEvents = []WatchEventsContract{
 		PayloadFields: []string{
 			watchEventsPayloadAgentName,
 			watchEventsPayloadCoordinatorSessionID,
-			watchEventsPayloadCoordinationChannelID,
+			watchEventsPayloadResolvedNetworkParticipation,
 			watchEventsPayloadProvider,
 			watchEventsPayloadModel,
 			watchEventsPayloadWorkflowID,
@@ -28,7 +28,7 @@ var phaseCWatchEvents = []WatchEventsContract{
 		PayloadFields: []string{
 			watchEventsPayloadAgentName,
 			watchEventsPayloadCoordinatorSessionID,
-			watchEventsPayloadCoordinationChannelID,
+			watchEventsPayloadResolvedNetworkParticipation,
 			watchEventsPayloadProvider,
 			watchEventsPayloadModel,
 			watchEventsPayloadWorkflowID,
@@ -43,6 +43,7 @@ var phaseCWatchEvents = []WatchEventsContract{
 		PayloadFields: []string{
 			watchEventsPayloadAgentName,
 			watchEventsPayloadCoordinatorSessionID,
+			watchEventsPayloadResolvedNetworkParticipation,
 			watchEventsPayloadProvider,
 			watchEventsPayloadDecisionKind,
 			watchEventsPayloadDecision,
@@ -56,7 +57,7 @@ var phaseCWatchEvents = []WatchEventsContract{
 		PayloadFields: []string{
 			watchEventsPayloadAgentName,
 			watchEventsPayloadCoordinatorSessionID,
-			watchEventsPayloadCoordinationChannelID,
+			watchEventsPayloadResolvedNetworkParticipation,
 			watchEventsPayloadWorkflowID,
 			watchEventsPayloadDecisionKind,
 			watchEventsPayloadDecision,

@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   automationJobToDraft,
+  automationJobUpdateFromDraft,
   automationTargetMode,
   automationTriggerToDraft,
   bindLoopTargetWorkspace,
+  automationTriggerUpdateFromDraft,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
   emptyJobTask,
@@ -94,6 +96,18 @@ describe("automation draft helpers", () => {
     });
   });
 
+  it("projects a job draft onto the mutable update contract", () => {
+    const update = automationJobUpdateFromDraft(automationJobToDraft(jobFixture));
+
+    expect(update).not.toHaveProperty("scope");
+    expect(update).not.toHaveProperty("target_kind");
+    expect(update).not.toHaveProperty("agent_name");
+    expect(update).not.toHaveProperty("workspace_id");
+    expect(update).toMatchObject({
+      name: "daily-review",
+    });
+  });
+
   it("creates trigger drafts with the expected defaults", () => {
     expect(createAutomationTriggerDraft()).toMatchObject({
       event: "session.stopped",
@@ -130,6 +144,18 @@ describe("automation draft helpers", () => {
     });
   });
 
+  it("projects a trigger draft onto the mutable update contract", () => {
+    const update = automationTriggerUpdateFromDraft(automationTriggerToDraft(triggerFixture));
+
+    expect(update).not.toHaveProperty("scope");
+    expect(update).not.toHaveProperty("target_kind");
+    expect(update).not.toHaveProperty("agent_name");
+    expect(update).not.toHaveProperty("workspace_id");
+    expect(update).toMatchObject({
+      name: "push-review",
+    });
+  });
+
   it("normalizes retry payloads for none and backoff strategies", () => {
     expect(normalizeAutomationRetry()).toEqual({
       strategy: "none",
@@ -159,7 +185,12 @@ describe("job output mode helpers", () => {
   });
 
   it("Should produce a blank unassigned task for entering task mode", () => {
-    expect(emptyJobTask()).toEqual({ title: "", description: "", owner: null });
+    expect(emptyJobTask()).toEqual({
+      title: "",
+      description: "",
+      owner: null,
+      network_participation: { mode: "local" },
+    });
   });
 
   it("Should force retry to none when switching to task mode (Go requires it)", () => {
@@ -168,7 +199,12 @@ describe("job output mode helpers", () => {
       retry: { strategy: "backoff", max_retries: 5, base_delay: "5s" },
     };
     const taskDraft = setJobOutputMode(backoffDraft, "task");
-    expect(taskDraft.task).toEqual({ title: "", description: "", owner: null });
+    expect(taskDraft.task).toEqual({
+      title: "",
+      description: "",
+      owner: null,
+      network_participation: { mode: "local" },
+    });
     expect(taskDraft.retry).toEqual({ strategy: "none", max_retries: 0, base_delay: "" });
   });
 
@@ -207,12 +243,20 @@ describe("automation target mode helpers", () => {
   it("Should share target-mode switching for trigger and job drafts", () => {
     const trigger = setTriggerTargetMode(createAutomationTriggerDraft("ws_alpha"), "loop");
     expect(trigger.target_kind).toBe("loop");
-    expect(trigger.loop_target).toMatchObject({ workspace_id: "ws_alpha", loop_name: "" });
+    expect(trigger.loop_target).toMatchObject({
+      workspace_id: "ws_alpha",
+      loop_name: "",
+      network_participation: { mode: "local" },
+    });
     expect(setTriggerTargetMode(trigger, "agent").loop_target).toBeUndefined();
 
     const job = setJobTargetMode(createAutomationJobDraft("ws_alpha"), "loop");
     expect(job.target_kind).toBe("loop");
-    expect(job.loop_target).toMatchObject({ workspace_id: "ws_alpha", loop_name: "" });
+    expect(job.loop_target).toMatchObject({
+      workspace_id: "ws_alpha",
+      loop_name: "",
+      network_participation: { mode: "local" },
+    });
     expect(setJobTargetMode(job, "agent").loop_target).toBeUndefined();
   });
 

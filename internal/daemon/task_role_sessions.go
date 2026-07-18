@@ -10,6 +10,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -44,11 +45,15 @@ func (r *taskRoleRuntime) startRoleSession(
 
 func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, error) {
 	opts := session.CreateOpts{
-		AgentName:     activation.AgentName,
-		Provider:      activation.Provider,
-		Model:         activation.Model,
-		Name:          taskRoleSessionName(activation),
-		Channel:       activation.Channel,
+		AgentName:                    activation.AgentName,
+		Provider:                     activation.Provider,
+		Model:                        activation.Model,
+		Name:                         taskRoleSessionName(activation),
+		ResolvedNetworkParticipation: activation.NetworkParticipation,
+		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindTaskRun,
+			ID:   activation.RunID,
+		}),
 		PromptOverlay: taskRolePromptOverlay(activation),
 		Type:          session.SessionTypeSystem,
 	}
@@ -129,7 +134,7 @@ func (r *taskRoleRuntime) activateForStarvation(
 			taskRoleRuntimeTaskIDKey, activation.TaskID,
 			daemonLogRunIDKey, activation.RunID,
 			"agent_name", activation.AgentName,
-			"channel", activation.Channel,
+			"channel", activation.NetworkParticipation.ChannelID,
 		)
 		return nil
 	}
@@ -139,7 +144,7 @@ func (r *taskRoleRuntime) activateForStarvation(
 		taskRoleRuntimeTaskIDKey, activation.TaskID,
 		daemonLogRunIDKey, activation.RunID,
 		"agent_name", activation.AgentName,
-		"channel", activation.Channel,
+		"channel", activation.NetworkParticipation.ChannelID,
 	)
 	return nil
 }
@@ -186,13 +191,13 @@ func (r *taskRoleRuntime) starvationActivation(
 	default:
 	}
 	activation := taskRoleActivation{
-		TaskID:      strings.TrimSpace(taskRecord.ID),
-		RunID:       strings.TrimSpace(run.ID),
-		Scope:       taskRecord.Scope.Normalize(),
-		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
-		AgentName:   agentName,
-		Channel:     taskRunSessionChannel(run),
-		Title:       strings.TrimSpace(taskRecord.Title),
+		TaskID:               strings.TrimSpace(taskRecord.ID),
+		RunID:                strings.TrimSpace(run.ID),
+		Scope:                taskRecord.Scope.Normalize(),
+		WorkspaceID:          strings.TrimSpace(taskRecord.WorkspaceID),
+		AgentName:            agentName,
+		NetworkParticipation: new(run.NetworkSpecSnapshot()),
+		Title:                strings.TrimSpace(taskRecord.Title),
 	}
 	applyTaskRoleDesignation(&activation, run)
 	if err := r.applyActivationScope(&activation, taskRecord.ID); err != nil {
@@ -233,7 +238,7 @@ func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) b
 	if strings.TrimSpace(info.AgentName) != activation.AgentName {
 		return false
 	}
-	if strings.TrimSpace(info.Channel) != activation.Channel {
+	if activation.NetworkParticipation == nil || info.NetworkParticipation != *activation.NetworkParticipation {
 		return false
 	}
 	if strings.TrimSpace(info.Name) != taskRoleSessionName(activation) {
@@ -260,7 +265,11 @@ func taskRoleSessionStateReusable(state session.State) bool {
 }
 
 func taskRoleSessionName(activation taskRoleActivation) string {
-	base := fmt.Sprintf("task-role:%s:%s", activation.AgentName, firstNonEmpty(activation.Channel, "default"))
+	base := fmt.Sprintf(
+		"task-role:%s:%s",
+		activation.AgentName,
+		strings.TrimSpace(activation.RunID),
+	)
 	fingerprint := taskRoleProfileFingerprint(activation)
 	if fingerprint == "" {
 		return base
@@ -287,19 +296,23 @@ func taskRoleProfileFingerprint(activation taskRoleActivation) string {
 
 func taskRolePromptOverlay(activation taskRoleActivation) string {
 	title := firstNonEmpty(activation.Title, activation.TaskID)
-	channel := firstNonEmpty(activation.Channel, "default")
-	claimCommand := taskRoleClaimCommand(activation.Capabilities)
+	claimCommand := taskRoleClaimCommand(activation.RunID, activation.Capabilities)
 	designation := taskRoleDesignationOverlay(activation)
+	channelLine := ""
+	if activation.NetworkParticipation != nil &&
+		activation.NetworkParticipation.Mode == participation.ModeLive {
+		channelLine = fmt.Sprintf("Coordination channel: %s", activation.NetworkParticipation.ChannelID)
+	}
 	return fmt.Sprintf(`A queued AGH task run is assigned to this agent.
 
 Task: %s
 Run: %s
-Coordination channel: %s
 %s
-Use `+"`%s`"+` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session. Do not use `+"`agh task run claim`"+` for autonomous work.`,
+%s
+Use `+"`%s`"+` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session.`,
 		title,
 		activation.RunID,
-		channel,
+		channelLine,
 		designation,
 		claimCommand,
 	)
@@ -331,8 +344,8 @@ func applyTaskRoleDesignation(activation *taskRoleActivation, run taskpkg.Run) {
 	activation.HasDesignation = true
 }
 
-func taskRoleClaimCommand(capabilities []string) string {
-	args := []string{"agh task next --wait -o json"}
+func taskRoleClaimCommand(runID string, capabilities []string) string {
+	args := []string{"agh task next --run-id " + shellQuoteSimple(strings.TrimSpace(runID)) + " --wait -o json"}
 	for _, capability := range uniqueNonEmptyStrings(capabilities) {
 		args = append(args, "--capability "+shellQuoteSimple(capability))
 	}
@@ -382,7 +395,7 @@ func (r *taskRoleRuntime) logTaskRoleError(
 		taskRoleRuntimeTaskIDKey, strings.TrimSpace(payload.TaskID),
 		daemonLogRunIDKey, strings.TrimSpace(payload.RunID),
 		taskRoleRuntimeWorkspaceIDKey, strings.TrimSpace(payload.WorkspaceID),
-		"coordination_channel_id", strings.TrimSpace(payload.CoordinationChannelID),
+		daemonNetworkChannelKey, strings.TrimSpace(payload.NetworkSpecSnapshot().ChannelID),
 	}
 	if err != nil {
 		args = append(args, "error", err)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/gin-gonic/gin"
 )
 
@@ -147,14 +148,14 @@ func agentMePayloadFromCaller(caller agentidentity.Caller) contract.AgentMePaylo
 			RootDir: caller.Session.WorkspacePath,
 		},
 		Session: contract.AgentSessionPayload{
-			ID:        caller.Session.ID,
-			Name:      caller.Session.Name,
-			Type:      caller.Session.Type,
-			State:     caller.Session.State,
-			Channel:   caller.Session.Channel,
-			Lineage:   contract.SessionLineagePayloadFromStore(caller.Session.Lineage),
-			CreatedAt: caller.Session.CreatedAt,
-			UpdatedAt: caller.Session.UpdatedAt,
+			ID:                           caller.Session.ID,
+			Name:                         caller.Session.Name,
+			Type:                         caller.Session.Type,
+			State:                        caller.Session.State,
+			ResolvedNetworkParticipation: participation.CloneSpec(caller.Session.NetworkSpecSnapshot()),
+			Lineage:                      contract.SessionLineagePayloadFromStore(caller.Session.Lineage),
+			CreatedAt:                    caller.Session.CreatedAt,
+			UpdatedAt:                    caller.Session.UpdatedAt,
 		},
 	}
 	return contract.NormalizeAgentMePayload(payload)

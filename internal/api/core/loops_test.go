@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/api/testutil"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
@@ -46,6 +47,11 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			}
 			if got := req.Inputs["ticket"]; got != "AGH-14" {
 				t.Fatalf("RunLoop() input ticket = %#v, want AGH-14", got)
+			}
+			if req.NetworkParticipation == nil ||
+				req.NetworkParticipation.Mode == nil ||
+				*req.NetworkParticipation.Mode != participation.ModeLocal {
+				t.Fatalf("RunLoop() network participation = %#v, want local request", req.NetworkParticipation)
 			}
 			if dry {
 				return contract.RunLoopResponse{DryRun: &contract.LoopPlanPayload{
@@ -143,7 +149,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/workspaces/ws-1/loops/alpha/run",
-			[]byte(`{"inputs":{"ticket":"AGH-14"}}`),
+			[]byte(`{"inputs":{"ticket":"AGH-14"},"network_participation":{"mode":"local"}}`),
 		)
 		assertLoopStatus(t, runResp.Code, http.StatusCreated, runResp.Body.String())
 		var runPayload contract.RunLoopResponse
@@ -157,7 +163,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/workspaces/ws-1/loops/alpha/run?dry=true",
-			[]byte(`{"inputs":{"ticket":"AGH-14"}}`),
+			[]byte(`{"inputs":{"ticket":"AGH-14"},"network_participation":{"mode":"local"}}`),
 		)
 		assertLoopStatus(t, dryResp.Code, http.StatusOK, dryResp.Body.String())
 		var dryPayload contract.RunLoopResponse
@@ -274,6 +280,36 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 		assertLoopStatus(t, deleteResp.Code, http.StatusNoContent, deleteResp.Body.String())
 		if deleteResp.Body.Len() != 0 {
 			t.Fatalf("DELETE /loops/:name body = %q, want empty", deleteResp.Body.String())
+		}
+	})
+
+	t.Run("Should reject removed Loop run channel fields", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		service.runLoopFn = func(
+			context.Context,
+			string,
+			string,
+			contract.RunLoopRequest,
+			dsl.StartKind,
+			taskpkg.ActorContext,
+			bool,
+		) (contract.RunLoopResponse, error) {
+			t.Fatal("RunLoop() should not be called for a removed channel field")
+			return contract.RunLoopResponse{}, nil
+		}
+		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/workspaces/ws-1/loops/alpha/run",
+			[]byte(`{"channel":"legacy"}`),
+		)
+		assertLoopStatus(t, resp.Code, http.StatusBadRequest, resp.Body.String())
+		if body := resp.Body.String(); !strings.Contains(body, "unknown_field") || !strings.Contains(body, "channel") {
+			t.Fatalf("POST /run legacy body = %s, want unknown_field with removed field name", body)
 		}
 	})
 }
@@ -812,6 +848,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 			TaskActorContextResolver: func(*gin.Context, string) (taskpkg.ActorContext, error) {
 				return taskpkg.DeriveAgentSessionActorContextForOrigin(
 					"sess-author",
+					"ws-1",
 					taskpkg.OriginKindUDS,
 					"loop_approve",
 				)
@@ -1183,7 +1220,9 @@ func loopDefinition() dsl.Definition {
 			TerminalStates:   []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
 		},
 		Graph: dsl.Graph{Nodes: []dsl.Node{{ID: "draft", Class: dsl.NodeClassAction, Kind: "run-agent"}}},
-		Start: []dsl.StartBinding{{Kind: dsl.StartHTTP}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: dsl.StartHTTP}},
+		},
 	}
 	def.Normalize()
 	return def
@@ -1230,16 +1269,17 @@ func loopPatchRequestBody(t *testing.T, expectedVersion int) []byte {
 
 func loopRunPayload(id string, status looppkg.Status) *contract.LoopRunPayload {
 	return &contract.LoopRunPayload{
-		ID:                id,
-		WorkspaceID:       "ws-1",
-		LoopName:          "alpha",
-		Status:            contract.LoopRunStatus(status),
-		Generation:        1,
-		ReattemptStrategy: contract.LoopReattemptStrategy(looppkg.ReattemptFailedOnly),
-		CreatedAt:         fixedLoopTime(),
-		LastProgressAt:    fixedLoopTime(),
-		IterationCap:      3,
-		Inputs:            map[string]any{"ticket": "AGH-14"},
+		ID:                           id,
+		WorkspaceID:                  "ws-1",
+		LoopName:                     "alpha",
+		Status:                       contract.LoopRunStatus(status),
+		Generation:                   1,
+		ReattemptStrategy:            contract.LoopReattemptStrategy(looppkg.ReattemptFailedOnly),
+		CreatedAt:                    fixedLoopTime(),
+		LastProgressAt:               fixedLoopTime(),
+		IterationCap:                 3,
+		Inputs:                       map[string]any{"ticket": "AGH-14"},
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 	}
 }
 

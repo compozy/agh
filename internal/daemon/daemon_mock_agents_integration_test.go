@@ -21,6 +21,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	mcppkg "github.com/compozy/agh/internal/mcp"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil/acpmock"
@@ -652,7 +653,36 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		createFixtureBackedSession(t, ctx, harness, "mock-hosted-native", "hosted-native-session")
+		channelID := "hostednative"
+		if _, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
+			Channel:      channelID,
+			WorkspaceID:  harness.WorkspaceID,
+			Purpose:      "Hosted MCP native tool projection",
+			FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
+			AgentNames:   []string{"mock-hosted-native"},
+		}); err != nil {
+			t.Fatalf("CreateNetworkChannel(%q) error = %v", channelID, err)
+		}
+		session, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+			AgentName:            "mock-hosted-native",
+			Name:                 "hosted-native-session",
+			WorkspacePath:        harness.WorkspaceRoot,
+			NetworkParticipation: daemonTestNamedParticipationRequest(channelID),
+		})
+		if err != nil {
+			t.Fatalf("CreateSession(hosted-native Live) error = %v", err)
+		}
+		if got := resolvedParticipationChannelID(session.ResolvedNetworkParticipation); got != channelID {
+			t.Fatalf(
+				"hosted session ResolvedNetworkParticipation.ChannelID = %q, want %q",
+				got,
+				channelID,
+			)
+		}
+		waitForRuntimeCondition(t, "hosted-native session visible", 5*time.Second, func() bool {
+			current, getErr := harness.GetSession(ctx, session.ID)
+			return getErr == nil && current.ID == session.ID
+		})
 		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 		if err != nil {
 			t.Fatalf("ReadDiagnostics(hosted-native) error = %v", err)
@@ -681,7 +711,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf("hosted MCP tools = %#v, want non-bootstrap tool %s", sdkToolNames(list.Tools), networkToolID)
 		}
 
-		channelName := "hostednative"
+		channelName := "hostednative-created"
 		var call sdkmcp.CallToolRequest
 		call.Params.Name = networkToolID
 		call.Params.Arguments = map[string]any{
@@ -1257,26 +1287,39 @@ func completeWakeTaskRunViaSession(
 	t.Helper()
 
 	run := enqueueWakeTaskRunForWakeE2E(t, ctx, harness, taskID, idempotencyPrefix+"-enqueue")
-	claimed, err := harness.ClaimTaskRun(ctx, run.ID, aghcontract.ClaimTaskRunRequest{
-		IdempotencyKey: idempotencyPrefix + "-claim",
-	})
+	sessionRecord, err := harness.GetSession(ctx, sessionID)
 	if err != nil {
-		t.Fatalf("ClaimTaskRun(%s) error = %v", run.ID, err)
+		t.Fatalf("GetSession(%s) error = %v", sessionID, err)
 	}
-	attached := attachWakeTaskRunSessionForWakeE2E(t, ctx, harness, claimed.ID, sessionID)
-	started, err := harness.StartTaskRun(ctx, attached.ID, aghcontract.StartTaskRunRequest{
-		IdempotencyKey: idempotencyPrefix + "-start",
-	})
+	claimed, err := harness.ClaimExactTaskRunForSession(ctx, run.ID, sessionRecord)
 	if err != nil {
-		t.Fatalf("StartTaskRun(%s) error = %v", attached.ID, err)
+		t.Fatalf("ClaimExactTaskRunForSession(%s) error = %v", run.ID, err)
 	}
-	completed, err := harness.CompleteTaskRun(ctx, started.ID, aghcontract.CompleteTaskRunRequest{
-		Result: json.RawMessage(`{"ok":true}`),
-	})
+	var completedLease aghcontract.AgentTaskLeaseResponse
+	agentUDSJSON(
+		t,
+		ctx,
+		harness,
+		sessionRecord,
+		http.MethodPost,
+		"/api/agent/tasks/"+url.PathEscape(claimed.ID)+"/complete",
+		aghcontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
+		&completedLease,
+	)
+	if completedLease.Lease.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
+		t.Fatalf("agent complete lease = %#v, want completed", completedLease.Lease)
+	}
+	runs, err := harness.ListTaskRuns(ctx, taskID, nil)
 	if err != nil {
-		t.Fatalf("CompleteTaskRun(%s) error = %v", started.ID, err)
+		t.Fatalf("ListTaskRuns(%s) error = %v", taskID, err)
 	}
-	return completed
+	for _, completed := range runs {
+		if completed.ID == claimed.ID {
+			return completed
+		}
+	}
+	t.Fatalf("ListTaskRuns(%s) missing completed run %s", taskID, claimed.ID)
+	return aghcontract.TaskRunPayload{}
 }
 
 func enqueueWakeTaskRunForWakeE2E(

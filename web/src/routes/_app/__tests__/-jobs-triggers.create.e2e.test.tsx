@@ -603,7 +603,7 @@ describe("Jobs create modal", () => {
     fireEvent.change(screen.getByTestId("job-task-desc"), {
       target: { value: "Open a task for payout drift review." },
     });
-    fireEvent.change(screen.getByTestId("job-task-channel"), { target: { value: "ops-review" } });
+    expect(screen.queryByTestId("job-task-channel")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("job-workspace-select"));
     fireEvent.click(screen.getByTestId("job-workspace-item-ws_beta"));
 
@@ -620,12 +620,12 @@ describe("Jobs create modal", () => {
         scope: "workspace",
         task: expect.objectContaining({
           description: "Open a task for payout drift review.",
-          network_channel: "ops-review",
           title: "Audit payout drift",
         }),
         workspace_id: "ws_beta",
       })
     );
+    expect(createJobRequests[0]?.task).not.toHaveProperty("network_channel");
   });
 
   it("Should keep submit disabled for empty schedules and invalid cron expressions", async () => {
@@ -1332,9 +1332,10 @@ describe("Triggers create modal", () => {
     expect(screen.getByTestId("trigger-endpoint-slug-input")).toHaveValue("edit-hook");
     expect(screen.getByTestId("trigger-webhook-id-input")).toHaveValue("wbh_edit");
     expect(screen.getByTestId("trigger-webhook-secret-value-input")).toHaveValue("");
+    expect(screen.getByTestId("trigger-agent-input")).toHaveValue("old-agent");
+    expect(screen.getByTestId("trigger-agent-input")).toBeDisabled();
     expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
 
-    fireEvent.change(screen.getByTestId("trigger-agent-input"), { target: { value: "release" } });
     fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
       target: { value: "Updated webhook prompt." },
     });
@@ -1345,13 +1346,16 @@ describe("Triggers create modal", () => {
     });
     expect(updateTriggerRequests[0]).toEqual(
       expect.objectContaining({
-        agent_name: "release",
         endpoint_slug: "edit-hook",
         event: "webhook",
         prompt: "Updated webhook prompt.",
         webhook_id: "wbh_edit",
       })
     );
+    expect(updateTriggerRequests[0]).not.toHaveProperty("agent_name");
+    expect(updateTriggerRequests[0]).not.toHaveProperty("scope");
+    expect(updateTriggerRequests[0]).not.toHaveProperty("target_kind");
+    expect(updateTriggerRequests[0]).not.toHaveProperty("workspace_id");
     expect(updateTriggerRequests[0]).not.toHaveProperty("webhook_secret_value");
     await waitFor(() => {
       expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
@@ -1487,12 +1491,13 @@ describe("Triggers create modal", () => {
     });
     expect(createTriggerRequests[0]).toEqual(
       expect.objectContaining({
-        loop_target: {
+        loop_target: expect.objectContaining({
           input_mapping: {},
           inputs: { pr: 2 },
           loop_name: "reviews-watch",
+          network_participation: { mode: "local" },
           workspace_id: "ws_beta",
-        },
+        }),
         name: "review-on-stop",
         scope: "workspace",
         target_kind: "loop",

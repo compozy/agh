@@ -160,10 +160,8 @@ func TestWaitForDaemonStopClearsStaleNetworkSnapshot(t *testing.T) {
 				PID:       42,
 				StartedAt: fixedTestNow,
 				Network: &aghdaemon.NetworkInfo{
-					Enabled:      true,
-					Status:       "running",
-					ListenerHost: "127.0.0.1",
-					ListenerPort: 4522,
+					Enabled: true,
+					Status:  "active",
 				},
 			}, nil
 		}
@@ -182,10 +180,8 @@ func TestWaitForDaemonStopClearsStaleNetworkSnapshot(t *testing.T) {
 			PID:       42,
 			StartedAt: fixedTestNow,
 			Network: &aghdaemon.NetworkInfo{
-				Enabled:      true,
-				Status:       "running",
-				ListenerHost: "127.0.0.1",
-				ListenerPort: 4522,
+				Enabled: true,
+				Status:  "active",
 			},
 		}
 

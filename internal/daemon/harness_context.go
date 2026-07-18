@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 )
 
 const (
 	harnessContextFalseKey                   = "false"
-	harnessContextHarnessChannelBoundPath    = "harness.channel_bound"
+	harnessContextHarnessNetworkLivePath     = "harness.network_live"
 	harnessContextHarnessDiagnosticLabelPath = "harness.diagnostic_label"
 	harnessContextHarnessSessionClassPath    = "harness.session_class"
 	harnessContextHarnessSessionTypePath     = "harness.session_type"
@@ -77,8 +78,6 @@ const (
 	HarnessAugmenterSkills HarnessAugmenter = "skills"
 	// HarnessAugmenterDurableMemory enables the durable memory recall augmenter.
 	HarnessAugmenterDurableMemory HarnessAugmenter = "durable_memory"
-	// HarnessAugmenterNetworkResponseRegister injects compact network-response etiquette.
-	HarnessAugmenterNetworkResponseRegister HarnessAugmenter = "network_response_register"
 )
 
 // ReentryMode identifies how a resolved policy participates in synthetic reentry.
@@ -121,18 +120,8 @@ type HarnessRuntimeSignals struct {
 	SkillsAugmenter                     bool
 	SituationAugmenter                  bool
 	DurableMemoryAugmenter              bool
-	NetworkResponseRegisterAugmenter    bool
 	SyntheticTurnsEnabled               bool
 	DetachedTaskRuntimeEnabled          bool
-}
-
-// HarnessSessionInput carries durable session metadata into the resolver.
-type HarnessSessionInput struct {
-	Type        session.Type
-	Channel     string
-	WorkspaceID string
-	Workspace   string
-	AgentName   string
 }
 
 // SyntheticTurnMetadata carries validated daemon-only synthetic reentry metadata.
@@ -162,17 +151,6 @@ type HarnessResolutionInput struct {
 	Surface ResolutionSurface
 	Session HarnessSessionInput
 	Turn    HarnessTurnRequest
-}
-
-// HarnessSessionContext is the normalized durable session context emitted by the resolver.
-type HarnessSessionContext struct {
-	Type         session.Type
-	SessionClass SessionClass
-	Channel      string
-	ChannelBound bool
-	WorkspaceID  string
-	Workspace    string
-	AgentName    string
 }
 
 // HarnessTurnContext is the normalized turn context emitted by the resolver.
@@ -219,11 +197,11 @@ func (r *HarnessContextResolver) ResolveStartup(startup session.StartupPromptCon
 	return r.Resolve(HarnessResolutionInput{
 		Surface: ResolutionSurfaceStartup,
 		Session: HarnessSessionInput{
-			Type:        startup.SessionType,
-			Channel:     startup.Channel,
-			WorkspaceID: startup.WorkspaceID,
-			Workspace:   startup.Workspace,
-			AgentName:   startup.AgentName,
+			Type:                 startup.SessionType,
+			NetworkParticipation: startup.NetworkParticipation,
+			WorkspaceID:          startup.WorkspaceID,
+			Workspace:            startup.Workspace,
+			AgentName:            startup.AgentName,
 		},
 		Turn: HarnessTurnRequest{
 			Source: session.TurnSourceUser,
@@ -243,11 +221,11 @@ func (r *HarnessContextResolver) ResolvePrompt(
 	return r.Resolve(HarnessResolutionInput{
 		Surface: ResolutionSurfaceTurn,
 		Session: HarnessSessionInput{
-			Type:        info.Type,
-			Channel:     info.Channel,
-			WorkspaceID: info.WorkspaceID,
-			Workspace:   info.Workspace,
-			AgentName:   info.AgentName,
+			Type:                 info.Type,
+			NetworkParticipation: info.NetworkParticipation,
+			WorkspaceID:          info.WorkspaceID,
+			Workspace:            info.Workspace,
+			AgentName:            info.AgentName,
 		},
 		Turn: HarnessTurnRequest{
 			Source:     source,
@@ -318,15 +296,21 @@ func normalizeHarnessSessionContext(input HarnessSessionInput) (HarnessSessionCo
 		return HarnessSessionContext{}, err
 	}
 
-	channel := strings.TrimSpace(input.Channel)
+	networkParticipation := input.NetworkParticipation
+	if networkParticipation == (participation.Spec{}) {
+		networkParticipation = participation.LocalSpec()
+	}
+	if err := participation.ValidateSpec(networkParticipation); err != nil {
+		return HarnessSessionContext{}, fmt.Errorf("daemon: validate harness network participation: %w", err)
+	}
 	return HarnessSessionContext{
-		Type:         sessionType,
-		SessionClass: sessionClass,
-		Channel:      channel,
-		ChannelBound: channel != "",
-		WorkspaceID:  strings.TrimSpace(input.WorkspaceID),
-		Workspace:    strings.TrimSpace(input.Workspace),
-		AgentName:    strings.TrimSpace(input.AgentName),
+		Type:                 sessionType,
+		SessionClass:         sessionClass,
+		NetworkParticipation: networkParticipation,
+		NetworkLive:          networkParticipation.Mode == participation.ModeLive,
+		WorkspaceID:          strings.TrimSpace(input.WorkspaceID),
+		Workspace:            strings.TrimSpace(input.Workspace),
+		AgentName:            strings.TrimSpace(input.AgentName),
 	}, nil
 }
 
@@ -373,6 +357,9 @@ func (r *HarnessContextResolver) normalizeHarnessTurnContext(
 	if err != nil {
 		return HarnessTurnContext{}, err
 	}
+	// Network turn origin is provenance only. Live participation remains gated by
+	// session.PromptNetwork; bridge ingress uses PromptWithOpts with network meta
+	// on Local sessions and must still resolve harness policy.
 
 	if request.Synthetic != nil && origin != TurnOriginSynthetic {
 		return HarnessTurnContext{}, errors.New(
@@ -532,7 +519,7 @@ func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContex
 	if r.runtime.ToolsPromptSectionEnabled {
 		sections = append(sections, HarnessPromptSectionTools)
 	}
-	if sessionCtx.ChannelBound {
+	if sessionCtx.NetworkLive {
 		sections = append(sections, HarnessPromptSectionNetwork)
 	}
 	return sections
@@ -550,9 +537,6 @@ func (r *HarnessContextResolver) resolveAugmenters(
 		augmenters = append(augmenters, HarnessAugmenterSkills)
 	}
 	if turnCtx.Origin == TurnOriginNetwork {
-		if r.runtime.NetworkResponseRegisterAugmenter {
-			augmenters = append(augmenters, HarnessAugmenterNetworkResponseRegister)
-		}
 		return augmenters
 	}
 	if turnCtx.Origin != TurnOriginUser {
@@ -595,8 +579,8 @@ func buildHarnessDiagnosticLabel(
 	policy ResolvedHarnessPolicy,
 ) string {
 	parts := []string{string(sessionCtx.SessionClass)}
-	if sessionCtx.ChannelBound {
-		parts = append(parts, "channel")
+	if sessionCtx.NetworkLive {
+		parts = append(parts, "network")
 	}
 	parts = append(parts, string(policy.TurnOrigin))
 	if policy.ReentryMode == ReentryModeSynthetic {
@@ -616,7 +600,7 @@ func buildHarnessObservabilityTags(
 		harnessContextHarnessSessionTypePath:     string(sessionCtx.Type),
 		harnessContextHarnessSessionClassPath:    string(policy.SessionClass),
 		harnessContextHarnessTurnOriginPath:      string(policy.TurnOrigin),
-		harnessContextHarnessChannelBoundPath:    boolTag(sessionCtx.ChannelBound),
+		harnessContextHarnessNetworkLivePath:     boolTag(sessionCtx.NetworkLive),
 		harnessContextHarnessDiagnosticLabelPath: policy.DiagnosticLabel,
 	}
 	if turnCtx.Synthetic != nil {

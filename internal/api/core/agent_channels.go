@@ -136,7 +136,7 @@ func (h *BaseHandlers) AgentChannelSend(c *gin.Context) {
 	}
 
 	var req contract.AgentChannelSendRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -185,157 +185,6 @@ func (h *BaseHandlers) AgentChannelSend(c *gin.Context) {
 	})
 }
 
-// AgentChannelReply replies to one queued or persisted message using the validated caller identity.
-func (h *BaseHandlers) AgentChannelReply(c *gin.Context) {
-	caller, ok := h.requireAgentCaller(c, agentActionChannelReply)
-	if !ok {
-		return
-	}
-	service, err := h.networkServiceRequired()
-	if err != nil {
-		h.respondError(c, http.StatusServiceUnavailable, err)
-		return
-	}
-
-	req, err := decodeAgentChannelReplyRequest(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	source, sourceMetadata, err := h.resolveAgentReplySource(
-		c.Request.Context(),
-		service,
-		caller,
-		req.ReplyToMessageID,
-	)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	metadata, err := agentChannelReplyMetadata(req.Metadata, sourceMetadata)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	if err := validateAgentChannelRequest(req.Body, metadata, struct {
-		Body     json.RawMessage                             `json:"body"`
-		Metadata contract.CoordinationMessageMetadataPayload `json:"metadata"`
-	}{Body: req.Body, Metadata: metadata}); err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-
-	ext, err := coordinationExt(metadata)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-	targetPeer := strings.TrimSpace(source.From)
-	sendReq, err := agentChannelReplySendRequest(caller, source, req, ext)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	if idempotencyKey := strings.TrimSpace(req.IdempotencyKey); idempotencyKey != "" {
-		sendReq.ID = ptrString(idempotencyKey)
-	}
-
-	messageID, err := service.Send(c.Request.Context(), sendReq)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	c.JSON(http.StatusAccepted, contract.AgentChannelMessageResponse{
-		Message: agentChannelMessageFromRequest(
-			messageID,
-			source.Channel,
-			caller.Session.ID,
-			targetPeer,
-			req.Body,
-			metadata,
-			h.nowUTC(),
-		),
-	})
-}
-
-func agentChannelReplyMetadata(
-	requestMetadata contract.CoordinationMessageMetadataPayload,
-	sourceMetadata sourceCoordinationMetadata,
-) (contract.CoordinationMessageMetadataPayload, error) {
-	if zeroCoordinationMetadata(requestMetadata) {
-		if !sourceMetadata.ok {
-			return contract.CoordinationMessageMetadataPayload{}, NewNetworkValidationError(errors.New(
-				"metadata is required when the source message has no coordination metadata",
-			))
-		}
-		metadata := sourceMetadata.metadata
-		metadata.MessageKind = contract.CoordinationMessageReply
-		return metadata, nil
-	}
-	if requestMetadata.MessageKind != contract.CoordinationMessageReply {
-		return contract.CoordinationMessageMetadataPayload{}, NewNetworkValidationError(errors.New(
-			"metadata.message_kind must be reply for agent channel replies",
-		))
-	}
-	return requestMetadata, nil
-}
-
-func agentChannelReplySendRequest(
-	caller agentidentity.Caller,
-	source network.Envelope,
-	req decodedAgentChannelReplyRequest,
-	ext map[string]json.RawMessage,
-) (network.SendRequest, error) {
-	callerPeerID := agentCallerPeerID(caller)
-	workspaceID := strings.TrimSpace(caller.Session.WorkspaceID)
-	sourceChannel := strings.TrimSpace(source.Channel)
-	targetPeerID := strings.TrimSpace(source.From)
-	directID, _, _, err := network.DirectRoomIdentity(workspaceID, sourceChannel, callerPeerID, targetPeerID)
-	if err != nil {
-		return network.SendRequest{}, err
-	}
-	sendReq := network.SendRequest{
-		SessionID:   strings.TrimSpace(caller.Session.ID),
-		WorkspaceID: workspaceID,
-		Channel:     sourceChannel,
-		Surface:     new(network.SurfaceDirect),
-		DirectID:    ptrString(directID),
-		Kind:        network.KindSay,
-		To:          ptrString(targetPeerID),
-		ReplyTo:     ptrString(req.ReplyToMessageID),
-		Body:        cloneRawMessage(req.Body),
-		Ext:         ext,
-	}
-	if source.WorkID != nil && strings.TrimSpace(*source.WorkID) != "" {
-		sendReq.WorkID = ptrString(*source.WorkID)
-	}
-	if source.TraceID != nil && strings.TrimSpace(*source.TraceID) != "" {
-		sendReq.TraceID = ptrString(*source.TraceID)
-	}
-	return sendReq, nil
-}
-
-func agentCallerPeerID(caller agentidentity.Caller) string {
-	agentName := strings.ToLower(strings.TrimSpace(caller.Session.AgentName))
-	sessionID := strings.TrimSpace(caller.Session.ID)
-	if agentName == "" {
-		return sessionID
-	}
-	return agentName + "." + sessionID
-}
-
-type sourceCoordinationMetadata struct {
-	metadata contract.CoordinationMessageMetadataPayload
-	ok       bool
-}
-
-type decodedAgentChannelReplyRequest struct {
-	ReplyToMessageID string
-	Body             json.RawMessage
-	Metadata         contract.CoordinationMessageMetadataPayload
-	IdempotencyKey   string
-}
-
 func (h *BaseHandlers) enrichAgentMePayload(
 	ctx context.Context,
 	caller agentidentity.Caller,
@@ -367,7 +216,7 @@ func (h *BaseHandlers) enrichAgentMePayload(
 	service, err := h.networkServiceRequired()
 	if err != nil {
 		if callerChannel := strings.TrimSpace(
-			caller.Session.Channel,
+			caller.Session.NetworkSpecSnapshot().ChannelID,
 		); callerChannel != "" &&
 			len(payload.Channels) == 0 {
 			payload.Channels = []contract.CoordinationChannelPayload{
@@ -404,7 +253,8 @@ func (h *BaseHandlers) agentChannelPayloads(
 			continue
 		}
 		entry, hasEntry := metadata[channel]
-		if len(metadata) > 0 && !hasEntry && channel != strings.TrimSpace(caller.Session.Channel) {
+		if len(metadata) > 0 && !hasEntry &&
+			channel != strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID) {
 			continue
 		}
 		payloadByID[channel] = coordinationChannelFromNetwork(channel, caller.Session.WorkspaceID, entry)
@@ -415,7 +265,7 @@ func (h *BaseHandlers) agentChannelPayloads(
 		}
 		payloadByID[channel] = coordinationChannelFromNetwork(channel, caller.Session.WorkspaceID, entry)
 	}
-	if callerChannel := strings.TrimSpace(caller.Session.Channel); callerChannel != "" {
+	if callerChannel := strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID); callerChannel != "" {
 		if _, ok := payloadByID[callerChannel]; !ok {
 			payloadByID[callerChannel] = coordinationChannelFromNetwork(
 				callerChannel,
@@ -440,14 +290,14 @@ func mergeCoordinationChannels(
 	mergedByID := make(map[string]contract.CoordinationChannelPayload, len(left)+len(right))
 	for _, channel := range left {
 		normalized := contract.NormalizeCoordinationChannelPayload(channel)
-		id := firstNonEmpty(normalized.ID, normalized.Channel)
+		id := strings.TrimSpace(normalized.ID)
 		if id != "" {
 			mergedByID[id] = normalized
 		}
 	}
 	for _, channel := range right {
 		normalized := contract.NormalizeCoordinationChannelPayload(channel)
-		id := firstNonEmpty(normalized.ID, normalized.Channel)
+		id := strings.TrimSpace(normalized.ID)
 		if id != "" {
 			mergedByID[id] = normalized
 		}
@@ -495,7 +345,6 @@ func coordinationChannelFromNetwork(
 	workspaceID = firstNonEmpty(strings.TrimSpace(entry.WorkspaceID), strings.TrimSpace(workspaceID))
 	payload := contract.CoordinationChannelPayload{
 		ID:          channel,
-		Channel:     channel,
 		DisplayName: channel,
 		Purpose:     firstNonEmpty(strings.TrimSpace(entry.Purpose), "network_channel"),
 		WorkspaceID: workspaceID,
@@ -530,156 +379,6 @@ func agentChannelInbox(
 		return nil, err
 	}
 	return envelopes, nil
-}
-
-func (h *BaseHandlers) resolveAgentReplySource(
-	ctx context.Context,
-	service NetworkService,
-	caller agentidentity.Caller,
-	messageID string,
-) (network.Envelope, sourceCoordinationMetadata, error) {
-	messageID = strings.TrimSpace(messageID)
-	if messageID == "" {
-		return network.Envelope{}, sourceCoordinationMetadata{}, NewNetworkValidationError(
-			errors.New("reply_to_message_id is required"),
-		)
-	}
-
-	envelopes, err := service.Inbox(ctx, strings.TrimSpace(caller.Session.ID))
-	if err != nil {
-		return network.Envelope{}, sourceCoordinationMetadata{}, err
-	}
-	for _, envelope := range envelopes {
-		if strings.TrimSpace(envelope.ID) != messageID {
-			continue
-		}
-		metadata, ok := coordinationMetadataFromEnvelope(envelope)
-		return envelope, sourceCoordinationMetadata{metadata: metadata, ok: ok}, validateReplySource(envelope)
-	}
-
-	if h != nil && h.NetworkStore != nil {
-		entries, lookupErr := h.NetworkStore.ListNetworkMessages(ctx, store.NetworkMessageQuery{
-			WorkspaceID: strings.TrimSpace(caller.Session.WorkspaceID),
-			SessionID:   strings.TrimSpace(caller.Session.ID),
-			MessageID:   messageID,
-			Limit:       1,
-		})
-		if lookupErr != nil {
-			return network.Envelope{}, sourceCoordinationMetadata{}, lookupErr
-		}
-		if len(entries) > 0 {
-			envelope, convErr := envelopeFromNetworkMessage(entries[0])
-			if convErr != nil {
-				return network.Envelope{}, sourceCoordinationMetadata{}, convErr
-			}
-			metadata, ok := coordinationMetadataFromEnvelope(envelope)
-			return envelope, sourceCoordinationMetadata{metadata: metadata, ok: ok}, validateReplySource(envelope)
-		}
-	}
-
-	return network.Envelope{}, sourceCoordinationMetadata{}, fmt.Errorf(
-		"%w: message_id=%q",
-		network.ErrTargetPeerNotFound,
-		messageID,
-	)
-}
-
-func validateReplySource(envelope network.Envelope) error {
-	if strings.TrimSpace(envelope.WorkspaceID) == "" {
-		return NewNetworkValidationError(errors.New("source message workspace_id is required"))
-	}
-	if strings.TrimSpace(envelope.Channel) == "" {
-		return NewNetworkValidationError(errors.New("source message channel is required"))
-	}
-	if strings.TrimSpace(envelope.From) == "" {
-		return NewNetworkValidationError(errors.New("source message sender is required"))
-	}
-	return nil
-}
-
-func decodeAgentChannelReplyRequest(c *gin.Context) (decodedAgentChannelReplyRequest, error) {
-	if c == nil || c.Request == nil || c.Request.Body == nil {
-		return decodedAgentChannelReplyRequest{}, NewNetworkValidationError(
-			errors.New("reply request body is required"),
-		)
-	}
-	var raw map[string]json.RawMessage
-	if err := json.NewDecoder(c.Request.Body).Decode(&raw); err != nil {
-		return decodedAgentChannelReplyRequest{}, fmt.Errorf("decode agent channel reply request: %w", err)
-	}
-	if err := contract.ValidateNoRawClaimTokenField(raw); err != nil {
-		return decodedAgentChannelReplyRequest{}, NewNetworkValidationError(err)
-	}
-
-	var req decodedAgentChannelReplyRequest
-	if err := decodeRawString(raw["reply_to_message_id"], &req.ReplyToMessageID); err != nil {
-		return decodedAgentChannelReplyRequest{}, NewNetworkValidationError(fmt.Errorf("reply_to_message_id: %w", err))
-	}
-	if err := decodeRawString(raw["idempotency_key"], &req.IdempotencyKey); err != nil {
-		return decodedAgentChannelReplyRequest{}, NewNetworkValidationError(fmt.Errorf("idempotency_key: %w", err))
-	}
-	req.Body = cloneRawMessage(raw["body"])
-	if len(bytes.TrimSpace(req.Body)) == 0 {
-		return decodedAgentChannelReplyRequest{}, NewNetworkValidationError(errors.New("body is required"))
-	}
-
-	if metadataRaw := bytes.TrimSpace(raw["metadata"]); len(metadataRaw) > 0 &&
-		!bytes.Equal(metadataRaw, []byte("null")) &&
-		!bytes.Equal(metadataRaw, []byte("{}")) {
-		metadata, ok, err := decodeOptionalCoordinationMetadata(metadataRaw)
-		if err != nil {
-			return decodedAgentChannelReplyRequest{}, NewNetworkValidationError(fmt.Errorf("metadata: %w", err))
-		}
-		if ok {
-			req.Metadata = metadata
-		}
-	}
-	return req, nil
-}
-
-func decodeOptionalCoordinationMetadata(
-	raw json.RawMessage,
-) (contract.CoordinationMessageMetadataPayload, bool, error) {
-	var decoded struct {
-		TaskID                string                           `json:"task_id"`
-		RunID                 string                           `json:"run_id"`
-		WorkflowID            string                           `json:"workflow_id,omitempty"`
-		CoordinationChannelID string                           `json:"coordination_channel_id"`
-		MessageKind           contract.CoordinationMessageKind `json:"message_kind"`
-		CorrelationID         string                           `json:"correlation_id"`
-		Ext                   map[string]json.RawMessage       `json:"ext,omitempty"`
-	}
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return contract.CoordinationMessageMetadataPayload{}, false, err
-	}
-	metadata := contract.CoordinationMessageMetadataPayload{
-		TaskID:                decoded.TaskID,
-		RunID:                 decoded.RunID,
-		WorkflowID:            decoded.WorkflowID,
-		CoordinationChannelID: decoded.CoordinationChannelID,
-		MessageKind:           decoded.MessageKind,
-		CorrelationID:         decoded.CorrelationID,
-		Ext:                   decoded.Ext,
-	}
-	if zeroCoordinationMetadata(metadata) {
-		return contract.CoordinationMessageMetadataPayload{}, false, nil
-	}
-	if err := metadata.Validate(); err != nil {
-		return contract.CoordinationMessageMetadataPayload{}, false, err
-	}
-	return metadata, true, nil
-}
-
-func decodeRawString(raw json.RawMessage, target *string) error {
-	if len(bytes.TrimSpace(raw)) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		return nil
-	}
-	var value string
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return err
-	}
-	*target = strings.TrimSpace(value)
-	return nil
 }
 
 func validateAgentChannelRequest(
@@ -733,7 +432,7 @@ func agentChannelMessagesFromEnvelopes(
 		messages = append(messages, contract.AgentChannelMessagePayload{
 			MessageID: strings.TrimSpace(envelope.ID),
 			ChannelID: firstNonEmpty(
-				strings.TrimSpace(metadata.CoordinationChannelID),
+				strings.TrimSpace(metadata.ChannelID),
 				strings.TrimSpace(envelope.Channel),
 			),
 			FromSessionID: strings.TrimSpace(envelope.From),
@@ -766,7 +465,7 @@ func agentChannelMessageFromRequest(
 ) contract.AgentChannelMessagePayload {
 	return contract.AgentChannelMessagePayload{
 		MessageID:     strings.TrimSpace(messageID),
-		ChannelID:     firstNonEmpty(strings.TrimSpace(metadata.CoordinationChannelID), strings.TrimSpace(channel)),
+		ChannelID:     firstNonEmpty(strings.TrimSpace(metadata.ChannelID), strings.TrimSpace(channel)),
 		FromSessionID: strings.TrimSpace(fromSessionID),
 		ToSessionID:   strings.TrimSpace(toSessionID),
 		Body:          cloneRawMessage(body),
@@ -829,36 +528,24 @@ func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) (network.Envelo
 	return envelope, nil
 }
 
-func extensionMapFromNetworkMessage(entry store.NetworkMessageEntry) (network.ExtensionMap, error) {
-	trimmed := strings.TrimSpace(string(entry.ExtJSON))
-	if trimmed == "" || trimmed == "{}" {
-		return nil, nil
-	}
-	var ext network.ExtensionMap
-	if err := json.Unmarshal([]byte(trimmed), &ext); err != nil {
-		return nil, fmt.Errorf("decode network message ext_json: %w", err)
-	}
-	return ext, nil
-}
-
 func sessionInfoFromAgentCaller(caller agentidentity.Caller) *session.Info {
 	return &session.Info{
-		ID:               strings.TrimSpace(caller.Session.ID),
-		Name:             strings.TrimSpace(caller.Session.Name),
-		AgentName:        strings.TrimSpace(caller.Session.AgentName),
-		Provider:         strings.TrimSpace(caller.Session.Provider),
-		Model:            strings.TrimSpace(caller.Session.Model),
-		WorkspaceID:      strings.TrimSpace(caller.Session.WorkspaceID),
-		Workspace:        strings.TrimSpace(caller.Session.WorkspacePath),
-		Channel:          strings.TrimSpace(caller.Session.Channel),
-		Type:             caller.Session.Type,
-		Lineage:          store.CloneSessionLineage(caller.Session.Lineage),
-		State:            caller.Session.State,
-		SoulSnapshotID:   strings.TrimSpace(caller.Session.SoulSnapshotID),
-		SoulDigest:       strings.TrimSpace(caller.Session.SoulDigest),
-		ParentSoulDigest: strings.TrimSpace(caller.Session.ParentSoulDigest),
-		CreatedAt:        caller.Session.CreatedAt,
-		UpdatedAt:        caller.Session.UpdatedAt,
+		ID:                   strings.TrimSpace(caller.Session.ID),
+		Name:                 strings.TrimSpace(caller.Session.Name),
+		AgentName:            strings.TrimSpace(caller.Session.AgentName),
+		Provider:             strings.TrimSpace(caller.Session.Provider),
+		Model:                strings.TrimSpace(caller.Session.Model),
+		WorkspaceID:          strings.TrimSpace(caller.Session.WorkspaceID),
+		Workspace:            strings.TrimSpace(caller.Session.WorkspacePath),
+		NetworkParticipation: caller.Session.NetworkSpecSnapshot(),
+		Type:                 caller.Session.Type,
+		Lineage:              store.CloneSessionLineage(caller.Session.Lineage),
+		State:                caller.Session.State,
+		SoulSnapshotID:       strings.TrimSpace(caller.Session.SoulSnapshotID),
+		SoulDigest:           strings.TrimSpace(caller.Session.SoulDigest),
+		ParentSoulDigest:     strings.TrimSpace(caller.Session.ParentSoulDigest),
+		CreatedAt:            caller.Session.CreatedAt,
+		UpdatedAt:            caller.Session.UpdatedAt,
 	}
 }
 
@@ -923,7 +610,7 @@ func zeroCoordinationMetadata(metadata contract.CoordinationMessageMetadataPaylo
 	return strings.TrimSpace(metadata.TaskID) == "" &&
 		strings.TrimSpace(metadata.RunID) == "" &&
 		strings.TrimSpace(metadata.WorkflowID) == "" &&
-		strings.TrimSpace(metadata.CoordinationChannelID) == "" &&
+		strings.TrimSpace(metadata.ChannelID) == "" &&
 		strings.TrimSpace(string(metadata.MessageKind)) == "" &&
 		strings.TrimSpace(metadata.CorrelationID) == "" &&
 		len(metadata.Ext) == 0

@@ -50,7 +50,6 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 			"error", cleanupErr,
 		)
 	}
-
 	return nil
 }
 

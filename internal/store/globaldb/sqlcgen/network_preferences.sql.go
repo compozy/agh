@@ -14,14 +14,14 @@ DELETE FROM network_subscriptions
 WHERE workspace_id = ?1
   AND channel = ?2
   AND thread_id = ?3
-  AND peer_id = ?4
+  AND session_id = ?4
 `
 
 type DeleteNetworkSubscriptionParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
 	ThreadID    string `json:"thread_id"`
-	PeerID      string `json:"peer_id"`
+	SessionID   string `json:"session_id"`
 }
 
 func (q *Queries) DeleteNetworkSubscription(ctx context.Context, arg DeleteNetworkSubscriptionParams) error {
@@ -29,84 +29,31 @@ func (q *Queries) DeleteNetworkSubscription(ctx context.Context, arg DeleteNetwo
 		arg.WorkspaceID,
 		arg.Channel,
 		arg.ThreadID,
-		arg.PeerID,
-	)
-	return err
-}
-
-const getNetworkDeliveryGuidanceState = `-- name: GetNetworkDeliveryGuidanceState :one
-SELECT session_id, reply_guidance_delivered, protocol_guidance_delivered, created_at, updated_at
-FROM network_delivery_guidance_state
-WHERE session_id = ?1
-`
-
-func (q *Queries) GetNetworkDeliveryGuidanceState(ctx context.Context, sessionID string) (NetworkDeliveryGuidanceState, error) {
-	row := q.db.QueryRowContext(ctx, getNetworkDeliveryGuidanceState, sessionID)
-	var i NetworkDeliveryGuidanceState
-	err := row.Scan(
-		&i.SessionID,
-		&i.ReplyGuidanceDelivered,
-		&i.ProtocolGuidanceDelivered,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const upsertNetworkDeliveryGuidanceState = `-- name: UpsertNetworkDeliveryGuidanceState :exec
-INSERT INTO network_delivery_guidance_state (
-  session_id, reply_guidance_delivered, protocol_guidance_delivered, created_at, updated_at
-) VALUES (
-  ?1, ?2, ?3,
-  ?4, ?5
-)
-ON CONFLICT(session_id) DO UPDATE SET
-  reply_guidance_delivered = excluded.reply_guidance_delivered,
-  protocol_guidance_delivered = excluded.protocol_guidance_delivered,
-  updated_at = excluded.updated_at
-`
-
-type UpsertNetworkDeliveryGuidanceStateParams struct {
-	SessionID                 string `json:"session_id"`
-	ReplyGuidanceDelivered    bool   `json:"reply_guidance_delivered"`
-	ProtocolGuidanceDelivered bool   `json:"protocol_guidance_delivered"`
-	CreatedAt                 string `json:"created_at"`
-	UpdatedAt                 string `json:"updated_at"`
-}
-
-func (q *Queries) UpsertNetworkDeliveryGuidanceState(ctx context.Context, arg UpsertNetworkDeliveryGuidanceStateParams) error {
-	_, err := q.db.ExecContext(ctx, upsertNetworkDeliveryGuidanceState,
 		arg.SessionID,
-		arg.ReplyGuidanceDelivered,
-		arg.ProtocolGuidanceDelivered,
-		arg.CreatedAt,
-		arg.UpdatedAt,
 	)
 	return err
 }
 
 const upsertNetworkSubscription = `-- name: UpsertNetworkSubscription :exec
 INSERT INTO network_subscriptions (
-  workspace_id, channel, thread_id, peer_id, mode, keyword_filters_json, created_at, updated_at
+  workspace_id, channel, thread_id, session_id, mode, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8
+  ?5, ?6, ?7
 )
-ON CONFLICT(workspace_id, channel, thread_id, peer_id) DO UPDATE SET
+ON CONFLICT(workspace_id, channel, thread_id, session_id) DO UPDATE SET
   mode = excluded.mode,
-  keyword_filters_json = excluded.keyword_filters_json,
   updated_at = excluded.updated_at
 `
 
 type UpsertNetworkSubscriptionParams struct {
-	WorkspaceID        string `json:"workspace_id"`
-	Channel            string `json:"channel"`
-	ThreadID           string `json:"thread_id"`
-	PeerID             string `json:"peer_id"`
-	Mode               string `json:"mode"`
-	KeywordFiltersJson string `json:"keyword_filters_json"`
-	CreatedAt          string `json:"created_at"`
-	UpdatedAt          string `json:"updated_at"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id"`
+	SessionID   string `json:"session_id"`
+	Mode        string `json:"mode"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 func (q *Queries) UpsertNetworkSubscription(ctx context.Context, arg UpsertNetworkSubscriptionParams) error {
@@ -114,9 +61,8 @@ func (q *Queries) UpsertNetworkSubscription(ctx context.Context, arg UpsertNetwo
 		arg.WorkspaceID,
 		arg.Channel,
 		arg.ThreadID,
-		arg.PeerID,
+		arg.SessionID,
 		arg.Mode,
-		arg.KeywordFiltersJson,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)

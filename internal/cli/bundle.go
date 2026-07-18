@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 
@@ -31,15 +30,6 @@ const (
 	bundleListKey          = "list"
 	bundleProfileKey       = "profile"
 )
-
-type bundleActivationFlags struct {
-	extensionName               string
-	bundleName                  string
-	profileName                 string
-	scope                       string
-	workspace                   string
-	bindPrimaryChannelAsDefault bool
-}
 
 func newBundleCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
@@ -156,50 +146,6 @@ func newBundleGetCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func newBundleUpdateCommand(deps commandDeps) *cobra.Command {
-	var (
-		bindPrimaryChannelAsDefault bool
-		clearPrimaryChannelDefault  bool
-	)
-	cmd := &cobra.Command{
-		Use:   "update <activation-id>",
-		Short: "Update bundle activation overlays",
-		Args:  exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if bindPrimaryChannelAsDefault == clearPrimaryChannelDefault {
-				return errors.New(
-					"cli: set either --bind-primary-channel-as-default or --clear-primary-channel-default",
-				)
-			}
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-			item, err := client.UpdateBundleActivation(
-				cmd.Context(),
-				args[0],
-				UpdateBundleActivationRequest{
-					BindPrimaryChannelAsDefault: bindPrimaryChannelAsDefault,
-				},
-			)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, bundleActivationBundle(item))
-		},
-	}
-	cmd.Flags().
-		BoolVar(
-			&bindPrimaryChannelAsDefault,
-			"bind-primary-channel-as-default",
-			false,
-			"Bind the bundle primary channel as the effective default",
-		)
-	cmd.Flags().
-		BoolVar(&clearPrimaryChannelDefault, "clear-primary-channel-default", false, "Clear the bundle default-channel bind")
-	return cmd
-}
-
 func newBundleDeactivateCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "deactivate <activation-id>",
@@ -247,37 +193,6 @@ func newBundleNetworkSettingsCommand(deps commandDeps) *cobra.Command {
 			}
 			return writeCommandOutput(cmd, bundleNetworkSettingsBundle(settings))
 		},
-	}
-}
-
-func addBundleActivationFlags(cmd *cobra.Command, flags *bundleActivationFlags) {
-	cmd.Flags().StringVar(&flags.extensionName, bundleExtensionKey, "", "Extension name")
-	cmd.Flags().StringVar(&flags.bundleName, bundleBundleKey, "", "Bundle name")
-	cmd.Flags().StringVar(&flags.profileName, bundleProfileKey, "", "Bundle profile name")
-	cmd.Flags().
-		StringVar(&flags.scope, automationScopeKey, bundleGlobalKey, "Activation scope: global or workspace")
-	cmd.Flags().
-		StringVar(&flags.workspace, workspaceSkillSource, "", "Workspace id, name, or path for workspace scope")
-	cmd.Flags().
-		BoolVar(
-			&flags.bindPrimaryChannelAsDefault,
-			"bind-primary-channel-as-default",
-			false,
-			"Bind the bundle primary channel as the effective default",
-		)
-	mustMarkFlagRequired(cmd, bundleExtensionKey)
-	mustMarkFlagRequired(cmd, bundleBundleKey)
-	mustMarkFlagRequired(cmd, bundleProfileKey)
-}
-
-func bundleActivationRequestFromFlags(flags bundleActivationFlags) ActivateBundleRequest {
-	return ActivateBundleRequest{
-		ExtensionName:               strings.TrimSpace(flags.extensionName),
-		BundleName:                  strings.TrimSpace(flags.bundleName),
-		ProfileName:                 strings.TrimSpace(flags.profileName),
-		Scope:                       strings.TrimSpace(flags.scope),
-		Workspace:                   strings.TrimSpace(flags.workspace),
-		BindPrimaryChannelAsDefault: flags.bindPrimaryChannelAsDefault,
 	}
 }
 
@@ -343,6 +258,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 		"Bundle Activations",
 		[]string{
 			"ID",
+			versionValue,
 			bridgeExtensionValue,
 			bundleBundleValue,
 			bundleProfileValue,
@@ -354,6 +270,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 		"bundle_activations",
 		[]string{
 			"id",
+			versionKey,
 			bundleExtensionKey,
 			bundleBundleKey,
 			bundleProfileKey,
@@ -365,6 +282,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 		func(item BundleActivationRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				strconv.FormatInt(item.Version, 10),
 				stringOrDash(item.ExtensionName),
 				stringOrDash(item.BundleName),
 				stringOrDash(item.ProfileName),
@@ -377,6 +295,7 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 		func(item BundleActivationRecord) []string {
 			return []string{
 				item.ID,
+				strconv.FormatInt(item.Version, 10),
 				item.ExtensionName,
 				item.BundleName,
 				item.ProfileName,
@@ -396,14 +315,19 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 			return renderHumanBlocks(
 				renderHumanSection("Bundle Activation", []keyValue{
 					{Label: "ID", Value: item.ID},
+					{Label: versionValue, Value: strconv.FormatInt(item.Version, 10)},
 					{Label: bridgeExtensionValue, Value: item.ExtensionName},
 					{Label: bundleBundleValue, Value: item.BundleName},
 					{Label: bundleProfileValue, Value: item.ProfileName},
 					{Label: automationScopeValue, Value: item.Scope},
 					{Label: authoredContextWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
 					{
-						Label: "Default Channel Bind",
-						Value: formatBool(item.BindPrimaryChannelAsDefault),
+						Label: "Network Requirement Digest",
+						Value: stringOrDash(item.NetworkRequirementDigest),
+					},
+					{
+						Label: "Network Requirement Confirmed By",
+						Value: stringOrDash(item.NetworkRequirementConfirmedBy),
 					},
 					{Label: bundleCreatedValue, Value: formatTime(item.CreatedAt)},
 					{Label: bundleUpdatedValue, Value: formatTime(item.UpdatedAt)},
@@ -422,6 +346,7 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 					"bundle_activation",
 					[]string{
 						"id",
+						versionKey,
 						bundleExtensionKey,
 						bundleBundleKey,
 						bundleProfileKey,
@@ -430,6 +355,7 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 					},
 					[]string{
 						item.ID,
+						strconv.FormatInt(item.Version, 10),
 						item.ExtensionName,
 						item.BundleName,
 						item.ProfileName,
@@ -464,12 +390,7 @@ func bundleNetworkSettingsBundle(item BundleNetworkSettingsRecord) outputBundle 
 		human: func() (string, error) {
 			return renderHumanBlocks(
 				renderHumanSection("Bundle Network Settings", []keyValue{
-					{
-						Label: "Configured Default",
-						Value: stringOrDash(item.ConfiguredDefaultChannel),
-					},
-					{Label: "Effective Default", Value: stringOrDash(item.EffectiveDefaultChannel)},
-					{Label: "Effective Source", Value: stringOrDash(item.EffectiveDefaultSource)},
+					{Label: "Declared Channels", Value: strconv.Itoa(len(item.DeclaredChannels))},
 				}),
 				renderHumanTable(
 					"Declared Channels",
@@ -487,29 +408,18 @@ func bundleNetworkSettingsBundle(item BundleNetworkSettingsRecord) outputBundle 
 			), nil
 		},
 		toon: func() (string, error) {
-			return renderHumanBlocks(
-				renderToonObject(
-					"bundle_network",
-					[]string{"configured_default", "effective_default", "effective_source"},
-					[]string{
-						item.ConfiguredDefaultChannel,
-						item.EffectiveDefaultChannel,
-						item.EffectiveDefaultSource,
-					},
-				),
-				renderToonArray(
-					"declared_channels",
-					[]string{
-						"activation",
-						bundleExtensionKey,
-						bundleBundleKey,
-						bundleProfileKey,
-						workspaceSkillSource,
-						automationNameKey,
-						"primary",
-					},
-					bundleDeclaredChannelRows(item.DeclaredChannels),
-				),
+			return renderToonArray(
+				"declared_channels",
+				[]string{
+					"activation",
+					bundleExtensionKey,
+					bundleBundleKey,
+					bundleProfileKey,
+					workspaceSkillSource,
+					automationNameKey,
+					"primary",
+				},
+				bundleDeclaredChannelRows(item.DeclaredChannels),
 			), nil
 		},
 	}

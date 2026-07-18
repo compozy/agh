@@ -3,7 +3,7 @@
 - **Status:** Future draft profile
 - **Authors:** AGH Core Team
 - **Created:** 2026-04-08
-- **Updated:** 2026-05-13
+- **Updated:** 2026-07-14
 - **Depends on:** `003_agh-network-v0`
 - **Primary addition:** `AGH Network Baseline Trust Profile`
 - **Runtime base:** [RFC 003: AGH Network v0](003_agh-network-v0.md) is the current workspace-qualified runtime contract.
@@ -11,14 +11,14 @@
 ---
 
 > This RFC is future auth/proofs/trust-profile work. It does not describe a shipped AGH Runtime
-> protocol version today. Current runtime and transport identity are defined by
-> [RFC 003](003_agh-network-v0.md): every envelope and NATS subject is scoped by a stable
-> `workspace_id` under `agh-network/v0`.
+> protocol version today. Current runtime identity and in-process delivery are defined by
+> [RFC 003](003_agh-network-v0.md): every envelope is scoped by a stable `workspace_id` under
+> `agh-network/v0`.
 
 ## Abstract
 
 `AGH Network v1` is the planned profile that extends v0 with cryptographic identity verification,
-formal conformance levels, extension-key processing, and NATS request/reply guidance. The core
+formal conformance levels, and extension-key processing. The core
 conversation model remains the v0 model:
 
 - `workspace_id` is the isolation boundary.
@@ -35,7 +35,6 @@ This RFC defines:
 4. Proof-stripping defense: verified-format identity without proof is `rejected`.
 5. Formal conformance levels for third-party interoperability.
 6. Extension-key processing.
-7. NATS request/reply correlation and verified-peer route tokens.
 
 Everything defined in current v0 remains normative unless this future profile explicitly tightens it.
 
@@ -49,10 +48,9 @@ This RFC does not redefine v0 semantics. It adds:
 - Section 3: Trust state processing.
 - Section 4: Baseline Trust Profile.
 - Section 5: Extension model processing.
-- Section 6: NATS additions.
-- Section 7: Security hardening.
+- Section 6: Security hardening.
 
-For envelope format, message kinds, work lifecycle, conversation surfaces, NATS transport, discovery, and delivery
+For envelope format, message kinds, work lifecycle, conversation surfaces, discovery, and delivery
 model, see `003_agh-network-v0`.
 
 ---
@@ -88,24 +86,18 @@ A `Core Receiver` MUST:
 
 A `Core Peer` MUST satisfy both `Core Sender` and `Core Receiver`.
 
-### 2.4 NATS Peer
-
-A `NATS Peer` MUST satisfy `Core Peer` plus the NATS requirements in v0 Section 10 and this RFC Section 6.
-
-### 2.5 Verified Peer
+### 2.4 Verified Peer
 
 A `Verified Peer` MUST satisfy `Core Peer` plus the requirements in this RFC Section 4.
 
-### 2.6 Reference conformance examples
+### 2.5 Reference conformance examples
 
 These conformance combinations are valid:
 
 - `Core Sender`
 - `Core Receiver`
 - `Core Peer`
-- `Core Peer + NATS Peer`
 - `Core Peer + Verified Peer`
-- `Core Peer + NATS Peer + Verified Peer`
 
 ---
 
@@ -335,51 +327,11 @@ handling MUST only be applied after successful core validation and trust classif
 
 ---
 
-## 6. NATS Additions
-
-These additions extend the v0 NATS profile.
-
-### 6.1 Fingerprint-based route token
-
-When a peer is operating in baseline verified mode and its identity is a self-certified handle
-(`nickname@fingerprint`), the route token MUST be the handle fingerprint suffix instead of the SHA-256 derivation.
-
-This means a verified peer's peer-targeted subject is:
-
-`agh.network.v1.<workspace_id>.<channel>.peer.<fingerprint>`
-
-Where `<fingerprint>` is the first 32 hex characters from the `from` field.
-
-This is NATS transport routing only. It does not change the core envelope's `surface` value or direct-room
-membership rules.
-
-### 6.2 Subject prefix
-
-The v1 subject prefix is:
-
-`agh.network.v1`
-
-This differs from v0's `agh.network.v0`, but keeps the same workspace-qualified hierarchy. Peers
-that support both versions MUST subscribe to the appropriate workspace-qualified prefixes.
-
-### 6.3 Request/reply behavior
-
-The profile allows use of NATS request/reply mechanics, but core semantics remain authoritative.
-
-If an implementation uses NATS request/reply:
-
-- the envelope still MUST include the correct core `reply_to`, `work_id`, and correlation fields when applicable
-- conversation-bearing envelopes still MUST include `surface` and the matching `thread_id` or `direct_id`
-- NATS reply subjects do not replace core envelope correlation
-- NATS reply subjects do not create direct rooms or public threads
-
----
-
-## 7. Security Hardening
+## 6. Security Hardening
 
 These considerations extend v0 Section 11.
 
-### 7.1 Baseline trust profile limits
+### 6.1 Baseline trust profile limits
 
 The baseline trust profile provides message integrity and self-certified identity binding. It does not provide:
 
@@ -391,12 +343,12 @@ The baseline trust profile provides message integrity and self-certified identit
 
 Those belong in future profiles or deployment-specific policy.
 
-### 7.2 Proof presence does not imply validity
+### 6.2 Proof presence does not imply validity
 
-Transport authentication is not assumed. Proof presence does not imply proof validity. Receivers MUST always
+Carrier authentication is not assumed. Proof presence does not imply proof validity. Receivers MUST always
 execute the full verification steps before marking a message as `verified`.
 
-### 7.3 Signed visibility is not privacy
+### 6.3 Signed visibility is not privacy
 
 Signing `surface`, `thread_id`, `direct_id`, and `work_id` prevents tampering with conversation identity and
 work lineage. It does not encrypt the envelope. A direct room remains a restricted two-party runtime surface, not
@@ -404,12 +356,12 @@ a cryptographic privacy feature.
 
 ---
 
-## 8. Worked Examples
+## 7. Worked Examples
 
 These examples are informative. The `sig` values are length-appropriate placeholders for documentation; they
 will not verify until replaced by real signatures over the canonical bytes for the exact envelopes.
 
-### 8.1 Verified public-thread `say`
+### 7.1 Verified public-thread `say`
 
 ```json
 {
@@ -442,7 +394,7 @@ will not verify until replaced by real signatures over the canonical bytes for t
 }
 ```
 
-### 8.2 Verified direct-room `trace`
+### 7.2 Verified direct-room `trace`
 
 ```json
 {
@@ -483,7 +435,7 @@ that canonicalizes after adding, removing, or rewriting any of those fields MUST
 
 ---
 
-## 9. Normative References
+## 8. Normative References
 
 1. RFC 8785, JSON Canonicalization Scheme (JCS)
 2. RFC 8032, Edwards-Curve Digital Signature Algorithm (EdDSA)
@@ -492,7 +444,7 @@ that canonicalizes after adding, removing, or rewriting any of those fields MUST
 
 ---
 
-## 10. Outcome
+## 9. Outcome
 
 `AGH Network v1` adds trust and formal interoperability to the v0 foundation:
 
@@ -500,6 +452,5 @@ that canonicalizes after adding, removing, or rewriting any of those fields MUST
 - proof-stripping defense
 - formal conformance levels for third-party implementations
 - extension-key processing
-- NATS fingerprint-based routing for verified peers
 
 The v0 conversation and work semantics remain normative.

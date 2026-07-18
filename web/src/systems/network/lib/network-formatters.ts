@@ -7,7 +7,6 @@ import type {
   NetworkPresenceState,
   NetworkPeerSummary,
   NetworkSignalTone,
-  NetworkStatus,
 } from "../types";
 
 const NETWORK_SUPPORTED_KINDS: ReadonlyArray<Exclude<NetworkKindFilter, "all">> = [
@@ -127,76 +126,28 @@ export function getPeerDisplayName(
 }
 
 export function getPeerRecencyAt(
-  peer: Pick<NetworkPeerSummary, "joined_at" | "last_seen"> | null | undefined
+  peer: Pick<NetworkPeerSummary, "joined_at"> | null | undefined
 ): string | null {
-  return getMostRecentTimestamp(peer?.last_seen, peer?.joined_at);
+  return peer?.joined_at ?? null;
 }
 
-export function toNetworkPresenceState(value?: string | null): NetworkPresenceState {
-  switch (value?.trim()) {
-    case "local":
-      return "local";
-    case "active":
-      return "active";
-    case "inactive":
-      return "inactive";
-    case "expired":
-      return "expired";
-    default:
-      return "unknown";
-  }
+export function toNetworkPresenceState(_value?: string | null): NetworkPresenceState {
+  return "local";
 }
 
-export function formatNetworkPresenceLabel(
-  state: NetworkPresenceState,
-  lastSeenAgeSeconds?: number | null
-): string {
-  if (state === "local") {
-    return "local";
-  }
-  if (state === "unknown") {
-    return "no recent greet";
-  }
-  if (lastSeenAgeSeconds == null) {
-    return state;
-  }
-  return `${state} ${formatNetworkAgeSeconds(lastSeenAgeSeconds)} ago`;
-}
-
-function formatNetworkAgeSeconds(value: number): string {
-  const seconds = Math.max(0, Math.floor(value));
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h`;
+export function formatNetworkPresenceLabel(state: NetworkPresenceState): string {
+  return state;
 }
 
 export function getNetworkStatusTone(status?: string | null): NetworkSignalTone {
   switch (status?.trim()) {
-    case "online":
-    case "running":
+    case "active":
       return "success";
-    case "starting":
-    case "degraded":
-      return "warning";
-    case "offline":
-    case "stopped":
-      return "danger";
+    case "ready":
+      return "info";
     default:
       return "neutral";
   }
-}
-
-export function isNetworkRunning(status?: NetworkStatus | null): boolean {
-  if (!status) {
-    return false;
-  }
-  return status.enabled === true && (status.status === "running" || status.status === "online");
 }
 
 export function formatNetworkKindLabel(kind: string): string {

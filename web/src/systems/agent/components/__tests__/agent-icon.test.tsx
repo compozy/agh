@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
+import { providerKindIconRegistry } from "@agh/ui";
 import { describe, expect, it } from "vitest";
 
 import { AgentIcon } from "../agent-icon";
-import { providerIconMap } from "../provider-icon-map";
 
 describe("AgentIcon", () => {
   it('maps "claude" provider to BrainCircuit icon', () => {
@@ -46,7 +46,7 @@ describe("AgentIcon", () => {
     expect(icon).toHaveAttribute("data-provider", "claude");
   });
 
-  it("has known providers in providerIconMap", () => {
+  it("has known providers in the shared provider icon registry", () => {
     const expected = [
       "blackbox",
       "claude",
@@ -66,7 +66,7 @@ describe("AgentIcon", () => {
     ];
 
     for (const provider of expected) {
-      expect(providerIconMap).toHaveProperty(provider);
+      expect(providerKindIconRegistry).toHaveProperty(provider);
     }
   });
 

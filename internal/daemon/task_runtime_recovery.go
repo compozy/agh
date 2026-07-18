@@ -33,8 +33,8 @@ func (r *taskRuntime) shutdown(ctx context.Context) error {
 	if r.bridgeNotifications != nil {
 		r.bridgeNotifications.shutdown()
 	}
-	if r.networkTaskStatus != nil {
-		r.networkTaskStatus.shutdown()
+	if r.taskStatusProjection != nil {
+		r.taskStatusProjection.shutdown()
 	}
 	if r.reentry != nil {
 		r.reentry.shutdown()
@@ -125,63 +125,73 @@ func planTaskRunRecovery(
 	if sessions == nil {
 		return nil, errors.New("daemon: task recovery requires a session manager")
 	}
+	if run.IsNetworkWake() {
+		return planNetworkWakeRunRecovery(run), nil
+	}
 
 	evidence, err := inspectTaskSessionRecovery(ctx, sessions, strings.TrimSpace(run.SessionID))
 	if err != nil {
 		return nil, err
 	}
 
+	return planSessionRunRecovery(run.Status.Normalize(), evidence), nil
+}
+
+func planNetworkWakeRunRecovery(run taskpkg.Run) *taskpkg.RunBootRecovery {
 	switch run.Status.Normalize() {
-	case taskpkg.TaskRunStatusClaimed:
-		if evidence.live {
-			return &taskpkg.RunBootRecovery{
-				Action:         taskpkg.RunBootRecoveryMarkRunning,
-				Reason:         taskRecoveryReasonBoot,
-				SessionState:   evidence.state,
-				Classification: evidence.classification,
-				Detail:         evidence.detail,
-			}, nil
-		}
+	case taskpkg.TaskRunStatusClaimed,
+		taskpkg.TaskRunStatusStarting,
+		taskpkg.TaskRunStatusRunning:
 		return &taskpkg.RunBootRecovery{
 			Action:         taskpkg.RunBootRecoveryRequeue,
 			Reason:         taskRecoveryReasonBoot,
-			SessionState:   evidence.state,
-			Classification: evidence.classification,
-			Detail:         evidence.detail,
-		}, nil
+			SessionState:   "network_wake",
+			Classification: taskRecoveryClassificationOrphaned,
+			Detail:         "network wake recovered through the durable task queue",
+		}
+	default:
+		return nil
+	}
+}
+
+func planSessionRunRecovery(
+	status taskpkg.RunStatus,
+	evidence taskSessionRecoveryEvidence,
+) *taskpkg.RunBootRecovery {
+	switch status {
+	case taskpkg.TaskRunStatusClaimed:
+		if evidence.live {
+			return taskRunRecoveryFromEvidence(taskpkg.RunBootRecoveryMarkRunning, evidence)
+		}
+		return taskRunRecoveryFromEvidence(taskpkg.RunBootRecoveryRequeue, evidence)
 
 	case taskpkg.TaskRunStatusStarting:
 		if evidence.live {
-			return &taskpkg.RunBootRecovery{
-				Action:         taskpkg.RunBootRecoveryMarkRunning,
-				Reason:         taskRecoveryReasonBoot,
-				SessionState:   evidence.state,
-				Classification: evidence.classification,
-				Detail:         evidence.detail,
-			}, nil
+			return taskRunRecoveryFromEvidence(taskpkg.RunBootRecoveryMarkRunning, evidence)
 		}
-		return &taskpkg.RunBootRecovery{
-			Action:         taskpkg.RunBootRecoveryFail,
-			Reason:         taskRecoveryReasonBoot,
-			SessionState:   evidence.state,
-			Classification: evidence.classification,
-			Detail:         evidence.detail,
-		}, nil
+		return taskRunRecoveryFromEvidence(taskpkg.RunBootRecoveryFail, evidence)
 
 	case taskpkg.TaskRunStatusRunning:
 		if evidence.live {
-			return nil, nil
+			return nil
 		}
-		return &taskpkg.RunBootRecovery{
-			Action:         taskpkg.RunBootRecoveryFail,
-			Reason:         taskRecoveryReasonBoot,
-			SessionState:   evidence.state,
-			Classification: evidence.classification,
-			Detail:         evidence.detail,
-		}, nil
+		return taskRunRecoveryFromEvidence(taskpkg.RunBootRecoveryFail, evidence)
 
 	default:
-		return nil, nil
+		return nil
+	}
+}
+
+func taskRunRecoveryFromEvidence(
+	action taskpkg.RunBootRecoveryAction,
+	evidence taskSessionRecoveryEvidence,
+) *taskpkg.RunBootRecovery {
+	return &taskpkg.RunBootRecovery{
+		Action:         action,
+		Reason:         taskRecoveryReasonBoot,
+		SessionState:   evidence.state,
+		Classification: evidence.classification,
+		Detail:         evidence.detail,
 	}
 }
 
@@ -345,13 +355,6 @@ func taskSessionAgentName(taskRecord taskpkg.Task) string {
 		return ""
 	}
 	return strings.TrimSpace(owner.Ref)
-}
-
-func taskRunSessionChannel(run taskpkg.Run) string {
-	if channel := strings.TrimSpace(run.CoordinationChannelID); channel != "" {
-		return channel
-	}
-	return strings.TrimSpace(run.NetworkChannel)
 }
 
 func taskStopCause(reason taskpkg.StopReason) session.StopCause {

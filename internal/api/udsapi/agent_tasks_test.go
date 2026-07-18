@@ -38,15 +38,14 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 			run := agentTaskRun(taskpkg.TaskRunStatusClaimed)
 			run.ClaimTokenHash = claimHash
 			run.LeaseUntil = leaseUntil
-			run.CoordinationChannelID = "builders"
+			taskRecord := agentTaskRecord()
 			return &taskpkg.ClaimResult{
-				Task:       agentTaskRecord(),
+				Task:       &taskRecord,
 				Run:        run,
 				ClaimToken: rawToken,
 				LeaseUntil: leaseUntil,
 				CoordinationChannel: &taskpkg.CoordinationChannelMetadata{
 					ID:                  "builders",
-					Channel:             "builders",
 					DisplayName:         "Builders",
 					Purpose:             "coordinated execution",
 					WorkspaceID:         "ws-1",
@@ -78,7 +77,10 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 		engine,
 		http.MethodPost,
 		"/api/agent/tasks/claim-next",
-		[]byte(`{"workspace_id":"ws-1","required_capabilities":["manual"],"priority_min":2,"lease_seconds":120}`),
+		[]byte(
+			`{"run_id":"run-1","workspace_id":"ws-1",`+
+				`"required_capabilities":["manual"],"priority_min":2,"lease_seconds":120}`,
+		),
 		agentKernelHeaders(),
 	)
 	if recorder.Code != http.StatusOK {
@@ -92,19 +94,30 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 	var response contract.AgentTaskClaimResponse
 	decodeJSONResponse(t, recorder, &response)
 	if response.Claim.Lease.ClaimTokenHash != claimHash ||
-		response.Claim.Lease.CoordinationChannelID != "builders" ||
+		response.Claim.Lease.ResolvedNetworkParticipation == nil ||
+		response.Claim.Lease.ResolvedNetworkParticipation.ChannelID != "builders" ||
 		response.Claim.CoordinationChannel == nil ||
 		response.Claim.CoordinationChannel.DisplayName != "Builders" ||
 		response.Claim.Run.CoordinationChannel == nil {
 		t.Fatalf("claim response = %#v, want hash and coordination metadata", response.Claim)
 	}
-	if seenCriteria.WorkspaceID != "ws-1" ||
+	if seenCriteria.RunID != "run-1" ||
+		seenCriteria.WorkspaceID != "ws-1" ||
 		seenCriteria.ClaimerSessionID != "sess-agent" ||
 		seenCriteria.AgentName != "coder" ||
-		seenCriteria.CoordinationChannelID != "builders" ||
+		seenCriteria.ParticipationChannel != "" ||
 		seenCriteria.PriorityMin != 2 ||
 		seenCriteria.LeaseDuration != 120*time.Second {
-		t.Fatalf("criteria = %#v, want caller workspace/session/agent/channel and flags", seenCriteria)
+		t.Fatalf("criteria = %#v, want exact run plus caller workspace/session/agent and flags", seenCriteria)
+	}
+	wantParticipation := udsTestLiveParticipation("ws-1", "builders")
+	if seenCriteria.CallerNetworkParticipation == nil ||
+		*seenCriteria.CallerNetworkParticipation != wantParticipation {
+		t.Fatalf(
+			"criteria.CallerNetworkParticipation = %#v, want %#v",
+			seenCriteria.CallerNetworkParticipation,
+			wantParticipation,
+		)
 	}
 	if !containsString(seenCriteria.RequiredCapabilities, "manual") ||
 		!containsString(seenCriteria.RequiredCapabilities, "go") {
@@ -284,7 +297,8 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 			if response.Lease.RunID != "run-1" ||
 				response.Lease.Status != tt.status ||
 				response.Lease.SessionID != "sess-agent" ||
-				response.Lease.CoordinationChannelID != "builders" {
+				response.Lease.ResolvedNetworkParticipation == nil ||
+				response.Lease.ResolvedNetworkParticipation.ChannelID != "builders" {
 				t.Fatalf(
 					"lease = %#v, want run-1 status %s session sess-agent channel builders",
 					response.Lease,
@@ -357,6 +371,59 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 		)
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+	})
+
+	t.Run("Should reject unknown lease mutation fields", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name string
+			path string
+			body string
+		}{
+			{
+				name: "heartbeat",
+				path: "/api/agent/tasks/run-1/heartbeat",
+				body: `{"lease_seconds":60,"legacy":true}`,
+			},
+			{
+				name: "complete",
+				path: "/api/agent/tasks/run-1/complete",
+				body: `{"result":{},"legacy":true}`,
+			},
+			{
+				name: "fail",
+				path: "/api/agent/tasks/run-1/fail",
+				body: `{"error":"failed","legacy":true}`,
+			},
+			{
+				name: "release",
+				path: "/api/agent/tasks/run-1/release",
+				body: `{"reason":"retry","legacy":true}`,
+			},
+		} {
+			t.Run("Should reject unknown fields on "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				recorder := performAgentKernelRequest(
+					t,
+					newTestRouter(t, newAgentTaskHandlers(t, &stubTaskManager{})),
+					http.MethodPost,
+					testCase.path,
+					[]byte(testCase.body),
+					agentKernelHeaders(),
+				)
+				if recorder.Code != http.StatusBadRequest ||
+					!strings.Contains(recorder.Body.String(), "unknown_field") {
+					t.Fatalf(
+						"status = %d, want %d unknown-field response; body=%s",
+						recorder.Code,
+						http.StatusBadRequest,
+						recorder.Body.String(),
+					)
+				}
+			})
 		}
 	})
 
@@ -443,18 +510,19 @@ func agentTaskRecord() taskpkg.Task {
 
 func agentTaskRun(status taskpkg.RunStatus) taskpkg.Run {
 	now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
-	return taskpkg.Run{
-		ID:                    "run-1",
-		TaskID:                "task-1",
-		Status:                status,
-		Attempt:               1,
-		SessionID:             "sess-agent",
-		ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
-		CoordinationChannelID: "builders",
-		QueuedAt:              now,
-		ClaimedAt:             now,
-		LeaseUntil:            now.Add(5 * time.Minute),
+	run := taskpkg.Run{
+		ID:         "run-1",
+		TaskID:     "task-1",
+		Status:     status,
+		Attempt:    1,
+		SessionID:  "sess-agent",
+		ClaimedBy:  &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
+		QueuedAt:   now,
+		ClaimedAt:  now,
+		LeaseUntil: now.Add(5 * time.Minute),
 	}
+	run.SetNetworkState(udsTestLiveParticipation("ws-1", "builders"), "", "", "")
+	return run
 }
 
 func containsString(values []string, expected string) bool {

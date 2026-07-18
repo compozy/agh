@@ -147,8 +147,8 @@ type NotificationPresetService interface {
 	Delete(ctx context.Context, name string) error
 }
 
-// BundleService exposes extension bundle catalog, activation, and effective
-// network-default state to API transports.
+// BundleService exposes extension bundle catalog, activation, and declared
+// network channels to API transports.
 type BundleService interface {
 	Catalog(ctx context.Context) ([]bundlepkg.CatalogEntry, error)
 	PreviewActivation(ctx context.Context, req bundlepkg.ActivateRequest) (bundlepkg.ActivationPreview, error)

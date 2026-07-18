@@ -13,7 +13,6 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
 	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
-	"github.com/compozy/agh/internal/network"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/spf13/cobra"
 )
@@ -23,79 +22,77 @@ const (
 )
 
 const (
-	taskAttemptValue             = "Attempt"
-	taskBridgeValue              = "Bridge"
-	taskChannelValue             = "Channel"
-	taskClaimedByValue           = "Claimed By"
-	taskCoordinationChannelValue = "Coordination Channel"
-	taskCreatedValue             = "Created"
-	taskCreatedByValue           = "Created By"
-	taskDescriptionValue         = "Description"
-	taskEndedValue               = "Ended"
-	taskErrorValue               = "Error"
-	taskIdentifierValue          = "Identifier"
-	taskKindValue                = "Kind"
-	taskModeValue                = "Mode"
-	taskOriginValue              = "Origin"
-	taskOutcomeValue             = "Outcome"
-	taskOwnerValue               = "Owner"
-	taskParentValue              = "Parent"
-	taskQueuedValue              = "Queued"
-	taskReasonValue              = "Reason"
-	taskResultValue              = "Result"
-	taskReviewValue              = "Review"
-	taskRunValue                 = "Run"
-	taskSandboxValue             = "Sandbox"
-	taskScopeValue               = "Scope"
-	taskSessionValue             = "Session"
-	taskStartedValue             = "Started"
-	taskStatusValue              = "Status"
-	taskSubscriptionValue        = "Subscription"
-	taskTaskValue                = "Task"
-	taskTaskIDValue              = "Task ID"
-	taskTimeValue                = "Time"
-	taskTitleValue               = "Title"
-	taskUpdatedValue             = "Updated"
-	taskWorkspaceValue           = "Workspace"
-	taskAttemptKey               = "attempt"
-	taskAutoEnqueueOnReadyFlag   = "auto-enqueue-on-ready"
-	taskClaimedByKey             = "claimed_by"
-	taskCoordinationChannelIDKey = "coordination_channel_id"
-	taskCreateKey                = "create"
-	taskCreatedAtKey             = "created_at"
-	createdByKey                 = "created_by"
-	taskDeleteIDValue            = "delete <id>"
-	taskDeletedKey               = "deleted"
-	taskDescriptionKey           = "description"
-	taskEndedAtKey               = "ended_at"
-	taskErrorKey                 = "error"
-	taskFailureKindKey           = "failure_kind"
-	taskGetIDValue               = "get <id>"
-	taskGroupIDKey               = "group_id"
-	taskIdentifierKey            = "identifier"
-	taskKindKey                  = "kind"
-	taskListKey                  = "list"
-	taskNetworkChannelKey        = "network_channel"
-	taskNextKey                  = "next"
-	taskOriginKey                = "origin"
-	taskOutcomeKey               = "outcome"
-	taskPeerIDKey                = "peer_id"
-	taskProfileKey               = "profile"
-	taskQueuedAtKey              = "queued_at"
-	taskReasonKey                = "reason"
-	taskReviewKey                = "review"
-	taskRunIDKey                 = "run_id"
-	taskScopeKey                 = "scope"
-	taskSessionIDKey             = "session_id"
-	taskStartedAtKey             = "started_at"
-	taskStatusKey                = "status"
-	taskTaskKey                  = "task"
-	taskTaskIDKey                = "task_id"
-	taskTimestampKey             = "timestamp"
-	taskTitleKey                 = "title"
-	taskUpdateIDValue            = "update <id>"
-	taskUpdatedAtKey             = "updated_at"
-	taskWorkspaceIDKey           = "workspace_id"
+	taskAttemptValue              = "Attempt"
+	taskBridgeValue               = "Bridge"
+	taskClaimedByValue            = "Claimed By"
+	taskParticipationChannelValue = "Participation Channel"
+	taskCreatedValue              = "Created"
+	taskCreatedByValue            = "Created By"
+	taskDescriptionValue          = "Description"
+	taskEndedValue                = "Ended"
+	taskErrorValue                = "Error"
+	taskIdentifierValue           = "Identifier"
+	taskKindValue                 = "Kind"
+	taskModeValue                 = "Mode"
+	taskOriginValue               = "Origin"
+	taskOutcomeValue              = "Outcome"
+	taskOwnerValue                = "Owner"
+	taskParentValue               = "Parent"
+	taskQueuedValue               = "Queued"
+	taskReasonValue               = "Reason"
+	taskResultValue               = "Result"
+	taskReviewValue               = "Review"
+	taskRunValue                  = "Run"
+	taskSandboxValue              = "Sandbox"
+	taskScopeValue                = "Scope"
+	taskSessionValue              = "Session"
+	taskStartedValue              = "Started"
+	taskStatusValue               = "Status"
+	taskSubscriptionValue         = "Subscription"
+	taskTaskValue                 = "Task"
+	taskTaskIDValue               = "Task ID"
+	taskTimeValue                 = "Time"
+	taskTitleValue                = "Title"
+	taskUpdatedValue              = "Updated"
+	taskWorkspaceValue            = "Workspace"
+	taskAttemptKey                = "attempt"
+	taskAutoEnqueueOnReadyFlag    = "auto-enqueue-on-ready"
+	taskClaimedByKey              = "claimed_by"
+	taskCreateKey                 = "create"
+	taskCreatedAtKey              = "created_at"
+	createdByKey                  = "created_by"
+	taskDeleteIDValue             = "delete <id>"
+	taskDeletedKey                = "deleted"
+	taskDescriptionKey            = "description"
+	taskEndedAtKey                = "ended_at"
+	taskErrorKey                  = "error"
+	taskFailureKindKey            = "failure_kind"
+	taskGetIDValue                = "get <id>"
+	taskGroupIDKey                = "group_id"
+	taskIdentifierKey             = "identifier"
+	taskKindKey                   = "kind"
+	taskListKey                   = "list"
+	taskParticipationChannelKey   = "participation_channel"
+	taskNextKey                   = "next"
+	taskOriginKey                 = "origin"
+	taskOutcomeKey                = "outcome"
+	taskPeerIDKey                 = "peer_id"
+	taskProfileKey                = "profile"
+	taskQueuedAtKey               = "queued_at"
+	taskReasonKey                 = "reason"
+	taskReviewKey                 = "review"
+	taskRunIDKey                  = "run_id"
+	taskScopeKey                  = "scope"
+	taskSessionIDKey              = "session_id"
+	taskStartedAtKey              = "started_at"
+	taskStatusKey                 = "status"
+	taskTaskKey                   = "task"
+	taskTaskIDKey                 = "task_id"
+	taskTimestampKey              = "timestamp"
+	taskTitleKey                  = "title"
+	taskUpdateIDValue             = "update <id>"
+	taskUpdatedAtKey              = "updated_at"
+	taskWorkspaceIDKey            = "workspace_id"
 )
 
 type taskCreateInput struct {
@@ -103,7 +100,7 @@ type taskCreateInput struct {
 	Identifier         string
 	ScopeRaw           string
 	WorkspaceRef       string
-	NetworkRaw         string
+	NetworkFlags       networkParticipationFlags
 	Title              string
 	Description        string
 	PriorityRaw        string
@@ -123,22 +120,9 @@ type taskBlockInput struct {
 	AsAgent    bool
 }
 
-type taskUpdateInput struct {
-	Title              string
-	Description        string
-	PriorityRaw        string
-	MetadataRaw        string
-	NetworkRaw         string
-	OwnerKindRaw       string
-	OwnerRef           string
-	ClearOwner         bool
-	AutoEnqueueOnReady bool
-	AutoEnqueueSet     bool
-}
-
 type taskExecutionInput struct {
 	IdempotencyKey string
-	NetworkRaw     string
+	NetworkFlags   networkParticipationFlags
 	MetadataRaw    string
 }
 
@@ -177,7 +161,7 @@ type taskPromoteInput struct {
 }
 
 type taskFanOutInput struct {
-	NetworkChannel string
+	NetworkFlags   networkParticipationFlags
 	Designations   []string
 	IdempotencyKey string
 }
@@ -236,7 +220,8 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
   agh task create --scope workspace --workspace checkout-api --title "Audit auth flow"
 
   # Explicitly enqueue execution for an existing task
-  agh task start task-123 --channel coord-run-123
+  agh task start task-123 --network live \
+    --network-channel-strategy named --network-channel coord-run-123
 
   # Let the current agent session claim work
   agh task next --wait`,
@@ -307,7 +292,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 		identifier    string
 		scopeRaw      string
 		workspaceRef  string
-		networkRaw    string
+		networkFlags  networkParticipationFlags
 		title         string
 		description   string
 		ownerKindRaw  string
@@ -334,7 +319,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 				Identifier:         identifier,
 				ScopeRaw:           scopeRaw,
 				WorkspaceRef:       workspaceRef,
-				NetworkRaw:         networkRaw,
+				NetworkFlags:       networkFlags,
 				Title:              title,
 				Description:        description,
 				PriorityRaw:        priorityRaw,
@@ -360,7 +345,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Task scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
-	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional network channel binding")
+	bindNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.Flags().StringVar(&title, taskTitleKey, "", "Task title")
 	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Task description")
 	cmd.Flags().
@@ -426,126 +411,6 @@ func newTaskInspectCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskInspectBundle(&inspect))
 		},
 	}
-}
-
-func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
-	var (
-		title        string
-		description  string
-		metadataRaw  string
-		networkRaw   string
-		priorityRaw  string
-		ownerKindRaw string
-		ownerRef     string
-		clearOwner   bool
-		autoEnqueue  bool
-	)
-
-	cmd := &cobra.Command{
-		Use:   taskUpdateIDValue,
-		Short: "Update mutable task fields",
-		Args:  exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			request, err := buildTaskUpdateRequest(cmd, taskUpdateInput{
-				Title:              title,
-				Description:        description,
-				PriorityRaw:        priorityRaw,
-				MetadataRaw:        metadataRaw,
-				NetworkRaw:         networkRaw,
-				OwnerKindRaw:       ownerKindRaw,
-				OwnerRef:           ownerRef,
-				ClearOwner:         clearOwner,
-				AutoEnqueueOnReady: autoEnqueue,
-				AutoEnqueueSet:     cmd.Flags().Changed(taskAutoEnqueueOnReadyFlag),
-			})
-			if err != nil {
-				return err
-			}
-			if !request.HasChanges() {
-				return errors.New("cli: task update requires at least one change flag")
-			}
-
-			updated, err := client.UpdateTask(cmd.Context(), args[0], request)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, taskBundle(&updated))
-		},
-	}
-	cmd.Flags().StringVar(&title, taskTitleKey, "", "Update the task title")
-	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Update the task description")
-	cmd.Flags().
-		StringVar(&priorityRaw, "priority", "", "Update the task priority: low, medium, high, or urgent")
-	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Update metadata JSON")
-	cmd.Flags().
-		StringVar(&networkRaw, "channel", "", "Update the network channel; pass an empty value to clear it")
-	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Update the owner kind")
-	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Update the owner reference")
-	cmd.Flags().BoolVar(&clearOwner, "clear-owner", false, "Remove the current owner")
-	cmd.Flags().
-		BoolVar(&autoEnqueue, taskAutoEnqueueOnReadyFlag, false, "Toggle auto-enqueue once blocking dependencies complete")
-	return cmd
-}
-
-func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTaskRequest, error) {
-	request := UpdateTaskRequest{}
-	if cmd.Flags().Changed(taskTitleKey) {
-		trimmed := strings.TrimSpace(input.Title)
-		if trimmed == "" {
-			return UpdateTaskRequest{}, errors.New("cli: --title cannot be blank")
-		}
-		request.Title = new(trimmed)
-	}
-	if cmd.Flags().Changed(taskDescriptionKey) {
-		request.Description = new(strings.TrimSpace(input.Description))
-	}
-	if cmd.Flags().Changed("priority") {
-		priority, err := parseOptionalTaskPriority(input.PriorityRaw)
-		if err != nil {
-			return UpdateTaskRequest{}, err
-		}
-		request.Priority = &priority
-	}
-	if cmd.Flags().Changed("metadata") {
-		metadata, err := parseJSONFlag("metadata", input.MetadataRaw)
-		if err != nil {
-			return UpdateTaskRequest{}, err
-		}
-		request.Metadata = &metadata
-	}
-	if input.AutoEnqueueSet {
-		autoEnqueue := input.AutoEnqueueOnReady
-		request.AutoEnqueueOnReady = &autoEnqueue
-	}
-	if cmd.Flags().Changed("channel") {
-		if err := validateTaskChannelFlag(input.NetworkRaw); err != nil {
-			return UpdateTaskRequest{}, err
-		}
-		request.NetworkChannel = new(strings.TrimSpace(input.NetworkRaw))
-	}
-
-	ownerChanged := cmd.Flags().Changed("owner-kind") || cmd.Flags().Changed("owner-ref")
-	if input.ClearOwner && ownerChanged {
-		return UpdateTaskRequest{}, errors.New(
-			"cli: --clear-owner cannot be combined with --owner-kind or --owner-ref",
-		)
-	}
-	if ownerChanged {
-		owner, err := parseRequiredTaskOwnership(input.OwnerKindRaw, input.OwnerRef)
-		if err != nil {
-			return UpdateTaskRequest{}, err
-		}
-		request.Owner = owner
-	}
-	if input.ClearOwner {
-		request.ClearOwner = true
-	}
-	return request, nil
 }
 
 func newTaskPublishCommand(deps commandDeps) *cobra.Command {
@@ -1269,7 +1134,7 @@ func newTaskExecutionCommand(
 		},
 	}
 	cmd.Flags().StringVar(&input.IdempotencyKey, "idempotency-key", "", "Optional idempotency key")
-	cmd.Flags().StringVar(&input.NetworkRaw, "channel", "", "Optional run channel override")
+	bindNetworkParticipationFlags(cmd, &input.NetworkFlags)
 	cmd.Flags().StringVar(&input.MetadataRaw, "metadata", "", "Optional run metadata JSON")
 	return cmd
 }
@@ -1278,12 +1143,13 @@ func buildTaskExecutionRequest(
 	cmd *cobra.Command,
 	input taskExecutionInput,
 ) (TaskExecutionRequest, error) {
-	if err := validateTaskChannelFlag(input.NetworkRaw); err != nil {
+	participationRequest, err := input.NetworkFlags.request()
+	if err != nil {
 		return TaskExecutionRequest{}, err
 	}
 	request := TaskExecutionRequest{
-		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
-		NetworkChannel: strings.TrimSpace(input.NetworkRaw),
+		IdempotencyKey:       strings.TrimSpace(input.IdempotencyKey),
+		NetworkParticipation: participationRequest,
 	}
 	if cmd.Flags().Changed("metadata") {
 		metadata, err := parseJSONFlag("metadata", input.MetadataRaw)
@@ -1515,6 +1381,7 @@ func newTaskRecoverCommand(deps commandDeps) *cobra.Command {
 
 func newTaskNextCommand(deps commandDeps) *cobra.Command {
 	var (
+		runID                string
 		workspaceID          string
 		requiredCapabilities []string
 		priorityMin          int
@@ -1533,16 +1400,23 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
   # Wait until matching work is claimable and request a five-minute lease
   agh task next --wait --lease-seconds 300 -o json
 
+  # Claim one exact queued run through the canonical lease path
+  agh task next --run-id run-123 -o json
+
   # Filter by required caller capability
   agh task next --capability go.test --priority-min 10`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := validateAgentTaskLeaseSeconds(leaseSeconds); err != nil {
 				return err
 			}
+			if cmd.Flags().Changed("run-id") && strings.TrimSpace(runID) == "" {
+				return errors.New("cli: --run-id cannot be blank")
+			}
 			if priorityMin < 0 {
 				return fmt.Errorf("cli: --priority-min must be zero or positive: %d", priorityMin)
 			}
 			request := AgentTaskClaimNextRequest{
+				RunID:                strings.TrimSpace(runID),
 				WorkspaceID:          strings.TrimSpace(workspaceID),
 				RequiredCapabilities: trimAgentTaskCapabilities(requiredCapabilities),
 				PriorityMin:          priorityMin,
@@ -1571,6 +1445,7 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, agentTaskNextBundle(record))
 		},
 	}
+	cmd.Flags().StringVar(&runID, "run-id", "", "Claim exactly this queued run")
 	cmd.Flags().
 		StringVar(&workspaceID, "workspace-id", "", "Workspace ID override; defaults to caller workspace")
 	cmd.Flags().
@@ -2098,10 +1973,14 @@ func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			participationRequest, err := input.NetworkFlags.request()
+			if err != nil {
+				return err
+			}
 			record, err := client.FanOutTaskRuns(cmd.Context(), args[0], FanOutTaskRunsRequest{
-				NetworkChannel: strings.TrimSpace(input.NetworkChannel),
-				Designations:   designations,
-				IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
+				NetworkParticipation: participationRequest,
+				Designations:         designations,
+				IdempotencyKey:       strings.TrimSpace(input.IdempotencyKey),
 			})
 			if err != nil {
 				return err
@@ -2109,8 +1988,7 @@ func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskFanOutRunsBundle(record))
 		},
 	}
-	cmd.Flags().
-		StringVar(&input.NetworkChannel, "channel", "", "Optional coordination channel override")
+	bindNetworkParticipationFlags(cmd, &input.NetworkFlags)
 	cmd.Flags().
 		StringArrayVar(&input.Designations, "designation", nil, "Designation brief for one sibling run; repeatable")
 	cmd.Flags().StringVar(&input.IdempotencyKey, "idempotency-key", "", "Optional fan-out idempotency key")
@@ -2152,7 +2030,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 		identifier   string
 		scopeRaw     string
 		workspaceRef string
-		networkRaw   string
+		networkFlags networkParticipationFlags
 		title        string
 		description  string
 		priorityRaw  string
@@ -2177,7 +2055,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 				Identifier:         identifier,
 				ScopeRaw:           scopeRaw,
 				WorkspaceRef:       workspaceRef,
-				NetworkRaw:         networkRaw,
+				NetworkFlags:       networkFlags,
 				Title:              title,
 				Description:        description,
 				PriorityRaw:        priorityRaw,
@@ -2204,7 +2082,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Child task scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
-	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional network channel binding")
+	bindNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.Flags().StringVar(&title, taskTitleKey, "", "Child task title")
 	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Child task description")
 	cmd.Flags().
@@ -2304,7 +2182,6 @@ func newTaskRunCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskRunListCommand(deps))
 	cmd.AddCommand(newTaskRunShowCommand(deps))
 	cmd.AddCommand(newTaskRunEnqueueCommand(deps))
-	cmd.AddCommand(newTaskRunClaimCommand(deps))
 	cmd.AddCommand(newTaskRunStartCommand(deps))
 	cmd.AddCommand(newTaskRunAttachSessionCommand(deps))
 	cmd.AddCommand(newTaskRunCompleteCommand(deps))
@@ -2316,9 +2193,10 @@ func newTaskRunCommand(deps commandDeps) *cobra.Command {
 
 func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 	var (
-		statusRaw string
-		sessionID string
-		last      int
+		statusRaw               string
+		sessionID               string
+		participationChannelRaw string
+		last                    int
 	)
 
 	cmd := &cobra.Command{
@@ -2331,7 +2209,12 @@ func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			query, err := parseTaskRunListFilters(statusRaw, sessionID, last)
+			query, err := parseTaskRunListFilters(
+				statusRaw,
+				sessionID,
+				participationChannelRaw,
+				last,
+			)
 			if err != nil {
 				return err
 			}
@@ -2345,6 +2228,12 @@ func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&statusRaw, taskStatusKey, "", "Filter by run status")
 	cmd.Flags().StringVar(&sessionID, "session", "", "Filter by attached session ID")
+	cmd.Flags().StringVar(
+		&participationChannelRaw,
+		"participation-channel",
+		"",
+		"Filter by resolved Network participation channel",
+	)
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
 	return cmd
 }
@@ -2372,7 +2261,7 @@ func newTaskRunShowCommand(deps commandDeps) *cobra.Command {
 func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 	var (
 		idempotencyKey string
-		networkRaw     string
+		networkFlags   networkParticipationFlags
 		metadataRaw    string
 	)
 
@@ -2385,13 +2274,14 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := validateTaskChannelFlag(networkRaw); err != nil {
+			participationRequest, err := networkFlags.request()
+			if err != nil {
 				return err
 			}
 
 			request := EnqueueTaskRunRequest{
-				IdempotencyKey: strings.TrimSpace(idempotencyKey),
-				NetworkChannel: strings.TrimSpace(networkRaw),
+				IdempotencyKey:       strings.TrimSpace(idempotencyKey),
+				NetworkParticipation: participationRequest,
 			}
 			if cmd.Flags().Changed("metadata") {
 				request.Metadata, err = parseJSONFlag("metadata", metadataRaw)
@@ -2408,34 +2298,8 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
-	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional run channel override")
+	bindNetworkParticipationFlags(cmd, &networkFlags)
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional run metadata JSON")
-	return cmd
-}
-
-func newTaskRunClaimCommand(deps commandDeps) *cobra.Command {
-	var idempotencyKey string
-
-	cmd := &cobra.Command{
-		Use:   "claim <run-id>",
-		Short: "Claim a queued task run",
-		Args:  exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			run, err := client.ClaimTaskRun(cmd.Context(), args[0], ClaimTaskRunRequest{
-				IdempotencyKey: strings.TrimSpace(idempotencyKey),
-			})
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, taskRunBundle(run))
-		},
-	}
-	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	return cmd
 }
 
@@ -2610,6 +2474,7 @@ func newTaskRunCancelCommand(deps commandDeps) *cobra.Command {
 func parseTaskRunListFilters(
 	statusRaw string,
 	sessionID string,
+	participationChannelRaw string,
 	last int,
 ) (TaskRunListQuery, error) {
 	status, err := parseOptionalTaskRunStatus(statusRaw)
@@ -2619,10 +2484,14 @@ func parseTaskRunListFilters(
 	if err := validateTaskLast(last); err != nil {
 		return TaskRunListQuery{}, err
 	}
+	if err := validateTaskParticipationChannelFlag(participationChannelRaw); err != nil {
+		return TaskRunListQuery{}, err
+	}
 	return TaskRunListQuery{
-		Status:    status,
-		SessionID: strings.TrimSpace(sessionID),
-		Limit:     last,
+		Status:               status,
+		SessionID:            strings.TrimSpace(sessionID),
+		ParticipationChannel: strings.TrimSpace(participationChannelRaw),
+		Limit:                last,
 	}, nil
 }
 
@@ -2890,10 +2759,6 @@ func buildTaskCreateRequest(cmd *cobra.Command, input taskCreateInput) (CreateTa
 	if err != nil {
 		return CreateTaskRequest{}, err
 	}
-	if err := validateTaskChannelFlag(input.NetworkRaw); err != nil {
-		return CreateTaskRequest{}, err
-	}
-
 	owner, err := parseOptionalTaskOwnership(cmd, input.OwnerKindRaw, input.OwnerRef)
 	if err != nil {
 		return CreateTaskRequest{}, err
@@ -2912,7 +2777,6 @@ func buildTaskCreateRequest(cmd *cobra.Command, input taskCreateInput) (CreateTa
 		Identifier:         strings.TrimSpace(input.Identifier),
 		Scope:              scope,
 		Workspace:          workspace,
-		NetworkChannel:     strings.TrimSpace(input.NetworkRaw),
 		Title:              strings.TrimSpace(input.Title),
 		Description:        strings.TrimSpace(input.Description),
 		Priority:           priority,
@@ -2920,6 +2784,11 @@ func buildTaskCreateRequest(cmd *cobra.Command, input taskCreateInput) (CreateTa
 		Owner:              owner,
 		Metadata:           metadata,
 	}
+	participationRequest, err := input.NetworkFlags.request()
+	if err != nil {
+		return CreateTaskRequest{}, err
+	}
+	request.NetworkParticipation = participationRequest
 	if input.NoWakeCreator {
 		wakeCreator := false
 		request.WakeCreator = &wakeCreator
@@ -2965,17 +2834,6 @@ func parseOptionalTaskPriority(raw string) (taskpkg.Priority, error) {
 		return "", fmt.Errorf("cli: %w", err)
 	}
 	return priority, nil
-}
-
-func validateTaskChannelFlag(channel string) error {
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return nil
-	}
-	if err := network.ValidateChannel(trimmed); err != nil {
-		return fmt.Errorf("cli: invalid --channel value %q: %w", trimmed, err)
-	}
-	return nil
 }
 
 func validateTaskLast(last int) error {
@@ -3028,7 +2886,10 @@ func taskBundle(item *TaskRecord) outputBundle {
 				{Label: taskOwnerValue, Value: stringOrDash(formatTaskOwnership(item.Owner))},
 				{Label: taskCreatedByValue, Value: stringOrDash(formatTaskActor(item.CreatedBy))},
 				{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
-				{Label: taskChannelValue, Value: stringOrDash(item.NetworkChannel)},
+				{
+					Label: taskParticipationChannelValue,
+					Value: resolvedParticipationChannel(item.ResolvedNetworkParticipation),
+				},
 				{Label: taskCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
 				{Label: taskUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 				{Label: "Closed", Value: stringOrDash(formatTimePtr(item.ClosedAt))},
@@ -3051,7 +2912,7 @@ func taskBundle(item *TaskRecord) outputBundle {
 				taskOwnerKey,
 				createdByKey,
 				taskOriginKey,
-				taskNetworkChannelKey,
+				taskParticipationChannelKey,
 				taskCreatedAtKey,
 				taskUpdatedAtKey,
 				"closed_at",
@@ -3071,7 +2932,7 @@ func taskBundle(item *TaskRecord) outputBundle {
 				formatTaskOwnership(item.Owner),
 				formatTaskActor(item.CreatedBy),
 				formatTaskOrigin(item.Origin),
-				item.NetworkChannel,
+				resolvedParticipationChannelRaw(item.ResolvedNetworkParticipation),
 				formatTime(item.CreatedAt),
 				formatTime(item.UpdatedAt),
 				formatTimePtr(item.ClosedAt),
@@ -3501,16 +3362,16 @@ func taskFanOutRunsBundle(record FanOutTaskRunsRecord) outputBundle {
 		record,
 		record.Runs,
 		"Task Fan-Out Runs",
-		[]string{"Run ID", taskTaskValue, taskStatusValue, taskAttemptValue, taskChannelValue},
+		[]string{"Run ID", taskTaskValue, taskStatusValue, taskAttemptValue, taskParticipationChannelValue},
 		"task_fanout_runs",
-		[]string{"run_id", taskTaskIDKey, taskStatusKey, taskAttemptKey, taskNetworkChannelKey},
+		[]string{agentKernelRunIDKey, taskTaskIDKey, taskStatusKey, taskAttemptKey, taskParticipationChannelKey},
 		func(item TaskRunRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
 				stringOrDash(item.TaskID),
 				stringOrDash(string(item.Status)),
 				intOrDash(item.Attempt),
-				stringOrDash(item.NetworkChannel),
+				resolvedParticipationChannel(item.ResolvedNetworkParticipation),
 			}
 		},
 		func(item TaskRunRecord) []string {
@@ -3519,7 +3380,7 @@ func taskFanOutRunsBundle(record FanOutTaskRunsRecord) outputBundle {
 				item.TaskID,
 				string(item.Status),
 				strconv.Itoa(item.Attempt),
-				item.NetworkChannel,
+				resolvedParticipationChannelRaw(item.ResolvedNetworkParticipation),
 			}
 		},
 	)
@@ -3867,8 +3728,7 @@ func renderTaskDetailHuman(detail *TaskDetailRecord) (string, error) {
 				taskAttemptValue,
 				taskSessionValue,
 				taskClaimedByValue,
-				taskChannelValue,
-				taskCoordinationChannelValue,
+				taskParticipationChannelValue,
 				taskQueuedValue,
 				taskStartedValue,
 				taskEndedValue,
@@ -3917,8 +3777,7 @@ func renderTaskDetailToon(detail *TaskDetailRecord) (string, error) {
 				taskAttemptKey,
 				taskSessionIDKey,
 				taskClaimedByKey,
-				taskNetworkChannelKey,
-				taskCoordinationChannelIDKey,
+				taskParticipationChannelKey,
 				taskQueuedAtKey,
 				taskStartedAtKey,
 				taskEndedAtKey,
@@ -3952,10 +3811,9 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				{Label: taskSessionValue, Value: stringOrDash(item.SessionID)},
 				{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
 				{Label: "Idempotency Key", Value: stringOrDash(item.IdempotencyKey)},
-				{Label: taskChannelValue, Value: stringOrDash(item.NetworkChannel)},
 				{
-					Label: taskCoordinationChannelValue,
-					Value: stringOrDash(item.CoordinationChannelID),
+					Label: taskParticipationChannelValue,
+					Value: resolvedParticipationChannel(item.ResolvedNetworkParticipation),
 				},
 				{Label: taskQueuedValue, Value: stringOrDash(formatTime(item.QueuedAt))},
 				{Label: "Claimed", Value: stringOrDash(formatTimePtr(item.ClaimedAt))},
@@ -3977,8 +3835,7 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				taskSessionIDKey,
 				taskOriginKey,
 				"idempotency_key",
-				taskNetworkChannelKey,
-				taskCoordinationChannelIDKey,
+				taskParticipationChannelKey,
 				taskQueuedAtKey,
 				"claimed_at",
 				taskStartedAtKey,
@@ -3996,95 +3853,13 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				item.SessionID,
 				formatTaskOrigin(item.Origin),
 				item.IdempotencyKey,
-				item.NetworkChannel,
-				item.CoordinationChannelID,
+				resolvedParticipationChannelRaw(item.ResolvedNetworkParticipation),
 				formatTime(item.QueuedAt),
 				formatTimePtr(item.ClaimedAt),
 				formatTimePtr(item.StartedAt),
 				formatTimePtr(item.EndedAt),
 				item.Error,
 				compactJSON(item.Result),
-			}), nil
-		},
-	}
-}
-
-func taskRunDetailBundle(detail *TaskRunDetailRecord) outputBundle {
-	return outputBundle{
-		jsonValue: detail,
-		human: func() (string, error) {
-			runBlock, err := taskRunBundle(detail.Run).human()
-			if err != nil {
-				return "", err
-			}
-
-			blocks := []string{
-				runBlock,
-				renderHumanSection(taskTaskValue, []keyValue{
-					{Label: "ID", Value: stringOrDash(detail.Task.ID)},
-					{Label: taskIdentifierValue, Value: stringOrDash(detail.Task.Identifier)},
-					{Label: taskTitleValue, Value: stringOrDash(detail.Task.Title)},
-					{Label: taskStatusValue, Value: stringOrDash(string(detail.Task.Status))},
-					{Label: cliPriorityValue, Value: stringOrDash(string(detail.Task.Priority))},
-					{
-						Label: taskOwnerValue,
-						Value: stringOrDash(formatTaskOwnership(detail.Task.Owner)),
-					},
-					{Label: taskScopeValue, Value: stringOrDash(string(detail.Task.Scope))},
-					{Label: taskWorkspaceValue, Value: stringOrDash(detail.Task.WorkspaceID)},
-					{Label: "Latest Event", Value: int64OrDash(detail.Task.LatestEventSeq)},
-				}),
-			}
-
-			if detail.Session != nil {
-				blocks = append(blocks, renderHumanSection(taskSessionValue, []keyValue{
-					{Label: "ID", Value: stringOrDash(detail.Session.SessionID)},
-					{Label: taskWorkspaceValue, Value: stringOrDash(detail.Session.WorkspaceID)},
-					{Label: bundleAgentValue, Value: stringOrDash(detail.Session.AgentName)},
-					{Label: providerNameValue, Value: stringOrDash(detail.Session.Name)},
-					{Label: taskChannelValue, Value: stringOrDash(detail.Session.Channel)},
-					{Label: taskStatusValue, Value: stringOrDash(detail.Session.State)},
-					{
-						Label: taskCreatedValue,
-						Value: stringOrDash(formatTime(detail.Session.CreatedAt)),
-					},
-					{
-						Label: taskUpdatedValue,
-						Value: stringOrDash(formatTime(detail.Session.UpdatedAt)),
-					},
-				}))
-			}
-
-			blocks = append(
-				blocks,
-				renderHumanSection(
-					"Operational Summary",
-					taskRunOperationalSummaryRows(detail.Summary),
-				),
-			)
-			return renderHumanBlocks(blocks...), nil
-		},
-		toon: func() (string, error) {
-			return renderToonObject("task_run_detail", []string{
-				"id",
-				taskTaskIDKey,
-				taskStatusKey,
-				taskAttemptKey,
-				taskSessionIDKey,
-				taskTitleKey,
-				"task_status",
-				"last_event_type",
-				"last_activity_at",
-			}, []string{
-				detail.Run.ID,
-				detail.Run.TaskID,
-				detail.Run.Status.String(),
-				strconv.Itoa(detail.Run.Attempt),
-				detail.Run.SessionID,
-				detail.Task.Title,
-				string(detail.Task.Status),
-				detail.Summary.LastEventType,
-				formatTime(detail.Summary.LastActivityAt),
 			}), nil
 		},
 	}
@@ -4249,8 +4024,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 			taskAttemptValue,
 			taskSessionValue,
 			taskClaimedByValue,
-			taskChannelValue,
-			taskCoordinationChannelValue,
+			taskParticipationChannelValue,
 			taskQueuedValue,
 			taskStartedValue,
 			taskEndedValue,
@@ -4263,8 +4037,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 			taskAttemptKey,
 			taskSessionIDKey,
 			taskClaimedByKey,
-			taskNetworkChannelKey,
-			taskCoordinationChannelIDKey,
+			taskParticipationChannelKey,
 			taskQueuedAtKey,
 			taskStartedAtKey,
 			taskEndedAtKey,
@@ -4277,8 +4050,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 				intOrDash(item.Attempt),
 				stringOrDash(item.SessionID),
 				stringOrDash(formatTaskActorPtr(item.ClaimedBy)),
-				stringOrDash(item.NetworkChannel),
-				stringOrDash(item.CoordinationChannelID),
+				resolvedParticipationChannel(item.ResolvedNetworkParticipation),
 				stringOrDash(formatTime(item.QueuedAt)),
 				stringOrDash(formatTimePtr(item.StartedAt)),
 				stringOrDash(formatTimePtr(item.EndedAt)),
@@ -4292,8 +4064,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 				strconv.Itoa(item.Attempt),
 				item.SessionID,
 				formatTaskActorPtr(item.ClaimedBy),
-				item.NetworkChannel,
-				item.CoordinationChannelID,
+				resolvedParticipationChannelRaw(item.ResolvedNetworkParticipation),
 				formatTime(item.QueuedAt),
 				formatTimePtr(item.StartedAt),
 				formatTimePtr(item.EndedAt),
@@ -4372,8 +4143,7 @@ func taskRunRows(items []TaskRunRecord) [][]string {
 			intOrDash(item.Attempt),
 			stringOrDash(item.SessionID),
 			stringOrDash(formatTaskActorPtr(item.ClaimedBy)),
-			stringOrDash(item.NetworkChannel),
-			stringOrDash(item.CoordinationChannelID),
+			resolvedParticipationChannel(item.ResolvedNetworkParticipation),
 			stringOrDash(formatTime(item.QueuedAt)),
 			stringOrDash(formatTimePtr(item.StartedAt)),
 			stringOrDash(formatTimePtr(item.EndedAt)),
@@ -4392,8 +4162,7 @@ func taskRunToonRows(items []TaskRunRecord) [][]string {
 			strconv.Itoa(item.Attempt),
 			item.SessionID,
 			formatTaskActorPtr(item.ClaimedBy),
-			item.NetworkChannel,
-			item.CoordinationChannelID,
+			resolvedParticipationChannelRaw(item.ResolvedNetworkParticipation),
 			formatTime(item.QueuedAt),
 			formatTimePtr(item.StartedAt),
 			formatTimePtr(item.EndedAt),

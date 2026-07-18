@@ -161,8 +161,10 @@ caption="A direct-room handoff opens new work_id but keeps trace_id and reply_to
 
 ### 1. Coordinator resolves the direct room and opens follow-up work
 
-The control plane derives the deterministic `direct_id` from `(channel, sorted(peer_a, peer_b))`.
-The wire envelope still carries the explicit `direct_id`.
+The control plane resolves both peers to stable session IDs and derives the deterministic
+`direct_id` from
+`agh-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>`. The wire
+envelope still carries the explicit `direct_id`.
 
 ```json
 {

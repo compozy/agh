@@ -151,6 +151,10 @@ func (g *LoopRepo) reserveCoordinatorRun(
 	if reservedRunID == "" {
 		reservedRunID = store.NewID("run")
 	}
+	loopRun, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(strings.TrimSpace(loopRunID)))
+	if err != nil {
+		return taskpkg.Run{}, false, err
+	}
 	reservation := queuedRunReservationInput{
 		taskID:         taskID,
 		runID:          reservedRunID,
@@ -158,6 +162,7 @@ func (g *LoopRepo) reserveCoordinatorRun(
 		loopRunID:      loopRunID,
 		idempotencyKey: idempotencyKey,
 		origin:         origin,
+		networkSpec:    loopRun.NetworkSpecSnapshot(),
 		queuedAt:       now,
 	}
 	_, run, existing, err := g.tasks.reserveQueuedRunWithExecutor(ctx, exec, reservation)
@@ -218,7 +223,7 @@ func lastCoordinatorTaskIDForLoopRun(
 		}
 		return "", fmt.Errorf("store: find coordinator task for loop run %q: %w", loopRunID, err)
 	}
-	return strings.TrimSpace(taskID), nil
+	return taskNullStringValue(taskID), nil
 }
 
 func errorsIsNoRows(err error) bool {

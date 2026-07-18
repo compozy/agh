@@ -43,16 +43,19 @@ func (s Scope) Validate(workspaceID string) error {
 }
 
 type Activation struct {
-	ID                          string
-	ExtensionName               string
-	BundleName                  string
-	ProfileName                 string
-	Scope                       Scope
-	WorkspaceID                 string
-	SpecContentHash             string
-	BindPrimaryChannelAsDefault bool
-	CreatedAt                   time.Time
-	UpdatedAt                   time.Time
+	ID                       string
+	Version                  int64
+	ExtensionName            string
+	BundleName               string
+	ProfileName              string
+	Scope                    Scope
+	WorkspaceID              string
+	SpecContentHash          string
+	NetworkRequirementDigest string
+	ConfirmedBy              string
+	ConfirmedAt              string
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
 }
 
 func (a Activation) Normalize() Activation {
@@ -63,6 +66,9 @@ func (a Activation) Normalize() Activation {
 	a.Scope = a.Scope.Normalize()
 	a.WorkspaceID = strings.TrimSpace(a.WorkspaceID)
 	a.SpecContentHash = strings.TrimSpace(a.SpecContentHash)
+	a.NetworkRequirementDigest = strings.TrimSpace(a.NetworkRequirementDigest)
+	a.ConfirmedBy = strings.TrimSpace(a.ConfirmedBy)
+	a.ConfirmedAt = strings.TrimSpace(a.ConfirmedAt)
 	return a
 }
 
@@ -80,6 +86,9 @@ func (a Activation) Validated() (Activation, error) {
 }
 
 func (a Activation) validateNormalized() error {
+	if a.Version < 0 {
+		return errors.New("bundles: activation version cannot be negative")
+	}
 	if err := requireNonEmpty(a.ID, "bundles: activation id is required"); err != nil {
 		return err
 	}

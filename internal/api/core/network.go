@@ -211,36 +211,36 @@ func (h *BaseHandlers) populateNetworkDirectSendTarget(
 	if err != nil {
 		return err
 	}
-	peers, err := service.ListPeers(ctx, scope.NetworkWorkspaceID(), channel)
+	sessionID := strings.TrimSpace(req.SessionID)
+	targetSessionID := ""
+	switch sessionID {
+	case strings.TrimSpace(direct.SessionA):
+		targetSessionID = strings.TrimSpace(direct.SessionB)
+	case strings.TrimSpace(direct.SessionB):
+		targetSessionID = strings.TrimSpace(direct.SessionA)
+	default:
+		return fmt.Errorf(
+			"%w: session %q is not part of direct room %q",
+			network.ErrInvalidField,
+			sessionID,
+			directID,
+		)
+	}
+	peers, err := service.ListPeers(ctx, scope.NetworkWorkspaceID(), "")
 	if err != nil {
 		return err
 	}
-	sessionID := strings.TrimSpace(req.SessionID)
 	for _, peer := range peers {
-		if peer.SessionID == nil || strings.TrimSpace(*peer.SessionID) != sessionID {
+		if peer.SessionID == nil || strings.TrimSpace(*peer.SessionID) != targetSessionID {
 			continue
 		}
-		peerID := strings.TrimSpace(peer.PeerID)
-		switch peerID {
-		case strings.TrimSpace(direct.PeerA):
-			req.To = strings.TrimSpace(direct.PeerB)
-			return nil
-		case strings.TrimSpace(direct.PeerB):
-			req.To = strings.TrimSpace(direct.PeerA)
-			return nil
-		default:
-			return fmt.Errorf(
-				"%w: session peer %q is not part of direct room %q",
-				network.ErrInvalidField,
-				peerID,
-				directID,
-			)
-		}
+		req.To = strings.TrimSpace(peer.PeerID)
+		return nil
 	}
 	return fmt.Errorf(
 		"%w: session=%q channel=%q",
-		network.ErrLocalPeerNotFound,
-		sessionID,
+		network.ErrTargetPeerNotFound,
+		targetSessionID,
 		channel,
 	)
 }
@@ -298,14 +298,8 @@ func NetworkStatusPayloadFromStatus(status *network.Status) *contract.NetworkSta
 	return &contract.NetworkStatusPayload{
 		Enabled:              status.Enabled,
 		Status:               strings.TrimSpace(status.Status),
-		ListenerHost:         strings.TrimSpace(status.ListenerHost),
-		ListenerPort:         status.ListenerPort,
 		LocalPeers:           status.LocalPeers,
-		RemotePeers:          status.RemotePeers,
 		Channels:             status.Channels,
-		QueuedMessages:       status.QueuedMessages,
-		QueuedSessions:       status.QueuedSessions,
-		DeliveryWorkers:      status.DeliveryWorkers,
 		MessagesSent:         status.MessagesSent,
 		MessagesReceived:     status.MessagesReceived,
 		MessagesRejected:     status.MessagesRejected,
@@ -318,7 +312,6 @@ func NetworkStatusPayloadFromStatus(status *network.Status) *contract.NetworkSta
 		ConversationMessages: status.ConversationMessages,
 		WorkTransitions:      status.WorkTransitions,
 		DirectResolves:       status.DirectResolves,
-		LastDisconnect:       strings.TrimSpace(status.LastDisconnect),
 		KindMetrics:          kindMetrics,
 	}
 }
@@ -386,9 +379,6 @@ func sortNetworkPeerPayloads(peers []contract.NetworkPeerPayload) {
 }
 
 func networkPeerSortTimestamp(peer contract.NetworkPeerPayload) *time.Time {
-	if peer.LastSeen != nil {
-		return peer.LastSeen
-	}
 	return peer.JoinedAt
 }
 
@@ -407,41 +397,28 @@ func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPaylo
 			displayName = trimmed
 		}
 	}
-	presenceState, lastSeenAgeSeconds := networkPresenceFields(peer)
 	return contract.NetworkPeerPayload{
-		WorkspaceID:        strings.TrimSpace(peer.WorkspaceID),
-		SessionID:          peer.SessionID,
-		PeerID:             peer.PeerID,
-		DisplayName:        displayName,
-		Channel:            peer.Channel,
-		Local:              peer.Local,
-		PeerCard:           networkPeerCardPayload(peer),
-		JoinedAt:           cloneTimePtr(peer.JoinedAt),
-		LastSeen:           cloneTimePtr(peer.LastSeen),
-		ExpiresAt:          cloneTimePtr(peer.ExpiresAt),
-		PresenceState:      presenceState,
-		LastSeenAgeSeconds: lastSeenAgeSeconds,
+		WorkspaceID:   strings.TrimSpace(peer.WorkspaceID),
+		SessionID:     peer.SessionID,
+		PeerID:        peer.PeerID,
+		DisplayName:   displayName,
+		Channel:       peer.Channel,
+		Local:         peer.Local,
+		PeerCard:      networkPeerCardPayload(peer),
+		JoinedAt:      cloneTimePtr(peer.JoinedAt),
+		PresenceState: networkPresenceState(peer),
 	}
 }
 
-func networkPresenceFields(peer network.PeerInfo) (string, *int64) {
+func networkPresenceState(peer network.PeerInfo) string {
 	state := string(peer.PresenceState)
-	if state == "" && peer.Local {
+	if state == "" {
 		state = contract.NetworkPresenceLocal
 	}
-	switch state {
-	case contract.NetworkPresenceLocal,
-		contract.NetworkPresenceActive,
-		contract.NetworkPresenceInactive,
-		contract.NetworkPresenceExpired,
-		contract.NetworkPresenceUnknown:
-	default:
-		state = contract.NetworkPresenceUnknown
+	if state != contract.NetworkPresenceLocal {
+		return contract.NetworkPresenceLocal
 	}
-	if state == contract.NetworkPresenceLocal || state == contract.NetworkPresenceUnknown {
-		return state, nil
-	}
-	return state, cloneInt64Ptr(peer.LastSeenAgeSeconds)
+	return state
 }
 
 func networkPeerCardPayload(peer network.PeerInfo) contract.NetworkPeerCardPayload {

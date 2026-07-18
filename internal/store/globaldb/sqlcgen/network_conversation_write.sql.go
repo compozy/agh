@@ -239,28 +239,28 @@ func (q *Queries) GetNetworkCursorSequence(ctx context.Context, arg GetNetworkCu
 	return sequence, err
 }
 
-const getNetworkDirectRoomByPeerPair = `-- name: GetNetworkDirectRoomByPeerPair :one
-SELECT workspace_id, channel, direct_id, peer_a, peer_b,
+const getNetworkDirectRoomBySessionPair = `-- name: GetNetworkDirectRoomBySessionPair :one
+SELECT workspace_id, channel, direct_id, session_a, session_b,
        opened_at, opened_sequence, last_activity_at, last_activity_sequence,
        message_count, open_work_count, last_message_preview
 FROM network_direct_rooms
 WHERE workspace_id = ?1 AND channel = ?2
-  AND peer_a = ?3 AND peer_b = ?4
+  AND session_a = ?3 AND session_b = ?4
 `
 
-type GetNetworkDirectRoomByPeerPairParams struct {
+type GetNetworkDirectRoomBySessionPairParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
-	PeerA       string `json:"peer_a"`
-	PeerB       string `json:"peer_b"`
+	SessionA    string `json:"session_a"`
+	SessionB    string `json:"session_b"`
 }
 
-type GetNetworkDirectRoomByPeerPairRow struct {
+type GetNetworkDirectRoomBySessionPairRow struct {
 	WorkspaceID          string `json:"workspace_id"`
 	Channel              string `json:"channel"`
 	DirectID             string `json:"direct_id"`
-	PeerA                string `json:"peer_a"`
-	PeerB                string `json:"peer_b"`
+	SessionA             string `json:"session_a"`
+	SessionB             string `json:"session_b"`
 	OpenedAt             string `json:"opened_at"`
 	OpenedSequence       int64  `json:"opened_sequence"`
 	LastActivityAt       string `json:"last_activity_at"`
@@ -270,20 +270,20 @@ type GetNetworkDirectRoomByPeerPairRow struct {
 	LastMessagePreview   string `json:"last_message_preview"`
 }
 
-func (q *Queries) GetNetworkDirectRoomByPeerPair(ctx context.Context, arg GetNetworkDirectRoomByPeerPairParams) (GetNetworkDirectRoomByPeerPairRow, error) {
-	row := q.db.QueryRowContext(ctx, getNetworkDirectRoomByPeerPair,
+func (q *Queries) GetNetworkDirectRoomBySessionPair(ctx context.Context, arg GetNetworkDirectRoomBySessionPairParams) (GetNetworkDirectRoomBySessionPairRow, error) {
+	row := q.db.QueryRowContext(ctx, getNetworkDirectRoomBySessionPair,
 		arg.WorkspaceID,
 		arg.Channel,
-		arg.PeerA,
-		arg.PeerB,
+		arg.SessionA,
+		arg.SessionB,
 	)
-	var i GetNetworkDirectRoomByPeerPairRow
+	var i GetNetworkDirectRoomBySessionPairRow
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.Channel,
 		&i.DirectID,
-		&i.PeerA,
-		&i.PeerB,
+		&i.SessionA,
+		&i.SessionB,
 		&i.OpenedAt,
 		&i.OpenedSequence,
 		&i.LastActivityAt,
@@ -313,8 +313,8 @@ func (q *Queries) GetNetworkMessageTimestamp(ctx context.Context, arg GetNetwork
 }
 
 const getNetworkWork = `-- name: GetNetworkWork :one
-SELECT work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_peer_id,
-       opened_session_id, target_peer_id, state, opened_at, last_activity_at, terminal_at
+SELECT work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
+       target_session_id, state, opened_at, last_activity_at, terminal_at
 FROM network_work
 WHERE workspace_id = ?1 AND work_id = ?2
 `
@@ -334,9 +334,8 @@ func (q *Queries) GetNetworkWork(ctx context.Context, arg GetNetworkWorkParams) 
 		&i.Surface,
 		&i.ThreadID,
 		&i.DirectID,
-		&i.OpenedByPeerID,
-		&i.OpenedSessionID,
-		&i.TargetPeerID,
+		&i.OpenedBySessionID,
+		&i.TargetSessionID,
 		&i.State,
 		&i.OpenedAt,
 		&i.LastActivityAt,
@@ -402,7 +401,7 @@ func (q *Queries) InitializeNetworkDirectRoomSequence(ctx context.Context, arg I
 
 const insertNetworkDirectRoom = `-- name: InsertNetworkDirectRoom :execrows
 INSERT OR IGNORE INTO network_direct_rooms (
-  workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
+  workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at,
   message_count, open_work_count, last_message_preview
 ) VALUES (
   ?1, ?2, ?3, ?4, ?5,
@@ -414,8 +413,8 @@ type InsertNetworkDirectRoomParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 	Channel        string `json:"channel"`
 	DirectID       string `json:"direct_id"`
-	PeerA          string `json:"peer_a"`
-	PeerB          string `json:"peer_b"`
+	SessionA       string `json:"session_a"`
+	SessionB       string `json:"session_b"`
 	OpenedAt       string `json:"opened_at"`
 	LastActivityAt string `json:"last_activity_at"`
 }
@@ -425,8 +424,8 @@ func (q *Queries) InsertNetworkDirectRoom(ctx context.Context, arg InsertNetwork
 		arg.WorkspaceID,
 		arg.Channel,
 		arg.DirectID,
-		arg.PeerA,
-		arg.PeerB,
+		arg.SessionA,
+		arg.SessionB,
 		arg.OpenedAt,
 		arg.LastActivityAt,
 	)
@@ -552,29 +551,28 @@ func (q *Queries) InsertNetworkTimelineMessage(ctx context.Context, arg InsertNe
 
 const insertNetworkWork = `-- name: InsertNetworkWork :exec
 INSERT INTO network_work (
-  work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_peer_id,
-  opened_session_id, target_peer_id, state, opened_at, last_activity_at, terminal_at
+  work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
+  target_session_id, state, opened_at, last_activity_at, terminal_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
-  ?8, ?9, ?10,
-  ?11, ?12, NULL
+  ?8, ?9,
+  ?10, ?11, NULL
 )
 `
 
 type InsertNetworkWorkParams struct {
-	WorkID          string         `json:"work_id"`
-	WorkspaceID     string         `json:"workspace_id"`
-	Channel         string         `json:"channel"`
-	Surface         string         `json:"surface"`
-	ThreadID        sql.NullString `json:"thread_id"`
-	DirectID        sql.NullString `json:"direct_id"`
-	OpenedByPeerID  string         `json:"opened_by_peer_id"`
-	OpenedSessionID string         `json:"opened_session_id"`
-	TargetPeerID    string         `json:"target_peer_id"`
-	State           string         `json:"state"`
-	OpenedAt        string         `json:"opened_at"`
-	LastActivityAt  string         `json:"last_activity_at"`
+	WorkID            string         `json:"work_id"`
+	WorkspaceID       string         `json:"workspace_id"`
+	Channel           string         `json:"channel"`
+	Surface           string         `json:"surface"`
+	ThreadID          sql.NullString `json:"thread_id"`
+	DirectID          sql.NullString `json:"direct_id"`
+	OpenedBySessionID string         `json:"opened_by_session_id"`
+	TargetSessionID   sql.NullString `json:"target_session_id"`
+	State             string         `json:"state"`
+	OpenedAt          string         `json:"opened_at"`
+	LastActivityAt    string         `json:"last_activity_at"`
 }
 
 func (q *Queries) InsertNetworkWork(ctx context.Context, arg InsertNetworkWorkParams) error {
@@ -585,9 +583,8 @@ func (q *Queries) InsertNetworkWork(ctx context.Context, arg InsertNetworkWorkPa
 		arg.Surface,
 		arg.ThreadID,
 		arg.DirectID,
-		arg.OpenedByPeerID,
-		arg.OpenedSessionID,
-		arg.TargetPeerID,
+		arg.OpenedBySessionID,
+		arg.TargetSessionID,
 		arg.State,
 		arg.OpenedAt,
 		arg.LastActivityAt,
@@ -723,12 +720,12 @@ func (q *Queries) UpdateNetworkWork(ctx context.Context, arg UpdateNetworkWorkPa
 
 const upsertNetworkThreadParticipant = `-- name: UpsertNetworkThreadParticipant :exec
 INSERT INTO network_thread_participants (
-  workspace_id, channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
+  workspace_id, channel, thread_id, session_id, first_message_id, first_seen_at, last_seen_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7
 )
-ON CONFLICT(workspace_id, channel, thread_id, peer_id) DO UPDATE SET
+ON CONFLICT(workspace_id, channel, thread_id, session_id) DO UPDATE SET
   last_seen_at = excluded.last_seen_at
 `
 
@@ -736,7 +733,7 @@ type UpsertNetworkThreadParticipantParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 	Channel        string `json:"channel"`
 	ThreadID       string `json:"thread_id"`
-	PeerID         string `json:"peer_id"`
+	SessionID      string `json:"session_id"`
 	FirstMessageID string `json:"first_message_id"`
 	FirstSeenAt    string `json:"first_seen_at"`
 	LastSeenAt     string `json:"last_seen_at"`
@@ -747,7 +744,7 @@ func (q *Queries) UpsertNetworkThreadParticipant(ctx context.Context, arg Upsert
 		arg.WorkspaceID,
 		arg.Channel,
 		arg.ThreadID,
-		arg.PeerID,
+		arg.SessionID,
 		arg.FirstMessageID,
 		arg.FirstSeenAt,
 		arg.LastSeenAt,

@@ -25,7 +25,7 @@ export interface UseNetworkDirectsOptions {
   workspaceId?: string | null;
   query?: Omit<NetworkDirectsListQuery, "after">;
   limit?: number;
-  peerId?: string;
+  sessionId?: string;
 }
 
 export function useNetworkDirects(
@@ -43,7 +43,7 @@ export function useNetworkDirects(
       {
         ...options.query,
         ...(options.limit ? { limit: options.limit } : {}),
-        ...(options.peerId ? { peer_id: options.peerId } : {}),
+        ...(options.sessionId ? { session_id: options.sessionId } : {}),
       },
       enabled
     )

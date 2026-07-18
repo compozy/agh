@@ -17,7 +17,6 @@ import type {
   TaskOwnerKind,
   TaskPriority,
   TaskRecord,
-  TaskRun,
   TaskRunStatus,
   TaskStatus,
 } from "../types";
@@ -690,7 +689,11 @@ export function taskHandoffActionCopy(
 }
 
 type CoordinationCarrier = {
-  coordination_channel_id?: string | null;
+  resolved_network_participation?: {
+    mode?: string | null;
+    channel_id?: string | null;
+    source?: string | null;
+  } | null;
   coordination_channel?: {
     id?: string | null;
     display_name?: string | null;
@@ -699,9 +702,9 @@ type CoordinationCarrier = {
 };
 
 /**
- * Returns true when the run carries a coordination channel binding. Channel
- * presence supports operator/agent conversation; it never replaces task-run
- * ownership or terminal status.
+ * Returns true when the run participates live or carries a coordination conversation
+ * binding. Channel presence supports operator/agent conversation; it never replaces
+ * task-run ownership or terminal status.
  */
 export function runIsCoordinated<T extends CoordinationCarrier | null | undefined>(
   run: T
@@ -710,7 +713,11 @@ export function runIsCoordinated<T extends CoordinationCarrier | null | undefine
     return false;
   }
 
-  if (typeof run.coordination_channel_id === "string" && run.coordination_channel_id !== "") {
+  const participation = run.resolved_network_participation;
+  if (participation?.mode === "live") {
+    return true;
+  }
+  if (typeof participation?.channel_id === "string" && participation.channel_id.trim() !== "") {
     return true;
   }
 
@@ -718,10 +725,8 @@ export function runIsCoordinated<T extends CoordinationCarrier | null | undefine
 }
 
 /**
- * Resolves a short human label for a coordination channel binding. Returns the
- * embedded display name when present, then falls back to the channel id, and
- * finally to a generic "Coordination channel" so the chip remains readable
- * even when the embedded payload is missing.
+ * Resolves a short human label for a coordination / live participation channel.
+ * Prefers the embedded conversation display name, then resolved channel id.
  */
 export function runCoordinationChannelLabel<T extends CoordinationCarrier | null | undefined>(
   run: T
@@ -740,9 +745,9 @@ export function runCoordinationChannelLabel<T extends CoordinationCarrier | null
     return embeddedId;
   }
 
-  const id = run.coordination_channel_id?.trim();
-  if (id) {
-    return id;
+  const channelId = run.resolved_network_participation?.channel_id?.trim();
+  if (channelId) {
+    return channelId;
   }
 
   return "Coordination channel";
@@ -764,8 +769,3 @@ export function taskLifecyclePhaseFromRecord(
     active_run: activeRun ?? null,
   });
 }
-
-export type TaskRunLike = Pick<
-  TaskRun,
-  "coordination_channel_id" | "coordination_channel" | "status"
->;

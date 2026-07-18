@@ -12,6 +12,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -130,9 +131,10 @@ func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session, capabil
 	}
 
 	info := session.Info()
-	if info == nil || strings.TrimSpace(info.Channel) == "" {
+	if info == nil || info.NetworkParticipation.Mode != participation.ModeLive {
 		return nil
 	}
+	channelID := strings.TrimSpace(info.NetworkParticipation.ChannelID)
 
 	lifecycle := m.currentNetworkPeerLifecycle()
 	if lifecycle == nil {
@@ -146,7 +148,9 @@ func (m *Manager) joinNetworkPeer(ctx context.Context, session *Session, capabil
 			networkPeerID(info.AgentName, info.ID),
 			info.WorkspaceID,
 			firstNonEmpty(strings.TrimSpace(info.Name), strings.TrimSpace(info.AgentName)),
-			info.Channel,
+			channelID,
+			info.NetworkOwnerKey,
+			info.NetworkParticipation,
 			capabilities,
 		),
 	)
@@ -161,7 +165,7 @@ func (m *Manager) leaveNetworkPeer(ctx context.Context, session *Session) error 
 	}
 
 	info := session.Info()
-	if info == nil || strings.TrimSpace(info.Channel) == "" {
+	if info == nil || info.NetworkParticipation.Mode != participation.ModeLive {
 		return nil
 	}
 

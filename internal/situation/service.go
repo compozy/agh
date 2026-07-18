@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/soul"
@@ -270,26 +271,9 @@ func (s *Service) ContextForSession(
 		Provenance:   s.provenance(),
 	}
 
-	taskContext, channelContext, activeChannel, err := s.taskAndChannelContext(ctx, info.ID, workspaceSnapshot)
-	if err != nil {
+	if err := s.populateSessionRuntimeContext(ctx, info, workspaceSnapshot, workspaceSection.ID, &payload); err != nil {
 		return contract.AgentContextPayload{}, err
 	}
-	payload.Task = taskContext
-	payload.CoordinationChannel = channelContext
-
-	networkChannel := firstTrimmed(activeChannel, info.Channel)
-	inbox, peers, err := s.networkSections(
-		ctx,
-		info.ID,
-		workspaceSection.ID,
-		networkChannel,
-		coordinationChannelID(channelContext),
-	)
-	if err != nil {
-		return contract.AgentContextPayload{}, err
-	}
-	payload.InboxSummary = inbox
-	payload.PeerRoster = peers
 
 	normalized := contract.NormalizeAgentContextPayload(&payload)
 	return normalized, nil
@@ -561,15 +545,15 @@ func (s *Service) taskAndChannelContext(
 
 	channel := coordinationChannelPayload(taskRecord, run)
 	lease := contract.TaskRunLeaseSummaryPayload{
-		TaskID:                strings.TrimSpace(run.TaskID),
-		RunID:                 strings.TrimSpace(run.ID),
-		Status:                run.Status.Normalize(),
-		SessionID:             strings.TrimSpace(run.SessionID),
-		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:        strings.TrimSpace(run.ClaimTokenHash),
-		LeaseUntil:            optionalTimePtr(run.LeaseUntil),
-		HeartbeatAt:           optionalTimePtr(run.HeartbeatAt),
-		CoordinationChannelID: channel.ID,
+		TaskID:                       strings.TrimSpace(run.TaskID),
+		RunID:                        strings.TrimSpace(run.ID),
+		Status:                       run.Status.Normalize(),
+		SessionID:                    strings.TrimSpace(run.SessionID),
+		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:               strings.TrimSpace(run.ClaimTokenHash),
+		LeaseUntil:                   optionalTimePtr(run.LeaseUntil),
+		HeartbeatAt:                  optionalTimePtr(run.HeartbeatAt),
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
 	}
 	if channel.ID != "" {
 		lease.CoordinationChannel = &channel
@@ -588,7 +572,7 @@ func (s *Service) taskAndChannelContext(
 	if !channelContext.Available {
 		channelContext.Channel = nil
 	}
-	return taskContext, channelContext, firstTrimmed(channel.Channel, channel.ID), nil
+	return taskContext, channelContext, strings.TrimSpace(channel.ID), nil
 }
 
 func (s *Service) reviewBindingTaskAndChannelContext(
@@ -640,7 +624,6 @@ func (s *Service) reviewBindingTaskAndChannelContext(
 	channel := coordinationChannelPayload(taskRecord, run)
 	if reviewerChannelID := strings.TrimSpace(review.ReviewerChannelID); reviewerChannelID != "" {
 		channel.ID = reviewerChannelID
-		channel.Channel = reviewerChannelID
 		channel.DisplayName = reviewerChannelID
 		channel = contract.NormalizeCoordinationChannelPayload(channel)
 	}
@@ -657,7 +640,7 @@ func (s *Service) reviewBindingTaskAndChannelContext(
 	if !channelContext.Available {
 		channelContext.Channel = nil
 	}
-	return taskContext, channelContext, firstTrimmed(review.ReviewerChannelID, channel.Channel, channel.ID), nil
+	return taskContext, channelContext, firstTrimmed(review.ReviewerChannelID, channel.ID), nil
 }
 
 func (s *Service) sessionContextBundle(
@@ -838,31 +821,19 @@ func (s *Service) soulPayload(ctx context.Context, info *session.Info) (contract
 	return soulPayloadFromSnapshot(&snapshot), nil
 }
 
-func startupSessionPayload(startup session.StartupPromptContext) contract.AgentSessionPayload {
-	return contract.AgentSessionPayload{
-		ID:        strings.TrimSpace(startup.SessionID),
-		Name:      strings.TrimSpace(startup.SessionName),
-		Type:      startup.SessionType,
-		State:     session.StateStarting,
-		Channel:   strings.TrimSpace(startup.Channel),
-		CreatedAt: startup.CreatedAt.UTC(),
-		UpdatedAt: startup.UpdatedAt.UTC(),
-	}
-}
-
 func sessionPayload(info *session.Info) contract.AgentSessionPayload {
 	if info == nil {
 		return contract.AgentSessionPayload{}
 	}
 	return contract.AgentSessionPayload{
-		ID:        strings.TrimSpace(info.ID),
-		Name:      strings.TrimSpace(info.Name),
-		Type:      info.Type,
-		State:     info.State,
-		Channel:   strings.TrimSpace(info.Channel),
-		Lineage:   contract.SessionLineagePayloadFromStore(info.Lineage),
-		CreatedAt: info.CreatedAt.UTC(),
-		UpdatedAt: info.UpdatedAt.UTC(),
+		ID:                           strings.TrimSpace(info.ID),
+		Name:                         strings.TrimSpace(info.Name),
+		Type:                         info.Type,
+		State:                        info.State,
+		ResolvedNetworkParticipation: normalizedSessionParticipation(info.NetworkParticipation),
+		Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
+		CreatedAt:                    info.CreatedAt.UTC(),
+		UpdatedAt:                    info.UpdatedAt.UTC(),
 	}
 }
 
@@ -944,25 +915,11 @@ func workspaceRoot(workspace *workspacepkg.ResolvedWorkspace) string {
 	return strings.TrimSpace(workspace.RootDir)
 }
 
-func taskReferencePayload(taskRecord taskpkg.Task) *contract.TaskReferencePayload {
-	reference := taskReference(taskRecord)
-	return &contract.TaskReferencePayload{
-		ID:             reference.ID,
-		Identifier:     reference.Identifier,
-		Title:          reference.Title,
-		Status:         reference.Status,
-		Priority:       reference.Priority,
-		Owner:          reference.Owner,
-		Scope:          reference.Scope,
-		WorkspaceID:    reference.WorkspaceID,
-		LatestEventSeq: reference.LatestEventSeq,
-	}
-}
-
 func coordinationChannelPayload(taskRecord taskpkg.Task, run taskpkg.Run) contract.CoordinationChannelPayload {
 	metadata := runMetadata(run.Metadata)
-	channelID := firstTrimmed(run.CoordinationChannelID, metadata["coordination_channel_id"], run.NetworkChannel)
-	channelName := firstTrimmed(run.NetworkChannel, channelID)
+	networkSpec := run.NetworkSpecSnapshot()
+	channelID := strings.TrimSpace(networkSpec.ChannelID)
+	channelName := firstTrimmed(networkSpec.ChannelID, channelID)
 	lastActivity := latestTime(
 		run.QueuedAt,
 		run.ClaimedAt,
@@ -971,7 +928,6 @@ func coordinationChannelPayload(taskRecord taskpkg.Task, run taskpkg.Run) contra
 	)
 	return contract.NormalizeCoordinationChannelPayload(contract.CoordinationChannelPayload{
 		ID:          channelID,
-		Channel:     channelName,
 		DisplayName: firstTrimmed(channelName, channelID),
 		Purpose:     "task_run_coordination",
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
@@ -996,13 +952,13 @@ func inboxSummary(
 			continue
 		}
 		if active := strings.TrimSpace(activeCoordinationChannelID); active != "" &&
-			strings.TrimSpace(metadata.CoordinationChannelID) != active {
+			strings.TrimSpace(metadata.ChannelID) != active {
 			continue
 		}
 		items = append(items, contract.AgentInboxItemPayload{
 			MessageID: strings.TrimSpace(envelope.ID),
 			ChannelID: firstTrimmed(
-				metadata.CoordinationChannelID,
+				metadata.ChannelID,
 				envelope.Channel,
 			),
 			Kind:      metadata.MessageKind,

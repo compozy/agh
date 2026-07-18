@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
+	apitestutil "github.com/compozy/agh/internal/api/testutil"
 	"github.com/compozy/agh/internal/api/udsapi"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
@@ -225,7 +226,11 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 		"coder",
 		"--name",
 		"demo",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		"builders",
 		"--cwd",
 		h.workspace,
@@ -239,8 +244,12 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
 	}
-	if created.Channel != "builders" {
-		t.Fatalf("created.Channel = %q, want %q", created.Channel, "builders")
+	if resolvedParticipationChannelID(created.ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf(
+			"created.ResolvedNetworkParticipation = %#v, want channel %q",
+			created.ResolvedNetworkParticipation,
+			"builders",
+		)
 	}
 
 	listOut, _, err := executeRootCommand(t, h.deps, "session", "list", "--all", "-o", "json")
@@ -254,8 +263,12 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed) = %d, want %d", got, want)
 	}
-	if listed.Sessions[0].Channel != "builders" {
-		t.Fatalf("listed[0].Channel = %q, want %q", listed.Sessions[0].Channel, "builders")
+	if resolvedParticipationChannelID(listed.Sessions[0].ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf(
+			"listed[0].ResolvedNetworkParticipation = %#v, want channel %q",
+			listed.Sessions[0].ResolvedNetworkParticipation,
+			"builders",
+		)
 	}
 
 	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
@@ -266,7 +279,8 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 	}
-	if stopped.Channel != "builders" || stopped.State != session.StateStopped {
+	if resolvedParticipationChannelID(stopped.ResolvedNetworkParticipation) != "builders" ||
+		stopped.State != session.StateStopped {
 		t.Fatalf("stopped = %#v, want stopped builders session", stopped)
 	}
 
@@ -668,7 +682,11 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		"coder",
 		"--name",
 		"net-demo",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		"builders",
 		"--cwd",
 		h.workspace,
@@ -691,7 +709,11 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		"coder",
 		"--name",
 		"net-sender",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		"builders",
 		"--cwd",
 		h.workspace,
@@ -767,6 +789,48 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	}
 	if !h.runner.waitForBlocked(created.ID, 2*time.Second) {
 		t.Fatal("timed out waiting for blocked session prompt")
+	}
+
+	agentDeps := h.deps
+	agentDeps.getenv = func(key string) string {
+		switch key {
+		case agentidentity.EnvSessionID:
+			return sender.ID
+		case agentidentity.EnvAgent:
+			return sender.AgentName
+		default:
+			return ""
+		}
+	}
+	const channelRawToken = "agh_claim_CLI_CHANNEL_INTEGRATION_123"
+	stdout, stderr, err := executeRootCommand(
+		t,
+		agentDeps,
+		"ch", "send", "builders",
+		"--body", `{"claim_token":"`+channelRawToken+`"}`,
+		"--task-id", "task-security",
+		"--run-id", "run-security",
+		"--kind", string(contract.CoordinationMessageStatus),
+		"-o", "json",
+	)
+	if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
+		t.Fatalf("ch send raw claim-token error = %v, want ErrRawClaimTokenMetadata", err)
+	}
+	for _, output := range []string{stdout, stderr, err.Error()} {
+		if strings.Contains(output, channelRawToken) {
+			t.Fatalf("ch send validation output leaked raw claim token: %s", output)
+		}
+	}
+	if _, _, err := executeRootCommand(
+		t,
+		agentDeps,
+		"ch", "send", "builders",
+		"--body", `{"text":"spoof"}`,
+		"--task-id", "task-security",
+		"--run-id", "run-security",
+		"--from", "alice@39f713d0a644253f04529421b9f51b9b",
+	); err == nil || !strings.Contains(err.Error(), "unknown flag: --from") {
+		t.Fatalf("ch send caller identity error = %v, want unsupported identity field rejection", err)
 	}
 
 	if _, _, err := executeRootCommand(t, h.deps,
@@ -937,7 +1001,11 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 			"coder",
 			"--name",
 			name,
-			"--channel",
+			"--network",
+			"live",
+			"--network-channel-strategy",
+			"named",
+			"--network-channel",
 			"builders",
 			"--cwd",
 			h.workspace,
@@ -956,12 +1024,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 
 	sender := newSession("sender")
 	receiver := newSession("receiver")
-	senderPeerID := "coder." + sender.ID
 	receiverPeerID := "coder." + receiver.ID
-	directID, _, _, err := network.DirectRoomIdentity(sender.WorkspaceID, "builders", senderPeerID, receiverPeerID)
-	if err != nil {
-		t.Fatalf("DirectRoomIdentity() error = %v", err)
-	}
 
 	resolveDirect := func() contract.NetworkDirectRoomResponse {
 		t.Helper()
@@ -992,8 +1055,9 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	}
 
 	resolvedDirect := resolveDirect()
-	if resolvedDirect.Direct.DirectID != directID {
-		t.Fatalf("resolved direct = %#v, want deterministic direct id %q", resolvedDirect, directID)
+	directID := strings.TrimSpace(resolvedDirect.Direct.DirectID)
+	if directID == "" {
+		t.Fatalf("resolved direct = %#v, want non-empty direct id", resolvedDirect)
 	}
 	resolvedDirectAgain := resolveDirect()
 	if resolvedDirectAgain.Direct.DirectID != directID {
@@ -1053,20 +1117,6 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		return inbox
 	}
 
-	readStatus := func() NetworkStatusRecord {
-		t.Helper()
-
-		out, _, err := executeRootCommand(t, h.deps, "network", "status", "-o", "json")
-		if err != nil {
-			t.Fatalf("network status error = %v", err)
-		}
-		var status NetworkStatusRecord
-		if err := json.Unmarshal([]byte(out), &status); err != nil {
-			t.Fatalf("json.Unmarshal(network status) error = %v", err)
-		}
-		return status
-	}
-
 	sendDirect("msg-direct-retry-1", "work_review_1", "please review auth.go")
 	sendDirect("msg-direct-retry-1", "work_review_1", "please review auth.go")
 
@@ -1074,11 +1124,6 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		inbox := readInbox(receiver.ID)
 		return len(inbox) == 1 && inbox[0].ID == "msg-direct-retry-1"
 	})
-	waitForCondition(t, 2*time.Second, func() bool {
-		status := readStatus()
-		return status.QueuedMessages == 1
-	})
-
 	directsOut, _, err := executeRootCommand(
 		t,
 		h.deps,
@@ -1199,9 +1244,10 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	}
 	receiver = newSession("receiver-reconnect")
 	receiverPeerID = "coder." + receiver.ID
-	directID, _, _, err = network.DirectRoomIdentity(sender.WorkspaceID, "builders", senderPeerID, receiverPeerID)
-	if err != nil {
-		t.Fatalf("DirectRoomIdentity(reconnected receiver) error = %v", err)
+	reconnectedDirect := resolveDirect()
+	directID = strings.TrimSpace(reconnectedDirect.Direct.DirectID)
+	if directID == "" {
+		t.Fatalf("resolved reconnected direct = %#v, want non-empty direct id", reconnectedDirect)
 	}
 
 	resumedEvents, err := h.runner.blockSession(receiver.ID)
@@ -1744,6 +1790,19 @@ func TestBridgeCreateAndGetIntegration(t *testing.T) {
 		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
 		_ = h.runner.waitForExit()
 	}()
+	if _, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"workspace",
+		"add",
+		h.workspace,
+		"--name",
+		"alpha",
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("workspace add error = %v", err)
+	}
 
 	createOut := mustExecuteRoot(
 		t,
@@ -1926,7 +1985,9 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 		"task", "create",
 		"--scope", "workspace",
 		"--workspace", "alpha",
-		"--channel", "builders",
+		"--network", "live",
+		"--network-channel-strategy", "named",
+		"--network-channel", "builders",
 		"--title", "Investigate flaky task runs",
 		"--description", "Capture root cause",
 		"--priority", "high",
@@ -1946,9 +2007,8 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 	if created.ID == "" ||
 		created.Scope != taskpkg.ScopeWorkspace ||
 		created.WorkspaceID == "" ||
-		created.NetworkChannel != "builders" ||
 		created.Priority != taskpkg.PriorityHigh {
-		t.Fatalf("created task = %#v, want workspace task with id/channel", created)
+		t.Fatalf("created task = %#v, want high-priority workspace task with id", created)
 	}
 
 	listOut, _, err := executeRootCommand(
@@ -1998,6 +2058,19 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
 		_ = h.runner.waitForExit()
 	}()
+	if _, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"workspace",
+		"add",
+		h.workspace,
+		"--name",
+		"alpha",
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("workspace add error = %v", err)
+	}
 
 	createOut := mustExecuteRoot(
 		t,
@@ -2005,7 +2078,9 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		"task",
 		"create",
 		"--scope",
-		"global",
+		"workspace",
+		"--workspace",
+		"alpha",
 		"--title",
 		"Review task lifecycle",
 		"-o",
@@ -2028,7 +2103,11 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		created.ID,
 		"--idempotency-key",
 		"idem-1",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		"builders",
 		"--metadata",
 		`{"schema":"agh.harness.detached.v1"}`,
@@ -2044,29 +2123,21 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	}
 	assertDetachedHarnessMetadata(t, "enqueued metadata", enqueued.Metadata)
 
-	claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")
-	var claimed TaskRunRecord
-	if err := json.Unmarshal([]byte(claimOut), &claimed); err != nil {
-		t.Fatalf("json.Unmarshal(task run claim) error = %v", err)
+	agentDeps, worker := newIntegrationAgentCommandDeps(t, h, "task-run-lifecycle-worker", "alpha", "builders")
+	claimOut := mustExecuteRoot(t, agentDeps, "task", "next", "--run-id", enqueued.ID, "-o", "json")
+	var next AgentTaskNextRecord
+	if err := json.Unmarshal([]byte(claimOut), &next); err != nil {
+		t.Fatalf("json.Unmarshal(task next exact claim) error = %v", err)
 	}
-	if claimed.Status != taskpkg.TaskRunStatusClaimed {
-		t.Fatalf("claimed run = %#v, want claimed", claimed)
-	}
-
-	startOut := mustExecuteRoot(t, h.deps, "task", "run", "start", enqueued.ID, "-o", "json")
-	var started TaskRunRecord
-	if err := json.Unmarshal([]byte(startOut), &started); err != nil {
-		t.Fatalf("json.Unmarshal(task run start) error = %v", err)
-	}
-	if started.Status != taskpkg.TaskRunStatusRunning || started.SessionID == "" {
-		t.Fatalf("started run = %#v, want running run with session", started)
+	if !next.Claimed || next.Claim == nil || next.Claim.Run.ID != enqueued.ID ||
+		next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed {
+		t.Fatalf("task next = %#v, want exact claimed run %q", next, enqueued.ID)
 	}
 
 	completeOut := mustExecuteRoot(
 		t,
-		h.deps,
+		agentDeps,
 		"task",
-		"run",
 		"complete",
 		enqueued.ID,
 		"--result",
@@ -2074,16 +2145,13 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		"-o",
 		"json",
 	)
-	var completed TaskRunRecord
+	var completed AgentTaskLeaseRecord
 	if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
-		t.Fatalf("json.Unmarshal(task run complete) error = %v", err)
+		t.Fatalf("json.Unmarshal(task complete) error = %v", err)
 	}
-	var resultPayload map[string]bool
-	if err := json.Unmarshal(completed.Result, &resultPayload); err != nil {
-		t.Fatalf("json.Unmarshal(completed result) error = %v", err)
-	}
-	if completed.Status != taskpkg.TaskRunStatusCompleted || !resultPayload["ok"] {
-		t.Fatalf("completed run = %#v, want completed with JSON result", completed)
+	if completed.Status != taskpkg.TaskRunStatusCompleted || completed.RunID != enqueued.ID ||
+		completed.SessionID != worker.ID {
+		t.Fatalf("completed lease = %#v, want completed run %q for worker %q", completed, enqueued.ID, worker.ID)
 	}
 
 	runsOut := mustExecuteRoot(t, h.deps, "task", "run", "list", created.ID, "-o", "json")
@@ -2094,7 +2162,23 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	if len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusCompleted {
 		t.Fatalf("runs = %#v, want completed run history", runs)
 	}
+	var resultPayload map[string]bool
+	if err := json.Unmarshal(runs[0].Result, &resultPayload); err != nil {
+		t.Fatalf("json.Unmarshal(completed result) error = %v", err)
+	}
+	if !resultPayload["ok"] {
+		t.Fatalf("runs[0].Result = %s, want ok=true", runs[0].Result)
+	}
 	assertDetachedHarnessMetadata(t, "runs[0].Metadata", runs[0].Metadata)
+
+	stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+	var stoppedWorker SessionRecord
+	if err := json.Unmarshal([]byte(stopOut), &stoppedWorker); err != nil {
+		t.Fatalf("json.Unmarshal(session stop worker) error = %v", err)
+	}
+	if stoppedWorker.State != session.StateStopped {
+		t.Fatalf("stopped worker = %#v, want stopped", stoppedWorker)
+	}
 
 	getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
 	var detail TaskDetailRecord
@@ -2118,7 +2202,7 @@ func assertDetachedHarnessMetadata(t *testing.T, label string, metadata json.Raw
 	}
 }
 
-func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testing.T) {
+func TestCLIHistoricalChannelTaskLeaseAfterDaemonRestartIntegration(t *testing.T) {
 	t.Parallel()
 
 	h := newIntegrationHarness(t)
@@ -2143,69 +2227,6 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 	}
 
 	const channel = "history-run-start"
-	seedOut := mustExecuteRoot(
-		t,
-		h.deps,
-		"session",
-		"new",
-		"--agent",
-		"coder",
-		"--name",
-		"history-run-start-seed",
-		"--workspace",
-		"alpha",
-		"--channel",
-		channel,
-		"-o",
-		"json",
-	)
-	var seed SessionRecord
-	if err := json.Unmarshal([]byte(seedOut), &seed); err != nil {
-		t.Fatalf("json.Unmarshal(session new) error = %v", err)
-	}
-	if seed.ID == "" || seed.State != session.StateActive || seed.Channel != channel {
-		t.Fatalf("seed = %#v, want active seed session on %q", seed, channel)
-	}
-
-	stopSeedOut := mustExecuteRoot(t, h.deps, "session", "stop", seed.ID, "-o", "json")
-	var stoppedSeed SessionRecord
-	if err := json.Unmarshal([]byte(stopSeedOut), &stoppedSeed); err != nil {
-		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
-	}
-	if stoppedSeed.State != session.StateStopped || stoppedSeed.Channel != channel {
-		t.Fatalf("stoppedSeed = %#v, want stopped seed session on %q", stoppedSeed, channel)
-	}
-
-	readChannel := func(t *testing.T) NetworkChannelRecord {
-		t.Helper()
-
-		channelsOut := mustExecuteRoot(t, h.deps, "network", "channels", "-o", "json")
-		var channels []NetworkChannelRecord
-		if err := json.Unmarshal([]byte(channelsOut), &channels); err != nil {
-			t.Fatalf("json.Unmarshal(network channels) error = %v", err)
-		}
-		for _, item := range channels {
-			if item.Channel == channel {
-				return item
-			}
-		}
-		t.Fatalf("network channels missing %q: %#v", channel, channels)
-		return NetworkChannelRecord{}
-	}
-
-	t.Run("Should keep the run-start channel historical before restart", func(t *testing.T) {
-		record := readChannel(t)
-		if got, want := record.PeerCount, 0; got != want {
-			t.Fatalf("record.PeerCount = %d, want %d", got, want)
-		}
-		if record.PresenceCount < 1 {
-			t.Fatalf("record.PresenceCount = %d, want at least 1", record.PresenceCount)
-		}
-		if record.HistoricalParticipantCount < 1 {
-			t.Fatalf("record.HistoricalParticipantCount = %d, want at least 1", record.HistoricalParticipantCount)
-		}
-	})
-
 	createOut := mustExecuteRoot(
 		t,
 		h.deps,
@@ -2215,10 +2236,14 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		"workspace",
 		"--workspace",
 		"alpha",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"--title",
-		"CLI historical run start restart",
+		"CLI historical lease restart",
 		"-o",
 		"json",
 	)
@@ -2226,8 +2251,8 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(task create) error = %v", err)
 	}
-	if created.ID == "" || created.NetworkChannel != channel {
-		t.Fatalf("created = %#v, want historical task on %q", created, channel)
+	if created.ID == "" {
+		t.Fatalf("created = %#v, want historical task id", created)
 	}
 
 	enqueueOut := mustExecuteRoot(
@@ -2239,7 +2264,11 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		created.ID,
 		"--idempotency-key",
 		"idem-history-run-start",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"-o",
 		"json",
@@ -2249,12 +2278,12 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		t.Fatalf("json.Unmarshal(task run enqueue) error = %v", err)
 	}
 	if enqueued.Status != taskpkg.TaskRunStatusQueued ||
-		enqueued.NetworkChannel != channel ||
-		enqueued.CoordinationChannelID != channel {
+		resolvedParticipationChannelID(enqueued.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("enqueued = %#v, want queued historical run", enqueued)
 	}
 
-	t.Run("Should claim start and complete the historical run after daemon restart", func(t *testing.T) {
+	var worker SessionRecord
+	t.Run("Should claim and complete the historical run through one agent lease after daemon restart", func(t *testing.T) {
 		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
 			t.Fatalf("daemon stop before restart error = %v", err)
 		}
@@ -2263,27 +2292,23 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		}
 		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 
-		claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")
-		var claimed TaskRunRecord
-		if err := json.Unmarshal([]byte(claimOut), &claimed); err != nil {
-			t.Fatalf("json.Unmarshal(task run claim) error = %v", err)
+		agentDeps, claimedWorker := newIntegrationAgentCommandDeps(
+			t,
+			h,
+			"history-lease-worker",
+			"alpha",
+			channel,
+		)
+		worker = claimedWorker
+		claimOut := mustExecuteRoot(t, agentDeps, "task", "next", "--run-id", enqueued.ID, "-o", "json")
+		var next AgentTaskNextRecord
+		if err := json.Unmarshal([]byte(claimOut), &next); err != nil {
+			t.Fatalf("json.Unmarshal(task next exact claim) error = %v", err)
 		}
-		if claimed.Status != taskpkg.TaskRunStatusClaimed ||
-			claimed.NetworkChannel != channel ||
-			claimed.CoordinationChannelID != channel {
-			t.Fatalf("claimed = %#v, want claimed historical run", claimed)
-		}
-
-		startOut := mustExecuteRoot(t, h.deps, "task", "run", "start", enqueued.ID, "-o", "json")
-		var started TaskRunRecord
-		if err := json.Unmarshal([]byte(startOut), &started); err != nil {
-			t.Fatalf("json.Unmarshal(task run start) error = %v", err)
-		}
-		if started.Status != taskpkg.TaskRunStatusRunning ||
-			started.SessionID == "" ||
-			started.NetworkChannel != channel ||
-			started.CoordinationChannelID != channel {
-			t.Fatalf("started = %#v, want running historical run with session", started)
+		if !next.Claimed || next.Claim == nil || next.Claim.Run.ID != enqueued.ID ||
+			next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed ||
+			resolvedParticipationChannelID(next.Claim.Run.ResolvedNetworkParticipation) != channel {
+			t.Fatalf("task next = %#v, want exact claimed historical run", next)
 		}
 
 		getOut := mustExecuteRoot(t, h.deps, "task", "get", created.ID, "-o", "json")
@@ -2291,23 +2316,21 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
 			t.Fatalf("json.Unmarshal(task get) error = %v", err)
 		}
-		if detail.Task.Status != taskpkg.TaskStatusInProgress {
-			t.Fatalf("detail.Task.Status = %q, want %q", detail.Task.Status, taskpkg.TaskStatusInProgress)
+		if detail.Task.Status != taskpkg.TaskStatusReady {
+			t.Fatalf("detail.Task.Status = %q, want %q while the lease is claimed", detail.Task.Status, taskpkg.TaskStatusReady)
 		}
 		if got, want := len(detail.Runs), 1; got != want {
 			t.Fatalf("len(detail.Runs) = %d, want %d", got, want)
 		}
-		if detail.Runs[0].SessionID != started.SessionID ||
-			detail.Runs[0].NetworkChannel != channel ||
-			detail.Runs[0].CoordinationChannelID != channel {
-			t.Fatalf("detail.Runs[0] = %#v, want running historical run persisted", detail.Runs[0])
+		if detail.Runs[0].SessionID != worker.ID ||
+			resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
+			t.Fatalf("detail.Runs[0] = %#v, want claimed historical lease persisted", detail.Runs[0])
 		}
 
 		completeOut := mustExecuteRoot(
 			t,
-			h.deps,
+			agentDeps,
 			"task",
-			"run",
 			"complete",
 			enqueued.ID,
 			"--result",
@@ -2315,15 +2338,24 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 			"-o",
 			"json",
 		)
-		var completed TaskRunRecord
+		var completed AgentTaskLeaseRecord
 		if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
-			t.Fatalf("json.Unmarshal(task run complete) error = %v", err)
+			t.Fatalf("json.Unmarshal(task complete) error = %v", err)
 		}
 		if completed.Status != taskpkg.TaskRunStatusCompleted ||
-			completed.SessionID != started.SessionID ||
-			completed.NetworkChannel != channel ||
-			completed.CoordinationChannelID != channel {
-			t.Fatalf("completed = %#v, want completed historical run", completed)
+			completed.RunID != enqueued.ID ||
+			completed.SessionID != worker.ID ||
+			resolvedParticipationChannelID(completed.ResolvedNetworkParticipation) != channel {
+			t.Fatalf("completed = %#v, want completed historical lease", completed)
+		}
+
+		stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+		var stoppedWorker SessionRecord
+		if err := json.Unmarshal([]byte(stopOut), &stoppedWorker); err != nil {
+			t.Fatalf("json.Unmarshal(session stop worker) error = %v", err)
+		}
+		if stoppedWorker.State != session.StateStopped {
+			t.Fatalf("stopped worker = %#v, want stopped", stoppedWorker)
 		}
 
 	})
@@ -2334,21 +2366,15 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
 			t.Fatalf("json.Unmarshal(task get after complete) error = %v", err)
 		}
-		if detail.Task.Status != taskpkg.TaskStatusCompleted || detail.Task.NetworkChannel != channel {
+		if detail.Task.Status != taskpkg.TaskStatusCompleted {
 			t.Fatalf("detail.Task = %#v, want completed historical task", detail.Task)
 		}
 		if got, want := len(detail.Runs), 1; got != want {
 			t.Fatalf("len(detail.Runs after complete) = %d, want %d", got, want)
 		}
 		if detail.Runs[0].Status != taskpkg.TaskRunStatusCompleted ||
-			detail.Runs[0].NetworkChannel != channel ||
-			detail.Runs[0].CoordinationChannelID != channel {
+			resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
 			t.Fatalf("detail.Runs[0] = %#v, want completed historical run", detail.Runs[0])
-		}
-
-		record := readChannel(t)
-		if got, want := record.PeerCount, 0; got != want {
-			t.Fatalf("record.PeerCount after complete = %d, want %d", got, want)
 		}
 
 		assertNoActiveSessions(t, h.deps)
@@ -2389,8 +2415,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		"agent-worker",
 		"--workspace",
 		"alpha",
-		"--channel",
-		"builders",
 		"-o",
 		"json",
 	)
@@ -2423,8 +2447,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		"workspace",
 		"--workspace",
 		"alpha",
-		"--channel",
-		"builders",
 		"--title",
 		"Agent lease task",
 		"-o",
@@ -2443,8 +2465,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		created.ID,
 		"--idempotency-key",
 		"idem-agent-lease",
-		"--channel",
-		"builders",
 		"-o",
 		"json",
 	)
@@ -2457,11 +2477,18 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 	}
 
 	var next AgentTaskNextRecord
-	var channelID string
-	var channelName string
 
-	t.Run("Should claim the next task with coordination channel", func(t *testing.T) {
-		nextOut := mustExecuteRoot(t, agentDeps, "task", "next", "-o", "json")
+	t.Run("Should claim the exact local task run without a fictional channel", func(t *testing.T) {
+		nextOut := mustExecuteRoot(
+			t,
+			agentDeps,
+			"task",
+			"next",
+			"--run-id",
+			enqueued.ID,
+			"-o",
+			"json",
+		)
 		if err := json.Unmarshal([]byte(nextOut), &next); err != nil {
 			t.Fatalf("json.Unmarshal(task next) error = %v", err)
 		}
@@ -2469,15 +2496,12 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			next.Claim == nil ||
 			next.Claim.Lease.ClaimTokenHash == "" ||
 			next.Claim.Run.ID != enqueued.ID ||
-			next.Claim.CoordinationChannel == nil ||
-			next.Claim.CoordinationChannel.ID == "" {
-			t.Fatalf("next = %#v, want claimed run with lease hash and coordination channel", next)
+			next.Claim.CoordinationChannel != nil {
+			t.Fatalf("next = %#v, want claimed local run with lease hash and no channel", next)
 		}
 		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
 			t.Fatal("task next output exposed raw claim token")
 		}
-		channelID = next.Claim.CoordinationChannel.ID
-		channelName = firstCLIValue(next.Claim.CoordinationChannel.Channel, channelID)
 	})
 
 	t.Run("Should renew the claimed lease", func(t *testing.T) {
@@ -2502,37 +2526,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		if heartbeat.RunID != enqueued.ID || heartbeat.Status != taskpkg.TaskRunStatusClaimed ||
 			heartbeat.LeaseUntil == nil {
 			t.Fatalf("heartbeat = %#v, want renewed claimed lease", heartbeat)
-		}
-	})
-
-	t.Run("Should send coordination status metadata", func(t *testing.T) {
-		messageOut := mustExecuteRoot(
-			t,
-			agentDeps,
-			"ch",
-			"send",
-			channelName,
-			"--body",
-			`{"text":"working"}`,
-			"--task-id",
-			created.ID,
-			"--run-id",
-			enqueued.ID,
-			"--coordination-channel-id",
-			channelID,
-			"--kind",
-			"status",
-			"-o",
-			"json",
-		)
-		var message AgentChannelMessageRecord
-		if err := json.Unmarshal([]byte(messageOut), &message); err != nil {
-			t.Fatalf("json.Unmarshal(ch send) error = %v", err)
-		}
-		if message.Metadata.CoordinationChannelID != channelID ||
-			message.Metadata.RunID != enqueued.ID ||
-			message.Metadata.MessageKind != contract.CoordinationMessageStatus {
-			t.Fatalf("message = %#v, want status coordination metadata", message)
 		}
 	})
 
@@ -2602,8 +2595,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"workspace",
 			"--workspace",
 			"alpha",
-			"--channel",
-			"builders",
 			"--title",
 			"Agent stale lease task",
 			"-o",
@@ -2622,8 +2613,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			staleTask.ID,
 			"--idempotency-key",
 			"idem-agent-stale-lease",
-			"--channel",
-			"builders",
 			"-o",
 			"json",
 		)
@@ -2636,6 +2625,8 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			agentDeps,
 			"task",
 			"next",
+			"--run-id",
+			staleRun.ID,
 			"--lease-seconds",
 			"1",
 			"-o",
@@ -2735,7 +2726,11 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		"history-worker",
 		"--workspace",
 		"alpha",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"-o",
 		"json",
@@ -2744,7 +2739,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 	if err := json.Unmarshal([]byte(sessionOut), &worker); err != nil {
 		t.Fatalf("json.Unmarshal(session new) error = %v", err)
 	}
-	if worker.ID == "" || worker.State != session.StateActive || worker.Channel != channel {
+	if worker.ID == "" || worker.State != session.StateActive ||
+		resolvedParticipationChannelID(worker.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("worker = %#v, want active worker on %q", worker, channel)
 	}
 	agentSessionID := worker.ID
@@ -2754,7 +2750,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 	}
-	if stopped.State != session.StateStopped || stopped.Channel != channel {
+	if stopped.State != session.StateStopped ||
+		resolvedParticipationChannelID(stopped.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("stopped = %#v, want stopped worker on %q", stopped, channel)
 	}
 
@@ -2797,7 +2794,11 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		"workspace",
 		"--workspace",
 		"alpha",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"--title",
 		"CLI historical restart claim",
@@ -2808,8 +2809,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(task create) error = %v", err)
 	}
-	if created.ID == "" || created.NetworkChannel != channel {
-		t.Fatalf("created = %#v, want historical channel task", created)
+	if created.ID == "" {
+		t.Fatalf("created = %#v, want historical task id", created)
 	}
 
 	enqueueOut := mustExecuteRoot(
@@ -2821,7 +2822,11 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		created.ID,
 		"--idempotency-key",
 		"idem-cli-historical-restart",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"-o",
 		"json",
@@ -2831,8 +2836,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		t.Fatalf("json.Unmarshal(task run enqueue) error = %v", err)
 	}
 	if enqueued.Status != taskpkg.TaskRunStatusQueued ||
-		enqueued.NetworkChannel != channel ||
-		enqueued.CoordinationChannelID != channel {
+		resolvedParticipationChannelID(enqueued.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("enqueued = %#v, want queued run bound to historical channel", enqueued)
 	}
 
@@ -2868,7 +2872,11 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			"history-worker-restarted",
 			"--workspace",
 			"alpha",
-			"--channel",
+			"--network",
+			"live",
+			"--network-channel-strategy",
+			"named",
+			"--network-channel",
 			channel,
 			"-o",
 			"json",
@@ -2877,7 +2885,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
 			t.Fatalf("json.Unmarshal(session new after restart) error = %v", err)
 		}
-		if resumed.State != session.StateActive || resumed.Channel != channel {
+		if resumed.State != session.StateActive ||
+			resolvedParticipationChannelID(resumed.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("resumed = %#v, want active restarted worker on %q", resumed, channel)
 		}
 		agentSessionID = resumed.ID
@@ -2893,14 +2902,14 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if got, want := next.Claim.Run.ID, enqueued.ID; got != want {
 			t.Fatalf("next.Claim.Run.ID = %q, want %q", got, want)
 		}
-		if next.Claim.Run.NetworkChannel != channel || next.Claim.Run.CoordinationChannelID != channel {
+		if resolvedParticipationChannelID(next.Claim.Run.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("next.Claim.Run = %#v, want historical channel preserved", next.Claim.Run)
 		}
 		if next.Claim.CoordinationChannel == nil {
 			t.Fatal("next.Claim.CoordinationChannel = nil, want historical coordination channel")
 		}
 		if got, want := firstCLIValue(
-			next.Claim.CoordinationChannel.Channel,
+			next.Claim.CoordinationChannel.ID,
 			next.Claim.CoordinationChannel.ID,
 		), channel; got != want {
 			t.Fatalf("coordination channel = %q, want %q", got, want)
@@ -2932,7 +2941,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		}
 		if completed.Status != taskpkg.TaskRunStatusCompleted ||
 			completed.RunID != enqueued.ID ||
-			completed.CoordinationChannelID != channel {
+			resolvedParticipationChannelID(completed.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("completed = %#v, want completed historical lease", completed)
 		}
 	})
@@ -2943,16 +2952,15 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
 			t.Fatalf("json.Unmarshal(task get) error = %v", err)
 		}
-		if detail.Task.Status != taskpkg.TaskStatusCompleted || detail.Task.NetworkChannel != channel {
-			t.Fatalf("detail.Task = %#v, want completed task on %q", detail.Task, channel)
+		if detail.Task.Status != taskpkg.TaskStatusCompleted {
+			t.Fatalf("detail.Task = %#v, want completed task", detail.Task)
 		}
 		if got, want := len(detail.Runs), 1; got != want {
 			t.Fatalf("len(detail.Runs) = %d, want %d", got, want)
 		}
 		if detail.Runs[0].Status != taskpkg.TaskRunStatusCompleted ||
 			detail.Runs[0].SessionID != agentSessionID ||
-			detail.Runs[0].NetworkChannel != channel ||
-			detail.Runs[0].CoordinationChannelID != channel {
+			resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
 			t.Fatalf("detail.Runs[0] = %#v, want completed persisted historical run", detail.Runs[0])
 		}
 
@@ -2961,7 +2969,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if err := json.Unmarshal([]byte(stopOut), &stoppedAfterResume); err != nil {
 			t.Fatalf("json.Unmarshal(session stop after resume) error = %v", err)
 		}
-		if stoppedAfterResume.State != session.StateStopped || stoppedAfterResume.Channel != channel {
+		if stoppedAfterResume.State != session.StateStopped ||
+			resolvedParticipationChannelID(stoppedAfterResume.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("stoppedAfterResume = %#v, want stopped resumed worker on %q", stoppedAfterResume, channel)
 		}
 
@@ -2995,6 +3004,54 @@ type integrationHarness struct {
 	homePaths aghconfig.HomePaths
 	workspace string
 	runner    *integrationDaemon
+}
+
+func newIntegrationAgentCommandDeps(
+	t *testing.T,
+	h integrationHarness,
+	name string,
+	workspace string,
+	channel string,
+) (commandDeps, SessionRecord) {
+	t.Helper()
+
+	args := []string{"session", "new", "--agent", "coder", "--name", name}
+	if workspace != "" {
+		args = append(args, "--workspace", workspace)
+	} else {
+		args = append(args, "--cwd", h.workspace)
+	}
+	if channel != "" {
+		args = append(
+			args,
+			"--network", "live",
+			"--network-channel-strategy", "named",
+			"--network-channel", channel,
+		)
+	}
+	args = append(args, "-o", "json")
+
+	sessionOut := mustExecuteRoot(t, h.deps, args...)
+	var worker SessionRecord
+	if err := json.Unmarshal([]byte(sessionOut), &worker); err != nil {
+		t.Fatalf("json.Unmarshal(agent session) error = %v", err)
+	}
+	if worker.ID == "" || worker.AgentName == "" || worker.State != session.StateActive {
+		t.Fatalf("agent session = %#v, want active agent identity", worker)
+	}
+
+	agentDeps := h.deps
+	agentDeps.getenv = func(key string) string {
+		switch key {
+		case agentidentity.EnvSessionID:
+			return worker.ID
+		case agentidentity.EnvAgent:
+			return worker.AgentName
+		default:
+			return ""
+		}
+	}
+	return agentDeps, worker
 }
 
 type integrationDreamTrigger struct {
@@ -3235,21 +3292,6 @@ func (s *integrationBridgeService) DeliverBridge(
 	return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
 }
 
-func (s *integrationBridgeService) CountBridgeRoutes(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string]int, error) {
-	counts := make(map[string]int, len(bridgeInstanceIDs))
-	for _, bridgeInstanceID := range bridgeInstanceIDs {
-		routes, err := s.ListRoutes(ctx, bridgeInstanceID)
-		if err != nil {
-			return nil, fmt.Errorf("count integration bridge routes for %q: %w", bridgeInstanceID, err)
-		}
-		counts[bridgeInstanceID] = len(routes)
-	}
-	return counts, nil
-}
-
 func (s *integrationBridgeService) ListSecretBindings(
 	ctx context.Context,
 	bridgeInstanceID string,
@@ -3258,21 +3300,6 @@ func (s *integrationBridgeService) ListSecretBindings(
 		return nil, errors.New("integration bridge secret store is not configured")
 	}
 	return s.store.ListBridgeSecretBindings(ctx, bridgeInstanceID)
-}
-
-func (s *integrationBridgeService) ListSecretBindingsForInstances(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string][]bridgepkg.BridgeSecretBinding, error) {
-	bindings := make(map[string][]bridgepkg.BridgeSecretBinding, len(bridgeInstanceIDs))
-	for _, bridgeInstanceID := range bridgeInstanceIDs {
-		instanceBindings, err := s.ListSecretBindings(ctx, bridgeInstanceID)
-		if err != nil {
-			return nil, fmt.Errorf("list integration bridge bindings for %q: %w", bridgeInstanceID, err)
-		}
-		bindings[bridgeInstanceID] = instanceBindings
-	}
-	return bindings, nil
 }
 
 func (s *integrationBridgeService) PutSecretBinding(
@@ -3552,8 +3579,6 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
 	cfg.Network.Enabled = true
-	cfg.Network.Port = -1
-	cfg.Network.GreetInterval = 1
 	cfg.Providers = map[string]aghconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
 	}
@@ -3679,6 +3704,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("new workspace resolver: %w", err)
 	}
+	participationResolver := apitestutil.NewIntegrationParticipationResolver(d.t, registry)
 	sandboxRegistry, err := sandboxlocal.NewRegistry()
 	if err != nil {
 		return fmt.Errorf("new local sandbox registry: %w", err)
@@ -3701,6 +3727,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		session.WithSessionHealthStore(registry),
 		session.WithSessionHealthConfig(d.cfg.Agents.Heartbeat),
 		session.WithSessionCatalog(registry),
+		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		return fmt.Errorf("new session manager: %w", err)
@@ -3712,7 +3739,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(&integrationTaskExecutor{}),
-		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
+		taskpkg.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		return fmt.Errorf("new task manager: %w", err)
@@ -3790,7 +3817,6 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	networkManager, err := network.NewManager(
 		ctx,
 		d.cfg.Network,
-		manager,
 		d.homePaths.NetworkAuditFile,
 		registry,
 		network.WithManagerLogger(discardLogger()),

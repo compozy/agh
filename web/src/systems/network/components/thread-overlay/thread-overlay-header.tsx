@@ -13,7 +13,7 @@ export interface ThreadOverlayHeaderProps {
   threadId: string;
   detail: NetworkThreadDetail | null;
   rootMessageId?: string | null;
-  selfPeerId?: string | null;
+  selfSessionId?: string | null;
 }
 
 function buildParticipantLabel(detail: NetworkThreadDetail | null): string {
@@ -33,7 +33,7 @@ export function ThreadOverlayHeader({
   threadId,
   detail,
   rootMessageId,
-  selfPeerId,
+  selfSessionId,
 }: ThreadOverlayHeaderProps) {
   const navigate = useNavigate();
   const promote = usePromoteNetworkThreadTask();
@@ -68,7 +68,7 @@ export function ThreadOverlayHeader({
         <>
           <ThreadSubscriptionControl
             channel={channel}
-            peerId={selfPeerId}
+            sessionId={selfSessionId}
             threadId={threadId}
             workspaceId={workspaceId}
           />

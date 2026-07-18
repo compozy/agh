@@ -121,7 +121,6 @@ func coordinatorTaskRecord(
 		Scope:              parent.Scope,
 		WorkspaceID:        parent.WorkspaceID,
 		ParentTaskID:       parent.ID,
-		NetworkChannel:     parent.NetworkChannel,
 		Title:              spec.Title,
 		Description:        spec.Description,
 		Priority:           parent.Priority,

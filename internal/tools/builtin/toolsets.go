@@ -25,6 +25,7 @@ var builtinToolsets = []toolspkg.Toolset{
 		ID: toolspkg.ToolsetIDCoordination,
 		Tools: []string{
 			toolspkg.ToolIDNetworkStatus.String(),
+			toolspkg.ToolIDNetworkUsage.String(),
 			toolspkg.ToolIDNetworkChannels.String(),
 			toolspkg.ToolIDNetworkInbox.String(),
 			toolspkg.ToolIDNetworkPeers.String(),
@@ -34,7 +35,6 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDNetworkSubscriptions.String(),
 			toolspkg.ToolIDNetworkSubscribe.String(),
 			toolspkg.ToolIDNetworkMute.String(),
-			toolspkg.ToolIDNetworkDigestMode.String(),
 			toolspkg.ToolIDNetworkUnmute.String(),
 			toolspkg.ToolIDNetworkThreads.String(),
 			toolspkg.ToolIDNetworkThreadMessages.String(),

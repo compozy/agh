@@ -285,7 +285,6 @@ describe("marketplace acquisition cache boundaries", () => {
   it("Should keep bundle preview read-only and invalidate discovery only after activation", async () => {
     const activation = {
       activation: {
-        bind_primary_channel_as_default: false,
         bundle_name: "review-team",
         created_at: "2026-07-14T12:00:00Z",
         extension_name: "review-pack",
@@ -294,6 +293,7 @@ describe("marketplace acquisition cache boundaries", () => {
         scope: "global",
         spec_drift: false,
         updated_at: "2026-07-14T12:00:00Z",
+        version: 1,
       },
     };
     vi.mocked(previewMarketplaceBundle).mockResolvedValue(activation);
@@ -302,8 +302,8 @@ describe("marketplace acquisition cache boundaries", () => {
     const preview = renderHook(() => usePreviewMarketplaceBundle(), { wrapper });
     const activate = renderHook(() => useActivateMarketplaceBundle(), { wrapper });
     const body = {
-      bind_primary_channel_as_default: false,
       bundle_name: "review-team",
+      confirm_network_requirement: true,
       extension_name: "review-pack",
       profile_name: "strict",
       scope: "global",

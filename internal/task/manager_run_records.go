@@ -11,12 +11,7 @@ import (
 )
 
 func (m *Service) loadRunWithTask(ctx context.Context, runID string) (Run, Task, error) {
-	trimmedRunID := strings.TrimSpace(runID)
-	if trimmedRunID == "" {
-		return Run{}, Task{}, fmt.Errorf("%w: task run id is required", ErrValidation)
-	}
-
-	run, err := m.store.GetTaskRun(ctx, trimmedRunID)
+	run, err := m.loadRun(ctx, runID)
 	if err != nil {
 		return Run{}, Task{}, err
 	}
@@ -27,16 +22,37 @@ func (m *Service) loadRunWithTask(ctx context.Context, runID string) (Run, Task,
 	return run, taskRecord, nil
 }
 
+func (m *Service) loadRun(ctx context.Context, runID string) (Run, error) {
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return Run{}, fmt.Errorf("%w: task run id is required", ErrValidation)
+	}
+
+	run, err := m.store.GetTaskRun(ctx, trimmedRunID)
+	if err != nil {
+		return Run{}, err
+	}
+	return run, nil
+}
+
 func (m *Service) ensureTaskExecutable(ctx context.Context, record Task) error {
-	dependencies, err := m.store.ListDependencies(ctx, record.ID)
+	return m.ensureTaskExecutableWithStore(ctx, m.store, record)
+}
+
+func (m *Service) ensureTaskExecutableWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	record Task,
+) error {
+	dependencies, err := store.ListDependencies(ctx, record.ID)
 	if err != nil {
 		return err
 	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
+	runs, err := store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
 	if err != nil {
 		return err
 	}
-	status, err := m.canonicalTaskStatus(ctx, record, dependencies, runs)
+	status, err := m.canonicalTaskStatusWithStore(ctx, store, record, dependencies, runs)
 	if err != nil {
 		return err
 	}

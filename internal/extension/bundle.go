@@ -418,42 +418,6 @@ func (p BundleProfile) validateAgents(bundleName string) error {
 	return nil
 }
 
-// Validate ensures one bundle job is internally consistent.
-func (j BundleJob) Validate(bundleName string, profileName string, channelNames map[string]struct{}) error {
-	job := automationpkg.Job{
-		ID:        "bundle-validation",
-		Scope:     automationpkg.AutomationScopeGlobal,
-		Name:      strings.TrimSpace(j.Name),
-		AgentName: strings.TrimSpace(j.AgentName),
-		Prompt:    strings.TrimSpace(j.Prompt),
-		Schedule:  &j.Schedule,
-		Task:      cloneBundleTaskConfig(j.Task),
-		Enabled:   j.Enabled,
-		Retry:     j.Retry,
-		FireLimit: j.FireLimit,
-		Source:    automationpkg.JobSourcePackage,
-	}
-	if err := job.Validate("bundle.jobs"); err != nil {
-		return fmt.Errorf("%w: bundle %q profile %q job %q: %w", ErrBundleInvalid, bundleName, profileName, j.Name, err)
-	}
-	if j.Task != nil {
-		channel := strings.TrimSpace(j.Task.NetworkChannel)
-		if channel != "" {
-			if _, ok := channelNames[channel]; !ok {
-				return fmt.Errorf(
-					"%w: bundle %q profile %q job %q references undeclared channel %q",
-					ErrBundleInvalid,
-					bundleName,
-					profileName,
-					j.Name,
-					channel,
-				)
-			}
-		}
-	}
-	return nil
-}
-
 // Validate ensures one bundle trigger is internally consistent.
 func (t BundleTrigger) Validate(bundleName string, profileName string) error {
 	trigger := automationpkg.Trigger{
@@ -881,16 +845,4 @@ func normalizeBundleBridges(values []BundleBridgePreset) []BundleBridgePreset {
 		normalized = append(normalized, next)
 	}
 	return normalized
-}
-
-func cloneBundleTaskConfig(config *automationpkg.JobTaskConfig) *automationpkg.JobTaskConfig {
-	if config == nil {
-		return nil
-	}
-	cloned := *config
-	if config.Owner != nil {
-		owner := *config.Owner
-		cloned.Owner = &owner
-	}
-	return &cloned
 }

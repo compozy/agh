@@ -3,6 +3,7 @@ package spec
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -350,7 +352,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
 					"GET",
 				)
-				assertParameter(t, listSubscriptions, "peer_id", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSubscriptions, "session_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSubscriptions, "thread_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSubscriptions, "limit", openapi3.ParameterInQuery, false)
 			},
@@ -362,6 +364,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				send := operationFor(t, doc, "/api/workspaces/{workspace_id}/network/send", "POST")
 				request := jsonRequestSchema(t, send)
+				assertSchemaHasAdditionalProperties(t, request, false)
 				assertEnumValues(
 					t,
 					propertySchema(t, request, "kind"),
@@ -409,6 +412,21 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 						request.Description,
 					)
 				}
+
+				upsertSubscription := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+					"PUT",
+				)
+				assertSchemaHasAdditionalProperties(t, jsonRequestSchema(t, upsertSubscription), false)
+				promoteThread := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task",
+					"POST",
+				)
+				assertSchemaHasAdditionalProperties(t, jsonRequestSchema(t, promoteThread), false)
 			},
 		},
 		{
@@ -1335,7 +1353,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/tasks/{id}/runs", method: "GET"},
 					{path: "/api/tasks/{id}/runs", method: "POST"},
 					{path: "/api/task-runs/{id}", method: "GET"},
-					{path: "/api/task-runs/{id}/claim", method: "POST"},
 					{path: "/api/task-runs/{id}/start", method: "POST"},
 					{path: "/api/task-runs/{id}/attach-session", method: "POST"},
 					{path: "/api/task-runs/{id}/complete", method: "POST"},
@@ -1487,7 +1504,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					metadataSchema,
 					"task_id",
 					"run_id",
-					"coordination_channel_id",
+					"channel_id",
 					"message_kind",
 					"correlation_id",
 				)
@@ -1545,7 +1562,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
-			name: "ShouldDescribeTaskSchemasAndEnums",
+			name: "Should describe Task schemas and enums",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
@@ -1558,7 +1575,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"id",
 					"identifier",
 					"workspace",
-					"network_channel",
+					"network_participation",
 					"description",
 					"priority",
 					"max_attempts",
@@ -1766,6 +1783,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listTaskRuns := operationFor(t, doc, "/api/tasks/{id}/runs", "GET")
 				assertParameter(t, listTaskRuns, "status", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTaskRuns, "session_id", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTaskRuns, "participation_channel", openapi3.ParameterInQuery, false)
 
 				completeTaskRun := operationFor(t, doc, "/api/task-runs/{id}/complete", "POST")
 				completeTaskRunSchema := jsonRequestSchema(t, completeTaskRun)
@@ -1779,8 +1797,19 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				getRunSchema := jsonResponseSchema(t, getRun, 200)
 				assertRequired(t, getRunSchema, "run")
 				runDetailSchema := propertySchema(t, getRunSchema, "run")
-				assertRequired(t, runDetailSchema, "run", "task", "summary")
-				assertNotRequired(t, runDetailSchema, "session")
+				assertRequired(t, runDetailSchema, "run", "summary")
+				assertNotRequired(t, runDetailSchema, "task", "session", "network")
+				runNetworkSchema := propertySchema(t, runDetailSchema, "network")
+				assertRequired(t, runNetworkSchema, "conversation", "usage")
+				assertRequired(
+					t,
+					propertySchema(t, runNetworkSchema, "conversation"),
+					"workspace_id",
+					"channel",
+					"surface",
+					"thread_id",
+					"stream_url",
+				)
 
 				runSchema := propertySchema(t, runDetailSchema, "run")
 				assertEnumValues(t, propertySchema(t, runSchema, "status"),
@@ -1822,7 +1851,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				publishTask := operationFor(t, doc, "/api/tasks/{id}/publish", "POST")
 				assertParameter(t, publishTask, "id", openapi3.ParameterInPath, true)
 				publishTaskSchema := jsonRequestSchema(t, publishTask)
-				assertNotRequired(t, publishTaskSchema, "idempotency_key", "network_channel", "metadata")
+				assertNotRequired(t, publishTaskSchema, "idempotency_key", "network_participation", "metadata")
 				publishTaskResponse := jsonResponseSchema(t, publishTask, 200)
 				assertRequired(t, publishTaskResponse, "task", "run")
 				assertResponseStatus(t, publishTask, 409)
@@ -1831,7 +1860,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				startTask := operationFor(t, doc, "/api/tasks/{id}/start", "POST")
 				assertParameter(t, startTask, "id", openapi3.ParameterInPath, true)
 				startTaskSchema := jsonRequestSchema(t, startTask)
-				assertNotRequired(t, startTaskSchema, "idempotency_key", "network_channel", "metadata")
+				assertNotRequired(t, startTaskSchema, "idempotency_key", "network_participation", "metadata")
 				startTaskResponse := jsonResponseSchema(t, startTask, 201)
 				assertRequired(t, startTaskResponse, "task", "run")
 				assertResponseStatus(t, startTask, 409)
@@ -2007,7 +2036,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					t.Fatal("approve task request body is required, want optional")
 				}
 				approveSchema := jsonRequestSchema(t, approve)
-				assertNotRequired(t, approveSchema, "idempotency_key", "network_channel", "metadata")
+				assertNotRequired(t, approveSchema, "idempotency_key", "network_participation", "metadata")
 				approveResponse := jsonResponseSchema(t, approve, 201)
 				assertRequired(t, approveResponse, "task", "run")
 				assertResponseStatus(t, approve, 409)
@@ -2019,7 +2048,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, dashboard, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_kind", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_ref", openapi3.ParameterInQuery, false)
-				assertParameter(t, dashboard, "network_channel", openapi3.ParameterInQuery, false)
+				assertParameter(t, dashboard, "participation_channel", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "origin_kind", openapi3.ParameterInQuery, false)
 				dashboardSchema := jsonResponseSchema(t, dashboard, 200)
 				assertRequired(t, dashboardSchema, "dashboard")
@@ -2191,6 +2220,10 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},
 		{name: "ToolSource", typ: tools.ToolSourceBuiltin},
 		{name: "HostAPIMethod", typ: extensionprotocol.HostAPIMethod("memory.read")},
+		{name: "ParticipationMode", typ: participation.ModeLive},
+		{name: "ParticipationChannelStrategy", typ: participation.StrategyNamed},
+		{name: "ParticipationSource", typ: participation.SourceExplicitRequest},
+		{name: "ParticipationOwnerKind", typ: participation.OwnerKindTaskRun},
 	}
 
 	for _, tt := range tests {
@@ -2205,6 +2238,224 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 				t.Fatalf("schemaCustomizer() enum = %v, want non-empty", schema.Enum)
 			}
 		})
+	}
+}
+
+func TestParticipationSchemaCustomizerRepresentsRuntimeVariants(t *testing.T) {
+	t.Parallel()
+
+	requestSchema := openapi3.NewObjectSchema()
+	customizeParticipationRequestSchema(requestSchema)
+	if got, want := len(requestSchema.OneOf), 4; got != want {
+		t.Fatalf("participation request oneOf branches = %d, want %d", got, want)
+	}
+	requestCases := []struct {
+		name      string
+		payload   string
+		wantValid bool
+	}{
+		{name: "Should accept omitted Local intent", payload: `{}`, wantValid: true},
+		{name: "Should accept explicit Local intent", payload: `{"mode":"local"}`, wantValid: true},
+		{
+			name: "Should accept bounded named Live intent",
+			payload: `{
+				"mode":"live",
+				"channel_strategy":"named",
+				"channel_id":"builders",
+				"bounds":{"max_wakes":2,"max_input_tokens":1024}
+			}`,
+			wantValid: true,
+		},
+		{
+			name:      "Should accept derived run intent without channel",
+			payload:   `{"mode":"live","channel_strategy":"run"}`,
+			wantValid: true,
+		},
+		{
+			name:      "Should accept derived Loop run intent without channel",
+			payload:   `{"mode":"live","channel_strategy":"loop_run"}`,
+			wantValid: true,
+		},
+		{name: "Should reject Local channel data", payload: `{"mode":"local","channel_id":"builders"}`},
+		{name: "Should reject Live without strategy", payload: `{"mode":"live"}`},
+		{name: "Should reject named without channel", payload: `{"mode":"live","channel_strategy":"named"}`},
+		{
+			name:    "Should reject derived strategy with channel",
+			payload: `{"mode":"live","channel_strategy":"run","channel_id":"builders"}`,
+		},
+		{
+			name:    "Should reject invalid named channel",
+			payload: `{"mode":"live","channel_strategy":"named","channel_id":"Invalid channel"}`,
+		},
+		{
+			name:    "Should reject nonpositive bounds",
+			payload: `{"mode":"live","channel_strategy":"run","bounds":{"max_wakes":0}}`,
+		},
+		{name: "Should reject unknown participation fields", payload: `{"mode":"local","legacy":true}`},
+	}
+	for _, testCase := range requestCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			assertOpenAPISchemaJSONValidity(t, requestSchema, testCase.payload, testCase.wantValid)
+		})
+	}
+
+	specSchema := openapi3.NewObjectSchema()
+	customizeParticipationSpecSchema(specSchema)
+	if got, want := len(specSchema.OneOf), 2; got != want {
+		t.Fatalf("participation spec oneOf branches = %d, want %d", got, want)
+	}
+	liveSpec := `{
+		"version":"network-participation/v1",
+		"mode":"live",
+		"workspace_id":"ws-alpha",
+		"channel_strategy":"named",
+		"channel_id":"builders",
+		"source":"explicit_request",
+		"bounds":{
+			"max_wakes":2,
+			"max_wake_wall_time":"30s",
+			"max_total_wall_time":"2m",
+			"max_input_tokens":4096,
+			"max_output_tokens":2048,
+			"max_wake_depth":2,
+			"coalesce_window":"250ms"
+		}
+	}`
+	assertOpenAPISchemaJSONValidity(
+		t,
+		specSchema,
+		`{"version":"network-participation/v1","mode":"local","source":"built_in_local"}`,
+		true,
+	)
+	assertOpenAPISchemaJSONValidity(t, specSchema, liveSpec, true)
+	assertOpenAPISchemaJSONValidity(
+		t,
+		specSchema,
+		`{"version":"network-participation/v1","mode":"local","source":"built_in_local","bounds":{}}`,
+		false,
+	)
+	assertOpenAPISchemaJSONValidity(
+		t,
+		specSchema,
+		`{"version":"network-participation/v1","mode":"live","workspace_id":"ws-alpha","channel_strategy":"run","channel_id":"run-1","source":"explicit_request"}`,
+		false,
+	)
+}
+
+func TestNetworkCoordinationMutationSchemaMatchesRuntimeValidation(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document() error = %v", err)
+	}
+
+	tests := []struct {
+		name             string
+		operationID      string
+		mutationProperty string
+	}{
+		{
+			name:             "Should describe coordination setting variants",
+			operationID:      "putNetworkCoordination",
+			mutationProperty: "enabled",
+		},
+		{
+			name:             "Should describe invitation variants",
+			operationID:      "putNetworkCoordinationInvitation",
+			mutationProperty: "dismissed",
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var operation *openapi3.Operation
+			for _, candidate := range doc.Paths.Map() {
+				for _, method := range []string{http.MethodPut} {
+					if current := candidate.GetOperation(method); current != nil &&
+						current.OperationID == testCase.operationID {
+						operation = current
+					}
+				}
+			}
+			if operation == nil {
+				t.Fatalf("missing operation %q", testCase.operationID)
+			}
+
+			schema := jsonRequestSchema(t, operation)
+			if got, want := len(schema.OneOf), 2; got != want {
+				t.Fatalf("coordination request oneOf branches = %d, want %d", got, want)
+			}
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(`{"scope":"workspace",%q:true,"expected_revision":0}`, testCase.mutationProperty),
+				true,
+			)
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(
+					`{"scope":"task","task_id":"task-1",%q:false,"expected_revision":2}`,
+					testCase.mutationProperty,
+				),
+				true,
+			)
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(`{"scope":"workspace",%q:null,"expected_revision":0}`, testCase.mutationProperty),
+				false,
+			)
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(
+					`{"scope":"workspace","task_id":"task-1",%q:true,"expected_revision":0}`,
+					testCase.mutationProperty,
+				),
+				false,
+			)
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(`{"scope":"task",%q:true,"expected_revision":0}`, testCase.mutationProperty),
+				false,
+			)
+			assertResponseStatus(t, operation, http.StatusServiceUnavailable)
+		})
+	}
+
+	getCoordination := operationFor(
+		t,
+		doc,
+		"/api/workspaces/{workspace_id}/network-coordination",
+		http.MethodGet,
+	)
+	usage := operationFor(t, doc, "/api/workspaces/{workspace_id}/network/usage", http.MethodGet)
+	assertResponseStatus(t, getCoordination, http.StatusServiceUnavailable)
+	assertResponseStatus(t, usage, http.StatusServiceUnavailable)
+}
+
+func assertOpenAPISchemaJSONValidity(
+	t *testing.T,
+	schema *openapi3.Schema,
+	payload string,
+	wantValid bool,
+) {
+	t.Helper()
+	var value any
+	if err := json.Unmarshal([]byte(payload), &value); err != nil {
+		t.Fatalf("json.Unmarshal(schema payload) error = %v", err)
+	}
+	err := schema.VisitJSON(value)
+	if wantValid && err != nil {
+		t.Fatalf("schema rejected valid payload %s: %v", payload, err)
+	}
+	if !wantValid && err == nil {
+		t.Fatalf("schema accepted invalid payload %s", payload)
 	}
 }
 

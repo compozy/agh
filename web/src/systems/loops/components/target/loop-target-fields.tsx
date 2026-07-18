@@ -8,11 +8,17 @@ import {
   NativeSelectOption,
   Spinner,
 } from "@agh/ui";
+import {
+  NetworkParticipationFields,
+  networkParticipationDraftFromPayload,
+  serializeNetworkParticipation,
+} from "@/systems/network";
 
 import {
   setLoopTargetInput,
   setLoopTargetLoop,
   setLoopTargetMapping,
+  setLoopTargetNetworkParticipation,
   type LoopTargetDraft,
 } from "../../lib/loop-target";
 import {
@@ -27,6 +33,7 @@ interface LoopTargetFieldsProps {
   mode: "create" | "edit";
   value: LoopTargetDraft;
   onChange: (value: LoopTargetDraft) => void;
+  identityDisabled?: boolean;
   /** Show the event-payload mapping table (triggers/webhooks only). */
   showMapping?: boolean;
 }
@@ -42,6 +49,7 @@ export function LoopTargetFields({
   mode,
   value,
   onChange,
+  identityDisabled = false,
   showMapping = false,
 }: LoopTargetFieldsProps) {
   const selected = catalog.selected;
@@ -78,6 +86,7 @@ export function LoopTargetFields({
             aria-describedby={compatibilityMessage ? noticeId : undefined}
             id="loop-target-loop"
             data-testid="loop-target-select"
+            disabled={identityDisabled}
             value={value.loop_name}
             onChange={event => onChange(setLoopTargetLoop(value, event.target.value))}
           >
@@ -118,6 +127,15 @@ export function LoopTargetFields({
           </Button>
         ) : null}
       </Field>
+
+      <NetworkParticipationFields
+        allowedStrategies={["named", "loop_run"]}
+        onChange={next =>
+          onChange(setLoopTargetNetworkParticipation(value, serializeNetworkParticipation(next)))
+        }
+        testIdPrefix="loop-target-participation"
+        value={networkParticipationDraftFromPayload(value.network_participation)}
+      />
 
       {selected && inputNames.length > 0 ? (
         <div className="space-y-3" data-testid="loop-target-inputs">

@@ -216,6 +216,7 @@ export {
   ProviderInspectView,
   ProviderLogo,
   ProviderModelCatalogStatus,
+  NetworkSettingsSections,
   ProvidersGrid,
   ProvidersListFilters,
   SettingsApplyRecordsPanel,

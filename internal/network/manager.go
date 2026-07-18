@@ -1,61 +1,40 @@
 package network
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
-	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
-	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
-	"github.com/nats-io/nats.go"
-)
-
-const (
-	managerChannelKey = "channel"
 )
 
 const (
 	// RuntimePeerID is the reserved first-party AGH runtime network peer.
-	RuntimePeerID = "agh.runtime"
-
+	RuntimePeerID        = "agh.runtime"
 	runtimePeerSessionID = "runtime:agh.runtime"
 )
 
 const (
 	// StatusDisabled reports that the network runtime is intentionally disabled.
 	StatusDisabled = "disabled"
-	// StatusRunning reports a connected network runtime.
-	StatusRunning = "running"
-	// StatusDisconnected reports a network runtime whose transport lost its connection.
-	StatusDisconnected = "disconnected"
-
-	defaultListenerHost = "127.0.0.1"
+	// StatusReady reports that Network is available with no Live participants.
+	StatusReady = "ready"
+	// StatusActive reports that Network is available with at least one Live participant.
+	StatusActive = "active"
 )
 
-// Status is the manager-facing diagnostics snapshot consumed by daemon status
-// and later transport surfaces.
+// Status is the manager-facing diagnostics snapshot.
 type Status struct {
 	Enabled              bool
 	Status               string
-	ListenerHost         string
-	ListenerPort         int
 	LocalPeers           int
-	RemotePeers          int
 	Channels             int
-	QueuedMessages       int
-	QueuedSessions       int
-	DeliveryWorkers      int
-	DeliveryQueueDepth   int
 	MessagesSent         int64
 	MessagesReceived     int64
 	MessagesRejected     int64
@@ -68,9 +47,14 @@ type Status struct {
 	ConversationMessages int64
 	WorkTransitions      int64
 	DirectResolves       int64
-	LastDisconnect       string
 	KindMetrics          []KindMetric
 	Metrics              []MetricSample
+}
+
+// WakeNotifier receives post-commit wake notifications. The durable task run
+// remains authoritative if notification is delayed or lost.
+type WakeNotifier interface {
+	NotifyNetworkWake(store.CommittedNetworkNotification)
 }
 
 // ManagerOption customizes network manager construction.
@@ -80,40 +64,24 @@ type managerOptions struct {
 	logger        *slog.Logger
 	now           func() time.Time
 	auditor       AuditWriter
-	tasks         TaskService
 	conversations store.NetworkConversationStore
+	acceptance    store.NetworkAcceptanceStore
+	inbox         store.NetworkInboxStore
+	causation     store.NetworkCausationStore
+	wakeNotifier  WakeNotifier
 	hooks         HookDispatcher
 }
 
-type networkSubscriptionStore interface {
-	ListNetworkSubscriptions(
-		ctx context.Context,
-		query store.NetworkSubscriptionQuery,
-	) ([]store.NetworkSubscriptionEntry, error)
-}
-
-type threadPeerTokenStatsUpdater interface {
-	UpdateNetworkThreadPeerTokenStats(ctx context.Context, update store.NetworkThreadPeerTokenStatsUpdate) error
-}
-
 type managedSession struct {
-	sessionID   string
-	peerID      string
-	workspaceID string
-	channel     string
-	directSub   *nats.Subscription
-	heartbeat   *Heartbeat
+	sessionID            string
+	peerID               string
+	workspaceID          string
+	channel              string
+	ownerKey             string
+	networkParticipation participation.Spec
 }
 
-type managedChannel struct {
-	workspaceID  string
-	channel      string
-	broadcastSub *nats.Subscription
-	refCount     int
-}
-
-// Manager owns transport, routing, presence, delivery, and the late-bound
-// session lifecycle callbacks required by daemon boot integration.
+// Manager owns live membership and durable-commit-then-notify dispatch.
 type Manager struct {
 	config       aghconfig.NetworkConfig
 	logger       *slog.Logger
@@ -121,100 +89,92 @@ type Manager struct {
 	lifecycleCtx context.Context
 	cancel       context.CancelFunc
 
-	transport     *Transport
 	peers         *PeerRegistry
 	router        *Router
 	auditor       AuditWriter
-	tasks         TaskService
 	conversations store.NetworkConversationStore
+	acceptance    store.NetworkAcceptanceStore
+	inbox         store.NetworkInboxStore
+	causation     store.NetworkCausationStore
+	wakeNotifier  WakeNotifier
 	hooks         HookDispatcher
-	deliveries    *deliveryCoordinator
 	stats         *runtimeStats
 
-	mu             sync.Mutex
-	inboundWG      sync.WaitGroup
-	sessions       map[string]*managedSession
-	channels       map[string]*managedChannel
-	connected      bool
-	lastDisconnect string
-	closed         bool
+	mu       sync.Mutex
+	sessions map[string]*managedSession
+	waiters  map[string]map[chan struct{}]struct{}
+	enabled  bool
+	closed   bool
 }
 
 // WithManagerLogger overrides the logger used by the network manager.
 func WithManagerLogger(logger *slog.Logger) ManagerOption {
-	return func(opts *managerOptions) {
-		opts.logger = logger
-	}
+	return func(opts *managerOptions) { opts.logger = logger }
 }
 
 // WithManagerClock overrides the manager clock, primarily for tests.
 func WithManagerClock(now func() time.Time) ManagerOption {
-	return func(opts *managerOptions) {
-		opts.now = now
-	}
+	return func(opts *managerOptions) { opts.now = now }
 }
 
 // WithManagerAuditWriter injects a custom audit sink, primarily for tests.
 func WithManagerAuditWriter(auditor AuditWriter) ManagerOption {
-	return func(opts *managerOptions) {
-		opts.auditor = auditor
-	}
+	return func(opts *managerOptions) { opts.auditor = auditor }
 }
 
-// WithManagerConversationStore injects the durable conversation repository used
-// as the commit boundary before runtime delivery side effects.
+// WithManagerConversationStore injects the durable conversation repository.
 func WithManagerConversationStore(conversations store.NetworkConversationStore) ManagerOption {
-	return func(opts *managerOptions) {
-		opts.conversations = conversations
-	}
+	return func(opts *managerOptions) { opts.conversations = conversations }
 }
 
-// NewManager constructs the top-level network runtime and starts the embedded
-// transport it owns.
+// WithManagerAcceptanceStore injects the atomic acceptance repository.
+func WithManagerAcceptanceStore(acceptance store.NetworkAcceptanceStore) ManagerOption {
+	return func(opts *managerOptions) { opts.acceptance = acceptance }
+}
+
+// WithManagerWakeNotifier injects the daemon-owned post-commit wake signal.
+func WithManagerWakeNotifier(notifier WakeNotifier) ManagerOption {
+	return func(opts *managerOptions) { opts.wakeNotifier = notifier }
+}
+
+// NewManager constructs the broker-free network runtime. Prompt execution is
+// owned by the daemon NetworkWakeRunner.
 func NewManager(
 	ctx context.Context,
 	cfg aghconfig.NetworkConfig,
-	prompter deliveryPrompter,
 	auditPath string,
 	auditStore AuditStore,
 	opts ...ManagerOption,
 ) (*Manager, error) {
-	if err := validateManagerInputs(ctx, cfg, prompter); err != nil {
-		return nil, err
-	}
-
-	options := resolveManagerOptions(opts...)
-	lifecycleCtx, cancel := context.WithCancel(ctx)
-	manager := newManagerRuntime(lifecycleCtx, cfg, options, cancel)
-	if err := manager.initialize(ctx, cfg, prompter, auditPath, auditStore); err != nil {
-		return nil, err
-	}
-	manager.logStarted()
-	return manager, nil
-}
-
-func validateManagerInputs(ctx context.Context, cfg aghconfig.NetworkConfig, prompter deliveryPrompter) error {
 	if ctx == nil {
-		return errors.New("network: manager context is required")
-	}
-	if prompter == nil {
-		return errors.New("network: session prompter is required")
-	}
-	if !cfg.Enabled {
-		return errors.New("network: enabled network config is required")
+		return nil, errors.New("network: manager context is required")
 	}
 	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("network: validate manager config: %w", err)
+		return nil, fmt.Errorf("network: validate manager config: %w", err)
 	}
-	return nil
+	options := resolveManagerOptions(opts...)
+	lifecycleCtx, cancel := context.WithCancel(ctx)
+	manager := &Manager{
+		config: cfg, logger: options.logger, now: options.now,
+		lifecycleCtx: lifecycleCtx, cancel: cancel,
+		auditor: options.auditor, conversations: options.conversations,
+		acceptance: options.acceptance, inbox: options.inbox, causation: options.causation,
+		wakeNotifier: options.wakeNotifier, hooks: options.hooks,
+		stats: newRuntimeStats(), sessions: make(map[string]*managedSession), enabled: cfg.Enabled,
+		waiters: make(map[string]map[chan struct{}]struct{}),
+	}
+	if err := manager.initialize(cfg, auditPath, auditStore); err != nil {
+		cancel()
+		return nil, err
+	}
+	manager.logger.Info("network.started", "dispatch", "durable_in_process")
+	return manager, nil
 }
 
 func resolveManagerOptions(opts ...ManagerOption) managerOptions {
 	options := managerOptions{
 		logger: slog.Default(),
-		now: func() time.Time {
-			return time.Now().UTC()
-		},
+		now:    func() time.Time { return time.Now().UTC() },
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -225,713 +185,65 @@ func resolveManagerOptions(opts ...ManagerOption) managerOptions {
 		options.logger = slog.Default()
 	}
 	if options.now == nil {
-		options.now = func() time.Time {
-			return time.Now().UTC()
-		}
+		options.now = func() time.Time { return time.Now().UTC() }
 	}
 	return options
 }
 
-func newManagerRuntime(
-	lifecycleCtx context.Context,
-	cfg aghconfig.NetworkConfig,
-	options managerOptions,
-	cancel context.CancelFunc,
-) *Manager {
-	return &Manager{
-		config:        cfg,
-		logger:        options.logger,
-		now:           options.now,
-		lifecycleCtx:  lifecycleCtx,
-		cancel:        cancel,
-		auditor:       options.auditor,
-		sessions:      make(map[string]*managedSession),
-		channels:      make(map[string]*managedChannel),
-		connected:     true,
-		stats:         newRuntimeStats(),
-		tasks:         options.tasks,
-		conversations: options.conversations,
-		hooks:         options.hooks,
-	}
-}
-
-func (m *Manager) initialize(
-	ctx context.Context,
-	cfg aghconfig.NetworkConfig,
-	prompter deliveryPrompter,
-	auditPath string,
-	auditStore AuditStore,
-) error {
-	if err := m.initTransport(cfg); err != nil {
-		m.cancel()
-		return err
-	}
-	if err := m.initPeers(cfg); err != nil {
-		return m.rollbackInit(ctx, err)
-	}
-	m.initConversationStore(auditStore)
-	if err := m.initRouter(cfg); err != nil {
-		return m.rollbackInit(ctx, err)
-	}
-	if err := m.initAuditor(auditPath, auditStore); err != nil {
-		return m.rollbackInit(ctx, err)
-	}
-	if err := m.initDeliveries(cfg, prompter); err != nil {
-		return m.rollbackInit(ctx, err)
-	}
-	return nil
-}
-
-func (m *Manager) initTransport(cfg aghconfig.NetworkConfig) error {
-	transport, err := NewTransport(
-		m.lifecycleCtx,
-		cfg,
-		WithTransportLogger(m.logger),
-		WithTransportReconnectHandler(m.handleReconnect),
-		WithTransportDisconnectHandler(m.handleDisconnect),
-	)
-	if err != nil {
-		return err
-	}
-	m.transport = transport
-	return nil
-}
-
-func (m *Manager) initPeers(cfg aghconfig.NetworkConfig) error {
-	peers, err := NewPeerRegistry(cfg.GreetIntervalDuration(), WithPeerRegistryClock(m.now))
+func (m *Manager) initialize(cfg aghconfig.NetworkConfig, auditPath string, auditStore AuditStore) error {
+	peers, err := NewPeerRegistry(WithPeerRegistryClock(m.now))
 	if err != nil {
 		return err
 	}
 	m.peers = peers
-	return nil
-}
-
-func (m *Manager) initConversationStore(auditStore AuditStore) {
-	if m == nil || m.conversations != nil || auditStore == nil {
-		return
-	}
-	conversations, ok := auditStore.(store.NetworkConversationStore)
-	if !ok {
-		return
-	}
-	m.conversations = conversations
-}
-
-func (m *Manager) initRouter(cfg aghconfig.NetworkConfig) error {
+	m.resolveStoreDependencies(auditStore)
 	var participantResolver ThreadParticipantResolver
 	if resolver, ok := m.conversations.(ThreadParticipantResolver); ok {
 		participantResolver = resolver
 	}
-	var channelPolicyResolver ChannelPolicyResolver
-	if resolver, ok := m.conversations.(ChannelPolicyResolver); ok {
-		channelPolicyResolver = resolver
-	}
-	router, err := NewRouter(
-		m.peers,
-		m.transport,
+	m.router, err = NewRouter(
+		peers,
 		cfg.MaxReplayAgeDuration(),
 		WithRouterClock(m.now),
 		WithRouterThreadParticipantResolver(participantResolver),
-		WithRouterChannelPolicyResolver(channelPolicyResolver),
-		WithRouterActivationTopK(cfg.ActivationTopK),
 		WithRouterLogger(m.logger),
 	)
 	if err != nil {
 		return err
 	}
-	m.router = router
-	return nil
-}
-
-func (m *Manager) initAuditor(auditPath string, auditStore AuditStore) error {
-	if m.auditor != nil {
-		return nil
-	}
-
-	auditor, err := NewAuditWriter(auditPath, auditStore)
-	if err != nil {
-		return err
-	}
-	m.auditor = auditor
-	return nil
-}
-
-func (m *Manager) initDeliveries(cfg aghconfig.NetworkConfig, prompter deliveryPrompter) error {
-	deliveries, err := newDeliveryCoordinator(
-		m.lifecycleCtx,
-		cfg.MaxQueueDepth,
-		prompter,
-		withDeliveryLogger(m.logger),
-		withDeliveryClock(m.now),
-		withDeliveryDeliveredHook(m.recordDelivered),
-		withDeliveryDroppedHook(m.recordDropped),
-		withDeliveryGuidanceStore(deliveryGuidanceStoreFromCandidate(m.conversations)),
-		withDeliveryDigestCoalescing(cfg.DigestFlushInterval, cfg.DigestMaxEnvelopes),
-		withDeliveryStructuredBodyMaxBytes(cfg.DeliveryStructuredBodyMaxBytes),
-	)
-	if err != nil {
-		return err
-	}
-	m.deliveries = deliveries
-	return nil
-}
-
-func deliveryGuidanceStoreFromCandidate(candidate any) deliveryGuidanceStore {
-	guidanceStore, ok := candidate.(deliveryGuidanceStore)
-	if !ok {
-		return nil
-	}
-	return guidanceStore
-}
-
-func (m *Manager) rollbackInit(ctx context.Context, initErr error) error {
-	return rollbackManagerInit(ctx, m.cancel, m.transport, initErr)
-}
-
-func (m *Manager) logStarted() {
-	host, port := transportListener(m.transport)
-	m.logger.Info(
-		"network.started",
-		"listener_host", host,
-		"listener_port", port,
-		"connected", true,
-	)
-}
-
-func rollbackManagerInit(ctx context.Context, cancel context.CancelFunc, transport *Transport, initErr error) error {
-	if cancel != nil {
-		cancel()
-	}
-	if initErr == nil {
-		return nil
-	}
-	if transport == nil {
-		return initErr
-	}
-
-	if shutdownErr := transport.Shutdown(ctx); shutdownErr != nil {
-		return errors.Join(initErr, fmt.Errorf("network: shutdown transport during manager setup: %w", shutdownErr))
-	}
-	return initErr
-}
-
-// JoinChannel registers one daemon-local session as a visible network peer.
-func (m *Manager) JoinChannel(ctx context.Context, join sessionpkg.NetworkPeerJoin) error {
-	request, err := normalizeJoinChannelRequest(ctx, m, join)
-	if err != nil {
-		return err
-	}
-	local, alreadyJoined, err := m.prepareJoinLocalPeer(ctx, request)
-	if err != nil {
-		return err
-	}
-	if alreadyJoined {
-		return nil
-	}
-	runtime, err := m.newManagedSession(local)
-	if err != nil {
-		return err
-	}
-	m.storeManagedSession(runtime)
-	m.dispatchNetworkPeerLifecycleHooks(ctx, []PeerLifecycleEvent{{
-		Kind:      PeerLifecycleJoined,
-		Peer:      peerInfoFromLocal(local, local.JoinedAt, m.config.GreetIntervalDuration()),
-		Timestamp: local.JoinedAt,
-	}})
-
-	m.logger.Info(
-		"network.peer.joined",
-		"session_id", local.SessionID,
-		"peer_id", local.PeerID,
-		"workspace_id", local.WorkspaceID,
-		managerChannelKey, local.Channel,
-	)
-	return nil
-}
-
-type joinChannelRequest struct {
-	sessionID    string
-	peerID       string
-	workspaceID  string
-	displayName  string
-	channel      string
-	capabilities []sessionpkg.NetworkPeerCapability
-}
-
-func normalizeJoinChannelRequest(
-	ctx context.Context,
-	manager *Manager,
-	join sessionpkg.NetworkPeerJoin,
-) (joinChannelRequest, error) {
-	if ctx == nil {
-		return joinChannelRequest{}, errors.New("network: join context is required")
-	}
-	if manager == nil {
-		return joinChannelRequest{}, errors.New("network: manager is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return joinChannelRequest{}, err
-	}
-	if err := manager.lifecycleCtx.Err(); err != nil {
-		return joinChannelRequest{}, err
-	}
-
-	request := joinChannelRequest{
-		sessionID:    strings.TrimSpace(join.SessionID),
-		peerID:       strings.TrimSpace(join.PeerID),
-		workspaceID:  strings.TrimSpace(join.WorkspaceID),
-		displayName:  strings.TrimSpace(join.DisplayName),
-		channel:      strings.TrimSpace(join.Channel),
-		capabilities: cloneJoinCapabilities(join.Capabilities),
-	}
-	if request.sessionID == "" {
-		return joinChannelRequest{}, fmt.Errorf("%w: session id is required", ErrMissingField)
-	}
-	if request.peerID == "" {
-		return joinChannelRequest{}, fmt.Errorf("%w: peer id is required", ErrMissingField)
-	}
-	if err := ValidateWorkspaceID(request.workspaceID); err != nil {
-		return joinChannelRequest{}, err
-	}
-	if err := ValidateChannel(request.channel); err != nil {
-		return joinChannelRequest{}, err
-	}
-	return request, nil
-}
-
-func cloneJoinCapabilities(capabilities []sessionpkg.NetworkPeerCapability) []sessionpkg.NetworkPeerCapability {
-	return cloneNetworkPeerCapabilityCatalog(capabilities)
-}
-
-func (m *Manager) prepareJoinLocalPeer(
-	ctx context.Context,
-	request joinChannelRequest,
-) (LocalPeer, bool, error) {
-	if current, ok := m.sessionSnapshot(request.sessionID); ok {
-		if current.peerID == request.peerID &&
-			current.workspaceID == request.workspaceID &&
-			current.channel == request.channel {
-			return LocalPeer{}, true, nil
-		}
-		if err := m.LeaveChannel(ctx, request.sessionID); err != nil {
-			return LocalPeer{}, false, err
-		}
-	}
-
-	card, err := localPeerCardFromJoinRequest(request)
-	if err != nil {
-		return LocalPeer{}, false, err
-	}
-	local, err := m.peers.RegisterLocalWithCapabilityCatalog(
-		request.sessionID,
-		request.workspaceID,
-		request.channel,
-		card,
-		request.capabilities,
-		m.now(),
-	)
-	if err != nil {
-		return LocalPeer{}, false, err
-	}
-	return local, false, nil
-}
-
-func localPeerCardFromJoinRequest(request joinChannelRequest) (PeerCard, error) {
-	card, err := DefaultPeerCard(request.peerID)
-	if err != nil {
-		return PeerCard{}, err
-	}
-	if displayName := strings.TrimSpace(request.displayName); displayName != "" {
-		card.DisplayName = &displayName
-	}
-	if err := applyCapabilityBriefProjection(&card, request.capabilities); err != nil {
-		return PeerCard{}, err
-	}
-	card.ArtifactsSupported = []string{string(KindCapability)}
-	return card, nil
-}
-
-func (m *Manager) newManagedSession(local LocalPeer) (*managedSession, error) {
-	if err := m.acquireBroadcastSubscription(local.WorkspaceID, local.Channel); err != nil {
-		m.router.Leave(local.SessionID)
-		return nil, err
-	}
-
-	directSub, err := m.subscribeDirect(local.WorkspaceID, local.Channel, local.PeerID)
-	if err != nil {
-		return nil, m.rollbackManagedSessionJoin(local, nil, err)
-	}
-	heartbeat, err := m.startAuditedHeartbeat(local.SessionID, "")
-	if err != nil {
-		return nil, m.rollbackManagedSessionJoin(local, directSub, err)
-	}
-
-	return &managedSession{
-		sessionID:   local.SessionID,
-		peerID:      local.PeerID,
-		workspaceID: local.WorkspaceID,
-		channel:     local.Channel,
-		directSub:   directSub,
-		heartbeat:   heartbeat,
-	}, nil
-}
-
-func (m *Manager) rollbackManagedSessionJoin(
-	local LocalPeer,
-	directSub *nats.Subscription,
-	joinErr error,
-) error {
-	if directSub != nil {
-		if unsubscribeErr := cleanupSubscription(
-			directSub.Unsubscribe,
-			"network: unsubscribe direct subject for %q: %w",
-			local.SessionID,
-		); unsubscribeErr != nil {
-			joinErr = errors.Join(joinErr, unsubscribeErr)
-		}
-	}
-	if releaseErr := m.releaseBroadcastSubscription(local.WorkspaceID, local.Channel); releaseErr != nil {
-		joinErr = errors.Join(joinErr, releaseErr)
-	}
-	m.router.Leave(local.SessionID)
-	return joinErr
-}
-
-func (m *Manager) storeManagedSession(runtime *managedSession) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.sessions[runtime.sessionID] = runtime
-}
-
-// LeaveChannel removes one daemon-local session from the active network runtime.
-func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
-	if ctx == nil {
-		return errors.New("network: leave context is required")
-	}
-	if m == nil {
-		return errors.New("network: manager is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	targetSession := strings.TrimSpace(sessionID)
-	if targetSession == "" {
-		return fmt.Errorf("%w: session id is required", ErrMissingField)
-	}
-
-	runtime, ok := m.removeSessionRuntime(targetSession)
-	if !ok {
-		m.deliveries.dropSession(targetSession)
-		m.dispatchLocalPeerLeft(ctx, targetSession)
-		return nil
-	}
-
-	var errs []error
-	m.deliveries.dropSession(targetSession)
-
-	if runtime.heartbeat != nil {
-		runtime.heartbeat.Stop()
-	}
-	if runtime.directSub != nil {
-		if err := runtime.directSub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrConnectionClosed) {
-			errs = append(errs, fmt.Errorf("network: unsubscribe direct subject for %q: %w", targetSession, err))
-		}
-	}
-	if err := m.releaseBroadcastSubscription(runtime.workspaceID, runtime.channel); err != nil {
-		errs = append(errs, err)
-	}
-	m.dispatchLocalPeerLeft(ctx, targetSession)
-
-	m.logger.Info(
-		"network.peer.left",
-		"session_id", runtime.sessionID,
-		"peer_id", runtime.peerID,
-		"workspace_id", runtime.workspaceID,
-		managerChannelKey, runtime.channel,
-	)
-	return errors.Join(errs...)
-}
-
-func (m *Manager) dispatchLocalPeerLeft(ctx context.Context, sessionID string) {
-	if m == nil || m.router == nil {
-		return
-	}
-	left, ok := m.router.Leave(sessionID)
-	if !ok {
-		return
-	}
-	leftAt := m.now().UTC()
-	m.dispatchNetworkPeerLifecycleHooks(ctx, []PeerLifecycleEvent{{
-		Kind:      PeerLifecycleLeft,
-		Peer:      peerInfoFromLocal(left, leftAt, m.config.GreetIntervalDuration()),
-		Timestamp: leftAt,
-	}})
-}
-
-// OnTurnEnd wakes the per-session delivery worker after a prompt turn finishes.
-func (m *Manager) OnTurnEnd(sessionID string) {
-	if m == nil || m.deliveries == nil {
-		return
-	}
-	m.deliveries.onTurnEnd(sessionID)
-}
-
-// Send publishes one outbound envelope through the owned router/transport.
-func (m *Manager) Send(ctx context.Context, req SendRequest) (string, error) {
-	if ctx == nil {
-		return "", errors.New("network: send context is required")
-	}
-	if m == nil || m.router == nil {
-		return "", errors.New("network: manager router is required")
-	}
-	m.sweepExpiredRemotePeers(ctx, m.now())
-
-	prepared, err := m.router.PrepareSend(ctx, req)
-	if err != nil {
-		return "", err
-	}
-	writeResult, wrote, err := m.writeConversationMessage(ctx, req.SessionID, AuditDirectionSent, prepared.Envelope)
-	if err != nil {
-		m.recordAuditRejected(ctx, req.SessionID, prepared.Envelope, conversationPersistenceReason(err))
-		return "", err
-	}
-	if wrote && writeResult.Duplicate {
-		m.logger.Info(
-			"network.message.send_duplicate",
-			networkLogFields(prepared.Envelope, "session_id", req.SessionID)...)
-		return prepared.ID, nil
-	}
-
-	result, err := m.router.PublishPrepared(ctx, prepared)
-	if err != nil {
-		m.recordAuditRejected(ctx, req.SessionID, prepared.Envelope, "publish_failed")
-		return "", err
-	}
-	m.recordSentDelivery(ctx, req.SessionID, result.Envelope, wrote)
-	return result.ID, nil
-}
-
-// SendFromRuntimePeer publishes one outbound envelope from the reserved AGH runtime peer.
-func (m *Manager) SendFromRuntimePeer(ctx context.Context, req RuntimeSendRequest) (string, error) {
-	if ctx == nil {
-		return "", errors.New("network: runtime send context is required")
-	}
-	if m == nil || m.router == nil {
-		return "", errors.New("network: manager router is required")
-	}
-	m.sweepExpiredRemotePeers(ctx, m.now())
-
-	prepared, err := m.prepareRuntimeSend(req)
-	if err != nil {
-		return "", err
-	}
-	writeResult, wrote, err := m.writeConversationMessage(
-		ctx,
-		runtimePeerSessionID,
-		AuditDirectionSent,
-		prepared.Envelope,
-	)
-	if err != nil {
-		m.recordAuditRejected(ctx, runtimePeerSessionID, prepared.Envelope, conversationPersistenceReason(err))
-		return "", err
-	}
-	if wrote && writeResult.Duplicate {
-		m.logger.Info(
-			"network.runtime_message.send_duplicate",
-			networkLogFields(prepared.Envelope, "session_id", runtimePeerSessionID)...)
-		return prepared.ID, nil
-	}
-
-	result, err := m.router.PublishPrepared(ctx, prepared)
-	if err != nil {
-		m.recordAuditRejected(ctx, runtimePeerSessionID, prepared.Envelope, "publish_failed")
-		return "", err
-	}
-	m.recordSentDelivery(ctx, runtimePeerSessionID, result.Envelope, wrote)
-	return result.ID, nil
-}
-
-func (m *Manager) prepareRuntimeSend(req RuntimeSendRequest) (SendResult, error) {
-	if m == nil || m.router == nil {
-		return SendResult{}, errors.New("network: manager router is required")
-	}
-	now := m.now().UTC()
-	workspaceID := strings.TrimSpace(req.WorkspaceID)
-	if err := ValidateWorkspaceID(workspaceID); err != nil {
-		return SendResult{}, err
-	}
-	channel := strings.TrimSpace(req.Channel)
-	if err := ValidateChannel(channel); err != nil {
-		return SendResult{}, err
-	}
-	id := normalizeOptionalIdentifier(req.ID)
-	if id == nil {
-		id = ptrString(store.NewID("msg"))
-	}
-	envelope := Envelope{
-		Protocol:    ProtocolV0,
-		ID:          *id,
-		WorkspaceID: workspaceID,
-		Kind:        Kind(strings.TrimSpace(string(req.Kind))),
-		Channel:     channel,
-		Surface:     normalizeOptionalSurface(req.Surface),
-		ThreadID:    normalizeOptionalIdentifier(req.ThreadID),
-		DirectID:    normalizeOptionalIdentifier(req.DirectID),
-		From:        RuntimePeerID,
-		To:          normalizeOptionalIdentifier(req.To),
-		Mentions:    normalizeEnvelopeMentions(req.Mentions),
-		WorkID:      normalizeOptionalIdentifier(req.WorkID),
-		ReplyTo:     normalizeOptionalIdentifier(req.ReplyTo),
-		TraceID:     normalizeOptionalIdentifier(req.TraceID),
-		CausationID: normalizeOptionalIdentifier(req.CausationID),
-		TS:          now.Unix(),
-		ExpiresAt:   cloneInt64Ptr(req.ExpiresAt),
-		Body:        cloneRawMessage(req.Body),
-		Ext:         cloneExtensionMap(req.Ext),
-	}
-	if isConversationKind(envelope.Kind) &&
-		envelope.Surface != nil &&
-		*envelope.Surface == SurfaceDirect &&
-		envelope.To != nil {
-		directID, _, _, err := DirectRoomIdentity(envelope.WorkspaceID, channel, envelope.From, *envelope.To)
+	if m.auditor == nil {
+		m.auditor, err = NewAuditWriter(auditPath, auditStore)
 		if err != nil {
-			return SendResult{}, err
+			return err
 		}
-		envelope.DirectID = ptrString(directID)
 	}
-	if envelope.IsDirected() && !m.peers.HasPresence(envelope.WorkspaceID, envelope.Channel, *envelope.To, now) {
-		return SendResult{}, fmt.Errorf(
-			"%w: peer_id=%q channel=%q",
-			ErrTargetPeerNotFound,
-			*envelope.To,
-			envelope.Channel,
-		)
-	}
-	if err := ValidateEnvelope(envelope, ValidateOptions{Now: now, MaxReplayAge: m.router.maxReplayAge}); err != nil {
-		return SendResult{}, err
-	}
-	subject, err := subjectForEnvelope(envelope)
-	if err != nil {
-		return SendResult{}, err
-	}
-	return SendResult{ID: envelope.ID, Subject: subject, Envelope: envelope}, nil
-}
-
-func (m *Manager) startAuditedHeartbeat(sessionID string, summary string) (*Heartbeat, error) {
-	if m == nil || m.router == nil || m.peers == nil {
-		return nil, errors.New("network: manager heartbeat dependencies are required")
-	}
-
-	interval := m.peers.GreetInterval()
-	if interval <= 0 {
-		return nil, fmt.Errorf("%w: greet interval must be positive", ErrInvalidField)
-	}
-	if err := m.publishGreetWithAudit(m.lifecycleCtx, sessionID, summary); err != nil {
-		return nil, err
-	}
-
-	heartbeat := &Heartbeat{
-		stop: make(chan struct{}),
-		done: make(chan struct{}),
-	}
-
-	go func() {
-		defer close(heartbeat.done)
-
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-heartbeat.stop:
-				return
-			case <-m.lifecycleCtx.Done():
-				return
-			case <-ticker.C:
-				m.sweepExpiredRemotePeers(m.lifecycleCtx, m.now())
-				if err := m.publishGreetWithAudit(m.lifecycleCtx, sessionID, summary); err != nil {
-					switch {
-					case errors.Is(err, context.Canceled), errors.Is(err, ErrLocalPeerNotFound):
-						return
-					default:
-						m.logger.Warn("network.peer.heartbeat_failed", "session_id", sessionID, "error", err)
-					}
-				}
-			}
-		}
-	}()
-
-	return heartbeat, nil
-}
-
-func (m *Manager) publishGreetWithAudit(ctx context.Context, sessionID string, summary string) error {
-	if m == nil || m.router == nil {
-		return errors.New("network: manager router is required")
-	}
-
-	result, err := m.router.PublishGreet(ctx, sessionID, summary)
-	if err != nil {
-		return err
-	}
-	if _, _, err := m.writeConversationMessage(ctx, sessionID, AuditDirectionSent, result.Envelope); err != nil {
-		return fmt.Errorf("network: persist greet presence: %w", err)
-	}
-	m.recordAuditSent(ctx, sessionID, result.Envelope)
 	return nil
 }
 
-// ListPeers returns the current visible local+remote peer snapshot.
-func (m *Manager) ListPeers(ctx context.Context, workspaceID string, channel string) ([]PeerInfo, error) {
-	if ctx == nil {
-		return nil, errors.New("network: list peers context is required")
+func (m *Manager) resolveStoreDependencies(candidate AuditStore) {
+	if m.conversations == nil {
+		if conversations, ok := candidate.(store.NetworkConversationStore); ok {
+			m.conversations = conversations
+		}
 	}
-	if m == nil || m.peers == nil {
-		return nil, errors.New("network: peer registry is required")
+	if m.acceptance == nil {
+		if acceptance, ok := candidate.(store.NetworkAcceptanceStore); ok {
+			m.acceptance = acceptance
+		}
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	if m.inbox == nil {
+		if inbox, ok := candidate.(store.NetworkInboxStore); ok {
+			m.inbox = inbox
+		}
 	}
-	now := m.now().UTC()
-	m.sweepExpiredRemotePeers(ctx, now)
-	return m.peers.ListPeers(strings.TrimSpace(workspaceID), strings.TrimSpace(channel), now), nil
+	if m.causation == nil {
+		if causation, ok := candidate.(store.NetworkCausationStore); ok {
+			m.causation = causation
+		}
+	}
 }
 
-// ListChannels returns the currently active runtime channels.
-func (m *Manager) ListChannels(ctx context.Context, workspaceID string) ([]ChannelInfo, error) {
-	if ctx == nil {
-		return nil, errors.New("network: list channels context is required")
-	}
-	if m == nil || m.peers == nil {
-		return nil, errors.New("network: peer registry is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	now := m.now().UTC()
-	m.sweepExpiredRemotePeers(ctx, now)
-	return m.peers.ListChannels(strings.TrimSpace(workspaceID), now), nil
-}
-
-func (m *Manager) sweepExpiredRemotePeers(ctx context.Context, at time.Time) {
-	if m == nil || m.peers == nil {
-		return
-	}
-	if at.IsZero() {
-		at = m.now()
-	}
-	at = at.UTC()
-	m.dispatchNetworkPeerLifecycleHooks(
-		ctx,
-		peerLifecycleEventsFromExpired(
-			m.peers.ExpireRemotes(at),
-			at,
-			m.config.GreetIntervalDuration(),
-		),
-	)
-}
-
-// Status returns a safe diagnostics snapshot without exposing transport credentials.
+// Status returns a diagnostics snapshot without transport credentials.
 func (m *Manager) Status(ctx context.Context) (*Status, error) {
 	if ctx == nil {
 		return nil, errors.New("network: status context is required")
@@ -942,7 +254,6 @@ func (m *Manager) Status(ctx context.Context) (*Status, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-
 	peers, err := m.ListPeers(ctx, "", "")
 	if err != nil {
 		return nil, err
@@ -957,78 +268,53 @@ func (m *Manager) Status(ctx context.Context) (*Status, error) {
 			localPeers++
 		}
 	}
-	host, port := transportListener(m.transport)
-	status := StatusRunning
-	connected, lastDisconnect := m.connectionState()
-	if !connected {
-		status = StatusDisconnected
-	}
-	deliveryStats := m.deliveries.stats()
 	stats := m.stats.snapshot()
-	metricSamples := append([]MetricSample(nil), stats.Metrics...)
-	metricSamples = append(metricSamples, m.deliveries.queueDepthMetrics()...)
-	sortMetricSamples(metricSamples)
-
+	enabled := m.Enabled()
+	status := StatusDisabled
+	if enabled {
+		status = StatusReady
+		if localPeers > 0 {
+			status = StatusActive
+		}
+	}
 	return &Status{
-		Enabled:              true,
-		Status:               status,
-		ListenerHost:         host,
-		ListenerPort:         port,
-		LocalPeers:           localPeers,
-		RemotePeers:          len(peers) - localPeers,
-		Channels:             len(channels),
-		QueuedMessages:       deliveryStats.QueuedMessages,
-		QueuedSessions:       deliveryStats.QueuedSessions,
-		DeliveryWorkers:      deliveryStats.DeliveryWorkers,
-		DeliveryQueueDepth:   deliveryStats.QueuedMessages,
-		MessagesSent:         stats.MessagesSent,
-		MessagesReceived:     stats.MessagesReceived,
-		MessagesRejected:     stats.MessagesRejected,
-		MessagesDelivered:    stats.MessagesDelivered,
-		WorkflowTaggedEvents: stats.WorkflowTaggedEvents,
-		HandoffTaggedEvents:  stats.HandoffTaggedEvents,
-		OpenThreads:          stats.OpenThreads,
-		OpenDirectRooms:      stats.OpenDirectRooms,
-		OpenWorkItems:        stats.OpenWorkItems,
-		ConversationMessages: stats.ConversationMessages,
-		WorkTransitions:      stats.WorkTransitions,
-		DirectResolves:       stats.DirectResolves,
-		LastDisconnect:       lastDisconnect,
-		KindMetrics:          stats.KindMetrics,
-		Metrics:              metricSamples,
+		Enabled: enabled, Status: status, LocalPeers: localPeers,
+		Channels:     len(channels),
+		MessagesSent: stats.MessagesSent, MessagesReceived: stats.MessagesReceived,
+		MessagesRejected: stats.MessagesRejected, MessagesDelivered: stats.MessagesDelivered,
+		WorkflowTaggedEvents: stats.WorkflowTaggedEvents, HandoffTaggedEvents: stats.HandoffTaggedEvents,
+		OpenThreads: stats.OpenThreads, OpenDirectRooms: stats.OpenDirectRooms,
+		OpenWorkItems: stats.OpenWorkItems, ConversationMessages: stats.ConversationMessages,
+		WorkTransitions: stats.WorkTransitions, DirectResolves: stats.DirectResolves,
+		KindMetrics: stats.KindMetrics, Metrics: append([]MetricSample(nil), stats.Metrics...),
 	}, nil
 }
 
-// Inbox returns the queued inbound envelopes for one local session.
-func (m *Manager) Inbox(ctx context.Context, sessionID string) ([]Envelope, error) {
-	if ctx == nil {
-		return nil, errors.New("network: inbox context is required")
+// SetEnabled updates runtime availability after the durable config transition commits.
+func (m *Manager) SetEnabled(enabled bool) {
+	if m == nil {
+		return
 	}
-	if m == nil || m.deliveries == nil {
-		return nil, errors.New("network: delivery coordinator is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return m.deliveries.inbox(strings.TrimSpace(sessionID)), nil
+	m.mu.Lock()
+	m.enabled = enabled
+	m.mu.Unlock()
 }
 
-// WaitInbox blocks until one or more queued inbound envelopes are available for
-// the local session, optionally filtered by channel.
-func (m *Manager) WaitInbox(ctx context.Context, sessionID string, channel string) ([]Envelope, error) {
-	if ctx == nil {
-		return nil, errors.New("network: wait inbox context is required")
+// Enabled reports the current runtime availability switch.
+func (m *Manager) Enabled() bool {
+	if m == nil {
+		return false
 	}
-	if m == nil || m.deliveries == nil {
-		return nil, errors.New("network: delivery coordinator is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return m.deliveries.waitInbox(ctx, strings.TrimSpace(sessionID), strings.TrimSpace(channel))
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.enabled
 }
 
-// Shutdown drains all background work and stops the owned transport.
+// OnTurnEnd is retained for the current daemon interface. Wake execution is
+// lease-driven and does not maintain an in-memory delivery queue.
+func (m *Manager) OnTurnEnd(string) {}
+
+// Shutdown stops live membership and releases all waiter goroutines.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("network: shutdown context is required")
@@ -1036,693 +322,38 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	if m == nil {
 		return nil
 	}
-
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
 		return nil
 	}
 	m.closed = true
-
-	sessions := make([]*managedSession, 0, len(m.sessions))
-	for _, runtime := range m.sessions {
-		sessions = append(sessions, runtime)
-	}
-	channels := make([]*managedChannel, 0, len(m.channels))
-	for _, runtime := range m.channels {
-		channels = append(channels, runtime)
+	sessionIDs := make([]string, 0, len(m.sessions))
+	for sessionID := range m.sessions {
+		sessionIDs = append(sessionIDs, sessionID)
 	}
 	m.sessions = make(map[string]*managedSession)
-	m.channels = make(map[string]*managedChannel)
+	for _, waiters := range m.waiters {
+		for waiter := range waiters {
+			close(waiter)
+		}
+	}
+	m.waiters = make(map[string]map[chan struct{}]struct{})
 	m.mu.Unlock()
-
-	deliveryStats := m.deliveries.stats()
 	m.cancel()
-
-	var errs []error
-	for _, runtime := range sessions {
-		if runtime == nil {
-			continue
-		}
-		m.deliveries.dropSession(runtime.sessionID)
-		if runtime.heartbeat != nil {
-			runtime.heartbeat.Stop()
-		}
-		if runtime.directSub != nil {
-			if err := runtime.directSub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrConnectionClosed) {
-				errs = append(
-					errs,
-					fmt.Errorf("network: unsubscribe direct subject for %q: %w", runtime.sessionID, err),
-				)
-			}
-		}
-		m.router.Leave(runtime.sessionID)
+	for _, sessionID := range sessionIDs {
+		m.router.Leave(sessionID)
 	}
-	for _, runtime := range channels {
-		if runtime == nil || runtime.broadcastSub == nil {
-			continue
-		}
-		if err := runtime.broadcastSub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrConnectionClosed) {
-			errs = append(errs, fmt.Errorf("network: unsubscribe broadcast subject for %q: %w", runtime.channel, err))
-		}
-	}
-
-	m.inboundWG.Wait()
-	m.deliveries.wait()
-	if m.transport != nil {
-		if err := m.transport.Shutdown(ctx); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	m.logger.Info(
-		"network.stopped",
-		"pending_messages", deliveryStats.QueuedMessages+deliveryStats.InFlightMessages,
-		"queued_messages", deliveryStats.QueuedMessages,
-		"inflight_messages", deliveryStats.InFlightMessages,
-		"delivery_workers", deliveryStats.DeliveryWorkers,
-	)
-
-	return errors.Join(errs...)
-}
-
-func (m *Manager) handleInboundMessage(payload []byte) {
-	if m == nil {
-		return
-	}
-	if !m.beginInboundMessage() {
-		return
-	}
-	defer m.inboundWG.Done()
-
-	if m.router == nil {
-		return
-	}
-	if err := m.lifecycleCtx.Err(); err != nil {
-		return
-	}
-
-	result, err := m.router.Receive(m.lifecycleCtx, payload)
-	if err != nil {
-		m.logger.Warn("network.message.receive_failed", "error", err)
-		return
-	}
-	m.dispatchNetworkPeerLifecycleHooks(m.lifecycleCtx, result.PeerEvents)
-	persisted, err := m.writeInboundConversationMessages(m.lifecycleCtx, result)
-	if err != nil {
-		m.logger.Warn("network.message.persist_failed", "error", err)
-		if result.Envelope != nil {
-			m.recordAuditRejected(
-				m.lifecycleCtx,
-				inboundRejectedSessionID(m, *result.Envelope),
-				*result.Envelope,
-				conversationPersistenceReason(err),
-			)
-		}
-		return
-	}
-	if persisted.Duplicate {
-		m.logger.Info("network.message.receive_duplicate_store", "message_id", persisted.MessageID)
-		return
-	}
-	m.recordInboundAudit(result, persisted.MessageIDs)
-
-	if len(result.Deliveries) == 0 {
-		return
-	}
-	deliveries := m.applyDeliverySubscriptions(m.lifecycleCtx, result.Deliveries)
-	if len(deliveries) == 0 {
-		return
-	}
-	if err := m.deliveries.accept(m.lifecycleCtx, deliveries); err != nil {
-		m.logger.Warn("network.message.accept_failed", "error", err)
-	}
-}
-
-func (m *Manager) beginInboundMessage() bool {
-	if m == nil {
-		return false
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.closed {
-		return false
-	}
-	m.inboundWG.Add(1)
-	return true
-}
-
-func (m *Manager) applyDeliverySubscriptions(ctx context.Context, deliveries []Delivery) []Delivery {
-	if len(deliveries) == 0 {
-		return nil
-	}
-	subscriptions := networkSubscriptionStoreFromCandidate(m.conversations)
-	filtered := make([]Delivery, 0, len(deliveries))
-	for _, delivery := range deliveries {
-		next := delivery
-		next.Mode = normalizedDeliverySubscriptionMode(delivery.Mode)
-		if subscriptions != nil {
-			mode, err := deliverySubscriptionMode(ctx, subscriptions, delivery)
-			if err != nil {
-				if m.logger != nil {
-					m.logger.Warn(
-						"network.message.subscription_lookup_failed",
-						"peer_id",
-						delivery.PeerID,
-						"error",
-						err,
-					)
-				}
-				filtered = append(filtered, next)
-				continue
-			}
-			if mode == store.NetworkSubscriptionModeMute {
-				continue
-			}
-			next.Mode = mode
-		}
-		filtered = append(filtered, next)
-	}
-	return filtered
-}
-
-func networkSubscriptionStoreFromCandidate(candidate any) networkSubscriptionStore {
-	subscriptions, ok := candidate.(networkSubscriptionStore)
-	if !ok {
-		return nil
-	}
-	return subscriptions
-}
-
-func deliverySubscriptionMode(
-	ctx context.Context,
-	subscriptions networkSubscriptionStore,
-	delivery Delivery,
-) (string, error) {
-	if subscriptions == nil {
-		return store.NetworkSubscriptionModeFull, nil
-	}
-	if deliveryMentionsPeer(delivery.Envelope, delivery.PeerID) || deliveryAddressedToPeer(delivery) {
-		return store.NetworkSubscriptionModeFull, nil
-	}
-	workspaceID := strings.TrimSpace(delivery.Envelope.WorkspaceID)
-	channel := strings.TrimSpace(delivery.Envelope.Channel)
-	peerID := strings.TrimSpace(delivery.PeerID)
-	if workspaceID == "" || channel == "" || peerID == "" {
-		return store.NetworkSubscriptionModeFull, nil
-	}
-	if delivery.Envelope.ThreadID != nil {
-		threadID := strings.TrimSpace(*delivery.Envelope.ThreadID)
-		if threadID != "" {
-			threadEntry, ok, err := firstApplicableSubscription(
-				ctx,
-				subscriptions,
-				store.NetworkSubscriptionQuery{
-					WorkspaceID: workspaceID,
-					Channel:     channel,
-					ThreadID:    threadID,
-					PeerID:      peerID,
-					Limit:       10,
-				},
-				threadID,
-				delivery.Envelope,
-			)
-			if err != nil {
-				return "", err
-			}
-			if ok {
-				return normalizedDeliverySubscriptionMode(threadEntry.Mode), nil
-			}
-		}
-	}
-	channelEntry, ok, err := firstApplicableSubscription(
-		ctx,
-		subscriptions,
-		store.NetworkSubscriptionQuery{
-			WorkspaceID: workspaceID,
-			Channel:     channel,
-			PeerID:      peerID,
-			Limit:       50,
-		},
-		"",
-		delivery.Envelope,
-	)
-	if err != nil {
-		return "", err
-	}
-	if ok {
-		return normalizedDeliverySubscriptionMode(channelEntry.Mode), nil
-	}
-	return normalizedDeliverySubscriptionMode(delivery.Mode), nil
-}
-
-func firstApplicableSubscription(
-	ctx context.Context,
-	subscriptions networkSubscriptionStore,
-	query store.NetworkSubscriptionQuery,
-	threadID string,
-	envelope Envelope,
-) (store.NetworkSubscriptionEntry, bool, error) {
-	entries, err := subscriptions.ListNetworkSubscriptions(ctx, query)
-	if err != nil {
-		return store.NetworkSubscriptionEntry{}, false, fmt.Errorf("network: list delivery subscriptions: %w", err)
-	}
-	for _, entry := range entries {
-		if strings.TrimSpace(entry.ThreadID) != strings.TrimSpace(threadID) {
-			continue
-		}
-		if !subscriptionKeywordFiltersMatch(entry.KeywordFilters, envelope) {
-			continue
-		}
-		return entry, true, nil
-	}
-	return store.NetworkSubscriptionEntry{}, false, nil
-}
-
-func subscriptionKeywordFiltersMatch(filters []string, envelope Envelope) bool {
-	normalizedFilters := normalizeSubscriptionKeywordFilters(filters)
-	if len(normalizedFilters) == 0 {
-		return true
-	}
-	text := strings.ToLower(deliverySubscriptionSearchText(envelope))
-	if text == "" {
-		return false
-	}
-	for _, filter := range normalizedFilters {
-		if strings.Contains(text, strings.ToLower(filter)) {
-			return true
-		}
-	}
-	return false
-}
-
-func normalizeSubscriptionKeywordFilters(filters []string) []string {
-	normalized := make([]string, 0, len(filters))
-	seen := make(map[string]struct{}, len(filters))
-	for _, filter := range filters {
-		trimmed := strings.TrimSpace(filter)
-		if trimmed == "" {
-			continue
-		}
-		key := strings.ToLower(trimmed)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		normalized = append(normalized, trimmed)
-	}
-	return normalized
-}
-
-func deliverySubscriptionSearchText(envelope Envelope) string {
-	body, err := envelope.DecodeBody()
-	if err != nil {
-		return strings.TrimSpace(string(envelope.Body))
-	}
-	return previewForBody(body)
-}
-
-func deliveryMentionsPeer(envelope Envelope, peerID string) bool {
-	target := strings.TrimSpace(peerID)
-	if target == "" {
-		return false
-	}
-	return slices.Contains(normalizeEnvelopeMentions(envelope.Mentions), target)
-}
-
-func deliveryAddressedToPeer(delivery Delivery) bool {
-	if delivery.Envelope.To == nil {
-		return false
-	}
-	return strings.TrimSpace(*delivery.Envelope.To) != "" &&
-		strings.TrimSpace(*delivery.Envelope.To) == strings.TrimSpace(delivery.PeerID)
-}
-
-func normalizedDeliverySubscriptionMode(mode string) string {
-	switch strings.TrimSpace(mode) {
-	case store.NetworkSubscriptionModeMute:
-		return store.NetworkSubscriptionModeMute
-	case store.NetworkSubscriptionModeDigest:
-		return store.NetworkSubscriptionModeDigest
-	default:
-		return store.NetworkSubscriptionModeFull
-	}
-}
-
-type conversationPersistenceSummary struct {
-	MessageIDs map[string]struct{}
-	Duplicate  bool
-	MessageID  string
-}
-
-func (m *Manager) writeInboundConversationMessages(
-	ctx context.Context,
-	result RouteResult,
-) (conversationPersistenceSummary, error) {
-	summary := conversationPersistenceSummary{MessageIDs: make(map[string]struct{})}
-	if m == nil || m.conversations == nil {
-		return summary, nil
-	}
-	if result.Envelope != nil && !result.Rejected && !result.Ignored && len(result.Deliveries) > 0 {
-		writeResult, wrote, err := m.writeConversationMessage(
-			ctx,
-			result.Deliveries[0].SessionID,
-			AuditDirectionReceived,
-			*result.Envelope,
-		)
-		if err != nil {
-			return conversationPersistenceSummary{}, err
-		}
-		if wrote {
-			if writeResult.Duplicate {
-				if m.isLocalEnvelopeSender(*result.Envelope) {
-					summary.MessageIDs[result.Envelope.ID] = struct{}{}
-					return summary, nil
-				}
-				summary.Duplicate = true
-				summary.MessageID = writeResult.MessageID
-				return summary, nil
-			}
-			summary.MessageIDs[result.Envelope.ID] = struct{}{}
-		}
-	}
-
-	for _, envelope := range result.Generated {
-		local, ok := m.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, envelope.From)
-		if !ok {
-			continue
-		}
-		writeResult, wrote, err := m.writeConversationMessage(ctx, local.SessionID, AuditDirectionSent, envelope)
-		if err != nil {
-			return conversationPersistenceSummary{}, err
-		}
-		if wrote && !writeResult.Duplicate {
-			summary.MessageIDs[envelope.ID] = struct{}{}
-		}
-	}
-	return summary, nil
-}
-
-func (m *Manager) isLocalEnvelopeSender(envelope Envelope) bool {
-	if m == nil || m.peers == nil {
-		return false
-	}
-	_, ok := m.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, envelope.From)
-	return ok
-}
-
-func (m *Manager) writeConversationMessage(
-	ctx context.Context,
-	sessionID string,
-	direction string,
-	envelope Envelope,
-) (store.NetworkConversationWriteResult, bool, error) {
-	if ctx == nil {
-		return store.NetworkConversationWriteResult{}, false, errors.New("network: conversation context is required")
-	}
-	if m == nil || m.conversations == nil || !isTimelineKind(envelope.Kind) {
-		return store.NetworkConversationWriteResult{}, false, nil
-	}
-	entry, ok, err := normalizeTimelineMessageEntry(sessionID, direction, envelope, envelopeRecordTime(envelope, m.now))
-	if err != nil {
-		return store.NetworkConversationWriteResult{}, false, err
-	}
-	if !ok {
-		return store.NetworkConversationWriteResult{}, false, nil
-	}
-	result, err := m.conversations.WriteConversationMessage(ctx, entry)
-	if err != nil {
-		return store.NetworkConversationWriteResult{}, true, err
-	}
-	if !result.Duplicate {
-		m.observeConversationWrite(ctx, entry, result)
-	}
-	return result, true, nil
-}
-
-func isTimelineKind(kind Kind) bool {
-	switch kind {
-	case KindGreet, KindWhois, KindSay, KindCapability, KindReceipt, KindTrace:
-		return true
-	default:
-		return false
-	}
-}
-
-func envelopeRecordTime(envelope Envelope, now func() time.Time) time.Time {
-	if envelope.TS > 0 {
-		return time.Unix(envelope.TS, 0).UTC()
-	}
-	if now != nil {
-		return now().UTC()
-	}
-	return time.Now().UTC()
-}
-
-func inboundRejectedSessionID(manager *Manager, envelope Envelope) string {
-	if manager == nil || manager.peers == nil || !envelope.IsDirected() {
-		return ""
-	}
-	target, ok := manager.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To)
-	if !ok {
-		return ""
-	}
-	return target.SessionID
-}
-
-func (m *Manager) recordInboundAudit(result RouteResult, persisted map[string]struct{}) {
-	if m == nil {
-		return
-	}
-	recordedReceivers := make(map[string]struct{})
-	if result.Envelope != nil && result.Rejected {
-		sessionID := ""
-		if result.Envelope.IsDirected() {
-			if target, ok := m.peers.LocalByPeer(
-				result.Envelope.WorkspaceID,
-				result.Envelope.Channel,
-				*result.Envelope.To,
-			); ok {
-				sessionID = target.SessionID
-			}
-		}
-		reason := ""
-		if result.ReasonCode != nil {
-			reason = strings.TrimSpace(string(*result.ReasonCode))
-		}
-		m.recordAuditRejected(m.lifecycleCtx, sessionID, *result.Envelope, reason)
-	}
-
-	for _, delivery := range result.Deliveries {
-		_, durable := persisted[delivery.Envelope.ID]
-		m.recordReceivedDelivery(m.lifecycleCtx, delivery.SessionID, delivery.Envelope, durable)
-		recordedReceivers[delivery.SessionID] = struct{}{}
-	}
-	for _, sessionID := range m.controlMessageReceivers(result) {
-		if _, ok := recordedReceivers[sessionID]; ok {
-			continue
-		}
-		_, durable := persisted[result.Envelope.ID]
-		m.recordReceivedDelivery(m.lifecycleCtx, sessionID, *result.Envelope, durable)
-	}
-	for _, envelope := range result.Generated {
-		local, ok := m.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, envelope.From)
-		if !ok {
-			continue
-		}
-		_, durable := persisted[envelope.ID]
-		m.recordSentDelivery(m.lifecycleCtx, local.SessionID, envelope, durable)
-	}
-}
-
-func (m *Manager) recordSentDelivery(ctx context.Context, sessionID string, envelope Envelope, durable bool) {
-	if durable {
-		m.recordSentObserved(sessionID, envelope)
-		m.persistSentAudit(ctx, sessionID, envelope)
-		return
-	}
-	m.recordAuditSent(ctx, sessionID, envelope)
-}
-
-func (m *Manager) recordReceivedDelivery(ctx context.Context, sessionID string, envelope Envelope, durable bool) {
-	if durable {
-		m.recordReceivedObserved(sessionID, envelope)
-		m.persistReceivedAudit(ctx, sessionID, envelope)
-		return
-	}
-	m.recordAuditReceived(ctx, sessionID, envelope)
-}
-
-func (m *Manager) recordSentObserved(sessionID string, envelope Envelope) {
-	if m == nil {
-		return
-	}
-	if m.stats != nil {
-		m.stats.recordSent(envelope)
-	}
-	m.logger.Info("network.message.sent", networkLogFields(envelope, "session_id", sessionID)...)
-}
-
-func (m *Manager) recordReceivedObserved(sessionID string, envelope Envelope) {
-	if m == nil {
-		return
-	}
-	if m.stats != nil {
-		m.stats.recordReceived(envelope)
-	}
-	m.logger.Info("network.message.received", networkLogFields(envelope, "session_id", sessionID)...)
-}
-
-func conversationPersistenceReason(err error) string {
-	switch {
-	case err == nil:
-		return ""
-	case errors.Is(err, store.ErrNetworkWorkClosed):
-		return "work_closed"
-	case errors.Is(err, store.ErrNetworkWorkContainerMismatch):
-		return "work_container_mismatch"
-	case errors.Is(err, store.ErrNetworkDirectRoomCollision):
-		return "direct_room_collision"
-	default:
-		return "conversation_persist_failed"
-	}
-}
-
-func (m *Manager) controlMessageReceivers(result RouteResult) []string {
-	if m == nil || m.peers == nil || result.Envelope == nil || result.Rejected || result.Ignored {
-		return nil
-	}
-
-	envelope := *result.Envelope
-	switch envelope.Kind {
-	case KindGreet:
-		locals := m.peers.LocalPeers(envelope.WorkspaceID, envelope.Channel)
-		receivers := make([]string, 0, len(locals))
-		for _, local := range locals {
-			if isEnvelopeSender(local, envelope) {
-				continue
-			}
-			receivers = append(receivers, local.SessionID)
-		}
-		return receivers
-	case KindWhois:
-		body, err := envelope.DecodeBody()
-		if err != nil {
-			return nil
-		}
-		whois, ok := body.(WhoisBody)
-		if !ok || whois.Type != WhoisTypeRequest {
-			return nil
-		}
-		if envelope.IsDirected() {
-			if target, ok := m.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To); ok {
-				return []string{target.SessionID}
-			}
-			return nil
-		}
-
-		seen := make(map[string]struct{})
-		receivers := make([]string, 0, len(result.Generated))
-		for _, generated := range result.Generated {
-			local, ok := m.peers.LocalByPeer(generated.WorkspaceID, generated.Channel, generated.From)
-			if !ok {
-				continue
-			}
-			if _, exists := seen[local.SessionID]; exists {
-				continue
-			}
-			seen[local.SessionID] = struct{}{}
-			receivers = append(receivers, local.SessionID)
-		}
-		return receivers
-	default:
-		return nil
-	}
-}
-
-func (m *Manager) acquireBroadcastSubscription(workspaceID string, channel string) error {
-	targetWorkspaceID := strings.TrimSpace(workspaceID)
-	targetChannel := strings.TrimSpace(channel)
-	key := peerChannelKey(targetWorkspaceID, targetChannel)
-
-	m.mu.Lock()
-	if runtime, ok := m.channels[key]; ok {
-		runtime.refCount++
-		m.mu.Unlock()
-		return nil
-	}
-	m.mu.Unlock()
-
-	subject, err := BroadcastSubject(targetWorkspaceID, targetChannel)
-	if err != nil {
-		return err
-	}
-	subscription, err := m.transport.Subscribe(subject, func(msg *nats.Msg) {
-		m.handleInboundMessage(msg.Data)
-	})
-	if err != nil {
-		return err
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if runtime, ok := m.channels[key]; ok {
-		runtime.refCount++
-		if err := cleanupDuplicateBroadcastSubscription(targetChannel, runtime, subscription.Unsubscribe); err != nil {
-			return err
-		}
-		return nil
-	}
-	m.channels[key] = &managedChannel{
-		workspaceID:  targetWorkspaceID,
-		channel:      targetChannel,
-		broadcastSub: subscription,
-		refCount:     1,
-	}
+	m.logger.Info("network.stopped", "sessions", len(sessionIDs))
 	return nil
-}
-
-func (m *Manager) releaseBroadcastSubscription(workspaceID string, channel string) error {
-	targetWorkspaceID := strings.TrimSpace(workspaceID)
-	targetChannel := strings.TrimSpace(channel)
-	key := peerChannelKey(targetWorkspaceID, targetChannel)
-
-	m.mu.Lock()
-	runtime, ok := m.channels[key]
-	if !ok {
-		m.mu.Unlock()
-		return nil
-	}
-	runtime.refCount--
-	if runtime.refCount > 0 {
-		m.mu.Unlock()
-		return nil
-	}
-	delete(m.channels, key)
-	m.mu.Unlock()
-
-	if runtime.broadcastSub == nil {
-		return nil
-	}
-	if err := runtime.broadcastSub.Unsubscribe(); err != nil && !errors.Is(err, nats.ErrConnectionClosed) {
-		return fmt.Errorf("network: unsubscribe broadcast subject for %q: %w", targetChannel, err)
-	}
-	return nil
-}
-
-func (m *Manager) subscribeDirect(workspaceID string, channel string, peerID string) (*nats.Subscription, error) {
-	subject, err := DirectSubject(workspaceID, channel, peerID)
-	if err != nil {
-		return nil, err
-	}
-	return m.transport.Subscribe(subject, func(msg *nats.Msg) {
-		m.handleInboundMessage(msg.Data)
-	})
 }
 
 func (m *Manager) sessionSnapshot(sessionID string) (managedSession, bool) {
+	if m == nil {
+		return managedSession{}, false
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	runtime, ok := m.sessions[strings.TrimSpace(sessionID)]
 	if !ok || runtime == nil {
 		return managedSession{}, false
@@ -1730,35 +361,9 @@ func (m *Manager) sessionSnapshot(sessionID string) (managedSession, bool) {
 	return *runtime, true
 }
 
-func cleanupSubscription(unsubscribe func() error, format string, value string) error {
-	if unsubscribe == nil {
-		return nil
-	}
-
-	if err := unsubscribe(); err != nil && !errors.Is(err, nats.ErrConnectionClosed) {
-		return fmt.Errorf(format, value, err)
-	}
-	return nil
-}
-
-func cleanupDuplicateBroadcastSubscription(channel string, runtime *managedChannel, unsubscribe func() error) error {
-	if err := cleanupSubscription(
-		unsubscribe,
-		"network: unsubscribe duplicate broadcast subject for %q: %w",
-		channel,
-	); err != nil {
-		if runtime != nil {
-			runtime.refCount--
-		}
-		return err
-	}
-	return nil
-}
-
 func (m *Manager) removeSessionRuntime(sessionID string) (managedSession, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	target := strings.TrimSpace(sessionID)
 	runtime, ok := m.sessions[target]
 	if !ok || runtime == nil {
@@ -1766,330 +371,4 @@ func (m *Manager) removeSessionRuntime(sessionID string) (managedSession, bool) 
 	}
 	delete(m.sessions, target)
 	return *runtime, true
-}
-
-func (m *Manager) handleDisconnect(err error) {
-	if m == nil {
-		return
-	}
-
-	message := ""
-	if err != nil {
-		message = strings.TrimSpace(err.Error())
-	}
-
-	m.mu.Lock()
-	m.connected = false
-	m.lastDisconnect = message
-	m.mu.Unlock()
-	m.logger.Warn("network.disconnected", "error", message)
-}
-
-func (m *Manager) handleReconnect() {
-	if m == nil {
-		return
-	}
-
-	sessionIDs := make([]string, 0)
-
-	m.mu.Lock()
-	m.connected = true
-	m.lastDisconnect = ""
-	for sessionID := range m.sessions {
-		sessionIDs = append(sessionIDs, sessionID)
-	}
-	m.mu.Unlock()
-
-	for _, sessionID := range sessionIDs {
-		if err := m.publishGreetWithAudit(m.lifecycleCtx, sessionID, ""); err != nil {
-			m.logger.Warn("network.peer.regreet_failed", "session_id", sessionID, "error", err)
-		}
-	}
-	m.logger.Info("network.reconnected", "sessions", len(sessionIDs))
-}
-
-func (m *Manager) connectionState() (bool, string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.connected, m.lastDisconnect
-}
-
-func (m *Manager) recordAuditSent(ctx context.Context, sessionID string, envelope Envelope) {
-	if !m.persistSentAudit(ctx, sessionID, envelope) {
-		return
-	}
-	if m.stats != nil {
-		m.stats.recordSent(envelope)
-	}
-	m.logger.Info("network.message.sent", networkLogFields(envelope, "session_id", sessionID)...)
-}
-
-func (m *Manager) persistSentAudit(ctx context.Context, sessionID string, envelope Envelope) bool {
-	if m == nil || m.auditor == nil {
-		return false
-	}
-	if err := m.auditor.RecordSent(ctx, sessionID, envelope); err != nil {
-		m.logger.Warn(
-			"network.audit.record_sent_failed",
-			"session_id",
-			sessionID,
-			"envelope_id",
-			envelope.ID,
-			"error",
-			err,
-		)
-		return false
-	}
-	return true
-}
-
-func (m *Manager) recordAuditReceived(ctx context.Context, sessionID string, envelope Envelope) {
-	if !m.persistReceivedAudit(ctx, sessionID, envelope) {
-		return
-	}
-	if m.stats != nil {
-		m.stats.recordReceived(envelope)
-	}
-	m.logger.Info("network.message.received", networkLogFields(envelope, "session_id", sessionID)...)
-}
-
-func (m *Manager) persistReceivedAudit(ctx context.Context, sessionID string, envelope Envelope) bool {
-	if m == nil || m.auditor == nil {
-		return false
-	}
-	if err := m.auditor.RecordReceived(ctx, sessionID, envelope); err != nil {
-		m.logger.Warn(
-			"network.audit.record_received_failed",
-			"session_id",
-			sessionID,
-			"envelope_id",
-			envelope.ID,
-			"error",
-			err,
-		)
-		return false
-	}
-	return true
-}
-
-func (m *Manager) recordAuditRejected(ctx context.Context, sessionID string, envelope Envelope, reason string) {
-	if m == nil || m.auditor == nil {
-		return
-	}
-	if err := m.auditor.RecordRejected(ctx, sessionID, envelope, reason); err != nil {
-		m.logger.Warn(
-			"network.audit.record_rejected_failed",
-			"session_id",
-			sessionID,
-			"envelope_id",
-			envelope.ID,
-			"error",
-			err,
-		)
-		return
-	}
-	if m.stats != nil {
-		m.stats.recordRejected(envelope)
-	}
-	fields := networkLogFields(envelope, "session_id", sessionID)
-	fields = append(fields, "reason", strings.TrimSpace(reason))
-	m.logger.Info("network.message.rejected", fields...)
-}
-
-func (m *Manager) recordDelivered(
-	sessionID string,
-	peerID string,
-	envelope Envelope,
-	_ string,
-	_ time.Duration,
-	cost deliveredPromptCost,
-) {
-	if m == nil {
-		return
-	}
-	if m.auditor != nil {
-		if err := m.auditor.RecordDelivered(m.lifecycleCtx, sessionID, envelope); err != nil {
-			m.logger.Warn(
-				"network.audit.record_delivered_failed",
-				"session_id",
-				sessionID,
-				"envelope_id",
-				envelope.ID,
-				"error",
-				err,
-			)
-		}
-	}
-	m.recordThreadPeerPromptCost(peerID, envelope, cost)
-	if m.stats == nil {
-		return
-	}
-	m.stats.recordDelivered(envelope)
-}
-
-func (m *Manager) recordThreadPeerPromptCost(peerID string, envelope Envelope, cost deliveredPromptCost) {
-	if m == nil || m.conversations == nil || !envelopeTargetsThread(envelope) {
-		return
-	}
-	updater, ok := m.conversations.(threadPeerTokenStatsUpdater)
-	if !ok {
-		return
-	}
-	targetPeerID := strings.TrimSpace(peerID)
-	if targetPeerID == "" {
-		return
-	}
-	deliveredAt := m.now().UTC()
-	err := updater.UpdateNetworkThreadPeerTokenStats(
-		m.lifecycleCtx,
-		store.NetworkThreadPeerTokenStatsUpdate{
-			WorkspaceID:           strings.TrimSpace(envelope.WorkspaceID),
-			Channel:               strings.TrimSpace(envelope.Channel),
-			ThreadID:              strings.TrimSpace(*envelope.ThreadID),
-			PeerID:                targetPeerID,
-			DeliveredCount:        1,
-			PromptSizeBytes:       cost.PromptSizeBytes,
-			EstimatedPromptTokens: cost.EstimatedPromptTokens,
-			DeliveredAt:           deliveredAt,
-			UpdatedAt:             deliveredAt,
-		},
-	)
-	if err != nil {
-		m.logger.Warn(
-			"network.thread_peer_token_stats.update_failed",
-			"peer_id",
-			targetPeerID,
-			"envelope_id",
-			envelope.ID,
-			"error",
-			err,
-		)
-	}
-}
-
-func envelopeTargetsThread(envelope Envelope) bool {
-	return envelope.Surface != nil &&
-		*envelope.Surface == SurfaceThread &&
-		envelope.ThreadID != nil &&
-		strings.TrimSpace(*envelope.ThreadID) != ""
-}
-
-func (m *Manager) recordDropped(sessionID string, envelope Envelope, reason string) {
-	m.recordAuditRejected(m.lifecycleCtx, sessionID, envelope, reason)
-}
-
-func transportListener(transport *Transport) (string, int) {
-	if transport == nil {
-		return "", 0
-	}
-
-	port := transport.Port()
-	clientURL := strings.TrimSpace(transport.ClientURL())
-	if clientURL == "" {
-		return defaultListenerHost, port
-	}
-
-	parsed, err := url.Parse(clientURL)
-	if err != nil {
-		return defaultListenerHost, port
-	}
-	host := strings.TrimSpace(parsed.Hostname())
-	if host == "" {
-		host = defaultListenerHost
-	}
-	if parsedPort := strings.TrimSpace(parsed.Port()); parsedPort != "" {
-		if value, convErr := strconv.Atoi(parsedPort); convErr == nil {
-			port = value
-		}
-	}
-	return host, port
-}
-
-func networkLogFields(envelope Envelope, extra ...any) []any {
-	fields := []any{
-		"message_id", strings.TrimSpace(envelope.ID),
-		"kind", string(envelope.Kind),
-		managerChannelKey, strings.TrimSpace(envelope.Channel),
-		"from", strings.TrimSpace(envelope.From),
-	}
-	if envelope.To != nil {
-		fields = append(fields, "to", strings.TrimSpace(*envelope.To))
-	}
-	if len(envelope.Mentions) > 0 {
-		fields = append(fields, "mentions", strings.Join(normalizeEnvelopeMentions(envelope.Mentions), ","))
-	}
-	if envelope.ReplyTo != nil {
-		fields = append(fields, "reply_to", strings.TrimSpace(*envelope.ReplyTo))
-	}
-	if envelope.Surface != nil {
-		fields = append(fields, "surface", strings.TrimSpace(string(*envelope.Surface)))
-	}
-	if envelope.ThreadID != nil {
-		fields = append(fields, "thread_id", strings.TrimSpace(*envelope.ThreadID))
-	}
-	if envelope.DirectID != nil {
-		fields = append(fields, "direct_id", strings.TrimSpace(*envelope.DirectID))
-	}
-	if envelope.WorkID != nil {
-		fields = append(fields, "work_id", strings.TrimSpace(*envelope.WorkID))
-	}
-	if envelope.TraceID != nil {
-		fields = append(fields, "trace_id", strings.TrimSpace(*envelope.TraceID))
-	}
-	if envelope.CausationID != nil {
-		fields = append(fields, "causation_id", strings.TrimSpace(*envelope.CausationID))
-	}
-	if value, ok := extensionLogValue(envelope.Ext, "agh.workflow_id"); ok {
-		fields = append(fields, "agh.workflow_id", value)
-	}
-	if value, ok := extensionLogValue(envelope.Ext, "agh.handoff_version"); ok {
-		fields = append(fields, "agh.handoff_version", value)
-	}
-	if value, ok := extensionLogValue(envelope.Ext, "agh.handoff_digest"); ok {
-		fields = append(fields, "agh.handoff_digest", value)
-	}
-	if value, ok := extensionLogValue(envelope.Ext, "agh.handoff_source"); ok {
-		fields = append(fields, "agh.handoff_source", value)
-	}
-	return append(fields, extra...)
-}
-
-func extensionLogValue(ext ExtensionMap, key string) (string, bool) {
-	if len(ext) == 0 {
-		return "", false
-	}
-	raw, ok := ext[key]
-	if !ok || len(raw) == 0 {
-		return "", false
-	}
-	var text string
-	if err := json.Unmarshal(raw, &text); err == nil {
-		text = strings.TrimSpace(text)
-		if text != "" {
-			return text, true
-		}
-	}
-	compacted := compactJSON(raw)
-	return compacted, compacted != ""
-}
-
-func hasWorkflowID(ext ExtensionMap) bool {
-	_, ok := extensionLogValue(ext, "agh.workflow_id")
-	return ok
-}
-
-func hasHandoffVersion(ext ExtensionMap) bool {
-	_, ok := extensionLogValue(ext, "agh.handoff_version")
-	return ok
-}
-
-func compactJSON(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	var compacted bytes.Buffer
-	if err := json.Compact(&compacted, raw); err != nil {
-		return strings.TrimSpace(string(raw))
-	}
-	return strings.TrimSpace(compacted.String())
 }

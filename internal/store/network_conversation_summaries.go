@@ -29,8 +29,8 @@ type NetworkDirectRoomSummary struct {
 	WorkspaceID          string
 	Channel              string
 	DirectID             string
-	PeerA                string
-	PeerB                string
+	SessionA             string
+	SessionB             string
 	OpenedAt             time.Time
 	OpenedSequence       int64
 	LastActivityAt       time.Time

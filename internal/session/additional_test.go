@@ -609,12 +609,13 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 
 	sessionDir := filepath.Join(homePaths.SessionsDir, "sess-stored")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:          "sess-stored",
-		AgentName:   "coder",
-		WorkspaceID: "ws-stored",
-		State:       string(StateStopped),
-		CreatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		ID:                   "sess-stored",
+		AgentName:            "coder",
+		WorkspaceID:          "ws-stored",
+		NetworkParticipation: testLocalParticipationPtr(),
+		State:                string(StateStopped),
+		CreatedAt:            time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:            time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}

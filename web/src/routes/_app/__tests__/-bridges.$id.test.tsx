@@ -132,6 +132,7 @@ vi.mock("@/systems/bridges", async () => {
       error: null,
       isLoading: false,
     }),
+    useBridgeHealthStream: vi.fn(),
     useBridgeProviders: () => ({
       data: mockProvidersData,
       error: mockProvidersError,

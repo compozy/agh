@@ -7,8 +7,9 @@
  * No React, no side effects: the orchestrator wraps a single call in `useMemo`.
  */
 
-import type { CreateAutomationTriggerRequest } from "../types";
+import type { CreateAutomationTriggerRequest, UpdateAutomationTriggerRequest } from "../types";
 import {
+  buildAutomationTriggerRequest,
   projectAutomationTriggerRequest,
   type AutomationEditorMode,
   type AutomationRequestProjection,
@@ -86,7 +87,9 @@ export interface TriggerPreviewModel {
   rendered: RenderToken[];
   templateTokens: TemplateToken[];
   reliabilityBadge: string;
-  request: AutomationRequestProjection<CreateAutomationTriggerRequest>;
+  request: AutomationRequestProjection<
+    CreateAutomationTriggerRequest | UpdateAutomationTriggerRequest
+  >;
   target: AutomationTargetProjection;
   targetIssue: string | null;
   webhook: WebhookPreview | null;
@@ -287,7 +290,7 @@ export function buildTriggerPreview(
 ): TriggerPreviewModel {
   const workspaces = context.workspaces ?? [];
   const request = projectAutomationTriggerRequest(draft, context.mode ?? "create");
-  const normalizedDraft = request.payload;
+  const normalizedDraft = buildAutomationTriggerRequest(draft);
   const target = projectAutomationTarget(normalizedDraft);
   const selection = parseEventSelection(normalizedDraft.event);
   const def = getEventDef(selection.catalogId);

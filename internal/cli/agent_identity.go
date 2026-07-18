@@ -54,7 +54,6 @@ func agentSessionLookup(client DaemonClient) agentidentity.SessionLookup {
 			Provider:      record.Provider,
 			WorkspaceID:   record.WorkspaceID,
 			WorkspacePath: record.WorkspacePath,
-			Channel:       record.Channel,
 			Type:          record.Type,
 			State:         record.State,
 			CreatedAt:     record.CreatedAt,

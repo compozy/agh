@@ -4,7 +4,7 @@
 
 AGH is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, network rooms, memory, skills, and extension resources.
 
-Do not manage runtime state by editing SQLite databases, direct NATS subjects, process internals, or generated projections. Use public AGH surfaces with structured output.
+Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public AGH surfaces with structured output.
 
 ## Session Lifecycle
 

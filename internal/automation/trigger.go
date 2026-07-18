@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -876,12 +875,13 @@ func (e *TriggerEngine) claimPersistentWebhookDelivery(
 	now := e.now()
 	runID := webhookDeliveryRunID(trigger.ID, deliveryID)
 	run := Run{
-		ID:        runID,
-		TriggerID: strings.TrimSpace(trigger.ID),
-		FireID:    webhookDeliveryFireID(trigger.ID, deliveryID),
-		Status:    RunScheduled,
-		Attempt:   1,
-		StartedAt: timePointer(now),
+		ID:                   runID,
+		TriggerID:            strings.TrimSpace(trigger.ID),
+		FireID:               webhookDeliveryFireID(trigger.ID, deliveryID),
+		Status:               RunScheduled,
+		Attempt:              1,
+		StartedAt:            timePointer(now),
+		NetworkParticipation: (DispatchRequest{Trigger: &trigger}).networkParticipation(),
 	}
 	created, err := e.webhookDeliveries.CreateRun(ctx, run)
 	if err == nil {
@@ -1112,59 +1112,6 @@ func decodeWebhookSignature(signature string) ([]byte, error) {
 		return nil, ErrWebhookSignatureInvalid
 	}
 	return decoded, nil
-}
-
-func cloneStringMap(src map[string]string) map[string]string {
-	if len(src) == 0 {
-		return nil
-	}
-	cloned := make(map[string]string, len(src))
-	maps.Copy(cloned, src)
-	return cloned
-}
-
-func cloneAnyMap(src map[string]any) map[string]any {
-	if len(src) == 0 {
-		return nil
-	}
-	cloned := make(map[string]any, len(src))
-	for key, value := range src {
-		cloned[key] = cloneAnyValue(value)
-	}
-	return cloned
-}
-
-func cloneAnyValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		return cloneAnyMap(typed)
-	case map[string]string:
-		return cloneStringMap(typed)
-	case []any:
-		cloned := make([]any, len(typed))
-		for idx, item := range typed {
-			cloned[idx] = cloneAnyValue(item)
-		}
-		return cloned
-	case []string:
-		return append([]string(nil), typed...)
-	case []byte:
-		return append([]byte(nil), typed...)
-	case []map[string]any:
-		cloned := make([]map[string]any, len(typed))
-		for idx, item := range typed {
-			cloned[idx] = cloneAnyMap(item)
-		}
-		return cloned
-	case []map[string]string:
-		cloned := make([]map[string]string, len(typed))
-		for idx, item := range typed {
-			cloned[idx] = cloneStringMap(item)
-		}
-		return cloned
-	default:
-		return value
-	}
 }
 
 func webhookDeliveryClaimActive(run Run, now time.Time, window time.Duration) bool {

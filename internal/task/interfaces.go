@@ -58,7 +58,6 @@ type Manager interface {
 
 	EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorContext) (*Run, error)
 	ClaimNextRun(ctx context.Context, criteria ClaimCriteria, actor ActorContext) (*ClaimResult, error)
-	ClaimRun(ctx context.Context, runID string, claim ClaimRun, actor ActorContext) (*Run, error)
 	StartRun(ctx context.Context, runID string, req StartRun, actor ActorContext) (*Run, error)
 	AttachRunSession(ctx context.Context, runID string, sessionID string, actor ActorContext) (*Run, error)
 	HeartbeatRunLease(ctx context.Context, heartbeat LeaseHeartbeat, actor ActorContext) (*Run, error)
@@ -76,6 +75,11 @@ type Manager interface {
 	BulkForceFailRuns(ctx context.Context, req BulkForceRunRequest, actor ActorContext) (BulkForceRunResult, error)
 	CompleteRunLease(ctx context.Context, completion LeaseCompletion, actor ActorContext) (*Run, error)
 	FailRunLease(ctx context.Context, failure LeaseFailure, actor ActorContext) (*Run, error)
+	SettleNetworkWake(
+		ctx context.Context,
+		settlement NetworkWakeSettlement,
+		actor ActorContext,
+	) (*NetworkWakeSettlementResult, error)
 	CompleteRun(ctx context.Context, runID string, result RunResult, actor ActorContext) (*Run, error)
 	FailRun(ctx context.Context, runID string, failure RunFailure, actor ActorContext) (*Run, error)
 	CancelRun(ctx context.Context, runID string, req CancelRun, actor ActorContext) (*Run, error)
@@ -177,6 +181,7 @@ type RunStore interface {
 	CompleteRunLease(ctx context.Context, completion LeaseCompletion) (Run, error)
 	CompleteRunLeaseSettlement(ctx context.Context, completion LeaseCompletion) (CompletedRunSettlement, error)
 	FailRunLease(ctx context.Context, failure LeaseFailure) (Run, error)
+	SettleNetworkWake(ctx context.Context, settlement NetworkWakeSettlement) (NetworkWakeSettlementResult, error)
 	CompleteCoordinatorAndEnqueueNext(
 		ctx context.Context,
 		completion CoordinatorCompletion,
@@ -215,6 +220,28 @@ type IdempotencyStore interface {
 	SaveTaskRunIdempotency(ctx context.Context, record RunIdempotency) error
 }
 
+// ExecutionMutationStore exposes the persistence operations that one
+// publish/start/approve/enqueue command may use while holding a single writer
+// transaction.
+type ExecutionMutationStore interface {
+	DeleteTaskMutationStore
+	ExecutionProfileStore
+	IdempotencyStore
+	CreateTaskEvent(ctx context.Context, event Event) error
+	ReserveQueuedRun(
+		ctx context.Context,
+		reservation QueueRunReservation,
+	) (Task, Run, bool, error)
+}
+
+// ExecutionTransactionStore owns the atomic execution-command boundary.
+type ExecutionTransactionStore interface {
+	WithTaskExecutionTransaction(
+		ctx context.Context,
+		fn func(ExecutionMutationStore) error,
+	) error
+}
+
 // TriageStore is the persistence surface for durable actor-scoped task triage state.
 type TriageStore interface {
 	GetTaskTriageState(ctx context.Context, taskID string, actor ActorIdentity) (TriageState, error)
@@ -247,6 +274,7 @@ type RunReviewStore interface {
 // Store composes the task-domain persistence surfaces consumed by the manager.
 type Store interface {
 	RecordStore
+	DefinitionStore
 	DependencyStore
 	BlockStore
 	RunStore

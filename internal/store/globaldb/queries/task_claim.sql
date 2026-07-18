@@ -69,14 +69,18 @@ SET status = sqlc.arg(status), lease_until = NULL, heartbeat_at = NULL, claim_to
 WHERE id = sqlc.arg(id) AND claim_token_hash = sqlc.arg(claim_token_hash);
 
 -- name: ListAutonomyLeaseHandles :many
-SELECT tr.id, tr.task_id, COALESCE(t.workspace_id, '') AS workspace_id, tr.status,
+SELECT tr.id, tr.task_id, tr.run_kind, COALESCE(tr.workspace_id, t.workspace_id, '') AS workspace_id,
+       tr.network_spec_json, tr.network_mode, tr.network_channel, tr.network_source,
+       COALESCE(tr.network_target_session_id, '') AS target_session_id,
+       COALESCE(tr.network_owner_key, '') AS owner_key, tr.status,
        COALESCE(tr.session_id, '') AS session_id, tr.claimed_by_kind, tr.claimed_by_ref,
        COALESCE(tr.claim_token, '') AS claim_token, COALESCE(tr.claim_token_hash, '') AS claim_token_hash,
        tr.lease_until, tr.heartbeat_at
 FROM task_runs tr
-JOIN tasks t ON t.id = tr.task_id
+LEFT JOIN tasks t ON t.id = tr.task_id
 WHERE tr.session_id = sqlc.arg(session_id)
   AND COALESCE(tr.claim_token_hash, '') <> ''
+  AND tr.run_kind <> 'network_wake'
 ORDER BY COALESCE(tr.lease_until, '') DESC, tr.id ASC;
 
 -- name: RequeueTaskRunLease :execrows
@@ -106,23 +110,7 @@ WHERE id = sqlc.arg(id)
   AND claim_token_hash = sqlc.arg(claim_token_hash)
   AND lease_until = sqlc.arg(lease_until);
 
--- name: GetNetworkChannelForTask :one
-SELECT channel, workspace_id, purpose, fanout_policy,
-       COALESCE(coordinator_peer_id, '') AS coordinator_peer_id,
-       COALESCE(created_by, '') AS created_by,
-       created_at, updated_at
-FROM network_channels
-WHERE channel = sqlc.arg(channel);
-
--- name: InsertNetworkChannelForTask :exec
-INSERT INTO network_channels (
-  channel, workspace_id, purpose, created_by, created_at, updated_at
-) VALUES (
-  sqlc.arg(channel), sqlc.arg(workspace_id), sqlc.arg(purpose), sqlc.narg(created_by),
-  sqlc.arg(created_at), sqlc.arg(updated_at)
-);
-
--- name: ClaimTaskRun :execrows
+-- name: ClaimSelectedTaskRun :execrows
 UPDATE task_runs
 SET status = sqlc.arg(claimed_status),
     claimed_by_kind = sqlc.narg(claimed_by_kind),

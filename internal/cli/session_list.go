@@ -106,7 +106,7 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 				stringOrDash(item.Provider), stringOrDash(sessionSandboxBackend(item)),
 				stringOrDash(string(item.State)), stringOrDash(string(item.Badge)),
 				stringOrDash(sessionFailureKind(item)), stringOrDash(displaySessionWorkspace(item)),
-				stringOrDash(item.Channel), stringOrDash(sessionHealthState(item)),
+				stringOrDash(sessionResolvedChannelRaw(item)), stringOrDash(sessionHealthState(item)),
 				stringOrDash(sessionHealthStatus(item)), stringOrDash(formatAge(now, item.UpdatedAt)),
 			}
 		},
@@ -114,7 +114,7 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 			return []string{
 				item.ID, item.Name, item.AgentName, item.Provider, sessionSandboxBackend(item),
 				string(item.State), string(item.Badge), sessionFailureKind(item),
-				displaySessionWorkspace(item), item.Channel, sessionHealthState(item),
+				displaySessionWorkspace(item), sessionResolvedChannelRaw(item), sessionHealthState(item),
 				sessionHealthStatus(item), formatTime(item.UpdatedAt),
 			}
 		},

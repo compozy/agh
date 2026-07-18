@@ -17,6 +17,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -425,14 +426,15 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-stopped")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:          "sess-stopped",
-		Name:        "Stopped",
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: h.workspaceID,
-		State:       "stopped",
-		CreatedAt:   h.now,
-		UpdatedAt:   h.now,
+		ID:                   "sess-stopped",
+		Name:                 "Stopped",
+		AgentName:            "coder",
+		Provider:             "claude",
+		WorkspaceID:          h.workspaceID,
+		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		State:                "stopped",
+		CreatedAt:            h.now,
+		UpdatedAt:            h.now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}
@@ -458,13 +460,14 @@ func TestLoadSessionMetadataLogsOriginalSessionIDWhenLegacyProviderRepairFails(t
 
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-legacy")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:          "sess-legacy",
-		Name:        "Legacy",
-		AgentName:   "coder",
-		WorkspaceID: "missing-workspace",
-		State:       "stopped",
-		CreatedAt:   h.now,
-		UpdatedAt:   h.now,
+		ID:                   "sess-legacy",
+		Name:                 "Legacy",
+		AgentName:            "coder",
+		WorkspaceID:          "missing-workspace",
+		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		State:                "stopped",
+		CreatedAt:            h.now,
+		UpdatedAt:            h.now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}

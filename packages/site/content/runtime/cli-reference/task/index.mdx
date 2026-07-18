@@ -18,7 +18,8 @@ agh task [flags]
   agh task create --scope workspace --workspace checkout-api --title "Audit auth flow"
 
   # Explicitly enqueue execution for an existing task
-  agh task start task-123 --channel coord-run-123
+  agh task start task-123 --network live \
+    --network-channel-strategy named --network-channel coord-run-123
 
   # Let the current agent session claim work
   agh task next --wait

@@ -48,7 +48,6 @@ CREATE TABLE sessions (
 		provider       TEXT NOT NULL DEFAULT '',
 		workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
 		session_type   TEXT NOT NULL DEFAULT 'user',
-		channel          TEXT NOT NULL DEFAULT '',
 		state          TEXT NOT NULL,
 		acp_session_id TEXT,
 		stop_reason    TEXT,
@@ -76,7 +75,14 @@ CREATE TABLE sessions (
 				REFERENCES agent_soul_snapshots(id) ON DELETE SET NULL, soul_digest TEXT NOT NULL DEFAULT '', parent_soul_digest TEXT NOT NULL DEFAULT '', input_generation INTEGER NOT NULL DEFAULT 0, creation_digest TEXT
 				CHECK (creation_digest IS NULL OR length(trim(creation_digest)) > 0), policy_spec_digest TEXT
 				CHECK (policy_spec_digest IS NULL OR length(trim(policy_spec_digest)) > 0), creation_profile_ref TEXT
-				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0));
+				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0), network_spec_json TEXT NOT NULL DEFAULT '{"version":"network-participation/v1","mode":"local","source":"built_in_local"}'
+				CHECK (json_valid(network_spec_json)), network_mode TEXT NOT NULL DEFAULT 'local'
+				CHECK (network_mode IN ('local', 'live')), network_channel TEXT, network_source TEXT NOT NULL DEFAULT 'built_in_local'
+				CHECK (network_source IN (
+					'explicit_request', 'task_profile', 'workspace_coordination',
+					'loop_definition', 'automation_job', 'built_in_local'
+				)),
+		UNIQUE (workspace_id, id));
 
 CREATE TABLE token_stats (
 		id            TEXT PRIMARY KEY,

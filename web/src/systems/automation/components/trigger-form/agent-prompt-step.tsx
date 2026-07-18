@@ -4,6 +4,7 @@ import { PromptTemplateField } from "./prompt-template-field";
 
 interface AgentPromptStepProps {
   agent: string;
+  agentDisabled?: boolean;
   agents: string[];
   prompt: string;
   variables: string[];
@@ -14,6 +15,7 @@ interface AgentPromptStepProps {
 /** "Then" step: the agent to run and the prompt template it receives. */
 export function AgentPromptStep({
   agent,
+  agentDisabled = false,
   agents,
   prompt,
   variables,
@@ -37,6 +39,7 @@ export function AgentPromptStep({
             <NativeSelect
               className="w-full [&>select]:pl-9"
               data-testid="trigger-agent-input"
+              disabled={agentDisabled}
               id="trigger-agent"
               onChange={event => onAgentChange(event.target.value)}
               value={agent}
@@ -54,6 +57,7 @@ export function AgentPromptStep({
             <Input
               className="pl-9"
               data-testid="trigger-agent-input"
+              disabled={agentDisabled}
               id="trigger-agent"
               onChange={event => onAgentChange(event.target.value)}
               placeholder="reviewer"

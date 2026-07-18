@@ -28,9 +28,9 @@ const detail = {
 const members: ChannelMember[] = [
   {
     displayName: "Release",
-    lastSeenAgeSeconds: null,
     local: true,
     peerId: "peer-release",
+    sessionId: "session-release",
     presenceState: "local",
     role: "agent",
   },

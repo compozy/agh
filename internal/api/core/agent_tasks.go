@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
@@ -150,7 +151,7 @@ func (h *BaseHandlers) AgentTaskHeartbeat(c *gin.Context) {
 	}
 
 	var req contract.AgentTaskHeartbeatRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -190,7 +191,7 @@ func (h *BaseHandlers) AgentTaskRelease(c *gin.Context) {
 	}
 
 	var req contract.AgentTaskReleaseRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -225,7 +226,7 @@ func (h *BaseHandlers) AgentTaskComplete(c *gin.Context) {
 	}
 
 	var req contract.AgentTaskCompleteRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -266,7 +267,7 @@ func (h *BaseHandlers) AgentTaskFail(c *gin.Context) {
 	}
 
 	var req contract.AgentTaskFailRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -331,89 +332,6 @@ func (h *BaseHandlers) lookupAgentTaskLease(
 	return authority.LookupActiveRunForSession(ctx, caller.Session.ID, runID)
 }
 
-func (h *BaseHandlers) agentTaskClaimCriteria(
-	ctx context.Context,
-	req contract.AgentTaskClaimNextRequest,
-	caller agentidentity.Caller,
-) (taskpkg.ClaimCriteria, error) {
-	workspaceID := strings.TrimSpace(req.WorkspaceID)
-	callerWorkspaceID := strings.TrimSpace(caller.Session.WorkspaceID)
-	if workspaceID == "" {
-		workspaceID = callerWorkspaceID
-	}
-	if callerWorkspaceID == "" && workspaceID != "" {
-		return taskpkg.ClaimCriteria{}, fmt.Errorf(
-			"%w: agent session has no workspace for workspace task claims",
-			taskpkg.ErrPermissionDenied,
-		)
-	}
-	if callerWorkspaceID != "" && workspaceID != callerWorkspaceID {
-		return taskpkg.ClaimCriteria{}, fmt.Errorf(
-			"%w: agent session %q cannot claim workspace %q",
-			taskpkg.ErrPermissionDenied,
-			caller.Session.ID,
-			workspaceID,
-		)
-	}
-
-	leaseDuration, err := agentTaskLeaseDuration(req.LeaseSeconds)
-	if err != nil {
-		return taskpkg.ClaimCriteria{}, err
-	}
-	capabilities, err := h.agentTaskClaimCapabilities(ctx, req.RequiredCapabilities, caller)
-	if err != nil {
-		return taskpkg.ClaimCriteria{}, err
-	}
-
-	return taskpkg.ClaimCriteria{
-		WorkspaceID:      workspaceID,
-		ClaimerSessionID: strings.TrimSpace(caller.Session.ID),
-		ClaimedBy: &taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKindAgentSession,
-			Ref:  strings.TrimSpace(caller.Session.ID),
-		},
-		AgentName:             strings.TrimSpace(caller.Session.AgentName),
-		RequiredCapabilities:  capabilities,
-		PriorityMin:           req.PriorityMin,
-		CoordinationChannelID: strings.TrimSpace(caller.Session.Channel),
-		Soul:                  soulClaimProvenanceFromCaller(caller),
-		LeaseDuration:         leaseDuration,
-	}, nil
-}
-
-func soulClaimProvenanceFromCaller(caller agentidentity.Caller) *taskpkg.SoulClaimProvenance {
-	digest := strings.TrimSpace(caller.Session.SoulDigest)
-	if digest == "" {
-		return nil
-	}
-	return &taskpkg.SoulClaimProvenance{
-		SnapshotID: strings.TrimSpace(caller.Session.SoulSnapshotID),
-		Digest:     digest,
-		AgentName:  strings.TrimSpace(caller.Session.AgentName),
-	}
-}
-
-func (h *BaseHandlers) agentTaskClaimCapabilities(
-	ctx context.Context,
-	requested []string,
-	caller agentidentity.Caller,
-) ([]string, error) {
-	capabilities := append([]string(nil), requested...)
-	if h.AgentContextService == nil {
-		return capabilities, nil
-	}
-	contextPayload, err := h.AgentContextService.ContextForSession(ctx, sessionInfoFromAgentCaller(caller))
-	if err != nil {
-		return nil, err
-	}
-	for _, capability := range contextPayload.Capabilities.Capabilities {
-		if id := strings.TrimSpace(capability.ID); id != "" {
-			capabilities = append(capabilities, id)
-		}
-	}
-	return capabilities, nil
-}
-
 func (h *BaseHandlers) waitForAgentTaskPoll(ctx context.Context) error {
 	pollInterval := h.PollInterval
 	if pollInterval <= 0 {
@@ -449,23 +367,20 @@ func agentTaskLeaseDuration(seconds int64) (time.Duration, error) {
 
 // AgentTaskClaimPayloadFromResult builds the public, redacted claim payload.
 func AgentTaskClaimPayloadFromResult(result *taskpkg.ClaimResult) contract.AgentTaskClaimPayload {
-	if result == nil {
+	if result == nil || result.Task == nil {
 		return contract.AgentTaskClaimPayload{}
 	}
 	channel := coordinationChannelPayloadFromMetadata(result.CoordinationChannel)
 	run := TaskRunPayloadFromRun(&result.Run)
 	if channel != nil {
 		run.CoordinationChannel = channel
-		if strings.TrimSpace(run.CoordinationChannelID) == "" {
-			run.CoordinationChannelID = channel.ID
-		}
 	}
 	lease := AgentTaskLeasePayloadFromRun(&result.Run, channel)
 	if lease.LeaseUntil == nil && !result.LeaseUntil.IsZero() {
 		lease.LeaseUntil = optionalTime(result.LeaseUntil)
 	}
 	return contract.AgentTaskClaimPayload{
-		Task:                taskReferencePayloadFromTask(result.Task),
+		Task:                taskReferencePayloadFromTask(*result.Task),
 		Run:                 run,
 		Lease:               lease,
 		CoordinationChannel: channel,
@@ -481,19 +396,16 @@ func AgentTaskLeasePayloadFromRun(
 		return contract.TaskRunLeaseSummaryPayload{}
 	}
 	payload := contract.TaskRunLeaseSummaryPayload{
-		TaskID:                run.TaskID,
-		RunID:                 run.ID,
-		Status:                run.Status,
-		SessionID:             run.SessionID,
-		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:        run.ClaimTokenHash,
-		LeaseUntil:            optionalTime(run.LeaseUntil),
-		HeartbeatAt:           optionalTime(run.HeartbeatAt),
-		CoordinationChannelID: run.CoordinationChannelID,
-		CoordinationChannel:   channel,
-	}
-	if channel != nil && strings.TrimSpace(payload.CoordinationChannelID) == "" {
-		payload.CoordinationChannelID = channel.ID
+		TaskID:                       run.TaskID,
+		RunID:                        run.ID,
+		Status:                       run.Status,
+		SessionID:                    run.SessionID,
+		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:               run.ClaimTokenHash,
+		LeaseUntil:                   optionalTime(run.LeaseUntil),
+		HeartbeatAt:                  optionalTime(run.HeartbeatAt),
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		CoordinationChannel:          channel,
 	}
 	return contract.NormalizeTaskRunLeaseSummaryPayload(payload)
 }
@@ -516,7 +428,6 @@ func coordinationChannelPayloadFromMetadata(
 	}
 	payload := contract.CoordinationChannelPayload{
 		ID:                  strings.TrimSpace(metadata.ID),
-		Channel:             strings.TrimSpace(metadata.Channel),
 		DisplayName:         displayName,
 		Purpose:             strings.TrimSpace(metadata.Purpose),
 		WorkspaceID:         strings.TrimSpace(metadata.WorkspaceID),

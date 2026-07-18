@@ -80,7 +80,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id string) (int64, error) {
 
 const getTask = `-- name: GetTask :one
 SELECT
-  id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+  id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, current_run_id,
@@ -97,7 +97,6 @@ type GetTaskRow struct {
 	Scope                string         `json:"scope"`
 	WorkspaceID          sql.NullString `json:"workspace_id"`
 	ParentTaskID         sql.NullString `json:"parent_task_id"`
-	NetworkChannel       sql.NullString `json:"network_channel"`
 	Title                string         `json:"title"`
 	Description          sql.NullString `json:"description"`
 	Priority             string         `json:"priority"`
@@ -138,7 +137,6 @@ func (q *Queries) GetTask(ctx context.Context, taskID string) (GetTaskRow, error
 		&i.Scope,
 		&i.WorkspaceID,
 		&i.ParentTaskID,
-		&i.NetworkChannel,
 		&i.Title,
 		&i.Description,
 		&i.Priority,
@@ -185,57 +183,64 @@ func (q *Queries) GetTaskID(ctx context.Context, taskID string) (string, error) 
 
 const getTaskRun = `-- name: GetTaskRun :one
 SELECT
-  id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-  network_channel, designation_group_id, '' AS claim_token, claim_token_hash, lease_until,
-  heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
+  network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-  continuation_reason, missing_work_json, next_round_guidance
+  continuation_reason, missing_work_json, next_round_guidance,
+  network_wake_id, network_target_session_id, network_owner_key
 FROM task_runs
 WHERE id = ?1
 `
 
 type GetTaskRunRow struct {
-	ID                    string         `json:"id"`
-	TaskID                string         `json:"task_id"`
-	RunKind               string         `json:"run_kind"`
-	LoopRunID             sql.NullString `json:"loop_run_id"`
-	Status                string         `json:"status"`
-	Attempt               int64          `json:"attempt"`
-	PreviousRunID         sql.NullString `json:"previous_run_id"`
-	FailureKind           string         `json:"failure_kind"`
-	ClaimedByKind         sql.NullString `json:"claimed_by_kind"`
-	ClaimedByRef          sql.NullString `json:"claimed_by_ref"`
-	SessionID             sql.NullString `json:"session_id"`
-	OriginKind            string         `json:"origin_kind"`
-	OriginRef             string         `json:"origin_ref"`
-	IdempotencyKey        sql.NullString `json:"idempotency_key"`
-	NetworkChannel        sql.NullString `json:"network_channel"`
-	DesignationGroupID    string         `json:"designation_group_id"`
-	ClaimToken            string         `json:"claim_token"`
-	ClaimTokenHash        sql.NullString `json:"claim_token_hash"`
-	LeaseUntil            sql.NullString `json:"lease_until"`
-	HeartbeatAt           sql.NullString `json:"heartbeat_at"`
-	CoordinationChannelID sql.NullString `json:"coordination_channel_id"`
-	QueuedAt              string         `json:"queued_at"`
-	ClaimedAt             sql.NullString `json:"claimed_at"`
-	StartedAt             sql.NullString `json:"started_at"`
-	EndedAt               sql.NullString `json:"ended_at"`
-	TokensUsed            int64          `json:"tokens_used"`
-	Error                 sql.NullString `json:"error"`
-	MetadataJson          sql.NullString `json:"metadata_json"`
-	ResultJson            sql.NullString `json:"result_json"`
-	ReviewRequired        bool           `json:"review_required"`
-	ReviewRequestRound    int64          `json:"review_request_round"`
-	ReviewPolicySnapshot  string         `json:"review_policy_snapshot"`
-	ReviewRequestID       sql.NullString `json:"review_request_id"`
-	ParentRunID           sql.NullString `json:"parent_run_id"`
-	ReviewID              sql.NullString `json:"review_id"`
-	ReviewRound           int64          `json:"review_round"`
-	ContinuationReason    string         `json:"continuation_reason"`
-	MissingWorkJson       string         `json:"missing_work_json"`
-	NextRoundGuidance     string         `json:"next_round_guidance"`
+	ID                     string         `json:"id"`
+	TaskID                 sql.NullString `json:"task_id"`
+	WorkspaceID            sql.NullString `json:"workspace_id"`
+	RunKind                string         `json:"run_kind"`
+	LoopRunID              sql.NullString `json:"loop_run_id"`
+	Status                 string         `json:"status"`
+	Attempt                int64          `json:"attempt"`
+	PreviousRunID          sql.NullString `json:"previous_run_id"`
+	FailureKind            string         `json:"failure_kind"`
+	ClaimedByKind          sql.NullString `json:"claimed_by_kind"`
+	ClaimedByRef           sql.NullString `json:"claimed_by_ref"`
+	SessionID              sql.NullString `json:"session_id"`
+	OriginKind             string         `json:"origin_kind"`
+	OriginRef              string         `json:"origin_ref"`
+	IdempotencyKey         sql.NullString `json:"idempotency_key"`
+	NetworkSpecJson        string         `json:"network_spec_json"`
+	NetworkMode            string         `json:"network_mode"`
+	NetworkChannel         sql.NullString `json:"network_channel"`
+	NetworkSource          string         `json:"network_source"`
+	DesignationGroupID     string         `json:"designation_group_id"`
+	ClaimToken             string         `json:"claim_token"`
+	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
+	LeaseUntil             sql.NullString `json:"lease_until"`
+	HeartbeatAt            sql.NullString `json:"heartbeat_at"`
+	QueuedAt               string         `json:"queued_at"`
+	ClaimedAt              sql.NullString `json:"claimed_at"`
+	StartedAt              sql.NullString `json:"started_at"`
+	EndedAt                sql.NullString `json:"ended_at"`
+	TokensUsed             int64          `json:"tokens_used"`
+	Error                  sql.NullString `json:"error"`
+	MetadataJson           sql.NullString `json:"metadata_json"`
+	ResultJson             sql.NullString `json:"result_json"`
+	ReviewRequired         bool           `json:"review_required"`
+	ReviewRequestRound     int64          `json:"review_request_round"`
+	ReviewPolicySnapshot   string         `json:"review_policy_snapshot"`
+	ReviewRequestID        sql.NullString `json:"review_request_id"`
+	ParentRunID            sql.NullString `json:"parent_run_id"`
+	ReviewID               sql.NullString `json:"review_id"`
+	ReviewRound            int64          `json:"review_round"`
+	ContinuationReason     string         `json:"continuation_reason"`
+	MissingWorkJson        string         `json:"missing_work_json"`
+	NextRoundGuidance      string         `json:"next_round_guidance"`
+	NetworkWakeID          sql.NullString `json:"network_wake_id"`
+	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
+	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
 }
 
 func (q *Queries) GetTaskRun(ctx context.Context, id string) (GetTaskRunRow, error) {
@@ -244,6 +249,7 @@ func (q *Queries) GetTaskRun(ctx context.Context, id string) (GetTaskRunRow, err
 	err := row.Scan(
 		&i.ID,
 		&i.TaskID,
+		&i.WorkspaceID,
 		&i.RunKind,
 		&i.LoopRunID,
 		&i.Status,
@@ -256,13 +262,15 @@ func (q *Queries) GetTaskRun(ctx context.Context, id string) (GetTaskRunRow, err
 		&i.OriginKind,
 		&i.OriginRef,
 		&i.IdempotencyKey,
+		&i.NetworkSpecJson,
+		&i.NetworkMode,
 		&i.NetworkChannel,
+		&i.NetworkSource,
 		&i.DesignationGroupID,
 		&i.ClaimToken,
 		&i.ClaimTokenHash,
 		&i.LeaseUntil,
 		&i.HeartbeatAt,
-		&i.CoordinationChannelID,
 		&i.QueuedAt,
 		&i.ClaimedAt,
 		&i.StartedAt,
@@ -281,6 +289,9 @@ func (q *Queries) GetTaskRun(ctx context.Context, id string) (GetTaskRunRow, err
 		&i.ContinuationReason,
 		&i.MissingWorkJson,
 		&i.NextRoundGuidance,
+		&i.NetworkWakeID,
+		&i.NetworkTargetSessionID,
+		&i.NetworkOwnerKey,
 	)
 	return i, err
 }
@@ -328,20 +339,20 @@ func (q *Queries) InsertRequiredTaskRunCapability(ctx context.Context, arg Inser
 
 const insertTask = `-- name: InsertTask :exec
 INSERT INTO tasks (
-  id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+  id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator,
   metadata_json
 ) VALUES (
   ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11, ?12,
-  ?13, ?14, ?15, ?16,
-  ?17, ?18, ?19, ?20,
-  ?21, ?22, ?23, ?24,
-  ?25, ?26, ?27, ?28,
-  ?29
+  ?5, ?6, ?7,
+  ?8, ?9, ?10, ?11,
+  ?12, ?13, ?14, ?15,
+  ?16, ?17, ?18, ?19,
+  ?20, ?21, ?22, ?23,
+  ?24, ?25, ?26, ?27,
+  ?28
 )
 `
 
@@ -351,7 +362,6 @@ type InsertTaskParams struct {
 	Scope              string         `json:"scope"`
 	WorkspaceID        sql.NullString `json:"workspace_id"`
 	ParentTaskID       sql.NullString `json:"parent_task_id"`
-	NetworkChannel     sql.NullString `json:"network_channel"`
 	Title              string         `json:"title"`
 	Description        sql.NullString `json:"description"`
 	Priority           string         `json:"priority"`
@@ -384,7 +394,6 @@ func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 		arg.Scope,
 		arg.WorkspaceID,
 		arg.ParentTaskID,
-		arg.NetworkChannel,
 		arg.Title,
 		arg.Description,
 		arg.Priority,
@@ -414,73 +423,83 @@ func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 
 const insertTaskRun = `-- name: InsertTaskRun :exec
 INSERT INTO task_runs (
-  id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-  network_channel, designation_group_id, claim_token, claim_token_hash, lease_until,
-  heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
+  network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-  continuation_reason, missing_work_json, next_round_guidance
+  continuation_reason, missing_work_json, next_round_guidance,
+  network_wake_id, network_target_session_id, network_owner_key
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8, ?9,
-  ?10, ?11, ?12, ?13,
-  ?14, ?15, ?16,
-  NULL, ?17, ?18, ?19,
-  ?20, ?21, ?22,
-  ?23, ?24, ?25, ?26,
-  ?27, ?28, ?29,
+  ?1, ?2, ?3, ?4, ?5, ?6,
+  ?7, ?8, ?9, ?10,
+  ?11, ?12, ?13, ?14,
+  ?15, ?16, ?17,
+  ?18, ?19, ?20,
+  NULL, ?21, ?22, ?23,
+  ?24, ?25, ?26, ?27,
+  ?28, ?29,
   ?30, ?31, ?32,
   ?33, ?34, ?35,
-  ?36, ?37, ?38
+  ?36, ?37, ?38,
+  ?39, ?40, ?41,
+  ?42, ?43, ?44
 )
 `
 
 type InsertTaskRunParams struct {
-	ID                    string         `json:"id"`
-	TaskID                string         `json:"task_id"`
-	RunKind               string         `json:"run_kind"`
-	LoopRunID             sql.NullString `json:"loop_run_id"`
-	Status                string         `json:"status"`
-	Attempt               int64          `json:"attempt"`
-	PreviousRunID         sql.NullString `json:"previous_run_id"`
-	FailureKind           string         `json:"failure_kind"`
-	ClaimedByKind         sql.NullString `json:"claimed_by_kind"`
-	ClaimedByRef          sql.NullString `json:"claimed_by_ref"`
-	SessionID             sql.NullString `json:"session_id"`
-	OriginKind            string         `json:"origin_kind"`
-	OriginRef             string         `json:"origin_ref"`
-	IdempotencyKey        sql.NullString `json:"idempotency_key"`
-	NetworkChannel        sql.NullString `json:"network_channel"`
-	DesignationGroupID    string         `json:"designation_group_id"`
-	ClaimTokenHash        sql.NullString `json:"claim_token_hash"`
-	LeaseUntil            sql.NullString `json:"lease_until"`
-	HeartbeatAt           sql.NullString `json:"heartbeat_at"`
-	CoordinationChannelID sql.NullString `json:"coordination_channel_id"`
-	QueuedAt              string         `json:"queued_at"`
-	ClaimedAt             sql.NullString `json:"claimed_at"`
-	StartedAt             sql.NullString `json:"started_at"`
-	EndedAt               sql.NullString `json:"ended_at"`
-	TokensUsed            int64          `json:"tokens_used"`
-	Error                 sql.NullString `json:"error"`
-	MetadataJson          sql.NullString `json:"metadata_json"`
-	ResultJson            sql.NullString `json:"result_json"`
-	ReviewRequired        bool           `json:"review_required"`
-	ReviewRequestRound    int64          `json:"review_request_round"`
-	ReviewPolicySnapshot  string         `json:"review_policy_snapshot"`
-	ReviewRequestID       sql.NullString `json:"review_request_id"`
-	ParentRunID           sql.NullString `json:"parent_run_id"`
-	ReviewID              sql.NullString `json:"review_id"`
-	ReviewRound           int64          `json:"review_round"`
-	ContinuationReason    string         `json:"continuation_reason"`
-	MissingWorkJson       string         `json:"missing_work_json"`
-	NextRoundGuidance     string         `json:"next_round_guidance"`
+	ID                     string         `json:"id"`
+	TaskID                 sql.NullString `json:"task_id"`
+	WorkspaceID            sql.NullString `json:"workspace_id"`
+	RunKind                string         `json:"run_kind"`
+	LoopRunID              sql.NullString `json:"loop_run_id"`
+	Status                 string         `json:"status"`
+	Attempt                int64          `json:"attempt"`
+	PreviousRunID          sql.NullString `json:"previous_run_id"`
+	FailureKind            string         `json:"failure_kind"`
+	ClaimedByKind          sql.NullString `json:"claimed_by_kind"`
+	ClaimedByRef           sql.NullString `json:"claimed_by_ref"`
+	SessionID              sql.NullString `json:"session_id"`
+	OriginKind             string         `json:"origin_kind"`
+	OriginRef              string         `json:"origin_ref"`
+	IdempotencyKey         sql.NullString `json:"idempotency_key"`
+	NetworkSpecJson        string         `json:"network_spec_json"`
+	NetworkMode            string         `json:"network_mode"`
+	NetworkChannel         sql.NullString `json:"network_channel"`
+	NetworkSource          string         `json:"network_source"`
+	DesignationGroupID     string         `json:"designation_group_id"`
+	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
+	LeaseUntil             sql.NullString `json:"lease_until"`
+	HeartbeatAt            sql.NullString `json:"heartbeat_at"`
+	QueuedAt               string         `json:"queued_at"`
+	ClaimedAt              sql.NullString `json:"claimed_at"`
+	StartedAt              sql.NullString `json:"started_at"`
+	EndedAt                sql.NullString `json:"ended_at"`
+	TokensUsed             int64          `json:"tokens_used"`
+	Error                  sql.NullString `json:"error"`
+	MetadataJson           sql.NullString `json:"metadata_json"`
+	ResultJson             sql.NullString `json:"result_json"`
+	ReviewRequired         bool           `json:"review_required"`
+	ReviewRequestRound     int64          `json:"review_request_round"`
+	ReviewPolicySnapshot   string         `json:"review_policy_snapshot"`
+	ReviewRequestID        sql.NullString `json:"review_request_id"`
+	ParentRunID            sql.NullString `json:"parent_run_id"`
+	ReviewID               sql.NullString `json:"review_id"`
+	ReviewRound            int64          `json:"review_round"`
+	ContinuationReason     string         `json:"continuation_reason"`
+	MissingWorkJson        string         `json:"missing_work_json"`
+	NextRoundGuidance      string         `json:"next_round_guidance"`
+	NetworkWakeID          sql.NullString `json:"network_wake_id"`
+	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
+	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
 }
 
 func (q *Queries) InsertTaskRun(ctx context.Context, arg InsertTaskRunParams) error {
 	_, err := q.db.ExecContext(ctx, insertTaskRun,
 		arg.ID,
 		arg.TaskID,
+		arg.WorkspaceID,
 		arg.RunKind,
 		arg.LoopRunID,
 		arg.Status,
@@ -493,12 +512,14 @@ func (q *Queries) InsertTaskRun(ctx context.Context, arg InsertTaskRunParams) er
 		arg.OriginKind,
 		arg.OriginRef,
 		arg.IdempotencyKey,
+		arg.NetworkSpecJson,
+		arg.NetworkMode,
 		arg.NetworkChannel,
+		arg.NetworkSource,
 		arg.DesignationGroupID,
 		arg.ClaimTokenHash,
 		arg.LeaseUntil,
 		arg.HeartbeatAt,
-		arg.CoordinationChannelID,
 		arg.QueuedAt,
 		arg.ClaimedAt,
 		arg.StartedAt,
@@ -517,6 +538,9 @@ func (q *Queries) InsertTaskRun(ctx context.Context, arg InsertTaskRunParams) er
 		arg.ContinuationReason,
 		arg.MissingWorkJson,
 		arg.NextRoundGuidance,
+		arg.NetworkWakeID,
+		arg.NetworkTargetSessionID,
+		arg.NetworkOwnerKey,
 	)
 	return err
 }
@@ -603,58 +627,65 @@ func (q *Queries) ListRequiredTaskRunCapabilities(ctx context.Context, runIds []
 
 const listTaskRunsByStatus = `-- name: ListTaskRunsByStatus :many
 SELECT
-  id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-  network_channel, designation_group_id, '' AS claim_token, claim_token_hash, lease_until,
-  heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
+  network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-  continuation_reason, missing_work_json, next_round_guidance
+  continuation_reason, missing_work_json, next_round_guidance,
+  network_wake_id, network_target_session_id, network_owner_key
 FROM task_runs
 WHERE status IN (/*SLICE:statuses*/?)
 ORDER BY queued_at ASC, id ASC
 `
 
 type ListTaskRunsByStatusRow struct {
-	ID                    string         `json:"id"`
-	TaskID                string         `json:"task_id"`
-	RunKind               string         `json:"run_kind"`
-	LoopRunID             sql.NullString `json:"loop_run_id"`
-	Status                string         `json:"status"`
-	Attempt               int64          `json:"attempt"`
-	PreviousRunID         sql.NullString `json:"previous_run_id"`
-	FailureKind           string         `json:"failure_kind"`
-	ClaimedByKind         sql.NullString `json:"claimed_by_kind"`
-	ClaimedByRef          sql.NullString `json:"claimed_by_ref"`
-	SessionID             sql.NullString `json:"session_id"`
-	OriginKind            string         `json:"origin_kind"`
-	OriginRef             string         `json:"origin_ref"`
-	IdempotencyKey        sql.NullString `json:"idempotency_key"`
-	NetworkChannel        sql.NullString `json:"network_channel"`
-	DesignationGroupID    string         `json:"designation_group_id"`
-	ClaimToken            string         `json:"claim_token"`
-	ClaimTokenHash        sql.NullString `json:"claim_token_hash"`
-	LeaseUntil            sql.NullString `json:"lease_until"`
-	HeartbeatAt           sql.NullString `json:"heartbeat_at"`
-	CoordinationChannelID sql.NullString `json:"coordination_channel_id"`
-	QueuedAt              string         `json:"queued_at"`
-	ClaimedAt             sql.NullString `json:"claimed_at"`
-	StartedAt             sql.NullString `json:"started_at"`
-	EndedAt               sql.NullString `json:"ended_at"`
-	TokensUsed            int64          `json:"tokens_used"`
-	Error                 sql.NullString `json:"error"`
-	MetadataJson          sql.NullString `json:"metadata_json"`
-	ResultJson            sql.NullString `json:"result_json"`
-	ReviewRequired        bool           `json:"review_required"`
-	ReviewRequestRound    int64          `json:"review_request_round"`
-	ReviewPolicySnapshot  string         `json:"review_policy_snapshot"`
-	ReviewRequestID       sql.NullString `json:"review_request_id"`
-	ParentRunID           sql.NullString `json:"parent_run_id"`
-	ReviewID              sql.NullString `json:"review_id"`
-	ReviewRound           int64          `json:"review_round"`
-	ContinuationReason    string         `json:"continuation_reason"`
-	MissingWorkJson       string         `json:"missing_work_json"`
-	NextRoundGuidance     string         `json:"next_round_guidance"`
+	ID                     string         `json:"id"`
+	TaskID                 sql.NullString `json:"task_id"`
+	WorkspaceID            sql.NullString `json:"workspace_id"`
+	RunKind                string         `json:"run_kind"`
+	LoopRunID              sql.NullString `json:"loop_run_id"`
+	Status                 string         `json:"status"`
+	Attempt                int64          `json:"attempt"`
+	PreviousRunID          sql.NullString `json:"previous_run_id"`
+	FailureKind            string         `json:"failure_kind"`
+	ClaimedByKind          sql.NullString `json:"claimed_by_kind"`
+	ClaimedByRef           sql.NullString `json:"claimed_by_ref"`
+	SessionID              sql.NullString `json:"session_id"`
+	OriginKind             string         `json:"origin_kind"`
+	OriginRef              string         `json:"origin_ref"`
+	IdempotencyKey         sql.NullString `json:"idempotency_key"`
+	NetworkSpecJson        string         `json:"network_spec_json"`
+	NetworkMode            string         `json:"network_mode"`
+	NetworkChannel         sql.NullString `json:"network_channel"`
+	NetworkSource          string         `json:"network_source"`
+	DesignationGroupID     string         `json:"designation_group_id"`
+	ClaimToken             string         `json:"claim_token"`
+	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
+	LeaseUntil             sql.NullString `json:"lease_until"`
+	HeartbeatAt            sql.NullString `json:"heartbeat_at"`
+	QueuedAt               string         `json:"queued_at"`
+	ClaimedAt              sql.NullString `json:"claimed_at"`
+	StartedAt              sql.NullString `json:"started_at"`
+	EndedAt                sql.NullString `json:"ended_at"`
+	TokensUsed             int64          `json:"tokens_used"`
+	Error                  sql.NullString `json:"error"`
+	MetadataJson           sql.NullString `json:"metadata_json"`
+	ResultJson             sql.NullString `json:"result_json"`
+	ReviewRequired         bool           `json:"review_required"`
+	ReviewRequestRound     int64          `json:"review_request_round"`
+	ReviewPolicySnapshot   string         `json:"review_policy_snapshot"`
+	ReviewRequestID        sql.NullString `json:"review_request_id"`
+	ParentRunID            sql.NullString `json:"parent_run_id"`
+	ReviewID               sql.NullString `json:"review_id"`
+	ReviewRound            int64          `json:"review_round"`
+	ContinuationReason     string         `json:"continuation_reason"`
+	MissingWorkJson        string         `json:"missing_work_json"`
+	NextRoundGuidance      string         `json:"next_round_guidance"`
+	NetworkWakeID          sql.NullString `json:"network_wake_id"`
+	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
+	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
 }
 
 func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) ([]ListTaskRunsByStatusRow, error) {
@@ -679,6 +710,7 @@ func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) (
 		if err := rows.Scan(
 			&i.ID,
 			&i.TaskID,
+			&i.WorkspaceID,
 			&i.RunKind,
 			&i.LoopRunID,
 			&i.Status,
@@ -691,13 +723,15 @@ func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) (
 			&i.OriginKind,
 			&i.OriginRef,
 			&i.IdempotencyKey,
+			&i.NetworkSpecJson,
+			&i.NetworkMode,
 			&i.NetworkChannel,
+			&i.NetworkSource,
 			&i.DesignationGroupID,
 			&i.ClaimToken,
 			&i.ClaimTokenHash,
 			&i.LeaseUntil,
 			&i.HeartbeatAt,
-			&i.CoordinationChannelID,
 			&i.QueuedAt,
 			&i.ClaimedAt,
 			&i.StartedAt,
@@ -716,6 +750,9 @@ func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) (
 			&i.ContinuationReason,
 			&i.MissingWorkJson,
 			&i.NextRoundGuidance,
+			&i.NetworkWakeID,
+			&i.NetworkTargetSessionID,
+			&i.NetworkOwnerKey,
 		); err != nil {
 			return nil, err
 		}
@@ -736,34 +773,33 @@ SET identifier = ?1,
     scope = ?2,
     workspace_id = ?3,
     parent_task_id = ?4,
-    network_channel = ?5,
-    title = ?6,
-    description = ?7,
-    priority = ?8,
-    max_attempts = ?9,
-    auto_enqueue_on_ready = ?10,
-    approval_policy = ?11,
-    approval_state = ?12,
-    owner_kind = ?13,
-    owner_ref = ?14,
-    created_by_kind = ?15,
-    created_by_ref = ?16,
-    origin_kind = ?17,
-    origin_ref = ?18,
-    created_at = ?19,
-    updated_at = ?20,
-    closed_at = ?21,
-    paused = ?22,
-    paused_by = ?23,
-    paused_at = ?24,
-    paused_reason = ?25,
-    needs_attention_reason = ?26,
-    needs_attention_at = ?27,
-    needs_attention_by_kind = ?28,
-    needs_attention_by_ref = ?29,
-    wake_creator = ?30,
-    metadata_json = ?31
-WHERE id = ?32
+    title = ?5,
+    description = ?6,
+    priority = ?7,
+    max_attempts = ?8,
+    auto_enqueue_on_ready = ?9,
+    approval_policy = ?10,
+    approval_state = ?11,
+    owner_kind = ?12,
+    owner_ref = ?13,
+    created_by_kind = ?14,
+    created_by_ref = ?15,
+    origin_kind = ?16,
+    origin_ref = ?17,
+    created_at = ?18,
+    updated_at = ?19,
+    closed_at = ?20,
+    paused = ?21,
+    paused_by = ?22,
+    paused_at = ?23,
+    paused_reason = ?24,
+    needs_attention_reason = ?25,
+    needs_attention_at = ?26,
+    needs_attention_by_kind = ?27,
+    needs_attention_by_ref = ?28,
+    wake_creator = ?29,
+    metadata_json = ?30
+WHERE id = ?31
 `
 
 type UpdateTaskParams struct {
@@ -771,7 +807,6 @@ type UpdateTaskParams struct {
 	Scope                string         `json:"scope"`
 	WorkspaceID          sql.NullString `json:"workspace_id"`
 	ParentTaskID         sql.NullString `json:"parent_task_id"`
-	NetworkChannel       sql.NullString `json:"network_channel"`
 	Title                string         `json:"title"`
 	Description          sql.NullString `json:"description"`
 	Priority             string         `json:"priority"`
@@ -807,7 +842,6 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, 
 		arg.Scope,
 		arg.WorkspaceID,
 		arg.ParentTaskID,
-		arg.NetworkChannel,
 		arg.Title,
 		arg.Description,
 		arg.Priority,
@@ -845,90 +879,103 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, 
 const updateTaskRun = `-- name: UpdateTaskRun :execrows
 UPDATE task_runs
 SET task_id = ?1,
-    run_kind = ?2,
-    loop_run_id = ?3,
-    status = ?4,
-    attempt = ?5,
-    previous_run_id = ?6,
-    failure_kind = ?7,
-    claimed_by_kind = ?8,
-    claimed_by_ref = ?9,
-    session_id = ?10,
-    origin_kind = ?11,
-    origin_ref = ?12,
-    idempotency_key = ?13,
-    network_channel = ?14,
-    designation_group_id = ?15,
-    claim_token = NULL,
-    claim_token_hash = ?16,
-    lease_until = ?17,
-    heartbeat_at = ?18,
-    coordination_channel_id = ?19,
-    queued_at = ?20,
-    claimed_at = ?21,
-    started_at = ?22,
-    ended_at = ?23,
-    tokens_used = ?24,
-    error = ?25,
-    metadata_json = ?26,
-    result_json = ?27,
-    review_required = ?28,
-    review_request_round = ?29,
-    review_policy_snapshot = ?30,
-    review_request_id = ?31,
-    parent_run_id = ?32,
-    review_id = ?33,
-    review_round = ?34,
-    continuation_reason = ?35,
-    missing_work_json = ?36,
-    next_round_guidance = ?37
-WHERE id = ?38
+    workspace_id = ?2,
+    run_kind = ?3,
+    loop_run_id = ?4,
+    status = ?5,
+    attempt = ?6,
+    previous_run_id = ?7,
+    failure_kind = ?8,
+    claimed_by_kind = ?9,
+    claimed_by_ref = ?10,
+    session_id = ?11,
+    origin_kind = ?12,
+    origin_ref = ?13,
+    idempotency_key = ?14,
+    network_spec_json = ?15,
+    network_mode = ?16,
+    network_channel = ?17,
+    network_source = ?18,
+    designation_group_id = ?19,
+    claim_token = CASE WHEN ?20 IS NOT NULL AND claim_token_hash = ?20 THEN claim_token ELSE NULL END,
+    claim_token_hash = ?20,
+    lease_until = ?21,
+    heartbeat_at = ?22,
+    queued_at = ?23,
+    claimed_at = ?24,
+    started_at = ?25,
+    ended_at = ?26,
+    tokens_used = ?27,
+    error = ?28,
+    metadata_json = ?29,
+    result_json = ?30,
+    review_required = ?31,
+    review_request_round = ?32,
+    review_policy_snapshot = ?33,
+    review_request_id = ?34,
+    parent_run_id = ?35,
+    review_id = ?36,
+    review_round = ?37,
+    continuation_reason = ?38,
+    missing_work_json = ?39,
+    next_round_guidance = ?40,
+    network_wake_id = ?41,
+    network_target_session_id = ?42,
+    network_owner_key = ?43
+WHERE id = ?44
 `
 
 type UpdateTaskRunParams struct {
-	TaskID                string         `json:"task_id"`
-	RunKind               string         `json:"run_kind"`
-	LoopRunID             sql.NullString `json:"loop_run_id"`
-	Status                string         `json:"status"`
-	Attempt               int64          `json:"attempt"`
-	PreviousRunID         sql.NullString `json:"previous_run_id"`
-	FailureKind           string         `json:"failure_kind"`
-	ClaimedByKind         sql.NullString `json:"claimed_by_kind"`
-	ClaimedByRef          sql.NullString `json:"claimed_by_ref"`
-	SessionID             sql.NullString `json:"session_id"`
-	OriginKind            string         `json:"origin_kind"`
-	OriginRef             string         `json:"origin_ref"`
-	IdempotencyKey        sql.NullString `json:"idempotency_key"`
-	NetworkChannel        sql.NullString `json:"network_channel"`
-	DesignationGroupID    string         `json:"designation_group_id"`
-	ClaimTokenHash        sql.NullString `json:"claim_token_hash"`
-	LeaseUntil            sql.NullString `json:"lease_until"`
-	HeartbeatAt           sql.NullString `json:"heartbeat_at"`
-	CoordinationChannelID sql.NullString `json:"coordination_channel_id"`
-	QueuedAt              string         `json:"queued_at"`
-	ClaimedAt             sql.NullString `json:"claimed_at"`
-	StartedAt             sql.NullString `json:"started_at"`
-	EndedAt               sql.NullString `json:"ended_at"`
-	TokensUsed            int64          `json:"tokens_used"`
-	Error                 sql.NullString `json:"error"`
-	MetadataJson          sql.NullString `json:"metadata_json"`
-	ResultJson            sql.NullString `json:"result_json"`
-	ReviewRequired        bool           `json:"review_required"`
-	ReviewRequestRound    int64          `json:"review_request_round"`
-	ReviewPolicySnapshot  string         `json:"review_policy_snapshot"`
-	ReviewRequestID       sql.NullString `json:"review_request_id"`
-	ParentRunID           sql.NullString `json:"parent_run_id"`
-	ReviewID              sql.NullString `json:"review_id"`
-	ReviewRound           int64          `json:"review_round"`
-	ContinuationReason    string         `json:"continuation_reason"`
-	MissingWorkJson       string         `json:"missing_work_json"`
-	NextRoundGuidance     string         `json:"next_round_guidance"`
-	ID                    string         `json:"id"`
+	TaskID                 sql.NullString `json:"task_id"`
+	WorkspaceID            sql.NullString `json:"workspace_id"`
+	RunKind                string         `json:"run_kind"`
+	LoopRunID              sql.NullString `json:"loop_run_id"`
+	Status                 string         `json:"status"`
+	Attempt                int64          `json:"attempt"`
+	PreviousRunID          sql.NullString `json:"previous_run_id"`
+	FailureKind            string         `json:"failure_kind"`
+	ClaimedByKind          sql.NullString `json:"claimed_by_kind"`
+	ClaimedByRef           sql.NullString `json:"claimed_by_ref"`
+	SessionID              sql.NullString `json:"session_id"`
+	OriginKind             string         `json:"origin_kind"`
+	OriginRef              string         `json:"origin_ref"`
+	IdempotencyKey         sql.NullString `json:"idempotency_key"`
+	NetworkSpecJson        string         `json:"network_spec_json"`
+	NetworkMode            string         `json:"network_mode"`
+	NetworkChannel         sql.NullString `json:"network_channel"`
+	NetworkSource          string         `json:"network_source"`
+	DesignationGroupID     string         `json:"designation_group_id"`
+	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
+	LeaseUntil             sql.NullString `json:"lease_until"`
+	HeartbeatAt            sql.NullString `json:"heartbeat_at"`
+	QueuedAt               string         `json:"queued_at"`
+	ClaimedAt              sql.NullString `json:"claimed_at"`
+	StartedAt              sql.NullString `json:"started_at"`
+	EndedAt                sql.NullString `json:"ended_at"`
+	TokensUsed             int64          `json:"tokens_used"`
+	Error                  sql.NullString `json:"error"`
+	MetadataJson           sql.NullString `json:"metadata_json"`
+	ResultJson             sql.NullString `json:"result_json"`
+	ReviewRequired         bool           `json:"review_required"`
+	ReviewRequestRound     int64          `json:"review_request_round"`
+	ReviewPolicySnapshot   string         `json:"review_policy_snapshot"`
+	ReviewRequestID        sql.NullString `json:"review_request_id"`
+	ParentRunID            sql.NullString `json:"parent_run_id"`
+	ReviewID               sql.NullString `json:"review_id"`
+	ReviewRound            int64          `json:"review_round"`
+	ContinuationReason     string         `json:"continuation_reason"`
+	MissingWorkJson        string         `json:"missing_work_json"`
+	NextRoundGuidance      string         `json:"next_round_guidance"`
+	NetworkWakeID          sql.NullString `json:"network_wake_id"`
+	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
+	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
+	ID                     string         `json:"id"`
 }
 
 func (q *Queries) UpdateTaskRun(ctx context.Context, arg UpdateTaskRunParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateTaskRun,
 		arg.TaskID,
+		arg.WorkspaceID,
 		arg.RunKind,
 		arg.LoopRunID,
 		arg.Status,
@@ -941,12 +988,14 @@ func (q *Queries) UpdateTaskRun(ctx context.Context, arg UpdateTaskRunParams) (i
 		arg.OriginKind,
 		arg.OriginRef,
 		arg.IdempotencyKey,
+		arg.NetworkSpecJson,
+		arg.NetworkMode,
 		arg.NetworkChannel,
+		arg.NetworkSource,
 		arg.DesignationGroupID,
 		arg.ClaimTokenHash,
 		arg.LeaseUntil,
 		arg.HeartbeatAt,
-		arg.CoordinationChannelID,
 		arg.QueuedAt,
 		arg.ClaimedAt,
 		arg.StartedAt,
@@ -965,6 +1014,9 @@ func (q *Queries) UpdateTaskRun(ctx context.Context, arg UpdateTaskRunParams) (i
 		arg.ContinuationReason,
 		arg.MissingWorkJson,
 		arg.NextRoundGuidance,
+		arg.NetworkWakeID,
+		arg.NetworkTargetSessionID,
+		arg.NetworkOwnerKey,
 		arg.ID,
 	)
 	if err != nil {

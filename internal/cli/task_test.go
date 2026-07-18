@@ -50,6 +50,24 @@ func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
 			},
 			wantErr: "--clear-owner cannot be combined with --owner-kind or --owner-ref",
 		},
+		{
+			name: "Should reject unknown network bounds fields",
+			args: []string{
+				"task", "create", "--scope", "global", "--title", "Investigate",
+				"--network", "live", "--network-channel-strategy", "named",
+				"--network-channel", "builders", "--network-bounds", `{"max_waks":1}`,
+			},
+			wantErr: `json: unknown field "max_waks"`,
+		},
+		{
+			name: "Should reject trailing network bounds values",
+			args: []string{
+				"task", "create", "--scope", "global", "--title", "Investigate",
+				"--network", "live", "--network-channel-strategy", "named",
+				"--network-channel", "builders", "--network-bounds", `{"max_wakes":1} {}`,
+			},
+			wantErr: "expected exactly one JSON object",
+		},
 	}
 
 	for _, tt := range tests {
@@ -215,7 +233,9 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					"--identifier", "OPS-42",
 					"--scope", "workspace",
 					"--workspace", "alpha",
-					"--channel", "builders",
+					"--network", "live",
+					"--network-channel-strategy", "named",
+					"--network-channel", "builders",
 					"--title", "Investigate flaky task runs",
 					"--description", "Capture root cause",
 					"--priority", "high",
@@ -228,9 +248,9 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					t.Fatalf("task create error = %v", err)
 				}
 
+				assertLiveNamedParticipationRequest(t, createRequest.NetworkParticipation, "builders")
 				if createRequest.Scope != taskpkg.ScopeWorkspace ||
 					createRequest.Workspace != "alpha" ||
-					createRequest.NetworkChannel != "builders" ||
 					createRequest.Title != "Investigate flaky task runs" ||
 					createRequest.Priority != taskpkg.PriorityHigh ||
 					createRequest.Owner == nil ||
@@ -301,7 +321,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					"--owner-kind", "pool",
 					"--owner-ref", "triage",
 					"--parent", "task-root",
-					"--channel", "builders",
+					"--participation-channel", "builders",
 					"--limit", "3",
 					"-o", "json",
 				)
@@ -315,7 +335,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					listQuery.OwnerKind != taskpkg.OwnerKindPool ||
 					listQuery.OwnerRef != "triage" ||
 					listQuery.ParentTaskID != "task-root" ||
-					listQuery.NetworkChannel != "builders" ||
+					listQuery.ParticipationChannel != "builders" ||
 					listQuery.Limit != 3 {
 					t.Fatalf("listQuery = %#v, want parsed filters", listQuery)
 				}
@@ -683,8 +703,9 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 				"task-1",
 				"--idempotency-key",
 				"idem-publish",
-				"--channel",
-				"builders",
+				"--network", "live",
+				"--network-channel-strategy", "named",
+				"--network-channel", "builders",
 				"-o",
 				"json",
 			},
@@ -708,8 +729,9 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 				"task-1",
 				"--idempotency-key",
 				"idem-start",
-				"--channel",
-				"builders",
+				"--network", "live",
+				"--network-channel-strategy", "named",
+				"--network-channel", "builders",
 				"-o",
 				"json",
 			},
@@ -733,8 +755,9 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 				"task-1",
 				"--idempotency-key",
 				"idem-approve",
-				"--channel",
-				"builders",
+				"--network", "live",
+				"--network-channel-strategy", "named",
+				"--network-channel", "builders",
 				"-o",
 				"json",
 			},
@@ -762,8 +785,9 @@ func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
 			if _, _, err := executeRootCommand(t, newTestDeps(t, client), tt.args...); err != nil {
 				t.Fatalf("task %s error = %v", tt.wantAction, err)
 			}
-			if request.IdempotencyKey != "idem-"+tt.wantAction || request.NetworkChannel != "builders" {
-				t.Fatalf("request = %#v, want idempotency key and channel for %s", request, tt.wantAction)
+			assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
+			if request.IdempotencyKey != "idem-"+tt.wantAction {
+				t.Fatalf("request = %#v, want idempotency key for %s", request, tt.wantAction)
 			}
 		})
 	}
@@ -800,6 +824,8 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 					"running",
 					"--session",
 					"sess-1",
+					"--participation-channel",
+					"builders",
 					"--last",
 					"2",
 					"-o",
@@ -807,7 +833,9 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				); err != nil {
 					t.Fatalf("task run list error = %v", err)
 				}
-				if runListQuery.Status != taskpkg.TaskRunStatusRunning || runListQuery.SessionID != "sess-1" ||
+				if runListQuery.Status != taskpkg.TaskRunStatusRunning ||
+					runListQuery.SessionID != "sess-1" ||
+					runListQuery.ParticipationChannel != "builders" ||
 					runListQuery.Limit != 2 {
 					t.Fatalf("runListQuery = %#v, want parsed run filters", runListQuery)
 				}
@@ -837,7 +865,7 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				if gotID != "run-1" ||
 					output.Run.ID != "run-1" ||
 					output.Run.Status != taskpkg.TaskRunStatusQueued ||
-					output.Task.ID != "task-1" {
+					output.Task == nil || output.Task.ID != "task-1" {
 					t.Fatalf("gotID/output = %q / %#v, want queued run-1", gotID, output)
 				}
 			},
@@ -864,8 +892,9 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 					"task-1",
 					"--idempotency-key",
 					"idem-1",
-					"--channel",
-					"builders",
+					"--network", "live",
+					"--network-channel-strategy", "named",
+					"--network-channel", "builders",
 					"--metadata",
 					`{"schema":"agh.harness.detached.v1"}`,
 					"-o",
@@ -873,43 +902,12 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 				); err != nil {
 					t.Fatalf("task run enqueue error = %v", err)
 				}
-				if enqueueRequest.IdempotencyKey != "idem-1" || enqueueRequest.NetworkChannel != "builders" {
-					t.Fatalf("enqueueRequest = %#v, want idempotency key and channel", enqueueRequest)
+				assertLiveNamedParticipationRequest(t, enqueueRequest.NetworkParticipation, "builders")
+				if enqueueRequest.IdempotencyKey != "idem-1" {
+					t.Fatalf("enqueueRequest = %#v, want idempotency key", enqueueRequest)
 				}
 				if got, want := string(enqueueRequest.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
 					t.Fatalf("enqueueRequest.Metadata = %q, want %q", got, want)
-				}
-			},
-		},
-		{
-			name: "Should parse task run claim request",
-			run: func(t *testing.T) {
-				t.Helper()
-
-				var claimRequest ClaimTaskRunRequest
-				deps := newTestDeps(t, &stubClient{
-					claimTaskRunFn: func(_ context.Context, _ string, request ClaimTaskRunRequest) (TaskRunRecord, error) {
-						claimRequest = request
-						return sampleTaskRunRecord(taskpkg.TaskRunStatusClaimed), nil
-					},
-				})
-
-				if _, _, err := executeRootCommand(
-					t,
-					deps,
-					"task",
-					"run",
-					"claim",
-					"run-1",
-					"--idempotency-key",
-					"idem-claim",
-					"-o",
-					"json",
-				); err != nil {
-					t.Fatalf("task run claim error = %v", err)
-				}
-				if claimRequest.IdempotencyKey != "idem-claim" {
-					t.Fatalf("claimRequest = %#v, want idempotency key", claimRequest)
 				}
 			},
 		},
@@ -1114,6 +1112,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 			deps,
 			"task",
 			"next",
+			"--run-id",
+			"run-exact",
 			"--workspace-id",
 			"ws-1",
 			"--capability",
@@ -1135,7 +1135,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 		if err != nil {
 			t.Fatalf("task next error = %v", err)
 		}
-		if gotRequest.WorkspaceID != "ws-1" ||
+		if gotRequest.RunID != "run-exact" ||
+			gotRequest.WorkspaceID != "ws-1" ||
 			gotRequest.PriorityMin != 3 ||
 			gotRequest.LeaseSeconds != 120 ||
 			!gotRequest.Wait ||
@@ -1154,6 +1155,25 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 		}
 		if !output.Claimed || output.Claim == nil || output.Claim.Lease.ClaimTokenHash == "" {
 			t.Fatalf("task next output = %#v, want claimed session-bound response", output)
+		}
+	})
+
+	t.Run("Should reject an explicitly blank exact run selector", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newAgentCommandTestDeps(t, &stubClient{
+			agentTaskClaimNextFn: func(
+				context.Context,
+				AgentTaskClaimNextRequest,
+				agentidentity.Credentials,
+			) (AgentTaskNextRecord, error) {
+				t.Fatal("AgentTaskClaimNext should not be called for a blank exact run selector")
+				return AgentTaskNextRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "task", "next", "--run-id", "   ")
+		if err == nil || !strings.Contains(err.Error(), "--run-id cannot be blank") {
+			t.Fatalf("task next blank --run-id error = %v, want explicit blank rejection", err)
 		}
 	})
 
@@ -1627,10 +1647,12 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					"--title", "Retitle triage task",
 					"--description", "Refined scope",
 					"--priority", "urgent",
-					"--channel", "builders",
 					"--owner-kind", "pool",
 					"--owner-ref", "triage",
 					"--metadata", `{"priority":"low"}`,
+					"--network", "live",
+					"--network-channel-strategy", "named",
+					"--network-channel", "builders",
 					"-o", "json",
 				); err != nil {
 					t.Fatalf("task update error = %v", err)
@@ -1639,11 +1661,33 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					updateRequest.Title == nil || *updateRequest.Title != "Retitle triage task" ||
 					updateRequest.Description == nil || *updateRequest.Description != "Refined scope" ||
 					updateRequest.Priority == nil || *updateRequest.Priority != taskpkg.PriorityUrgent ||
-					updateRequest.NetworkChannel == nil || *updateRequest.NetworkChannel != "builders" ||
 					updateRequest.Owner == nil || updateRequest.Owner.Kind != taskpkg.OwnerKindPool || updateRequest.Owner.Ref != "triage" ||
 					updateRequest.ClearOwner ||
 					updateRequest.Metadata == nil || string(*updateRequest.Metadata) != `{"priority":"low"}` {
 					t.Fatalf("update request = %#v, want parsed task mutation payload", updateRequest)
+				}
+				assertLiveNamedParticipationRequest(t, updateRequest.NetworkParticipation, "builders")
+			},
+		},
+		{
+			name: "Should reject removed --channel on task update",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				deps := newTestDeps(t, &stubClient{})
+				_, stderr, err := executeRootCommand(
+					t,
+					deps,
+					"task", "update", "task-1",
+					"--title", "Retitle triage task",
+					"--channel", "builders",
+				)
+				if err == nil {
+					t.Fatal("task update --channel error = nil, want rejection")
+				}
+				if !strings.Contains(err.Error(), "unknown flag: --channel") &&
+					!strings.Contains(stderr, "unknown flag: --channel") {
+					t.Fatalf("task update --channel error = %v stderr=%q, want removed flag rejection", err, stderr)
 				}
 			},
 		},
@@ -1786,7 +1830,9 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					"--identifier", "OPS-43",
 					"--scope", "workspace",
 					"--workspace", "alpha",
-					"--channel", "builders",
+					"--network", "live",
+					"--network-channel-strategy", "named",
+					"--network-channel", "builders",
 					"--title", "Check runtime logs",
 					"--description", "Focus on worker output",
 					"--priority", "urgent",
@@ -1797,12 +1843,12 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 				); err != nil {
 					t.Fatalf("task child create error = %v", err)
 				}
+				assertLiveNamedParticipationRequest(t, childCreateRequest.NetworkParticipation, "builders")
 				if childParentID != "task-root" ||
 					childCreateRequest.ID != "task-child" ||
 					childCreateRequest.Identifier != "OPS-43" ||
 					childCreateRequest.Scope != taskpkg.ScopeWorkspace ||
 					childCreateRequest.Workspace != "alpha" ||
-					childCreateRequest.NetworkChannel != "builders" ||
 					childCreateRequest.Title != "Check runtime logs" ||
 					childCreateRequest.Description != "Focus on worker output" ||
 					childCreateRequest.Priority != taskpkg.PriorityUrgent ||
@@ -1924,6 +1970,7 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 			) (TaskExecutionProfileRecord, error) {
 				if request == nil {
 					t.Fatal("request is nil")
+					return TaskExecutionProfileRecord{}, nil
 				}
 				updateID = id
 				updateRequest = *request
@@ -2045,6 +2092,7 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 			) (TaskBridgeNotificationSubscriptionRecord, error) {
 				if request == nil {
 					t.Fatal("request is nil")
+					return TaskBridgeNotificationSubscriptionRecord{}, nil
 				}
 				subscribeTaskID = taskID
 				subscribeBody = *request
@@ -2303,6 +2351,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 			) (TaskRunReviewRequestRecord, error) {
 				if request == nil {
 					t.Fatal("request is nil")
+					return TaskRunReviewRequestRecord{}, nil
 				}
 				requestRunID = runID
 				requestBody = *request
@@ -2329,6 +2378,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 			) (TaskRunReviewVerdictRecord, error) {
 				if request == nil {
 					t.Fatal("request is nil")
+					return TaskRunReviewVerdictRecord{}, nil
 				}
 				submitID = reviewID
 				submitBody = *request
@@ -2629,9 +2679,9 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 		}
 		if !strings.Contains(
 			toonOut,
-			"tasks[1]{id,identifier,scope,workspace_id,parent_task_id,status,owner,network_channel,title}:",
-		) {
-			t.Fatalf("task list toon output = %q, want tasks TOON array", toonOut)
+			"tasks[1]{id,identifier,scope,workspace_id,parent_task_id,status,owner,participation_channel,title}:",
+		) || !strings.Contains(toonOut, "builders") {
+			t.Fatalf("task list toon output = %q, want tasks TOON array with builders", toonOut)
 		}
 	})
 }
@@ -2651,10 +2701,11 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 			!strings.Contains(detailToon, "task_dependencies[1]{task_id,depends_on_task_id,kind,created_at}:") ||
 			!strings.Contains(
 				detailToon,
-				"task_runs[1]{id,status,attempt,session_id,claimed_by,network_channel,coordination_channel_id,queued_at,started_at,ended_at,error}:",
+				"task_runs[1]{id,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
 			) ||
-			!strings.Contains(detailToon, "task_events[1]{id,event_type,run_id,actor,origin,timestamp}:") {
-			t.Fatalf("task detail toon output = %q, want child/dependency/run/event sections", detailToon)
+			!strings.Contains(detailToon, "task_events[1]{id,event_type,run_id,actor,origin,timestamp}:") ||
+			!strings.Contains(detailToon, "builders") {
+			t.Fatalf("task detail toon output = %q, want child/dependency/run/event sections with builders", detailToon)
 		}
 	})
 
@@ -2695,9 +2746,30 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		}
 		if !strings.Contains(
 			runToon,
-			"task_runs[1]{id,status,attempt,session_id,claimed_by,network_channel,coordination_channel_id,queued_at,started_at,ended_at,error}:",
-		) {
-			t.Fatalf("task run toon output = %q, want task run TOON array", runToon)
+			"task_runs[1]{id,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
+		) || !strings.Contains(runToon, "builders") {
+			t.Fatalf("task run toon output = %q, want task run TOON array with builders", runToon)
+		}
+	})
+
+	t.Run("Should render taskless network wake detail without a fabricated task", func(t *testing.T) {
+		t.Parallel()
+
+		detail := sampleTaskRunDetailRecord(taskpkg.TaskRunStatusRunning)
+		detail.Task = nil
+		detail.Run.TaskID = ""
+		humanOut, err := taskRunDetailBundle(&detail).human()
+		if err != nil {
+			t.Fatalf("taskRunDetailBundle(taskless).human() error = %v", err)
+		}
+		toonOut, err := taskRunDetailBundle(&detail).toon()
+		if err != nil {
+			t.Fatalf("taskRunDetailBundle(taskless).toon() error = %v", err)
+		}
+		for format, output := range map[string]string{"human": humanOut, "toon": toonOut} {
+			if !strings.Contains(output, "run-1") || strings.Contains(output, "Investigate flaky task runs") {
+				t.Fatalf("taskless %s output = %q, want run without fabricated Task section", format, output)
+			}
 		}
 	})
 
@@ -2716,7 +2788,7 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 	})
 }
 
-func TestParseTaskListFiltersRejectsHalfSpecifiedOwnerFilter(t *testing.T) {
+func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -2740,61 +2812,73 @@ func TestParseTaskListFiltersRejectsHalfSpecifiedOwnerFilter(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should name the participation channel flag in validation errors", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := parseTaskListFilters(
+			"", "", "", "", "", "", "", "invalid channel!", "", "", "", 0,
+		)
+		if err == nil || !strings.Contains(err.Error(), "invalid --participation-channel value") ||
+			strings.Contains(err.Error(), "invalid --channel value") {
+			t.Fatalf("parseTaskListFilters() error = %v, want current participation-channel diagnostic", err)
+		}
+	})
 }
 
 func sampleTaskSummaryRecord() TaskSummaryRecord {
 	return TaskSummaryRecord{
-		ID:             "task-1",
-		Identifier:     "OPS-42",
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    "ws-alpha",
-		ParentTaskID:   "task-root",
-		NetworkChannel: "builders",
-		Title:          "Investigate flaky task runs",
-		Status:         taskpkg.TaskStatusReady,
-		Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
-		CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
-		CreatedAt:      fixedTestNow,
-		UpdatedAt:      fixedTestNow,
+		ID:                           "task-1",
+		Identifier:                   "OPS-42",
+		Scope:                        taskpkg.ScopeWorkspace,
+		WorkspaceID:                  "ws-alpha",
+		ParentTaskID:                 "task-root",
+		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+		Title:                        "Investigate flaky task runs",
+		Status:                       taskpkg.TaskStatusReady,
+		Owner:                        &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+		CreatedBy:                    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
+		CreatedAt:                    fixedTestNow,
+		UpdatedAt:                    fixedTestNow,
 	}
 }
 
 func sampleTaskCatalogItemRecord() TaskCatalogItemRecord {
 	return TaskCatalogItemRecord{
-		ID:             "task-1",
-		Identifier:     "OPS-42",
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    "ws-alpha",
-		ParentTaskID:   "task-root",
-		NetworkChannel: "builders",
-		Title:          "Investigate flaky task runs",
-		Status:         taskpkg.TaskStatusReady,
-		Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
-		CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
-		CreatedAt:      fixedTestNow,
-		UpdatedAt:      fixedTestNow,
+		ID:                           "task-1",
+		Identifier:                   "OPS-42",
+		Scope:                        taskpkg.ScopeWorkspace,
+		WorkspaceID:                  "ws-alpha",
+		ParentTaskID:                 "task-root",
+		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+		Title:                        "Investigate flaky task runs",
+		Status:                       taskpkg.TaskStatusReady,
+		Owner:                        &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+		CreatedBy:                    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
+		CreatedAt:                    fixedTestNow,
+		UpdatedAt:                    fixedTestNow,
 	}
 }
 
 func sampleTaskRecord() TaskRecord {
 	return TaskRecord{
-		ID:             "task-1",
-		Identifier:     "OPS-42",
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    "ws-alpha",
-		ParentTaskID:   "task-root",
-		NetworkChannel: "builders",
-		Title:          "Investigate flaky task runs",
-		Description:    "Capture root cause",
-		Status:         taskpkg.TaskStatusReady,
-		Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
-		CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
-		CreatedAt:      fixedTestNow,
-		UpdatedAt:      fixedTestNow,
-		Metadata:       json.RawMessage(`{"priority":"high"}`),
+		ID:                           "task-1",
+		Identifier:                   "OPS-42",
+		Scope:                        taskpkg.ScopeWorkspace,
+		WorkspaceID:                  "ws-alpha",
+		ParentTaskID:                 "task-root",
+		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+		Title:                        "Investigate flaky task runs",
+		Description:                  "Capture root cause",
+		Status:                       taskpkg.TaskStatusReady,
+		Owner:                        &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+		CreatedBy:                    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
+		CreatedAt:                    fixedTestNow,
+		UpdatedAt:                    fixedTestNow,
+		Metadata:                     json.RawMessage(`{"priority":"high"}`),
 	}
 }
 
@@ -2918,14 +3002,14 @@ func timePointer(value time.Time) *time.Time {
 
 func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 	record := TaskRunRecord{
-		ID:             "run-1",
-		TaskID:         "task-1",
-		Status:         status,
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.run.start"},
-		Attempt:        1,
-		IdempotencyKey: "idem-run",
-		NetworkChannel: "builders",
-		QueuedAt:       fixedTestNow,
+		ID:                           "run-1",
+		TaskID:                       "task-1",
+		Status:                       status,
+		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.run.start"},
+		Attempt:                      1,
+		IdempotencyKey:               "idem-run",
+		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+		QueuedAt:                     fixedTestNow,
 	}
 
 	claimedAt := fixedTestNow.Add(time.Minute)
@@ -2972,7 +3056,7 @@ func sampleTaskRunDetailRecord(status taskpkg.RunStatus) TaskRunDetailRecord {
 	turnCount := int64(2)
 	return TaskRunDetailRecord{
 		Run: sampleTaskRunRecord(status),
-		Task: contract.TaskReferencePayload{
+		Task: &contract.TaskReferencePayload{
 			ID:             "task-1",
 			Identifier:     "OPS-42",
 			Title:          "Investigate flaky task runs",
@@ -2988,7 +3072,6 @@ func sampleTaskRunDetailRecord(status taskpkg.RunStatus) TaskRunDetailRecord {
 			WorkspaceID: "ws-alpha",
 			AgentName:   "coder",
 			Name:        "QA coder",
-			Channel:     "builders",
 			State:       "active",
 			CreatedAt:   fixedTestNow,
 			UpdatedAt:   fixedTestNow.Add(time.Minute),
@@ -3025,7 +3108,6 @@ func agentTaskClaimRecord() AgentTaskClaimRecord {
 		Lease: lease,
 		CoordinationChannel: &contract.CoordinationChannelPayload{
 			ID:                  "builders",
-			Channel:             "builders",
 			DisplayName:         "Builders",
 			WorkspaceID:         "ws-1",
 			TaskID:              "task-1",
@@ -3039,15 +3121,15 @@ func agentTaskLeaseRecord(status taskpkg.RunStatus) AgentTaskLeaseRecord {
 	leaseUntil := fixedTestNow.Add(5 * time.Minute)
 	heartbeatAt := fixedTestNow.Add(time.Minute)
 	return AgentTaskLeaseRecord{
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		Status:                status,
-		SessionID:             "sess-agent",
-		ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
-		ClaimTokenHash:        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		LeaseUntil:            &leaseUntil,
-		HeartbeatAt:           &heartbeatAt,
-		CoordinationChannelID: "builders",
+		TaskID:                       "task-1",
+		RunID:                        "run-1",
+		Status:                       status,
+		SessionID:                    "sess-agent",
+		ClaimedBy:                    &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
+		ClaimTokenHash:               "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		LeaseUntil:                   &leaseUntil,
+		HeartbeatAt:                  &heartbeatAt,
+		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
 	}
 }
 

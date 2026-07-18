@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let routeParams = { id: "task_abc", runId: "run_001" };
+const useTaskRunConversationMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => {
@@ -15,6 +16,11 @@ vi.mock("@tanstack/react-router", () => ({
     useParams: () => routeParams,
   }),
   useRouter: () => ({ history: { back: () => undefined } }),
+}));
+
+vi.mock("@/systems/network", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/network")>()),
+  useTaskRunConversation: useTaskRunConversationMock,
 }));
 
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
@@ -44,7 +50,6 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   enqueueTaskRun: vi.fn(),
   attachTaskRunSession: vi.fn(),
   cancelTaskRun: vi.fn(),
-  claimTaskRun: vi.fn(),
   startTaskRun: vi.fn(),
   completeTaskRun: vi.fn(),
   failTaskRun: vi.fn(),
@@ -132,9 +137,11 @@ const taskFixture = {
 
 describe("TaskRunDetailRoute", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     routeParams = { id: "task_abc", runId: "run_001" };
     vi.mocked(getTaskRun).mockResolvedValue(runFixture as never);
     vi.mocked(getTask).mockResolvedValue(taskFixture as never);
+    useTaskRunConversationMock.mockReturnValue(null);
   });
 
   it("renders the run header, identity, progress, and activity", async () => {
@@ -146,6 +153,114 @@ describe("TaskRunDetailRoute", () => {
     expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("run_001");
     expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("session sess_jf8d21");
     expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("attempt 2");
+  });
+
+  it("renders the durable run conversation instead of a hard-coded empty state", async () => {
+    const liveRun = {
+      ...runFixture,
+      run: {
+        ...runFixture.run,
+        resolved_network_participation: {
+          version: "network-participation/v1",
+          mode: "live",
+          workspace_id: "ws-alpha",
+          channel_strategy: "run",
+          channel_id: "coord-run-1",
+          source: "workspace_coordination",
+          bounds: {
+            max_wakes: 4,
+            max_wake_wall_time: "45s",
+            max_total_wall_time: "10m",
+            max_input_tokens: 12_000,
+            max_output_tokens: 4_000,
+            max_wake_depth: 3,
+            coalesce_window: "750ms",
+          },
+        },
+      },
+      network: {
+        conversation: {
+          workspace_id: "ws-alpha",
+          channel: "coord-run-1",
+          surface: "thread",
+          thread_id: "thread_agent_channel",
+          stream_url: "/api/task-runs/run_001/conversation/stream",
+        },
+        usage: {
+          workspace_id: "ws-alpha",
+          details: [],
+          total: {
+            wake_count: 1,
+            reserved_wake_count: 0,
+            actual_wake_count: 1,
+            unavailable_wake_count: 0,
+            charged_wall_time: "1s",
+            input_tokens: 12,
+            output_tokens: 5,
+          },
+        },
+      },
+    };
+    vi.mocked(getTaskRun).mockResolvedValue(liveRun as never);
+    useTaskRunConversationMock.mockReturnValue({
+      messages: [
+        {
+          message_id: "msg-1",
+          channel: "coord-run-1",
+          surface: "thread",
+          thread_id: "thread_agent_channel",
+          kind: "say",
+          direction: "sent",
+          peer_from: "sess-1",
+          body: { text: "Coordinator evidence is ready" },
+          text: "Coordinator evidence is ready",
+          timestamp: "2026-07-15T08:00:00Z",
+        },
+      ],
+      isLoading: false,
+      isFetching: false,
+      hasOlder: false,
+      isLoadingOlder: false,
+      loadOlder: vi.fn(),
+      error: null,
+      usage: liveRun.network.usage,
+      streamError: null,
+    });
+
+    renderRoute();
+
+    await waitFor(() =>
+      expect(screen.getByText("Coordinator evidence is ready")).toBeInTheDocument()
+    );
+    expect(screen.queryByTestId("tasks-run-conversation-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-run-bounds-label")).toHaveTextContent("0/4 wakes");
+    expect(screen.getByTestId("tasks-run-usage-summary")).toHaveTextContent(
+      "Run usage: 1 actual · 0 reserved · 0 unavailable · 12 charged in / 5 charged out"
+    );
+  });
+
+  it("renders a taskless network wake without loading a fabricated Task", async () => {
+    routeParams = { id: "network", runId: "run_wake" };
+    vi.mocked(getTaskRun).mockResolvedValue({
+      ...runFixture,
+      run: {
+        ...runFixture.run,
+        id: "run_wake",
+        kind: "network_wake",
+        task_id: undefined,
+      },
+      task: null,
+    } as never);
+
+    renderRoute();
+
+    await waitFor(() => expect(screen.getByTestId("tasks-run-detail-content")).toBeInTheDocument());
+    expect(screen.getByTestId("task-run-detail-breadcrumb-taskless")).toHaveTextContent(
+      "Network wake"
+    );
+    expect(screen.queryByTestId("task-run-detail-breadcrumb-task")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("run_wake");
+    expect(getTask).not.toHaveBeenCalled();
   });
 
   it("renders a not-found state when the run cannot be fetched", async () => {

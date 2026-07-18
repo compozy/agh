@@ -166,7 +166,7 @@ func (g *GoalRepo) reserveGoalReentrySuccessor(
 		loopRunID:          string(current.state.LoopRunID),
 		idempotencyKey:     idempotencyKey,
 		origin:             oldRun.Origin,
-		requestedChannel:   oldRun.NetworkChannel,
+		networkSpec:        oldRun.NetworkSpecSnapshot(),
 		designationGroupID: oldRun.DesignationGroupID,
 		metadata:           successorMetadata,
 		queuedAt:           g.now(),

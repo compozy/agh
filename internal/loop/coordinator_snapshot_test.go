@@ -72,7 +72,7 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		}
 		runner, err := NewCoordinatorRunner(
 			&coordinatorRunnerTaskRunReader{run: coordinatorRun},
-			coordinatorRunnerLoopStore{
+			&coordinatorRunnerLoopStore{
 				run: run,
 				snapshot: &DefinitionSnapshot{
 					WorkspaceID: run.WorkspaceID,
@@ -110,6 +110,38 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		}
 		if _, err := LoadExecutedDefinitionSnapshot(snapshotJSON, "sha256:tampered"); err == nil {
 			t.Fatal("LoadExecutedDefinitionSnapshot(tampered digest) error = nil")
+		}
+	})
+
+	t.Run("Should hydrate a snapshot with omitted optional definition extensions", func(t *testing.T) {
+		t.Parallel()
+
+		definition := pinnedSnapshotDefinition()
+		definition.DefinitionExtensionState = nil
+		definition.Contract.StopWhen = ""
+		resolved, err := NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		snapshotJSON, digest, err := BuildExecutedDefinitionSnapshot(resolved, snapshotEffectiveConfig())
+		if err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+		}
+		hydrated, err := LoadExecutedDefinitionSnapshot(snapshotJSON, digest)
+		if err != nil {
+			t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+		}
+		if hydrated.Definition.DefinitionExtensionState == nil {
+			t.Fatal("hydrated definition extension state = nil, want normalized empty state")
+		}
+		if got := len(hydrated.Definition.Start); got != 0 {
+			t.Fatalf("hydrated start bindings = %d, want 0", got)
+		}
+		if got := len(hydrated.Templates); got != 0 {
+			t.Fatalf("hydrated templates = %d, want 0", got)
+		}
+		if got := len(hydrated.Conditions); got != 0 {
+			t.Fatalf("hydrated conditions = %d, want 0", got)
 		}
 	})
 
@@ -260,12 +292,14 @@ func pinnedSnapshotDefinition() dsl.Definition {
 		Inputs: map[string]dsl.Input{
 			"slug": {Type: dsl.InputTypeString, Required: true},
 		},
-		Start: []dsl.StartBinding{{
-			Kind: dsl.StartTrigger,
-			InputMapping: map[string]string{
-				"slug": "{{ .trigger.payload.slug }}",
-			},
-		}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{
+				Kind: dsl.StartTrigger,
+				InputMapping: map[string]string{
+					"slug": "{{ .trigger.payload.slug }}",
+				},
+			}},
+		},
 		Graph: dsl.Graph{Nodes: []dsl.Node{{
 			ID:       "slug_input",
 			Class:    dsl.NodeClassSource,

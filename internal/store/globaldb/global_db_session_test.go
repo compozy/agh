@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
 	"github.com/compozy/agh/internal/testutil"
@@ -25,6 +27,30 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		db := openScanSessionInfoDB(t)
 		subprocessStartedAt := time.Date(2026, 4, 3, 12, 3, 0, 0, time.UTC)
 		lastUpdateAt := time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)
+		liveSpec := participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     "ws-1",
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "builders",
+			Source:          participation.SourceExplicitRequest,
+			Bounds: participation.Bounds{
+				MaxWakes:         1,
+				MaxWakeWallTime:  "1m",
+				MaxTotalWallTime: "5m",
+				MaxInputTokens:   1024,
+				MaxOutputTokens:  512,
+				MaxWakeDepth:     1,
+				CoalesceWindow:   "500ms",
+			},
+		}
+		if err := participation.ValidateSpec(liveSpec); err != nil {
+			t.Fatalf("ValidateSpec() error = %v", err)
+		}
+		liveJSON, err := json.Marshal(liveSpec)
+		if err != nil {
+			t.Fatalf("json.Marshal(live spec) error = %v", err)
+		}
 		row := db.QueryRowContext(context.Background(), `
 		SELECT
 			'sess-scan',
@@ -32,7 +58,10 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'coder',
 			'claude',
 			'ws-1',
+			?,
+			'live',
 			'builders',
+			'explicit_request',
 			'user',
 			NULL,
 			NULL,
@@ -71,6 +100,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'sync failed',
 			?,
 			?`,
+			string(liveJSON),
 			formatTimestamp(subprocessStartedAt),
 			formatTimestamp(lastUpdateAt),
 			formatTimestamp(time.Date(2026, 4, 3, 12, 4, 30, 0, time.UTC)),
@@ -100,8 +130,8 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		if got, want := info.Provider, "claude"; got != want {
 			t.Fatalf("info.Provider = %q, want %q", got, want)
 		}
-		if got, want := info.Channel, "builders"; got != want {
-			t.Fatalf("info.Channel = %q, want %q", got, want)
+		if got, want := info.NetworkSpecSnapshot(), liveSpec; got != want {
+			t.Fatalf("info Network participation = %#v, want %#v", got, want)
 		}
 		if info.ACPSessionID == nil || *info.ACPSessionID != "acp-123" {
 			t.Fatalf("info.ACPSessionID = %#v, want acp-123", info.ACPSessionID)
@@ -163,7 +193,10 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'coder',
 			'',
 			'ws-1',
-			'',
+			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
+			'local',
+			NULL,
+			'built_in_local',
 			'user',
 			NULL,
 			NULL,
@@ -219,8 +252,8 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		if info.Provider != "" {
 			t.Fatalf("info.Provider = %q, want empty", info.Provider)
 		}
-		if info.Channel != "" {
-			t.Fatalf("info.Channel = %q, want empty", info.Channel)
+		if channel := info.NetworkSpecSnapshot().ChannelID; channel != "" {
+			t.Fatalf("info Network channel = %q, want empty", channel)
 		}
 		if info.ACPSessionID != nil {
 			t.Fatalf("info.ACPSessionID = %#v, want nil", info.ACPSessionID)
@@ -250,7 +283,10 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'coder',
 			'claude',
 			'ws-1',
-			'builders',
+			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
+			'local',
+			NULL,
+			'built_in_local',
 			'user',
 			NULL,
 			NULL,
@@ -317,7 +353,10 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'coder',
 			'claude',
 			'ws-1',
-			'builders',
+			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
+			'local',
+			NULL,
+			'built_in_local',
 			'user',
 			NULL,
 			NULL,
@@ -487,6 +526,73 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 	})
 }
 
+func TestGlobalDBRegisterSessionRejectsParticipationSnapshotChange(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"immutable-participation-workspace",
+		filepath.Join(t.TempDir(), "immutable-participation-workspace"),
+	)
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	session := store.SessionInfo{
+		ID:          "sess-immutable-participation",
+		Name:        "Immutable Participation",
+		AgentName:   "coder",
+		Provider:    "claude",
+		WorkspaceID: workspaceID,
+		SessionType: defaultSessionType,
+		State:       globalDBSessionStateActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	session.SetNetworkSpec(participation.LocalSpec())
+	if err := globalDB.RegisterSession(ctx, session); err != nil {
+		t.Fatalf("RegisterSession(Local) error = %v", err)
+	}
+
+	session.SetNetworkSpec(participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     workspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "immutable-builders",
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         4,
+			MaxWakeWallTime:  "30s",
+			MaxTotalWallTime: "2m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  4096,
+			MaxWakeDepth:     4,
+			CoalesceWindow:   "250ms",
+		},
+	})
+	session.State = globalDBSessionStateStopped
+	session.UpdatedAt = now.Add(time.Minute)
+	err := globalDB.RegisterSession(ctx, session)
+	if !errors.Is(err, store.ErrSessionParticipationMismatch) {
+		t.Fatalf("RegisterSession(Live refresh) error = %v, want participation mismatch", err)
+	}
+
+	stored, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: session.ID})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if len(stored) != 1 {
+		t.Fatalf("len(stored) = %d, want 1", len(stored))
+	}
+	if got, want := stored[0].NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
+		t.Fatalf("stored participation = %#v, want %#v", got, want)
+	}
+	if got, want := stored[0].State, globalDBSessionStateActive; got != want {
+		t.Fatalf("stored state = %q, want unchanged %q", got, want)
+	}
+}
+
 func TestGlobalDBDeleteSession(t *testing.T) {
 	t.Parallel()
 
@@ -530,10 +636,8 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 		prefixGlobalDB.initializeRepositories()
 		targetID := "sess-v2-upgrade-target"
 		survivorID := "sess-v2-upgrade-survivor"
-		registerSessionForGlobalTests(t, prefixGlobalDB, targetID)
-		registerSessionForGlobalTests(t, prefixGlobalDB, survivorID)
-		writeSessionDeleteDependents(t, prefixGlobalDB, targetID)
-		writeSessionDeleteDependents(t, prefixGlobalDB, survivorID)
+		seedSessionDeletePrefixRows(t, prefixGlobalDB, targetID)
+		seedSessionDeletePrefixRows(t, prefixGlobalDB, survivorID)
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("prefixDB.Close() error = %v", err)
 		}
@@ -555,9 +659,7 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(upgraded global DB) error = %v", err)
 		}
-		if status.Version != 7 || status.AppliedCount != 7 {
-			t.Fatalf("Status(upgraded global DB) = %#v, want version/applied count 7", status)
-		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
 
 		if err := globalDB.DeleteSession(ctx, targetID); err != nil {
 			t.Fatalf("DeleteSession(upgraded target) error = %v", err)
@@ -764,6 +866,60 @@ func writeSessionDeleteDependents(t *testing.T, globalDB *GlobalDB, sessionID st
 		Timestamp:  time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("WritePermissionLog() error = %v", err)
+	}
+}
+
+func seedSessionDeletePrefixRows(t *testing.T, globalDB *GlobalDB, sessionID string) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	now := store.FormatTimestamp(time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC))
+	workspaceID := sessionID + "-workspace"
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?)`,
+		workspaceID,
+		filepath.Join(t.TempDir(), sessionID),
+		workspaceID,
+		now,
+		now,
+	); err != nil {
+		t.Fatalf("seed v2 workspace %q: %v", workspaceID, err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO sessions (
+			id, agent_name, provider, workspace_id, state, created_at, updated_at
+		 ) VALUES (?, 'coder', 'claude', ?, 'active', ?, ?)`,
+		sessionID,
+		workspaceID,
+		now,
+		now,
+	); err != nil {
+		t.Fatalf("seed v2 session %q: %v", sessionID, err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO token_stats (
+			id, session_id, agent_name, input_tokens, turn_count, updated_at
+		 ) VALUES (?, ?, 'coder', 7, 1, ?)`,
+		"token-"+sessionID,
+		sessionID,
+		now,
+	); err != nil {
+		t.Fatalf("seed v2 token stats for %q: %v", sessionID, err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO permission_log (
+			id, session_id, agent_name, action, resource, decision, policy_used, timestamp
+		 ) VALUES (?, ?, 'coder', 'fs/read', 'README.md', 'allow', 'approve-reads', ?)`,
+		"perm-"+sessionID,
+		sessionID,
+		now,
+	); err != nil {
+		t.Fatalf("seed v2 permission log for %q: %v", sessionID, err)
 	}
 }
 

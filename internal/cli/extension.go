@@ -154,7 +154,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&sourceFilter, "from", "", "Only use one configured extension registry source")
-	cmd.Flags().StringVar(&version, daemonVersionKey, "", "Install a specific registry version")
+	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")
 	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
 	cmd.Flags().BoolVar(
 		&allowUnverified,
@@ -224,7 +224,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed marketplace extension")
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "Only check for updates without installing them")
-	cmd.Flags().StringVar(&version, daemonVersionKey, "", "Update to a specific registry version")
+	cmd.Flags().StringVar(&version, versionKey, "", "Update to a specific registry version")
 	cmd.Flags().BoolVar(
 		&allowUnverified,
 		"allow-unverified",
@@ -544,7 +544,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 		"Extensions",
 		[]string{
 			automationNameValue,
-			daemonVersionValue,
+			versionValue,
 			sessionTypeValue,
 			authoredContextStateValue,
 			authoredContextSourceValue,
@@ -554,7 +554,7 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 		"extensions",
 		[]string{
 			automationNameKey,
-			daemonVersionKey,
+			versionKey,
 			extensionTypeKey,
 			"state",
 			automationSourceKey,
@@ -592,7 +592,7 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Extension", []keyValue{
 				{Label: automationNameValue, Value: stringOrDash(item.Name)},
-				{Label: daemonVersionValue, Value: stringOrDash(item.Version)},
+				{Label: versionValue, Value: stringOrDash(item.Version)},
 				{Label: sessionTypeValue, Value: stringOrDash(item.Type)},
 				{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
 				{Label: extensionEnabledValue, Value: fmt.Sprintf("%t", item.Enabled)},
@@ -614,7 +614,7 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(extensionExtensionKey, []string{
 				automationNameKey,
-				daemonVersionKey,
+				versionKey,
 				extensionTypeKey,
 				automationSourceKey,
 				extensionEnabledKey,

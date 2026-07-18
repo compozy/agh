@@ -55,6 +55,18 @@ describe("TaskRunDetailHeader", () => {
     expect(screen.getByTestId("task-run-detail-meta")).toHaveTextContent("Session sess_jf8d21");
   });
 
+  it("Should fall back to the run task ID when the optional task projection is absent", () => {
+    render(
+      <TaskRunDetailHeader
+        run={{ ...buildRun(), task: undefined } as unknown as TaskRunDetailView}
+      />
+    );
+
+    const taskLink = screen.getByTestId("task-run-detail-breadcrumb-task");
+    expect(taskLink).toHaveTextContent("task_001");
+    expect(taskLink).toHaveAttribute("data-params", JSON.stringify({ id: "task_001" }));
+  });
+
   it("links to the session permalink when the run lacks hydrated agent metadata", () => {
     render(<TaskRunDetailHeader run={buildRun()} />);
     const link = screen.getByTestId("task-run-detail-open-session").closest("a");

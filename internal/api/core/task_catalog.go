@@ -23,20 +23,20 @@ func ParseTaskListQuery(c *gin.Context) (contract.TaskListQuery, error) {
 		return contract.TaskListQuery{}, NewTaskValidationError(err)
 	}
 	query := contract.TaskListQuery{
-		Scope:          taskpkg.CatalogScope(c.Query("scope")).Normalize(),
-		Workspace:      strings.TrimSpace(c.Query("workspace")),
-		Status:         taskpkg.Status(c.Query("status")).Normalize(),
-		Priority:       taskpkg.Priority(c.Query("priority")).Normalize(),
-		IncludeDrafts:  includeDrafts,
-		ApprovalState:  taskpkg.ApprovalState(c.Query("approval_state")).Normalize(),
-		OwnerKind:      taskpkg.OwnerKind(c.Query("owner_kind")).Normalize(),
-		OwnerRef:       strings.TrimSpace(c.Query("owner_ref")),
-		ParentTaskID:   strings.TrimSpace(c.Query("parent_task_id")),
-		NetworkChannel: strings.TrimSpace(c.Query("network_channel")),
-		Query:          strings.TrimSpace(c.Query("query")),
-		Sort:           taskpkg.CatalogSort(c.Query("sort")).Normalize(),
-		Cursor:         strings.TrimSpace(c.Query("cursor")),
-		Limit:          limit,
+		Scope:                taskpkg.CatalogScope(c.Query("scope")).Normalize(),
+		Workspace:            strings.TrimSpace(c.Query("workspace")),
+		Status:               taskpkg.Status(c.Query("status")).Normalize(),
+		Priority:             taskpkg.Priority(c.Query("priority")).Normalize(),
+		IncludeDrafts:        includeDrafts,
+		ApprovalState:        taskpkg.ApprovalState(c.Query("approval_state")).Normalize(),
+		OwnerKind:            taskpkg.OwnerKind(c.Query("owner_kind")).Normalize(),
+		OwnerRef:             strings.TrimSpace(c.Query("owner_ref")),
+		ParentTaskID:         strings.TrimSpace(c.Query("parent_task_id")),
+		ParticipationChannel: strings.TrimSpace(c.Query("participation_channel")),
+		Query:                strings.TrimSpace(c.Query("query")),
+		Sort:                 taskpkg.CatalogSort(c.Query("sort")).Normalize(),
+		Cursor:               strings.TrimSpace(c.Query("cursor")),
+		Limit:                limit,
 	}
 	if err := contract.ValidateTaskListQuery(query, "task_query"); err != nil {
 		return contract.TaskListQuery{}, NewTaskValidationError(err)
@@ -78,19 +78,19 @@ func (h *BaseHandlers) taskListDomainQuery(
 	query contract.TaskListQuery,
 ) (taskpkg.CatalogQuery, error) {
 	domainQuery := taskpkg.CatalogQuery{
-		Scope:          query.Scope,
-		Status:         query.Status,
-		Priority:       query.Priority,
-		IncludeDrafts:  query.IncludeDrafts,
-		ApprovalState:  query.ApprovalState,
-		OwnerKind:      query.OwnerKind,
-		OwnerRef:       query.OwnerRef,
-		ParentTaskID:   query.ParentTaskID,
-		NetworkChannel: query.NetworkChannel,
-		Search:         query.Query,
-		Sort:           query.Sort,
-		Cursor:         query.Cursor,
-		Limit:          query.Limit,
+		Scope:                query.Scope,
+		Status:               query.Status,
+		Priority:             query.Priority,
+		IncludeDrafts:        query.IncludeDrafts,
+		ApprovalState:        query.ApprovalState,
+		OwnerKind:            query.OwnerKind,
+		OwnerRef:             query.OwnerRef,
+		ParentTaskID:         query.ParentTaskID,
+		ParticipationChannel: query.ParticipationChannel,
+		Search:               query.Query,
+		Sort:                 query.Sort,
+		Cursor:               query.Cursor,
+		Limit:                query.Limit,
 	}
 	if err := h.resolveTaskCatalogWorkspace(
 		ctx,
@@ -100,7 +100,10 @@ func (h *BaseHandlers) taskListDomainQuery(
 	); err != nil {
 		return taskpkg.CatalogQuery{}, err
 	}
-	if err := validateTaskChannel("task_query.network_channel", domainQuery.NetworkChannel); err != nil {
+	if err := validateParticipationChannel(
+		"task_query.participation_channel",
+		domainQuery.ParticipationChannel,
+	); err != nil {
 		return taskpkg.CatalogQuery{}, err
 	}
 	return taskpkg.NormalizeCatalogQuery(domainQuery)

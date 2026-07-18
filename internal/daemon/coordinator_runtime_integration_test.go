@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
@@ -35,8 +35,8 @@ func TestCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) 
 	if err != nil {
 		t.Fatalf("StartTask(first) error = %v", err)
 	}
-	if execution.Run.CoordinationChannelID == "" {
-		t.Fatal("StartTask(first) CoordinationChannelID is empty")
+	if got, want := execution.Run.NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
+		t.Fatalf("StartTask(first) participation = %#v, want %#v", got, want)
 	}
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count after first start = %d, want 1", got)
@@ -132,7 +132,6 @@ func newCoordinatorTaskManagerIntegration(
 	manager, err := taskpkg.NewManager(
 		taskpkg.WithStore(db),
 		taskpkg.WithTaskRunHooks(notifier),
-		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithManagerNow(func() time.Time { return now }),
 	)
 	if err != nil {
@@ -151,6 +150,7 @@ func coordinatorTaskActor() taskpkg.ActorContext {
 			Kind: taskpkg.OriginKindCLI,
 			Ref:  "integration",
 		},
+		Scope:     taskpkg.CallerScope{Operator: true},
 		Authority: taskpkg.FullAccessAuthority(),
 	}
 }
@@ -173,16 +173,16 @@ func (s *coordinatorRuntimeSessionsWithRuntime) stopCoordinatorForTest(
 		}
 		info.State = session.StateStopped
 		return &session.Session{
-			ID:          info.ID,
-			Name:        info.Name,
-			AgentName:   info.AgentName,
-			Provider:    info.Provider,
-			WorkspaceID: info.WorkspaceID,
-			Workspace:   info.Workspace,
-			Channel:     info.Channel,
-			Type:        info.Type,
-			Lineage:     info.Lineage,
-			State:       session.StateStopped,
+			ID:                   info.ID,
+			Name:                 info.Name,
+			AgentName:            info.AgentName,
+			Provider:             info.Provider,
+			WorkspaceID:          info.WorkspaceID,
+			Workspace:            info.Workspace,
+			NetworkParticipation: info.NetworkParticipation,
+			Type:                 info.Type,
+			Lineage:              info.Lineage,
+			State:                session.StateStopped,
 		}
 	}
 	t.Fatalf("coordinator session %q not found", id)

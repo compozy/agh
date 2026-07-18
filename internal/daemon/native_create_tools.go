@@ -83,7 +83,7 @@ func (n *daemonNativeTools) networkChannelCreate(
 		CoordinatorPeerID: coordinatorPeerID,
 		CreatedBy:         strings.TrimSpace(scope.AgentName),
 	}
-	if err := n.deps.NetworkStore.WriteNetworkChannel(ctx, entry); err != nil {
+	if err := n.deps.NetworkStore.CreateNetworkChannel(ctx, entry); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
 	return structuredNetworkResult(

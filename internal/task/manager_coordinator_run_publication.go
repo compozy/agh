@@ -31,12 +31,10 @@ func (m *Service) publishCoordinatorEnqueuedRuns(
 			taskEventRunEnqueued,
 			actor,
 			runEnqueuedPayload{
-				Attempt:               int(run.Attempt),
-				Status:                run.Status,
-				TaskStatus:            task.Status,
-				NetworkChannel:        run.NetworkChannel,
-				CoordinationChannelID: run.CoordinationChannelID,
-				IdempotencyKey:        run.IdempotencyKey,
+				Attempt:        int(run.Attempt),
+				Status:         run.Status,
+				TaskStatus:     task.Status,
+				IdempotencyKey: run.IdempotencyKey,
 			},
 		); err != nil {
 			publicationErrs = append(publicationErrs, err)

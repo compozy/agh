@@ -105,12 +105,24 @@ export const handlers: HttpHandler[] = [
     if (!activation) {
       return HttpResponse.json({ error: `Bundle activation not found: ${id}` }, { status: 404 });
     }
-    const body = (await request.json()) as { bind_primary_channel_as_default: boolean };
+    const body = (await request.json()) as {
+      confirm_network_requirement?: boolean;
+      expected_version?: number;
+    };
+    if (body.expected_version !== activation.version) {
+      return HttpResponse.json({ error: "Bundle activation version conflict" }, { status: 409 });
+    }
     const updated = {
       ...activation,
-      bind_primary_channel_as_default: body.bind_primary_channel_as_default,
+      network_requirement_confirmed_at: body.confirm_network_requirement
+        ? "2026-07-14T18:00:00Z"
+        : activation.network_requirement_confirmed_at,
+      network_requirement_confirmed_by: body.confirm_network_requirement
+        ? "operator"
+        : activation.network_requirement_confirmed_by,
       spec_drift: false,
       updated_at: "2026-07-14T18:00:00Z",
+      version: activation.version + 1,
     };
     bundleActivationsState = bundleActivationsState.map(item => (item.id === id ? updated : item));
     return HttpResponse.json({ activation: updated });

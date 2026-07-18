@@ -166,10 +166,10 @@ func TestManagerIntegrationCapabilityAwareJoinCarriesCatalogAcrossCreateResumeAn
 	})
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -261,10 +261,10 @@ func TestManagerIntegrationCapabilityAwareJoinKeepsMissingCatalogProjectionEmpty
 	h.manager.SetNetworkPeerLifecycle(lifecycle)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -333,10 +333,10 @@ func TestManagerIntegrationCapabilityProjectionDoesNotAliasSourceCatalog(t *test
 	})
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -424,7 +424,7 @@ func TestManagerIntegrationUsesRealSQLitePerSessionDB(t *testing.T) {
 func TestManagerIntegrationSyntheticPromptPersistsDedicatedEventsWithMixedHistory(t *testing.T) {
 	h := newHarness(t)
 
-	session := createSession(t, h)
+	session := createLiveNetworkSession(t, h)
 	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
 	if err != nil {
 		t.Fatalf("Prompt(user) error = %v", err)
@@ -784,10 +784,10 @@ func TestManagerIntegrationResumeWithChannelReinjectsBundledNetworkSkillBeforeAC
 	networkSkill = strings.TrimSpace(networkSkill)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)

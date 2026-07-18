@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/agh/internal/resources"
 
@@ -33,11 +34,13 @@ type BundleResourceSpec struct {
 
 // ActivationResourceSpec is the canonical desired-state payload for bundle activation records.
 type ActivationResourceSpec struct {
-	ExtensionName               string `json:"extension_name"`
-	BundleName                  string `json:"bundle_name"`
-	ProfileName                 string `json:"profile_name"`
-	SpecContentHash             string `json:"spec_content_hash,omitempty"`
-	BindPrimaryChannelAsDefault bool   `json:"bind_primary_channel_default"`
+	ExtensionName            string `json:"extension_name"`
+	BundleName               string `json:"bundle_name"`
+	ProfileName              string `json:"profile_name"`
+	SpecContentHash          string `json:"spec_content_hash,omitempty"`
+	NetworkRequirementDigest string `json:"network_requirement_digest,omitempty"`
+	ConfirmedBy              string `json:"confirmed_by,omitempty"`
+	ConfirmedAt              string `json:"confirmed_at,omitempty"`
 }
 
 // NewBundleResourceCodec builds the typed codec for bundle records.
@@ -125,7 +128,35 @@ func validateActivationResourceSpec(
 	if strings.TrimSpace(next.ProfileName) == "" {
 		return ActivationResourceSpec{}, errors.New("bundles: activation profile_name is required")
 	}
+	if err := validateNetworkRequirementConfirmation(next); err != nil {
+		return ActivationResourceSpec{}, err
+	}
 	return next, nil
+}
+
+func validateNetworkRequirementConfirmation(spec ActivationResourceSpec) error {
+	digest := strings.TrimSpace(spec.NetworkRequirementDigest)
+	confirmedBy := strings.TrimSpace(spec.ConfirmedBy)
+	confirmedAt := strings.TrimSpace(spec.ConfirmedAt)
+	if digest == "" {
+		if confirmedBy != "" || confirmedAt != "" {
+			return errors.New("bundles: activation confirmation requires a network requirement digest")
+		}
+		return nil
+	}
+	if (confirmedBy == "") != (confirmedAt == "") {
+		return errors.New("bundles: activation confirmation actor and time must be provided together")
+	}
+	if confirmedBy == "" {
+		return nil
+	}
+	if confirmedBy != networkRequirementConfirmedByOperator {
+		return errors.New("bundles: activation confirmation actor is invalid")
+	}
+	if _, err := time.Parse(time.RFC3339Nano, confirmedAt); err != nil {
+		return fmt.Errorf("bundles: activation confirmation time is invalid: %w", err)
+	}
+	return nil
 }
 
 func normalizeBundleResourceSpec(spec BundleResourceSpec) BundleResourceSpec {
@@ -140,21 +171,25 @@ func normalizeBundleResourceSpec(spec BundleResourceSpec) BundleResourceSpec {
 
 func normalizeActivationResourceSpec(spec ActivationResourceSpec) ActivationResourceSpec {
 	return ActivationResourceSpec{
-		ExtensionName:               strings.TrimSpace(spec.ExtensionName),
-		BundleName:                  strings.TrimSpace(spec.BundleName),
-		ProfileName:                 strings.TrimSpace(spec.ProfileName),
-		SpecContentHash:             strings.TrimSpace(spec.SpecContentHash),
-		BindPrimaryChannelAsDefault: spec.BindPrimaryChannelAsDefault,
+		ExtensionName:            strings.TrimSpace(spec.ExtensionName),
+		BundleName:               strings.TrimSpace(spec.BundleName),
+		ProfileName:              strings.TrimSpace(spec.ProfileName),
+		SpecContentHash:          strings.TrimSpace(spec.SpecContentHash),
+		NetworkRequirementDigest: strings.TrimSpace(spec.NetworkRequirementDigest),
+		ConfirmedBy:              strings.TrimSpace(spec.ConfirmedBy),
+		ConfirmedAt:              strings.TrimSpace(spec.ConfirmedAt),
 	}
 }
 
 func activationResourceSpecFromActivation(activation Activation) ActivationResourceSpec {
 	return ActivationResourceSpec{
-		ExtensionName:               strings.TrimSpace(activation.ExtensionName),
-		BundleName:                  strings.TrimSpace(activation.BundleName),
-		ProfileName:                 strings.TrimSpace(activation.ProfileName),
-		SpecContentHash:             strings.TrimSpace(activation.SpecContentHash),
-		BindPrimaryChannelAsDefault: activation.BindPrimaryChannelAsDefault,
+		ExtensionName:            strings.TrimSpace(activation.ExtensionName),
+		BundleName:               strings.TrimSpace(activation.BundleName),
+		ProfileName:              strings.TrimSpace(activation.ProfileName),
+		SpecContentHash:          strings.TrimSpace(activation.SpecContentHash),
+		NetworkRequirementDigest: strings.TrimSpace(activation.NetworkRequirementDigest),
+		ConfirmedBy:              strings.TrimSpace(activation.ConfirmedBy),
+		ConfirmedAt:              strings.TrimSpace(activation.ConfirmedAt),
 	}
 }
 
@@ -166,16 +201,19 @@ func activationFromResourceRecord(record resources.Record[ActivationResourceSpec
 		workspaceID = strings.TrimSpace(record.Scope.ID)
 	}
 	return Activation{
-		ID:                          strings.TrimSpace(record.ID),
-		ExtensionName:               strings.TrimSpace(record.Spec.ExtensionName),
-		BundleName:                  strings.TrimSpace(record.Spec.BundleName),
-		ProfileName:                 strings.TrimSpace(record.Spec.ProfileName),
-		Scope:                       scope,
-		WorkspaceID:                 workspaceID,
-		SpecContentHash:             strings.TrimSpace(record.Spec.SpecContentHash),
-		BindPrimaryChannelAsDefault: record.Spec.BindPrimaryChannelAsDefault,
-		CreatedAt:                   record.CreatedAt,
-		UpdatedAt:                   record.UpdatedAt,
+		ID:                       strings.TrimSpace(record.ID),
+		Version:                  record.Version,
+		ExtensionName:            strings.TrimSpace(record.Spec.ExtensionName),
+		BundleName:               strings.TrimSpace(record.Spec.BundleName),
+		ProfileName:              strings.TrimSpace(record.Spec.ProfileName),
+		Scope:                    scope,
+		WorkspaceID:              workspaceID,
+		SpecContentHash:          strings.TrimSpace(record.Spec.SpecContentHash),
+		NetworkRequirementDigest: strings.TrimSpace(record.Spec.NetworkRequirementDigest),
+		ConfirmedBy:              strings.TrimSpace(record.Spec.ConfirmedBy),
+		ConfirmedAt:              strings.TrimSpace(record.Spec.ConfirmedAt),
+		CreatedAt:                record.CreatedAt,
+		UpdatedAt:                record.UpdatedAt,
 	}
 }
 

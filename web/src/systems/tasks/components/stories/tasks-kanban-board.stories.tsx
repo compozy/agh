@@ -44,7 +44,7 @@ const KANBAN_TASKS: TaskListItem[] = [
     id: "task_k2",
     identifier: "TASK-12",
     status: "blocked",
-    title: "Await NATS config review",
+    title: "Await Live bounds review",
     active_run: null,
   }),
   buildTaskFixture({

@@ -14,6 +14,7 @@ import (
 
 type normalizedNeedsAttentionClear struct {
 	taskID    string
+	note      string
 	clearedAt time.Time
 	actor     taskpkg.ActorContext
 }
@@ -60,7 +61,11 @@ func (g *TaskRepo) ClearTaskNeedsAttention(
 			string(hookspkg.HookTaskRecovered),
 			normalized.actor,
 			normalized.clearedAt,
-			taskRecoveredWatchEventPayload{At: normalized.clearedAt},
+			taskRecoveredWatchEventPayload{
+				Status: taskpkg.TaskStatusReady,
+				Note:   normalized.note,
+				At:     normalized.clearedAt,
+			},
 		)
 		if err != nil {
 			return err
@@ -89,20 +94,26 @@ func normalizeNeedsAttentionClear(
 	if clearedAt.IsZero() {
 		clearedAt = now.UTC()
 	}
-	actor := taskpkg.ActorContext{
-		Actor:     mutation.ClearedBy,
-		Origin:    mutation.Origin,
-		Authority: taskpkg.Authority{Write: true},
-	}
+	actor := mutation.Actor
 	actor.Actor.Kind = actor.Actor.Kind.Normalize()
 	actor.Actor.Ref = strings.TrimSpace(actor.Actor.Ref)
 	actor.Origin.Kind = actor.Origin.Kind.Normalize()
 	actor.Origin.Ref = strings.TrimSpace(actor.Origin.Ref)
-	if err := actor.Actor.Validate("task.needs_attention_cleared_by"); err != nil {
+	actor.Scope.SessionID = strings.TrimSpace(actor.Scope.SessionID)
+	actor.Scope.WorkspaceID = strings.TrimSpace(actor.Scope.WorkspaceID)
+	if err := actor.Validate(); err != nil {
 		return normalizedNeedsAttentionClear{}, err
 	}
-	if err := actor.Origin.Validate("task.needs_attention_clear_origin"); err != nil {
-		return normalizedNeedsAttentionClear{}, err
+	if !actor.Authority.Write {
+		return normalizedNeedsAttentionClear{}, fmt.Errorf(
+			"%w: task needs-attention clear requires write authority",
+			taskpkg.ErrPermissionDenied,
+		)
 	}
-	return normalizedNeedsAttentionClear{taskID: taskID, clearedAt: clearedAt, actor: actor}, nil
+	return normalizedNeedsAttentionClear{
+		taskID:    taskID,
+		note:      strings.TrimSpace(mutation.Note),
+		clearedAt: clearedAt,
+		actor:     actor,
+	}, nil
 }

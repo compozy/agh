@@ -20,7 +20,7 @@ import type {
 import { NetworkApiError } from "./network-api-error";
 
 export interface NetworkSubscriptionsListQuery {
-  peer_id?: string;
+  session_id?: string;
   thread_id?: string;
 }
 

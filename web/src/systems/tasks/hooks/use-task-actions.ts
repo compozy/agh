@@ -7,7 +7,6 @@ import {
   attachTaskRunSession,
   cancelTask,
   cancelTaskRun,
-  claimTaskRun,
   completeTaskRun,
   createChildTask,
   createTask,
@@ -40,7 +39,6 @@ import type {
   AttachTaskRunSessionRequest,
   CancelTaskRequest,
   CancelTaskRunRequest,
-  ClaimTaskRunRequest,
   CompleteTaskRunRequest,
   CreateChildTaskRequest,
   CreateTaskRequest,
@@ -112,10 +110,6 @@ interface AttachTaskRunSessionParams extends TaskRunIdParams {
 
 interface CancelTaskRunParams extends TaskRunIdParams {
   data?: CancelTaskRunRequest;
-}
-
-interface ClaimTaskRunParams extends TaskRunIdParams {
-  data?: ClaimTaskRunRequest;
 }
 
 interface StartTaskRunParams extends TaskRunIdParams {
@@ -361,19 +355,6 @@ export function useCancelTaskRun() {
         queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
         invalidateTaskQueries(queryClient),
         invalidateAggregateQueries(queryClient),
-      ]),
-  });
-}
-
-export function useClaimTaskRun() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ runId, data }: ClaimTaskRunParams) => claimTaskRun(runId, data ?? {}),
-    onSettled: (_result, _error, { runId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
-        invalidateTaskQueries(queryClient),
       ]),
   });
 }

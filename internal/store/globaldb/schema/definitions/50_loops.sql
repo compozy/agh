@@ -303,7 +303,13 @@ CREATE TABLE loop_runs (
 				CHECK (goal_context_nudge_ratio >= 0.0 AND goal_context_nudge_ratio <= 1.0), control_actor_kind TEXT, control_actor_id TEXT, control_requested_at TIMESTAMP, origin_creation_profile_ref TEXT
 				CHECK (origin_creation_profile_ref IS NULL OR length(trim(origin_creation_profile_ref)) > 0), origin_policy_spec_digest TEXT
 				CHECK (origin_policy_spec_digest IS NULL OR length(trim(origin_policy_spec_digest)) > 0), origin_creation_digest TEXT
-				CHECK (origin_creation_digest IS NULL OR length(trim(origin_creation_digest)) > 0));
+				CHECK (origin_creation_digest IS NULL OR length(trim(origin_creation_digest)) > 0), network_spec_json TEXT NOT NULL DEFAULT '{"version":"network-participation/v1","mode":"local","source":"built_in_local"}'
+				CHECK (json_valid(network_spec_json)), network_mode TEXT NOT NULL DEFAULT 'local'
+				CHECK (network_mode IN ('local', 'live')), network_channel TEXT, network_source TEXT NOT NULL DEFAULT 'built_in_local'
+				CHECK (network_source IN (
+					'explicit_request', 'task_profile', 'workspace_coordination',
+					'loop_definition', 'automation_job', 'built_in_local'
+				)));
 
 CREATE TABLE loop_session_bindings (
 	loop_run_id       TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,

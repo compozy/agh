@@ -25,6 +25,7 @@ type daemonNativeToolsDeps struct {
 	Settings                   func() core.SettingsService
 	Network                    core.NetworkService
 	NetworkStore               core.NetworkStore
+	NetworkUsage               store.NetworkUsageStore
 	Tasks                      taskpkg.Manager
 	MemoryStore                *memorypkg.Store
 	MemoryToolWrites           memoryToolWriteRecorder

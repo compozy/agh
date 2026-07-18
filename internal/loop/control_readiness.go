@@ -2,6 +2,7 @@ package loop
 
 import (
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/task"
 )
 
@@ -231,12 +232,13 @@ func appendReadyNodeRunsControlAware(
 			outputs[idx] = output
 		}
 		plan.NodeRuns = append(plan.NodeRuns, task.EnqueueSpec{
-			TaskID:         coordinatorNodeTaskID(run.ID, generation, node.ID, output.ItemIndex),
-			RunID:          runID,
-			RunKind:        task.RunKindWorker,
-			LoopRunID:      string(run.ID),
-			IdempotencyKey: idempotencyKey,
-			Metadata:       metadata,
+			TaskID:                       coordinatorNodeTaskID(run.ID, generation, node.ID, output.ItemIndex),
+			RunID:                        runID,
+			RunKind:                      task.RunKindWorker,
+			LoopRunID:                    string(run.ID),
+			IdempotencyKey:               idempotencyKey,
+			ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+			Metadata:                     metadata,
 		})
 	}
 	return nil

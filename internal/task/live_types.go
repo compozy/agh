@@ -34,6 +34,7 @@ type EventRecordQuery struct {
 	AfterSequence int64  `json:"after_sequence,omitempty"`
 	Limit         int    `json:"limit,omitempty"`
 	Descending    bool   `json:"descending,omitempty"`
+	AllTasks      bool   `json:"-"`
 }
 
 // EventRecord is one immutable task event plus its stable stream sequence.
@@ -83,10 +84,10 @@ type TreeNode struct {
 	LastActivityAt time.Time   `json:"last_activity_at"`
 }
 
-// RunDetailView is the task-owned run detail payload for task run deep links.
+// RunDetailView is one run detail payload with an optional task anchor.
 type RunDetailView struct {
 	Run     Run                   `json:"run"`
-	Task    Reference             `json:"task"`
+	Task    *Reference            `json:"task,omitempty"`
 	Session *RunSessionRef        `json:"session,omitempty"`
 	Summary RunOperationalSummary `json:"summary"`
 }
@@ -97,7 +98,6 @@ type RunSessionRef struct {
 	WorkspaceID string    `json:"workspace_id,omitempty"`
 	AgentName   string    `json:"agent_name,omitempty"`
 	Name        string    `json:"name,omitempty"`
-	Channel     string    `json:"channel,omitempty"`
 	State       string    `json:"state,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

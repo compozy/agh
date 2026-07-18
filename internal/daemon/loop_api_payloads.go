@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func loopDefinitionPayload(
@@ -90,33 +91,34 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		return contract.LoopRunPayload{}, err
 	}
 	return contract.LoopRunPayload{
-		ID:                  string(run.ID),
-		WorkspaceID:         string(run.WorkspaceID),
-		LoopName:            run.LoopName,
-		Status:              contract.LoopRunStatus(run.Status),
-		Generation:          run.Generation,
-		ReattemptStrategy:   contract.LoopReattemptStrategy(run.ReattemptStrategy),
-		CreatedAt:           run.CreatedAt,
-		StartedAt:           run.StartedAt,
-		LastProgressAt:      run.LastProgressAt,
-		StartedByKind:       string(run.StartedBy.Kind),
-		StartedByRef:        run.StartedBy.Ref,
-		StartedOriginKind:   string(run.StartedOrigin.Kind),
-		StartedOriginRef:    run.StartedOrigin.Ref,
-		DefinitionVersion:   run.DefinitionVersion,
-		DefinitionDigest:    run.DefinitionDigest,
-		ActiveGateID:        string(run.ActiveGateID),
-		BudgetApprovalSeq:   run.BudgetApprovalSeq,
-		StartMetadata:       startMetadata,
-		ConsecutiveFailures: run.ConsecutiveFailures,
-		IterationCap:        run.IterationCap,
-		BudgetTokens:        run.BudgetTokens,
-		BudgetWallSec:       run.BudgetWallSec,
-		BudgetOnExceeded:    contract.LoopBudgetExceeded(run.BudgetOnExceeded),
-		TokensUsed:          run.TokensUsed,
-		ParentLoopRunID:     string(run.ParentLoopRunID),
-		PauseRequested:      run.PauseRequested,
-		Inputs:              inputs,
+		ID:                           string(run.ID),
+		WorkspaceID:                  string(run.WorkspaceID),
+		LoopName:                     run.LoopName,
+		Status:                       contract.LoopRunStatus(run.Status),
+		Generation:                   run.Generation,
+		ReattemptStrategy:            contract.LoopReattemptStrategy(run.ReattemptStrategy),
+		CreatedAt:                    run.CreatedAt,
+		StartedAt:                    run.StartedAt,
+		LastProgressAt:               run.LastProgressAt,
+		StartedByKind:                string(run.StartedBy.Kind),
+		StartedByRef:                 run.StartedBy.Ref,
+		StartedOriginKind:            string(run.StartedOrigin.Kind),
+		StartedOriginRef:             run.StartedOrigin.Ref,
+		DefinitionVersion:            run.DefinitionVersion,
+		DefinitionDigest:             run.DefinitionDigest,
+		ActiveGateID:                 string(run.ActiveGateID),
+		BudgetApprovalSeq:            run.BudgetApprovalSeq,
+		StartMetadata:                startMetadata,
+		ConsecutiveFailures:          run.ConsecutiveFailures,
+		IterationCap:                 run.IterationCap,
+		BudgetTokens:                 run.BudgetTokens,
+		BudgetWallSec:                run.BudgetWallSec,
+		BudgetOnExceeded:             contract.LoopBudgetExceeded(run.BudgetOnExceeded),
+		TokensUsed:                   run.TokensUsed,
+		ParentLoopRunID:              string(run.ParentLoopRunID),
+		PauseRequested:               run.PauseRequested,
+		Inputs:                       inputs,
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
 	}, nil
 }
 

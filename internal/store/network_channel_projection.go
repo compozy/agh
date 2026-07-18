@@ -75,6 +75,6 @@ type NetworkRecentSummary struct {
 	LastMessagePreview   string
 	Title                string
 	ParticipantCount     int
-	PeerA                string
-	PeerB                string
+	SessionA             string
+	SessionB             string
 }

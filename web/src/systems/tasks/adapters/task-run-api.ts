@@ -8,7 +8,6 @@ import {
 import type {
   AttachTaskRunSessionRequest,
   CancelTaskRunRequest,
-  ClaimTaskRunRequest,
   CompleteTaskRunRequest,
   FailTaskRunRequest,
   ForceFailTaskRunRequest,
@@ -68,14 +67,6 @@ export async function cancelTaskRun(
   signal?: AbortSignal
 ): Promise<TaskRun> {
   return mutateRun("/api/task-runs/{id}/cancel", id, body, "cancel", signal);
-}
-
-export async function claimTaskRun(
-  id: string,
-  body: ClaimTaskRunRequest = {},
-  signal?: AbortSignal
-): Promise<TaskRun> {
-  return mutateRun("/api/task-runs/{id}/claim", id, body, "claim", signal);
 }
 
 export async function startTaskRun(
@@ -161,7 +152,6 @@ export async function retryTaskRun(
 type TaskRunMutationPath =
   | "/api/task-runs/{id}/attach-session"
   | "/api/task-runs/{id}/cancel"
-  | "/api/task-runs/{id}/claim"
   | "/api/task-runs/{id}/start"
   | "/api/task-runs/{id}/complete"
   | "/api/task-runs/{id}/fail"
@@ -171,7 +161,6 @@ type TaskRunMutationPath =
 type TaskRunMutationBody =
   | AttachTaskRunSessionRequest
   | CancelTaskRunRequest
-  | ClaimTaskRunRequest
   | StartTaskRunRequest
   | CompleteTaskRunRequest
   | FailTaskRunRequest

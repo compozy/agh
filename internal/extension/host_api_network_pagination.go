@@ -2,21 +2,27 @@ package extensionpkg
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	apicontract "github.com/compozy/agh/internal/api/contract"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/store"
 )
 
-func hostAPINetworkThreadQuery(params extensioncontract.NetworkThreadsParams) (store.NetworkThreadQuery, error) {
+func hostAPINetworkThreadQuery(
+	params extensioncontract.NetworkThreadsParams,
+	sessionID string,
+) (store.NetworkThreadQuery, error) {
 	query := store.NetworkThreadQuery{
-		Search:  strings.TrimSpace(params.Query),
-		PeerID:  strings.TrimSpace(params.PeerID),
-		Sort:    strings.TrimSpace(params.Sort),
-		HasWork: params.HasWork,
-		Limit:   params.Limit,
-		After:   strings.TrimSpace(params.After),
+		Search:    strings.TrimSpace(params.Query),
+		SessionID: strings.TrimSpace(sessionID),
+		Sort:      strings.TrimSpace(params.Sort),
+		HasWork:   params.HasWork,
+		Limit:     params.Limit,
+		After:     strings.TrimSpace(params.After),
 	}
 	if err := query.Validate(); err != nil {
 		return store.NetworkThreadQuery{}, invalidParamsRPCError(err)
@@ -26,19 +32,155 @@ func hostAPINetworkThreadQuery(params extensioncontract.NetworkThreadsParams) (s
 
 func hostAPINetworkDirectRoomQuery(
 	params extensioncontract.NetworkDirectsParams,
+	sessionID string,
 ) (store.NetworkDirectRoomQuery, error) {
 	query := store.NetworkDirectRoomQuery{
-		Search:  strings.TrimSpace(params.Query),
-		PeerID:  strings.TrimSpace(params.PeerID),
-		Sort:    strings.TrimSpace(params.Sort),
-		HasWork: params.HasWork,
-		Limit:   params.Limit,
-		After:   strings.TrimSpace(params.After),
+		Search:    strings.TrimSpace(params.Query),
+		SessionID: strings.TrimSpace(sessionID),
+		Sort:      strings.TrimSpace(params.Sort),
+		HasWork:   params.HasWork,
+		Limit:     params.Limit,
+		After:     strings.TrimSpace(params.After),
 	}
 	if err := query.Validate(); err != nil {
 		return store.NetworkDirectRoomQuery{}, invalidParamsRPCError(err)
 	}
 	return query, nil
+}
+
+func (h *HostAPIHandler) handleNetworkThreads(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params extensioncontract.NetworkThreadsParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	networkStore, err := h.requireHostAPINetworkStore()
+	if err != nil {
+		return nil, err
+	}
+	channel, err := hostAPINetworkChannel(params.Channel)
+	if err != nil {
+		return nil, err
+	}
+	workspaceID, err := h.hostAPINetworkWorkspaceID(ctx, params.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	sessionID, err := h.resolveHostAPINetworkPeerSessionID(
+		ctx,
+		workspaceID,
+		channel,
+		params.PeerID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	query, err := hostAPINetworkThreadQuery(params, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	page, err := networkStore.ListThreads(
+		ctx,
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
+		query,
+	)
+	if err != nil {
+		return nil, mapHostAPINetworkRPCError(err)
+	}
+	return apicontract.NetworkThreadsResponse{
+		Threads: hostAPINetworkThreadSummaryPayloads(page.Threads),
+		Page: apicontract.CountedCursorPagePayload{
+			NextCursor: page.NextCursor,
+			HasMore:    page.HasMore,
+			Total:      page.Total,
+			Limit:      page.Limit,
+		},
+	}, nil
+}
+
+func (h *HostAPIHandler) handleNetworkDirects(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params extensioncontract.NetworkDirectsParams
+	if err := decodeHostAPIParams(raw, &params); err != nil {
+		return nil, err
+	}
+	networkStore, err := h.requireHostAPINetworkStore()
+	if err != nil {
+		return nil, err
+	}
+	channel, err := hostAPINetworkChannel(params.Channel)
+	if err != nil {
+		return nil, err
+	}
+	workspaceID, err := h.hostAPINetworkWorkspaceID(ctx, params.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	sessionID, err := h.resolveHostAPINetworkPeerSessionID(
+		ctx,
+		workspaceID,
+		channel,
+		params.PeerID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	query, err := hostAPINetworkDirectRoomQuery(params, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	page, err := networkStore.ListDirectRooms(
+		ctx,
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
+		query,
+	)
+	if err != nil {
+		return nil, mapHostAPINetworkRPCError(err)
+	}
+	return apicontract.NetworkDirectRoomsResponse{
+		Directs: hostAPINetworkDirectRoomPayloads(page.Directs),
+		Page: apicontract.CountedCursorPagePayload{
+			NextCursor: page.NextCursor,
+			HasMore:    page.HasMore,
+			Total:      page.Total,
+			Limit:      page.Limit,
+		},
+	}, nil
+}
+
+func (h *HostAPIHandler) resolveHostAPINetworkPeerSessionID(
+	ctx context.Context,
+	workspaceID string,
+	channel string,
+	peerID string,
+) (string, error) {
+	wanted := strings.TrimSpace(peerID)
+	if wanted == "" {
+		return "", nil
+	}
+	if err := network.ValidatePeerID(wanted); err != nil {
+		return "", invalidParamsRPCError(err)
+	}
+	service, err := h.requireHostAPINetworkService()
+	if err != nil {
+		return "", err
+	}
+	peers, err := service.ListPeers(ctx, workspaceID, channel)
+	if err != nil {
+		return "", mapHostAPINetworkRPCError(err)
+	}
+	peer, found := hostAPINetworkFindPeer(peers, wanted)
+	if !found || peer.SessionID == nil || strings.TrimSpace(*peer.SessionID) == "" {
+		return "", mapHostAPINetworkRPCError(fmt.Errorf(
+			"%w: peer_id=%q channel=%q has no participating session",
+			network.ErrTargetPeerNotFound,
+			wanted,
+			channel,
+		))
+	}
+	sessionID := strings.TrimSpace(*peer.SessionID)
+	if err := h.requireHostAPINetworkParticipant(ctx, workspaceID, sessionID, channel); err != nil {
+		return "", err
+	}
+	return sessionID, nil
 }
 
 func hostAPINetworkConversationMessageQuery(

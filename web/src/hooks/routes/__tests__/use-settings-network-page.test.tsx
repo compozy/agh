@@ -24,41 +24,10 @@ import {
 import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
 import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsNetworkSection } from "@/systems/settings";
+import { settingsNetworkSectionFixture } from "@/systems/settings/mocks";
 import { useSettingsNetworkPage } from "../use-settings-network-page";
 
-const networkEnvelope: SettingsNetworkSection = {
-  section: "network",
-  scope: "global",
-  available_scopes: ["global"],
-  config: {
-    enabled: true,
-    port: 4222,
-    default_channel: "agh",
-    greet_interval: 30,
-    max_payload: 131072,
-    max_queue_depth: 1024,
-    max_replay_age: 86400,
-    activation_top_k: 3,
-    digest_flush_interval: "250ms",
-    digest_max_envelopes: 10,
-    response_guidance_max_bytes: 512,
-    delivery_structured_body_max_bytes: 4096,
-  },
-  runtime: {
-    available: true,
-    enabled: true,
-    status: "ready",
-    listener_host: "127.0.0.1",
-    listener_port: 4222,
-    local_peers: 1,
-    remote_peers: 0,
-    channels: 2,
-    queued_messages: 0,
-    queued_sessions: 0,
-    delivery_workers: 2,
-  },
-  links: [{ label: "network", path: "/network" }],
-};
+const networkEnvelope: SettingsNetworkSection = structuredClone(settingsNetworkSectionFixture);
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -105,7 +74,7 @@ describe("useSettingsNetworkPage", () => {
     await waitFor(() => expect(result.current.draft).toBeTruthy());
 
     act(() => {
-      result.current.setDraft({ ...networkEnvelope.config, port: 5222 });
+      result.current.setDraft({ ...networkEnvelope.config, max_replay_age: 450 });
     });
     expect(result.current.isDirty).toBe(true);
 
@@ -134,14 +103,20 @@ describe("useSettingsNetworkPage", () => {
 
     await waitFor(() => expect(result.current.draft).toBeTruthy());
 
-    act(() => {
-      result.current.setDraft({ ...networkEnvelope.config, port: 5222 });
-      result.current.handleSave();
-    });
+    const updatedConfig = {
+      ...networkEnvelope.config,
+      live: {
+        ...networkEnvelope.config.live,
+        defaults: { ...networkEnvelope.config.live.defaults, max_wakes: 12 },
+      },
+    };
+    act(() => result.current.setDraft(updatedConfig));
+    await waitFor(() => expect(result.current.isDirty).toBe(true));
+    act(() => result.current.handleSave());
 
     await waitFor(() => {
       expect(result.current.lastAppliedLabel).toContain("restart required");
     });
-    expect(updateSettingsNetwork).toHaveBeenCalled();
+    expect(updateSettingsNetwork).toHaveBeenCalledWith({ config: updatedConfig });
   });
 });

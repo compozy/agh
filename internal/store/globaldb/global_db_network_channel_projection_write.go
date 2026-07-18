@@ -94,41 +94,33 @@ func updateNetworkChannelParticipants(
 	exec networkSQLExecutor,
 	entry store.NetworkConversationMessage,
 ) error {
-	participants := make(map[string]struct{}, len(entry.Mentions)+2)
-	for _, candidate := range append(
-		[]string{entry.PeerFrom, entry.PeerTo},
-		entry.Mentions...,
-	) {
-		peerID := strings.TrimSpace(candidate)
-		if peerID != "" {
-			participants[peerID] = struct{}{}
-		}
+	sessionID := strings.TrimSpace(entry.SessionID)
+	if sessionID == "" {
+		return nil
 	}
-	for peerID := range participants {
-		queries := sqlcgen.New(exec)
-		rowsAffected, err := queries.InsertNetworkChannelParticipant(
-			ctx,
-			sqlcgen.InsertNetworkChannelParticipantParams{
-				WorkspaceID: entry.WorkspaceID,
-				Channel:     entry.Channel,
-				PeerID:      peerID,
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("store: insert network channel participant: %w", err)
-		}
-		if rowsAffected == 0 {
-			continue
-		}
-		if err := queries.IncrementNetworkChannelParticipantCount(
-			ctx,
-			sqlcgen.IncrementNetworkChannelParticipantCountParams{
-				WorkspaceID: entry.WorkspaceID,
-				Channel:     entry.Channel,
-			},
-		); err != nil {
-			return fmt.Errorf("store: increment network channel participant projection: %w", err)
-		}
+	queries := sqlcgen.New(exec)
+	rowsAffected, err := queries.InsertNetworkChannelParticipant(
+		ctx,
+		sqlcgen.InsertNetworkChannelParticipantParams{
+			WorkspaceID: entry.WorkspaceID,
+			Channel:     entry.Channel,
+			SessionID:   sessionID,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("store: insert network channel participant: %w", err)
+	}
+	if rowsAffected == 0 {
+		return nil
+	}
+	if err := queries.IncrementNetworkChannelParticipantCount(
+		ctx,
+		sqlcgen.IncrementNetworkChannelParticipantCountParams{
+			WorkspaceID: entry.WorkspaceID,
+			Channel:     entry.Channel,
+		},
+	); err != nil {
+		return fmt.Errorf("store: increment network channel participant projection: %w", err)
 	}
 	return nil
 }

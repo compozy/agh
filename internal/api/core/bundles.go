@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -11,6 +10,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
 	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/agh/internal/resources"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -92,14 +92,19 @@ func (h *BaseHandlers) UpdateBundleActivation(c *gin.Context) {
 	}
 
 	var req contract.UpdateBundleActivationRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if req.ExpectedVersion <= 0 {
+		h.respondError(c, http.StatusBadRequest, errors.New("bundles: expected_version must be positive"))
 		return
 	}
 
 	item, err := h.Bundles.UpdateActivation(c.Request.Context(), bundlepkg.UpdateActivationRequest{
-		ID:                          strings.TrimSpace(c.Param("id")),
-		BindPrimaryChannelAsDefault: req.BindPrimaryChannelAsDefault,
+		ID:                        strings.TrimSpace(c.Param("id")),
+		ExpectedVersion:           req.ExpectedVersion,
+		ConfirmNetworkRequirement: req.ConfirmNetworkRequirement,
 	})
 	if err != nil {
 		h.respondError(c, StatusForBundleError(err), err)
@@ -132,10 +137,7 @@ func (h *BaseHandlers) BundleNetworkSettings(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, contract.BundleNetworkSettingsResponse{
 		Network: contract.BundleNetworkSettingsPayload{
-			ConfiguredDefaultChannel: strings.TrimSpace(settings.ConfiguredDefaultChannel),
-			EffectiveDefaultChannel:  strings.TrimSpace(settings.EffectiveDefaultChannel),
-			EffectiveDefaultSource:   strings.TrimSpace(settings.EffectiveDefaultSource),
-			DeclaredChannels:         DeclaredNetworkChannelPayloads(settings.DeclaredChannels),
+			DeclaredChannels: DeclaredNetworkChannelPayloads(settings.DeclaredChannels),
 		},
 	})
 }
@@ -146,18 +148,18 @@ func (h *BaseHandlers) bindBundleActivateRequest(c *gin.Context) (bundlepkg.Acti
 	}
 
 	var req contract.ActivateBundleRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return bundlepkg.ActivateRequest{}, false
 	}
 
 	return bundlepkg.ActivateRequest{
-		ExtensionName:               strings.TrimSpace(req.ExtensionName),
-		BundleName:                  strings.TrimSpace(req.BundleName),
-		ProfileName:                 strings.TrimSpace(req.ProfileName),
-		Scope:                       bundlepkg.Scope(strings.TrimSpace(req.Scope)).Normalize(),
-		Workspace:                   strings.TrimSpace(req.Workspace),
-		BindPrimaryChannelAsDefault: req.BindPrimaryChannelAsDefault,
+		ExtensionName:             strings.TrimSpace(req.ExtensionName),
+		BundleName:                strings.TrimSpace(req.BundleName),
+		ProfileName:               strings.TrimSpace(req.ProfileName),
+		Scope:                     bundlepkg.Scope(strings.TrimSpace(req.Scope)).Normalize(),
+		Workspace:                 strings.TrimSpace(req.Workspace),
+		ConfirmNetworkRequirement: req.ConfirmNetworkRequirement,
 	}, true
 }
 
@@ -172,26 +174,6 @@ func bundleServiceRequired(c *gin.Context, h *BaseHandlers) bool {
 		return false
 	}
 	return true
-}
-
-func (h *BaseHandlers) defaultSessionChannel(ctx context.Context, explicit string) (string, error) {
-	trimmed := strings.TrimSpace(explicit)
-	if trimmed != "" {
-		return trimmed, nil
-	}
-	if h != nil && h.Bundles != nil {
-		settings, err := h.Bundles.NetworkSettings(ctx)
-		if err != nil {
-			return "", err
-		}
-		if strings.TrimSpace(settings.EffectiveDefaultChannel) != "" {
-			return strings.TrimSpace(settings.EffectiveDefaultChannel), nil
-		}
-	}
-	if h != nil && h.Config.Network.Enabled {
-		return strings.TrimSpace(h.Config.Network.DefaultChannel), nil
-	}
-	return "", nil
 }
 
 func BundleCatalogPayloads(items []bundlepkg.CatalogEntry) []contract.BundleCatalogPayload {
@@ -225,7 +207,6 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 	jobs := make([]contract.BundleJobPayload, 0, len(item.Profile.Jobs))
 	triggers := make([]contract.BundleTriggerPayload, 0, len(item.Profile.Triggers))
 	bridges := make([]contract.BundleBridgePayload, 0, len(item.Profile.Bridges))
-	inventory := make([]contract.BundleInventoryPayload, 0, len(item.Inventory))
 	for _, agent := range item.Profile.Agents {
 		agents = append(agents, contract.BundleAgentPayload{
 			ID:           bundlepkgStableID("agt", item.Activation.ID, agent.Agent.Name),
@@ -272,33 +253,41 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 			SecretSlots:   slots,
 		})
 	}
-	for _, item := range item.Inventory {
-		inventory = append(inventory, contract.BundleInventoryPayload{
+	return contract.BundleActivationPayload{
+		ID:                            strings.TrimSpace(item.Activation.ID),
+		Version:                       item.Activation.Version,
+		ExtensionName:                 strings.TrimSpace(item.Activation.ExtensionName),
+		BundleName:                    strings.TrimSpace(item.Bundle.Name),
+		BundleDescription:             strings.TrimSpace(item.Bundle.Description),
+		ProfileName:                   strings.TrimSpace(item.Profile.Name),
+		ProfileDescription:            strings.TrimSpace(item.Profile.Description),
+		Scope:                         string(item.Activation.Scope),
+		WorkspaceID:                   strings.TrimSpace(item.Activation.WorkspaceID),
+		NetworkRequirementDigest:      strings.TrimSpace(item.Activation.NetworkRequirementDigest),
+		NetworkRequirementConfirmedBy: strings.TrimSpace(item.Activation.ConfirmedBy),
+		NetworkRequirementConfirmedAt: strings.TrimSpace(item.Activation.ConfirmedAt),
+		Channels:                      bundleChannelPayloads(item.Profile.Channels),
+		Agents:                        agents,
+		Jobs:                          jobs,
+		Triggers:                      triggers,
+		Bridges:                       bridges,
+		Inventory:                     bundleInventoryPayloads(item.Inventory),
+		SpecDrift:                     item.SpecDrift,
+		CreatedAt:                     item.Activation.CreatedAt,
+		UpdatedAt:                     item.Activation.UpdatedAt,
+	}
+}
+
+func bundleInventoryPayloads(items []bundlepkg.InventoryItem) []contract.BundleInventoryPayload {
+	payload := make([]contract.BundleInventoryPayload, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, contract.BundleInventoryPayload{
 			ResourceKind: strings.TrimSpace(item.ResourceKind),
 			ResourceID:   strings.TrimSpace(item.ResourceID),
 			ResourceName: strings.TrimSpace(item.ResourceName),
 		})
 	}
-	return contract.BundleActivationPayload{
-		ID:                          strings.TrimSpace(item.Activation.ID),
-		ExtensionName:               strings.TrimSpace(item.Activation.ExtensionName),
-		BundleName:                  strings.TrimSpace(item.Bundle.Name),
-		BundleDescription:           strings.TrimSpace(item.Bundle.Description),
-		ProfileName:                 strings.TrimSpace(item.Profile.Name),
-		ProfileDescription:          strings.TrimSpace(item.Profile.Description),
-		Scope:                       string(item.Activation.Scope),
-		WorkspaceID:                 strings.TrimSpace(item.Activation.WorkspaceID),
-		BindPrimaryChannelAsDefault: item.Activation.BindPrimaryChannelAsDefault,
-		Channels:                    bundleChannelPayloads(item.Profile.Channels),
-		Agents:                      agents,
-		Jobs:                        jobs,
-		Triggers:                    triggers,
-		Bridges:                     bridges,
-		Inventory:                   inventory,
-		SpecDrift:                   item.SpecDrift,
-		CreatedAt:                   item.Activation.CreatedAt,
-		UpdatedAt:                   item.Activation.UpdatedAt,
-	}
+	return payload
 }
 
 func DeclaredNetworkChannelPayloads(items []bundlepkg.DeclaredChannel) []contract.DeclaredNetworkChannelPayload {
@@ -340,13 +329,16 @@ func StatusForBundleError(err error) int {
 		errors.Is(err, bundlepkg.ErrProfileNotFound),
 		errors.Is(err, extensionpkg.ErrExtensionNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, bundlepkg.ErrDefaultChannelBusy),
-		errors.Is(err, bundlepkg.ErrAgentConflict),
-		errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
+	case errors.Is(err, bundlepkg.ErrAgentConflict),
+		errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles),
+		errors.Is(err, bundlepkg.ErrNetworkRequirementConfirmationRequired),
+		errors.Is(err, resources.ErrConflict):
 		return http.StatusConflict
 	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, bundlepkg.ErrWebhookUnsupported):
+	case errors.Is(err, bundlepkg.ErrWebhookUnsupported),
+		errors.Is(err, resources.ErrValidation),
+		errors.Is(err, extensionpkg.ErrBundleInvalid):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):

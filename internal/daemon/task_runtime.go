@@ -35,16 +35,16 @@ type loopCoordinatorBootReconciler interface {
 }
 
 type taskRuntime struct {
-	manager             *taskpkg.Service
-	store               taskStore
-	detached            *harnessDetachedWorkBridge
-	reentry             *harnessReentryBridge
-	wakeBridge          *taskWakeBridge
-	bridgeNotifications *bridgeTerminalTaskNotificationObserver
-	networkTaskStatus   *networkTaskStatusObserver
-	loopActions         *loopActionRuntime
-	coordinatorBackstop *loopCoordinatorBootGate
-	loopJudges          *loopGateJudgeRunner
-	activation          atomic.Pointer[taskRunActivationDispatcher]
-	roles               atomic.Pointer[taskRoleRuntime]
+	manager              *taskpkg.Service
+	store                taskStore
+	detached             *harnessDetachedWorkBridge
+	reentry              *harnessReentryBridge
+	wakeBridge           *taskWakeBridge
+	bridgeNotifications  *bridgeTerminalTaskNotificationObserver
+	taskStatusProjection *taskStatusProjectionObserver
+	loopActions          *loopActionRuntime
+	coordinatorBackstop  *loopCoordinatorBootGate
+	loopJudges           *loopGateJudgeRunner
+	activation           atomic.Pointer[taskRunActivationDispatcher]
+	roles                atomic.Pointer[taskRoleRuntime]
 }

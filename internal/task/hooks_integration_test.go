@@ -49,8 +49,8 @@ func TestTaskRunPostClaimHookDispatchesAfterAuditEventIntegration(t *testing.T) 
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	if _, err := manager.ClaimRun(testutil.Context(t), run.ID, taskpkg.ClaimRun{}, actor); err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
+	if _, err := claimExactRunIntegration(testutil.Context(t), manager, db, run.ID, actor); err != nil {
+		t.Fatalf("claimExactRunIntegration() error = %v", err)
 	}
 	if !postClaimSawCommittedAudit {
 		t.Fatal("post-claim hook did not observe committed claim audit event")

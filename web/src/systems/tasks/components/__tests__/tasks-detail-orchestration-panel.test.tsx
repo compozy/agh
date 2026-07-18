@@ -10,7 +10,6 @@ describe("TasksDetailOrchestrationPanel", () => {
     render(
       <TasksDetailOrchestrationPanel
         fanOut={{
-          defaultNetworkChannel: "general",
           onFanOut: noop,
         }}
         notifications={{

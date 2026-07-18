@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 const (
@@ -51,15 +53,16 @@ type RuntimeMode string
 
 // ExecutionProfile is the typed task-owned orchestration selection state.
 type ExecutionProfile struct {
-	TaskID       string             `json:"task_id"`
-	Coordinator  CoordinatorProfile `json:"coordinator"`
-	Worker       WorkerProfile      `json:"worker"`
-	Review       ReviewProfile      `json:"review"`
-	Participants ParticipantPolicy  `json:"participants"`
-	Sandbox      SandboxPolicy      `json:"sandbox"`
-	Runtime      RuntimePolicy      `json:"runtime"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
+	TaskID               string                 `json:"task_id"`
+	Coordinator          CoordinatorProfile     `json:"coordinator"`
+	Worker               WorkerProfile          `json:"worker"`
+	Review               ReviewProfile          `json:"review"`
+	Participants         ParticipantPolicy      `json:"participants"`
+	Sandbox              SandboxPolicy          `json:"sandbox"`
+	Runtime              RuntimePolicy          `json:"runtime"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	CreatedAt            time.Time              `json:"created_at"`
+	UpdatedAt            time.Time              `json:"updated_at"`
 }
 
 // CoordinatorProfile supplies optional guidance to the existing coordinator runtime.
@@ -137,52 +140,6 @@ func DefaultExecutionProfileValidationOptions() ExecutionProfileValidationOption
 		AllowSandboxRef:             true,
 		MaxCoordinatorGuidanceBytes: defaultCoordinatorGuidanceMaxBytes,
 	}
-}
-
-// Normalize returns a canonical copy with trimmed fields, default modes, and stable selector sets.
-func (p *ExecutionProfile) Normalize(options ExecutionProfileValidationOptions) (ExecutionProfile, error) {
-	if p == nil {
-		return ExecutionProfile{}, fmt.Errorf("%w: task_execution_profile is required", ErrValidation)
-	}
-	normalized := *p
-	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
-	normalized.Coordinator = normalizeCoordinatorProfile(normalized.Coordinator)
-	normalized.Worker = normalizeWorkerProfile(normalized.Worker)
-	normalized.Review = normalizeReviewProfile(normalized.Review)
-	normalized.Participants = normalizeParticipantPolicy(normalized.Participants)
-	normalized.Sandbox = normalizeSandboxPolicy(normalized.Sandbox)
-	normalized.Runtime = normalizeRuntimePolicy(normalized.Runtime)
-
-	if err := (&normalized).Validate(options); err != nil {
-		return ExecutionProfile{}, err
-	}
-	return normalized, nil
-}
-
-// Validate reports whether the profile can be persisted as typed orchestration state.
-func (p *ExecutionProfile) Validate(options ExecutionProfileValidationOptions) error {
-	if p == nil {
-		return fmt.Errorf("%w: task_execution_profile is required", ErrValidation)
-	}
-	if strings.TrimSpace(p.TaskID) == "" {
-		return fmt.Errorf("%w: task_execution_profile.task_id is required", ErrValidation)
-	}
-	if err := validateCoordinatorProfile(p.Coordinator, options); err != nil {
-		return err
-	}
-	if err := validateWorkerProfile(p.Worker, options); err != nil {
-		return err
-	}
-	if err := validateReviewProfile(p.Review, options); err != nil {
-		return err
-	}
-	if err := validateParticipantPolicy(p.Participants); err != nil {
-		return err
-	}
-	if err := validateSandboxPolicy(p.Sandbox, options); err != nil {
-		return err
-	}
-	return validateRuntimePolicy(p.Runtime)
 }
 
 // Normalize returns the normalized coordinator mode.

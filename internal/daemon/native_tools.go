@@ -3,7 +3,6 @@ package daemon
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +23,7 @@ import (
 	memorypkg "github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
@@ -273,6 +273,7 @@ type nativeToolAvailabilitySet struct {
 	skills              toolspkg.NativeAvailabilityFunc
 	network             toolspkg.NativeAvailabilityFunc
 	networkRead         toolspkg.NativeAvailabilityFunc
+	networkUsage        toolspkg.NativeAvailabilityFunc
 	sessions            toolspkg.NativeAvailabilityFunc
 	sessionCatalog      toolspkg.NativeAvailabilityFunc
 	sessionHealth       toolspkg.NativeAvailabilityFunc
@@ -307,7 +308,10 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	bindings := make(map[toolspkg.ToolID]nativeToolBinding, 32)
 	addNativeToolBindings(bindings, n.registryToolBindings(availability.registry))
 	addNativeToolBindings(bindings, n.skillToolBindings(availability.skills))
-	addNativeToolBindings(bindings, n.networkToolBindings(availability.network, availability.networkRead))
+	addNativeToolBindings(
+		bindings,
+		n.networkToolBindings(availability.network, availability.networkRead, availability.networkUsage),
+	)
 	addNativeToolBindings(bindings, n.sessionToolBindings(availability.sessions, availability.sessionCatalog))
 	addNativeToolBindings(
 		bindings,
@@ -355,9 +359,12 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 	return nativeToolAvailabilitySet{
 		registry: n.registryAvailability(),
 		skills:   n.dependencyAvailability(func() bool { return n.deps.Skills != nil }),
-		network:  n.dependencyAvailability(func() bool { return n.deps.Network != nil }),
-		networkRead: n.dependencyAvailability(func() bool {
+		network:  n.networkParticipationAvailability(func() bool { return n.deps.Network != nil }),
+		networkRead: n.networkParticipationAvailability(func() bool {
 			return n.deps.Network != nil && n.deps.NetworkStore != nil
+		}),
+		networkUsage: n.networkParticipationAvailability(func() bool {
+			return n.deps.Network != nil && n.deps.NetworkUsage != nil
 		}),
 		sessions: n.dependencyAvailability(func() bool { return n.deps.Sessions != nil }),
 		sessionCatalog: n.dependencyAvailability(func() bool {
@@ -482,86 +489,6 @@ func (n *daemonNativeTools) skillToolBindings(
 		toolspkg.ToolIDSkillView: {
 			call:         n.skillView,
 			availability: availability,
-		},
-	}
-}
-
-func (n *daemonNativeTools) networkToolBindings(
-	availability toolspkg.NativeAvailabilityFunc,
-	readAvailability toolspkg.NativeAvailabilityFunc,
-) map[toolspkg.ToolID]nativeToolBinding {
-	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDNetworkStatus: {
-			call:         n.networkStatus,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkChannels: {
-			call:         n.networkChannels,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkInbox: {
-			call:         n.networkInbox,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkPeers: {
-			call:         n.networkPeers,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkSend: {
-			call:         n.networkSend,
-			availability: availability,
-		},
-		toolspkg.ToolIDNetworkChannelCreate: {
-			call:         n.networkChannelCreate,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkChannelUpdate: {
-			call:         n.networkChannelUpdate,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkSubscriptions: {
-			call:         n.networkSubscriptions,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkSubscribe: {
-			call:         n.networkSubscribe,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkMute: {
-			call:         n.networkMute,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkDigestMode: {
-			call:         n.networkDigestMode,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkUnmute: {
-			call:         n.networkUnmute,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkThreads: {
-			call:         n.networkThreads,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkThreadMessages: {
-			call:         n.networkThreadMessages,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkDirects: {
-			call:         n.networkDirects,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkDirectResolve: {
-			call:         n.networkDirectResolve,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkDirectMessages: {
-			call:         n.networkDirectMessages,
-			availability: readAvailability,
-		},
-		toolspkg.ToolIDNetworkWork: {
-			call:         n.networkWork,
-			availability: readAvailability,
 		},
 	}
 }
@@ -1365,7 +1292,18 @@ func (n *daemonNativeTools) networkDirectResolve(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkToolError(req.ToolID, err)
 	}
-	directID, peerA, peerB, err := network.DirectRoomIdentity(workspaceID, channel, localPeer.PeerID, remotePeer.PeerID)
+	if strings.TrimSpace(*localPeer.SessionID) == strings.TrimSpace(*remotePeer.SessionID) {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(
+			req.ToolID,
+			fmt.Errorf("%w: direct room sessions must differ", network.ErrInvalidField),
+		)
+	}
+	directID, sessionA, sessionB, err := store.NetworkDirectRoomIdentity(
+		workspaceID,
+		channel,
+		*localPeer.SessionID,
+		*remotePeer.SessionID,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkToolError(req.ToolID, err)
 	}
@@ -1374,8 +1312,8 @@ func (n *daemonNativeTools) networkDirectResolve(
 		WorkspaceID:    workspaceID,
 		Channel:        channel,
 		DirectID:       directID,
-		PeerA:          peerA,
-		PeerB:          peerB,
+		SessionA:       sessionA,
+		SessionB:       sessionB,
 		OpenedAt:       now,
 		LastActivityAt: now,
 	})
@@ -1409,174 +1347,6 @@ func (n *daemonNativeTools) networkWork(
 	}
 	payload := core.NetworkWorkPayloadFromStore(work)
 	return structuredNetworkResult(map[string]any{"work": payload}, payload.WorkID)
-}
-
-func (n *daemonNativeTools) networkSubscriptions(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input networkSubscriptionsInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	query := store.NetworkSubscriptionQuery{
-		WorkspaceID: workspaceID,
-		Channel:     channel,
-		ThreadID:    strings.TrimSpace(input.ThreadID),
-		PeerID:      strings.TrimSpace(input.PeerID),
-		Limit:       input.Limit,
-	}
-	if query.Limit == 0 {
-		query.Limit = 100
-	}
-	if err := query.Validate(); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	subscriptions, err := n.deps.NetworkStore.ListNetworkSubscriptions(ctx, query)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	payload := core.NetworkSubscriptionPayloadsFromStore(subscriptions)
-	return structuredNetworkResult(
-		map[string]any{"subscriptions": payload},
-		fmt.Sprintf("%d subscriptions", len(payload)),
-	)
-}
-
-func (n *daemonNativeTools) networkSubscribe(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	return n.networkSetSubscription(ctx, scope, req, string(store.NetworkSubscriptionModeFull))
-}
-
-func (n *daemonNativeTools) networkMute(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	return n.networkSetSubscription(ctx, scope, req, string(store.NetworkSubscriptionModeMute))
-}
-
-func (n *daemonNativeTools) networkDigestMode(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	return n.networkSetSubscription(ctx, scope, req, string(store.NetworkSubscriptionModeDigest))
-}
-
-func (n *daemonNativeTools) networkSetSubscription(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-	mode string,
-) (toolspkg.ToolResult, error) {
-	var input networkSubscriptionInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	now := time.Now().UTC()
-	entry := store.NetworkSubscriptionEntry{
-		WorkspaceID:    workspaceID,
-		Channel:        channel,
-		ThreadID:       strings.TrimSpace(input.ThreadID),
-		PeerID:         strings.TrimSpace(input.PeerID),
-		Mode:           mode,
-		KeywordFilters: cloneTrimmedStrings(input.KeywordFilters),
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
-	if err := entry.Validate(); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	if err := n.ensureNativeNetworkSubscriptionChannel(ctx, scope, entry); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	if err := n.deps.NetworkStore.PutNetworkSubscription(ctx, entry); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	payload := core.NetworkSubscriptionPayloadFromStore(entry)
-	return structuredNetworkResult(map[string]any{"subscription": payload}, payload.Mode)
-}
-
-func (n *daemonNativeTools) ensureNativeNetworkSubscriptionChannel(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	entry store.NetworkSubscriptionEntry,
-) error {
-	ref := store.NetworkChannelRef{
-		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
-		Channel:     strings.TrimSpace(entry.Channel),
-	}
-	if err := ref.Validate(); err != nil {
-		return err
-	}
-	if _, err := n.deps.NetworkStore.GetNetworkChannel(ctx, ref); err == nil {
-		return nil
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	now := time.Now().UTC()
-	return n.deps.NetworkStore.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
-		WorkspaceID:  ref.WorkspaceID,
-		Channel:      ref.Channel,
-		Purpose:      "network_channel",
-		FanoutPolicy: store.NetworkFanoutPolicyCapabilityMatch,
-		CreatedBy:    strings.TrimSpace(scope.AgentName),
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	})
-}
-
-func (n *daemonNativeTools) networkUnmute(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input networkSubscriptionDeleteInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	ref := store.NetworkSubscriptionRef{
-		WorkspaceID: workspaceID,
-		Channel:     channel,
-		ThreadID:    strings.TrimSpace(input.ThreadID),
-		PeerID:      strings.TrimSpace(input.PeerID),
-	}
-	if err := ref.Validate(); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	if err := n.deps.NetworkStore.DeleteNetworkSubscription(ctx, ref); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
-	return structuredNetworkResult(map[string]any{"deleted": true}, "deleted")
 }
 
 func (n *daemonNativeTools) resolveNetworkDirectRoomPeers(
@@ -1613,7 +1383,7 @@ func (n *daemonNativeTools) resolveNetworkDirectRoomPeers(
 			channel,
 		)
 	}
-	if !remoteFound {
+	if !remoteFound || remote.SessionID == nil || strings.TrimSpace(*remote.SessionID) == "" {
 		return network.PeerInfo{}, network.PeerInfo{}, fmt.Errorf(
 			"%w: peer_id=%q channel=%q",
 			network.ErrTargetPeerNotFound,
@@ -2512,13 +2282,12 @@ func (n *daemonNativeTools) taskPromoteFromThread(
 		return toolspkg.ToolResult{}, err
 	}
 	spec := taskpkg.CreateTask{
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    source.workspaceID,
-		NetworkChannel: source.channel,
-		Title:          nativePromotedThreadTaskTitle(input, source),
-		Description:    firstNonEmpty(strings.TrimSpace(input.Description), source.digest),
-		Priority:       taskpkg.Priority(strings.TrimSpace(input.Priority)).Normalize(),
-		Metadata:       cloneJSON(input.Metadata),
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: source.workspaceID,
+		Title:       nativePromotedThreadTaskTitle(input, source),
+		Description: firstNonEmpty(strings.TrimSpace(input.Description), source.digest),
+		Priority:    taskpkg.Priority(strings.TrimSpace(input.Priority)).Normalize(),
+		Metadata:    cloneJSON(input.Metadata),
 	}
 	taskRecord, err := n.deps.Tasks.CreateTask(ctx, spec, actor)
 	if err != nil {
@@ -2686,9 +2455,11 @@ func (n *daemonNativeTools) taskFanOutRuns(
 	runs := make([]taskpkg.Run, 0, len(input.Designations))
 	for index := range input.Designations {
 		run, enqueueErr := n.deps.Tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
-			TaskID:             taskID,
-			IdempotencyKey:     prepared[index].idempotencyKey,
-			NetworkChannel:     strings.TrimSpace(input.NetworkChannel),
+			TaskID:         taskID,
+			IdempotencyKey: prepared[index].idempotencyKey,
+			NetworkParticipation: participation.CloneRequest(
+				input.NetworkParticipation,
+			),
 			DesignationGroupID: groupID,
 			Metadata:           prepared[index].metadata,
 		}, actor)
@@ -3325,23 +3096,22 @@ type networkSubscriptionsInput struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
 	ThreadID    string `json:"thread_id,omitempty"`
-	PeerID      string `json:"peer_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 }
 
 type networkSubscriptionInput struct {
-	WorkspaceID    string   `json:"workspace_id"`
-	Channel        string   `json:"channel"`
-	ThreadID       string   `json:"thread_id,omitempty"`
-	PeerID         string   `json:"peer_id"`
-	KeywordFilters []string `json:"keyword_filters,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id,omitempty"`
+	SessionID   string `json:"session_id"`
 }
 
 type networkSubscriptionDeleteInput struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
 	ThreadID    string `json:"thread_id,omitempty"`
-	PeerID      string `json:"peer_id"`
+	SessionID   string `json:"session_id"`
 }
 
 type sessionIDInput struct {
@@ -3551,20 +3321,20 @@ type taskReadInput struct {
 }
 
 type taskCreateInput struct {
-	ID             string             `json:"id,omitempty"`
-	Identifier     string             `json:"identifier,omitempty"`
-	Scope          string             `json:"scope"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	Title          string             `json:"title"`
-	Description    string             `json:"description,omitempty"`
-	Priority       string             `json:"priority,omitempty"`
-	MaxAttempts    *int               `json:"max_attempts,omitempty"`
-	Draft          bool               `json:"draft,omitempty"`
-	ApprovalPolicy string             `json:"approval_policy,omitempty"`
-	Owner          *taskpkg.Ownership `json:"owner,omitempty"`
-	WakeCreator    *bool              `json:"wake_creator,omitempty"`
-	Metadata       json.RawMessage    `json:"metadata,omitempty"`
+	ID                   string                 `json:"id,omitempty"`
+	Identifier           string                 `json:"identifier,omitempty"`
+	Scope                string                 `json:"scope"`
+	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Title                string                 `json:"title"`
+	Description          string                 `json:"description,omitempty"`
+	Priority             string                 `json:"priority,omitempty"`
+	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
+	Draft                bool                   `json:"draft,omitempty"`
+	ApprovalPolicy       string                 `json:"approval_policy,omitempty"`
+	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
+	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
+	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
 func (i taskCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
@@ -3574,20 +3344,20 @@ func (i taskCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
 		workspaceID = strings.TrimSpace(scope.WorkspaceID)
 	}
 	return taskpkg.CreateTask{
-		ID:             strings.TrimSpace(i.ID),
-		Identifier:     strings.TrimSpace(i.Identifier),
-		Scope:          taskScope,
-		WorkspaceID:    workspaceID,
-		NetworkChannel: strings.TrimSpace(i.NetworkChannel),
-		Title:          strings.TrimSpace(i.Title),
-		Description:    strings.TrimSpace(i.Description),
-		Priority:       taskpkg.Priority(strings.TrimSpace(i.Priority)),
-		MaxAttempts:    cloneIntPtr(i.MaxAttempts),
-		Draft:          i.Draft,
-		ApprovalPolicy: taskpkg.ApprovalPolicy(strings.TrimSpace(i.ApprovalPolicy)),
-		Owner:          cloneTaskOwner(i.Owner),
-		WakeCreator:    cloneBoolPtr(i.WakeCreator),
-		Metadata:       cloneJSON(i.Metadata),
+		ID:                   strings.TrimSpace(i.ID),
+		Identifier:           strings.TrimSpace(i.Identifier),
+		Scope:                taskScope,
+		WorkspaceID:          workspaceID,
+		Title:                strings.TrimSpace(i.Title),
+		Description:          strings.TrimSpace(i.Description),
+		Priority:             taskpkg.Priority(strings.TrimSpace(i.Priority)),
+		MaxAttempts:          cloneIntPtr(i.MaxAttempts),
+		Draft:                i.Draft,
+		ApprovalPolicy:       taskpkg.ApprovalPolicy(strings.TrimSpace(i.ApprovalPolicy)),
+		Owner:                cloneTaskOwner(i.Owner),
+		WakeCreator:          cloneBoolPtr(i.WakeCreator),
+		NetworkParticipation: participation.CloneRequest(i.NetworkParticipation),
+		Metadata:             cloneJSON(i.Metadata),
 	}
 }
 
@@ -3603,29 +3373,29 @@ func (i taskChildCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
 }
 
 type taskUpdateInput struct {
-	TaskID         string             `json:"task_id"`
-	Title          *string            `json:"title,omitempty"`
-	Description    *string            `json:"description,omitempty"`
-	Priority       *string            `json:"priority,omitempty"`
-	MaxAttempts    *int               `json:"max_attempts,omitempty"`
-	ApprovalPolicy *string            `json:"approval_policy,omitempty"`
-	Metadata       *json.RawMessage   `json:"metadata,omitempty"`
-	NetworkChannel *string            `json:"network_channel,omitempty"`
-	Owner          *taskpkg.Ownership `json:"owner,omitempty"`
-	ClearOwner     bool               `json:"clear_owner,omitempty"`
+	TaskID               string                 `json:"task_id"`
+	Title                *string                `json:"title,omitempty"`
+	Description          *string                `json:"description,omitempty"`
+	Priority             *string                `json:"priority,omitempty"`
+	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
+	ApprovalPolicy       *string                `json:"approval_policy,omitempty"`
+	Metadata             *json.RawMessage       `json:"metadata,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
+	ClearOwner           bool                   `json:"clear_owner,omitempty"`
 }
 
 func (i taskUpdateInput) patch() taskpkg.Patch {
 	return taskpkg.Patch{
-		Title:          cloneStringPtr(i.Title),
-		Description:    cloneStringPtr(i.Description),
-		Priority:       taskPriorityPtr(i.Priority),
-		MaxAttempts:    cloneIntPtr(i.MaxAttempts),
-		ApprovalPolicy: taskApprovalPolicyPtr(i.ApprovalPolicy),
-		Metadata:       cloneRawMessagePtr(i.Metadata),
-		NetworkChannel: cloneStringPtr(i.NetworkChannel),
-		Owner:          cloneTaskOwner(i.Owner),
-		ClearOwner:     i.ClearOwner,
+		Title:                cloneStringPtr(i.Title),
+		Description:          cloneStringPtr(i.Description),
+		Priority:             taskPriorityPtr(i.Priority),
+		MaxAttempts:          cloneIntPtr(i.MaxAttempts),
+		ApprovalPolicy:       taskApprovalPolicyPtr(i.ApprovalPolicy),
+		Metadata:             cloneRawMessagePtr(i.Metadata),
+		Owner:                cloneTaskOwner(i.Owner),
+		ClearOwner:           i.ClearOwner,
+		NetworkParticipation: participation.CloneRequest(i.NetworkParticipation),
 	}
 }
 
@@ -3680,58 +3450,10 @@ type taskPromoteFromThreadInput struct {
 }
 
 type taskFanOutRunsInput struct {
-	TaskID         string                                     `json:"task_id"`
-	NetworkChannel string                                     `json:"network_channel,omitempty"`
-	Designations   []contract.TaskFanOutRunDesignationRequest `json:"designations"`
-	IdempotencyKey string                                     `json:"idempotency_key,omitempty"`
-}
-
-type taskRunListInput struct {
-	TaskID                string `json:"task_id"`
-	Status                string `json:"status,omitempty"`
-	SessionID             string `json:"session_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	Limit                 int    `json:"limit,omitempty"`
-}
-
-func (i taskRunListInput) query() taskpkg.RunQuery {
-	return taskpkg.RunQuery{
-		TaskID:                strings.TrimSpace(i.TaskID),
-		Status:                taskpkg.ParseRunStatus(i.Status),
-		SessionID:             strings.TrimSpace(i.SessionID),
-		CoordinationChannelID: strings.TrimSpace(i.CoordinationChannelID),
-		Limit:                 i.Limit,
-	}
-}
-
-type autonomyClaimNextInput struct {
-	WorkspaceID          string   `json:"workspace_id,omitempty"`
-	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
-	PriorityMin          int      `json:"priority_min,omitempty"`
-	LeaseSeconds         int64    `json:"lease_seconds,omitempty"`
-}
-
-func (i autonomyClaimNextInput) criteria(scope toolspkg.Scope, sessionID string) (taskpkg.ClaimCriteria, error) {
-	leaseDuration, err := autonomyLeaseDuration(i.LeaseSeconds)
-	if err != nil {
-		return taskpkg.ClaimCriteria{}, err
-	}
-	workspaceID := strings.TrimSpace(i.WorkspaceID)
-	if workspaceID == "" {
-		workspaceID = strings.TrimSpace(scope.WorkspaceID)
-	}
-	return taskpkg.ClaimCriteria{
-		WorkspaceID:      workspaceID,
-		ClaimerSessionID: sessionID,
-		ClaimedBy: &taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKindAgentSession,
-			Ref:  sessionID,
-		},
-		AgentName:            strings.TrimSpace(scope.AgentName),
-		RequiredCapabilities: trimNativeStrings(i.RequiredCapabilities),
-		PriorityMin:          i.PriorityMin,
-		LeaseDuration:        leaseDuration,
-	}, nil
+	TaskID               string                                     `json:"task_id"`
+	NetworkParticipation *participation.Request                     `json:"network_participation,omitempty"`
+	Designations         []contract.TaskFanOutRunDesignationRequest `json:"designations"`
+	IdempotencyKey       string                                     `json:"idempotency_key,omitempty"`
 }
 
 type autonomyHeartbeatInput struct {
@@ -3975,7 +3697,7 @@ func autonomyActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.Act
 			toolspkg.ReasonAutonomySessionRequired,
 		)
 	}
-	actor, err := taskpkg.DeriveAgentSessionActorContext(sessionID)
+	actor, err := taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
 	if err != nil {
 		return taskpkg.ActorContext{}, "", nativeAutonomyToolError(id, err)
 	}
@@ -5141,7 +4863,7 @@ func sessionHistoryPayload(history []store.TurnHistory, info *session.Info) []an
 
 func actorContextFromScope(scope toolspkg.Scope) (taskpkg.ActorContext, error) {
 	if sessionID := strings.TrimSpace(scope.SessionID); sessionID != "" {
-		return taskpkg.DeriveAgentSessionActorContext(sessionID)
+		return taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
 	}
 	return taskpkg.DeriveDaemonActorContext("native-tools", "tool.registry")
 }

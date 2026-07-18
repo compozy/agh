@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/jonboulle/clockwork"
@@ -103,7 +104,23 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 			base,
 		)
 		work.Task.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-agent"}
-		work.Run.CoordinationChannelID = "frontend"
+		work.Run.SetNetworkState(participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     "ws-1",
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "frontend",
+			Source:          participation.SourceExplicitRequest,
+			Bounds: participation.Bounds{
+				MaxWakes:         1,
+				MaxWakeWallTime:  "1m",
+				MaxTotalWallTime: "1m",
+				MaxInputTokens:   1,
+				MaxOutputTokens:  1,
+				MaxWakeDepth:     1,
+				CoalesceWindow:   "100ms",
+			},
+		}, "", "", "")
 		matching := sessionSnapshot(
 			"sess-matching",
 			"ws-1",
@@ -176,11 +193,12 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 				wantKind: CapacityUnmatched,
 			},
 			{
-				name: "Should return unmatched for a foreign coordination channel",
+				name: "Should ignore participation channels when classifying otherwise compatible capacity",
 				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
 					candidate.Channel = "backend"
 				})},
-				wantKind: CapacityUnmatched,
+				wantKind:      CapacityAvailable,
+				wantAvailable: []string{"sess-matching"},
 			},
 			{
 				name: "Should return unmatched for a foreign owner pool",
@@ -910,7 +928,7 @@ func TestRunOnceRequiresTaskOwnerMatch(t *testing.T) {
 		base := time.Date(2026, 5, 6, 10, 15, 0, 0, time.UTC)
 		work := workSnapshot("task-owner", "run-owner", taskpkg.ScopeWorkspace, "ws-1", nil, base)
 		work.Task.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-engineer-agent"}
-		work.Run.CoordinationChannelID = "design-review"
+		setRunParticipationChannel(t, &work.Run, "ws-1", "design-review")
 		wrongOwner := sessionSnapshot("sess-analytics", "ws-1", "active", false, nil, base)
 		wrongOwner.AgentName = "analytics-engineer-agent"
 		wrongOwner.Channel = "design-review"

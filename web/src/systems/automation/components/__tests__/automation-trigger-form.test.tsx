@@ -197,6 +197,39 @@ describe("AutomationTriggerForm", () => {
     expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("beta");
   });
 
+  it("Should keep scope immutable and omit it from the Trigger edit preview", () => {
+    const { onChange } = renderTriggerForm({
+      draft: {
+        ...createAutomationTriggerDraft("ws_alpha"),
+        name: "review-completions",
+      },
+      mode: "edit",
+    });
+
+    expect(screen.getByTestId("trigger-scope-global")).toBeDisabled();
+    expect(screen.getByTestId("trigger-scope-workspace")).toBeDisabled();
+    expect(screen.getByTestId("trigger-workspace-select")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("trigger-scope-global"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent('"scope"');
+  });
+
+  it("Should keep webhook unavailable while editing a workspace-scoped Trigger", () => {
+    const { onChange } = renderTriggerForm({
+      draft: {
+        ...createAutomationTriggerDraft("ws_alpha"),
+        name: "review-completions",
+      },
+      mode: "edit",
+    });
+
+    const webhook = screen.getByTestId("trigger-event-webhook");
+    expect(webhook).toBeDisabled();
+    fireEvent.click(webhook);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent("webhook");
+  });
+
   it("adds and edits structured filter conditions as an AND map", () => {
     const { onChange } = renderTriggerForm();
 
@@ -292,12 +325,33 @@ describe("AutomationTriggerForm", () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         target_kind: "loop",
-        loop_target: expect.objectContaining({ loop_name: "" }),
+        loop_target: expect.objectContaining({
+          loop_name: "",
+          network_participation: { mode: "local" },
+        }),
       })
     );
     // The loop picker + payload mapping table replace the agent prompt.
     expect(screen.getByTestId("loop-target-fields")).toBeInTheDocument();
     expect(screen.queryByTestId("trigger-agent-input")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("loop-target-participation-mode"), {
+      target: { value: "live" },
+    });
+    fireEvent.change(screen.getByTestId("loop-target-participation-channel"), {
+      target: { value: "trigger-room" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        loop_target: expect.objectContaining({
+          network_participation: {
+            mode: "live",
+            channel_id: "trigger-room",
+            channel_strategy: "named",
+          },
+        }),
+      })
+    );
 
     fireEvent.change(screen.getByTestId("loop-target-select"), {
       target: { value: "software-delivery" },
@@ -378,7 +432,7 @@ describe("AutomationTriggerForm", () => {
     const { onSubmit } = renderTriggerForm({
       mode: "edit",
       draft: {
-        ...createAutomationTriggerDraft("ws_alpha"),
+        ...createAutomationTriggerDraft(null),
         event: "session.stopped",
         name: "delivery-trigger",
         agent_name: "",
@@ -397,6 +451,9 @@ describe("AutomationTriggerForm", () => {
     fireEvent.click(screen.getByTestId("trigger-event-webhook"));
 
     expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("software-delivery");
+    expect(screen.getByRole("combobox", { name: "Loop" })).toBeDisabled();
+    expect(screen.getByTestId("target-mode-agent")).toBeDisabled();
+    expect(screen.getByTestId("target-mode-loop")).toBeDisabled();
     expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
       "software-delivery does not declare the webhook start kind"
     );
@@ -436,7 +493,7 @@ describe("AutomationTriggerForm", () => {
 
     const request = screen.getByTestId("automation-request-payload");
     expect(request).toHaveTextContent("PATCH /api/automation/triggers/{id}");
-    expect(request).toHaveTextContent('"target_kind": "loop"');
+    expect(request).not.toHaveTextContent('"target_kind"');
     expect(request).toHaveTextContent('"input_mapping"');
   });
 

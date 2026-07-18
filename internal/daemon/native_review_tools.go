@@ -320,7 +320,7 @@ func reviewToolActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.A
 			toolspkg.ReasonAutonomySessionRequired,
 		)
 	}
-	actor, err := taskpkg.DeriveAgentSessionActorContext(sessionID)
+	actor, err := taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
 	if err != nil {
 		return taskpkg.ActorContext{}, "", nativeReviewToolError(id, err)
 	}

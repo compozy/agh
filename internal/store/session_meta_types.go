@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // SessionSandboxMeta is the persisted runtime sandbox state for a session.
@@ -32,7 +34,7 @@ type SessionMeta struct {
 	ReasoningEffort      string                     `json:"reasoning_effort,omitempty"`
 	EffectivePermissions string                     `json:"effective_permissions,omitempty"`
 	WorkspaceID          string                     `json:"workspace_id,omitempty"`
-	Channel              string                     `json:"channel,omitempty"`
+	NetworkParticipation *participation.Spec        `json:"network_participation"`
 	SessionType          string                     `json:"session_type,omitempty"`
 	Lineage              *SessionLineage            `json:"lineage,omitempty"`
 	State                string                     `json:"state"`
@@ -68,6 +70,9 @@ func (m SessionMeta) Validate() error {
 	}
 	if err := requireField(m.State, "session state"); err != nil {
 		return err
+	}
+	if err := participation.ValidateSpec(m.NetworkSpecSnapshot()); err != nil {
+		return fmt.Errorf("store: validate session network participation: %w", err)
 	}
 	if m.StopReason != nil {
 		if err := validateSessionStopReason(*m.StopReason); err != nil {
@@ -105,6 +110,22 @@ func (m SessionMeta) Validate() error {
 	return nil
 }
 
+// NetworkSpecSnapshot returns the immutable participation snapshot stored in metadata.
+func (m SessionMeta) NetworkSpecSnapshot() participation.Spec {
+	if m.NetworkParticipation == nil {
+		return participation.Spec{}
+	}
+	return *m.NetworkParticipation
+}
+
+// NetworkOwnerKeySnapshot returns the immutable budget owner stored in creation metadata.
+func (m SessionMeta) NetworkOwnerKeySnapshot() string {
+	if m.CreationOptions != nil && strings.TrimSpace(m.CreationOptions.NetworkOwnerKey) != "" {
+		return strings.TrimSpace(m.CreationOptions.NetworkOwnerKey)
+	}
+	return participation.OwnerKey(participation.OwnerRef{Kind: participation.OwnerKindSession, ID: m.ID})
+}
+
 func validateSessionCreationMetadata(meta SessionMeta) error {
 	identity := SessionCreationIdentity{
 		CreationProfileRef: meta.CreationProfileRef,
@@ -117,6 +138,9 @@ func validateSessionCreationMetadata(meta SessionMeta) error {
 	}
 	if meta.CreationProfile == nil || meta.CreationOptions == nil {
 		return fmt.Errorf("store: session creation profile and options are required with identity")
+	}
+	if meta.NetworkSpecSnapshot() != meta.CreationOptions.NetworkParticipation {
+		return fmt.Errorf("store: session network participation does not match creation options")
 	}
 	if err := identity.Validate(); err != nil {
 		return err

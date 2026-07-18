@@ -1,5 +1,9 @@
 import { HttpResponse, type HttpHandler } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
+import {
+  buildLiveNetworkParticipationFixture,
+  buildLocalNetworkParticipationFixture,
+} from "@/test/network-participation-fixtures";
 
 import {
   primarySessionFixture,
@@ -57,8 +61,25 @@ export const handlers: HttpHandler[] = [
       name?: string;
       workspace?: string;
       workspace_path?: string;
-      channel?: string;
+      network_participation?: {
+        mode?: string | null;
+        channel_id?: string | null;
+        channel_strategy?: string | null;
+      } | null;
     };
+
+    const workspaceId = body.workspace ?? primarySessionFixture.workspace_id ?? "";
+    const participation = body.network_participation;
+    const channelId = participation?.channel_id?.trim() ?? "";
+    if (
+      participation?.mode === "live" &&
+      (participation.channel_strategy !== "named" || !channelId)
+    ) {
+      return HttpResponse.json(
+        { error: "Session Live participation requires a named channel." },
+        { status: 422 }
+      );
+    }
 
     return HttpResponse.json(
       {
@@ -67,9 +88,16 @@ export const handlers: HttpHandler[] = [
           id: `sess_${(body.name ?? body.agent_name ?? "story").replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`,
           name: body.name ?? primarySessionFixture.name,
           agent_name: body.agent_name ?? primarySessionFixture.agent_name,
+          workspace_id: workspaceId,
           workspace_path:
             body.workspace_path ?? body.workspace ?? primarySessionFixture.workspace_path,
-          channel: body.channel ?? primarySessionFixture.channel,
+          resolved_network_participation:
+            participation?.mode === "live"
+              ? buildLiveNetworkParticipationFixture({
+                  workspaceId,
+                  channelId,
+                })
+              : buildLocalNetworkParticipationFixture(),
         },
       },
       { status: 201 }

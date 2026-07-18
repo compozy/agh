@@ -911,32 +911,6 @@ func diffAutomationSettings(cfg *aghconfig.Config, desired AutomationSettings) [
 	return changed
 }
 
-func diffNetworkSettings(current aghconfig.NetworkConfig, desired aghconfig.NetworkConfig) []string {
-	var changed []string
-	if current.Enabled != desired.Enabled {
-		changed = append(changed, "network.enabled")
-	}
-	if current.DefaultChannel != desired.DefaultChannel {
-		changed = append(changed, "network.default_channel")
-	}
-	if current.Port != desired.Port {
-		changed = append(changed, "network.port")
-	}
-	if current.MaxPayload != desired.MaxPayload {
-		changed = append(changed, "network.max_payload")
-	}
-	if current.GreetInterval != desired.GreetInterval {
-		changed = append(changed, "network.greet_interval")
-	}
-	if current.MaxReplayAge != desired.MaxReplayAge {
-		changed = append(changed, "network.max_replay_age")
-	}
-	if current.MaxQueueDepth != desired.MaxQueueDepth {
-		changed = append(changed, "network.max_queue_depth")
-	}
-	return changed
-}
-
 func diffObservabilitySettings(current aghconfig.ObservabilityConfig, desired aghconfig.ObservabilityConfig) []string {
 	var changed []string
 	if current.Enabled != desired.Enabled {
@@ -1410,22 +1384,6 @@ func applyAutomationSettings(editor *aghconfig.OverlayEditor, settings Automatio
 			path:  []string{string(SectionAutomation), "default_fire_limit", sectionsWindowKey},
 			value: settings.DefaultFireLimit.Window,
 		},
-	}
-	return applyValueUpdates(editor, updates)
-}
-
-func applyNetworkSettings(editor *aghconfig.OverlayEditor, settings aghconfig.NetworkConfig) error {
-	updates := []struct {
-		path  []string
-		value any
-	}{
-		{path: []string{string(SectionNetwork), sectionsEnabledKey}, value: settings.Enabled},
-		{path: []string{string(SectionNetwork), "default_channel"}, value: settings.DefaultChannel},
-		{path: []string{string(SectionNetwork), "port"}, value: settings.Port},
-		{path: []string{string(SectionNetwork), "max_payload"}, value: settings.MaxPayload},
-		{path: []string{string(SectionNetwork), "greet_interval"}, value: settings.GreetInterval},
-		{path: []string{string(SectionNetwork), "max_replay_age"}, value: settings.MaxReplayAge},
-		{path: []string{string(SectionNetwork), "max_queue_depth"}, value: settings.MaxQueueDepth},
 	}
 	return applyValueUpdates(editor, updates)
 }

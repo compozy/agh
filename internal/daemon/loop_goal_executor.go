@@ -108,8 +108,9 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 		Criteria:      append([]dsl.GateCriterion(nil), req.Criteria...),
 		VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
 	}, gate.GateInput{
+		LoopRunID:              string(run.ID),
 		Placement:              gate.PlacementInBody,
-		Contract:               resolved.Definition.Contract,
+		Contract:               new(resolved.Definition.Contract),
 		TemplateData:           map[string]any{"goal_turn": req.Turn},
 		Revision:               req.Turn - 1,
 		BrokenJudgeStreakLimit: gate.DefaultBrokenJudgeStreakLimit,
@@ -124,6 +125,7 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 			Text:       req.Result.Text,
 			Structured: append([]byte(nil), req.Result.Structured...),
 		},
+		NetworkParticipation: new(run.NetworkSpecSnapshot()),
 	})
 	if err != nil {
 		return goalpkg.JudgeResult{}, err

@@ -55,7 +55,6 @@ beforeEach(() => {
   mocks.updateExtension.mockResolvedValue(undefined);
   mocks.removeExtension.mockResolvedValue(undefined);
   mocks.updateBundleActivation.mockResolvedValue({
-    bind_primary_channel_as_default: true,
     bundle_name: "ops-starter",
     created_at: "2026-07-08T09:20:00Z",
     extension_name: "slack-notify",
@@ -114,10 +113,9 @@ describe("useToggleExtension", () => {
 });
 
 describe("useUpdateBundleActivation", () => {
-  it("Should preserve the current channel binding in the real PATCH mutation", async () => {
+  it("Should send explicit network confirmation in the real PATCH mutation", async () => {
     const { wrapper } = setup();
     const activation = {
-      bind_primary_channel_as_default: true,
       bundle_name: "ops-starter",
       created_at: "2026-07-08T09:20:00Z",
       extension_name: "slack-notify",
@@ -126,6 +124,7 @@ describe("useUpdateBundleActivation", () => {
       scope: "workspace",
       spec_drift: false,
       updated_at: "2026-07-14T18:00:00Z",
+      version: 7,
       workspace_id: "ws_northstar",
     };
     mocks.updateBundleActivation.mockResolvedValue(activation);
@@ -133,13 +132,14 @@ describe("useUpdateBundleActivation", () => {
 
     await act(async () => {
       await result.current.mutateAsync({
-        body: { bind_primary_channel_as_default: true },
+        body: { confirm_network_requirement: true, expected_version: 7 },
         id: activation.id,
       });
     });
 
     expect(mocks.updateBundleActivation).toHaveBeenCalledWith(activation.id, {
-      bind_primary_channel_as_default: true,
+      confirm_network_requirement: true,
+      expected_version: 7,
     });
     expect(mocks.toastSuccess).toHaveBeenCalledWith("ops-starter updated");
   });
@@ -153,7 +153,7 @@ describe("useUpdateBundleActivation", () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          body: { bind_primary_channel_as_default: false },
+          body: { expected_version: 7 },
           id: "activation-ops-starter",
         })
       ).rejects.toThrow("bundle update rejected");

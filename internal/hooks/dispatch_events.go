@@ -140,7 +140,7 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 	case TaskRunEnqueuedPayload:
 		return correlationFromTaskRunContext(typed.TaskRunContext)
 	case TaskRunPreClaimPayload:
-		return correlationFromTaskRunContext(typed.TaskRunContext)
+		return correlationFromTaskRunContext(typed.taskRunContextSnapshot())
 	case TaskRunPostClaimPayload:
 		return correlationFromTaskRunContext(typed.TaskRunContext)
 	case TaskRunLeasePayload:

@@ -1,4 +1,4 @@
-h1:lwBotOHn4U/1YmCoh2hGZs4X5nQjZrdwQ2ClXzt+pgE=
+h1:1EniJtd4wYRfwFbgDqvK0IX1eAmbmRXqIgJiW0QHBXc=
 00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=
 00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=
 00003_schema.sql h1:x8VmofWOLCS5ARICKEemtVqBU1zUxT7fJSwOeC8yV18=
@@ -6,3 +6,10 @@ h1:lwBotOHn4U/1YmCoh2hGZs4X5nQjZrdwQ2ClXzt+pgE=
 00005_schema.sql h1:EE4/f5SI15VZXpG+8hv25brzYdE2tOlO2YEIrp3w/xQ=
 00006_schema.sql h1:iV9MCoh8t71+NhL4EaUDvzZiQ5IjQO5LSQLzr2HARD4=
 00007_schema.sql h1:Yfggwz43q5xGaWrukIlxEpw4cZVEvvZOnNYpAtl7fJc=
+00008_network_participation.sql h1:oOysQq4kYfGWho62z5EvUgmGuMKSEk+SX94Of4SinKM=
+00009_automation_network_participation.sql h1:doB8+YK/XBj+ll5xqbhBIPiW7Cipl+uT2z/FqDhT4Sw=
+00010_network_participation_hardening.sql h1:sxoHTw+6z1Kwy5mSDUGlWZSoE19Pq6xVgmuv+i2pFzo=
+00011_schema.sql h1:jr2yih2LV3Zjxy6u0h6V5f4H0ooRi4k/1kOQSiKB9Zg=
+00012_schema.sql h1:hxMyq7xeNOFgoiNX2MVoF8fKswPR6i421ep6h9ioRZA=
+00013_network_subscription_hard_cut.sql h1:BOiBFnM0lboGt6Hk104GM/H9lTmn5HbepkbopQUImeA=
+00014_network_task_status_projections.sql h1:nDy7STXebnQa4pwF4zmm+rmP4yyC9Ee0t4ENITPpJbo=

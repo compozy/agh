@@ -126,7 +126,6 @@ export const bundleActivationFixtures: BundleActivation[] = [
         provider: "openai",
       },
     ],
-    bind_primary_channel_as_default: true,
     bridges: [
       {
         display_name: "Operations Slack",
@@ -175,6 +174,9 @@ export const bundleActivationFixtures: BundleActivation[] = [
     ],
     profile_description: "Production incident routing with daily status summaries.",
     profile_name: "production",
+    network_requirement_confirmed_at: "2026-07-12T16:40:00Z",
+    network_requirement_confirmed_by: "operator",
+    network_requirement_digest: "sha256:live-network-requirement",
     scope: "workspace",
     spec_drift: false,
     triggers: [
@@ -187,11 +189,11 @@ export const bundleActivationFixtures: BundleActivation[] = [
       },
     ],
     updated_at: "2026-07-12T16:40:00Z",
+    version: 7,
     workspace_id: "ws_northstar",
   },
   {
     agents: [],
-    bind_primary_channel_as_default: false,
     bridges: [],
     bundle_description: "Dependency review and release hygiene capabilities.",
     bundle_name: "dep-kit",
@@ -213,5 +215,6 @@ export const bundleActivationFixtures: BundleActivation[] = [
     spec_drift: true,
     triggers: [],
     updated_at: "2026-07-03T12:00:00Z",
+    version: 3,
   },
 ];

@@ -17,7 +17,7 @@ export interface UseDirectRoomArgs {
   workspaceId: string;
   channel: string;
   directId: string;
-  selfPeerId?: string;
+  selfSessionId?: string;
 }
 
 export interface UseDirectRoomResult {
@@ -35,20 +35,22 @@ export interface UseDirectRoomResult {
   lastReadIso: string | null;
 }
 
-function pickOtherPeerId(detail: NetworkDirectRoomDetail | null, selfPeerId?: string): string {
+function pickOtherSessionId(
+  detail: NetworkDirectRoomDetail | null,
+  selfSessionId?: string
+): string {
   if (!detail) {
     return "";
   }
-  if (!selfPeerId) {
-    return detail.peer_a;
+  if (!selfSessionId) {
+    return detail.session_a;
   }
-  return detail.peer_a === selfPeerId ? detail.peer_b : detail.peer_a;
+  return detail.session_a === selfSessionId ? detail.session_b : detail.session_a;
 }
 
 function presenceFromPeer(peer: NetworkPeerSummary | undefined): NetworkPresence {
   return {
     state: toNetworkPresenceState(peer?.presence_state),
-    lastSeenAgeSeconds: peer?.last_seen_age_seconds ?? null,
   };
 }
 
@@ -56,7 +58,7 @@ export function useDirectRoom({
   workspaceId,
   channel,
   directId,
-  selfPeerId,
+  selfSessionId,
 }: UseDirectRoomArgs): UseDirectRoomResult {
   const detail = useNetworkDirectDetail(channel, directId, { workspaceId });
   const messagesQuery = useNetworkMessages({
@@ -66,11 +68,13 @@ export function useDirectRoom({
     enabled: Boolean(detail.direct),
     surface: "direct",
   });
-  const otherPeerId = pickOtherPeerId(detail.direct, selfPeerId);
+  const otherSessionId = pickOtherSessionId(detail.direct, selfSessionId);
   const peersQuery = useQuery(
-    networkPeersOptions(workspaceId, channel, Boolean(workspaceId && channel && otherPeerId))
+    networkPeersOptions(workspaceId, channel, Boolean(workspaceId && channel && otherSessionId))
   );
-  const presence = presenceFromPeer(peersQuery.data?.find(peer => peer.peer_id === otherPeerId));
+  const otherPeer = peersQuery.data?.find(peer => peer.session_id === otherSessionId);
+  const otherPeerId = otherPeer?.peer_id ?? otherSessionId;
+  const presence = presenceFromPeer(otherPeer);
   const { lastReadAt, markRead } = useLastRead({ workspaceId });
   const lastReadIso = lastReadAt({ channel, containerId: directId, surface: "direct" });
 

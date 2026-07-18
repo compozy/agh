@@ -361,7 +361,7 @@ const taskCreateInputSchema = `{
 		"identifier":{"type":"string"},
 		"scope":{"type":"string"},
 		"workspace_id":{"type":"string"},
-		"network_channel":{"type":"string"},
+		"network_participation":` + networkParticipationRequestSchema + `,
 		"title":{"type":"string"},
 		"description":{"type":"string"},
 		"priority":{"type":"string"},
@@ -384,7 +384,7 @@ const taskChildCreateInputSchema = `{
 		"identifier":{"type":"string"},
 		"scope":{"type":"string"},
 		"workspace_id":{"type":"string"},
-		"network_channel":{"type":"string"},
+		"network_participation":` + networkParticipationRequestSchema + `,
 		"title":{"type":"string"},
 		"description":{"type":"string"},
 		"priority":{"type":"string"},
@@ -409,7 +409,7 @@ const taskUpdateInputSchema = `{
 		"max_attempts":{"type":"integer"},
 		"approval_policy":{"type":"string"},
 		"metadata":{},
-		"network_channel":{"type":"string"},
+		"network_participation":` + networkParticipationRequestSchema + `,
 		"owner":` + ownerSchema + `,
 		"clear_owner":{"type":"boolean"}
 	},
@@ -480,7 +480,7 @@ const taskRunListInputSchema = `{
 		"task_id":{"type":"string"},
 		"status":{"type":"string"},
 		"session_id":{"type":"string"},
-		"coordination_channel_id":{"type":"string"},
+		"participation_channel":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false
@@ -600,47 +600,6 @@ const taskNotificationDeleteInputSchema = `{
 	"additionalProperties":false
 }`
 
-const taskPromoteFromThreadInputSchema = `{
-	"type":"object",
-	"required":["workspace_id","channel","thread_id","origin_message_id"],
-	"properties":{
-		"workspace_id":{"type":"string"},
-		"channel":{"type":"string"},
-		"thread_id":{"type":"string"},
-		"origin_message_id":{"type":"string"},
-		"title":{"type":"string"},
-		"description":{"type":"string"},
-		"priority":{"type":"string"},
-		"metadata":{}
-	},
-	"additionalProperties":false
-}`
-
-const taskFanOutRunsInputSchema = `{
-	"type":"object",
-	"required":["task_id","designations"],
-	"properties":{
-		"task_id":{"type":"string"},
-		"network_channel":{"type":"string"},
-		"designations":{
-			"type":"array",
-			"minItems":1,
-			"items":{
-				"type":"object",
-				"required":["brief"],
-				"properties":{
-					"brief":{"type":"string","minLength":1},
-					"metadata":{},
-					"idempotency_key":{"type":"string"}
-				},
-				"additionalProperties":false
-			}
-		},
-		"idempotency_key":{"type":"string"}
-	},
-	"additionalProperties":false
-}`
-
 const taskExecutionProfileSchema = `{
 	"type":"object",
 	"properties":{
@@ -650,7 +609,8 @@ const taskExecutionProfileSchema = `{
 		"review":` + reviewProfileSchema + `,
 		"participants":` + participantPolicySchema + `,
 		"sandbox":` + sandboxPolicySchema + `,
-		"runtime":` + runtimePolicySchema + `
+		"runtime":` + runtimePolicySchema + `,
+		"network_participation":` + networkParticipationRequestSchema + `
 	},
 	"additionalProperties":false
 }`

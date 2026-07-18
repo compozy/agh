@@ -86,6 +86,7 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 		authStatus := payload.Providers[0].AuthStatus
 		if authStatus == nil {
 			t.Fatal("AuthStatus = nil, want native CLI diagnostics")
+			return
 		}
 		if got, want := authStatus.State, "missing_cli"; got != want {
 			t.Fatalf("AuthStatus.State = %q, want %q", got, want)

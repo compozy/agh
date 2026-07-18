@@ -1262,7 +1262,7 @@ var operationRegistry = append([]OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-			queryParam("peer_id", "Filter subscriptions by peer id", false),
+			queryParam("session_id", "Filter subscriptions by session id", false),
 			queryParam("thread_id", "Filter subscriptions by thread id", false),
 			intQueryParam("limit", "Maximum number of subscriptions to return"),
 		},
@@ -1294,7 +1294,7 @@ var operationRegistry = append([]OperationSpec{
 	},
 	{
 		Method:      httpMethodDelete,
-		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{peer_id}",
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{session_id}",
 		OperationID: "deleteNetworkSubscription",
 		Summary:     "Delete one network delivery subscription",
 		Tags:        []string{specNetworkKey},
@@ -1302,8 +1302,8 @@ var operationRegistry = append([]OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-			pathParam("peer_id", "Network peer id"),
-			queryParam("thread_id", "Delete the thread-scoped subscription for this peer", false),
+			pathParam("session_id", "Network session id"),
+			queryParam("thread_id", "Delete the thread-scoped subscription for this session", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
@@ -3244,7 +3244,7 @@ var operationRegistry = append([]OperationSpec{
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
 			queryParam("parent_task_id", "Filter by parent task ID", false),
-			queryParam("network_channel", "Filter by network channel", false),
+			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			queryParam("query", "Filter by task title or identifier", false),
 			enumQueryParam("sort", "Order by recent activity or priority", taskCatalogSortValues()),
 			queryParam("cursor", "Opaque query-bound continuation cursor", false),
@@ -3790,6 +3790,7 @@ var operationRegistry = append([]OperationSpec{
 			pathParam("id", "Task id"),
 			enumQueryParam("status", "Filter by run status", taskRunStatusValues()),
 			queryParam("session_id", "Filter by attached session id", false),
+			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			intQueryParam("limit", "Maximum number of records to return"),
 		},
 		Responses: []ResponseSpec{
@@ -3838,6 +3839,7 @@ var operationRegistry = append([]OperationSpec{
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
+	taskRunConversationStreamOperation(),
 	{
 		Method:      httpMethodGet,
 		Path:        specAPIRunsIDInspectPath,
@@ -4165,26 +4167,6 @@ var operationRegistry = append([]OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/task-runs/{id}/claim",
-		OperationID: "claimTaskRun",
-		Summary:     "Claim one queued task run",
-		Tags:        []string{specTasksKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Task run id"),
-		},
-		RequestBody: contract.ClaimTaskRunRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
-			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Task-run claim conflict", Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Invalid task-run claim request", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
-		Method:      httpMethodPost,
 		Path:        "/api/task-runs/{id}/start",
 		OperationID: "startTaskRun",
 		Summary:     "Start one claimed task run",
@@ -4451,7 +4433,7 @@ var operationRegistry = append([]OperationSpec{
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
-			queryParam("network_channel", "Filter by network channel", false),
+			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			enumQueryParam("origin_kind", "Filter by task origin kind", taskOriginKindValues()),
 		},
 		Responses: []ResponseSpec{

@@ -49,17 +49,18 @@ var (
 
 // Manifest describes one extension without executing any extension code.
 type Manifest struct {
-	Name          string             `toml:"name"                   json:"name"`
-	Version       string             `toml:"version"                json:"version"`
-	Description   string             `toml:"description,omitempty"  json:"description,omitempty"`
-	MinAGHVersion string             `toml:"min_agh_version"        json:"min_agh_version"`
-	RequiresEnv   []string           `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
-	Resources     ResourcesConfig    `toml:"resources"              json:"resources"`
-	Capabilities  CapabilitiesConfig `toml:"capabilities"           json:"capabilities"`
-	Actions       ActionsConfig      `toml:"actions"                json:"actions"`
-	Subprocess    SubprocessConfig   `toml:"subprocess"             json:"subprocess"`
-	Security      SecurityConfig     `toml:"security"               json:"security"`
-	Bridge        BridgeConfig       `toml:"bridge"                 json:"bridge"`
+	Name                 string                      `toml:"name"                            json:"name"`
+	Version              string                      `toml:"version"                         json:"version"`
+	Description          string                      `toml:"description,omitempty"           json:"description,omitempty"`
+	MinAGHVersion        string                      `toml:"min_agh_version"                 json:"min_agh_version"`
+	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
+	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
+	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
+	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
+	Actions              ActionsConfig               `toml:"actions"                         json:"actions"`
+	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
+	Security             SecurityConfig              `toml:"security"                        json:"security"`
+	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
 }
 
 // ResourcesConfig declares static assets bundled with an extension.
@@ -209,38 +210,20 @@ type ToolBackendConfig struct {
 // strings consistently.
 type Duration time.Duration
 
-// ManifestNotFoundError describes a missing manifest directory.
-type ManifestNotFoundError struct {
-	Dir   string
-	Paths []string
-}
-
-// ManifestValidationError describes an invalid manifest field.
-type ManifestValidationError struct {
-	Field   string
-	Value   string
-	Message string
-}
-
-// ManifestCompatibilityError describes a daemon-version compatibility failure.
-type ManifestCompatibilityError struct {
-	CurrentVersion string
-	MinVersion     string
-}
-
 type manifestDocument struct {
-	Extension     manifestCore       `toml:"extension"              json:"extension"`
-	Name          string             `toml:"name"                   json:"name"`
-	Version       string             `toml:"version"                json:"version"`
-	Description   string             `toml:"description,omitempty"  json:"description,omitempty"`
-	MinAGHVersion string             `toml:"min_agh_version"        json:"min_agh_version"`
-	RequiresEnv   []string           `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
-	Resources     ResourcesConfig    `toml:"resources"              json:"resources"`
-	Capabilities  CapabilitiesConfig `toml:"capabilities"           json:"capabilities"`
-	Actions       ActionsConfig      `toml:"actions"                json:"actions"`
-	Subprocess    SubprocessConfig   `toml:"subprocess"             json:"subprocess"`
-	Security      SecurityConfig     `toml:"security"               json:"security"`
-	Bridge        BridgeConfig       `toml:"bridge"                 json:"bridge"`
+	Extension            manifestCore                `toml:"extension"                       json:"extension"`
+	Name                 string                      `toml:"name"                            json:"name"`
+	Version              string                      `toml:"version"                         json:"version"`
+	Description          string                      `toml:"description,omitempty"           json:"description,omitempty"`
+	MinAGHVersion        string                      `toml:"min_agh_version"                 json:"min_agh_version"`
+	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
+	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
+	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
+	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
+	Actions              ActionsConfig               `toml:"actions"                         json:"actions"`
+	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
+	Security             SecurityConfig              `toml:"security"                        json:"security"`
+	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
 }
 
 type manifestCore struct {
@@ -302,6 +285,9 @@ func (m *Manifest) Validate() error {
 		return err
 	}
 	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {
+		return err
+	}
+	if err := m.NetworkParticipation.Validate("network_participation"); err != nil {
 		return err
 	}
 	if err := validateManifestEnvMaps(
@@ -385,51 +371,6 @@ func (m *Manifest) validateBridgeAdapterCapability() error {
 		}
 	}
 	return nil
-}
-
-// Error returns the typed missing-manifest message.
-func (e *ManifestNotFoundError) Error() string {
-	if len(e.Paths) == 0 {
-		return fmt.Sprintf("%s in %q", ErrManifestNotFound, e.Dir)
-	}
-	return fmt.Sprintf("%s in %q (tried %s)", ErrManifestNotFound, e.Dir, strings.Join(e.Paths, ", "))
-}
-
-// Is matches sentinel errors for errors.Is.
-func (e *ManifestNotFoundError) Is(target error) bool {
-	return target == ErrManifestNotFound
-}
-
-// Error returns the field-specific validation message.
-func (e *ManifestValidationError) Error() string {
-	base := fmt.Sprintf("%s field %q", ErrManifestInvalid, e.Field)
-	if strings.TrimSpace(e.Value) != "" {
-		base = fmt.Sprintf("%s (value %q)", base, e.Value)
-	}
-	if strings.TrimSpace(e.Message) == "" {
-		return base
-	}
-	return fmt.Sprintf("%s: %s", base, e.Message)
-}
-
-// Is matches sentinel errors for errors.Is.
-func (e *ManifestValidationError) Is(target error) bool {
-	return target == ErrManifestInvalid
-}
-
-// Error returns the daemon-version compatibility message.
-func (e *ManifestCompatibilityError) Error() string {
-	return fmt.Sprintf(
-		"%s: current daemon version %q does not satisfy min_agh_version %q",
-		ErrManifestIncompatible,
-		e.CurrentVersion,
-		e.MinVersion,
-	)
-}
-
-// Is matches sentinel errors for errors.Is.
-func (e *ManifestCompatibilityError) Is(target error) bool {
-	return target == ErrManifestIncompatible
 }
 
 // IsZero reports whether the duration is unset.
@@ -568,17 +509,18 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 	}
 
 	manifest := Manifest{
-		Name:          name,
-		Version:       versionValue,
-		Description:   description,
-		MinAGHVersion: minVersion,
-		RequiresEnv:   normalizeStrings(requiresEnv),
-		Resources:     normalizeResourcesConfig(d.Resources),
-		Capabilities:  normalizeCapabilitiesConfig(d.Capabilities),
-		Actions:       normalizeActionsConfig(d.Actions),
-		Subprocess:    normalizeSubprocessConfig(d.Subprocess),
-		Security:      normalizeSecurityConfig(d.Security),
-		Bridge:        normalizeBridgeConfig(d.Bridge),
+		Name:                 name,
+		Version:              versionValue,
+		Description:          description,
+		MinAGHVersion:        minVersion,
+		RequiresEnv:          normalizeStrings(requiresEnv),
+		NetworkParticipation: d.NetworkParticipation.Normalize(),
+		Resources:            normalizeResourcesConfig(d.Resources),
+		Capabilities:         normalizeCapabilitiesConfig(d.Capabilities),
+		Actions:              normalizeActionsConfig(d.Actions),
+		Subprocess:           normalizeSubprocessConfig(d.Subprocess),
+		Security:             normalizeSecurityConfig(d.Security),
+		Bridge:               normalizeBridgeConfig(d.Bridge),
 	}
 	return manifest, nil
 }

@@ -1,6 +1,7 @@
 import { CheckCircle2, Info, Play } from "lucide-react";
 
 import { Button, Section } from "@agh/ui";
+import { NetworkParticipationFields } from "@/systems/network";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
 import type { LoopDetail, LoopEffectiveConfig } from "../../types";
@@ -34,11 +35,11 @@ export function LoopRunForm({
 
   return (
     <div
-      className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px]"
+      className="grid min-h-0 flex-1 grid-cols-1 max-lg:block max-lg:overflow-y-auto lg:grid-cols-[minmax(0,1fr)_400px]"
       data-testid="loop-run-form"
     >
       <form
-        className="flex min-w-0 flex-col gap-6 overflow-y-auto px-6 py-5"
+        className="flex min-w-0 flex-col gap-6 overflow-y-auto px-6 py-5 max-lg:overflow-visible"
         onSubmit={event => {
           event.preventDefault();
           form.handleRun();
@@ -78,6 +79,16 @@ export function LoopRunForm({
           )}
         </Section>
 
+        <Section label="Participation" note="Resolved once when this run starts.">
+          <NetworkParticipationFields
+            allowedStrategies={["named", "loop_run"]}
+            disabled={form.busy}
+            onChange={form.setNetworkParticipationDraft}
+            testIdPrefix="loop-run-participation"
+            value={form.networkParticipation}
+          />
+        </Section>
+
         <LoopRunOverrides
           effectiveConfig={effectiveConfig}
           draft={form.overrides}
@@ -96,13 +107,14 @@ export function LoopRunForm({
       </form>
 
       <div className="flex min-w-0 flex-col border-t border-line-soft bg-canvas-tint lg:border-t-0 lg:border-l">
-        <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="flex-1 overflow-y-auto px-5 py-5 max-lg:overflow-visible">
           <LoopRunPreview
             loopName={loop.name}
             contract={form.contract}
             effectiveConfig={effectiveConfig}
             configOverrides={form.configOverrides}
             inputs={form.schema}
+            networkParticipation={form.networkParticipation}
             plan={form.plan}
           />
         </div>

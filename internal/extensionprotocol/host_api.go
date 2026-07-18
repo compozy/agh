@@ -99,13 +99,13 @@ const (
 	HostAPIMethodTasksRuns                   HostAPIMethod = "tasks/runs"
 	HostAPIMethodTasksRunsGet                HostAPIMethod = "tasks/runs/get"
 	HostAPIMethodTasksRunsEnqueue            HostAPIMethod = "tasks/runs/enqueue"
-	HostAPIMethodTasksRunsClaim              HostAPIMethod = "tasks/runs/claim"
 	HostAPIMethodTasksRunsStart              HostAPIMethod = "tasks/runs/start"
 	HostAPIMethodTasksRunsAttachSession      HostAPIMethod = "tasks/runs/attach_session"
 	HostAPIMethodTasksRunsComplete           HostAPIMethod = "tasks/runs/complete"
 	HostAPIMethodTasksRunsFail               HostAPIMethod = "tasks/runs/fail"
 	HostAPIMethodTasksRunsCancel             HostAPIMethod = "tasks/runs/cancel"
 	HostAPIMethodNetworkStatus               HostAPIMethod = "network/status"
+	HostAPIMethodNetworkUsage                HostAPIMethod = "network/usage"
 	HostAPIMethodNetworkChannels             HostAPIMethod = "network/channels"
 	HostAPIMethodNetworkPeers                HostAPIMethod = "network/peers"
 	HostAPIMethodNetworkThreads              HostAPIMethod = "network/threads"
@@ -205,7 +205,6 @@ func preNetworkHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodTasksRuns,
 		HostAPIMethodTasksRunsGet,
 		HostAPIMethodTasksRunsEnqueue,
-		HostAPIMethodTasksRunsClaim,
 		HostAPIMethodTasksRunsStart,
 		HostAPIMethodTasksRunsAttachSession,
 		HostAPIMethodTasksRunsComplete,
@@ -217,6 +216,7 @@ func preNetworkHostAPIMethods() []HostAPIMethod {
 func networkHostAPIMethods() []HostAPIMethod {
 	return []HostAPIMethod{
 		HostAPIMethodNetworkStatus,
+		HostAPIMethodNetworkUsage,
 		HostAPIMethodNetworkChannels,
 		HostAPIMethodNetworkPeers,
 		HostAPIMethodNetworkThreads,

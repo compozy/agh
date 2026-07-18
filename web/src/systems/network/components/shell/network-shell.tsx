@@ -43,7 +43,7 @@ export interface NetworkShellProps {
   activeChannelDetail: NetworkChannel | null;
   activeTab: ChannelTab;
   activeDirectId: string | null;
-  selfPeerId: string | null;
+  selfSessionId: string | null;
   threadCount: number | null;
   directCount: number | null;
   openWorkCount: number;
@@ -69,7 +69,7 @@ export function NetworkShell({
   activeChannelDetail,
   activeTab,
   activeDirectId,
-  selfPeerId,
+  selfSessionId,
   threadCount,
   directCount,
   openWorkCount,
@@ -103,7 +103,7 @@ export function NetworkShell({
         onTogglePinned={onTogglePinned}
         pinnedChannels={pinnedChannels}
         recents={recents}
-        selfPeerId={selfPeerId}
+        selfSessionId={selfSessionId}
         unpinnedChannels={unpinnedChannels}
       />
 

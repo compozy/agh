@@ -18,7 +18,6 @@ func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
 	normalized.Scope = normalized.Scope.Normalize()
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.CurrentRunID = strings.TrimSpace(normalized.CurrentRunID)
 	normalized.Title = strings.TrimSpace(normalized.Title)
 	normalized.Description = strings.TrimSpace(normalized.Description)
@@ -91,6 +90,7 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized := run
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
+	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.RunKind = normalized.RunKind.Normalize()
 	if normalized.RunKind == taskpkg.RunKindUnknown {
 		normalized.RunKind = taskpkg.RunKindWorker
@@ -109,10 +109,15 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.Origin.Kind = normalized.Origin.Kind.Normalize()
 	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	wakeID, targetSessionID, ownerKey := normalized.NetworkWakeCorrelation()
+	normalized.SetNetworkState(
+		normalized.NetworkSpecSnapshot(),
+		wakeID,
+		targetSessionID,
+		ownerKey,
+	)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
 	normalized.ClaimTokenHash = strings.TrimSpace(normalized.ClaimTokenHash)
-	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
 	normalized.RequiredCapabilities = normalizeTaskRunCapabilityIDs(normalized.RequiredCapabilities)
 	normalized.PreferredCapabilities = normalizeTaskRunCapabilityIDs(
 		normalized.PreferredCapabilities,
@@ -237,7 +242,6 @@ func normalizeTaskQuery(query taskpkg.Query) taskpkg.Query {
 	normalized.OwnerKind = normalized.OwnerKind.Normalize()
 	normalized.OwnerRef = strings.TrimSpace(normalized.OwnerRef)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.CreatedByKind = normalized.CreatedByKind.Normalize()
 	normalized.CreatedByRef = strings.TrimSpace(normalized.CreatedByRef)
 	normalized.Search = strings.TrimSpace(normalized.Search)
@@ -249,8 +253,8 @@ func normalizeTaskRunQuery(query taskpkg.RunQuery) taskpkg.RunQuery {
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.Status = normalized.Status.Normalize()
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
-	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
+	normalized.ParticipationChannel = strings.TrimSpace(normalized.ParticipationChannel)
 	return normalized
 }
 
@@ -261,7 +265,6 @@ func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,
 		ParentTaskID:       record.ParentTaskID,
-		NetworkChannel:     record.NetworkChannel,
 		Title:              record.Title,
 		Priority:           record.Priority,
 		MaxAttempts:        record.MaxAttempts,

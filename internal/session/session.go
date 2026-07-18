@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 )
 
@@ -49,34 +50,35 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
-	ID                 string
-	Name               string
-	AgentName          string
-	Provider           string
-	Model              string
-	ReasoningEffort    string
-	WorkspaceID        string
-	Workspace          string
-	Channel            string
-	Type               Type
-	Lineage            *store.SessionLineage
-	State              State
-	StopReason         store.StopReason
-	StopDetail         string
-	Failure            *store.SessionFailure
-	ACPSessionID       string
-	ACPCaps            acp.Caps
-	AdvertisedCommands []store.SessionAdvertisedCommand
-	Liveness           *store.SessionLivenessMeta
-	Sandbox            *store.SessionSandboxMeta
-	SoulSnapshotID     string
-	SoulDigest         string
-	ParentSoulDigest   string
-	AttachedTo         string
-	AttachExpiresAt    *time.Time
-	TranscriptEpoch    int64
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                   string
+	Name                 string
+	AgentName            string
+	Provider             string
+	Model                string
+	ReasoningEffort      string
+	WorkspaceID          string
+	Workspace            string
+	NetworkParticipation participation.Spec
+	NetworkOwnerKey      string
+	Type                 Type
+	Lineage              *store.SessionLineage
+	State                State
+	StopReason           store.StopReason
+	StopDetail           string
+	Failure              *store.SessionFailure
+	ACPSessionID         string
+	ACPCaps              acp.Caps
+	AdvertisedCommands   []store.SessionAdvertisedCommand
+	Liveness             *store.SessionLivenessMeta
+	Sandbox              *store.SessionSandboxMeta
+	SoulSnapshotID       string
+	SoulDigest           string
+	ParentSoulDigest     string
+	AttachedTo           string
+	AttachExpiresAt      *time.Time
+	TranscriptEpoch      int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // Session is the in-memory runtime representation of one active or stopping session.
@@ -92,7 +94,8 @@ type Session struct {
 	EffectivePermissions string
 	WorkspaceID          string
 	Workspace            string
-	Channel              string
+	NetworkParticipation participation.Spec
+	NetworkOwnerKey      string
 	Type                 Type
 	Lineage              *store.SessionLineage
 	State                State
@@ -131,85 +134,6 @@ type Session struct {
 	currentPromptMeta    acp.PromptMeta
 	currentPromptCancel  context.CancelFunc
 	providerRedactions   []func()
-}
-
-// Info returns a consistent snapshot of the current session state.
-func (s *Session) Info() *Info {
-	if s == nil {
-		return nil
-	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	acpCaps := cloneCaps(s.ACPCaps)
-	if s.process != nil {
-		acpCaps = cloneCaps(s.process.CapsSnapshot())
-	}
-
-	return &Info{
-		ID:                 s.ID,
-		Name:               s.Name,
-		AgentName:          s.AgentName,
-		Provider:           s.Provider,
-		Model:              s.Model,
-		ReasoningEffort:    s.ReasoningEffort,
-		WorkspaceID:        s.WorkspaceID,
-		Workspace:          s.Workspace,
-		Channel:            s.Channel,
-		Type:               normalizeSessionType(s.Type),
-		Lineage:            store.NormalizeSessionLineage(s.ID, s.Lineage),
-		State:              s.State,
-		StopReason:         s.stopReason,
-		StopDetail:         s.stopDetail,
-		Failure:            store.CloneSessionFailure(s.failure),
-		ACPSessionID:       s.ACPSessionID,
-		ACPCaps:            acpCaps,
-		AdvertisedCommands: store.CloneSessionAdvertisedCommands(s.AdvertisedCommands),
-		Liveness:           store.CloneSessionLivenessMeta(s.Liveness),
-		Sandbox:            cloneSessionSandboxMeta(s.Sandbox),
-		SoulSnapshotID:     s.SoulSnapshotID,
-		SoulDigest:         s.SoulDigest,
-		ParentSoulDigest:   s.ParentSoulDigest,
-		AttachedTo:         strings.TrimSpace(s.AttachedTo),
-		AttachExpiresAt:    cloneSessionTimePtr(s.AttachExpiresAt),
-		TranscriptEpoch:    s.TranscriptEpoch,
-		CreatedAt:          s.CreatedAt,
-		UpdatedAt:          s.UpdatedAt,
-	}
-}
-
-// SessionDir reports the on-disk session directory path.
-func (s *Session) SessionDir() string {
-	if s == nil {
-		return ""
-	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.sessionDir
-}
-
-// MetaPath reports the on-disk metadata file path.
-func (s *Session) MetaPath() string {
-	if s == nil {
-		return ""
-	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.metaPath
-}
-
-// DBPath reports the on-disk per-session event database path.
-func (s *Session) DBPath() string {
-	if s == nil {
-		return ""
-	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.dbPath
 }
 
 func (s *Session) processHandle() *AgentProcess {

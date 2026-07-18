@@ -72,7 +72,10 @@ test.describe("network disabled state", () => {
     await appPage.goto(runtime.url("/network"), { waitUntil: "domcontentloaded" });
     await useGlobalWorkspaceIfPrompted(ui);
     await expect(ui.disabledState).toBeVisible();
-    await expect(appPage.getByTestId("network-empty")).toContainText("The network is off.");
+    await expect(appPage.getByTestId("network-empty")).toContainText("Network is disabled.");
+    await expect(appPage.getByTestId("network-empty")).toContainText(
+      "Local work remains available"
+    );
     await expect(appPage.getByTestId("network-empty-open-settings")).toBeVisible();
 
     const status = await runtime.requestJSON<NetworkStatusEnvelope>("/api/network/status");
@@ -105,6 +108,14 @@ test("operator verifies thread and direct network surfaces with final conversati
   const workspace = await prepareNetworkRuntime(runtime, appPage);
   await ui.navNetwork.click();
   await expect(ui.noChannelsState).toBeVisible();
+  await expect(appPage.getByTestId("network-empty")).toContainText(
+    "Executions stay Local by default"
+  );
+  await expect(appPage.getByTestId("network-empty")).toContainText("Choose Live explicitly");
+  await expect(appPage.getByTestId("network-empty")).toContainText(
+    "Network availability never enrolls an execution"
+  );
+  await expect(appPage.getByTestId("network-empty-open-settings")).toBeVisible();
   await createChannelFromUI(appPage, ui, {
     agents: [initiatorAgentName, responderAgentName],
     channel: channelName,

@@ -42,6 +42,7 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 		&loopTarget.loopName,
 		&loopTarget.inputsRaw,
 		&loopTarget.inputMappingRaw,
+		&loopTarget.networkParticipationRaw,
 		&createdAt,
 		&updatedAt,
 	); err != nil {
@@ -121,6 +122,7 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 		&loopTarget.loopName,
 		&loopTarget.inputsRaw,
 		&loopTarget.inputMappingRaw,
+		&loopTarget.networkParticipationRaw,
 		&createdAt,
 		&updatedAt,
 	); err != nil {
@@ -176,22 +178,23 @@ func assignAutomationTriggerTimestamps(trigger *automation.Trigger, createdAt st
 
 func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 	var (
-		run           automation.Run
-		jobID         sql.NullString
-		triggerID     sql.NullString
-		sessionID     sql.NullString
-		taskID        sql.NullString
-		taskRunID     sql.NullString
-		fireID        sql.NullString
-		status        string
-		scheduledAt   sql.NullString
-		startedAt     sql.NullString
-		endedAt       sql.NullString
-		runErr        sql.NullString
-		deliveryErr   sql.NullString
-		deliveryErrAt sql.NullString
-		loopRunID     sql.NullString
-		metadataRaw   string
+		run                     automation.Run
+		jobID                   sql.NullString
+		triggerID               sql.NullString
+		sessionID               sql.NullString
+		taskID                  sql.NullString
+		taskRunID               sql.NullString
+		fireID                  sql.NullString
+		status                  string
+		scheduledAt             sql.NullString
+		startedAt               sql.NullString
+		endedAt                 sql.NullString
+		runErr                  sql.NullString
+		deliveryErr             sql.NullString
+		deliveryErrAt           sql.NullString
+		loopRunID               sql.NullString
+		networkParticipationRaw sql.NullString
+		metadataRaw             string
 	)
 	if err := scanner.Scan(
 		&run.ID,
@@ -210,6 +213,7 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		&deliveryErr,
 		&deliveryErrAt,
 		&loopRunID,
+		&networkParticipationRaw,
 		&metadataRaw,
 	); err != nil {
 		return automation.Run{}, fmt.Errorf("store: scan automation run: %w", err)
@@ -227,6 +231,13 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		return automation.Run{}, err
 	}
 	assignAutomationRunErrors(&run, runErr, deliveryErr)
+	if err := decodeOptionalAutomationJSON(
+		networkParticipationRaw,
+		&run.NetworkParticipation,
+		"run.network_participation",
+	); err != nil {
+		return automation.Run{}, err
+	}
 	if err := decodeAutomationRunMetadata(metadataRaw, &run.Metadata); err != nil {
 		return automation.Run{}, err
 	}

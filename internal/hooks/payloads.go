@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 var (
@@ -818,16 +820,16 @@ type AutonomyObservationPatch struct {
 
 // CoordinatorContext carries the coordinator identifiers shared across coordinator hooks.
 type CoordinatorContext struct {
-	WorkspaceID           string `json:"workspace_id,omitempty"`
-	Workspace             string `json:"workspace,omitempty"`
-	AgentName             string `json:"agent_name,omitempty"`
-	CoordinatorSessionID  string `json:"coordinator_session_id,omitempty"`
-	TaskID                string `json:"task_id,omitempty"`
-	RunID                 string `json:"run_id,omitempty"`
-	WorkflowID            string `json:"workflow_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	Provider              string `json:"provider,omitempty"`
-	Model                 string `json:"model,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	Workspace                    string              `json:"workspace,omitempty"`
+	AgentName                    string              `json:"agent_name,omitempty"`
+	CoordinatorSessionID         string              `json:"coordinator_session_id,omitempty"`
+	TaskID                       string              `json:"task_id,omitempty"`
+	RunID                        string              `json:"run_id,omitempty"`
+	WorkflowID                   string              `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	Provider                     string              `json:"provider,omitempty"`
+	Model                        string              `json:"model,omitempty"`
 }
 
 // CoordinatorPreSpawnPayload is delivered before the daemon creates a coordinator session.
@@ -874,21 +876,20 @@ type CoordinatorObservationPatch = AutonomyObservationPatch
 
 // TaskContext carries task-level identifiers shared across task lifecycle hooks.
 type TaskContext struct {
-	TaskID                string `json:"task_id,omitempty"`
-	ParentTaskID          string `json:"parent_task_id,omitempty"`
-	WorkspaceID           string `json:"workspace_id,omitempty"`
-	WorkflowID            string `json:"workflow_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	NetworkChannel        string `json:"network_channel,omitempty"`
-	AgentName             string `json:"agent_name,omitempty"`
-	ActorKind             string `json:"actor_kind,omitempty"`
-	ActorID               string `json:"actor_id,omitempty"`
-	OriginKind            string `json:"origin_kind,omitempty"`
-	OriginRef             string `json:"origin_ref,omitempty"`
-	TaskStatus            string `json:"task_status,omitempty"`
-	RunID                 string `json:"run_id,omitempty"`
-	ReleaseReason         string `json:"release_reason,omitempty"`
-	ClaimTokenHash        string `json:"claim_token_hash,omitempty"`
+	TaskID                       string              `json:"task_id,omitempty"`
+	ParentTaskID                 string              `json:"parent_task_id,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	WorkflowID                   string              `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	AgentName                    string              `json:"agent_name,omitempty"`
+	ActorKind                    string              `json:"actor_kind,omitempty"`
+	ActorID                      string              `json:"actor_id,omitempty"`
+	OriginKind                   string              `json:"origin_kind,omitempty"`
+	OriginRef                    string              `json:"origin_ref,omitempty"`
+	TaskStatus                   string              `json:"task_status,omitempty"`
+	RunID                        string              `json:"run_id,omitempty"`
+	ReleaseReason                string              `json:"release_reason,omitempty"`
+	ClaimTokenHash               string              `json:"claim_token_hash,omitempty"`
 }
 
 // TaskStatusChangedPayload is delivered after a task status transition is committed.
@@ -935,123 +936,25 @@ type TaskRecoveredPayload = TaskAttentionPayload
 // TaskObservationPatch is the observation patch surface for committed task lifecycle hooks.
 type TaskObservationPatch = AutonomyObservationPatch
 
-// TaskRunClaimCriteria carries the mutable claim criteria exposed to task-run pre-claim hooks.
-type TaskRunClaimCriteria struct {
-	WorkspaceID           string   `json:"workspace_id,omitempty"`
-	ClaimerSessionID      string   `json:"claimer_session_id,omitempty"`
-	AgentName             string   `json:"agent_name,omitempty"`
-	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
-	PriorityMin           int      `json:"priority_min,omitempty"`
-	CoordinationChannelID string   `json:"coordination_channel_id,omitempty"`
-}
-
-// TaskRunContext carries task-run identifiers shared across task-run hooks.
-type TaskRunContext struct {
-	TaskID                string    `json:"task_id,omitempty"`
-	RunID                 string    `json:"run_id,omitempty"`
-	RunKind               *string   `json:"run_kind,omitempty"`
-	LoopRunID             string    `json:"loop_run_id,omitempty"`
-	WorkspaceID           string    `json:"workspace_id,omitempty"`
-	WorkflowID            string    `json:"workflow_id,omitempty"`
-	CoordinationChannelID string    `json:"coordination_channel_id,omitempty"`
-	NetworkChannel        string    `json:"network_channel,omitempty"`
-	AgentName             string    `json:"agent_name,omitempty"`
-	SessionID             string    `json:"session_id,omitempty"`
-	ActorKind             string    `json:"actor_kind,omitempty"`
-	ActorID               string    `json:"actor_id,omitempty"`
-	OriginKind            string    `json:"origin_kind,omitempty"`
-	OriginRef             string    `json:"origin_ref,omitempty"`
-	TaskStatus            string    `json:"task_status,omitempty"`
-	RunStatus             string    `json:"run_status,omitempty"`
-	SoulSnapshotID        string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest            string    `json:"soul_digest,omitempty"`
-	Attempt               int       `json:"attempt,omitempty"`
-	LeaseUntil            time.Time `json:"lease_until"`
-	ReleaseReason         string    `json:"release_reason,omitempty"`
-	Error                 string    `json:"error,omitempty"`
-}
-
-// TaskRunEnqueuedPayload is delivered after a task run is enqueued and its audit event is committed.
-type TaskRunEnqueuedPayload struct {
-	PayloadBase
-	TaskRunContext
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-// TaskRunPreClaimPayload is delivered before a task run claim commits.
-type TaskRunPreClaimPayload struct {
-	PayloadBase
-	TaskRunContext
-	Criteria   TaskRunClaimCriteria `json:"criteria"`
-	Denied     bool                 `json:"denied,omitempty"`
-	DenyReason string               `json:"deny_reason,omitempty"`
-}
-
-// TaskRunPostClaimPayload is delivered after a task run claim and audit event commit.
-type TaskRunPostClaimPayload struct {
-	PayloadBase
-	TaskRunContext
-	ClaimedAt time.Time `json:"claimed_at"`
-}
-
-// TaskRunLeasePayload is shared by committed task-run lease lifecycle hooks.
-type TaskRunLeasePayload struct {
-	PayloadBase
-	TaskRunContext
-	PreviousRunStatus string `json:"previous_run_status,omitempty"`
-	PreviousSessionID string `json:"previous_session_id,omitempty"`
-	RecoveryAction    string `json:"recovery_action,omitempty"`
-	RecoveryReason    string `json:"recovery_reason,omitempty"`
-}
-
-// TaskRunLeaseExtendedPayload is delivered after a task-run lease is extended.
-type TaskRunLeaseExtendedPayload = TaskRunLeasePayload
-
-// TaskRunLeaseExpiredPayload is delivered after a task-run lease expires.
-type TaskRunLeaseExpiredPayload = TaskRunLeasePayload
-
-// TaskRunLeaseRecoveredPayload is delivered after lease recovery commits.
-type TaskRunLeaseRecoveredPayload = TaskRunLeasePayload
-
-// TaskRunReleasedPayload is delivered after a task run lease is released.
-type TaskRunReleasedPayload = TaskRunLeasePayload
-
-// TaskRunCompletedPayload is delivered after a token-fenced task run completion.
-type TaskRunCompletedPayload = TaskRunLeasePayload
-
-// TaskRunFailedPayload is delivered after a token-fenced task run failure.
-type TaskRunFailedPayload = TaskRunLeasePayload
-
-// TaskRunPreClaimPatch denies or narrows task-run claim criteria.
-type TaskRunPreClaimPatch struct {
-	ControlPatch
-	AddRequiredCapabilities []string `json:"add_required_capabilities,omitempty"`
-	PriorityMin             *int     `json:"priority_min,omitempty"`
-}
-
-// TaskRunObservationPatch is the observation patch surface for committed task-run hooks.
-type TaskRunObservationPatch = AutonomyObservationPatch
-
 // LoopContext carries identifiers shared by loop lifecycle hooks.
 type LoopContext struct {
-	LoopRunID             string `json:"loop_run_id,omitempty"`
-	ParentLoopRunID       string `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID           string `json:"workspace_id,omitempty"`
-	LoopName              string `json:"loop_name,omitempty"`
-	Generation            int    `json:"generation,omitempty"`
-	TaskID                string `json:"task_id,omitempty"`
-	RunID                 string `json:"run_id,omitempty"`
-	RunKind               string `json:"run_kind,omitempty"`
-	NodeID                string `json:"node_id,omitempty"`
-	WorkflowID            string `json:"workflow_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	NetworkChannel        string `json:"network_channel,omitempty"`
-	AgentName             string `json:"agent_name,omitempty"`
-	SessionID             string `json:"session_id,omitempty"`
-	ActorKind             string `json:"actor_kind,omitempty"`
-	ActorID               string `json:"actor_id,omitempty"`
-	OriginKind            string `json:"origin_kind,omitempty"`
-	OriginRef             string `json:"origin_ref,omitempty"`
+	LoopRunID                    string              `json:"loop_run_id,omitempty"`
+	ParentLoopRunID              string              `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	LoopName                     string              `json:"loop_name,omitempty"`
+	Generation                   int                 `json:"generation,omitempty"`
+	TaskID                       string              `json:"task_id,omitempty"`
+	RunID                        string              `json:"run_id,omitempty"`
+	RunKind                      string              `json:"run_kind,omitempty"`
+	NodeID                       string              `json:"node_id,omitempty"`
+	WorkflowID                   string              `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	AgentName                    string              `json:"agent_name,omitempty"`
+	SessionID                    string              `json:"session_id,omitempty"`
+	ActorKind                    string              `json:"actor_kind,omitempty"`
+	ActorID                      string              `json:"actor_id,omitempty"`
+	OriginKind                   string              `json:"origin_kind,omitempty"`
+	OriginRef                    string              `json:"origin_ref,omitempty"`
 }
 
 // LoopLifecyclePayload is shared by loop started and terminal events.
@@ -1142,23 +1045,23 @@ type PermissionSet struct {
 
 // SpawnContext carries spawn identifiers shared across spawn lifecycle hooks.
 type SpawnContext struct {
-	ParentSessionID       string `json:"parent_session_id,omitempty"`
-	RootSessionID         string `json:"root_session_id,omitempty"`
-	ChildSessionID        string `json:"child_session_id,omitempty"`
-	WorkspaceID           string `json:"workspace_id,omitempty"`
-	Workspace             string `json:"workspace,omitempty"`
-	AgentName             string `json:"agent_name,omitempty"`
-	SpawnRole             string `json:"spawn_role,omitempty"`
-	SpawnDepth            int    `json:"spawn_depth,omitempty"`
-	TTLSeconds            int64  `json:"ttl_seconds,omitempty"`
-	AutoStopOnParent      bool   `json:"auto_stop_on_parent,omitempty"`
-	TaskID                string `json:"task_id,omitempty"`
-	RunID                 string `json:"run_id,omitempty"`
-	WorkflowID            string `json:"workflow_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	SoulSnapshotID        string `json:"soul_snapshot_id,omitempty"`
-	SoulDigest            string `json:"soul_digest,omitempty"`
-	ParentSoulDigest      string `json:"parent_soul_digest,omitempty"`
+	ParentSessionID              string              `json:"parent_session_id,omitempty"`
+	RootSessionID                string              `json:"root_session_id,omitempty"`
+	ChildSessionID               string              `json:"child_session_id,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	Workspace                    string              `json:"workspace,omitempty"`
+	AgentName                    string              `json:"agent_name,omitempty"`
+	SpawnRole                    string              `json:"spawn_role,omitempty"`
+	SpawnDepth                   int                 `json:"spawn_depth,omitempty"`
+	TTLSeconds                   int64               `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent             bool                `json:"auto_stop_on_parent,omitempty"`
+	TaskID                       string              `json:"task_id,omitempty"`
+	RunID                        string              `json:"run_id,omitempty"`
+	WorkflowID                   string              `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	SoulSnapshotID               string              `json:"soul_snapshot_id,omitempty"`
+	SoulDigest                   string              `json:"soul_digest,omitempty"`
+	ParentSoulDigest             string              `json:"parent_soul_digest,omitempty"`
 }
 
 // SpawnPreCreatePayload is delivered before a child session is created.
@@ -1310,22 +1213,6 @@ func (p TaskStatusChangedPayload) hookSessionContext() SessionContext {
 	return taskSessionContext(p.TaskContext)
 }
 
-func (p TaskRunEnqueuedPayload) hookSessionContext() SessionContext {
-	return taskRunSessionContext(p.TaskRunContext)
-}
-
-func (p TaskRunPreClaimPayload) hookSessionContext() SessionContext {
-	return taskRunSessionContext(p.TaskRunContext)
-}
-
-func (p TaskRunPostClaimPayload) hookSessionContext() SessionContext {
-	return taskRunSessionContext(p.TaskRunContext)
-}
-
-func (p TaskRunLeasePayload) hookSessionContext() SessionContext {
-	return taskRunSessionContext(p.TaskRunContext)
-}
-
 func (p LoopLifecyclePayload) hookSessionContext() SessionContext {
 	return loopSessionContext(p.LoopContext)
 }
@@ -1354,15 +1241,6 @@ func taskSessionContext(ctx TaskContext) SessionContext {
 	return SessionContext{
 		AgentName:   ctx.AgentName,
 		WorkspaceID: ctx.WorkspaceID,
-	}
-}
-
-func taskRunSessionContext(ctx TaskRunContext) SessionContext {
-	return SessionContext{
-		SessionID:          ctx.SessionID,
-		AgentName:          ctx.AgentName,
-		WorkspaceID:        ctx.WorkspaceID,
-		SessionSoulContext: optionalSessionSoulContext(ctx.SoulSnapshotID, ctx.SoulDigest),
 	}
 }
 

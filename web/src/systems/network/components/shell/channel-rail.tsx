@@ -54,23 +54,23 @@ export interface ChannelRailProps {
   };
   activeChannel: string | null;
   activeDirectId: string | null;
-  selfPeerId: string | null;
+  selfSessionId: string | null;
   isPinned: (channel: string) => boolean;
   onTogglePinned: (channel: string) => void;
   hasUnread: (channel: string) => boolean;
 }
 
-function pickOtherPeerId(
+function pickOtherSessionId(
   direct: NetworkDirectRoomSummary,
-  selfPeerId: string | null | undefined
+  selfSessionId: string | null | undefined
 ): string {
-  if (!selfPeerId) {
-    return direct.peer_a;
+  if (!selfSessionId) {
+    return direct.session_a;
   }
-  if (direct.peer_a === selfPeerId) {
-    return direct.peer_b;
+  if (direct.session_a === selfSessionId) {
+    return direct.session_b;
   }
-  return direct.peer_a;
+  return direct.session_a;
 }
 
 interface DirectRoomRailRowProps {
@@ -78,7 +78,7 @@ interface DirectRoomRailRowProps {
   channel: string;
   direct: NetworkDirectRoomSummary;
   active: boolean;
-  selfPeerId: string | null;
+  selfSessionId: string | null;
 }
 
 function DirectRoomRailRow({
@@ -86,9 +86,9 @@ function DirectRoomRailRow({
   channel,
   direct,
   active,
-  selfPeerId,
+  selfSessionId,
 }: DirectRoomRailRowProps) {
-  const otherPeerId = pickOtherPeerId(direct, selfPeerId);
+  const otherSessionId = pickOtherSessionId(direct, selfSessionId);
   const lastActivity = direct.last_activity_at
     ? formatNetworkRelativeTime(direct.last_activity_at)
     : null;
@@ -103,13 +103,13 @@ function DirectRoomRailRow({
     >
       {active ? <span aria-hidden="true" className={ACTIVE_NAV_INDICATOR_CLASS} /> : null}
       <MessageAvatar
-        initialFrom={otherPeerId}
-        name={otherPeerId}
+        initialFrom={otherSessionId}
+        name={otherSessionId}
         ownerRole="agent"
-        seed={otherPeerId}
+        seed={otherSessionId}
         sizePx={20}
       />
-      <span className="min-w-0 flex-1 truncate">@{otherPeerId}</span>
+      <span className="min-w-0 flex-1 truncate">@{otherSessionId}</span>
       {lastActivity ? (
         <span className="shrink-0 font-mono text-badge text-subtle">{lastActivity}</span>
       ) : null}
@@ -126,7 +126,7 @@ export function ChannelRail({
   loading,
   activeChannel,
   activeDirectId,
-  selfPeerId,
+  selfSessionId,
   isPinned,
   onTogglePinned,
   hasUnread,
@@ -230,7 +230,7 @@ export function ChannelRail({
                   channel={activeChannel}
                   direct={direct}
                   key={direct.direct_id}
-                  selfPeerId={selfPeerId}
+                  selfSessionId={selfSessionId}
                   workspaceId={workspaceId}
                 />
               ))}

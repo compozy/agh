@@ -51,7 +51,7 @@ func (h *BaseHandlers) SetHTTPPort(port int) {
 // CreateSession creates a new runtime session.
 func (h *BaseHandlers) CreateSession(c *gin.Context) {
 	var req contract.CreateSessionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -64,22 +64,16 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 
-	channel, err := h.defaultSessionChannel(c.Request.Context(), strings.TrimSpace(req.Channel))
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
 	sess, err := h.Sessions.Create(c.Request.Context(), session.CreateOpts{
-		AgentName:       req.AgentName,
-		Provider:        strings.TrimSpace(req.Provider),
-		Model:           strings.TrimSpace(req.Model),
-		ReasoningEffort: strings.TrimSpace(string(req.ReasoningEffort)),
-		Name:            req.Name,
-		Workspace:       strings.TrimSpace(req.Workspace),
-		WorkspacePath:   strings.TrimSpace(req.WorkspacePath),
-		Channel:         channel,
-		Type:            session.SessionTypeUser,
+		AgentName:            req.AgentName,
+		Provider:             strings.TrimSpace(req.Provider),
+		Model:                strings.TrimSpace(req.Model),
+		ReasoningEffort:      strings.TrimSpace(string(req.ReasoningEffort)),
+		Name:                 req.Name,
+		Workspace:            strings.TrimSpace(req.Workspace),
+		WorkspacePath:        strings.TrimSpace(req.WorkspacePath),
+		NetworkParticipation: req.NetworkParticipation,
+		Type:                 session.SessionTypeUser,
 	})
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
@@ -420,11 +414,11 @@ func decodeStrictJSONBody(c *gin.Context, target any) error {
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		return err
+		return normalizeStrictJSONDecodeError(err)
 	}
 	var extra struct{}
 	if err := decoder.Decode(&extra); err != nil && !errors.Is(err, io.EOF) {
-		return err
+		return normalizeStrictJSONDecodeError(err)
 	} else if err == nil {
 		return errors.New("request body must contain a single JSON object")
 	}
@@ -716,9 +710,6 @@ func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.Netw
 	if err != nil {
 		return nil, fmt.Errorf("api: load bundle network settings: %w", err)
 	}
-	payload.ConfiguredDefaultChannel = strings.TrimSpace(settings.ConfiguredDefaultChannel)
-	payload.EffectiveDefaultChannel = strings.TrimSpace(settings.EffectiveDefaultChannel)
-	payload.EffectiveDefaultSource = strings.TrimSpace(settings.EffectiveDefaultSource)
 	payload.DeclaredChannels = DeclaredNetworkChannelPayloads(settings.DeclaredChannels)
 	return payload, nil
 }

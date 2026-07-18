@@ -21,11 +21,13 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
+	apitestutil "github.com/compozy/agh/internal/api/testutil"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/resources"
 	sandboxlocal "github.com/compozy/agh/internal/sandbox/local"
@@ -536,7 +538,7 @@ func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 
 func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
-	sessionID := createIntegrationSession(t, runtime)
+	sessionID := createLiveIntegrationSession(t, runtime)
 
 	const promptTimeout = 5 * time.Second
 
@@ -914,15 +916,18 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 	}
 }
 
-func TestHTTPSessionChannelRoundTrip(t *testing.T) {
+func TestHTTPSessionParticipationRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
+	apitestutil.EnableIntegrationLiveNetwork(t, runtime.registry)
 
 	createResp := mustHTTPRequest(
 		t,
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/sessions"),
-		[]byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","channel":"builders"}`),
+		[]byte(
+			`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","network_participation":{"mode":"live","channel_strategy":"named","channel_id":"builders"}}`,
+		),
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
@@ -939,9 +944,13 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, createResp, &created)
-	if created.Session.Channel != "builders" {
-		t.Fatalf("created.Session.Channel = %q, want %q", created.Session.Channel, "builders")
-	}
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		created.Session.ResolvedNetworkParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 
 	listResp := mustHTTPRequest(
 		t,
@@ -963,9 +972,13 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
 	}
-	if listed.Sessions[0].Channel != "builders" {
-		t.Fatalf("listed.Sessions[0].Channel = %q, want %q", listed.Sessions[0].Channel, "builders")
-	}
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		listed.Sessions[0].ResolvedNetworkParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 
 	stopIntegrationSession(t, runtime, created.Session.ID)
 
@@ -986,8 +999,15 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, statusResp, &stopped)
-	if stopped.Session.Channel != "builders" || stopped.Session.State != session.StateStopped {
-		t.Fatalf("stopped session = %#v, want stopped builders session", stopped.Session)
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		stopped.Session.ResolvedNetworkParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
+	if stopped.Session.State != session.StateStopped {
+		t.Fatalf("stopped session state = %q, want %q", stopped.Session.State, session.StateStopped)
 	}
 
 	indexed, err := runtime.registry.ListSessions(context.Background(), store.SessionListQuery{State: "stopped"})
@@ -997,9 +1017,14 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 	if got, want := len(indexed), 1; got != want {
 		t.Fatalf("len(indexed stopped sessions) = %d, want %d", got, want)
 	}
-	if indexed[0].Channel != "builders" {
-		t.Fatalf("indexed[0].Channel = %q, want %q", indexed[0].Channel, "builders")
-	}
+	indexedParticipation := indexed[0].NetworkSpecSnapshot()
+	apitestutil.AssertResolvedParticipationChannel(
+		t,
+		&indexedParticipation,
+		created.Session.WorkspaceID,
+		"builders",
+		participation.SourceExplicitRequest,
+	)
 
 	resumeResp := mustHTTPRequest(
 		t,
@@ -1881,7 +1906,6 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		"scope":"global",
 		"title":"Ship task routes",
 		"description":"Expose the transport routes",
-		"network_channel":"builders",
 		"owner":{"kind":"pool","ref":"ops"},
 		"metadata":{"priority":"high"}
 	}`))
@@ -1891,8 +1915,11 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 	if created.Scope != taskpkg.ScopeGlobal {
 		t.Fatalf("created scope = %q, want %q", created.Scope, taskpkg.ScopeGlobal)
 	}
-	if created.NetworkChannel != "builders" {
-		t.Fatalf("created network_channel = %q, want %q", created.NetworkChannel, "builders")
+	if created.ResolvedNetworkParticipation != nil {
+		t.Fatalf(
+			"created resolved_network_participation = %#v, want nil without an active run",
+			created.ResolvedNetworkParticipation,
+		)
 	}
 	if created.Owner == nil || created.Owner.Kind != taskpkg.OwnerKindPool || created.Owner.Ref != "ops" {
 		t.Fatalf("created owner = %#v, want pool/ops", created.Owner)
@@ -1914,7 +1941,7 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		mustURL(
 			runtime.host,
 			runtime.port,
-			"/api/tasks?scope=global&status=ready&owner_kind=pool&owner_ref=ops&network_channel=builders",
+			"/api/tasks?scope=global&status=ready&owner_kind=pool&owner_ref=ops",
 		),
 		nil,
 		nil,
@@ -1960,7 +1987,6 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		[]byte(`{
 		"title":"Ship task routes now",
 		"description":"Expose the task and run transports everywhere",
-		"network_channel":"ops",
 		"clear_owner":true
 	}`),
 		nil,
@@ -1978,8 +2004,11 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 	if updated.Task.Description != "Expose the task and run transports everywhere" {
 		t.Fatalf("updated description = %q", updated.Task.Description)
 	}
-	if updated.Task.NetworkChannel != "ops" {
-		t.Fatalf("updated network_channel = %q, want %q", updated.Task.NetworkChannel, "ops")
+	if updated.Task.ResolvedNetworkParticipation != nil {
+		t.Fatalf(
+			"updated resolved_network_participation = %#v, want nil without an active run",
+			updated.Task.ResolvedNetworkParticipation,
+		)
 	}
 	if updated.Task.Owner != nil {
 		t.Fatalf("updated owner = %#v, want nil", updated.Task.Owner)
@@ -1989,7 +2018,7 @@ func TestHTTPTaskRoutesRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/tasks?scope=global&status=ready&network_channel=ops"),
+		mustURL(runtime.host, runtime.port, "/api/tasks?scope=global&status=ready"),
 		nil,
 		nil,
 	)
@@ -2015,14 +2044,18 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		t.Parallel()
 
 		runtime := newIntegrationRuntime(t)
-		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+		created := createIntegrationTask(
+			t,
+			runtime,
+			[]byte(`{"scope":"workspace","workspace":"ws-workspace","title":"Run task routes"}`),
+		)
 
 		enqueueResp := mustHTTPRequest(
 			t,
 			runtime.client,
 			http.MethodPost,
 			mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"),
-			[]byte(`{"idempotency_key":"enqueue-1","network_channel":"builders"}`),
+			[]byte(`{"idempotency_key":"enqueue-1"}`),
 			nil,
 		)
 		if enqueueResp.StatusCode != http.StatusCreated {
@@ -2040,9 +2073,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		if queued.Run.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("queued status = %q, want %q", queued.Run.Status, taskpkg.TaskRunStatusQueued)
 		}
-		if queued.Run.NetworkChannel != "builders" {
-			t.Fatalf("queued network_channel = %q, want %q", queued.Run.NetworkChannel, "builders")
-		}
+		apitestutil.AssertLocalResolvedParticipation(t, queued.Run.ResolvedNetworkParticipation)
 
 		listQueuedResp := mustHTTPRequest(
 			t,
@@ -2068,26 +2099,17 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			t.Fatalf("queued runs = %#v, want queued run", queuedList.Runs)
 		}
 
-		claimResp := mustHTTPRequest(
-			t,
-			runtime.client,
-			http.MethodPost,
-			mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/claim"),
-			[]byte(`{"idempotency_key":"claim-1"}`),
-			nil,
-		)
-		if claimResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(claimResp.Body)
-			_ = claimResp.Body.Close()
-			t.Fatalf("claim run status = %d, want %d; body=%s", claimResp.StatusCode, http.StatusOK, string(body))
+		seedIntegrationTaskRunClaimed(t, runtime, queued.Run.ID)
+		claimedRun, err := runtime.registry.GetTaskRun(context.Background(), queued.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(%q) error = %v", queued.Run.ID, err)
 		}
-		var claimed contract.TaskRunResponse
-		decodeHTTPJSON(t, claimResp, &claimed)
-		if claimed.Run.Status != taskpkg.TaskRunStatusClaimed {
-			t.Fatalf("claimed status = %q, want %q", claimed.Run.Status, taskpkg.TaskRunStatusClaimed)
+		claimed := core.TaskRunPayloadFromRun(&claimedRun)
+		if claimed.Status != taskpkg.TaskRunStatusClaimed {
+			t.Fatalf("claimed status = %q, want %q", claimed.Status, taskpkg.TaskRunStatusClaimed)
 		}
-		if claimed.Run.ClaimedBy == nil || claimed.Run.ClaimedBy.Ref != "local-user" {
-			t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.Run.ClaimedBy)
+		if claimed.ClaimedBy == nil || claimed.ClaimedBy.Ref != "local-user" {
+			t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.ClaimedBy)
 		}
 
 		startResp := mustHTTPRequest(
@@ -2136,9 +2158,13 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		t.Parallel()
 
 		runtime := newIntegrationRuntime(t)
-		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+		created := createIntegrationTask(
+			t,
+			runtime,
+			[]byte(`{"scope":"workspace","workspace":"ws-workspace","title":"Run task routes"}`),
+		)
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
-		claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-2"}`)
+		seedIntegrationTaskRunClaimed(t, runtime, run.ID)
 
 		attachResp := mustHTTPRequest(
 			t,
@@ -2191,7 +2217,11 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		t.Parallel()
 
 		runtime := newIntegrationRuntime(t)
-		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
+		created := createIntegrationTask(
+			t,
+			runtime,
+			[]byte(`{"scope":"workspace","workspace":"ws-workspace","title":"Run task routes"}`),
+		)
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-3"}`)
 
 		cancelResp := mustHTTPRequest(
@@ -2256,7 +2286,7 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/tasks/"+draft.ID+"/publish"),
-		[]byte(`{"idempotency_key":"publish-live-1","network_channel":"builders"}`),
+		[]byte(`{"idempotency_key":"publish-live-1"}`),
 		nil,
 	)
 	if publishResp.StatusCode != http.StatusOK {
@@ -2274,7 +2304,7 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 	}
 
 	run := published.Run
-	claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-live-1"}`)
+	seedIntegrationTaskRunClaimed(t, runtime, run.ID)
 
 	startResp := mustHTTPRequest(
 		t,
@@ -3340,6 +3370,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("local.NewRegistry() error = %v", err)
 	}
+	participationResolver := apitestutil.NewIntegrationParticipationResolver(t, registry)
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
@@ -3348,6 +3379,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		session.WithNotifier(fanout),
 		session.WithSandboxRegistry(sandboxRegistry),
 		session.WithSessionCatalog(registry),
+		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
@@ -3422,6 +3454,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(taskExecutor),
+		taskpkg.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
@@ -3618,16 +3651,38 @@ func mustIntegrationJSON(value any) json.RawMessage {
 
 func createIntegrationSession(t *testing.T, runtime integrationRuntime) string {
 	t.Helper()
+	return createIntegrationSessionFromRequest(t, runtime, map[string]any{
+		"agent_name":     "coder",
+		"workspace_path": runtime.workspace,
+	})
+}
+
+func createLiveIntegrationSession(t *testing.T, runtime integrationRuntime) string {
+	t.Helper()
+	return createIntegrationSessionFromRequest(t, runtime, map[string]any{
+		"agent_name":     "coder",
+		"workspace_path": runtime.workspace,
+		"network_participation": map[string]any{
+			"mode":             "live",
+			"channel_strategy": "named",
+			"channel_id":       "builders",
+		},
+	})
+}
+
+func createIntegrationSessionFromRequest(
+	t *testing.T,
+	runtime integrationRuntime,
+	request map[string]any,
+) string {
+	t.Helper()
 
 	resp := mustHTTPRequest(
 		t,
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/sessions"),
-		mustIntegrationJSON(map[string]any{
-			"agent_name":     "coder",
-			"workspace_path": runtime.workspace,
-		}),
+		mustIntegrationJSON(request),
 		nil,
 	)
 	if resp.StatusCode != http.StatusCreated {
@@ -3689,30 +3744,20 @@ func enqueueIntegrationTaskRun(
 	return created.Run
 }
 
-func claimIntegrationTaskRun(
-	t *testing.T,
-	runtime integrationRuntime,
-	runID string,
-	body string,
-) contract.TaskRunPayload {
+func seedIntegrationTaskRunClaimed(t *testing.T, runtime integrationRuntime, runID string) {
 	t.Helper()
 
-	resp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/task-runs/"+runID+"/claim"),
-		[]byte(body),
-		nil,
-	)
-	if resp.StatusCode != http.StatusOK {
-		payload, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-		t.Fatalf("claim run status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(payload))
+	ctx := context.Background()
+	run, err := runtime.registry.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
 	}
-	var claimed contract.TaskRunResponse
-	decodeHTTPJSON(t, resp, &claimed)
-	return claimed.Run
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"}
+	run.ClaimedAt = time.Now().UTC()
+	if err := runtime.registry.UpdateTaskRun(ctx, run); err != nil {
+		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
+	}
 }
 
 func requireHTTPInboxGroup(

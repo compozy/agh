@@ -348,7 +348,7 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 		},
 		{
 			name:     "Should return session context for task pre-claim payload",
-			payload:  TaskRunPreClaimPayload{TaskRunContext: TaskRunContext{SessionID: "task-pre"}},
+			payload:  TaskRunPreClaimPayload{TaskRunContext: &TaskRunContext{SessionID: "task-pre"}},
 			expected: SessionContext{SessionID: "task-pre"},
 		},
 		{
@@ -465,7 +465,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 		},
 		{
 			name:     "Should derive correlation from task pre-claim payload",
-			payload:  TaskRunPreClaimPayload{TaskRunContext: taskRunCorrelationContext()},
+			payload:  TaskRunPreClaimPayload{TaskRunContext: taskRunCorrelationContextPtr()},
 			expected: taskRunDispatchCorrelation(),
 		},
 		{
@@ -763,6 +763,11 @@ func taskRunCorrelationContext() TaskRunContext {
 		ReleaseReason: " completed ",
 		SessionID:     " coordinator-session ",
 	}
+}
+
+func taskRunCorrelationContextPtr() *TaskRunContext {
+	contextSnapshot := taskRunCorrelationContext()
+	return &contextSnapshot
 }
 
 func taskRunDispatchCorrelation() DispatchCorrelation {

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+
 import type { TaskBlockedReason, TaskListItem, TaskRecord, TaskRun } from "../../types";
+import { buildTaskRunRecordFixture } from "../../mocks/fixtures";
 import {
   countTasksByStatus,
   formatAttemptLabel,
@@ -320,23 +323,31 @@ describe("task handoff actions — boundary semantics", () => {
 });
 
 describe("coordination channel signal", () => {
-  it("recognises runs with coordination_channel_id as coordinated", () => {
-    const run = {
-      coordination_channel_id: "coord-task-001",
-    } as TaskRun;
+  it("recognises runs with live resolved participation as coordinated", () => {
+    const run = buildTaskRunRecordFixture({
+      coordination_channel: null,
+      resolved_network_participation: buildLiveNetworkParticipationFixture({
+        workspaceId: "ws_storybook",
+        channelId: "coord-task-001",
+      }),
+    });
 
     expect(runIsCoordinated(run)).toBe(true);
     expect(runCoordinationChannelLabel(run)).toBe("coord-task-001");
   });
 
   it("prefers the embedded display name when available", () => {
-    const run = {
-      coordination_channel_id: "coord-task-001",
+    const run = buildTaskRunRecordFixture({
+      resolved_network_participation: buildLiveNetworkParticipationFixture({
+        workspaceId: "ws_storybook",
+        channelId: "coord-task-001",
+      }),
       coordination_channel: {
         id: "coord-task-001",
         display_name: "TASK-1 coordination",
+        allowed_message_kinds: ["status"],
       },
-    } as unknown as TaskRun;
+    });
 
     expect(runIsCoordinated(run)).toBe(true);
     expect(runCoordinationChannelLabel(run)).toBe("TASK-1 coordination");

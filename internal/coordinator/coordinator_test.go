@@ -8,6 +8,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -23,12 +24,18 @@ func TestDecideBootstrap(t *testing.T) {
 		WorkspaceID: "ws-1",
 	}
 	baseRun := taskpkg.Run{
-		ID:                    "run-1",
-		TaskID:                "task-1",
-		Status:                taskpkg.TaskRunStatusQueued,
-		CoordinationChannelID: "ch-run-1",
-		Metadata:              json.RawMessage(`{"workflow_id":"wf-1"}`),
+		ID:       "run-1",
+		TaskID:   "task-1",
+		Status:   taskpkg.TaskRunStatusQueued,
+		Metadata: json.RawMessage(`{"workflow_id":"wf-1"}`),
 	}
+	baseRun.SetNetworkState(participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "ch-run-1",
+		Source:          participation.SourceExplicitRequest,
+	}, "", "", "")
 	enabled := aghconfig.DefaultCoordinatorConfig()
 	enabled.Enabled = true
 
@@ -67,15 +74,15 @@ func TestDecideBootstrap(t *testing.T) {
 			want: DecisionGlobalScope,
 		},
 		{
-			name: "Should skip missing channel",
+			name: "Should bootstrap local run without a channel",
 			task: baseTask,
 			run: func() taskpkg.Run {
 				run := baseRun
-				run.CoordinationChannelID = ""
+				run.SetNetworkState(participation.LocalSpec(), "", "", "")
 				return run
 			}(),
 			cfg:  enabled,
-			want: DecisionMissingChannel,
+			want: DecisionBootstrap, should: true,
 		},
 		{
 			name: "Should skip completed run",
@@ -121,12 +128,21 @@ func TestDecideBootstrap(t *testing.T) {
 func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should restrict coordinator permissions to safe tools and channels", func(t *testing.T) {
+	t.Run("Should restrict local coordinator permissions to task tools", func(t *testing.T) {
 		t.Parallel()
 
-		policy := PermissionPolicy("ch-1", "ch-1", " ")
+		policy := PermissionPolicy(participation.LocalSpec())
 		if !slices.Contains(policy.Tools, toolspkg.ToolIDTaskRunClaimNext.String()) {
 			t.Fatalf("policy tools = %#v, want %q", policy.Tools, toolspkg.ToolIDTaskRunClaimNext)
+		}
+		for _, networkTool := range []string{
+			toolspkg.ToolIDNetworkChannels.String(),
+			toolspkg.ToolIDNetworkInbox.String(),
+			toolspkg.ToolIDNetworkSend.String(),
+		} {
+			if slices.Contains(policy.Tools, networkTool) {
+				t.Fatalf("policy tools = %#v, want no local network tool %q", policy.Tools, networkTool)
+			}
 		}
 		if err := store.ValidateSessionLineage("coord-1", &store.SessionLineage{
 			SpawnRole:        "coordinator",
@@ -141,17 +157,16 @@ func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 			toolspkg.ToolIDToolInfo.String(),
 			"agent.spawn.coordinator",
 		} {
-			if ToolAllowed(denied) {
+			if ToolAllowed(participation.LocalSpec(), denied) {
 				t.Fatalf("ToolAllowed(%q) = true, want false", denied)
 			}
 		}
 		for _, allowed := range []string{
 			toolspkg.ToolIDSessionDescribe.String(),
-			toolspkg.ToolIDNetworkSend.String(),
 			toolspkg.ToolIDTaskRunComplete.String(),
 			toolspkg.ToolIDTaskCreate.String(),
 		} {
-			if !ToolAllowed(allowed) {
+			if !ToolAllowed(participation.LocalSpec(), allowed) {
 				t.Fatalf("ToolAllowed(%q) = false, want true", allowed)
 			}
 		}
@@ -160,6 +175,32 @@ func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 		}
 		if !SpawnRoleAllowed("worker") {
 			t.Fatal("SpawnRoleAllowed(worker) = false, want true")
+		}
+		if got, want := policy.NetworkChannels, []string(nil); !slices.Equal(got, want) {
+			t.Fatalf("NetworkChannels = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should add the network trio only for live participation", func(t *testing.T) {
+		t.Parallel()
+
+		live := participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     "ws-1",
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "ch-1",
+			Source:          participation.SourceExplicitRequest,
+		}
+		policy := PermissionPolicy(live)
+		for _, networkTool := range []string{
+			toolspkg.ToolIDNetworkChannels.String(),
+			toolspkg.ToolIDNetworkInbox.String(),
+			toolspkg.ToolIDNetworkSend.String(),
+		} {
+			if !slices.Contains(policy.Tools, networkTool) {
+				t.Fatalf("policy tools = %#v, want live network tool %q", policy.Tools, networkTool)
+			}
 		}
 		if got, want := policy.NetworkChannels, []string{"ch-1"}; !slices.Equal(got, want) {
 			t.Fatalf("NetworkChannels = %#v, want %#v", got, want)
@@ -173,15 +214,15 @@ func TestCoordinatorListAccessorsReturnCopies(t *testing.T) {
 	t.Run("Should protect coordinator allowlists from caller mutation", func(t *testing.T) {
 		t.Parallel()
 
-		tools := ToolAllowlist()
+		tools := ToolAllowlist(participation.LocalSpec())
 		if len(tools) == 0 {
 			t.Fatal("ToolAllowlist() returned empty list, want coordinator tools")
 		}
 		tools[0] = toolspkg.ToolIDTaskCancel.String()
-		if ToolAllowed(toolspkg.ToolIDTaskCancel.String()) {
+		if ToolAllowed(participation.LocalSpec(), toolspkg.ToolIDTaskCancel.String()) {
 			t.Fatal("ToolAllowed(task.cancel) = true after caller mutation, want immutable allowlist")
 		}
-		policy := PermissionPolicy("ch-1")
+		policy := PermissionPolicy(participation.LocalSpec())
 		if slices.Contains(policy.Tools, toolspkg.ToolIDTaskCancel.String()) {
 			t.Fatalf("PermissionPolicy() Tools = %#v, want no caller-mutated task.cancel", policy.Tools)
 		}
@@ -191,7 +232,7 @@ func TestCoordinatorListAccessorsReturnCopies(t *testing.T) {
 			t.Fatal("OperationalMessageKinds() returned empty list, want message kinds")
 		}
 		kinds[0] = "mutated-kind"
-		overlay := PromptOverlay(PromptInput{CoordinationChannelID: "ch-1"})
+		overlay := PromptOverlay(PromptInput{NetworkParticipation: participation.LocalSpec()})
 		if strings.Contains(overlay, "mutated-kind") {
 			t.Fatalf("PromptOverlay() used caller-mutated message kind:\n%s", overlay)
 		}
@@ -209,7 +250,11 @@ func TestLineageAndHealthySession(t *testing.T) {
 		cfg.Enabled = true
 		cfg.DefaultTTL = 2 * time.Hour
 		cfg.MaxChildren = 3
-		policy := PermissionPolicy("ch-1")
+		policy := PermissionPolicy(participation.Spec{
+			Version: participation.SpecVersion, Mode: participation.ModeLive,
+			WorkspaceID: "ws-1", ChannelStrategy: participation.StrategyNamed,
+			ChannelID: "ch-1", Source: participation.SourceExplicitRequest,
+		})
 
 		lineage := Lineage(now, cfg, policy)
 		if lineage.SpawnRole != string(session.SessionTypeCoordinator) {
@@ -251,36 +296,52 @@ func TestLineageAndHealthySession(t *testing.T) {
 	})
 }
 
-func TestPromptOverlayUsesPublicAPIsAndRunChannel(t *testing.T) {
+func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should describe public APIs and the run coordination channel", func(t *testing.T) {
+	t.Run("Should omit channel guidance for local coordinators", func(t *testing.T) {
 		t.Parallel()
 
 		overlay := PromptOverlay(PromptInput{
-			WorkspaceID:           "ws-1",
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			WorkflowID:            "wf-1",
-			CoordinationChannelID: "ch-run-1",
+			WorkspaceID:          "ws-1",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			WorkflowID:           "wf-1",
+			NetworkParticipation: participation.LocalSpec(),
 		})
 		for _, required := range []string{
 			"agh me context",
 			"agh task create",
 			"agh task next|heartbeat|complete|fail|release",
-			"agh ch list|recv|send|reply",
 			"agh spawn",
 			"The current coordinator run is the active execution boundary",
-			"coordination_channel_id: ch-run-1",
 			"Never spawn another coordinator",
 		} {
 			if !strings.Contains(overlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}
 		}
-		for _, kind := range OperationalMessageKinds() {
-			if !strings.Contains(overlay, kind) {
-				t.Fatalf("PromptOverlay missing operational message kind %q:\n%s", kind, overlay)
+		for _, forbidden := range []string{"agh ch", "participation_channel", "coordination_channel_id", "Channel communication"} {
+			if strings.Contains(overlay, forbidden) {
+				t.Fatalf("PromptOverlay contains local-only forbidden guidance %q:\n%s", forbidden, overlay)
+			}
+		}
+	})
+
+	t.Run("Should include channel guidance for live coordinators", func(t *testing.T) {
+		t.Parallel()
+
+		overlay := PromptOverlay(PromptInput{
+			WorkspaceID: "ws-1", TaskID: "task-1", RunID: "run-1", WorkflowID: "wf-1",
+			NetworkParticipation: participation.Spec{
+				Version: participation.SpecVersion, Mode: participation.ModeLive,
+				WorkspaceID: "ws-1", ChannelStrategy: participation.StrategyNamed,
+				ChannelID: "ch-run-1", Source: participation.SourceExplicitRequest,
+			},
+		})
+		for _, required := range []string{"agh ch list|recv|send|reply", "participation_channel: ch-run-1", "Channel communication"} {
+			if !strings.Contains(overlay, required) {
+				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}
 		}
 	})

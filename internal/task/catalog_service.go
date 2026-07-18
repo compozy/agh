@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // ListTaskCatalog returns one batched public catalog page after enforcing read authority.
@@ -13,6 +14,20 @@ func (m *Service) ListTaskCatalog(
 ) (CatalogPage, error) {
 	if err := requireReadAuthority(actor); err != nil {
 		return CatalogPage{}, err
+	}
+	if !isTaskOperator(actor) {
+		workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
+		if actor.Actor.Kind.Normalize() == ActorKindAgentSession || workspaceID != "" {
+			switch query.Scope.Normalize() {
+			case CatalogScopeGlobal:
+				query.WorkspaceID = ""
+			case CatalogScopeWorkspace:
+				query.WorkspaceID = workspaceID
+			default:
+				query.Scope = CatalogScopeAll
+				query.WorkspaceID = workspaceID
+			}
+		}
 	}
 	reader, ok := m.store.(CatalogReader)
 	if !ok {

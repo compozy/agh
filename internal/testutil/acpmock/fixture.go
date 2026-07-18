@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/compozy/agh/internal/acp"
 )
@@ -32,10 +34,9 @@ const (
 		"the authoritative current skill state for this turn."
 	currentSkillsCatalogFinalLine = "If current tool policy denies canonical `agh__skill_view`, " +
 		"use `agh skill view <name>` as an operator fallback."
-	durableMemoryOpen             = "<turn-recall>"
-	durableMemoryClose            = "</turn-recall>"
-	networkResponseRegisterPrefix = "Network response register:"
-	inboundBridgePromptPrefix     = "Inbound bridge message"
+	durableMemoryOpen         = "<turn-recall>"
+	durableMemoryClose        = "</turn-recall>"
+	inboundBridgePromptPrefix = "Inbound bridge message"
 )
 
 // LoadFixture parses and validates one fixture file.
@@ -200,27 +201,6 @@ func (o SessionConfigOptionFixture) Validate(path string) error {
 	return nil
 }
 
-// Validate ensures the turn fixture is usable.
-func (t TurnFixture) Validate(path string) error {
-	if err := t.Match.Validate(path + ".match"); err != nil {
-		return err
-	}
-	if len(t.Steps) == 0 {
-		return fmt.Errorf("acpmock: %s.steps must contain at least one step", path)
-	}
-	for idx, step := range t.Steps {
-		if err := step.Validate(fmt.Sprintf("%s.steps[%d]", path, idx)); err != nil {
-			return err
-		}
-	}
-	if stopReason := strings.TrimSpace(t.StopReason); stopReason != "" {
-		if err := validatePromptStopReason(path, stopReason); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Validate ensures the turn match contains at least one supported stable selector.
 func (m TurnMatch) Validate(path string) error {
 	normalized := m.Normalize()
@@ -361,7 +341,7 @@ func lastLineMarkerIndex(text string, marker string) int {
 }
 
 func stripKnownPromptAugmentation(prompt string) string {
-	next := stripLeadingNetworkResponseRegister(prompt)
+	next := prompt
 	next = stripLeadingPromptBlock(next, aghSituationContextOpen, aghSituationContextClose)
 	next = stripLeadingSkillsCatalogBlock(next, currentAvailableSkillsOpen, currentAvailableSkillsClose)
 	next = stripLeadingSkillsCatalogBlock(next, availableSkillsOpen, availableSkillsClose)
@@ -409,18 +389,6 @@ func stripLeadingSkillsCatalogInstructions(prompt string) (string, bool) {
 		return trimmed, false
 	}
 	return strings.TrimSpace(rest), true
-}
-
-func stripLeadingNetworkResponseRegister(prompt string) string {
-	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, networkResponseRegisterPrefix) {
-		return trimmed
-	}
-	_, after, ok := strings.Cut(trimmed, "\n\n")
-	if !ok {
-		return trimmed
-	}
-	return strings.TrimSpace(after)
 }
 
 func stripLeadingSelfClosingPromptBlock(prompt string, block string) string {
@@ -613,8 +581,11 @@ func (d DriverControlStep) Validate(path string) error {
 	if d.DelayMS < 0 {
 		return fmt.Errorf("acpmock: %s.delay_ms must be >= 0", path)
 	}
+	if int64(d.DelayMS) > math.MaxInt64/int64(time.Millisecond) {
+		return fmt.Errorf("acpmock: %s.delay_ms exceeds duration capacity", path)
+	}
 	switch d.Action {
-	case DriverControlDisconnect, DriverControlBlockUntilCancel:
+	case DriverControlDisconnect, DriverControlBlockUntilCancel, DriverControlDelay:
 		if strings.TrimSpace(d.RawJSONRPC) != "" {
 			return fmt.Errorf("acpmock: %s.raw_jsonrpc is only valid for write_raw_jsonrpc", path)
 		}
@@ -627,6 +598,14 @@ func (d DriverControlStep) Validate(path string) error {
 	}
 	if d.Async && d.Action == DriverControlBlockUntilCancel {
 		return fmt.Errorf("acpmock: %s.async is invalid for block_until_cancel", path)
+	}
+	if d.Action == DriverControlDelay {
+		if d.DelayMS == 0 {
+			return fmt.Errorf("acpmock: %s.delay_ms must be > 0 for delay", path)
+		}
+		if d.Async {
+			return fmt.Errorf("acpmock: %s.async is invalid for delay", path)
+		}
 	}
 	return nil
 }

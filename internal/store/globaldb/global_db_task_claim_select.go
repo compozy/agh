@@ -49,25 +49,43 @@ func (g *TaskRunRepo) selectClaimableRunID(
 	exec taskSQLExecutor,
 	criteria taskpkg.ClaimCriteria,
 ) (string, error) {
+	if criteria.RunKind.Normalize() == taskpkg.RunKindNetworkWake {
+		return g.selectClaimableNetworkWakeRunID(ctx, exec, criteria)
+	}
 	where, args := baseClaimPredicates(criteria)
-	if strings.TrimSpace(criteria.RunID) != "" {
+	exactRunID := strings.TrimSpace(criteria.RunID)
+	workspaceID := strings.TrimSpace(criteria.WorkspaceID)
+	if exactRunID != "" {
 		where = append(where, "tr.id = ?")
-		args = append(args, criteria.RunID)
+		args = append(args, exactRunID)
 	}
 	where, args = appendClaimRunKindPredicate(where, args, criteria.RunKind)
-	if criteria.Scope == taskpkg.ScopeWorkspace {
+	switch {
+	case exactRunID != "" && workspaceID != "":
+		where = append(where, "(t.scope = ? OR (t.scope = ? AND t.workspace_id = ?))")
+		args = append(
+			args,
+			string(taskpkg.ScopeGlobal),
+			string(taskpkg.ScopeWorkspace),
+			workspaceID,
+		)
+	case criteria.Scope == taskpkg.ScopeWorkspace:
 		where = append(where, "t.scope = ?", "t.workspace_id = ?")
-		args = append(args, string(taskpkg.ScopeWorkspace), criteria.WorkspaceID)
-	} else {
+		args = append(args, string(taskpkg.ScopeWorkspace), workspaceID)
+	default:
 		where = append(where, "t.scope = ?")
 		args = append(args, string(taskpkg.ScopeGlobal))
 	}
-	if strings.TrimSpace(criteria.CoordinationChannelID) != "" {
-		where = append(where, "tr.coordination_channel_id = ?")
-		args = append(args, criteria.CoordinationChannelID)
+	if strings.TrimSpace(criteria.ParticipationChannel) != "" {
+		where = append(where, "tr.network_channel = ?")
+		args = append(args, criteria.ParticipationChannel)
 	}
 	where, args = appendProfileClaimFilters(where, args, criteria)
-	where, args = appendClaimOwnerPredicate(where, args, criteria)
+	if exactRunID != "" {
+		where, args = appendExactClaimOwnerPredicate(where, args, criteria)
+	} else {
+		where, args = appendClaimOwnerPredicate(where, args, criteria)
+	}
 	args = append(args, preferredCapabilityArgs(criteria.RequiredCapabilities)...)
 
 	// dynamic-sql: claim filters, capability cardinality, ownership, and priority ordering alter query structure.
@@ -109,6 +127,7 @@ func baseClaimPredicates(criteria taskpkg.ClaimCriteria) ([]string, []any) {
 			SELECT 1 FROM ancestors WHERE COALESCE(paused, 0) = 1
 		)`,
 		"t.status NOT IN (?, ?, ?, ?)",
+		unresolvedTaskDependencyClaimPredicate,
 		`NOT EXISTS (
 			SELECT 1
 			  FROM task_blocks b
@@ -129,9 +148,9 @@ func baseClaimPredicates(criteria taskpkg.ClaimCriteria) ([]string, []any) {
 		string(taskpkg.TaskStatusBlocked),
 		string(taskpkg.TaskStatusNeedsAttention),
 		string(taskpkg.TaskStatusCanceled),
-		store.FormatTimestamp(criteria.Now),
-		criteria.PriorityMin,
 	}
+	args = append(args, unresolvedTaskDependencyClaimArgs()...)
+	args = append(args, store.FormatTimestamp(criteria.Now), criteria.PriorityMin)
 	args = append(args, missingCapabilityArgs(criteria.RequiredCapabilities)...)
 	return where, args
 }
@@ -143,9 +162,47 @@ func appendClaimRunKindPredicate(
 ) ([]string, []any) {
 	normalized := kind.Normalize()
 	if normalized == taskpkg.RunKindUnknown {
-		return where, args
+		return append(where, "tr.run_kind IN (?, ?)"), append(
+			args,
+			taskpkg.RunKindWorker.String(),
+			taskpkg.RunKindCoordinator.String(),
+		)
 	}
 	return append(where, "tr.run_kind = ?"), append(args, normalized.String())
+}
+
+func (g *TaskRunRepo) selectClaimableNetworkWakeRunID(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	criteria taskpkg.ClaimCriteria,
+) (string, error) {
+	where := []string{
+		"run_kind = ?",
+		"status = ?",
+		"workspace_id = ?",
+		"network_target_session_id = ?",
+		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
+	}
+	args := []any{
+		taskpkg.RunKindNetworkWake.String(),
+		taskpkg.TaskRunStatusQueued.String(),
+		strings.TrimSpace(criteria.WorkspaceID),
+		strings.TrimSpace(criteria.TargetSessionID),
+	}
+	if runID := strings.TrimSpace(criteria.RunID); runID != "" {
+		where = append(where, "id = ?")
+		args = append(args, runID)
+	}
+	query := `SELECT id FROM task_runs WHERE ` + strings.Join(where, " AND ") +
+		` ORDER BY queued_at ASC, id ASC LIMIT 1`
+	var runID string
+	if err := exec.QueryRowContext(ctx, query, args...).Scan(&runID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("store: select claimable network wake run: %w", err)
+	}
+	return runID, nil
 }
 
 func appendProfileClaimFilters(
@@ -233,6 +290,38 @@ func appendClaimOwnerPredicate(
 	if sessionID := strings.TrimSpace(criteria.ClaimerSessionID); sessionID != "" {
 		clauses = append(clauses, "(t.owner_kind = ? AND t.owner_ref = ?)")
 		args = append(args, string(taskpkg.OwnerKindAgentSession), sessionID)
+	}
+	where = append(where, "("+strings.Join(clauses, " OR ")+")")
+	return where, args
+}
+
+func appendExactClaimOwnerPredicate(
+	where []string,
+	args []any,
+	criteria taskpkg.ClaimCriteria,
+) ([]string, []any) {
+	clauses := []string{
+		"COALESCE(t.owner_kind, '') = ''",
+		"t.owner_kind IN (?, ?, ?, ?)",
+	}
+	args = append(
+		args,
+		string(taskpkg.OwnerKindHuman),
+		string(taskpkg.OwnerKindAutomation),
+		string(taskpkg.OwnerKindExtension),
+		string(taskpkg.OwnerKindNetworkPeer),
+	)
+	if agentName := strings.TrimSpace(criteria.AgentName); agentName != "" {
+		clauses = append(clauses, "(t.owner_kind = ? AND t.owner_ref = ?)")
+		args = append(args, string(taskpkg.OwnerKindPool), agentName)
+	}
+	if sessionID := strings.TrimSpace(criteria.ClaimerSessionID); sessionID != "" {
+		clauses = append(clauses, "(t.owner_kind = ? AND t.owner_ref = ?)")
+		args = append(args, string(taskpkg.OwnerKindAgentSession), sessionID)
+	}
+	if criteria.ClaimedBy != nil && criteria.ClaimedBy.Kind.Normalize() == taskpkg.ActorKindDaemon {
+		clauses = append(clauses, "t.owner_kind = ?")
+		args = append(args, string(taskpkg.OwnerKindAgentSession))
 	}
 	where = append(where, "("+strings.Join(clauses, " OR ")+")")
 	return where, args

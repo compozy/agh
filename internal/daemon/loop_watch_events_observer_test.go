@@ -352,19 +352,19 @@ func TestLoopWatchEventsObserverShouldWakeForTypedWatchEvents(t *testing.T) {
 			name:   "Should wake from a failed task-run terminal payload",
 			kind:   hookspkg.HookTaskRunFailed,
 			stream: looppkg.WatchEventsTaskStream,
-			filter: `event.payload.error == "boom" && event.loop_run_id == "loop-run-source"`,
+			filter: `event.channel == "chan-1" && event.payload.error == "boom" && event.loop_run_id == "loop-run-source"`,
 			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
 				return observer.OnTaskRunTerminal(ctx, hookspkg.TaskRunLeasePayload{
 					PayloadBase: hookspkg.PayloadBase{Timestamp: fixedNow},
 					TaskRunContext: hookspkg.TaskRunContext{
-						WorkspaceID:    "ws-1",
-						TaskID:         "task-target",
-						RunID:          "run-failed",
-						RunStatus:      taskpkg.TaskRunStatusFailed.String(),
-						LoopRunID:      "loop-run-source",
-						SessionID:      "session-1",
-						NetworkChannel: "chan-1",
-						Error:          "boom",
+						WorkspaceID:                  "ws-1",
+						TaskID:                       "task-target",
+						RunID:                        "run-failed",
+						RunStatus:                    taskpkg.TaskRunStatusFailed.String(),
+						LoopRunID:                    "loop-run-source",
+						SessionID:                    "session-1",
+						ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("ws-1", "chan-1"),
+						Error:                        "boom",
 					},
 					PreviousRunStatus: "claimed",
 					PreviousSessionID: "session-old",
@@ -377,7 +377,7 @@ func TestLoopWatchEventsObserverShouldWakeForTypedWatchEvents(t *testing.T) {
 			name:   "Should wake from a loop terminal payload",
 			kind:   hookspkg.HookLoopTerminal,
 			stream: looppkg.WatchEventsLoopStream,
-			filter: `event.payload.details.done == true && event.loop_name == "delivery"`,
+			filter: `event.channel == "chan-1" && event.payload.details.done == true && event.loop_name == "delivery"`,
 			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
 				return observer.OnLoopTerminal(ctx, hookspkg.LoopTerminalPayload{
 					PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow},
@@ -393,7 +393,7 @@ func TestLoopWatchEventsObserverShouldWakeForTypedWatchEvents(t *testing.T) {
 			name:   "Should wake from a failed loop node terminal payload",
 			kind:   hookspkg.HookLoopNodeTerminal,
 			stream: looppkg.WatchEventsLoopStream,
-			filter: `event.payload.node_id == "node-1" && event.payload.error == "boom"`,
+			filter: `event.channel == "chan-1" && event.payload.node_id == "node-1" && event.payload.error == "boom"`,
 			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
 				return observer.OnLoopNodeTerminal(ctx, hookspkg.LoopNodeTerminalPayload{
 					PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopNodeTerminal, Timestamp: fixedNow},
@@ -759,15 +759,15 @@ func watchEventsTaskContextForTest(taskID string) hookspkg.TaskContext {
 
 func watchEventsLoopContextForTest(nodeID string) hookspkg.LoopContext {
 	return hookspkg.LoopContext{
-		WorkspaceID:    "ws-1",
-		LoopRunID:      "loop-run-source",
-		LoopName:       "delivery",
-		Generation:     1,
-		TaskID:         "task-target",
-		RunID:          "run-loop-node",
-		NodeID:         nodeID,
-		SessionID:      "session-1",
-		NetworkChannel: "chan-1",
+		WorkspaceID:                  "ws-1",
+		LoopRunID:                    "loop-run-source",
+		LoopName:                     "delivery",
+		Generation:                   1,
+		TaskID:                       "task-target",
+		RunID:                        "run-loop-node",
+		NodeID:                       nodeID,
+		SessionID:                    "session-1",
+		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("ws-1", "chan-1"),
 	}
 }
 

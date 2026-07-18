@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/procutil"
 )
 
@@ -66,10 +67,10 @@ func sessionStartEnvForProvider(
 		env = unsetSessionStartEnvKeys(env, "AGH_REASONING_EFFORT")
 	}
 
-	channel := strings.TrimSpace(session.Channel)
-	if channel == "" {
+	if session.NetworkParticipation.Mode != participation.ModeLive {
 		return env
 	}
+	channel := strings.TrimSpace(session.NetworkParticipation.ChannelID)
 
 	env = setSessionStartEnvValue(env, "AGH_SESSION_CHANNEL", channel)
 	env = setSessionStartEnvValue(env, "AGH_PEER_ID", networkPeerID(session.AgentName, session.ID))

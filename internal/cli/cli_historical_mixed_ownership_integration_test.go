@@ -56,7 +56,11 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		"history-mixed-ownership-seed",
 		"--workspace",
 		"alpha",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"-o",
 		"json",
@@ -65,7 +69,8 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 	if err := json.Unmarshal([]byte(sessionOut), &worker); err != nil {
 		t.Fatalf("json.Unmarshal(session new) error = %v", err)
 	}
-	if worker.ID == "" || worker.State != session.StateActive || worker.Channel != channel {
+	if worker.ID == "" || worker.State != session.StateActive ||
+		resolvedParticipationChannelID(worker.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("worker = %#v, want active worker on %q", worker, channel)
 	}
 
@@ -74,7 +79,8 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 	}
-	if stopped.State != session.StateStopped || stopped.Channel != channel {
+	if stopped.State != session.StateStopped ||
+		resolvedParticipationChannelID(stopped.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("stopped = %#v, want stopped worker on %q", stopped, channel)
 	}
 
@@ -87,7 +93,11 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		"workspace",
 		"--workspace",
 		"alpha",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"--title",
 		"CLI historical mixed ownership",
@@ -98,8 +108,8 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(task create) error = %v", err)
 	}
-	if created.ID == "" || created.NetworkChannel != channel {
-		t.Fatalf("created = %#v, want historical channel task", created)
+	if created.ID == "" {
+		t.Fatalf("created = %#v, want historical task id", created)
 	}
 
 	enqueueOut := mustExecuteRoot(
@@ -111,7 +121,11 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		created.ID,
 		"--idempotency-key",
 		"idem-cli-history-mixed-ownership",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"-o",
 		"json",
@@ -123,7 +137,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 	if enqueued.Status != taskpkg.TaskRunStatusQueued {
 		t.Fatalf("enqueued = %#v, want queued run", enqueued)
 	}
-	if enqueued.NetworkChannel != channel || enqueued.CoordinationChannelID != channel {
+	if resolvedParticipationChannelID(enqueued.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("enqueued = %#v, want preserved historical channel", enqueued)
 	}
 
@@ -144,7 +158,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 
 	// Intentionally serial: each subtest advances the same historical run lifecycle.
 	t.Run("Should keep the channel historical before restart", func(t *testing.T) {
-		record := readCLIHistoricalChannel(t, h.deps, channel)
+		record := readCLIHistoricalChannel(t, h.deps, "alpha", channel)
 		if got, want := record.PeerCount, 0; got != want {
 			t.Fatalf("record.PeerCount = %d, want %d", got, want)
 		}
@@ -176,7 +190,11 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 			"history-mixed-ownership-restarted",
 			"--workspace",
 			"alpha",
-			"--channel",
+			"--network",
+			"live",
+			"--network-channel-strategy",
+			"named",
+			"--network-channel",
 			channel,
 			"-o",
 			"json",
@@ -185,7 +203,8 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
 			t.Fatalf("json.Unmarshal(session new after restart) error = %v", err)
 		}
-		if resumed.State != session.StateActive || resumed.Channel != channel {
+		if resumed.State != session.StateActive ||
+			resolvedParticipationChannelID(resumed.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("resumed = %#v, want active restarted worker on %q", resumed, channel)
 		}
 		agentSessionID = resumed.ID
@@ -200,14 +219,14 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if claim.Claim.Run.ID != enqueued.ID {
 			t.Fatalf("claim.Claim.Run.ID = %q, want %q", claim.Claim.Run.ID, enqueued.ID)
 		}
-		if claim.Claim.Run.NetworkChannel != channel || claim.Claim.Run.CoordinationChannelID != channel {
+		if resolvedParticipationChannelID(claim.Claim.Run.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("claim.Claim.Run = %#v, want preserved historical channel", claim.Claim.Run)
 		}
 		if claim.Claim.CoordinationChannel == nil {
 			t.Fatal("claim.Claim.CoordinationChannel = nil, want coordination channel")
 		}
 		if got, want := firstCLIValue(
-			claim.Claim.CoordinationChannel.Channel,
+			claim.Claim.CoordinationChannel.ID,
 			claim.Claim.CoordinationChannel.ID,
 		), channel; got != want {
 			t.Fatalf("coordination channel = %q, want %q", got, want)
@@ -279,7 +298,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if canceled.SessionID != agentSessionID {
 			t.Fatalf("canceled.SessionID = %q, want %q", canceled.SessionID, agentSessionID)
 		}
-		if canceled.NetworkChannel != channel || canceled.CoordinationChannelID != channel {
+		if resolvedParticipationChannelID(canceled.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("canceled = %#v, want preserved historical channel", canceled)
 		}
 	})
@@ -328,7 +347,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if detail.Runs[0].ClaimedBy == nil || detail.Runs[0].ClaimedBy.Ref != agentSessionID {
 			t.Fatalf("detail.Runs[0].ClaimedBy = %#v, want agent-session %q", detail.Runs[0].ClaimedBy, agentSessionID)
 		}
-		if detail.Runs[0].NetworkChannel != channel || detail.Runs[0].CoordinationChannelID != channel {
+		if resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
 			t.Fatalf("detail.Runs[0] = %#v, want preserved historical channel", detail.Runs[0])
 		}
 		if !containsCLITaskEventType(detail.Events, "task.run_canceled") {
@@ -340,7 +359,8 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if err := json.Unmarshal([]byte(stopOut), &stoppedAfterResume); err != nil {
 			t.Fatalf("json.Unmarshal(session stop after resume) error = %v", err)
 		}
-		if stoppedAfterResume.State != session.StateStopped || stoppedAfterResume.Channel != channel {
+		if stoppedAfterResume.State != session.StateStopped ||
+			resolvedParticipationChannelID(stoppedAfterResume.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("stoppedAfterResume = %#v, want stopped worker on %q", stoppedAfterResume, channel)
 		}
 

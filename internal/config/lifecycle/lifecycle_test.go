@@ -73,6 +73,18 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
+			name:          "Should classify network availability as live",
+			path:          "network.enabled",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
+			name:          "Should classify network Live bounds as restart required",
+			path:          "network.live.defaults.max_wakes",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
 			name:    "Should reject unknown paths",
 			path:    "unknown.path",
 			wantErr: true,

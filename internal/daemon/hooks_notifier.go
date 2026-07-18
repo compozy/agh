@@ -13,22 +13,23 @@ import (
 type hooksNotifier struct {
 	mu sync.RWMutex
 
-	logger                  *slog.Logger
-	now                     func() time.Time
-	hooks                   hookRuntime
-	agentEventNotify        session.Notifier
-	eventSummaries          hookEventSummaryWriter
-	taskRunEnqueuedHooks    []taskRunEnqueuedObserver
-	taskRunTerminalHooks    []taskRunTerminalObserver
-	loopStartedHooks        []loopStartedObserver
-	loopTerminalHooks       []loopTerminalObserver
-	taskStatusChangedHooks  []taskStatusChangedObserver
-	taskLifecycleWatchHooks []taskLifecycleWatchObserver
-	loopNodeTerminalHooks   []loopNodeTerminalObserver
-	automationRunWatchHooks []automationRunWatchObserver
-	networkWatchHooks       []networkWatchObserver
-	coordinatorWatchHooks   []coordinatorWatchObserver
-	eventRecordWatchHooks   []eventRecordWatchObserver
+	logger                    *slog.Logger
+	now                       func() time.Time
+	hooks                     hookRuntime
+	agentEventNotify          session.Notifier
+	eventSummaries            hookEventSummaryWriter
+	taskRunEnqueuedHooks      []taskRunEnqueuedObserver
+	taskRunTerminalHooks      []taskRunTerminalObserver
+	loopStartedHooks          []loopStartedObserver
+	loopTerminalHooks         []loopTerminalObserver
+	taskStatusChangedHooks    []taskStatusChangedObserver
+	taskStatusProjectionHooks []taskStatusProjectionConsumer
+	taskLifecycleWatchHooks   []taskLifecycleWatchObserver
+	loopNodeTerminalHooks     []loopNodeTerminalObserver
+	automationRunWatchHooks   []automationRunWatchObserver
+	networkWatchHooks         []networkWatchObserver
+	coordinatorWatchHooks     []coordinatorWatchObserver
+	eventRecordWatchHooks     []eventRecordWatchObserver
 }
 
 var _ session.Notifier = (*hooksNotifier)(nil)

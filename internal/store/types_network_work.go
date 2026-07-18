@@ -111,18 +111,18 @@ func (r TaskDesignationRollup) Validate() error {
 	return nil
 }
 
-// NormalizeNetworkDirectRoomPeers validates and orders a two-party room pair.
-func NormalizeNetworkDirectRoomPeers(peerA string, peerB string) (string, string, error) {
-	first := strings.TrimSpace(peerA)
-	second := strings.TrimSpace(peerB)
-	if err := validateNetworkPeerID(first, "peer_a"); err != nil {
+// NormalizeNetworkDirectRoomSessions validates and orders a two-party room pair.
+func NormalizeNetworkDirectRoomSessions(sessionA string, sessionB string) (string, string, error) {
+	first := strings.TrimSpace(sessionA)
+	second := strings.TrimSpace(sessionB)
+	if err := requireField(first, "network direct room session_a"); err != nil {
 		return "", "", err
 	}
-	if err := validateNetworkPeerID(second, "peer_b"); err != nil {
+	if err := requireField(second, "network direct room session_b"); err != nil {
 		return "", "", err
 	}
 	if first == second {
-		return "", "", fmt.Errorf("store: network direct room peers must differ")
+		return "", "", fmt.Errorf("store: network direct room sessions must differ")
 	}
 	if second < first {
 		first, second = second, first
@@ -130,12 +130,12 @@ func NormalizeNetworkDirectRoomPeers(peerA string, peerB string) (string, string
 	return first, second, nil
 }
 
-// NetworkDirectRoomIdentity derives the stable direct-room id for one ordered peer pair.
+// NetworkDirectRoomIdentity derives the stable direct-room id for one ordered session pair.
 func NetworkDirectRoomIdentity(
 	workspaceID string,
 	channel string,
-	peerA string,
-	peerB string,
+	sessionA string,
+	sessionB string,
 ) (string, string, string, error) {
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	if err := requireField(trimmedWorkspaceID, "network direct room workspace_id"); err != nil {
@@ -145,12 +145,12 @@ func NetworkDirectRoomIdentity(
 	if err := requireField(trimmedChannel, "network direct room channel"); err != nil {
 		return "", "", "", err
 	}
-	normalizedA, normalizedB, err := NormalizeNetworkDirectRoomPeers(peerA, peerB)
+	normalizedA, normalizedB, err := NormalizeNetworkDirectRoomSessions(sessionA, sessionB)
 	if err != nil {
 		return "", "", "", err
 	}
 	sum := sha256.Sum256([]byte(
-		"agh-network/direct-room/v0\x00" + trimmedWorkspaceID + "\x00" + trimmedChannel + "\x00" +
+		"agh-network/direct-room/v1\x00" + trimmedWorkspaceID + "\x00" + trimmedChannel + "\x00" +
 			normalizedA + "\x00" + normalizedB,
 	))
 	return "direct_" + hex.EncodeToString(sum[:])[:32], normalizedA, normalizedB, nil
@@ -179,7 +179,13 @@ func validateOptionalNetworkConversation(
 	return nil
 }
 
-func validateNetworkDirectRoom(workspaceID string, channel string, directID string, peerA string, peerB string) error {
+func validateNetworkDirectRoom(
+	workspaceID string,
+	channel string,
+	directID string,
+	sessionA string,
+	sessionB string,
+) error {
 	ref := NetworkConversationRef{
 		WorkspaceID: workspaceID,
 		Channel:     channel,
@@ -189,12 +195,12 @@ func validateNetworkDirectRoom(workspaceID string, channel string, directID stri
 	if err := ref.Validate(); err != nil {
 		return err
 	}
-	normalizedA, normalizedB, err := NormalizeNetworkDirectRoomPeers(peerA, peerB)
+	normalizedA, normalizedB, err := NormalizeNetworkDirectRoomSessions(sessionA, sessionB)
 	if err != nil {
 		return err
 	}
-	if normalizedA != strings.TrimSpace(peerA) || normalizedB != strings.TrimSpace(peerB) {
-		return fmt.Errorf("store: network direct room peers must be stored in lexicographic order")
+	if normalizedA != strings.TrimSpace(sessionA) || normalizedB != strings.TrimSpace(sessionB) {
+		return fmt.Errorf("store: network direct room sessions must be stored in lexicographic order")
 	}
 	return nil
 }

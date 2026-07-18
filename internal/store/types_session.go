@@ -14,6 +14,8 @@ var (
 	ErrSessionAttachLocked = errors.New("store: session attach locked")
 	// ErrSessionNotAttachable reports that a session is not eligible for attach/resume.
 	ErrSessionNotAttachable = errors.New("store: session not attachable")
+	// ErrSessionParticipationMismatch rejects a same-ID refresh with different immutable Network participation.
+	ErrSessionParticipationMismatch = errors.New("store: session participation mismatch")
 )
 
 type StopReason string
@@ -52,12 +54,12 @@ func ValidStopReason(r StopReason) bool {
 
 // SessionInfo is the canonical session index row stored in the global database.
 type SessionInfo struct {
-	ID               string
-	Name             string
-	AgentName        string
-	Provider         string
-	WorkspaceID      string
-	Channel          string
+	ID          string
+	Name        string
+	AgentName   string
+	Provider    string
+	WorkspaceID string
+	*SessionNetworkState
 	SessionType      string
 	Lineage          *SessionLineage
 	State            string

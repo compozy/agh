@@ -93,7 +93,7 @@ function buildEntries(
       preview: direct.last_message_preview ?? "No messages yet.",
       timestamp: direct.last_activity_at ?? null,
       openedAt: direct.opened_at ?? null,
-      title: `${direct.peer_a} ↔ ${direct.peer_b}`,
+      title: `${direct.session_a} ↔ ${direct.session_b}`,
       to: "/network/$workspaceId/$channel/directs/$directId",
     });
   }

@@ -51,6 +51,10 @@ Permission flags are repeatable:
 - `--channel`
 - `--sandbox-profile`
 
+`--channel` narrows the channel permission atoms a child may use. It does not select Live
+participation, create Network state, or make the child inherit its parent's participation. A spawned
+execution remains Local unless it submits a separate, authorized Network participation request.
+
 The response includes the child session, lineage, and safe permission projection. It does not create
 or claim task work by itself.
 

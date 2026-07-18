@@ -8,20 +8,18 @@ import (
 )
 
 const (
-	matcherAgentNameKey             = "agent_name"
-	matcherChannelKey               = "channel"
-	matcherCoordinationChannelIDKey = "coordination_channel_id"
-	matcherInputClassKey            = "input_class"
-	matcherLoopNameKey              = "loop_name"
-	matcherLoopRunIDKey             = "loop_run_id"
-	matcherNodeIDKey                = "node_id"
-	matcherReleaseReasonKey         = "release_reason"
-	matcherRunIDKey                 = "run_id"
-	matcherTaskIDKey                = "task_id"
-	matcherWorkStateKey             = "work_state"
-	matcherWorkflowIDKey            = "workflow_id"
-	matcherWorkspaceIDKey           = "workspace_id"
-	matcherWorkspaceRootKey         = "workspace_root"
+	matcherAgentNameKey            = "agent_name"
+	matcherParticipationChannelKey = "participation_channel"
+	matcherInputClassKey           = "input_class"
+	matcherLoopNameKey             = "loop_name"
+	matcherLoopRunIDKey            = "loop_run_id"
+	matcherNodeIDKey               = "node_id"
+	matcherReleaseReasonKey        = "release_reason"
+	matcherRunIDKey                = "run_id"
+	matcherTaskIDKey               = "task_id"
+	matcherWorkflowIDKey           = "workflow_id"
+	matcherWorkspaceIDKey          = "workspace_id"
+	matcherWorkspaceRootKey        = "workspace_root"
 )
 
 type matcherFunc[P any] func(HookMatcher, P) bool
@@ -97,57 +95,57 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"compaction_strategy": {},
 	},
 	HookEventFamilyCoordinator: {
-		matcherAgentNameKey:             {},
-		matcherWorkspaceIDKey:           {},
-		matcherWorkspaceRootKey:         {},
-		matcherTaskIDKey:                {},
-		matcherRunIDKey:                 {},
-		matcherWorkflowIDKey:            {},
-		matcherCoordinationChannelIDKey: {},
-		"coordinator_session_id":        {},
+		matcherAgentNameKey:            {},
+		matcherWorkspaceIDKey:          {},
+		matcherWorkspaceRootKey:        {},
+		matcherTaskIDKey:               {},
+		matcherRunIDKey:                {},
+		matcherWorkflowIDKey:           {},
+		matcherParticipationChannelKey: {},
+		"coordinator_session_id":       {},
 	},
 	HookEventFamilyTask: {
-		matcherAgentNameKey:             {},
-		matcherWorkspaceIDKey:           {},
-		matcherTaskIDKey:                {},
-		matcherRunIDKey:                 {},
-		matcherWorkflowIDKey:            {},
-		matcherCoordinationChannelIDKey: {},
-		matcherReleaseReasonKey:         {},
+		matcherAgentNameKey:            {},
+		matcherWorkspaceIDKey:          {},
+		matcherTaskIDKey:               {},
+		matcherRunIDKey:                {},
+		matcherWorkflowIDKey:           {},
+		matcherParticipationChannelKey: {},
+		matcherReleaseReasonKey:        {},
 	},
 	HookEventFamilyTaskRun: {
-		matcherAgentNameKey:             {},
-		matcherWorkspaceIDKey:           {},
-		matcherTaskIDKey:                {},
-		matcherRunIDKey:                 {},
-		matcherLoopRunIDKey:             {},
-		matcherWorkflowIDKey:            {},
-		matcherCoordinationChannelIDKey: {},
-		matcherReleaseReasonKey:         {},
+		matcherAgentNameKey:            {},
+		matcherWorkspaceIDKey:          {},
+		matcherTaskIDKey:               {},
+		matcherRunIDKey:                {},
+		matcherLoopRunIDKey:            {},
+		matcherWorkflowIDKey:           {},
+		matcherParticipationChannelKey: {},
+		matcherReleaseReasonKey:        {},
 	},
 	HookEventFamilyLoop: {
-		matcherAgentNameKey:             {},
-		matcherWorkspaceIDKey:           {},
-		matcherTaskIDKey:                {},
-		matcherRunIDKey:                 {},
-		matcherLoopRunIDKey:             {},
-		matcherLoopNameKey:              {},
-		matcherNodeIDKey:                {},
-		matcherWorkflowIDKey:            {},
-		matcherCoordinationChannelIDKey: {},
+		matcherAgentNameKey:            {},
+		matcherWorkspaceIDKey:          {},
+		matcherTaskIDKey:               {},
+		matcherRunIDKey:                {},
+		matcherLoopRunIDKey:            {},
+		matcherLoopNameKey:             {},
+		matcherNodeIDKey:               {},
+		matcherWorkflowIDKey:           {},
+		matcherParticipationChannelKey: {},
 	},
 	HookEventFamilySpawn: {
-		matcherAgentNameKey:             {},
-		matcherWorkspaceIDKey:           {},
-		matcherWorkspaceRootKey:         {},
-		matcherTaskIDKey:                {},
-		matcherRunIDKey:                 {},
-		matcherWorkflowIDKey:            {},
-		matcherCoordinationChannelIDKey: {},
-		"parent_session_id":             {},
-		"root_session_id":               {},
-		"child_session_id":              {},
-		"spawn_role":                    {},
+		matcherAgentNameKey:            {},
+		matcherWorkspaceIDKey:          {},
+		matcherWorkspaceRootKey:        {},
+		matcherTaskIDKey:               {},
+		matcherRunIDKey:                {},
+		matcherWorkflowIDKey:           {},
+		matcherParticipationChannelKey: {},
+		"parent_session_id":            {},
+		"root_session_id":              {},
+		"child_session_id":             {},
+		"spawn_role":                   {},
 	},
 	HookEventFamilyNetwork: {
 		matcherChannelKey:   {},
@@ -159,6 +157,18 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 }
 
 var allowedMatcherFieldsByEvent = map[HookEvent]map[string]struct{}{
+	HookNetworkParticipationPreResolve: {
+		matcherWorkspaceIDKey:         {},
+		matcherChannelKey:             {},
+		matcherParticipationModeKey:   {},
+		matcherParticipationSourceKey: {},
+	},
+	HookNetworkParticipationResolved: {
+		matcherWorkspaceIDKey:         {},
+		matcherChannelKey:             {},
+		matcherParticipationModeKey:   {},
+		matcherParticipationSourceKey: {},
+	},
 	HookAgentSoulSnapshotResolved: {
 		matcherAgentNameKey:   {},
 		matcherWorkspaceIDKey: {},
@@ -313,16 +323,6 @@ func (m HookMatcher) MatchesMessage(payload MessagePayload) bool {
 		matchStringField(m.MessageDeltaType, payload.DeltaType)
 }
 
-// MatchesNetwork matches network-family observation hooks.
-func (m HookMatcher) MatchesNetwork(payload NetworkPayload) bool {
-	network := m.network()
-	return matchStringField(network.Channel, payload.Channel) &&
-		matchStringField(network.Surface, payload.Surface) &&
-		matchStringField(network.Kind, payload.Kind) &&
-		matchStringField(network.Direction, payload.Direction) &&
-		matchStringField(network.WorkState, payload.WorkState)
-}
-
 // MatchesToolPreCall matches tool pre-call hooks.
 func (m HookMatcher) MatchesToolPreCall(payload ToolPreCallPayload) bool {
 	return m.matchSessionContext(payload.SessionContext, false) &&
@@ -369,7 +369,10 @@ func (m HookMatcher) MatchesCoordinator(payload CoordinatorContext) bool {
 		matchStringField(autonomy.TaskID, payload.TaskID) &&
 		matchStringField(autonomy.RunID, payload.RunID) &&
 		matchStringField(autonomy.WorkflowID, payload.WorkflowID) &&
-		matchStringField(autonomy.CoordinationChannelID, payload.CoordinationChannelID) &&
+		matchStringField(
+			autonomy.ParticipationChannel,
+			resolvedParticipationChannel(payload.ResolvedNetworkParticipation),
+		) &&
 		matchStringField(autonomy.CoordinatorSessionID, payload.CoordinatorSessionID)
 }
 
@@ -384,7 +387,7 @@ func (m HookMatcher) MatchesTask(payload TaskContext) bool {
 		"",
 		"",
 		payload.WorkflowID,
-		payload.CoordinationChannelID,
+		payload.NetworkSpecSnapshot().ChannelID,
 		payload.ReleaseReason,
 	)
 }
@@ -400,7 +403,7 @@ func (m HookMatcher) MatchesTaskRun(payload TaskRunContext) bool {
 		"",
 		"",
 		payload.WorkflowID,
-		payload.CoordinationChannelID,
+		payload.NetworkSpecSnapshot().ChannelID,
 		payload.ReleaseReason,
 	)
 }
@@ -416,7 +419,7 @@ func (m HookMatcher) MatchesLoop(payload LoopContext) bool {
 		payload.LoopName,
 		payload.NodeID,
 		payload.WorkflowID,
-		payload.CoordinationChannelID,
+		resolvedParticipationChannel(payload.ResolvedNetworkParticipation),
 		"",
 	)
 }
@@ -430,7 +433,7 @@ func (m HookMatcher) matchTaskAutonomyFields(
 	loopName string,
 	nodeID string,
 	workflowID string,
-	coordinationChannelID string,
+	participationChannel string,
 	releaseReason string,
 ) bool {
 	autonomy := m.autonomy()
@@ -442,7 +445,7 @@ func (m HookMatcher) matchTaskAutonomyFields(
 		matchStringField(autonomy.LoopName, loopName) &&
 		matchStringField(autonomy.NodeID, nodeID) &&
 		matchStringField(autonomy.WorkflowID, workflowID) &&
-		matchStringField(autonomy.CoordinationChannelID, coordinationChannelID) &&
+		matchStringField(autonomy.ParticipationChannel, participationChannel) &&
 		matchStringField(autonomy.ReleaseReason, releaseReason)
 }
 
@@ -455,7 +458,10 @@ func (m HookMatcher) MatchesSpawn(payload SpawnContext) bool {
 		matchStringField(autonomy.TaskID, payload.TaskID) &&
 		matchStringField(autonomy.RunID, payload.RunID) &&
 		matchStringField(autonomy.WorkflowID, payload.WorkflowID) &&
-		matchStringField(autonomy.CoordinationChannelID, payload.CoordinationChannelID) &&
+		matchStringField(
+			autonomy.ParticipationChannel,
+			resolvedParticipationChannel(payload.ResolvedNetworkParticipation),
+		) &&
 		matchStringField(autonomy.ParentSessionID, payload.ParentSessionID) &&
 		matchStringField(autonomy.RootSessionID, payload.RootSessionID) &&
 		matchStringField(autonomy.ChildSessionID, payload.ChildSessionID) &&
@@ -463,15 +469,7 @@ func (m HookMatcher) MatchesSpawn(payload SpawnContext) bool {
 }
 
 var emptyAutonomyMatcher = &AutonomyMatcher{}
-var emptyNetworkMatcher = &NetworkMatcher{}
 var emptyCompactionMatcher = &CompactionMatcher{}
-
-func (m HookMatcher) network() *NetworkMatcher {
-	if m.NetworkMatcher == nil {
-		return emptyNetworkMatcher
-	}
-	return m.NetworkMatcher
-}
 
 func (m HookMatcher) compaction() *CompactionMatcher {
 	if m.CompactionMatcher == nil {
@@ -670,7 +668,7 @@ func matchTaskRunEnqueued(matcher HookMatcher, payload TaskRunEnqueuedPayload) b
 }
 
 func matchTaskRunPreClaim(matcher HookMatcher, payload TaskRunPreClaimPayload) bool {
-	return matcher.MatchesTaskRun(payload.TaskRunContext)
+	return matcher.MatchesTaskRun(payload.taskRunContextSnapshot())
 }
 
 func matchTaskRunPostClaim(matcher HookMatcher, payload TaskRunPostClaimPayload) bool {
@@ -780,23 +778,6 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 	return normalized
 }
 
-func normalizeNetworkMatcher(matcher *NetworkMatcher) *NetworkMatcher {
-	if matcher == nil {
-		return nil
-	}
-	normalized := NetworkMatcher{
-		Channel:   strings.TrimSpace(matcher.Channel),
-		Surface:   strings.TrimSpace(matcher.Surface),
-		Kind:      strings.TrimSpace(matcher.Kind),
-		Direction: strings.TrimSpace(matcher.Direction),
-		WorkState: strings.TrimSpace(matcher.WorkState),
-	}
-	if normalized.empty() {
-		return nil
-	}
-	return &normalized
-}
-
 func normalizeCompactionMatcher(matcher *CompactionMatcher) *CompactionMatcher {
 	if matcher == nil {
 		return nil
@@ -816,32 +797,24 @@ func normalizeAutonomyMatcher(matcher *AutonomyMatcher) *AutonomyMatcher {
 		return nil
 	}
 	normalized := AutonomyMatcher{
-		TaskID:                strings.TrimSpace(matcher.TaskID),
-		RunID:                 strings.TrimSpace(matcher.RunID),
-		LoopRunID:             strings.TrimSpace(matcher.LoopRunID),
-		LoopName:              strings.TrimSpace(matcher.LoopName),
-		NodeID:                strings.TrimSpace(matcher.NodeID),
-		WorkflowID:            strings.TrimSpace(matcher.WorkflowID),
-		CoordinationChannelID: strings.TrimSpace(matcher.CoordinationChannelID),
-		CoordinatorSessionID:  strings.TrimSpace(matcher.CoordinatorSessionID),
-		ParentSessionID:       strings.TrimSpace(matcher.ParentSessionID),
-		RootSessionID:         strings.TrimSpace(matcher.RootSessionID),
-		ChildSessionID:        strings.TrimSpace(matcher.ChildSessionID),
-		SpawnRole:             strings.TrimSpace(matcher.SpawnRole),
-		ReleaseReason:         strings.TrimSpace(matcher.ReleaseReason),
+		TaskID:               strings.TrimSpace(matcher.TaskID),
+		RunID:                strings.TrimSpace(matcher.RunID),
+		LoopRunID:            strings.TrimSpace(matcher.LoopRunID),
+		LoopName:             strings.TrimSpace(matcher.LoopName),
+		NodeID:               strings.TrimSpace(matcher.NodeID),
+		WorkflowID:           strings.TrimSpace(matcher.WorkflowID),
+		ParticipationChannel: strings.TrimSpace(matcher.ParticipationChannel),
+		CoordinatorSessionID: strings.TrimSpace(matcher.CoordinatorSessionID),
+		ParentSessionID:      strings.TrimSpace(matcher.ParentSessionID),
+		RootSessionID:        strings.TrimSpace(matcher.RootSessionID),
+		ChildSessionID:       strings.TrimSpace(matcher.ChildSessionID),
+		SpawnRole:            strings.TrimSpace(matcher.SpawnRole),
+		ReleaseReason:        strings.TrimSpace(matcher.ReleaseReason),
 	}
 	if (&normalized).empty() {
 		return nil
 	}
 	return &normalized
-}
-
-func (m *NetworkMatcher) empty() bool {
-	return m.Channel == "" &&
-		m.Surface == "" &&
-		m.Kind == "" &&
-		m.Direction == "" &&
-		m.WorkState == ""
 }
 
 func (m *CompactionMatcher) empty() bool {
@@ -856,7 +829,7 @@ func (m *AutonomyMatcher) empty() bool {
 		m.LoopName == "" &&
 		m.NodeID == "" &&
 		m.WorkflowID == "" &&
-		m.CoordinationChannelID == "" &&
+		m.ParticipationChannel == "" &&
 		m.CoordinatorSessionID == "" &&
 		m.ParentSessionID == "" &&
 		m.RootSessionID == "" &&
@@ -905,20 +878,6 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	return fields
 }
 
-func appendNetworkMatcherFieldNames(fields *[]string, matcher *NetworkMatcher) {
-	appendIf := func(name string, present bool) {
-		if present {
-			*fields = append(*fields, name)
-		}
-	}
-
-	appendIf(matcherChannelKey, matcher.Channel != "")
-	appendIf("surface", matcher.Surface != "")
-	appendIf("kind", matcher.Kind != "")
-	appendIf("direction", matcher.Direction != "")
-	appendIf(matcherWorkStateKey, matcher.WorkState != "")
-}
-
 func appendCompactionMatcherFieldNames(fields *[]string, matcher *CompactionMatcher) {
 	appendIf := func(name string, present bool) {
 		if present {
@@ -943,7 +902,7 @@ func appendAutonomyMatcherFieldNames(fields *[]string, matcher *AutonomyMatcher)
 	appendIf(matcherLoopNameKey, matcher.LoopName != "")
 	appendIf(matcherNodeIDKey, matcher.NodeID != "")
 	appendIf(matcherWorkflowIDKey, matcher.WorkflowID != "")
-	appendIf(matcherCoordinationChannelIDKey, matcher.CoordinationChannelID != "")
+	appendIf(matcherParticipationChannelKey, matcher.ParticipationChannel != "")
 	appendIf("coordinator_session_id", matcher.CoordinatorSessionID != "")
 	appendIf("parent_session_id", matcher.ParentSessionID != "")
 	appendIf("root_session_id", matcher.RootSessionID != "")
@@ -989,28 +948,6 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 	return validateAutonomyMatcherPatterns(matcher.Autonomy)
 }
 
-func validateNetworkMatcherPatterns(matcher *NetworkMatcher) error {
-	if matcher == nil {
-		return nil
-	}
-	patterns := []struct {
-		field   string
-		pattern string
-	}{
-		{field: matcherChannelKey, pattern: matcher.Channel},
-		{field: "surface", pattern: matcher.Surface},
-		{field: "kind", pattern: matcher.Kind},
-		{field: "direction", pattern: matcher.Direction},
-		{field: matcherWorkStateKey, pattern: matcher.WorkState},
-	}
-	for _, item := range patterns {
-		if err := validateMatcherPattern(item.field, item.pattern); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func validateCompactionMatcherPatterns(matcher *CompactionMatcher) error {
 	if matcher == nil {
 		return nil
@@ -1044,7 +981,7 @@ func validateAutonomyMatcherPatterns(matcher *AutonomyMatcher) error {
 		{field: matcherLoopNameKey, pattern: matcher.LoopName},
 		{field: matcherNodeIDKey, pattern: matcher.NodeID},
 		{field: matcherWorkflowIDKey, pattern: matcher.WorkflowID},
-		{field: matcherCoordinationChannelIDKey, pattern: matcher.CoordinationChannelID},
+		{field: matcherParticipationChannelKey, pattern: matcher.ParticipationChannel},
 		{field: "coordinator_session_id", pattern: matcher.CoordinatorSessionID},
 		{field: "parent_session_id", pattern: matcher.ParentSessionID},
 		{field: "root_session_id", pattern: matcher.RootSessionID},

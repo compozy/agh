@@ -371,8 +371,8 @@ describe("HostAPI", () => {
           {
             channel: "builders",
             direct_id: "direct_0123456789abcdef0123456789abcdef",
-            peer_a: "agent.local",
-            peer_b: "peer.remote",
+            session_a: "sess-local",
+            session_b: "sess-remote",
             message_count: 0,
             open_work_count: 0,
           },
@@ -390,8 +390,8 @@ describe("HostAPI", () => {
       return {
         channel: "builders",
         direct_id: "direct_0123456789abcdef0123456789abcdef",
-        peer_a: "agent.local",
-        peer_b: "peer.remote",
+        session_a: "sess-local",
+        session_b: "sess-remote",
       };
     });
     pair.host.handle("network/direct/messages", async params => {

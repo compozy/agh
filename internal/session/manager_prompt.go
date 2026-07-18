@@ -89,28 +89,6 @@ func (m *Manager) Prompt(ctx context.Context, id string, msg string) (<-chan acp
 	})
 }
 
-// PromptNetwork sends one network-originated prompt turn to an active session.
-func (m *Manager) PromptNetwork(
-	ctx context.Context,
-	id string,
-	msg string,
-	meta ...acp.PromptNetworkMeta,
-) (<-chan acp.AgentEvent, error) {
-	if len(meta) > 1 {
-		return nil, errors.New("session: network prompt accepts at most one metadata value")
-	}
-
-	var promptMeta acp.PromptMeta
-	if len(meta) > 0 {
-		promptMeta.Network = &meta[0]
-	}
-	return m.PromptWithOpts(ctx, id, PromptOpts{
-		Message:    msg,
-		TurnSource: TurnSourceNetwork,
-		PromptMeta: promptMeta,
-	})
-}
-
 // PromptWithOpts sends one prompt turn with daemon-local provenance metadata.
 func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts) (<-chan acp.AgentEvent, error) {
 	req, err := m.parsePromptRequest(ctx, id, opts)

@@ -160,12 +160,12 @@ describe("protocol RFC hard cut", () => {
     expect(violations).toEqual([]);
   });
 
-  it("keeps RFC 003 as current v0 and RFC 004 as future v1 trust work", () => {
+  it("keeps RFC 003 as current in-process v0 and RFC 004 as future v1 trust work", () => {
     const rfc003 = readRepoFile("docs/rfcs/003_agh-network-v0.md");
     expect(rfc003).toContain("**Status:** Current runtime contract");
     expect(rfc003).toContain("agh-network/v0");
-    expect(rfc003).toContain("agh.network.v0.<workspace_id>.<channel>.broadcast");
-    expect(rfc003).toContain("agh.network.v0.<workspace_id>.<channel>.peer.<route_token>");
+    expect(rfc003).toContain("AGH Runtime in-process delivery");
+    expect(rfc003).toContain("The durable commit is acceptance");
     expect(rfc003).not.toContain("RFC 006");
 
     const rfc004 = readRepoFile("docs/rfcs/004_agh-network-v1.md");
@@ -173,6 +173,31 @@ describe("protocol RFC hard cut", () => {
     expect(rfc004).toContain("future auth/proofs/trust-profile work");
     expect(rfc004).toContain("[RFC 003: AGH Network v0](003_agh-network-v0.md)");
     expect(rfc004).not.toContain("RFC 006");
+  });
+
+  it("keeps active RFCs free of the retired broker binding", () => {
+    const retiredBindingPatterns = [
+      /\bNATS\b/,
+      /\bJetStream\b/,
+      /agh\.network\.v[01]\.<workspace_id>/,
+      /broker[- ](?:backed|managed|cluster|subject)/i,
+    ];
+
+    const violations = activeProtocolDocs.flatMap(path => {
+      const content = readRepoFile(path);
+      return retiredBindingPatterns.flatMap(pattern =>
+        [
+          ...content.matchAll(
+            new RegExp(
+              pattern.source,
+              pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`
+            )
+          ),
+        ].map(match => `${path}: ${match[0]}`)
+      );
+    });
+
+    expect(violations).toEqual([]);
   });
 
   it("requires active RFC envelope examples to carry workspace_id", () => {

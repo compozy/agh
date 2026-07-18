@@ -14,30 +14,13 @@ func upsertNetworkThreadParticipant(
 	exec networkSQLExecutor,
 	entry store.NetworkConversationMessage,
 ) error {
-	return upsertNetworkThreadParticipantPeer(ctx, exec, entry, entry.PeerFrom)
-}
-
-func upsertNetworkThreadTargetParticipant(
-	ctx context.Context,
-	exec networkSQLExecutor,
-	entry store.NetworkConversationMessage,
-) error {
-	return upsertNetworkThreadParticipantPeer(ctx, exec, entry, entry.PeerTo)
-}
-
-func upsertNetworkThreadParticipantPeer(
-	ctx context.Context,
-	exec networkSQLExecutor,
-	entry store.NetworkConversationMessage,
-	peerID string,
-) error {
-	trimmedPeerID := strings.TrimSpace(peerID)
-	if trimmedPeerID == "" {
+	sessionID := strings.TrimSpace(entry.SessionID)
+	if sessionID == "" {
 		return nil
 	}
 	err := sqlcgen.New(exec).UpsertNetworkThreadParticipant(ctx, sqlcgen.UpsertNetworkThreadParticipantParams{
 		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, ThreadID: entry.ThreadID,
-		PeerID: trimmedPeerID, FirstMessageID: entry.MessageID,
+		SessionID: sessionID, FirstMessageID: entry.MessageID,
 		FirstSeenAt: store.FormatTimestamp(entry.Timestamp), LastSeenAt: store.FormatTimestamp(entry.Timestamp),
 	})
 	if err != nil {

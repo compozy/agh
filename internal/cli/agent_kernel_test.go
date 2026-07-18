@@ -35,11 +35,11 @@ func TestMeCommandJSONReturnsValidatedIdentity(t *testing.T) {
 					RootDir: "/workspace/project",
 				},
 				Session: contract.AgentSessionPayload{
-					ID:        "sess-agent",
-					State:     session.StateActive,
-					Channel:   "builders",
-					CreatedAt: fixedTestNow,
-					UpdatedAt: fixedTestNow,
+					ID:                           "sess-agent",
+					State:                        session.StateActive,
+					ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+					CreatedAt:                    fixedTestNow,
+					UpdatedAt:                    fixedTestNow,
 				},
 			}, nil
 		}
@@ -140,7 +140,6 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 					Provider:      request.Provider,
 					WorkspaceID:   "ws-1",
 					WorkspacePath: "/workspace/project",
-					Channel:       "builders",
 					Type:          session.SessionTypeSpawned,
 					State:         session.StateActive,
 					CreatedAt:     fixedTestNow,
@@ -337,7 +336,6 @@ func TestChannelListCommandJSONReturnsVisibleChannels(t *testing.T) {
 			assertAgentCredentials(t, credentials)
 			return []AgentChannelRecord{{
 				ID:                  "builders",
-				Channel:             "builders",
 				DisplayName:         "builders",
 				Purpose:             "task_coordination",
 				WorkspaceID:         "ws-1",
@@ -391,7 +389,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 					if request.Metadata.TaskID != "task-1" ||
 						request.Metadata.RunID != "run-1" ||
 						request.Metadata.WorkflowID != "wf-1" ||
-						request.Metadata.CoordinationChannelID != "builders" ||
+						request.Metadata.ChannelID != "builders" ||
 						request.Metadata.CorrelationID != "corr-1" ||
 						request.Metadata.MessageKind != kind {
 						t.Fatalf("metadata = %#v, want task/run/%s correlation", request.Metadata, kind)
@@ -439,7 +437,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 				name: "Should reject raw claim token in body",
 				args: []string{
 					"ch", "send", "builders",
-					"--body", `{"claim_token":"secret"}`,
+					"--body", `{"claim_token":"agh_claim_CLI_CHANNEL_123"}`,
 					"--task-id", "task-1",
 					"--run-id", "run-1",
 				},
@@ -451,7 +449,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 					"--body", `{"text":"ok"}`,
 					"--task-id", "task-1",
 					"--run-id", "run-1",
-					"--metadata-ext", `{"claim_token":"secret"}`,
+					"--metadata-ext", `{"claim_token":"agh_claim_CLI_CHANNEL_123"}`,
 				},
 			},
 		} {
@@ -473,7 +471,34 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 				if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
 					t.Fatalf("agh ch send error = %v, want ErrRawClaimTokenMetadata", err)
 				}
+				if strings.Contains(err.Error(), "agh_claim_CLI_CHANNEL_123") {
+					t.Fatalf("agh ch send error leaked raw claim token: %v", err)
+				}
 			})
+		}
+
+		identityClient := &stubClient{
+			agentChannelSendFn: func(
+				context.Context,
+				string,
+				AgentChannelSendRequest,
+				agentidentity.Credentials,
+			) (AgentChannelMessageRecord, error) {
+				t.Fatal("AgentChannelSend should not be called for an unsupported caller identity flag")
+				return AgentChannelMessageRecord{}, errors.New("unexpected")
+			},
+		}
+		_, _, err := executeRootCommand(
+			t,
+			newAgentCommandTestDeps(t, identityClient),
+			"ch", "send", "builders",
+			"--body", `{"text":"spoof"}`,
+			"--task-id", "task-1",
+			"--run-id", "run-1",
+			"--from", "alice@39f713d0a644253f04529421b9f51b9b",
+		)
+		if err == nil || !strings.Contains(err.Error(), "unknown flag: --from") {
+			t.Fatalf("agh ch send caller identity error = %v, want unsupported identity field rejection", err)
 		}
 	})
 }
@@ -486,11 +511,13 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 
 		client := &stubClient{}
 		deps := newAgentCommandTestDeps(t, client)
+		replyCalls := 0
 		client.agentChannelReplyFn = func(
 			_ context.Context,
 			request AgentChannelReplyRequest,
 			credentials agentidentity.Credentials,
 		) (AgentChannelMessageRecord, error) {
+			replyCalls++
 			assertAgentCredentials(t, credentials)
 			if request.ReplyToMessageID != "msg-source" {
 				t.Fatalf("reply_to_message_id = %q, want msg-source", request.ReplyToMessageID)
@@ -498,19 +525,32 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 			if string(request.Body) != `{"text":"ack"}` {
 				t.Fatalf("body = %s, want ack JSON", request.Body)
 			}
-			if !zeroCLICoordinationMetadata(request.Metadata) {
-				t.Fatalf("metadata = %#v, want zero metadata for server-side source resolution", request.Metadata)
+			switch replyCalls {
+			case 1:
+				if !zeroCLICoordinationMetadata(request.Metadata) {
+					t.Fatalf("metadata = %#v, want zero metadata for server-side source resolution", request.Metadata)
+				}
+			case 2:
+				if request.Metadata.TaskID != "task-1" ||
+					request.Metadata.RunID != "run-1" ||
+					request.Metadata.ChannelID != "builders" ||
+					request.Metadata.CorrelationID != "corr-1" ||
+					request.Metadata.MessageKind != contract.CoordinationMessageReply {
+					t.Fatalf("metadata = %#v, want task/run/channel/correlation reply metadata", request.Metadata)
+				}
+			default:
+				t.Fatalf("reply callback calls = %d, want at most 2", replyCalls)
 			}
 			return AgentChannelMessageRecord{
 				MessageID: "msg-reply",
 				ChannelID: "builders",
 				Body:      request.Body,
 				Metadata: contract.CoordinationMessageMetadataPayload{
-					TaskID:                "task-1",
-					RunID:                 "run-1",
-					CoordinationChannelID: "builders",
-					MessageKind:           contract.CoordinationMessageReply,
-					CorrelationID:         "run-1",
+					TaskID:        "task-1",
+					RunID:         "run-1",
+					ChannelID:     "builders",
+					MessageKind:   contract.CoordinationMessageReply,
+					CorrelationID: "run-1",
 				},
 				Timestamp: fixedTestNow,
 			}, nil
@@ -525,6 +565,20 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 			"-o", "json",
 		); err != nil {
 			t.Fatalf("agh ch reply error = %v", err)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"ch", "reply",
+			"--to-message", "msg-source",
+			"--body", `{"text":"ack"}`,
+			"--task-id", "task-1",
+			"--run-id", "run-1",
+			"--channel-id", "builders",
+			"--correlation-id", "corr-1",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("agh ch reply with metadata error = %v", err)
 		}
 
 		_, _, err := executeRootCommand(
@@ -547,7 +601,7 @@ func TestChannelReplySendsOnlyMessageIDAndBodyWhenMetadataIsResolvedServerSide(t
 			"--body", `{"text":"ack"}`,
 			"--task-id", "task-1",
 			"--run-id", "run-1",
-			"--coordination-channel-id", "builders",
+			"--channel-id", "builders",
 			"--kind", "status",
 		)
 		if err == nil || !strings.Contains(err.Error(), "--kind must be reply") {
@@ -642,7 +696,6 @@ func TestAgentCommandsRenderHumanAndToonOutputs(t *testing.T) {
 		}
 		channelRecord := AgentChannelRecord{
 			ID:                  "builders",
-			Channel:             "builders",
 			DisplayName:         "builders",
 			Purpose:             "task_coordination",
 			WorkspaceID:         "ws-1",
@@ -800,7 +853,6 @@ func agentCommandSessionRecord() SessionRecord {
 		Provider:      "test-provider",
 		WorkspaceID:   "ws-1",
 		WorkspacePath: "/workspace/project",
-		Channel:       "builders",
 		Type:          session.SessionTypeUser,
 		State:         session.StateActive,
 		CreatedAt:     fixedTestNow,
@@ -838,7 +890,7 @@ func zeroCLICoordinationMetadata(metadata contract.CoordinationMessageMetadataPa
 	return strings.TrimSpace(metadata.TaskID) == "" &&
 		strings.TrimSpace(metadata.RunID) == "" &&
 		strings.TrimSpace(metadata.WorkflowID) == "" &&
-		strings.TrimSpace(metadata.CoordinationChannelID) == "" &&
+		strings.TrimSpace(metadata.ChannelID) == "" &&
 		strings.TrimSpace(string(metadata.MessageKind)) == "" &&
 		strings.TrimSpace(metadata.CorrelationID) == "" &&
 		len(metadata.Ext) == 0
@@ -851,11 +903,11 @@ func agentChannelTestMessage(id string, kind contract.CoordinationMessageKind) A
 		FromSessionID: "sess-peer",
 		Body:          json.RawMessage(`{"text":"ok"}`),
 		Metadata: contract.CoordinationMessageMetadataPayload{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			CoordinationChannelID: "builders",
-			MessageKind:           kind,
-			CorrelationID:         "run-1",
+			TaskID:        "task-1",
+			RunID:         "run-1",
+			ChannelID:     "builders",
+			MessageKind:   kind,
+			CorrelationID: "run-1",
 		},
 		Timestamp: time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC),
 	}

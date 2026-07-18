@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"strings"
 	"sync"
 	"text/template"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -379,11 +381,15 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (*Run, e
 	}
 
 	attempt := 1
+	reservedDispatch := req.ReservedRun != nil
 	var lastRun *Run
 	for {
 		run, err := d.dispatchAttempt(ctx, req, attempt)
 		if run != nil {
 			lastRun = cloneRun(run)
+			if reservedDispatch {
+				req.ReservedRun = cloneRun(run)
+			}
 		}
 		if run != nil && d.hooks != nil {
 			willRetry := err != nil && shouldRetry(req.retryConfig(), run, attempt, err)
@@ -471,7 +477,11 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	if err != nil {
 		return cloneRun(scheduledRun), err
 	}
-	if err := d.recordAutomationSessionTaskActor(createdSession.ID, runningRun); err != nil {
+	if err := d.recordAutomationSessionTaskActor(
+		createdSession.ID,
+		createdSession.WorkspaceID,
+		runningRun,
+	); err != nil {
 		return d.finishRunAfterSessionStop(ctx, runningRun, createdSession.ID, RunFailed, err)
 	}
 
@@ -508,9 +518,10 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 	}
 
 	run := Run{
-		Status:    RunScheduled,
-		Attempt:   attempt,
-		StartedAt: timePointer(now),
+		Status:               RunScheduled,
+		Attempt:              attempt,
+		StartedAt:            timePointer(now),
+		NetworkParticipation: req.networkParticipation(),
 	}
 	if req.Job != nil {
 		run.JobID = req.Job.ID
@@ -541,6 +552,10 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 	}
 	if req.Trigger != nil && strings.TrimSpace(reserved.TriggerID) != strings.TrimSpace(req.Trigger.ID) {
 		return nil, errors.New("automation: reserved run trigger_id does not match dispatch trigger")
+	}
+	requestedParticipation := req.networkParticipation()
+	if !reflect.DeepEqual(reserved.NetworkParticipation, requestedParticipation) {
+		return reserved, errors.New("automation: reserved run network participation does not match definition")
 	}
 
 	now := d.now()
@@ -672,9 +687,10 @@ func (d *Dispatcher) dispatchTaskBackedAttempt(
 	}
 
 	taskRun, err := d.tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
-		TaskID:         taskRecord.ID,
-		IdempotencyKey: automationTaskRunIdempotencyKey(scheduledRun.ID),
-		NetworkChannel: strings.TrimSpace(taskRecord.NetworkChannel),
+		TaskID:                     taskRecord.ID,
+		IdempotencyKey:             automationTaskRunIdempotencyKey(scheduledRun.ID),
+		NetworkParticipation:       cloneParticipationRequest(req.Job.Task.NetworkParticipation),
+		NetworkParticipationSource: participation.SourceAutomationJob,
 	}, actor)
 	if err != nil {
 		return d.finishRun(ctx, scheduledRun, classifyDispatchError(err), err)
@@ -1005,11 +1021,15 @@ func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
 	return opts
 }
 
-func (d *Dispatcher) recordAutomationSessionTaskActor(sessionID string, run *Run) error {
+func (d *Dispatcher) recordAutomationSessionTaskActor(
+	sessionID string,
+	workspaceID string,
+	run *Run,
+) error {
 	if d == nil || d.taskActors == nil {
 		return nil
 	}
-	actor, err := automationSessionTaskActorContext(sessionID, run)
+	actor, err := automationSessionTaskActorContext(sessionID, workspaceID, run)
 	if err != nil {
 		return err
 	}
@@ -1152,58 +1172,19 @@ func directTaskActorContext(job *Job, runID string) (taskpkg.ActorContext, error
 	return taskpkg.DeriveAutomationActorContext(strings.TrimSpace(job.ID), automationTaskOriginRef(runID))
 }
 
-func automationSessionTaskActorContext(sessionID string, run *Run) (taskpkg.ActorContext, error) {
+func automationSessionTaskActorContext(
+	sessionID string,
+	workspaceID string,
+	run *Run,
+) (taskpkg.ActorContext, error) {
 	if run == nil {
 		return taskpkg.ActorContext{}, errors.New("automation: run is required for session task actor context")
 	}
 	return taskpkg.DeriveAutomationLinkedAgentSessionActorContext(
 		strings.TrimSpace(sessionID),
+		strings.TrimSpace(workspaceID),
 		automationTaskOriginRef(run.ID),
 	)
-}
-
-func directTaskSpec(job *Job, prompt string) taskpkg.CreateTask {
-	if job == nil || job.Task == nil {
-		return taskpkg.CreateTask{}
-	}
-
-	title := strings.TrimSpace(job.Task.Title)
-	if title == "" {
-		title = strings.TrimSpace(job.Name)
-	}
-	description := strings.TrimSpace(job.Task.Description)
-	if description == "" {
-		description = strings.TrimSpace(prompt)
-	}
-	if description == "" {
-		description = strings.TrimSpace(job.Prompt)
-	}
-
-	return taskpkg.CreateTask{
-		Scope:          taskScopeForAutomationScope(job.Scope),
-		WorkspaceID:    strings.TrimSpace(job.WorkspaceID),
-		NetworkChannel: strings.TrimSpace(job.Task.NetworkChannel),
-		Title:          title,
-		Description:    description,
-		Owner:          cloneTaskOwnership(job.Task.Owner),
-	}
-}
-
-func taskScopeForAutomationScope(scope Scope) taskpkg.Scope {
-	switch scope {
-	case AutomationScopeWorkspace:
-		return taskpkg.ScopeWorkspace
-	default:
-		return taskpkg.ScopeGlobal
-	}
-}
-
-func cloneTaskOwnership(owner *taskpkg.Ownership) *taskpkg.Ownership {
-	if owner == nil {
-		return nil
-	}
-	cloned := *owner
-	return &cloned
 }
 
 func automationTaskOriginRef(runID string) string {
@@ -1361,6 +1342,7 @@ func cloneRun(run *Run) *Run {
 		cloned.DeliveryErrorAt = &deliveryErrorAt
 	}
 	cloned.Metadata = cloneJSONMap(run.Metadata)
+	cloned.NetworkParticipation = cloneParticipationRequest(run.NetworkParticipation)
 	return &cloned
 }
 

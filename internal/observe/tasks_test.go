@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -32,31 +33,29 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 		UpdatedAt: h.now.Add(time.Minute),
 	})
 	createObserveTask(t, h, taskpkg.Task{
-		ID:             "task-workspace-blocked",
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    h.workspaceID,
-		Title:          "Workspace blocked",
-		Status:         taskpkg.TaskStatusBlocked,
-		Owner:          taskOwner(taskpkg.OwnerKindHuman, "alice"),
-		NetworkChannel: "ops",
-		CreatedBy:      taskActor(taskpkg.ActorKindNetworkPeer, "peer-ops"),
-		Origin:         taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
-		CreatedAt:      h.now.Add(2 * time.Minute),
-		UpdatedAt:      h.now.Add(2 * time.Minute),
+		ID:          "task-workspace-blocked",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Workspace blocked",
+		Status:      taskpkg.TaskStatusBlocked,
+		Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
+		CreatedBy:   taskActor(taskpkg.ActorKindNetworkPeer, "peer-ops"),
+		Origin:      taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
+		CreatedAt:   h.now.Add(2 * time.Minute),
+		UpdatedAt:   h.now.Add(2 * time.Minute),
 	})
 	createObserveTask(t, h, taskpkg.Task{
-		ID:             "task-workspace-completed",
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    h.workspaceID,
-		Title:          "Workspace completed",
-		Status:         taskpkg.TaskStatusCompleted,
-		Owner:          taskOwner(taskpkg.OwnerKindPool, "backlog"),
-		NetworkChannel: "eng",
-		CreatedBy:      taskActor(taskpkg.ActorKindAutomation, "rule-1"),
-		Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
-		CreatedAt:      h.now.Add(3 * time.Minute),
-		UpdatedAt:      h.now.Add(3 * time.Minute),
-		ClosedAt:       h.now.Add(4 * time.Minute),
+		ID:          "task-workspace-completed",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Workspace completed",
+		Status:      taskpkg.TaskStatusCompleted,
+		Owner:       taskOwner(taskpkg.OwnerKindPool, "backlog"),
+		CreatedBy:   taskActor(taskpkg.ActorKindAutomation, "rule-1"),
+		Origin:      taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
+		CreatedAt:   h.now.Add(3 * time.Minute),
+		UpdatedAt:   h.now.Add(3 * time.Minute),
+		ClosedAt:    h.now.Add(4 * time.Minute),
 	})
 
 	createObserveRun(t, h, taskpkg.Run{
@@ -68,31 +67,31 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 		QueuedAt: h.now.Add(10 * time.Minute),
 	})
 	createObserveRun(t, h, taskpkg.Run{
-		ID:             "run-workspace-running",
-		TaskID:         "task-workspace-blocked",
-		Status:         taskpkg.TaskRunStatusRunning,
-		Attempt:        1,
-		ClaimedBy:      taskActorPtr(taskpkg.ActorKindDaemon, "scheduler"),
-		SessionID:      "sess-ops-live",
-		Origin:         taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
-		NetworkChannel: "ops",
-		QueuedAt:       h.now.Add(11 * time.Minute),
-		ClaimedAt:      h.now.Add(12 * time.Minute),
-		StartedAt:      h.now.Add(13 * time.Minute),
+		ID:              "run-workspace-running",
+		TaskID:          "task-workspace-blocked",
+		Status:          taskpkg.TaskRunStatusRunning,
+		Attempt:         1,
+		ClaimedBy:       taskActorPtr(taskpkg.ActorKindDaemon, "scheduler"),
+		SessionID:       "sess-ops-live",
+		Origin:          taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
+		RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
+		QueuedAt:        h.now.Add(11 * time.Minute),
+		ClaimedAt:       h.now.Add(12 * time.Minute),
+		StartedAt:       h.now.Add(13 * time.Minute),
 	})
 	createObserveRun(t, h, taskpkg.Run{
-		ID:             "run-workspace-completed",
-		TaskID:         "task-workspace-completed",
-		Status:         taskpkg.TaskRunStatusCompleted,
-		Attempt:        1,
-		ClaimedBy:      taskActorPtr(taskpkg.ActorKindDaemon, "scheduler"),
-		SessionID:      "sess-eng-done",
-		Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
-		NetworkChannel: "eng",
-		QueuedAt:       h.now.Add(14 * time.Minute),
-		ClaimedAt:      h.now.Add(15 * time.Minute),
-		StartedAt:      h.now.Add(16 * time.Minute),
-		EndedAt:        h.now.Add(18 * time.Minute),
+		ID:              "run-workspace-completed",
+		TaskID:          "task-workspace-completed",
+		Status:          taskpkg.TaskRunStatusCompleted,
+		Attempt:         1,
+		ClaimedBy:       taskActorPtr(taskpkg.ActorKindDaemon, "scheduler"),
+		SessionID:       "sess-eng-done",
+		Origin:          taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
+		RunNetworkState: observeRunNetworkState(h.workspaceID, "eng"),
+		QueuedAt:        h.now.Add(14 * time.Minute),
+		ClaimedAt:       h.now.Add(15 * time.Minute),
+		StartedAt:       h.now.Add(16 * time.Minute),
+		EndedAt:         h.now.Add(18 * time.Minute),
 	})
 
 	summary, err := h.observer.QueryTaskSummary(testutil.Context(t), TaskSummaryQuery{})
@@ -126,9 +125,9 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 	}
 
 	filtered, err := h.observer.QueryTaskSummary(testutil.Context(t), TaskSummaryQuery{
-		OwnerKind:      taskpkg.OwnerKindHuman,
-		OwnerRef:       "alice",
-		NetworkChannel: "ops",
+		OwnerKind:            taskpkg.OwnerKindHuman,
+		OwnerRef:             "alice",
+		ParticipationChannel: "ops",
 	})
 	if err != nil {
 		t.Fatalf("QueryTaskSummary(filtered) error = %v", err)
@@ -206,38 +205,38 @@ func TestTaskHealthFlagsStuckRunsByConfiguredThresholds(t *testing.T) {
 		ClaimedAt: now.Add(-20 * time.Minute),
 	})
 	createObserveRun(t, h, taskpkg.Run{
-		ID:             "run-starting-fresh",
-		TaskID:         "task-starting-recent",
-		Status:         taskpkg.TaskRunStatusStarting,
-		Attempt:        1,
-		SessionID:      "sess-live-starting",
-		Origin:         taskOrigin(taskpkg.OriginKindCLI, "agh task"),
-		QueuedAt:       now.Add(-15 * time.Minute),
-		ClaimedAt:      now.Add(-4 * time.Minute),
-		NetworkChannel: "ops",
+		ID:              "run-starting-fresh",
+		TaskID:          "task-starting-recent",
+		Status:          taskpkg.TaskRunStatusStarting,
+		Attempt:         1,
+		SessionID:       "sess-live-starting",
+		Origin:          taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+		QueuedAt:        now.Add(-15 * time.Minute),
+		ClaimedAt:       now.Add(-4 * time.Minute),
+		RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
 	})
 	createObserveRun(t, h, taskpkg.Run{
-		ID:             "run-starting-stale",
-		TaskID:         "task-starting-stale",
-		Status:         taskpkg.TaskRunStatusStarting,
-		Attempt:        1,
-		SessionID:      "sess-live-starting",
-		Origin:         taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-1/channel:ops"),
-		QueuedAt:       now.Add(-25 * time.Minute),
-		ClaimedAt:      now.Add(-12 * time.Minute),
-		NetworkChannel: "ops",
+		ID:              "run-starting-stale",
+		TaskID:          "task-starting-stale",
+		Status:          taskpkg.TaskRunStatusStarting,
+		Attempt:         1,
+		SessionID:       "sess-live-starting",
+		Origin:          taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-1/channel:ops"),
+		QueuedAt:        now.Add(-25 * time.Minute),
+		ClaimedAt:       now.Add(-12 * time.Minute),
+		RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
 	})
 	createObserveRun(t, h, taskpkg.Run{
-		ID:             "run-running-stale",
-		TaskID:         "task-running-stale",
-		Status:         taskpkg.TaskRunStatusRunning,
-		Attempt:        1,
-		SessionID:      "sess-live-running",
-		Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:auto-1"),
-		QueuedAt:       now.Add(-30 * time.Minute),
-		ClaimedAt:      now.Add(-28 * time.Minute),
-		StartedAt:      now.Add(-20 * time.Minute),
-		NetworkChannel: "eng",
+		ID:              "run-running-stale",
+		TaskID:          "task-running-stale",
+		Status:          taskpkg.TaskRunStatusRunning,
+		Attempt:         1,
+		SessionID:       "sess-live-running",
+		Origin:          taskOrigin(taskpkg.OriginKindAutomation, "run:auto-1"),
+		QueuedAt:        now.Add(-30 * time.Minute),
+		ClaimedAt:       now.Add(-28 * time.Minute),
+		StartedAt:       now.Add(-20 * time.Minute),
+		RunNetworkState: observeRunNetworkState(h.workspaceID, "eng"),
 	})
 
 	health, err := h.observer.Health(testutil.Context(t))
@@ -274,26 +273,35 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 	h := newHarness(t)
 
 	createObserveTask(t, h, taskpkg.Task{
-		ID:             "task-net",
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    h.workspaceID,
-		Title:          "Network task",
-		Status:         taskpkg.TaskStatusReady,
-		NetworkChannel: "ops",
-		CreatedBy:      taskActor(taskpkg.ActorKindNetworkPeer, "peer-ops"),
-		Origin:         taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
-		CreatedAt:      h.now,
-		UpdatedAt:      h.now,
+		ID:          "task-net",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Network task",
+		Status:      taskpkg.TaskStatusReady,
+		CreatedBy:   taskActor(taskpkg.ActorKindNetworkPeer, "peer-ops"),
+		Origin:      taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
+		CreatedAt:   h.now,
+		UpdatedAt:   h.now,
 	})
 	createObserveRun(t, h, taskpkg.Run{
-		ID:             "run-net",
-		TaskID:         "task-net",
-		Status:         taskpkg.TaskRunStatusQueued,
-		Attempt:        1,
-		Origin:         taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
-		NetworkChannel: "ops",
-		IdempotencyKey: "idem-1",
-		QueuedAt:       h.now.Add(time.Minute),
+		ID:              "run-net",
+		TaskID:          "task-net",
+		Status:          taskpkg.TaskRunStatusQueued,
+		Attempt:         1,
+		Origin:          taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
+		RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
+		IdempotencyKey:  "idem-1",
+		QueuedAt:        h.now.Add(time.Minute),
+	})
+	createObserveRun(t, h, taskpkg.Run{
+		ID:              "run-net-current-eng",
+		TaskID:          "task-net",
+		Status:          taskpkg.TaskRunStatusQueued,
+		Attempt:         2,
+		Origin:          taskOrigin(taskpkg.OriginKindCLI, "agh task run"),
+		RunNetworkState: observeRunNetworkState(h.workspaceID, "eng"),
+		IdempotencyKey:  "idem-2",
+		QueuedAt:        h.now.Add(6 * time.Minute),
 	})
 	createObserveEvent(t, h, taskpkg.Event{
 		ID:        "evt-run-enqueued",
@@ -303,7 +311,17 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		Actor:     taskActor(taskpkg.ActorKindNetworkPeer, "peer-ops"),
 		Origin:    taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
 		Timestamp: h.now.Add(2 * time.Minute),
-		Payload:   mustJSON(t, map[string]any{"network_channel": "ops", "idempotency_key": "idem-1"}),
+		Payload:   mustJSON(t, map[string]any{"idempotency_key": "idem-1"}),
+	})
+	createObserveEvent(t, h, taskpkg.Event{
+		ID:        "evt-run-force-stopped",
+		TaskID:    "task-net",
+		RunID:     "run-net",
+		EventType: taskEventRunForceStopped,
+		Actor:     taskActor(taskpkg.ActorKindDaemon, "scheduler"),
+		Origin:    taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
+		Timestamp: h.now.Add(2 * time.Minute),
+		Payload:   mustJSON(t, map[string]any{"reason": "test"}),
 	})
 	createObserveNetworkChannel(t, h, "ops")
 	createObserveAudit(t, h, store.NetworkAuditEntry{
@@ -358,8 +376,8 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 	})
 
 	metrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
-		Since:          h.now,
-		NetworkChannel: "ops",
+		Since:                h.now,
+		ParticipationChannel: "ops",
 	})
 	if err != nil {
 		t.Fatalf("QueryTaskMetrics() error = %v", err)
@@ -378,10 +396,21 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		t.Fatalf("metrics.TaskQueueDepth = %#v, want ops queue depth 1", metrics.TaskQueueDepth)
 	}
 
+	engMetrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
+		Since:                h.now,
+		ParticipationChannel: "eng",
+	})
+	if err != nil {
+		t.Fatalf("QueryTaskMetrics(eng filter) error = %v", err)
+	}
+	if got := engMetrics.TaskForcedStopsTotal; got != 0 {
+		t.Fatalf("engMetrics.TaskForcedStopsTotal = %d, want 0 from the ops run snapshot", got)
+	}
+
 	cliMetrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
-		Since:          h.now,
-		NetworkChannel: "ops",
-		OriginKind:     taskpkg.OriginKindCLI,
+		Since:                h.now,
+		ParticipationChannel: "ops",
+		OriginKind:           taskpkg.OriginKindCLI,
 	})
 	if err != nil {
 		t.Fatalf("QueryTaskMetrics(cli filter) error = %v", err)
@@ -438,7 +467,6 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			Status:         taskpkg.TaskStatusBlocked,
 			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
 			ApprovalState:  taskpkg.ApprovalStatePending,
-			NetworkChannel: "ops",
 			CreatedBy:      taskActor(taskpkg.ActorKindHuman, "user-1"),
 			Origin:         taskOrigin(taskpkg.OriginKindCLI, "agh task"),
 			CreatedAt:      now.Add(-14 * time.Minute),
@@ -452,7 +480,6 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			Status:         taskpkg.TaskStatusBlocked,
 			ApprovalPolicy: taskpkg.ApprovalPolicyNone,
 			ApprovalState:  taskpkg.ApprovalStateNotRequired,
-			NetworkChannel: "ops",
 			CreatedBy:      taskActor(taskpkg.ActorKindHuman, "user-1"),
 			Origin:         taskOrigin(taskpkg.OriginKindCLI, "agh task"),
 			CreatedAt:      now.Add(-13 * time.Minute),
@@ -471,44 +498,41 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			CreatedAt:       now.Add(-7 * time.Minute),
 		})
 		createObserveTask(t, h, taskpkg.Task{
-			ID:             "task-running",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    h.workspaceID,
-			Title:          "Live execution",
-			Priority:       taskpkg.PriorityHigh,
-			Status:         taskpkg.TaskStatusInProgress,
-			Owner:          taskOwner(taskpkg.OwnerKindHuman, "alice"),
-			NetworkChannel: "ops",
-			CreatedBy:      taskActor(taskpkg.ActorKindHuman, "user-1"),
-			Origin:         taskOrigin(taskpkg.OriginKindCLI, "agh task"),
-			CreatedAt:      now.Add(-12 * time.Minute),
-			UpdatedAt:      now.Add(-7 * time.Minute),
+			ID:          "task-running",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Live execution",
+			Priority:    taskpkg.PriorityHigh,
+			Status:      taskpkg.TaskStatusInProgress,
+			Owner:       taskOwner(taskpkg.OwnerKindHuman, "alice"),
+			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "user-1"),
+			Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			CreatedAt:   now.Add(-12 * time.Minute),
+			UpdatedAt:   now.Add(-7 * time.Minute),
 		})
 		createObserveTask(t, h, taskpkg.Task{
-			ID:             "task-failed",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    h.workspaceID,
-			Title:          "Failed job",
-			Status:         taskpkg.TaskStatusFailed,
-			NetworkChannel: "ops",
-			CreatedBy:      taskActor(taskpkg.ActorKindAutomation, "rule-1"),
-			Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
-			CreatedAt:      now.Add(-11 * time.Minute),
-			UpdatedAt:      now.Add(-6 * time.Minute),
-			ClosedAt:       now.Add(-2 * time.Minute),
+			ID:          "task-failed",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Failed job",
+			Status:      taskpkg.TaskStatusFailed,
+			CreatedBy:   taskActor(taskpkg.ActorKindAutomation, "rule-1"),
+			Origin:      taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
+			CreatedAt:   now.Add(-11 * time.Minute),
+			UpdatedAt:   now.Add(-6 * time.Minute),
+			ClosedAt:    now.Add(-2 * time.Minute),
 		})
 		createObserveTask(t, h, taskpkg.Task{
-			ID:             "task-completed",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    h.workspaceID,
-			Title:          "Completed job",
-			Status:         taskpkg.TaskStatusCompleted,
-			NetworkChannel: "eng",
-			CreatedBy:      taskActor(taskpkg.ActorKindAutomation, "rule-2"),
-			Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-2"),
-			CreatedAt:      now.Add(-10 * time.Minute),
-			UpdatedAt:      now.Add(-5 * time.Minute),
-			ClosedAt:       now.Add(-time.Minute),
+			ID:          "task-completed",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Completed job",
+			Status:      taskpkg.TaskStatusCompleted,
+			CreatedBy:   taskActor(taskpkg.ActorKindAutomation, "rule-2"),
+			Origin:      taskOrigin(taskpkg.OriginKindAutomation, "run:rule-2"),
+			CreatedAt:   now.Add(-10 * time.Minute),
+			UpdatedAt:   now.Add(-5 * time.Minute),
+			ClosedAt:    now.Add(-time.Minute),
 		})
 
 		createObserveRun(t, h, taskpkg.Run{
@@ -520,41 +544,41 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			QueuedAt: now.Add(-3 * time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
-			ID:             "run-running",
-			TaskID:         "task-running",
-			Status:         taskpkg.TaskRunStatusRunning,
-			Attempt:        2,
-			SessionID:      "sess-live-running",
-			Origin:         taskOrigin(taskpkg.OriginKindCLI, "agh task"),
-			NetworkChannel: "ops",
-			QueuedAt:       now.Add(-8 * time.Minute),
-			ClaimedAt:      now.Add(-7 * time.Minute),
-			StartedAt:      now.Add(-5 * time.Minute),
+			ID:              "run-running",
+			TaskID:          "task-running",
+			Status:          taskpkg.TaskRunStatusRunning,
+			Attempt:         2,
+			SessionID:       "sess-live-running",
+			Origin:          taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
+			QueuedAt:        now.Add(-8 * time.Minute),
+			ClaimedAt:       now.Add(-7 * time.Minute),
+			StartedAt:       now.Add(-5 * time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
-			ID:             "run-failed",
-			TaskID:         "task-failed",
-			Status:         taskpkg.TaskRunStatusFailed,
-			Attempt:        1,
-			Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
-			NetworkChannel: "ops",
-			QueuedAt:       now.Add(-9 * time.Minute),
-			ClaimedAt:      now.Add(-8 * time.Minute),
-			StartedAt:      now.Add(-6 * time.Minute),
-			EndedAt:        now.Add(-2 * time.Minute),
-			Error:          "rate limit",
+			ID:              "run-failed",
+			TaskID:          "task-failed",
+			Status:          taskpkg.TaskRunStatusFailed,
+			Attempt:         1,
+			Origin:          taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
+			RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
+			QueuedAt:        now.Add(-9 * time.Minute),
+			ClaimedAt:       now.Add(-8 * time.Minute),
+			StartedAt:       now.Add(-6 * time.Minute),
+			EndedAt:         now.Add(-2 * time.Minute),
+			Error:           "rate limit",
 		})
 		createObserveRun(t, h, taskpkg.Run{
-			ID:             "run-completed",
-			TaskID:         "task-completed",
-			Status:         taskpkg.TaskRunStatusCompleted,
-			Attempt:        1,
-			Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-2"),
-			NetworkChannel: "eng",
-			QueuedAt:       now.Add(-8 * time.Minute),
-			ClaimedAt:      now.Add(-6 * time.Minute),
-			StartedAt:      now.Add(-4 * time.Minute),
-			EndedAt:        now.Add(-time.Minute),
+			ID:              "run-completed",
+			TaskID:          "task-completed",
+			Status:          taskpkg.TaskRunStatusCompleted,
+			Attempt:         1,
+			Origin:          taskOrigin(taskpkg.OriginKindAutomation, "run:rule-2"),
+			RunNetworkState: observeRunNetworkState(h.workspaceID, "eng"),
+			QueuedAt:        now.Add(-8 * time.Minute),
+			ClaimedAt:       now.Add(-6 * time.Minute),
+			StartedAt:       now.Add(-4 * time.Minute),
+			EndedAt:         now.Add(-time.Minute),
 		})
 
 		dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
@@ -963,30 +987,29 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 		})
 
 		createObserveTask(t, h, taskpkg.Task{
-			ID:             "task-failed",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    h.workspaceID,
-			Title:          "Failed deploy",
-			Status:         taskpkg.TaskStatusFailed,
-			NetworkChannel: "ops",
-			CreatedBy:      taskActor(taskpkg.ActorKindAutomation, "rule-1"),
-			Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
-			CreatedAt:      now.Add(-22 * time.Minute),
-			UpdatedAt:      now.Add(-10 * time.Minute),
-			ClosedAt:       now.Add(-3 * time.Minute),
+			ID:          "task-failed",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Failed deploy",
+			Status:      taskpkg.TaskStatusFailed,
+			CreatedBy:   taskActor(taskpkg.ActorKindAutomation, "rule-1"),
+			Origin:      taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
+			CreatedAt:   now.Add(-22 * time.Minute),
+			UpdatedAt:   now.Add(-10 * time.Minute),
+			ClosedAt:    now.Add(-3 * time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
-			ID:             "run-failed-latest",
-			TaskID:         "task-failed",
-			Status:         taskpkg.TaskRunStatusFailed,
-			Attempt:        2,
-			Origin:         taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
-			NetworkChannel: "ops",
-			QueuedAt:       now.Add(-9 * time.Minute),
-			ClaimedAt:      now.Add(-8 * time.Minute),
-			StartedAt:      now.Add(-7 * time.Minute),
-			EndedAt:        now.Add(-3 * time.Minute),
-			Error:          "boom",
+			ID:              "run-failed-latest",
+			TaskID:          "task-failed",
+			Status:          taskpkg.TaskRunStatusFailed,
+			Attempt:         2,
+			Origin:          taskOrigin(taskpkg.OriginKindAutomation, "run:rule-1"),
+			RunNetworkState: observeRunNetworkState(h.workspaceID, "ops"),
+			QueuedAt:        now.Add(-9 * time.Minute),
+			ClaimedAt:       now.Add(-8 * time.Minute),
+			StartedAt:       now.Add(-7 * time.Minute),
+			EndedAt:         now.Add(-3 * time.Minute),
+			Error:           "boom",
 		})
 
 		createObserveTask(t, h, taskpkg.Task{
@@ -1194,6 +1217,26 @@ func createObserveRun(t *testing.T, h *harness, run taskpkg.Run) {
 	}
 }
 
+func observeRunNetworkState(workspaceID, channel string) *taskpkg.RunNetworkState {
+	return &taskpkg.RunNetworkState{NetworkSpec: participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     workspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       channel,
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         8,
+			MaxWakeWallTime:  "5m",
+			MaxTotalWallTime: "30m",
+			MaxInputTokens:   200_000,
+			MaxOutputTokens:  50_000,
+			MaxWakeDepth:     3,
+			CoalesceWindow:   "500ms",
+		},
+	}}
+}
+
 func createObserveDependency(t *testing.T, h *harness, dependency taskpkg.Dependency) {
 	t.Helper()
 	if err := h.registry.CreateDependency(testutil.Context(t), dependency); err != nil {
@@ -1270,7 +1313,7 @@ func containsTaskTotal(
 	count int,
 ) bool {
 	for _, item := range rows {
-		if item.Scope == scope && item.Status == status && item.NetworkChannel == channel && item.Count == count {
+		if item.Scope == scope && item.Status == status && item.ChannelID == channel && item.Count == count {
 			return true
 		}
 	}
@@ -1279,7 +1322,7 @@ func containsTaskTotal(
 
 func containsTaskOriginTotal(rows []TaskOriginTotal, origin taskpkg.OriginKind, channel string, count int) bool {
 	for _, item := range rows {
-		if item.OriginKind == origin && item.NetworkChannel == channel && item.Count == count {
+		if item.OriginKind == origin && item.ChannelID == channel && item.Count == count {
 			return true
 		}
 	}
@@ -1294,7 +1337,7 @@ func containsRunTotal(
 	count int,
 ) bool {
 	for _, item := range rows {
-		if item.Status == status && item.OriginKind == origin && item.NetworkChannel == channel && item.Count == count {
+		if item.Status == status && item.OriginKind == origin && item.ChannelID == channel && item.Count == count {
 			return true
 		}
 	}
@@ -1312,7 +1355,7 @@ func containsOwnerTotal(rows []TaskOwnerTotal, ownerKind taskpkg.OwnerKind, owne
 
 func containsQueueDepth(rows []TaskQueueDepth, channel string, count int) bool {
 	for _, item := range rows {
-		if item.NetworkChannel == channel && item.Count == count {
+		if item.ChannelID == channel && item.Count == count {
 			return true
 		}
 	}

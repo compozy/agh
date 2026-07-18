@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/agh/internal/hooks"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -137,4 +138,8 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[tools.ErrorCode]():                    toolErrorCodeValues(),
 	reflect.TypeFor[tools.ToolCallEventKind]():            toolCallEventKindValues(),
 	reflect.TypeFor[extensionprotocol.HostAPIMethod]():    hostAPIMethodValues(),
+	reflect.TypeFor[participation.Mode]():                 participationModeValues(),
+	reflect.TypeFor[participation.ChannelStrategy]():      participationChannelStrategyValues(),
+	reflect.TypeFor[participation.Source]():               participationSourceValues(),
+	reflect.TypeFor[participation.OwnerKind]():            participationOwnerKindValues(),
 })

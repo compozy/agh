@@ -9,9 +9,13 @@ import (
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-func upsertSessionParams(record sessionCatalogRecord) sqlcgen.UpsertSessionParams {
+func upsertSessionParams(record sessionCatalogRecord) (sqlcgen.UpsertSessionParams, error) {
 	session := record.session
 	lineage := record.lineage
+	network, err := encodeParticipationSnapshot(session.WorkspaceID, session.NetworkSpecSnapshot())
+	if err != nil {
+		return sqlcgen.UpsertSessionParams{}, err
+	}
 	return sqlcgen.UpsertSessionParams{
 		ID:              session.ID,
 		Name:            nullableSessionString(session.Name),
@@ -19,7 +23,10 @@ func upsertSessionParams(record sessionCatalogRecord) sqlcgen.UpsertSessionParam
 		Provider:        strings.TrimSpace(session.Provider),
 		WorkspaceID:     session.WorkspaceID,
 		SessionType:     store.NormalizeSessionType(session.SessionType),
-		Channel:         strings.TrimSpace(session.Channel),
+		NetworkSpecJson: network.JSON,
+		NetworkMode:     network.Mode,
+		NetworkChannel:  network.Channel,
+		NetworkSource:   network.Source,
 		State:           session.State,
 		ParentSessionID: nullableSessionString(lineage.ParentSessionID),
 		RootSessionID:   nullableSessionString(lineage.RootSessionID),
@@ -71,7 +78,7 @@ func upsertSessionParams(record sessionCatalogRecord) sqlcgen.UpsertSessionParam
 			session.CreatedAt,
 		),
 		UpdatedAt: store.FormatTimestamp(session.UpdatedAt),
-	}
+	}, nil
 }
 
 func nullableSessionString(value string) sql.NullString {

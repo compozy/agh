@@ -184,5 +184,5 @@ work in another container requires a new `work_id`.
   `thread_id`, `direct_id`, and `work_id`.
 - [Delivery](/protocol/delivery) explains deduplication, freshness, and delivery outcomes.
 - [Examples](/protocol/examples) shows complete envelope flows using these lifecycle rules.
-- [Task Ingress](/runtime/core/network/task-ingress) shows how AGH Runtime maps authenticated
-  network work into task-domain writes.
+- [Task Promotion](/runtime/core/network/task-promotion) shows the explicit transition from a
+  Network thread into durable task intent without peer mutation authority.

@@ -53,8 +53,8 @@ describe("ActivityFeed", () => {
             message_count: 1,
             open_work_count: 0,
             opened_at: "2026-04-17T16:00:00Z",
-            peer_a: "self",
-            peer_b: "remote",
+            session_a: "sess-self",
+            session_b: "sess-remote",
           },
         ]}
         status="ready"
@@ -98,8 +98,8 @@ describe("ActivityFeed", () => {
             message_count: 1,
             open_work_count: 0,
             opened_at: "2026-04-17T16:00:00Z",
-            peer_a: "self",
-            peer_b: "remote",
+            session_a: "sess-self",
+            session_b: "sess-remote",
           },
         ]}
         status="ready"

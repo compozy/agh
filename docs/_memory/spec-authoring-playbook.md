@@ -79,7 +79,7 @@ The autonomy `_techspec.md` is the high-water mark. Six markers correlate with *
 
 ### MUST refuse
 
-- Generic event bus, NATS, reflection-based routing. → CLAUDE.md Architecture, `lessons/L-005`.
+- Generic event bus, reflection-based routing, or remote-carrier infrastructure without a shipped consumer. → CLAUDE.md Architecture, `lessons/L-005`.
 - Parallel queue alongside `task_runs`. Add columns + side-tables instead. → `lessons/L-003`.
 - Hooks that tail event tables. Hooks dispatch at the call site. → CLAUDE.md.
 - Duplicate ownership state in JSON metadata. → `lessons/L-003`.
@@ -173,7 +173,7 @@ Workflow memory under `.compozy/tasks/<slug>/memory/task_NN.md` follows the 6-se
 
 If the agent's draft contains any of these, refuse to mark the artifact ready:
 
-- **Generic event bus / NATS / reflection routing.**
+- **Generic event bus / reflection routing / speculative remote-carrier infrastructure.**
 - **Parallel queue alongside `task_runs`.**
 - **Hooks tailing event tables** (instead of dispatching at call sites).
 - **`@deprecated` stubs, dual-naming, "preserve old" branches.**

@@ -150,7 +150,6 @@ func assertMigrationAppliedLogs(t *testing.T, processLog string) {
 		Version      int64  `json:"version"`
 		AppliedCount int    `json:"applied_count"`
 	}
-
 	found := make(map[string]migrationLog, 2)
 	for _, line := range strings.Split(processLog, "\n") {
 		if strings.TrimSpace(line) == "" {
@@ -230,7 +229,8 @@ func TestStartRuntimeHarnessRefusesLegacyDatabaseBeforeReadiness(t *testing.T) {
 		if exitErr == nil {
 			t.Fatal("legacy daemon exit error = nil, want non-zero exit")
 		}
-		if harness.process == nil || harness.process.ProcessState == nil || harness.process.ProcessState.ExitCode() == 0 {
+		if harness.process == nil || harness.process.ProcessState == nil ||
+			harness.process.ProcessState.ExitCode() == 0 {
 			t.Fatalf("legacy daemon process state = %#v, want non-zero exit", harness.process)
 		}
 

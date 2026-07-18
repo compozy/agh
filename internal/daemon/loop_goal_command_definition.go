@@ -77,7 +77,7 @@ func buildSessionGoalDefinition(
 			}},
 			Edges: []dsl.Edge{},
 		},
-		Start: []dsl.StartBinding{},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{Start: []dsl.StartBinding{}},
 	}
 }
 

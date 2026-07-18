@@ -21,7 +21,10 @@ flowchart TD
     H --> T[Live messages append with after; viewport anchor stays stable]
     T --> W[Inspect exact open-work total and loaded forensic rows]
     W --> X[Switch workspace and immediately read/send/resolve]
-    X --> I{Request identity matches URL workspace?}
+    X --> Y{Payload is secret-free and identity is daemon-derived?}
+    Y -->|caller identity or raw claim material| K[Reject before persistence; hash-only diagnostic]
+    K --> X
+    Y -->|valid| I{Request identity matches URL workspace?}
     I -->|no| B[BLOCKER: workspace bleed]
     I -->|yes| Q[Return to original conversation]
     Q --> V[Refresh/deep-link: history, last-read, unread divider, and order persist]
@@ -54,7 +57,7 @@ journey:
       expected_observable: "The exact open-work total is distinct from the loaded forensic rows; create/resolve/send actions use the workspace in the route; the native descriptor and CLI help explain how a valid first send opens a public thread"
     - step: 4
       verb: "Switch workspaces, act immediately, then return"
-      expected_observable: "No request, last-read marker, unread divider, optimistic message, or cache entry bleeds between workspaces; returning restores the original conversation"
+      expected_observable: "No request, last-read marker, unread divider, optimistic message, or cache entry bleeds between workspaces; caller-supplied identity and raw claim material are rejected before persistence with hash-only diagnostics; returning restores the original conversation"
     - step: 5
       verb: "Check the bridges that make the workspace reachable"
       expected_observable: "The bridge catalog exposes exact facets/total and the health stream subscribes only to the loaded bridge IDs in bounded chunks"

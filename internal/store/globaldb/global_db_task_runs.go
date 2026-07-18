@@ -23,14 +23,52 @@ func (g *TaskRepo) CreateTaskRun(ctx context.Context, run taskpkg.Run) error {
 	}
 
 	return g.withTaskImmediateTransaction(ctx, "create task run", func(exec taskSQLExecutor) error {
-		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-			return err
+		if normalized.IsTaskAnchored() {
+			taskRecord, loadErr := g.getTaskWithExecutor(ctx, exec, normalized.TaskID)
+			if loadErr != nil {
+				return loadErr
+			}
+			normalized, loadErr = bindTaskRunWorkspace(normalized, taskRecord)
+			if loadErr != nil {
+				return loadErr
+			}
 		}
 		if err := insertTaskRunWithExecutor(ctx, exec, normalized); err != nil {
 			return err
 		}
 		return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
 	})
+}
+
+func bindTaskRunWorkspace(run taskpkg.Run, taskRecord taskpkg.Task) (taskpkg.Run, error) {
+	taskWorkspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	specWorkspaceID := strings.TrimSpace(run.NetworkSpecSnapshot().WorkspaceID)
+	if taskWorkspaceID != "" && specWorkspaceID != "" && taskWorkspaceID != specWorkspaceID {
+		return taskpkg.Run{}, fmt.Errorf(
+			"%w: task run workspace %q conflicts with task workspace %q",
+			taskpkg.ErrInvalidScopeBinding,
+			specWorkspaceID,
+			taskWorkspaceID,
+		)
+	}
+	authoritativeWorkspaceID := taskWorkspaceID
+	if authoritativeWorkspaceID == "" {
+		authoritativeWorkspaceID = specWorkspaceID
+	}
+	if run.WorkspaceID == "" {
+		run.WorkspaceID = authoritativeWorkspaceID
+	} else if authoritativeWorkspaceID != "" && run.WorkspaceID != authoritativeWorkspaceID {
+		return taskpkg.Run{}, fmt.Errorf(
+			"%w: task run workspace %q conflicts with authoritative workspace %q",
+			taskpkg.ErrInvalidScopeBinding,
+			run.WorkspaceID,
+			authoritativeWorkspaceID,
+		)
+	}
+	if err := run.Validate(); err != nil {
+		return taskpkg.Run{}, err
+	}
+	return run, nil
 }
 
 // UpdateTaskRun replaces the persisted canonical task-run record.
@@ -105,6 +143,9 @@ func (g *TaskRepo) updateTaskRunWithExecutor(
 	if err != nil {
 		return err
 	}
+	if err := taskpkg.ValidateImmutableRunFields(current, normalized); err != nil {
+		return err
+	}
 	currentSessionID := strings.TrimSpace(current.SessionID)
 	nextSessionID := strings.TrimSpace(normalized.SessionID)
 	if currentSessionID != "" &&
@@ -116,14 +157,18 @@ func (g *TaskRepo) updateTaskRunWithExecutor(
 	if normalized.QueuedAt.IsZero() {
 		normalized.QueuedAt = current.QueuedAt
 	}
-	if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-		return err
+	if normalized.IsTaskAnchored() {
+		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
+			return err
+		}
 	}
 	if err := updateTaskRunRecordWithExecutor(ctx, exec, normalized); err != nil {
 		return err
 	}
-	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
-		return err
+	if normalized.IsTaskAnchored() {
+		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
+			return err
+		}
 	}
 	return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
 }
@@ -133,7 +178,11 @@ func updateTaskRunRecordWithExecutor(
 	exec taskSQLExecutor,
 	run taskpkg.Run,
 ) error {
-	affected, err := sqlcgen.New(exec).UpdateTaskRun(ctx, updateTaskRunParams(run))
+	params, err := updateTaskRunParams(run)
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).UpdateTaskRun(ctx, params)
 	if err != nil {
 		return fmt.Errorf("store: update task run %q: %w", run.ID, err)
 	}
@@ -218,8 +267,8 @@ func (g *TaskRepo) listTaskRunsWithExecutor(
 		store.StringClause("task_id", normalized.TaskID),
 		store.StringClause("status", normalized.Status.String()),
 		store.StringClause("session_id", normalized.SessionID),
-		store.StringClause("coordination_channel_id", normalized.CoordinationChannelID),
 		store.StringClause("designation_group_id", normalized.DesignationGroupID),
+		store.StringClause("network_channel", normalized.ParticipationChannel),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY queued_at DESC, id DESC"

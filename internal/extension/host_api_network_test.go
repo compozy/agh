@@ -13,9 +13,12 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 const hostAPINetworkWorkspaceID = "ws-host-network"
@@ -33,6 +36,12 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingCapabilities(t *testing.
 			name:     "ShouldRejectReadMethodWithoutNetworkRead",
 			method:   string(extensioncontract.HostAPIMethodNetworkStatus),
 			params:   json.RawMessage(`{}`),
+			security: []string{"network.write"},
+		},
+		{
+			name:     "ShouldRejectUsageWithoutNetworkRead",
+			method:   string(extensioncontract.HostAPIMethodNetworkUsage),
+			params:   json.RawMessage(`{"workspace_id":"ws-host-network"}`),
 			security: []string{"network.write"},
 		},
 		{
@@ -85,6 +94,7 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		name     string
 		payload  json.RawMessage
 		fragment string
+		secret   string
 	}{
 		{
 			name: "ShouldRejectLegacyInteractionID",
@@ -125,6 +135,21 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 				"body":{"claim_token":"agh_claim_secret"}
 			}`),
 			fragment: "raw claim_token",
+			secret:   "agh_claim_secret",
+		},
+		{
+			name: "ShouldRejectCallerSuppliedVerifiedFormatIdentity",
+			payload: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
+				"session_id":"sess-local",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_alpha01",
+				"kind":"say",
+				"from":"alice@39f713d0a644253f04529421b9f51b9b",
+				"body":{"text":"hello"}
+			}`),
+			fragment: "sender identity and proof are daemon-derived",
 		},
 		{
 			name: "ShouldRejectConversationFieldsWithoutSurface",
@@ -170,9 +195,10 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			service := &hostAPINetworkServiceStub{}
 			handler, _ := newAuthorizedHostAPINetworkHandler(
 				t,
-				&hostAPINetworkServiceStub{},
+				service,
 				nil,
 				[]string{string(extensioncontract.HostAPIMethodNetworkSend)},
 				[]string{"network.write"},
@@ -186,8 +212,58 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 			)
 			assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 			assertErrorContains(t, err, tt.fragment)
+			if tt.secret != "" && strings.Contains(err.Error(), tt.secret) {
+				t.Fatalf("Host API validation error leaked raw credential: %v", err)
+			}
+			if got := len(service.sentRequests()); got != 0 {
+				t.Fatalf("Network.Send calls = %d, want 0 for invalid Host API send", got)
+			}
 		})
 	}
+}
+
+func TestHostAPIHandlerNetworkSendShouldRejectLocalSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return not_participating before dispatching a Local send", func(t *testing.T) {
+		t.Parallel()
+
+		service := &hostAPINetworkServiceStub{}
+		handler, checker := newHostAPINetworkTestHandler(t, service, nil)
+		handler.sessions = promptSessionManagerStub{
+			statusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{
+					ID:                   "sess-local",
+					WorkspaceID:          hostAPINetworkWorkspaceID,
+					NetworkParticipation: participation.LocalSpec(),
+				}, nil
+			},
+		}
+		checker.Register("ext-network", SourceUser, &Manifest{
+			Actions:  ActionsConfig{Requires: []string{string(extensioncontract.HostAPIMethodNetworkSend)}},
+			Security: SecurityConfig{Capabilities: []string{"network.write"}},
+		})
+
+		_, err := handler.Handle(
+			t.Context(),
+			"ext-network",
+			string(extensioncontract.HostAPIMethodNetworkSend),
+			json.RawMessage(`{
+				"workspace_id":"ws-host-network",
+				"session_id":"sess-local",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_alpha01",
+				"kind":"say",
+				"body":{"text":"hello"}
+			}`),
+		)
+		assertRPCErrorCode(t, err, HostAPIUnavailableCode)
+		assertErrorContains(t, err, participation.ErrNotParticipating.Error())
+		if got := len(service.sentRequests()); got != 0 {
+			t.Fatalf("Network.Send calls = %d, want 0", got)
+		}
+	})
 }
 
 func TestHostAPIHandlerNetworkSendShouldForwardValidPayload(t *testing.T) {
@@ -261,6 +337,7 @@ func TestHostAPIHandlerNetworkSendShouldForwardOptionalMetadata(t *testing.T) {
 			"direct_id":"direct_0123456789abcdef0123456789abcdef",
 			"kind":"receipt",
 			"to":"peer.remote",
+			"mentions":[" reviewer.sess-peer ","","observer.sess-peer"],
 			"work_id":"work-alpha",
 			"reply_to":"msg-parent",
 			"trace_id":"trace-alpha",
@@ -279,6 +356,9 @@ func TestHostAPIHandlerNetworkSendShouldForwardOptionalMetadata(t *testing.T) {
 	if payload.ID != "msg-direct-receipt" || payload.ExpiresAt == nil || *payload.ExpiresAt != expiresAt {
 		t.Fatalf("network/send optional payload = %#v, want assigned id and expires_at", payload)
 	}
+	if got, want := strings.Join(payload.Mentions, ","), "reviewer.sess-peer,observer.sess-peer"; got != want {
+		t.Fatalf("network/send payload mentions = %q, want %q", got, want)
+	}
 	sent := service.sentRequests()
 	if len(sent) != 1 {
 		t.Fatalf("network.Send calls = %d, want 1", len(sent))
@@ -291,6 +371,13 @@ func TestHostAPIHandlerNetworkSendShouldForwardOptionalMetadata(t *testing.T) {
 		req.ID == nil || *req.ID != "msg-client" ||
 		len(req.Ext) != 1 {
 		t.Fatalf("network.Send request = %#v, want optional metadata forwarded", req)
+	}
+	if got, want := strings.Join(req.Mentions, ","), "reviewer.sess-peer,observer.sess-peer"; got != want {
+		t.Fatalf("network.Send request mentions = %q, want %q", got, want)
+	}
+	req.Mentions[0] = "mutated-after-dispatch"
+	if payload.Mentions[0] != "reviewer.sess-peer" {
+		t.Fatalf("network/send payload mentions alias runtime request: %#v", payload.Mentions)
 	}
 }
 
@@ -308,7 +395,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		ThreadID:    "thread_alpha01",
 		Direction:   "sent",
 		PeerFrom:    "agent.local",
-		PeerTo:      "peer.remote",
+		PeerTo:      "sess-remote",
 		Kind:        store.NetworkKindSay,
 		WorkID:      "work-alpha",
 		Text:        "hello thread",
@@ -319,11 +406,11 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	if err != nil {
 		t.Fatalf("WriteConversationMessage(thread) error = %v", err)
 	}
-	directID, _, _, err := network.DirectRoomIdentity(
+	directID, _, _, err := store.NetworkDirectRoomIdentity(
 		hostAPINetworkWorkspaceID,
 		"builders",
-		"agent.local",
-		"peer.remote",
+		"sess-local",
+		"sess-remote",
 	)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
@@ -336,8 +423,8 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		Surface:     store.NetworkSurfaceDirect,
 		DirectID:    directID,
 		Direction:   "sent",
-		PeerFrom:    "agent.local",
-		PeerTo:      "peer.remote",
+		PeerFrom:    "sess-local",
+		PeerTo:      "sess-remote",
 		Kind:        store.NetworkKindSay,
 		Text:        "hello direct",
 		PreviewText: "direct preview",
@@ -353,7 +440,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	service := &hostAPINetworkServiceStub{
 		status: &network.Status{
 			Enabled:         true,
-			Status:          network.StatusRunning,
+			Status:          network.StatusActive,
 			Channels:        2,
 			OpenThreads:     1,
 			OpenDirectRooms: 1,
@@ -375,8 +462,10 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 				JoinedAt:  &joinedAt,
 			},
 			{
-				PeerID:  "peer.remote",
-				Channel: "builders",
+				SessionID: hostAPINetworkStringPtr("sess-remote"),
+				PeerID:    "peer.remote",
+				Channel:   "builders",
+				Local:     true,
 				PeerCard: network.PeerCard{
 					PeerID:              "peer.remote",
 					DisplayName:         &displayName,
@@ -385,7 +474,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 					ArtifactsSupported:  []string{"patch"},
 					TrustModesSupported: []string{"signed"},
 				},
-				LastSeen: &baseTime,
+				JoinedAt: &baseTime,
 			},
 		},
 	}
@@ -395,6 +484,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		storeDB,
 		[]string{
 			string(extensioncontract.HostAPIMethodNetworkStatus),
+			string(extensioncontract.HostAPIMethodNetworkUsage),
 			string(extensioncontract.HostAPIMethodNetworkChannels),
 			string(extensioncontract.HostAPIMethodNetworkPeers),
 			string(extensioncontract.HostAPIMethodNetworkThreads),
@@ -413,8 +503,23 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	}
 	var status apicontract.NetworkStatusPayload
 	decodeResult(t, statusResult, &status)
-	if status.Status != network.StatusRunning || len(status.KindMetrics) != 1 {
-		t.Fatalf("network/status = %#v, want running status with kind metrics", status)
+	if status.Status != network.StatusActive || len(status.KindMetrics) != 1 {
+		t.Fatalf("network/status = %#v, want active status with kind metrics", status)
+	}
+
+	usageResult, err := handler.Handle(
+		ctx,
+		"ext-network",
+		string(extensioncontract.HostAPIMethodNetworkUsage),
+		json.RawMessage(`{"workspace_id":"ws-host-network","owner_kind":"task_run","owner_id":"run-1","limit":25}`),
+	)
+	if err != nil {
+		t.Fatalf("Handle(network/usage) error = %v, want nil", err)
+	}
+	var usage apicontract.NetworkUsageResponse
+	decodeResult(t, usageResult, &usage)
+	if usage.WorkspaceID != hostAPINetworkWorkspaceID || usage.Total.WakeCount != 0 {
+		t.Fatalf("network/usage = %#v, want empty workspace-scoped usage", usage)
 	}
 
 	channelsResult, err := handler.Handle(
@@ -443,8 +548,8 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	}
 	var peers []apicontract.NetworkPeerPayload
 	decodeResult(t, peersResult, &peers)
-	if len(peers) != 2 || !peers[0].Local || peers[1].DisplayName != "Remote Agent" {
-		t.Fatalf("network/peers = %#v, want local first and remote display name", peers)
+	if len(peers) != 2 || !peers[0].Local || !peers[1].Local || peers[1].DisplayName != "Remote Agent" {
+		t.Fatalf("network/peers = %#v, want two local peers with display names", peers)
 	}
 
 	threadsResult, err := handler.Handle(
@@ -539,6 +644,7 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectInvalidReadParams(t *testing.T)
 		storeDB,
 		[]string{
 			string(extensioncontract.HostAPIMethodNetworkPeers),
+			string(extensioncontract.HostAPIMethodNetworkUsage),
 			string(extensioncontract.HostAPIMethodNetworkThreads),
 			string(extensioncontract.HostAPIMethodNetworkThreadGet),
 			string(extensioncontract.HostAPIMethodNetworkThreadMessages),
@@ -554,6 +660,16 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectInvalidReadParams(t *testing.T)
 		method string
 		params json.RawMessage
 	}{
+		{
+			name:   "ShouldRejectUsageLimit",
+			method: string(extensioncontract.HostAPIMethodNetworkUsage),
+			params: json.RawMessage(`{"workspace_id":"ws-host-network","limit":0}`),
+		},
+		{
+			name:   "ShouldRejectUsageTrailingJSON",
+			method: string(extensioncontract.HostAPIMethodNetworkUsage),
+			params: json.RawMessage(`{"workspace_id":"ws-host-network"}{"limit":25}`),
+		},
 		{
 			name:   "ShouldRejectPeerChannelTraversal",
 			method: string(extensioncontract.HostAPIMethodNetworkPeers),
@@ -651,6 +767,25 @@ func TestHostAPIHandlerNetworkMethodsShouldRejectMissingDependencies(t *testing.
 		)
 		assertRPCErrorCode(t, err, HostAPIUnavailableCode)
 	})
+
+	t.Run("ShouldRejectUsageWithoutUsageStore", func(t *testing.T) {
+		t.Parallel()
+
+		handler, _ := newAuthorizedHostAPINetworkHandler(
+			t,
+			&hostAPINetworkServiceStub{},
+			nil,
+			[]string{string(extensioncontract.HostAPIMethodNetworkUsage)},
+			[]string{"network.read"},
+		)
+		_, err := handler.Handle(
+			testutil.Context(t),
+			"ext-network",
+			string(extensioncontract.HostAPIMethodNetworkUsage),
+			json.RawMessage(`{"workspace_id":"ws-host-network"}`),
+		)
+		assertRPCErrorCode(t, err, HostAPIUnavailableCode)
+	})
 }
 
 func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testing.T) {
@@ -667,10 +802,11 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 				PeerCard:  network.PeerCard{PeerID: "agent.local"},
 			},
 			{
-				PeerID:   "peer.remote",
-				Channel:  "builders",
-				Local:    false,
-				PeerCard: network.PeerCard{PeerID: "peer.remote"},
+				SessionID: hostAPINetworkStringPtr("sess-remote"),
+				PeerID:    "peer.remote",
+				Channel:   "builders",
+				Local:     false,
+				PeerCard:  network.PeerCard{PeerID: "peer.remote"},
 			},
 		},
 	}
@@ -715,11 +851,11 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 	for err := range errs {
 		t.Fatalf("Handle(network/direct/resolve concurrent) error = %v", err)
 	}
-	expectedID, _, _, err := network.DirectRoomIdentity(
+	expectedID, _, _, err := store.NetworkDirectRoomIdentity(
 		hostAPINetworkWorkspaceID,
 		"builders",
-		"agent.local",
-		"peer.remote",
+		"sess-local",
+		"sess-remote",
 	)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
@@ -920,7 +1056,7 @@ func (s *hostAPINetworkServiceStub) Status(context.Context) (*network.Status, er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.status == nil {
-		return &network.Status{Enabled: true, Status: network.StatusRunning}, nil
+		return &network.Status{Enabled: true, Status: network.StatusActive}, nil
 	}
 	copyStatus := *s.status
 	return &copyStatus, nil
@@ -967,8 +1103,43 @@ func newHostAPINetworkTestHandler(
 	}
 	if networkStore != nil {
 		options = append(options, WithHostAPINetworkStore(networkStore))
+		if usageStore, ok := networkStore.(store.NetworkUsageStore); ok {
+			options = append(options, WithHostAPINetworkUsageStore(usageStore))
+		}
 	}
-	return NewHostAPIHandler(nil, nil, nil, nil, options...), checker
+	sessions := promptSessionManagerStub{
+		statusFn: func(ctx context.Context, id string) (*session.Info, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			sessionID := strings.TrimSpace(id)
+			if sessionID == "" {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{
+				ID:                   sessionID,
+				WorkspaceID:          hostAPINetworkWorkspaceID,
+				NetworkParticipation: hostAPINetworkLiveSpec("builders"),
+			}, nil
+		},
+	}
+	return NewHostAPIHandler(sessions, nil, nil, nil, options...), checker
+}
+
+func hostAPINetworkLiveSpec(channel string) participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     hostAPINetworkWorkspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       strings.TrimSpace(channel),
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes: 4, MaxWakeWallTime: "1m", MaxTotalWallTime: "5m",
+			MaxInputTokens: 1000, MaxOutputTokens: 1000, MaxWakeDepth: 2,
+			CoalesceWindow: "1s",
+		},
+	}
 }
 
 func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
@@ -983,6 +1154,51 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 			t.Errorf("GlobalDB.Close() error = %v", err)
 		}
 	})
+	now := time.Date(2026, 4, 10, 17, 0, 0, 0, time.UTC)
+	if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID:        hostAPINetworkWorkspaceID,
+		RootDir:   t.TempDir(),
+		Name:      "host-api-network",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	for _, sessionInfo := range []store.SessionInfo{
+		{
+			ID:                  "sess-local",
+			AgentName:           "local",
+			WorkspaceID:         hostAPINetworkWorkspaceID,
+			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
+			SessionType:         "system",
+			State:               "stopped",
+			CreatedAt:           now,
+			UpdatedAt:           now,
+		},
+		{
+			ID:                  "sess-remote",
+			AgentName:           "remote",
+			WorkspaceID:         hostAPINetworkWorkspaceID,
+			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
+			SessionType:         "system",
+			State:               "stopped",
+			CreatedAt:           now,
+			UpdatedAt:           now,
+		},
+	} {
+		if err := db.RegisterSession(testutil.Context(t), sessionInfo); err != nil {
+			t.Fatalf("RegisterSession(%s) error = %v", sessionInfo.ID, err)
+		}
+	}
+	if err := db.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		WorkspaceID: hostAPINetworkWorkspaceID,
+		Channel:     "builders",
+		Purpose:     "Host API test coordination",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel() error = %v", err)
+	}
 	return db
 }
 

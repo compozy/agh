@@ -31,16 +31,16 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 		ttl := now.Add(time.Hour)
 		payload := core.SessionPayloadFromInfo(&session.Info{
-			ID:              "sess-1",
-			Name:            "demo",
-			AgentName:       "coder",
-			Provider:        "fake",
-			Model:           "  gpt-test  ",
-			ReasoningEffort: "  high  ",
-			WorkspaceID:     "ws_alpha",
-			Workspace:       "/workspace",
-			Channel:         "builders",
-			Type:            session.SessionTypeDream,
+			ID:                   "sess-1",
+			Name:                 "demo",
+			AgentName:            "coder",
+			Provider:             "fake",
+			Model:                "  gpt-test  ",
+			ReasoningEffort:      "  high  ",
+			WorkspaceID:          "ws_alpha",
+			Workspace:            "/workspace",
+			NetworkParticipation: testLiveParticipation("ws_alpha", "builders"),
+			Type:                 session.SessionTypeDream,
 			Lineage: &store.SessionLineage{
 				ParentSessionID:  "sess-root",
 				RootSessionID:    "sess-root",
@@ -108,8 +108,16 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		})
 
 		if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" ||
-			payload.Channel != "builders" {
+			resolvedParticipationChannelID(payload.ResolvedNetworkParticipation) != "builders" {
 			t.Fatalf("payload = %#v", payload)
+		}
+		wantParticipation := testLiveParticipation("ws_alpha", "builders")
+		if payload.ResolvedNetworkParticipation == nil || *payload.ResolvedNetworkParticipation != wantParticipation {
+			t.Fatalf(
+				"payload.ResolvedNetworkParticipation = %#v, want %#v",
+				payload.ResolvedNetworkParticipation,
+				wantParticipation,
+			)
 		}
 		if payload.Provider != "fake" {
 			t.Fatalf("payload.Provider = %q, want %q", payload.Provider, "fake")
@@ -255,6 +263,7 @@ func TestRuntimeActivityPayloadFromSessionMeta(t *testing.T) {
 				t.Helper()
 				if payload == nil {
 					t.Fatal("RuntimeActivityPayloadFromSessionMeta() = nil, want payload")
+					return
 				}
 				if payload.TurnID != "turn-1" ||
 					payload.TurnSource != "prompt" ||
@@ -495,9 +504,9 @@ func TestJobPayloadFromJobCopiesNestedOptionalFields(t *testing.T) {
 		schedule := automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "10m"}
 		owner := taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"}
 		jobTask := automationpkg.JobTaskConfig{
-			Title:          "Review queue",
-			Owner:          &owner,
-			NetworkChannel: "builders",
+			Title:                "Review queue",
+			Owner:                &owner,
+			NetworkParticipation: testNamedParticipationRequest("builders"),
 		}
 		payload := core.JobPayloadFromJob(automationpkg.Job{
 			ID:        "job-1",

@@ -193,9 +193,26 @@ func TestResourceStoreActivationCRUDInventoryAndApply(t *testing.T) {
 	if got, want := loaded.ID, activation.ID; got != want {
 		t.Fatalf("loaded.ID = %q, want %q", got, want)
 	}
-	loaded.BindPrimaryChannelAsDefault = true
+	if got, want := loaded.Version, int64(1); got != want {
+		t.Fatalf("loaded.Version = %d, want %d", got, want)
+	}
+	loaded.SpecContentHash = "updated-hash"
 	if err := h.resourceStore.UpdateBundleActivation(h.ctx, loaded); err != nil {
 		t.Fatalf("UpdateBundleActivation() error = %v", err)
+	}
+	updated, err := h.resourceStore.GetBundleActivation(h.ctx, activation.ID)
+	if err != nil {
+		t.Fatalf("GetBundleActivation(updated) error = %v", err)
+	}
+	if got, want := updated.SpecContentHash, "updated-hash"; got != want {
+		t.Fatalf("updated.SpecContentHash = %q, want %q", got, want)
+	}
+	if got, want := updated.Version, int64(2); got != want {
+		t.Fatalf("updated.Version = %d, want %d", got, want)
+	}
+	loaded.SpecContentHash = "stale-overwrite"
+	if err := h.resourceStore.UpdateBundleActivation(h.ctx, loaded); !errors.Is(err, resources.ErrConflict) {
+		t.Fatalf("UpdateBundleActivation(stale) error = %v, want ErrConflict", err)
 	}
 	activations, err := h.resourceStore.ListBundleActivations(h.ctx)
 	if err != nil {
@@ -296,6 +313,7 @@ func TestResourceStoreWorkspaceActivationAndNotFoundErrors(t *testing.T) {
 	}
 	missing := workspaceActivation
 	missing.ID = "missing"
+	missing.Version = loaded.Version
 	if err := h.resourceStore.UpdateBundleActivation(h.ctx, missing); !errors.Is(err, ErrActivationNotFound) {
 		t.Fatalf("UpdateBundleActivation(missing) error = %v, want ErrActivationNotFound", err)
 	}

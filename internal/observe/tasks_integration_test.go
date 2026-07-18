@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -37,6 +39,31 @@ type observeSessionExecutor struct {
 type taskStopCall struct {
 	SessionID string
 	Reason    taskpkg.StopReason
+}
+
+func seedNonLeasedClaimedObserveRun(
+	t *testing.T,
+	h *harness,
+	runID string,
+	actor taskpkg.ActorContext,
+	claimedAt time.Time,
+) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	run, err := h.registry.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
+	}
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref}
+	run.ClaimedAt = claimedAt.UTC()
+	run.SessionID = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	if err := h.registry.UpdateTaskRun(ctx, run); err != nil {
+		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
+	}
 }
 
 type forbidCountDependenciesRegistry struct {
@@ -98,10 +125,9 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 	}
 
 	created, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    h.workspaceID,
-		Title:          "Implement observe lifecycle coverage",
-		NetworkChannel: "engineering",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: h.workspaceID,
+		Title:       "Implement observe lifecycle coverage",
 	}, networkActor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -109,22 +135,16 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 
 	clock.Advance(2 * time.Minute)
 	run, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
-		TaskID:         created.ID,
-		IdempotencyKey: "idem-observe-1",
+		TaskID:               created.ID,
+		IdempotencyKey:       "idem-observe-1",
+		NetworkParticipation: observeNamedParticipation("engineering"),
 	}, networkActor)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
 
 	clock.Advance(2 * time.Minute)
-	if _, err := manager.ClaimRun(
-		testutil.Context(t),
-		run.ID,
-		taskpkg.ClaimRun{IdempotencyKey: "claim-observe-1"},
-		daemonActor,
-	); err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	seedNonLeasedClaimedObserveRun(t, h, run.ID, daemonActor, clock.Now())
 
 	clock.Advance(3 * time.Minute)
 	if _, err := manager.StartRun(
@@ -230,14 +250,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		t.Fatalf("EnqueueRun(running) error = %v", err)
 	}
 	clock.Advance(time.Minute)
-	if _, err := manager.ClaimRun(
-		testutil.Context(t),
-		runningRun.ID,
-		taskpkg.ClaimRun{IdempotencyKey: "claim-cancel-1"},
-		daemonActor,
-	); err != nil {
-		t.Fatalf("ClaimRun(running) error = %v", err)
-	}
+	seedNonLeasedClaimedObserveRun(t, h, runningRun.ID, daemonActor, clock.Now())
 	clock.Advance(time.Minute)
 	if _, err := manager.StartRun(
 		testutil.Context(t),
@@ -268,14 +281,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		t.Fatalf("EnqueueRun(recovery) error = %v", err)
 	}
 	clock.Advance(time.Minute)
-	if _, err := manager.ClaimRun(
-		testutil.Context(t),
-		recoveredRun.ID,
-		taskpkg.ClaimRun{IdempotencyKey: "claim-recovery-1"},
-		daemonActor,
-	); err != nil {
-		t.Fatalf("ClaimRun(recovery) error = %v", err)
-	}
+	seedNonLeasedClaimedObserveRun(t, h, recoveredRun.ID, daemonActor, clock.Now())
 	clock.Advance(time.Minute)
 	if _, err := manager.AttachRunSession(
 		testutil.Context(t),
@@ -438,10 +444,9 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 		}
 
 		queuedTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    h.workspaceID,
-			Title:          "Queued task",
-			NetworkChannel: "ops",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Queued task",
 		}, humanActor)
 		if err != nil {
 			t.Fatalf("CreateTask(queuedTask) error = %v", err)
@@ -450,63 +455,58 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    h.workspaceID,
 			Title:          "Approval gate",
-			NetworkChannel: "ops",
 			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
 		}, humanActor); err != nil {
 			t.Fatalf("CreateTask(blockedTask) error = %v", err)
 		}
 		runningTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    h.workspaceID,
-			Title:          "Running task",
-			NetworkChannel: "eng",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Running task",
 		}, humanActor)
 		if err != nil {
 			t.Fatalf("CreateTask(runningTask) error = %v", err)
 		}
 		failedTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    h.workspaceID,
-			Title:          "Failed task",
-			NetworkChannel: "ops",
-			MaxAttempts:    intPtr(1),
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Failed task",
+			MaxAttempts: intPtr(1),
 		}, humanActor)
 		if err != nil {
 			t.Fatalf("CreateTask(failedTask) error = %v", err)
 		}
 		completedTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    h.workspaceID,
-			Title:          "Completed task",
-			NetworkChannel: "eng",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Completed task",
 		}, humanActor)
 		if err != nil {
 			t.Fatalf("CreateTask(completedTask) error = %v", err)
 		}
 
 		clock.Advance(time.Minute)
-		queuedRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: queuedTask.ID}, humanActor)
+		queuedRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
+			TaskID:               queuedTask.ID,
+			NetworkParticipation: observeNamedParticipation("ops"),
+		}, humanActor)
 		if err != nil {
 			t.Fatalf("EnqueueRun(queuedTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
 		runningRun, err := manager.EnqueueRun(
 			testutil.Context(t),
-			taskpkg.EnqueueRun{TaskID: runningTask.ID},
+			taskpkg.EnqueueRun{
+				TaskID:               runningTask.ID,
+				NetworkParticipation: observeNamedParticipation("eng"),
+			},
 			humanActor,
 		)
 		if err != nil {
 			t.Fatalf("EnqueueRun(runningTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			runningRun.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-running-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun(runningTask) error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, runningRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),
@@ -518,19 +518,15 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 		}
 
 		clock.Advance(time.Minute)
-		failedRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: failedTask.ID}, humanActor)
+		failedRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
+			TaskID:               failedTask.ID,
+			NetworkParticipation: observeNamedParticipation("ops"),
+		}, humanActor)
 		if err != nil {
 			t.Fatalf("EnqueueRun(failedTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			failedRun.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-failed-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun(failedTask) error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, failedRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),
@@ -553,21 +549,17 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 		clock.Advance(time.Minute)
 		completedRun, err := manager.EnqueueRun(
 			testutil.Context(t),
-			taskpkg.EnqueueRun{TaskID: completedTask.ID},
+			taskpkg.EnqueueRun{
+				TaskID:               completedTask.ID,
+				NetworkParticipation: observeNamedParticipation("eng"),
+			},
 			humanActor,
 		)
 		if err != nil {
 			t.Fatalf("EnqueueRun(completedTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			completedRun.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-completed-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun(completedTask) error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, completedRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),
@@ -650,17 +642,19 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 		}
 
 		taskRecord, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    h.workspaceID,
-			Title:          "Transitioning task",
-			NetworkChannel: "ops",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			Title:       "Transitioning task",
 		}, humanActor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 
 		clock.Advance(time.Minute)
-		run, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: taskRecord.ID}, humanActor)
+		run, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
+			TaskID:               taskRecord.ID,
+			NetworkParticipation: observeNamedParticipation("ops"),
+		}, humanActor)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
@@ -680,14 +674,7 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 			t.Fatalf("queuedDashboard.Freshness.Status = %q, want %q", got, want)
 		}
 
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			run.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-transition-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun() error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, run.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),
@@ -818,14 +805,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 			t.Fatalf("EnqueueRun(failTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			failRun.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-inbox-fail-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun(failTask) error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, failRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),
@@ -971,11 +951,67 @@ func newObserveTaskManager(
 			return prefix + "-observe-" + strconv.FormatInt(clock.current.UnixNano(), 10) + "-" + strconv.Itoa(sequence)
 		}),
 		taskpkg.WithCancelGracePeriod(0),
+		taskpkg.WithParticipationResolver(observeParticipationResolver{}),
 	)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
 	return manager
+}
+
+type observeParticipationResolver struct{}
+
+func (observeParticipationResolver) Resolve(
+	_ context.Context,
+	input participation.ResolveInput,
+) (participation.Spec, error) {
+	if input.Request == nil || input.Request.Mode == nil || *input.Request.Mode == participation.ModeLocal {
+		return participation.LocalSpec(), nil
+	}
+	bounds, err := participation.ResolveBounds(
+		input.Request.Bounds,
+		observeParticipationDefaults(),
+		participation.Limits{},
+	)
+	if err != nil {
+		return participation.Spec{}, err
+	}
+	source := input.RequestSource
+	if source == "" {
+		source = participation.SourceExplicitRequest
+	}
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     input.WorkspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       strings.TrimSpace(*input.Request.ChannelID),
+		Source:          source,
+		Bounds:          bounds,
+	}, nil
+}
+
+func observeParticipationDefaults() participation.Bounds {
+	return participation.Bounds{
+		MaxWakes:         4,
+		MaxWakeWallTime:  "30s",
+		MaxTotalWallTime: "2m",
+		MaxInputTokens:   4096,
+		MaxOutputTokens:  4096,
+		MaxWakeDepth:     4,
+		CoalesceWindow:   "250ms",
+	}
+}
+
+func observeNamedParticipation(channel string) *participation.Request {
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	channel = strings.TrimSpace(channel)
+	return &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		ChannelID:       &channel,
+	}
 }
 
 func intPtr(value int) *int {

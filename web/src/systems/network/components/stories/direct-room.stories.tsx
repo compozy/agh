@@ -37,7 +37,7 @@ export const Default: Story = {
     workspaceId: networkDirectRoomDetailFixture.workspace_id ?? "workspace_launch",
     channel: networkDirectRoomDetailFixture.channel,
     directId: networkDirectRoomDetailFixture.direct_id,
-    selfPeerId: networkDirectRoomDetailFixture.peer_a,
+    selfSessionId: networkDirectRoomDetailFixture.session_a,
   },
 };
 

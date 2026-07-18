@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -32,7 +33,20 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 		source := agentCoreEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
 		source.Channel = " builders "
 		source.From = " reviewer.sess-peer "
+		peerSessionID := "sess-peer"
 		networkService := &agentCoreNetworkService{
+			ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
+				if workspaceID != "ws-1" || channel != "builders" {
+					t.Fatalf("ListPeers() = %q/%q, want ws-1/builders", workspaceID, channel)
+				}
+				return []network.PeerInfo{{
+					SessionID:   &peerSessionID,
+					PeerID:      "reviewer.sess-peer",
+					WorkspaceID: "ws-1",
+					Channel:     "builders",
+					Local:       true,
+				}}, nil
+			},
 			ListChannelsFn: func(_ context.Context, workspaceID string) ([]network.ChannelInfo, error) {
 				if workspaceID != "ws-1" {
 					t.Fatalf("ListChannels() workspaceID = %q, want ws-1", workspaceID)
@@ -112,7 +126,7 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 			http.MethodPost,
 			"/agent/channels/builders/send",
 			[]byte(
-				`{"body":{"text":"status"},"metadata":{"task_id":"task-1","run_id":"run-1","workflow_id":"wf-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+				`{"body":{"text":"status"},"metadata":{"task_id":"task-1","run_id":"run-1","workflow_id":"wf-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -173,23 +187,13 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 		if len(queuedMessages.Messages) != 1 || queuedMessages.Messages[0].MessageID != "msg-source" {
 			t.Fatalf("queued messages = %#v, want source inbox message", queuedMessages.Messages)
 		}
-		wantDirectID, _, _, err := network.DirectRoomIdentity(
-			"ws-1",
-			"builders",
-			"coder.sess-agent",
-			"reviewer.sess-peer",
-		)
-		if err != nil {
-			t.Fatalf("DirectRoomIdentity() error = %v", err)
-		}
-
 		replyResp := performAgentCoreRequest(
 			t,
 			engine,
 			http.MethodPost,
 			"/agent/channels/reply",
 			[]byte(
-				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","channel_id":"","message_kind":"","correlation_id":""}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -207,8 +211,7 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 			sent[1].Surface == nil ||
 			*sent[1].Surface != network.SurfaceDirect ||
 			sent[1].Channel != "builders" ||
-			sent[1].DirectID == nil ||
-			*sent[1].DirectID != wantDirectID ||
+			sent[1].DirectID != nil ||
 			sent[1].To == nil ||
 			*sent[1].To != "reviewer.sess-peer" ||
 			sent[1].ReplyTo == nil ||
@@ -230,7 +233,7 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 			http.MethodPost,
 			"/agent/channels/reply",
 			[]byte(
-				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -248,6 +251,102 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 	})
 }
 
+func TestAgentChannelCoreHandlersRejectCallerOwnedAndLegacyFields(t *testing.T) {
+	t.Parallel()
+
+	validMetadata := `{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}`
+	tests := []struct {
+		name        string
+		path        string
+		body        string
+		wantMessage string
+	}{
+		{
+			name:        "Should reject caller supplied from on send",
+			path:        "/agent/channels/builders/send",
+			body:        `{"body":{"text":"status"},"metadata":` + validMetadata + `,"from":"spoofed-peer"}`,
+			wantMessage: "sender identity and proof are daemon-derived",
+		},
+		{
+			name:        "Should reject caller supplied proof on send",
+			path:        "/agent/channels/builders/send",
+			body:        `{"body":{"text":"status"},"metadata":` + validMetadata + `,"proof":"spoofed-proof"}`,
+			wantMessage: "sender identity and proof are daemon-derived",
+		},
+		{
+			name:        "Should reject removed coordination channel on send",
+			path:        "/agent/channels/builders/send",
+			body:        `{"body":{"text":"status"},"metadata":` + validMetadata + `,"coordination_channel_id":"legacy"}`,
+			wantMessage: "coordination_channel_id",
+		},
+		{
+			name: "Should reject removed nested coordination channel on send",
+			path: "/agent/channels/builders/send",
+			body: `{"body":{"text":"status"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders",` +
+				`"coordination_channel_id":"legacy","message_kind":"status","correlation_id":"run-1"}}`,
+			wantMessage: "coordination_channel_id",
+		},
+		{
+			name:        "Should reject caller supplied from on reply",
+			path:        "/agent/channels/reply",
+			body:        `{"reply_to_message_id":"msg-source","body":{"text":"ack"},"from":"spoofed-peer"}`,
+			wantMessage: "sender identity and proof are daemon-derived",
+		},
+		{
+			name:        "Should reject caller supplied proof on reply",
+			path:        "/agent/channels/reply",
+			body:        `{"reply_to_message_id":"msg-source","body":{"text":"ack"},"proof":"spoofed-proof"}`,
+			wantMessage: "sender identity and proof are daemon-derived",
+		},
+		{
+			name:        "Should reject removed coordination channel on reply",
+			path:        "/agent/channels/reply",
+			body:        `{"reply_to_message_id":"msg-source","body":{"text":"ack"},"coordination_channel_id":"legacy"}`,
+			wantMessage: "coordination_channel_id",
+		},
+		{
+			name: "Should reject removed nested coordination channel on reply",
+			path: "/agent/channels/reply",
+			body: `{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"task-1",` +
+				`"run_id":"run-1","channel_id":"builders","coordination_channel_id":"legacy",` +
+				`"message_kind":"reply","correlation_id":"run-1"}}`,
+			wantMessage: "coordination_channel_id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			sendCalls := 0
+			engine := newAgentCoreTestRouter(t, &agentCoreNetworkService{
+				SendFn: func(context.Context, network.SendRequest) (string, error) {
+					sendCalls++
+					return "msg-unexpected", nil
+				},
+			})
+			response := performAgentCoreRequest(
+				t,
+				engine,
+				http.MethodPost,
+				tt.path,
+				[]byte(tt.body),
+				agentCoreHeaders(),
+			)
+
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+			}
+			if !strings.Contains(response.Body.String(), tt.wantMessage) {
+				t.Fatalf("body = %s, want %q", response.Body.String(), tt.wantMessage)
+			}
+			if sendCalls != 0 {
+				t.Fatalf("Send() calls = %d, want 0", sendCalls)
+			}
+		})
+	}
+}
+
 func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -256,6 +355,19 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 
 		var sent []network.SendRequest
 		networkService := &agentCoreNetworkService{
+			ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
+				if workspaceID != "ws-1" || channel != "builders" {
+					t.Fatalf("ListPeers() = %q/%q, want ws-1/builders", workspaceID, channel)
+				}
+				sessionID := "sess-peer"
+				return []network.PeerInfo{{
+					SessionID:   &sessionID,
+					PeerID:      "reviewer.sess-peer",
+					WorkspaceID: "ws-1",
+					Channel:     "builders",
+					Local:       true,
+				}}, nil
+			},
 			InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
 				if sessionID != "sess-agent" {
 					t.Fatalf("Inbox() sessionID = %q, want sess-agent", sessionID)
@@ -281,7 +393,7 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 					Surface:     store.NetworkSurfaceThread,
 					ThreadID:    "thread_agent_core",
 					Direction:   "received",
-					PeerFrom:    "reviewer.sess-peer",
+					PeerFrom:    "sess-peer",
 					PeerTo:      "coder.sess-agent",
 					Kind:        store.NetworkKindSay,
 					Body:        json.RawMessage(`{"text":"coordination"}`),
@@ -298,7 +410,7 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 			http.MethodPost,
 			"/agent/channels/reply",
 			[]byte(
-				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","channel_id":"","message_kind":"","correlation_id":""}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -314,13 +426,21 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 		if len(sent) != 1 || sent[0].ReplyTo == nil || *sent[0].ReplyTo != "msg-source" {
 			t.Fatalf("sent requests = %#v, want one reply to persisted source", sent)
 		}
+		if sent[0].To == nil || *sent[0].To != "reviewer.sess-peer" {
+			t.Fatalf("sent target = %#v, want resolved peer reviewer.sess-peer", sent[0].To)
+		}
+		var response contract.AgentChannelMessageResponse
+		decodeAgentCoreResponse(t, replyResp, &response)
+		if response.Message.ToSessionID != "sess-peer" {
+			t.Fatalf("reply response target = %q, want durable session sess-peer", response.Message.ToSessionID)
+		}
 		if metadata := decodeAgentCoreCoordinationExt(
 			t,
 			sent[0].Ext,
 		); metadata.MessageKind != contract.CoordinationMessageReply ||
 			metadata.TaskID != "task-1" ||
 			metadata.RunID != "run-1" ||
-			metadata.CoordinationChannelID != "builders" {
+			metadata.ChannelID != "builders" {
 			t.Fatalf("reply metadata = %#v, want inherited persisted metadata", metadata)
 		}
 	})
@@ -361,7 +481,7 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 			http.MethodPost,
 			"/agent/channels/reply",
 			[]byte(
-				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","channel_id":"","message_kind":"","correlation_id":""}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -469,7 +589,7 @@ func TestAgentChannelCoreHandlersRejectInvalidIdentityAndClaimToken(t *testing.T
 			http.MethodPost,
 			"/agent/channels/builders/send",
 			[]byte(
-				`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+				`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 			),
 			map[string]string{},
 		)
@@ -483,7 +603,7 @@ func TestAgentChannelCoreHandlersRejectInvalidIdentityAndClaimToken(t *testing.T
 			http.MethodPost,
 			"/agent/channels/builders/send",
 			[]byte(
-				`{"body":{"claim_token":"secret"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+				`{"body":{"claim_token":"secret"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -510,13 +630,13 @@ func TestAgentTaskClaimCriteriaIncludesSoulProvenance(t *testing.T) {
 		handlers := &BaseHandlers{}
 		caller := agentidentity.Caller{
 			Session: agentidentity.SessionSnapshot{
-				ID:             "sess-agent",
-				AgentName:      "coder",
-				WorkspaceID:    "ws-1",
-				Channel:        "builders",
-				State:          session.StateActive,
-				SoulSnapshotID: "soul-snapshot-1",
-				SoulDigest:     "sha256:resolved",
+				ID:                   "sess-agent",
+				AgentName:            "coder",
+				WorkspaceID:          "ws-1",
+				NetworkParticipation: participation.CloneSpec(coreTestLiveParticipation("ws-1", "builders")),
+				State:                session.StateActive,
+				SoulSnapshotID:       "soul-snapshot-1",
+				SoulDigest:           "sha256:resolved",
 			},
 			Actor: taskpkg.ActorContext{
 				Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
@@ -539,11 +659,27 @@ func TestAgentTaskClaimCriteriaIncludesSoulProvenance(t *testing.T) {
 			criteria.Soul.AgentName != "coder" {
 			t.Fatalf("ClaimCriteria.Soul = %#v, want caller soul provenance", criteria.Soul)
 		}
+		if criteria.ParticipationChannel != "" {
+			t.Fatalf(
+				"ClaimCriteria.ParticipationChannel = %q, want no ordinary-claim channel gate",
+				criteria.ParticipationChannel,
+			)
+		}
+		wantParticipation := coreTestLiveParticipation("ws-1", "builders")
+		if criteria.CallerNetworkParticipation == nil ||
+			*criteria.CallerNetworkParticipation != wantParticipation {
+			t.Fatalf(
+				"ClaimCriteria.CallerNetworkParticipation = %#v, want %#v",
+				criteria.CallerNetworkParticipation,
+				wantParticipation,
+			)
+		}
 	})
 }
 
 type agentCoreNetworkService struct {
 	SendFn         func(context.Context, network.SendRequest) (string, error)
+	ListPeersFn    func(context.Context, string, string) ([]network.PeerInfo, error)
 	ListChannelsFn func(context.Context, string) ([]network.ChannelInfo, error)
 	InboxFn        func(context.Context, string) ([]network.Envelope, error)
 	WaitInboxFn    func(context.Context, string, string) ([]network.Envelope, error)
@@ -556,7 +692,14 @@ func (s *agentCoreNetworkService) Send(ctx context.Context, req network.SendRequ
 	return "", nil
 }
 
-func (s *agentCoreNetworkService) ListPeers(context.Context, string, string) ([]network.PeerInfo, error) {
+func (s *agentCoreNetworkService) ListPeers(
+	ctx context.Context,
+	workspaceID string,
+	channel string,
+) ([]network.PeerInfo, error) {
+	if s.ListPeersFn != nil {
+		return s.ListPeersFn(ctx, workspaceID, channel)
+	}
 	return nil, nil
 }
 
@@ -568,7 +711,7 @@ func (s *agentCoreNetworkService) ListChannels(ctx context.Context, workspaceID 
 }
 
 func (s *agentCoreNetworkService) Status(context.Context) (*network.Status, error) {
-	return &network.Status{Enabled: true, Status: network.StatusRunning}, nil
+	return &network.Status{Enabled: true, Status: network.StatusReady}, nil
 }
 
 func (s *agentCoreNetworkService) Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error) {
@@ -631,17 +774,17 @@ func (s agentCoreNetworkStore) ListThreadParticipants(
 	return nil, nil
 }
 
-func (s agentCoreNetworkStore) UpdateNetworkThreadPeerTokenStats(
+func (s agentCoreNetworkStore) UpdateNetworkThreadSessionTokenStats(
 	context.Context,
-	store.NetworkThreadPeerTokenStatsUpdate,
+	store.NetworkThreadSessionTokenStatsUpdate,
 ) error {
 	return nil
 }
 
-func (s agentCoreNetworkStore) ListNetworkThreadPeerTokenStats(
+func (s agentCoreNetworkStore) ListNetworkThreadSessionTokenStats(
 	context.Context,
-	store.NetworkThreadPeerTokenStatsQuery,
-) ([]store.NetworkThreadPeerTokenStats, error) {
+	store.NetworkThreadSessionTokenStatsQuery,
+) ([]store.NetworkThreadSessionTokenStats, error) {
 	return nil, nil
 }
 
@@ -702,6 +845,10 @@ func (s agentCoreNetworkStore) WriteNetworkChannel(context.Context, store.Networ
 	return nil
 }
 
+func (s agentCoreNetworkStore) CreateNetworkChannel(context.Context, store.NetworkChannelEntry) error {
+	return nil
+}
+
 func (s agentCoreNetworkStore) PatchNetworkChannel(
 	context.Context,
 	store.NetworkChannelRef,
@@ -721,6 +868,14 @@ func (s agentCoreNetworkStore) PutNetworkSubscription(
 	return nil
 }
 
+func (s agentCoreNetworkStore) PutNetworkSubscriptionWithChannel(
+	context.Context,
+	store.NetworkChannelEntry,
+	store.NetworkSubscriptionEntry,
+) error {
+	return nil
+}
+
 func (s agentCoreNetworkStore) ListNetworkSubscriptions(
 	context.Context,
 	store.NetworkSubscriptionQuery,
@@ -729,20 +884,6 @@ func (s agentCoreNetworkStore) ListNetworkSubscriptions(
 }
 
 func (s agentCoreNetworkStore) DeleteNetworkSubscription(context.Context, store.NetworkSubscriptionRef) error {
-	return nil
-}
-
-func (s agentCoreNetworkStore) GetNetworkDeliveryGuidanceState(
-	context.Context,
-	string,
-) (store.NetworkDeliveryGuidanceState, error) {
-	return store.NetworkDeliveryGuidanceState{}, nil
-}
-
-func (s agentCoreNetworkStore) PutNetworkDeliveryGuidanceState(
-	context.Context,
-	store.NetworkDeliveryGuidanceState,
-) error {
 	return nil
 }
 
@@ -868,14 +1009,14 @@ func agentCoreSessionManager(t *testing.T) sessionManagerStub {
 			}
 			now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 			return &session.Info{
-				ID:          "sess-agent",
-				Name:        "worker",
-				AgentName:   "coder",
-				Provider:    "test-provider",
-				WorkspaceID: "ws-1",
-				Workspace:   "/workspace/project",
-				Channel:     "builders",
-				Type:        session.SessionTypeUser,
+				ID:                   "sess-agent",
+				Name:                 "worker",
+				AgentName:            "coder",
+				Provider:             "test-provider",
+				WorkspaceID:          "ws-1",
+				Workspace:            "/workspace/project",
+				NetworkParticipation: coreTestLiveParticipation("ws-1", "builders"),
+				Type:                 session.SessionTypeUser,
 				Lineage: &store.SessionLineage{
 					ParentSessionID: "sess-root",
 					RootSessionID:   "sess-root",
@@ -892,7 +1033,6 @@ func agentCoreSessionManager(t *testing.T) sessionManagerStub {
 func agentCoreContextPayload(_ context.Context, info *session.Info) (contract.AgentContextPayload, error) {
 	channel := contract.CoordinationChannelPayload{
 		ID:          "builders",
-		Channel:     "builders",
 		DisplayName: "builders",
 		WorkspaceID: info.WorkspaceID,
 	}
@@ -904,22 +1044,21 @@ func agentCoreContextPayload(_ context.Context, info *session.Info) (contract.Ag
 		},
 		Workspace: contract.AgentWorkspacePayload{ID: info.WorkspaceID, RootDir: info.Workspace},
 		Session: contract.AgentSessionPayload{
-			ID:        info.ID,
-			State:     info.State,
-			Channel:   info.Channel,
-			Lineage:   contract.SessionLineagePayloadFromStore(info.Lineage),
-			CreatedAt: info.CreatedAt,
-			UpdatedAt: info.UpdatedAt,
+			ID:                           info.ID,
+			State:                        info.State,
+			ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
+			Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
+			CreatedAt:                    info.CreatedAt,
+			UpdatedAt:                    info.UpdatedAt,
 		},
 		Task: contract.AgentTaskContextPayload{
 			Available: true,
 			Lease: &contract.TaskRunLeaseSummaryPayload{
-				TaskID:                "task-1",
-				RunID:                 "run-1",
-				Status:                taskpkg.TaskRunStatusRunning,
-				SessionID:             info.ID,
-				CoordinationChannelID: "builders",
-				CoordinationChannel:   &channel,
+				TaskID:              "task-1",
+				RunID:               "run-1",
+				Status:              taskpkg.TaskRunStatusRunning,
+				SessionID:           info.ID,
+				CoordinationChannel: &channel,
 			},
 		},
 		CoordinationChannel: contract.AgentCoordinationChannelContextPayload{
@@ -1004,12 +1143,12 @@ func agentCoreCoordinationMetadata(t *testing.T, kind contract.CoordinationMessa
 	t.Helper()
 
 	content, err := json.Marshal(contract.CoordinationMessageMetadataPayload{
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		WorkflowID:            "wf-1",
-		CoordinationChannelID: "builders",
-		MessageKind:           kind,
-		CorrelationID:         "run-1",
+		TaskID:        "task-1",
+		RunID:         "run-1",
+		WorkflowID:    "wf-1",
+		ChannelID:     "builders",
+		MessageKind:   kind,
+		CorrelationID: "run-1",
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(coordination metadata) error = %v", err)

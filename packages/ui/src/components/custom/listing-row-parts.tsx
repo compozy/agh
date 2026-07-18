@@ -24,7 +24,7 @@ export interface ListingRowTitleProps extends React.ComponentProps<"b"> {
 type ListingRowNameContextValue = { mono: boolean };
 const ListingRowNameContext = React.createContext<ListingRowNameContextValue>({ mono: false });
 
-export function ListingRowLink({ className, render, ...props }: ListingRowLinkProps) {
+function ListingRowLink({ className, render, ...props }: ListingRowLinkProps) {
   const element = useRender({
     defaultTagName: "a",
     props: mergeProps<"a">(
@@ -43,7 +43,7 @@ export function ListingRowLink({ className, render, ...props }: ListingRowLinkPr
   return <>{element}</>;
 }
 
-export function ListingRowIcon({ className, ...props }: ListingRowIconProps) {
+function ListingRowIcon({ className, ...props }: ListingRowIconProps) {
   return (
     <span
       aria-hidden="true"
@@ -57,11 +57,11 @@ export function ListingRowIcon({ className, ...props }: ListingRowIconProps) {
   );
 }
 
-export function ListingRowMain({ className, ...props }: ListingRowMainProps) {
+function ListingRowMain({ className, ...props }: ListingRowMainProps) {
   return <div data-slot="listing-row-main" className={cn("min-w-0", className)} {...props} />;
 }
 
-export function ListingRowName({ mono = false, className, ...props }: ListingRowNameProps) {
+function ListingRowName({ mono = false, className, ...props }: ListingRowNameProps) {
   const contextValue: ListingRowNameContextValue = { mono };
   return (
     <ListingRowNameContext.Provider value={contextValue}>
@@ -75,7 +75,7 @@ export function ListingRowName({ mono = false, className, ...props }: ListingRow
   );
 }
 
-export function ListingRowTitle({ mono, className, ...props }: ListingRowTitleProps) {
+function ListingRowTitle({ mono, className, ...props }: ListingRowTitleProps) {
   const nameContext = React.use(ListingRowNameContext);
   const useMono = mono ?? nameContext.mono;
   return (
@@ -92,7 +92,7 @@ export function ListingRowTitle({ mono, className, ...props }: ListingRowTitlePr
   );
 }
 
-export function ListingRowSlug({ className, ...props }: ListingRowSlugProps) {
+function ListingRowSlug({ className, ...props }: ListingRowSlugProps) {
   return (
     <span
       data-slot="listing-row-slug"
@@ -102,7 +102,7 @@ export function ListingRowSlug({ className, ...props }: ListingRowSlugProps) {
   );
 }
 
-export function ListingRowDescription({ className, ...props }: ListingRowDescriptionProps) {
+function ListingRowDescription({ className, ...props }: ListingRowDescriptionProps) {
   return (
     <p
       data-slot="listing-row-description"
@@ -112,7 +112,7 @@ export function ListingRowDescription({ className, ...props }: ListingRowDescrip
   );
 }
 
-export function ListingRowMeta({ className, ...props }: ListingRowMetaProps) {
+function ListingRowMeta({ className, ...props }: ListingRowMetaProps) {
   return (
     <div
       data-slot="listing-row-meta"
@@ -122,7 +122,7 @@ export function ListingRowMeta({ className, ...props }: ListingRowMetaProps) {
   );
 }
 
-export function ListingRowMetaDot({ className, ...props }: React.ComponentProps<"span">) {
+function ListingRowMetaDot({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       aria-hidden="true"
@@ -133,7 +133,7 @@ export function ListingRowMetaDot({ className, ...props }: React.ComponentProps<
   );
 }
 
-export function ListingRowTrail({ className, ...props }: ListingRowTrailProps) {
+function ListingRowTrail({ className, ...props }: ListingRowTrailProps) {
   return (
     <div
       data-slot="listing-row-trail"
@@ -143,7 +143,7 @@ export function ListingRowTrail({ className, ...props }: ListingRowTrailProps) {
   );
 }
 
-export function ListingRowStat({ className, children, ...props }: ListingRowStatProps) {
+function ListingRowStat({ className, children, ...props }: ListingRowStatProps) {
   return (
     <div
       data-slot="listing-row-stat"
@@ -155,7 +155,7 @@ export function ListingRowStat({ className, children, ...props }: ListingRowStat
   );
 }
 
-export function ListingRowStatValue({ className, ...props }: React.ComponentProps<"span">) {
+function ListingRowStatValue({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="listing-row-stat-value"
@@ -165,7 +165,7 @@ export function ListingRowStatValue({ className, ...props }: React.ComponentProp
   );
 }
 
-export function ListingRowStatLabel({ className, ...props }: React.ComponentProps<"span">) {
+function ListingRowStatLabel({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="listing-row-stat-label"
@@ -174,3 +174,19 @@ export function ListingRowStatLabel({ className, ...props }: React.ComponentProp
     />
   );
 }
+
+export {
+  ListingRowDescription,
+  ListingRowIcon,
+  ListingRowLink,
+  ListingRowMain,
+  ListingRowMeta,
+  ListingRowMetaDot,
+  ListingRowName,
+  ListingRowSlug,
+  ListingRowStat,
+  ListingRowStatLabel,
+  ListingRowStatValue,
+  ListingRowTitle,
+  ListingRowTrail,
+};

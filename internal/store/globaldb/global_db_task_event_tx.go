@@ -95,6 +95,9 @@ func appendTaskEventRecordWithExecutor(
 	}); err != nil {
 		return taskpkg.EventRecord{}, fmt.Errorf("store: create task event %q: %w", event.ID, err)
 	}
+	if err := persistNetworkTaskStatusProjectionWithExecutor(ctx, exec, event); err != nil {
+		return taskpkg.EventRecord{}, err
+	}
 	collectTaskEvent(exec, taskpkg.EventRecord{Sequence: nextSequence, Event: event})
 
 	return taskpkg.EventRecord{Sequence: nextSequence, Event: event}, nil
@@ -181,5 +184,5 @@ func taskEventRunTaskID(ctx context.Context, exec taskSQLExecutor, runID string)
 		}
 		return "", fmt.Errorf("store: lookup task run %q: %w", trimmedID, err)
 	}
-	return strings.TrimSpace(taskID), nil
+	return taskNullStringValue(taskID), nil
 }

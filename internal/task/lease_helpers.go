@@ -103,7 +103,6 @@ func sanitizedCoordinationChannelMetadata(
 	}
 	cloned := *metadata
 	cloned.ID = strings.TrimSpace(cloned.ID)
-	cloned.Channel = strings.TrimSpace(cloned.Channel)
 	cloned.DisplayName = strings.TrimSpace(cloned.DisplayName)
 	cloned.Purpose = strings.TrimSpace(cloned.Purpose)
 	cloned.WorkspaceID = strings.TrimSpace(cloned.WorkspaceID)
@@ -112,11 +111,7 @@ func sanitizedCoordinationChannelMetadata(
 	cloned.WorkflowID = strings.TrimSpace(cloned.WorkflowID)
 	cloned.AllowedMessageKinds = normalizeStringSet(cloned.AllowedMessageKinds)
 	if cloned.DisplayName == "" {
-		if cloned.Channel != "" {
-			cloned.DisplayName = cloned.Channel
-		} else {
-			cloned.DisplayName = cloned.ID
-		}
+		cloned.DisplayName = cloned.ID
 	}
 	if cloned.AllowedMessageKinds == nil {
 		cloned.AllowedMessageKinds = append([]string(nil), defaultCoordinationMessageKinds...)
@@ -129,7 +124,9 @@ func claimResultWithoutRawTokenInMetadata(result *ClaimResult) {
 		return
 	}
 	result.CoordinationChannel = sanitizedCoordinationChannelMetadata(result.CoordinationChannel)
-	result.Task.Metadata = removeRawClaimTokenFields(result.Task.Metadata)
+	if result.Task != nil {
+		result.Task.Metadata = removeRawClaimTokenFields(result.Task.Metadata)
+	}
 	result.Run.Metadata = removeRawClaimTokenFields(result.Run.Metadata)
 	result.Run.Result = removeRawClaimTokenFields(result.Run.Result)
 }

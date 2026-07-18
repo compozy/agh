@@ -248,6 +248,10 @@ func (g *LoopRepo) ListLoopGateDecisions(
 					Kind: taskpkg.OriginKind(row.OriginKind),
 					Ref:  row.OriginRef,
 				},
+				Scope: taskpkg.CallerScope{
+					WorkspaceID: strings.TrimSpace(string(ws)),
+					Operator:    true,
+				},
 			},
 			Note: row.Note,
 		}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // Validate ensures the target kind is supported.
@@ -63,6 +65,14 @@ func (j Job) Validate(path string) error {
 	}
 	if j.Task != nil {
 		if err := j.Task.Validate(nestedPath(path, "task")); err != nil {
+			return err
+		}
+		if err := ValidateDirectTaskParticipationScope(
+			j.Scope,
+			j.Task.NetworkParticipation,
+			nestedPath(path, "task.network_participation"),
+			nestedPath(path, "scope"),
+		); err != nil {
 			return err
 		}
 		if j.Retry.Strategy != RetryStrategyNone {
@@ -139,6 +149,11 @@ func (r Run) Validate(path string) error {
 			nestedPath(path, "delivery_error"),
 			nestedPath(path, "delivery_error_at"),
 		)
+	}
+	if r.NetworkParticipation != nil {
+		if _, err := participation.NormalizeIntent(*r.NetworkParticipation); err != nil {
+			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "network_participation"), err)
+		}
 	}
 	return validateDelegatedRunRefs(r, path)
 }
@@ -239,6 +254,11 @@ func (t *LoopTarget) Validate(path string, scope Scope, automationWorkspaceID st
 	if err := validateLoopTargetInputs(t.Inputs, nestedPath(path, "inputs")); err != nil {
 		return err
 	}
+	if t.NetworkParticipation != nil {
+		if _, err := participation.NormalizeIntent(*t.NetworkParticipation); err != nil {
+			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "network_participation"), err)
+		}
+	}
 	return validateLoopTargetInputMapping(t.InputMapping, nestedPath(path, "input_mapping"))
 }
 
@@ -319,5 +339,6 @@ func hasLoopTarget(target *LoopTarget) bool {
 	return strings.TrimSpace(target.WorkspaceID) != "" ||
 		strings.TrimSpace(target.LoopName) != "" ||
 		len(target.Inputs) > 0 ||
-		len(target.InputMapping) > 0
+		len(target.InputMapping) > 0 ||
+		target.NetworkParticipation != nil
 }

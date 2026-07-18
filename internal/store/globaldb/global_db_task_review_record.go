@@ -242,26 +242,13 @@ func (g *TaskRunRepo) createReviewContinuationRun(
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
-	networkChannel := resolveStoredRunChannel(parentRun.NetworkChannel, taskRecord.NetworkChannel)
-	coordinationChannelID := coordinationChannelIDForQueuedRun(taskRecord, networkChannel, runID)
-	if err := ensureQueuedRunCoordinationChannel(
-		ctx,
-		exec,
-		taskRecord,
-		coordinationChannelID,
-		actor.Origin,
-		queuedAt,
-	); err != nil {
-		return taskpkg.Run{}, err
-	}
 	run := taskpkg.Run{
-		ID:                    strings.TrimSpace(runID),
-		TaskID:                taskRecord.ID,
-		Status:                taskpkg.TaskRunStatusQueued,
-		Attempt:               runAttempt,
-		Origin:                actor.Origin,
-		NetworkChannel:        networkChannel,
-		CoordinationChannelID: coordinationChannelID,
+		ID:          strings.TrimSpace(runID),
+		TaskID:      taskRecord.ID,
+		WorkspaceID: taskRecord.WorkspaceID,
+		Status:      taskpkg.TaskRunStatusQueued,
+		Attempt:     runAttempt,
+		Origin:      actor.Origin,
 		Review: &taskpkg.RunReviewLineage{
 			ParentRunID:        parentRun.ID,
 			ReviewID:           review.ReviewID,
@@ -273,7 +260,12 @@ func (g *TaskRunRepo) createReviewContinuationRun(
 		Metadata: metadata,
 		QueuedAt: queuedAt,
 	}
+	run.SetNetworkState(parentRun.NetworkSpecSnapshot(), "", "", "")
 	normalized, err := g.tasks.normalizeTaskRunForCreate(run)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	normalized, err = bindTaskRunWorkspace(normalized, taskRecord)
 	if err != nil {
 		return taskpkg.Run{}, err
 	}

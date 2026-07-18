@@ -18,6 +18,8 @@ import (
 	"github.com/compozy/agh/internal/api/ginutil"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/store"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -49,6 +51,8 @@ type Server struct {
 	tasks              core.TaskService
 	network            core.NetworkService
 	networkStore       core.NetworkStore
+	networkUsage       store.NetworkUsageStore
+	coordination       workspacepkg.CoordinationCommands
 	observer           core.Observer
 	schemaStreams      core.SchemaStreamStatusReader
 	automation         core.AutomationManager
@@ -192,13 +196,6 @@ func WithTaskService(service core.TaskService) Option {
 func WithNetworkService(service core.NetworkService) Option {
 	return func(server *Server) {
 		server.network = service
-	}
-}
-
-// WithNetworkStore injects the persisted network query store.
-func WithNetworkStore(store core.NetworkStore) Option {
-	return func(server *Server) {
-		server.networkStore = store
 	}
 }
 
@@ -567,6 +564,8 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		tasks:              s.tasks,
 		network:            s.network,
 		networkStore:       s.networkStore,
+		networkUsage:       s.networkUsage,
+		coordination:       s.coordination,
 		observer:           s.observer,
 		schemaStreams:      s.schemaStreams,
 		resources:          s.resources,

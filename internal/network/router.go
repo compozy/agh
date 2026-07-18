@@ -2,14 +2,12 @@ package network
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/compozy/agh/internal/store"
@@ -18,31 +16,17 @@ import (
 var (
 	// ErrLocalPeerNotFound reports an unknown local session sender.
 	ErrLocalPeerNotFound = errors.New("network: local peer not found")
-	// ErrTargetPeerNotFound reports a directed send target missing from presence.
+	// ErrTargetPeerNotFound reports a directed send target missing from live presence.
 	ErrTargetPeerNotFound = errors.New("network: target peer not found")
-	// ErrDuplicateEnvelope reports a replay-window duplicate.
-	ErrDuplicateEnvelope = errors.New("network: duplicate envelope")
-	// ErrEnvelopeNotTarget reports a directed envelope for a peer this daemon does not own.
-	ErrEnvelopeNotTarget = errors.New("network: envelope not targeted to a local peer")
 )
 
-// RouterTransport is the narrow publish surface consumed by the router.
-type RouterTransport interface {
-	Publish(ctx context.Context, subject string, payload []byte) error
-}
-
-// ThreadParticipantResolver supplies persisted public-thread membership for delivery routing.
+// ThreadParticipantResolver supplies the pre-message public-thread membership snapshot.
 type ThreadParticipantResolver interface {
 	ListThreadParticipants(
 		ctx context.Context,
 		ref store.NetworkChannelRef,
 		threadID string,
 	) ([]store.NetworkThreadParticipant, error)
-}
-
-// ChannelPolicyResolver supplies durable channel fan-out settings for receive routing.
-type ChannelPolicyResolver interface {
-	GetNetworkChannel(ctx context.Context, ref store.NetworkChannelRef) (store.NetworkChannelEntry, error)
 }
 
 // SendRequest carries one caller-supplied outbound envelope request.
@@ -86,14 +70,13 @@ type RuntimeSendRequest struct {
 	Ext         ExtensionMap
 }
 
-// SendResult summarizes one outbound publish.
+// SendResult is one validated envelope ready for atomic acceptance.
 type SendResult struct {
 	ID       string
-	Subject  string
 	Envelope Envelope
 }
 
-// Delivery is one accepted inbound message delivery target.
+// Delivery is one recipient selected from the immutable pre-message snapshot.
 type Delivery struct {
 	SessionID string
 	PeerID    string
@@ -101,155 +84,81 @@ type Delivery struct {
 	Mode      string
 }
 
-// RouteResult is the router decision for one inbound envelope.
-type RouteResult struct {
-	Envelope   *Envelope
-	Deliveries []Delivery
-	Generated  []Envelope
-	PeerEvents []PeerLifecycleEvent
-	Duplicate  bool
-	Ignored    bool
-	Rejected   bool
-	ReasonCode *ReasonCode
+// RoutingDisposition records one selected or ignored local recipient.
+type RoutingDisposition struct {
+	SessionID string
+	PeerID    string
+	Decision  string
 }
 
-// PeerLifecycleKind describes one peer membership transition observed by the
-// router or manager lifecycle.
+// RouteResult is the pure routing decision consumed by atomic acceptance.
+type RouteResult struct {
+	Envelope     Envelope
+	Deliveries   []Delivery
+	Dispositions []RoutingDisposition
+	whoisPeers   []LocalPeer
+}
+
+// PeerLifecycleKind describes one daemon-local membership transition.
 type PeerLifecycleKind string
 
 const (
-	PeerLifecycleJoined         PeerLifecycleKind = "joined"
-	PeerLifecycleLeft           PeerLifecycleKind = "left"
-	defaultRouterActivationTopK                   = 3
+	PeerLifecycleJoined PeerLifecycleKind = "joined"
+	PeerLifecycleLeft   PeerLifecycleKind = "left"
 )
 
-// PeerLifecycleEvent is the runtime-local representation of a peer presence
-// transition. Transports convert it to hooks or event summaries; it is not part
-// of the wire protocol.
+// PeerLifecycleEvent is the runtime-local representation of one membership transition.
 type PeerLifecycleEvent struct {
 	Kind      PeerLifecycleKind
 	Peer      PeerInfo
 	Timestamp time.Time
 }
 
-// Heartbeat owns one periodic greet publisher.
-type Heartbeat struct {
-	stop chan struct{}
-	done chan struct{}
-	once sync.Once
-}
-
-// Stop cancels the heartbeat and waits for its goroutine to exit.
-func (h *Heartbeat) Stop() {
-	if h == nil {
-		return
-	}
-
-	h.once.Do(func() {
-		if h.stop != nil {
-			close(h.stop)
-		}
-	})
-	<-h.done
-}
-
-// Done returns the heartbeat completion signal.
-func (h *Heartbeat) Done() <-chan struct{} {
-	if h == nil {
-		return nil
-	}
-	return h.done
-}
-
-// RouterOption customizes router construction.
+// RouterOption customizes the pure router.
 type RouterOption func(*Router)
 
-// WithRouterClock overrides the clock used for send and receive decisions.
+// WithRouterClock overrides the clock used for validation decisions.
 func WithRouterClock(now func() time.Time) RouterOption {
-	return func(router *Router) {
-		router.now = now
-	}
+	return func(router *Router) { router.now = now }
 }
 
-// WithRouterThreadParticipantResolver injects persisted thread membership for inbound thread routing.
+// WithRouterThreadParticipantResolver injects the durable participant snapshot reader.
 func WithRouterThreadParticipantResolver(resolver ThreadParticipantResolver) RouterOption {
-	return func(router *Router) {
-		router.threadParticipants = resolver
-	}
-}
-
-// WithRouterChannelPolicyResolver injects durable channel fan-out policy lookup.
-func WithRouterChannelPolicyResolver(resolver ChannelPolicyResolver) RouterOption {
-	return func(router *Router) {
-		router.channelPolicies = resolver
-	}
-}
-
-// WithRouterActivationTopK bounds channel activation for unaddressed empty public threads.
-func WithRouterActivationTopK(limit int) RouterOption {
-	return func(router *Router) {
-		router.activationTopK = limit
-	}
+	return func(router *Router) { router.threadParticipants = resolver }
 }
 
 // WithRouterLogger overrides the logger used for routing diagnostics.
 func WithRouterLogger(logger *slog.Logger) RouterOption {
-	return func(router *Router) {
-		router.logger = logger
-	}
+	return func(router *Router) { router.logger = logger }
 }
 
-// Router handles outbound subject selection plus inbound receiver policy.
+// Router validates outbound envelopes and computes recipients without side effects.
 type Router struct {
 	peers              *PeerRegistry
-	transport          RouterTransport
 	threadParticipants ThreadParticipantResolver
-	channelPolicies    ChannelPolicyResolver
 	logger             *slog.Logger
-	activationTopK     int
 	maxReplayAge       time.Duration
 	now                func() time.Time
-
-	mu    sync.Mutex
-	seen  map[string]time.Time
-	works map[string]Work
 }
 
-type receiveState struct {
-	result            RouteResult
-	envelope          Envelope
-	directedTarget    LocalPeer
-	hasDirectedTarget bool
-	now               time.Time
-}
-
-// NewRouter constructs the routing runtime on top of a peer registry.
-func NewRouter(
-	peers *PeerRegistry,
-	transport RouterTransport,
-	maxReplayAge time.Duration,
-	opts ...RouterOption,
-) (*Router, error) {
+// NewRouter constructs a broker-free router over daemon-local live presence.
+func NewRouter(peers *PeerRegistry, maxReplayAge time.Duration, opts ...RouterOption) (*Router, error) {
 	if peers == nil {
 		return nil, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
 	}
 	if maxReplayAge <= 0 {
 		maxReplayAge = DefaultMaxReplayAge
 	}
-
 	router := &Router{
-		peers:          peers,
-		transport:      transport,
-		logger:         slog.Default(),
-		activationTopK: defaultRouterActivationTopK,
-		maxReplayAge:   maxReplayAge,
-		now:            func() time.Time { return time.Now().UTC() },
-		seen:           make(map[string]time.Time),
-		works:          make(map[string]Work),
+		peers:        peers,
+		logger:       slog.Default(),
+		maxReplayAge: maxReplayAge,
+		now:          func() time.Time { return time.Now().UTC() },
 	}
 	for _, opt := range opts {
 		if opt != nil {
-			opt(router)
+			optsApply := opt
+			optsApply(router)
 		}
 	}
 	if router.now == nil {
@@ -258,10 +167,6 @@ func NewRouter(
 	if router.logger == nil {
 		router.logger = slog.Default()
 	}
-	if router.activationTopK <= 0 {
-		router.activationTopK = defaultRouterActivationTopK
-	}
-
 	return router, nil
 }
 
@@ -273,1515 +178,273 @@ func (r *Router) Leave(sessionID string) (LocalPeer, bool) {
 	return r.peers.LeaveLocal(sessionID)
 }
 
-// PublishGreet advertises one local peer card to its joined channel.
-func (r *Router) PublishGreet(ctx context.Context, sessionID string, summary string) (SendResult, error) {
-	if r == nil || r.peers == nil {
-		return SendResult{}, fmt.Errorf("%w: router peer registry is required", ErrInvalidField)
-	}
-
-	local, ok := r.peers.LocalBySession(sessionID)
-	if !ok {
-		return SendResult{}, fmt.Errorf("%w: session=%q", ErrLocalPeerNotFound, strings.TrimSpace(sessionID))
-	}
-
-	body, err := json.Marshal(GreetBody{
-		PeerCard: clonePeerCard(local.PeerCard),
-		Summary:  ResolveGreetSummary(local.PeerCard, summary),
-	})
-	if err != nil {
-		return SendResult{}, fmt.Errorf("network: marshal greet body: %w", err)
-	}
-
-	return r.Send(ctx, SendRequest{
-		SessionID:   local.SessionID,
-		WorkspaceID: local.WorkspaceID,
-		Channel:     local.Channel,
-		Kind:        KindGreet,
-		Body:        body,
-	})
-}
-
-// StartHeartbeat publishes greet immediately, then keeps re-greeting on the configured interval.
-func (r *Router) StartHeartbeat(ctx context.Context, sessionID string, summary string) (*Heartbeat, error) {
-	if ctx == nil {
-		return nil, errors.New("network: heartbeat context is required")
-	}
-	if r == nil || r.peers == nil {
-		return nil, fmt.Errorf("%w: router peer registry is required", ErrInvalidField)
-	}
-
-	interval := r.peers.GreetInterval()
-	if interval <= 0 {
-		return nil, fmt.Errorf("%w: greet interval must be positive", ErrInvalidField)
-	}
-	if _, err := r.PublishGreet(ctx, sessionID, summary); err != nil {
-		return nil, err
-	}
-
-	heartbeat := &Heartbeat{
-		stop: make(chan struct{}),
-		done: make(chan struct{}),
-	}
-
-	go func() {
-		defer close(heartbeat.done)
-
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-heartbeat.stop:
-				return
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if _, err := r.PublishGreet(
-					ctx,
-					sessionID,
-					summary,
-				); err != nil &&
-					errors.Is(err, ErrLocalPeerNotFound) {
-					return
-				}
-			}
-		}
-	}()
-
-	return heartbeat, nil
-}
-
-// PrepareSend validates one outbound request and computes the publish subject
-// without performing transport side effects.
+// PrepareSend validates a session-originated envelope before persistence.
 func (r *Router) PrepareSend(ctx context.Context, req SendRequest) (SendResult, error) {
 	if ctx == nil {
 		return SendResult{}, errors.New("network: send context is required")
 	}
-	if r == nil {
+	if r == nil || r.peers == nil {
 		return SendResult{}, errors.New("network: router is required")
 	}
 	if err := ctx.Err(); err != nil {
 		return SendResult{}, err
 	}
-
-	now := r.now().UTC()
-	envelope, err := r.buildEnvelope(req, now)
+	envelope, err := r.buildSessionEnvelope(req, r.now().UTC())
 	if err != nil {
 		return SendResult{}, err
 	}
-	if envelope.IsDirected() && !r.peers.HasPresence(envelope.WorkspaceID, envelope.Channel, *envelope.To, now) {
-		return SendResult{}, fmt.Errorf(
-			"%w: peer_id=%q channel=%q",
-			ErrTargetPeerNotFound,
-			*envelope.To,
-			envelope.Channel,
-		)
-	}
-	if err := r.validateSendLifecycle(envelope, now); err != nil {
-		return SendResult{}, err
-	}
-
-	subject, err := subjectForEnvelope(envelope)
-	if err != nil {
-		return SendResult{}, err
-	}
-
-	return SendResult{
-		ID:       envelope.ID,
-		Subject:  subject,
-		Envelope: envelope,
-	}, nil
+	return SendResult{ID: envelope.ID, Envelope: envelope}, nil
 }
 
-// PublishPrepared publishes a previously prepared envelope and syncs the local
-// lifecycle cache only after the transport accepts the publish.
-func (r *Router) PublishPrepared(ctx context.Context, prepared SendResult) (SendResult, error) {
+// PrepareRuntimeSend validates an AGH-runtime-originated envelope before persistence.
+func (r *Router) PrepareRuntimeSend(ctx context.Context, req RuntimeSendRequest) (SendResult, error) {
 	if ctx == nil {
-		return SendResult{}, errors.New("network: send context is required")
+		return SendResult{}, errors.New("network: runtime send context is required")
 	}
-	if r == nil {
+	if r == nil || r.peers == nil {
 		return SendResult{}, errors.New("network: router is required")
 	}
 	if err := ctx.Err(); err != nil {
 		return SendResult{}, err
 	}
-
-	envelope := prepared.Envelope
-	subject := strings.TrimSpace(prepared.Subject)
-	if subject == "" {
-		var err error
-		subject, err = subjectForEnvelope(envelope)
-		if err != nil {
-			return SendResult{}, err
-		}
-	}
-	if err := r.publishEnvelope(ctx, envelope); err != nil {
-		return SendResult{}, err
-	}
-	r.syncSentLifecycle(envelope, time.Unix(envelope.TS, 0).UTC())
-
-	return SendResult{
-		ID:       envelope.ID,
-		Subject:  subject,
-		Envelope: envelope,
-	}, nil
-}
-
-// Send validates one outbound request, enforces presence preflight, and publishes it.
-func (r *Router) Send(ctx context.Context, req SendRequest) (SendResult, error) {
-	prepared, err := r.PrepareSend(ctx, req)
+	envelope, err := r.buildRuntimeEnvelope(req, r.now().UTC())
 	if err != nil {
 		return SendResult{}, err
 	}
-	return r.PublishPrepared(ctx, prepared)
+	return SendResult{ID: envelope.ID, Envelope: envelope}, nil
 }
 
-// Receive validates one inbound envelope, updates presence, and returns delivery decisions.
-func (r *Router) Receive(ctx context.Context, payload []byte) (RouteResult, error) {
+// RoutePrepared computes the exact local recipient set from pre-message state.
+func (r *Router) RoutePrepared(ctx context.Context, prepared SendResult) (RouteResult, error) {
 	if ctx == nil {
-		return RouteResult{}, errors.New("network: receive context is required")
+		return RouteResult{}, errors.New("network: route context is required")
 	}
-	if r == nil {
+	if r == nil || r.peers == nil {
 		return RouteResult{}, errors.New("network: router is required")
 	}
-
-	now := r.now().UTC()
-	envelope, err := ParseEnvelope(payload, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge})
-	if err != nil {
-		return r.handleReceiveParseError(ctx, payload, now, err)
+	if err := ctx.Err(); err != nil {
+		return RouteResult{}, err
 	}
-
-	state, done, err := r.prepareReceiveState(ctx, envelope, now)
+	envelope := prepared.Envelope
+	if err := ValidateEnvelope(envelope, ValidateOptions{
+		Now: r.now().UTC(), MaxReplayAge: r.maxReplayAge,
+	}); err != nil {
+		return RouteResult{}, err
+	}
+	locals := r.peers.LocalPeers(envelope.WorkspaceID, envelope.Channel)
+	selected, err := r.selectedSessionSet(ctx, envelope, locals)
 	if err != nil {
 		return RouteResult{}, err
 	}
-	if done {
-		return state.result, nil
+	whoisPeers, err := snapshotWhoisResponders(envelope, locals, selected)
+	if err != nil {
+		return RouteResult{}, err
 	}
-	return r.dispatchReceivedEnvelope(ctx, &state)
-}
-
-func (r *Router) handleReceiveParseError(
-	ctx context.Context,
-	payload []byte,
-	now time.Time,
-	parseErr error,
-) (RouteResult, error) {
-	reason := reasonCodeForReceiveError(parseErr)
 	result := RouteResult{
-		Rejected:   true,
-		ReasonCode: &reason,
+		Envelope:     envelope,
+		Deliveries:   make([]Delivery, 0, len(selected)),
+		Dispositions: make([]RoutingDisposition, 0, len(locals)),
+		whoisPeers:   whoisPeers,
 	}
-	partial := parseEnvelopeSummary(payload)
-	if partial == nil {
-		return result, nil
-	}
-	result.Envelope = partial
-	if !shouldEmitWorkReceipt(*partial) {
-		return result, nil
-	}
-
-	directedTarget, ok, err := r.resolveDirectedTarget(*partial)
-	if err != nil {
-		return RouteResult{}, err
-	}
-	if !ok {
-		return result, nil
-	}
-	status, emit := rejectionReceiptStatus(reason)
-	result, _, err = r.appendPublishedReceipt(ctx, result, directedTarget, *partial, now, status, emit)
-	return result, err
-}
-
-func (r *Router) prepareReceiveState(
-	ctx context.Context,
-	envelope Envelope,
-	now time.Time,
-) (receiveState, bool, error) {
-	state := receiveState{
-		result:   RouteResult{Envelope: &envelope},
-		envelope: envelope,
-		now:      now,
-	}
-	directedTarget, ok, err := r.resolveDirectedTarget(envelope)
-	if err != nil {
-		return receiveState{}, false, err
-	}
-	state.directedTarget = directedTarget
-	state.hasDirectedTarget = ok
-	if envelope.IsDirected() && !ok {
-		reason := ReasonCodeNotTarget
-		state.result.Rejected = true
-		state.result.ReasonCode = &reason
-		return state, true, nil
-	}
-	if !r.markSeen(envelope, now) {
-		return state, false, nil
-	}
-
-	reason := ReasonCodeDuplicate
-	state.result.Duplicate = true
-	state.result.Rejected = true
-	state.result.ReasonCode = &reason
-	if !shouldEmitWorkReceipt(envelope) || !ok {
-		return state, true, nil
-	}
-
-	result, _, err := r.appendPublishedReceipt(
-		ctx,
-		state.result,
-		directedTarget,
-		envelope,
-		now,
-		ReceiptStatusDuplicate,
-		true,
-	)
-	if err != nil {
-		return receiveState{}, false, err
-	}
-	state.result = result
-	return state, true, nil
-}
-
-func (r *Router) dispatchReceivedEnvelope(ctx context.Context, state *receiveState) (RouteResult, error) {
-	switch state.envelope.Kind {
-	case KindGreet:
-		return r.handleReceivedGreet(state)
-	case KindWhois:
-		return r.handleWhois(
-			ctx,
-			state.envelope,
-			state.result,
-			state.directedTarget,
-			state.hasDirectedTarget,
-			state.now,
-		)
-	case KindSay:
-		return r.handleReceivedSay(ctx, state)
-	case KindCapability:
-		return r.handleReceivedCapability(ctx, state)
-	case KindReceipt, KindTrace:
-		return r.handleReceivedLifecycle(ctx, state)
-	default:
-		reason := ReasonCodeUnsupportedKind
-		state.result.Rejected = true
-		state.result.ReasonCode = &reason
-		return state.result, nil
-	}
-}
-
-func (r *Router) handleReceivedGreet(state *receiveState) (RouteResult, error) {
-	body, err := decodeReceivedBody[GreetBody](state.envelope, "greet")
-	if err != nil {
-		return RouteResult{}, err
-	}
-	refresh, refreshErr := r.peers.RefreshRemoteDetailed(
-		state.envelope.WorkspaceID,
-		state.envelope.Channel,
-		body.PeerCard,
-		nil,
-		false,
-		state.now,
-	)
-	if refreshErr != nil {
-		return RouteResult{}, refreshErr
-	}
-	state.result.PeerEvents = append(
-		state.result.PeerEvents,
-		peerLifecycleEventsFromExpired(refresh.Expired, state.now, r.peers.GreetInterval())...,
-	)
-	if refresh.Joined {
-		state.result.PeerEvents = append(
-			state.result.PeerEvents,
-			PeerLifecycleEvent{
-				Kind:      PeerLifecycleJoined,
-				Peer:      peerInfoFromRemote(refresh.Entry, state.now, r.peers.GreetInterval()),
-				Timestamp: state.now,
-			},
-		)
-	}
-	return state.result, nil
-}
-
-func peerLifecycleEventsFromExpired(
-	expired []RemotePeerEntry,
-	at time.Time,
-	greetInterval time.Duration,
-) []PeerLifecycleEvent {
-	if len(expired) == 0 {
-		return nil
-	}
-	events := make([]PeerLifecycleEvent, 0, len(expired))
-	for _, entry := range expired {
-		peer := peerInfoFromRemote(entry, at, greetInterval)
-		peer.PresenceState = PresenceStateExpired
-		events = append(events, PeerLifecycleEvent{
-			Kind:      PeerLifecycleLeft,
-			Peer:      peer,
-			Timestamp: at,
-		})
-	}
-	return events
-}
-
-func (r *Router) handleReceivedSay(ctx context.Context, state *receiveState) (RouteResult, error) {
-	result := state.result
-	deliver := true
-	if state.envelope.WorkID != nil {
-		var err error
-		result, deliver, err = r.applyReceiveLifecycle(ctx, state, true)
-		if err != nil {
-			return RouteResult{}, err
-		}
-	}
-	if !deliver {
-		return result, nil
-	}
-	if state.envelope.IsDirected() {
-		if delivery, ok := deliveryFromLocalPeer(state.directedTarget, state.envelope); ok {
-			result.Deliveries = []Delivery{delivery}
-		}
-		return result, nil
-	}
-	deliveries, err := r.deliveriesFromLocalPeers(ctx, state.envelope)
-	if err != nil {
-		return RouteResult{}, err
-	}
-	result.Deliveries = deliveries
-	return result, nil
-}
-
-func (r *Router) handleReceivedCapability(ctx context.Context, state *receiveState) (RouteResult, error) {
-	result, deliver, err := r.applyReceiveLifecycle(ctx, state, false)
-	if err != nil {
-		return RouteResult{}, err
-	}
-	if !deliver {
-		return result, nil
-	}
-	if state.envelope.IsDirected() {
-		if delivery, ok := deliveryFromLocalPeer(state.directedTarget, state.envelope); ok {
-			result.Deliveries = []Delivery{delivery}
-		}
-		return result, nil
-	}
-	deliveries, err := r.deliveriesFromLocalPeers(ctx, state.envelope)
-	if err != nil {
-		return RouteResult{}, err
-	}
-	result.Deliveries = deliveries
-	return result, nil
-}
-
-func (r *Router) handleReceivedLifecycle(ctx context.Context, state *receiveState) (RouteResult, error) {
-	result, deliver, err := r.applyReceiveLifecycle(ctx, state, true)
-	if err != nil {
-		return RouteResult{}, err
-	}
-	if deliver {
-		if delivery, ok := deliveryFromLocalPeer(state.directedTarget, state.envelope); ok {
-			result.Deliveries = []Delivery{delivery}
-		}
-	}
-	return result, nil
-}
-
-func (r *Router) applyReceiveLifecycle(
-	ctx context.Context,
-	state *receiveState,
-	emitRejectionReceipt bool,
-) (RouteResult, bool, error) {
-	result := state.result
-	if state.envelope.WorkID == nil {
-		return result, true, nil
-	}
-
-	lifecycleResult, err := r.applyLifecycle(state.envelope, state.now)
-	switch {
-	case err == nil:
-		switch lifecycleResult.Action {
-		case LifecycleActionIgnored:
-			result.Ignored = true
-			return result, false, nil
-		case LifecycleActionRejectWork:
-			reason := ReasonCodeWorkClosed
-			if lifecycleResult.ReasonCode != nil {
-				reason = *lifecycleResult.ReasonCode
-			}
-			result.Rejected = true
-			result.ReasonCode = &reason
-			if !emitRejectionReceipt || !shouldEmitWorkReceipt(state.envelope) {
-				return result, false, nil
-			}
-			return r.appendPublishedReceipt(
-				ctx,
-				result,
-				state.directedTarget,
-				state.envelope,
-				state.now,
-				ReceiptStatusRejected,
-				true,
-			)
-		default:
-			return result, true, nil
-		}
-	case errors.Is(err, ErrWorkContainerMismatch):
-		reason := ReasonCodeWorkContainerMismatch
-		result.Rejected = true
-		result.ReasonCode = &reason
-		if !emitRejectionReceipt || !shouldEmitWorkReceipt(state.envelope) {
-			return result, false, nil
-		}
-		return r.appendPublishedReceipt(
-			ctx,
-			result,
-			state.directedTarget,
-			state.envelope,
-			state.now,
-			ReceiptStatusRejected,
-			true,
-		)
-	case errors.Is(err, ErrWorkActorNotAllowed),
-		errors.Is(err, ErrWorkNotFound):
-		result.Ignored = true
-		return result, false, nil
-	case errors.Is(err, ErrInvalidStateTransition):
-		reason := ReasonCodeInternal
-		result.Rejected = true
-		result.ReasonCode = &reason
-		return result, false, nil
-	default:
-		return RouteResult{}, false, err
-	}
-}
-
-func (r *Router) appendPublishedReceipt(
-	ctx context.Context,
-	result RouteResult,
-	directedTarget LocalPeer,
-	envelope Envelope,
-	now time.Time,
-	status ReceiptStatus,
-	emit bool,
-) (RouteResult, bool, error) {
-	if !emit {
-		return result, false, nil
-	}
-	receipt, built, err := buildWorkReceipt(directedTarget, envelope, now, status, *result.ReasonCode, nil)
-	if err != nil {
-		return RouteResult{}, false, err
-	}
-	if !built {
-		return result, false, nil
-	}
-
-	result.Generated = append(result.Generated, receipt)
-	if err := r.publishGenerated(ctx, result.Generated); err != nil {
-		return RouteResult{}, false, err
-	}
-	return result, false, nil
-}
-
-func decodeReceivedBody[T any](env Envelope, label string) (T, error) {
-	var zero T
-	body, err := env.DecodeBody()
-	if err != nil {
-		return zero, err
-	}
-	typed, ok := body.(T)
-	if !ok {
-		return zero, fmt.Errorf("network: unexpected %s body type %T", label, body)
-	}
-	return typed, nil
-}
-
-func (r *Router) handleWhois(
-	ctx context.Context,
-	envelope Envelope,
-	result RouteResult,
-	directedTarget LocalPeer,
-	hasDirectedTarget bool,
-	now time.Time,
-) (RouteResult, error) {
-	body, err := envelope.DecodeBody()
-	if err != nil {
-		return RouteResult{}, err
-	}
-	whois, ok := body.(WhoisBody)
-	if !ok {
-		return RouteResult{}, fmt.Errorf("network: unexpected whois body type %T", body)
-	}
-
-	switch whois.Type {
-	case WhoisTypeResponse:
-		if whois.PeerCard != nil {
-			capabilityCatalog, capabilityCatalogKnown := decodeWhoisCapabilityCatalogResponseExt(envelope.Ext)
-			if _, _, refreshErr := r.peers.RefreshRemoteWithCapabilityCatalog(
-				envelope.WorkspaceID,
-				envelope.Channel,
-				*whois.PeerCard,
-				capabilityCatalog,
-				capabilityCatalogKnown,
-				now,
-			); refreshErr != nil {
-				return RouteResult{}, refreshErr
-			}
-		}
-		if hasDirectedTarget {
-			if delivery, ok := deliveryFromLocalPeer(directedTarget, envelope); ok {
-				result.Deliveries = []Delivery{delivery}
-			}
-		}
-		return result, nil
-	case WhoisTypeRequest:
-		return r.handleWhoisRequest(ctx, envelope, result, whois, directedTarget, hasDirectedTarget, now)
-	default:
-		reason := ReasonCodeMalformed
-		result.Rejected = true
-		result.ReasonCode = &reason
-		return result, nil
-	}
-}
-
-func (r *Router) handleWhoisRequest(
-	ctx context.Context,
-	envelope Envelope,
-	result RouteResult,
-	whois WhoisBody,
-	directedTarget LocalPeer,
-	hasDirectedTarget bool,
-	now time.Time,
-) (RouteResult, error) {
-	discoveryRequest := parseWhoisCapabilityDiscoveryRequest(envelope.Ext)
-	if envelope.IsDirected() && hasDirectedTarget && isEnvelopeSender(directedTarget, envelope) {
-		result.Ignored = true
-		return result, nil
-	}
-	responders := r.whoisRequestResponders(envelope, whois, directedTarget, hasDirectedTarget)
-
-	for _, responder := range responders {
-		reply, err := r.buildWhoisResponseEnvelope(envelope, responder, discoveryRequest, now)
-		if err != nil {
-			return RouteResult{}, err
-		}
-		result.Generated = append(result.Generated, reply)
-	}
-	if len(result.Generated) > 0 {
-		if err := r.publishGenerated(ctx, result.Generated); err != nil {
-			return RouteResult{}, err
-		}
-	}
-	return result, nil
-}
-
-func (r *Router) whoisRequestResponders(
-	envelope Envelope,
-	whois WhoisBody,
-	directedTarget LocalPeer,
-	hasDirectedTarget bool,
-) []LocalPeer {
-	if envelope.IsDirected() {
-		if hasDirectedTarget && !isEnvelopeSender(directedTarget, envelope) {
-			return []LocalPeer{directedTarget}
-		}
-		return nil
-	}
-	matches := r.peers.MatchLocalPeers(envelope.WorkspaceID, envelope.Channel, whois.Query)
-	responders := make([]LocalPeer, 0, len(matches))
-	for _, peer := range matches {
+	for _, peer := range locals {
 		if isEnvelopeSender(peer, envelope) {
 			continue
 		}
-		responders = append(responders, peer)
-	}
-	return responders
-}
-
-func (r *Router) buildWhoisResponseEnvelope(
-	request Envelope,
-	responder LocalPeer,
-	discoveryRequest whoisCapabilityDiscoveryRequest,
-	now time.Time,
-) (Envelope, error) {
-	responseCard := clonePeerCard(responder.PeerCard)
-	if len(responder.CapabilityCatalog) != 0 {
-		responseCatalog := responder.CapabilityCatalog
-		if discoveryRequest.includeCapabilityCatalog {
-			responseCatalog = selectWhoisCapabilityCatalog(
-				responder.CapabilityCatalog,
-				discoveryRequest.capabilityIDs,
-			)
+		decision := store.NetworkDispositionIgnore
+		if selected[peer.SessionID] && localPeerMatchesConversation(peer, envelope) {
+			decision = store.NetworkDispositionDeliver
+			result.Deliveries = append(result.Deliveries, Delivery{
+				SessionID: peer.SessionID,
+				PeerID:    peer.PeerID,
+				Envelope:  envelope,
+				Mode:      store.NetworkSubscriptionModeFull,
+			})
 		}
-		if err := applyCapabilityBriefProjection(&responseCard, responseCatalog); err != nil {
-			return Envelope{}, err
-		}
+		result.Dispositions = append(result.Dispositions, RoutingDisposition{
+			SessionID: peer.SessionID,
+			PeerID:    peer.PeerID,
+			Decision:  decision,
+		})
 	}
-
-	payload, err := marshalEnvelopeBody(WhoisBody{
-		Type:     WhoisTypeResponse,
-		PeerCard: &responseCard,
+	sort.SliceStable(result.Deliveries, func(i, j int) bool {
+		return result.Deliveries[i].SessionID < result.Deliveries[j].SessionID
 	})
-	if err != nil {
-		return Envelope{}, err
-	}
-	responseExt, err := buildWhoisCapabilityCatalogResponseExt(
-		discoveryRequest,
-		responder.CapabilityCatalog,
-	)
-	if err != nil {
-		return Envelope{}, err
-	}
-
-	reply := Envelope{
-		Protocol:    ProtocolV0,
-		ID:          store.NewID("msg"),
-		WorkspaceID: request.WorkspaceID,
-		Kind:        KindWhois,
-		Channel:     request.Channel,
-		From:        responder.PeerID,
-		To:          ptrString(request.From),
-		ReplyTo:     ptrString(request.ID),
-		TS:          now.Unix(),
-		Body:        payload,
-		Proof:       nil,
-		Ext:         responseExt,
-	}
-	if err := ValidateEnvelope(reply, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge}); err != nil {
-		return Envelope{}, err
-	}
-	if err := ensureEnvelopeSizeLimit(reply); err != nil {
-		return Envelope{}, err
-	}
-	return reply, nil
-}
-
-func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error) {
-	if r.peers == nil {
-		return Envelope{}, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
-	}
-
-	sessionID := strings.TrimSpace(req.SessionID)
-	if sessionID == "" {
-		return Envelope{}, fmt.Errorf("%w: session is required", ErrMissingField)
-	}
-
-	local, ok := r.peers.LocalBySession(sessionID)
-	if !ok {
-		return Envelope{}, fmt.Errorf("%w: session=%q", ErrLocalPeerNotFound, sessionID)
-	}
-
-	channel := strings.TrimSpace(req.Channel)
-	if channel == "" {
-		return Envelope{}, fmt.Errorf("%w: channel is required", ErrMissingField)
-	}
-	if local.Channel != channel {
-		return Envelope{}, fmt.Errorf("%w: session=%q channel=%q", ErrLocalPeerNotFound, sessionID, channel)
-	}
-	if reqWorkspaceID := strings.TrimSpace(
-		req.WorkspaceID,
-	); reqWorkspaceID != "" &&
-		reqWorkspaceID != local.WorkspaceID {
-		return Envelope{}, fmt.Errorf(
-			"%w: session=%q workspace_id=%q",
-			ErrLocalPeerNotFound,
-			sessionID,
-			reqWorkspaceID,
-		)
-	}
-
-	id := normalizeOptionalIdentifier(req.ID)
-	if id == nil {
-		id = ptrString(store.NewID("msg"))
-	}
-	envelope := Envelope{
-		Protocol:    ProtocolV0,
-		ID:          *id,
-		WorkspaceID: local.WorkspaceID,
-		Kind:        Kind(strings.TrimSpace(string(req.Kind))),
-		Channel:     channel,
-		Surface:     normalizeOptionalSurface(req.Surface),
-		ThreadID:    normalizeOptionalIdentifier(req.ThreadID),
-		DirectID:    normalizeOptionalIdentifier(req.DirectID),
-		From:        local.PeerID,
-		To:          normalizeOptionalIdentifier(req.To),
-		Mentions:    normalizeEnvelopeMentions(req.Mentions),
-		WorkID:      normalizeOptionalIdentifier(req.WorkID),
-		ReplyTo:     normalizeOptionalIdentifier(req.ReplyTo),
-		TraceID:     normalizeOptionalIdentifier(req.TraceID),
-		CausationID: normalizeOptionalIdentifier(req.CausationID),
-		TS:          now.Unix(),
-		ExpiresAt:   cloneInt64Ptr(req.ExpiresAt),
-		Body:        cloneRawMessage(req.Body),
-		Ext:         cloneExtensionMap(req.Ext),
-	}
-
-	if isConversationKind(envelope.Kind) &&
-		envelope.Surface != nil &&
-		*envelope.Surface == SurfaceDirect &&
-		envelope.To != nil {
-		directID, _, _, err := DirectRoomIdentity(envelope.WorkspaceID, channel, envelope.From, *envelope.To)
-		if err != nil {
-			return Envelope{}, err
-		}
-		envelope.DirectID = ptrString(directID)
-	}
-
-	if err := ValidateEnvelope(envelope, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge}); err != nil {
-		return Envelope{}, err
-	}
-	return envelope, nil
-}
-
-func (r *Router) resolveDirectedTarget(envelope Envelope) (LocalPeer, bool, error) {
-	if !envelope.IsDirected() {
-		return LocalPeer{}, false, nil
-	}
-	if r.peers == nil {
-		return LocalPeer{}, false, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
-	}
-
-	local, ok := r.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To)
-	if !ok {
-		return LocalPeer{}, false, nil
-	}
-	return local, true, nil
-}
-
-func (r *Router) markSeen(envelope Envelope, now time.Time) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for id, expiresAt := range r.seen {
-		if !expiresAt.After(now) {
-			delete(r.seen, id)
-		}
-	}
-	if expiresAt, ok := r.seen[envelope.ID]; ok && expiresAt.After(now) {
-		return true
-	}
-	r.seen[envelope.ID] = replayDeadline(envelope, now, r.maxReplayAge)
-	return false
-}
-
-func (r *Router) applyLifecycle(envelope Envelope, now time.Time) (LifecycleResult, error) {
-	key := workKey(envelope.WorkspaceID, *envelope.WorkID)
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	result, err := r.evaluateLifecycleLocked(key, envelope, now)
-	if err != nil {
-		return LifecycleResult{}, err
-	}
-	r.works[key] = result.Work
+	sort.SliceStable(result.Dispositions, func(i, j int) bool {
+		return result.Dispositions[i].SessionID < result.Dispositions[j].SessionID
+	})
 	return result, nil
 }
 
-func (r *Router) evaluateLifecycle(envelope Envelope, now time.Time) (LifecycleResult, error) {
-	key := workKey(envelope.WorkspaceID, *envelope.WorkID)
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.evaluateLifecycleLocked(key, envelope, now)
-}
-
-func (r *Router) evaluateLifecycleLocked(
-	key string,
+func (r *Router) selectedSessionSet(
+	ctx context.Context,
 	envelope Envelope,
-	now time.Time,
-) (LifecycleResult, error) {
-	current, ok := r.works[key]
-	var currentPtr *Work
-	if ok {
-		copied := current
-		currentPtr = &copied
-	}
-
-	return ApplyWorkEnvelope(currentPtr, envelope, now)
-}
-
-func (r *Router) validateSendLifecycle(envelope Envelope, now time.Time) error {
-	if !shouldTrackSentLifecycle(envelope) {
-		return nil
-	}
-
-	result, err := r.evaluateLifecycle(envelope, now)
-	if err != nil {
-		return err
-	}
-	switch result.Action {
-	case LifecycleActionIgnored, LifecycleActionRejectWork:
-		return fmt.Errorf(
-			"%w: work_id=%q kind=%q",
-			ErrWorkClosed,
-			result.Work.ID,
-			envelope.Kind,
-		)
-	default:
-		return nil
-	}
-}
-
-func (r *Router) syncSentLifecycle(envelope Envelope, now time.Time) {
-	if !shouldTrackSentLifecycle(envelope) {
-		return
-	}
-	if !r.shouldSyncSentLifecycle(envelope) {
-		return
-	}
-
-	if _, err := r.applyLifecycle(envelope, now); err != nil {
-		return
-	}
-}
-
-func (r *Router) shouldSyncSentLifecycle(envelope Envelope) bool {
-	if r == nil || r.peers == nil || !envelope.IsDirected() {
-		return true
-	}
-
-	switch envelope.Kind {
-	case KindReceipt, KindTrace:
-		_, ok := r.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To)
-		return !ok
-	default:
-		return true
-	}
-}
-
-func shouldTrackSentLifecycle(envelope Envelope) bool {
-	if envelope.WorkID == nil {
-		return false
-	}
-
-	switch envelope.Kind {
-	case KindSay, KindCapability, KindReceipt, KindTrace:
-		return true
-	default:
-		return false
-	}
-}
-
-func (r *Router) publishEnvelope(ctx context.Context, envelope Envelope) error {
-	if r.transport == nil {
-		return errors.New("network: router transport is required")
-	}
-
-	subject, err := subjectForEnvelope(envelope)
-	if err != nil {
-		return err
-	}
-	payload, err := json.Marshal(envelope)
-	if err != nil {
-		return fmt.Errorf("network: marshal envelope: %w", err)
-	}
-	if err := r.transport.Publish(ctx, subject, payload); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (r *Router) publishGenerated(ctx context.Context, envelopes []Envelope) error {
-	for _, envelope := range envelopes {
-		if err := r.publishEnvelope(ctx, envelope); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func subjectForEnvelope(envelope Envelope) (string, error) {
+	locals []LocalPeer,
+) (map[string]bool, error) {
 	if envelope.IsDirected() {
-		return DirectSubject(envelope.WorkspaceID, envelope.Channel, *envelope.To)
-	}
-	return BroadcastSubject(envelope.WorkspaceID, envelope.Channel)
-}
-
-func replayDeadline(envelope Envelope, now time.Time, maxReplayAge time.Duration) time.Time {
-	deadline := time.Unix(envelope.TS, 0).Add(maxReplayAge).UTC()
-	if envelope.ExpiresAt != nil {
-		expiresAt := time.Unix(*envelope.ExpiresAt, 0).UTC()
-		if expiresAt.Before(deadline) {
-			deadline = expiresAt
+		targetPeerID := strings.TrimSpace(*envelope.To)
+		for _, peer := range locals {
+			if peer.PeerID == targetPeerID {
+				return map[string]bool{peer.SessionID: true}, nil
+			}
 		}
+		return nil, fmt.Errorf(
+			"%w: peer_id=%q channel=%q",
+			ErrTargetPeerNotFound,
+			targetPeerID,
+			envelope.Channel,
+		)
 	}
-	minDeadline := time.Unix(now.Unix()+1, 0).UTC()
-	if deadline.Before(minDeadline) {
-		return minDeadline
+	selected := make(map[string]bool, len(locals))
+	if !envelopeRequiresThreadSnapshot(envelope) {
+		selectAllLocalRecipients(selected, locals, envelope)
+		return selected, nil
 	}
-	return deadline
-}
-
-func workKey(workspaceID string, workID string) string {
-	return strings.TrimSpace(workspaceID) + "\x00" + strings.TrimSpace(workID)
-}
-
-func deliveriesFromLocalPeers(peers []LocalPeer, envelope Envelope) []Delivery {
-	return deliveriesFromLocalPeersWithMode(peers, envelope, store.NetworkSubscriptionModeFull)
-}
-
-func deliveriesFromLocalPeersWithMode(peers []LocalPeer, envelope Envelope, mode string) []Delivery {
-	if len(peers) == 0 {
-		return nil
-	}
-
-	deliveries := make([]Delivery, 0, len(peers))
-	for _, peer := range peers {
-		delivery, ok := deliveryFromLocalPeer(peer, envelope)
-		if !ok {
-			continue
-		}
-		delivery.Mode = normalizedRouterDeliveryMode(mode)
-		deliveries = append(deliveries, delivery)
-	}
-	return deliveries
-}
-
-func (r *Router) deliveriesFromLocalPeers(ctx context.Context, envelope Envelope) ([]Delivery, error) {
-	peers := r.peers.LocalPeers(envelope.WorkspaceID, envelope.Channel)
-	if !envelopeRequiresThreadParticipantRouting(envelope) {
-		return deliveriesFromLocalPeers(peers, envelope), nil
-	}
-	mentioned := mentionedPeerSet(envelope)
-	if r.threadParticipants == nil {
-		return r.selectEmptyThreadDeliveries(ctx, peers, envelope, nil, mentioned)
-	}
-	participants, err := r.threadParticipantSet(ctx, envelope)
+	participants, err := r.listThreadParticipants(ctx, envelope)
 	if err != nil {
-		r.warnThreadParticipantFallback(envelope, err)
-		return r.selectEmptyThreadDeliveries(ctx, peers, envelope, nil, mentioned)
+		return nil, err
 	}
 	if len(participants) == 0 {
-		return r.selectEmptyThreadDeliveries(ctx, peers, envelope, nil, mentioned)
-	}
-	filtered := make([]LocalPeer, 0, len(peers))
-	for _, peer := range peers {
-		peerID := strings.TrimSpace(peer.PeerID)
-		if participants[peerID] || mentioned[peerID] {
-			filtered = append(filtered, peer)
+		selectAllLocalRecipients(selected, locals, envelope)
+	} else {
+		for _, participant := range participants {
+			selected[strings.TrimSpace(participant.SessionID)] = true
 		}
 	}
-	return deliveriesFromLocalPeers(filtered, envelope), nil
+	for _, peer := range locals {
+		if slicesContainsString(envelope.Mentions, peer.PeerID) {
+			selected[peer.SessionID] = true
+		}
+	}
+	return selected, nil
 }
 
-func (r *Router) selectEmptyThreadDeliveries(
-	ctx context.Context,
-	peers []LocalPeer,
-	envelope Envelope,
-	participants map[string]bool,
-	mentioned map[string]bool,
-) ([]Delivery, error) {
-	decision := r.selectEmptyThreadPeers(ctx, peers, envelope, participants, mentioned)
-	deliveries := deliveriesFromLocalPeers(decision.fullPeers, envelope)
-	deliveries = append(
-		deliveries,
-		deliveriesFromLocalPeersWithMode(decision.digestPeers, envelope, store.NetworkSubscriptionModeDigest)...,
-	)
-	sort.SliceStable(deliveries, func(i int, j int) bool {
-		return deliveries[i].PeerID < deliveries[j].PeerID
-	})
-	return deliveries, nil
-}
-
-type emptyThreadDeliveryDecision struct {
-	fullPeers   []LocalPeer
-	digestPeers []LocalPeer
-}
-
-func (r *Router) selectEmptyThreadPeers(
-	ctx context.Context,
-	peers []LocalPeer,
-	envelope Envelope,
-	participants map[string]bool,
-	mentioned map[string]bool,
-) emptyThreadDeliveryDecision {
-	policy, coordinatorPeerID, err := r.channelFanoutPolicy(ctx, envelope)
-	if err != nil {
-		r.warnChannelPolicyFallback(envelope, err)
-		policy = store.NetworkFanoutPolicyCapabilityMatch
-		coordinatorPeerID = ""
-	}
-	baseFull := r.participantMentionPeers(peers, envelope, participants, mentioned)
-	switch policy {
-	case store.NetworkFanoutPolicyAllMembers:
-		full := append(cloneLocalPeers(baseFull.peers), r.allEligibleThreadPeers(peers, envelope, baseFull.seen)...)
-		return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}
-	case store.NetworkFanoutPolicyCoordinator:
-		selected, ok := r.coordinatorPeer(peers, envelope, coordinatorPeerID, baseFull.seen)
-		if ok {
-			full := append(cloneLocalPeers(baseFull.peers), selected)
-			return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}
-		}
-		return emptyThreadDeliveryDecision{
-			fullPeers:   sortLocalPeers(baseFull.peers),
-			digestPeers: r.threadDigestFallbackPeers(peers, envelope, baseFull.seen),
-		}
-	default:
-		full := r.selectCapabilityMatchedThreadPeers(peers, envelope, baseFull.peers, baseFull.seen)
-		if len(full) > len(baseFull.peers) {
-			return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}
-		}
-		return emptyThreadDeliveryDecision{
-			fullPeers:   sortLocalPeers(baseFull.peers),
-			digestPeers: r.threadDigestFallbackPeers(peers, envelope, baseFull.seen),
-		}
-	}
-}
-
-func (r *Router) warnThreadParticipantFallback(envelope Envelope, err error) {
-	if r == nil || r.logger == nil || err == nil {
-		return
-	}
-	r.logger.Warn(
-		"network.router.thread_participants_lookup_failed",
-		"error", err,
-		"workspace_id", envelope.WorkspaceID,
-		"channel", envelope.Channel,
-		"thread_id", normalizeOptionalIdentifier(envelope.ThreadID),
-		"fallback", "empty_thread_delivery",
-	)
-}
-
-func (r *Router) warnChannelPolicyFallback(envelope Envelope, err error) {
-	if r == nil || r.logger == nil || err == nil {
-		return
-	}
-	r.logger.Warn(
-		"network.router.channel_policy_lookup_failed",
-		"error", err,
-		"workspace_id", envelope.WorkspaceID,
-		"channel", envelope.Channel,
-		"thread_id", normalizeOptionalIdentifier(envelope.ThreadID),
-		"fallback_policy", store.NetworkFanoutPolicyCapabilityMatch,
-	)
-}
-
-type selectedThreadPeers struct {
-	peers []LocalPeer
-	seen  map[string]bool
-}
-
-func (r *Router) participantMentionPeers(
-	peers []LocalPeer,
-	envelope Envelope,
-	participants map[string]bool,
-	mentioned map[string]bool,
-) selectedThreadPeers {
-	selected := make([]LocalPeer, 0, len(peers))
-	seen := make(map[string]bool, len(peers))
-	for _, peer := range peers {
-		peerID := strings.TrimSpace(peer.PeerID)
-		if peerID == "" || isEnvelopeSender(peer, envelope) {
-			continue
-		}
-		if mentioned[peerID] || participants[peerID] {
-			selected = append(selected, peer)
-			seen[peerID] = true
-		}
-	}
-	return selectedThreadPeers{peers: sortLocalPeers(selected), seen: seen}
-}
-
-func (r *Router) allEligibleThreadPeers(
-	peers []LocalPeer,
-	envelope Envelope,
-	seen map[string]bool,
-) []LocalPeer {
-	selected := make([]LocalPeer, 0, len(peers))
-	for _, peer := range peers {
-		peerID := strings.TrimSpace(peer.PeerID)
-		if peerID == "" || isEnvelopeSender(peer, envelope) || seen[peerID] {
-			continue
-		}
-		selected = append(selected, peer)
-		seen[peerID] = true
-	}
-	return sortLocalPeers(selected)
-}
-
-func (r *Router) coordinatorPeer(
-	peers []LocalPeer,
-	envelope Envelope,
-	coordinatorPeerID string,
-	seen map[string]bool,
-) (LocalPeer, bool) {
-	target := strings.TrimSpace(coordinatorPeerID)
-	if target == "" || seen[target] {
-		return LocalPeer{}, false
-	}
-	for _, peer := range peers {
-		if strings.TrimSpace(peer.PeerID) != target || isEnvelopeSender(peer, envelope) {
-			continue
-		}
-		return peer, true
-	}
-	return LocalPeer{}, false
-}
-
-func (r *Router) selectCapabilityMatchedThreadPeers(
-	peers []LocalPeer,
-	envelope Envelope,
-	selected []LocalPeer,
-	seen map[string]bool,
-) []LocalPeer {
-	out := cloneLocalPeers(selected)
-	limit := r.activationTopK
-	if limit <= 0 {
-		limit = defaultRouterActivationTopK
-	}
-	for _, candidate := range rankActivationCandidates(peers, envelope) {
-		if len(out)-len(selected) >= limit {
-			break
-		}
-		if candidate.score <= 0 {
-			continue
-		}
-		peerID := strings.TrimSpace(candidate.peer.PeerID)
-		if peerID == "" || seen[peerID] || isEnvelopeSender(candidate.peer, envelope) {
-			continue
-		}
-		out = append(out, candidate.peer)
-		seen[peerID] = true
-	}
-	return sortLocalPeers(out)
-}
-
-func (r *Router) threadDigestFallbackPeers(
-	peers []LocalPeer,
-	envelope Envelope,
-	seen map[string]bool,
-) []LocalPeer {
-	selected := make([]LocalPeer, 0, len(peers))
-	for _, peer := range peers {
-		peerID := strings.TrimSpace(peer.PeerID)
-		if peerID == "" || seen[peerID] || isEnvelopeSender(peer, envelope) {
-			continue
-		}
-		selected = append(selected, peer)
-	}
-	return sortLocalPeers(selected)
-}
-
-func (r *Router) channelFanoutPolicy(
+func (r *Router) listThreadParticipants(
 	ctx context.Context,
 	envelope Envelope,
-) (string, string, error) {
-	if r.channelPolicies == nil {
-		return store.NetworkFanoutPolicyCapabilityMatch, "", nil
+) ([]store.NetworkThreadParticipant, error) {
+	if r.threadParticipants == nil {
+		return nil, nil
 	}
-	entry, err := r.channelPolicies.GetNetworkChannel(
-		ctx,
-		store.NetworkChannelRef{
-			WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
-			Channel:     strings.TrimSpace(envelope.Channel),
-		},
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return store.NetworkFanoutPolicyCapabilityMatch, "", nil
-		}
-		return "", "", fmt.Errorf("network: get channel fanout policy for routing: %w", err)
-	}
-	return store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy), strings.TrimSpace(entry.CoordinatorPeerID), nil
-}
-
-func sortLocalPeers(peers []LocalPeer) []LocalPeer {
-	if len(peers) == 0 {
-		return nil
-	}
-	out := cloneLocalPeers(peers)
-	sort.SliceStable(out, func(i int, j int) bool {
-		return out[i].PeerID < out[j].PeerID
-	})
-	return out
-}
-
-func cloneLocalPeers(peers []LocalPeer) []LocalPeer {
-	if len(peers) == 0 {
-		return nil
-	}
-	out := make([]LocalPeer, len(peers))
-	copy(out, peers)
-	return out
-}
-
-type activationCandidate struct {
-	peer  LocalPeer
-	score int
-}
-
-func rankActivationCandidates(peers []LocalPeer, envelope Envelope) []activationCandidate {
-	candidates := make([]activationCandidate, 0, len(peers))
-	terms := activationTerms(envelope)
-	for _, peer := range peers {
-		candidates = append(candidates, activationCandidate{
-			peer:  peer,
-			score: activationScore(peer, terms),
-		})
-	}
-	sort.SliceStable(candidates, func(i int, j int) bool {
-		if candidates[i].score != candidates[j].score {
-			return candidates[i].score > candidates[j].score
-		}
-		return candidates[i].peer.PeerID < candidates[j].peer.PeerID
-	})
-	return candidates
-}
-
-func activationTerms(envelope Envelope) []string {
-	body, err := envelope.DecodeBody()
-	if err != nil {
-		return nil
-	}
-	var text string
-	switch typed := body.(type) {
-	case SayBody:
-		text = typed.Text + " " + typed.Intent
-	case CapabilityBody:
-		text = typed.Capability.ID + " " + typed.Capability.Summary + " " + typed.Capability.Outcome
-	default:
-		return nil
-	}
-	fields := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
-		return (r < 'a' || r > 'z') && (r < '0' || r > '9')
-	})
-	terms := make([]string, 0, len(fields))
-	seen := make(map[string]bool, len(fields))
-	for _, field := range fields {
-		if len(field) < 3 || seen[field] {
-			continue
-		}
-		seen[field] = true
-		terms = append(terms, field)
-	}
-	return terms
-}
-
-func activationScore(peer LocalPeer, terms []string) int {
-	if len(terms) == 0 {
-		return 0
-	}
-	var builder strings.Builder
-	builder.WriteString(strings.Join(peer.PeerCard.Capabilities, " "))
-	for _, capability := range peer.CapabilityCatalog {
-		builder.WriteByte(' ')
-		builder.WriteString(capability.ID)
-		builder.WriteByte(' ')
-		builder.WriteString(capability.Summary)
-		builder.WriteByte(' ')
-		builder.WriteString(capability.Outcome)
-	}
-	haystack := strings.ToLower(builder.String())
-	score := 0
-	for _, term := range terms {
-		if strings.Contains(haystack, term) {
-			score++
-		}
-	}
-	return score
-}
-
-func mentionedPeerSet(envelope Envelope) map[string]bool {
-	mentions := normalizeEnvelopeMentions(envelope.Mentions)
-	if len(mentions) == 0 {
-		return nil
-	}
-	set := make(map[string]bool, len(mentions))
-	for _, peerID := range mentions {
-		set[strings.TrimSpace(peerID)] = true
-	}
-	return set
-}
-
-func envelopeRequiresThreadParticipantRouting(envelope Envelope) bool {
-	return !envelope.IsDirected() &&
-		envelope.Surface != nil &&
-		*envelope.Surface == SurfaceThread &&
-		envelope.ThreadID != nil
-}
-
-func (r *Router) threadParticipantSet(ctx context.Context, envelope Envelope) (map[string]bool, error) {
 	participants, err := r.threadParticipants.ListThreadParticipants(
 		ctx,
-		store.NetworkChannelRef{
-			WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
-			Channel:     strings.TrimSpace(envelope.Channel),
-		},
+		store.NetworkChannelRef{WorkspaceID: envelope.WorkspaceID, Channel: envelope.Channel},
 		strings.TrimSpace(*envelope.ThreadID),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("network: list thread participants for routing: %w", err)
+		return nil, fmt.Errorf("network: list pre-message thread participants: %w", err)
 	}
-	participantSet := make(map[string]bool, len(participants))
-	for _, participant := range participants {
-		if peerID := strings.TrimSpace(participant.PeerID); peerID != "" {
-			participantSet[peerID] = true
+	return participants, nil
+}
+
+func selectAllLocalRecipients(selected map[string]bool, peers []LocalPeer, envelope Envelope) {
+	for _, peer := range peers {
+		if !isEnvelopeSender(peer, envelope) {
+			selected[peer.SessionID] = true
 		}
 	}
-	return participantSet, nil
 }
 
-func deliveryFromLocalPeer(peer LocalPeer, envelope Envelope) (Delivery, bool) {
-	if strings.TrimSpace(peer.PeerID) == "" || isEnvelopeSender(peer, envelope) {
-		return Delivery{}, false
-	}
-	if !localPeerMatchesConversation(peer, envelope) {
-		return Delivery{}, false
-	}
-	return Delivery{
-		SessionID: peer.SessionID,
-		PeerID:    peer.PeerID,
-		Envelope:  envelope,
-	}, true
+func envelopeRequiresThreadSnapshot(envelope Envelope) bool {
+	return envelope.Surface != nil && *envelope.Surface == SurfaceThread && envelope.ThreadID != nil
 }
 
-func normalizedRouterDeliveryMode(mode string) string {
-	switch strings.TrimSpace(mode) {
-	case store.NetworkSubscriptionModeDigest:
-		return store.NetworkSubscriptionModeDigest
-	default:
-		return store.NetworkSubscriptionModeFull
+func slicesContainsString(values []string, target string) bool {
+	target = strings.TrimSpace(target)
+	for _, value := range values {
+		if strings.TrimSpace(value) == target {
+			return true
+		}
 	}
+	return false
 }
 
 func localPeerMatchesConversation(peer LocalPeer, envelope Envelope) bool {
 	if envelope.Surface == nil || *envelope.Surface != SurfaceDirect {
 		return true
 	}
-	if envelope.DirectID == nil {
+	if envelope.To == nil {
 		return false
 	}
-	directID, _, _, err := DirectRoomIdentity(envelope.WorkspaceID, envelope.Channel, envelope.From, peer.PeerID)
-	if err != nil {
-		return false
-	}
-	return directID == strings.TrimSpace(*envelope.DirectID)
+	return strings.TrimSpace(peer.PeerID) == strings.TrimSpace(*envelope.To)
 }
 
 func isEnvelopeSender(peer LocalPeer, envelope Envelope) bool {
-	return strings.TrimSpace(peer.PeerID) != "" &&
-		strings.TrimSpace(peer.PeerID) == strings.TrimSpace(envelope.From)
+	return strings.TrimSpace(peer.PeerID) == strings.TrimSpace(envelope.From)
 }
 
-func buildWorkReceipt(
-	local LocalPeer,
-	envelope Envelope,
-	now time.Time,
-	status ReceiptStatus,
-	reason ReasonCode,
-	detail *string,
-) (Envelope, bool, error) {
-	if !shouldEmitWorkReceipt(envelope) {
-		return Envelope{}, false, nil
+func (r *Router) buildSessionEnvelope(req SendRequest, now time.Time) (Envelope, error) {
+	sessionID := strings.TrimSpace(req.SessionID)
+	if sessionID == "" {
+		return Envelope{}, fmt.Errorf("%w: session is required", ErrMissingField)
 	}
-
-	body := ReceiptBody{
-		ForID:      envelope.ID,
-		Status:     status,
-		ReasonCode: &reason,
-		Detail:     detail,
+	local, ok := r.peers.LocalBySession(sessionID)
+	if !ok {
+		return Envelope{}, fmt.Errorf("%w: session=%q", ErrLocalPeerNotFound, sessionID)
 	}
-	payload, err := marshalEnvelopeBody(body)
+	channel := strings.TrimSpace(req.Channel)
+	if channel == "" || channel != local.Channel {
+		return Envelope{}, fmt.Errorf("%w: session=%q channel=%q", ErrLocalPeerNotFound, sessionID, channel)
+	}
+	if workspaceID := strings.TrimSpace(req.WorkspaceID); workspaceID != "" && workspaceID != local.WorkspaceID {
+		return Envelope{}, fmt.Errorf("%w: session=%q workspace_id=%q", ErrLocalPeerNotFound, sessionID, workspaceID)
+	}
+	targetSessionID, err := r.resolveDirectedTargetSessionID(local.WorkspaceID, channel, req.To)
 	if err != nil {
-		return Envelope{}, false, err
+		return Envelope{}, err
 	}
-	receipt := Envelope{
-		Protocol:    ProtocolV0,
-		ID:          store.NewID("msg"),
-		WorkspaceID: envelope.WorkspaceID,
-		Kind:        KindReceipt,
-		Channel:     envelope.Channel,
-		Surface:     cloneSurfacePtr(envelope.Surface),
-		ThreadID:    normalizeOptionalIdentifier(envelope.ThreadID),
-		DirectID:    normalizeOptionalIdentifier(envelope.DirectID),
-		From:        local.PeerID,
-		To:          ptrString(envelope.From),
-		WorkID:      ptrString(*envelope.WorkID),
-		ReplyTo:     ptrString(envelope.ID),
-		TraceID:     normalizeOptionalIdentifier(envelope.TraceID),
-		CausationID: ptrString(envelope.ID),
-		TS:          now.Unix(),
-		Body:        payload,
-	}
-	return receipt, true, nil
+	return buildEnvelope(envelopeInput{
+		workspaceID: local.WorkspaceID, channel: channel, from: local.PeerID,
+		directIdentityFrom: local.SessionID,
+		directIdentityTo:   targetSessionID,
+		surface:            req.Surface, threadID: req.ThreadID, directID: req.DirectID, kind: req.Kind,
+		to: req.To, mentions: req.Mentions, body: req.Body, workID: req.WorkID, replyTo: req.ReplyTo,
+		traceID: req.TraceID, causationID: req.CausationID, expiresAt: req.ExpiresAt, id: req.ID, ext: req.Ext,
+	}, now, r.maxReplayAge)
 }
 
-func shouldEmitWorkReceipt(envelope Envelope) bool {
-	if envelope.WorkID == nil {
-		return false
+func (r *Router) buildRuntimeEnvelope(req RuntimeSendRequest, now time.Time) (Envelope, error) {
+	workspaceID := strings.TrimSpace(req.WorkspaceID)
+	if err := ValidateWorkspaceID(workspaceID); err != nil {
+		return Envelope{}, err
 	}
-	switch envelope.Kind {
-	case KindSay, KindCapability:
-		return true
-	default:
-		return false
+	channel := strings.TrimSpace(req.Channel)
+	if err := ValidateChannel(channel); err != nil {
+		return Envelope{}, err
 	}
-}
-
-func marshalEnvelopeBody(body Body) (json.RawMessage, error) {
-	payload, err := json.Marshal(body)
+	targetSessionID, err := r.resolveDirectedTargetSessionID(workspaceID, channel, req.To)
 	if err != nil {
-		return nil, fmt.Errorf("network: marshal envelope body: %w", err)
+		return Envelope{}, err
 	}
-	return payload, nil
+	return buildEnvelope(envelopeInput{
+		workspaceID: workspaceID, channel: channel, from: RuntimePeerID,
+		directIdentityFrom: runtimePeerSessionID,
+		directIdentityTo:   targetSessionID,
+		surface:            req.Surface, threadID: req.ThreadID, directID: req.DirectID, kind: req.Kind,
+		to: req.To, mentions: req.Mentions, body: req.Body, workID: req.WorkID, replyTo: req.ReplyTo,
+		traceID: req.TraceID, causationID: req.CausationID, expiresAt: req.ExpiresAt, id: req.ID, ext: req.Ext,
+	}, now, r.maxReplayAge)
 }
 
-func ptrString(value string) *string {
-	trimmed := strings.TrimSpace(value)
-	return &trimmed
-}
-
-func parseEnvelopeSummary(data []byte) *Envelope {
-	var env Envelope
-	if err := json.Unmarshal(data, &env); err != nil {
-		return nil
+func (r *Router) resolveDirectedTargetSessionID(
+	workspaceID string,
+	channel string,
+	peerID *string,
+) (string, error) {
+	if peerID == nil || r == nil || r.peers == nil {
+		return "", nil
 	}
-
-	return &Envelope{
-		Protocol:    strings.TrimSpace(env.Protocol),
-		ID:          strings.TrimSpace(env.ID),
-		WorkspaceID: strings.TrimSpace(env.WorkspaceID),
-		Kind:        Kind(strings.TrimSpace(string(env.Kind))),
-		Channel:     strings.TrimSpace(env.Channel),
-		Surface:     normalizeOptionalSurface(env.Surface),
-		ThreadID:    normalizeOptionalIdentifier(env.ThreadID),
-		DirectID:    normalizeOptionalIdentifier(env.DirectID),
-		From:        strings.TrimSpace(env.From),
-		To:          normalizeOptionalIdentifier(env.To),
-		Mentions:    normalizeEnvelopeMentions(env.Mentions),
-		WorkID:      normalizeOptionalIdentifier(env.WorkID),
-		ReplyTo:     normalizeOptionalIdentifier(env.ReplyTo),
-		TraceID:     normalizeOptionalIdentifier(env.TraceID),
-		CausationID: normalizeOptionalIdentifier(env.CausationID),
-		TS:          env.TS,
-		ExpiresAt:   cloneInt64Ptr(env.ExpiresAt),
-		Body:        cloneRawMessage(env.Body),
-		Proof:       cloneProof(env.Proof),
-		Ext:         cloneExtensionMap(env.Ext),
+	target := strings.TrimSpace(*peerID)
+	if target == "" {
+		return "", nil
 	}
-}
-
-func rejectionReceiptStatus(reason ReasonCode) (ReceiptStatus, bool) {
-	switch reason {
-	case ReasonCodeExpired:
-		return ReceiptStatusExpired, true
-	case ReasonCodeMalformed:
-		return ReceiptStatusRejected, true
-	default:
-		return "", false
+	peer, ok := r.peers.LocalByPeer(workspaceID, channel, target)
+	if !ok {
+		return "", fmt.Errorf(
+			"%w: peer_id=%q channel=%q",
+			ErrTargetPeerNotFound,
+			target,
+			channel,
+		)
 	}
-}
-
-func reasonCodeForReceiveError(err error) ReasonCode {
-	switch {
-	case errors.Is(err, ErrExpired), errors.Is(err, ErrReplayTooOld):
-		return ReasonCodeExpired
-	case errors.Is(err, ErrInvalidKind):
-		return ReasonCodeUnsupportedKind
-	case errors.Is(err, ErrVerificationFailed):
-		return ReasonCodeVerificationFailed
-	default:
-		return ReasonCodeMalformed
-	}
+	return strings.TrimSpace(peer.SessionID), nil
 }

@@ -30,6 +30,7 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 		handlers.Config.Network.Enabled = true
 
 		localSessionID := "sess-local"
+		remoteSessionID := "sess-remote"
 		handlers.Network = testutil.StubNetworkService{
 			ListPeersFn: func(_ context.Context, _ string, channel string) ([]network.PeerInfo, error) {
 				if channel != "builders" {
@@ -43,21 +44,22 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 						SessionID: &localSessionID,
 					},
 					{
-						PeerID:  "reviewer.sess-xyz",
-						Channel: "builders",
+						PeerID:    "reviewer.sess-xyz",
+						Channel:   "builders",
+						SessionID: &remoteSessionID,
 					},
 				}, nil
 			},
 		}
 
-		wantDirectID, wantPeerA, wantPeerB, err := network.DirectRoomIdentity(
+		wantDirectID, wantSessionA, wantSessionB, err := store.NetworkDirectRoomIdentity(
 			networkHTTPTestWorkspaceID,
 			"builders",
-			"coder.sess-abc",
-			"reviewer.sess-xyz",
+			localSessionID,
+			remoteSessionID,
 		)
 		if err != nil {
-			t.Fatalf("DirectRoomIdentity() error = %v", err)
+			t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
 		}
 		handlers.NetworkStore = testutil.StubNetworkStore{
 			ResolveDirectRoomFn: func(
@@ -66,15 +68,15 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 			) (store.NetworkDirectRoomSummary, error) {
 				if entry.Channel != "builders" ||
 					entry.DirectID != wantDirectID ||
-					entry.PeerA != wantPeerA ||
-					entry.PeerB != wantPeerB {
+					entry.SessionA != wantSessionA ||
+					entry.SessionB != wantSessionB {
 					t.Fatalf("ResolveDirectRoom() entry = %#v, want deterministic direct-room identity", entry)
 				}
 				return store.NetworkDirectRoomSummary{
 					Channel:        entry.Channel,
 					DirectID:       entry.DirectID,
-					PeerA:          entry.PeerA,
-					PeerB:          entry.PeerB,
+					SessionA:       entry.SessionA,
+					SessionB:       entry.SessionB,
 					OpenedAt:       time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
 					LastActivityAt: time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
 				}, nil
@@ -96,8 +98,8 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 		var payload contract.NetworkDirectRoomResponse
 		decodeJSONResponse(t, resp, &payload)
 		if payload.Direct.DirectID != wantDirectID ||
-			payload.Direct.PeerA != wantPeerA ||
-			payload.Direct.PeerB != wantPeerB {
+			payload.Direct.SessionA != wantSessionA ||
+			payload.Direct.SessionB != wantSessionB {
 			t.Fatalf("direct resolve payload = %#v, want deterministic room", payload.Direct)
 		}
 	})
@@ -182,7 +184,6 @@ func TestNetworkPeerMessagesKeepPresenceEpisodesScopedByRouting(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
 		handlers.Config.Network.Enabled = true
-		handlers.Config.Network.GreetInterval = 30
 		handlers.Network = testutil.StubNetworkService{
 			ListPeersFn: func(_ context.Context, _ string, channel string) ([]network.PeerInfo, error) {
 				if got, want := channel, ""; got != want {
@@ -258,28 +259,17 @@ func TestNetworkPeerMessagesKeepPresenceEpisodesScopedByRouting(t *testing.T) {
 
 		var payload contract.NetworkPeerMessagesResponse
 		decodeJSONResponse(t, resp, &payload)
-		if got, want := len(payload.Messages), 2; got != want {
+		if got, want := len(payload.Messages), 3; got != want {
 			t.Fatalf("len(messages) = %d, want %d", got, want)
 		}
 
-		threadEpisode := payload.Messages[0]
-		if got, want := threadEpisode.MessageID, "msg-thread-02"; got != want {
-			t.Fatalf("thread episode message_id = %q, want %q", got, want)
-		}
-		if got, want := threadEpisode.Surface, "thread"; got != want {
-			t.Fatalf("thread episode surface = %q, want %q", got, want)
-		}
-		if got, want := threadEpisode.ThreadID, "thread_alpha"; got != want {
-			t.Fatalf("thread episode thread_id = %q, want %q", got, want)
-		}
-		if got := threadEpisode.DirectID; got != "" {
-			t.Fatalf("thread episode direct_id = %q, want empty", got)
-		}
-		if got, want := threadEpisode.PresenceCount, 2; got != want {
-			t.Fatalf("thread episode presence_count = %d, want %d", got, want)
+		for index, messageID := range []string{"msg-thread-01", "msg-thread-02", "msg-direct-01"} {
+			if got := payload.Messages[index].MessageID; got != messageID {
+				t.Fatalf("messages[%d].message_id = %q, want %q", index, got, messageID)
+			}
 		}
 
-		directEpisode := payload.Messages[1]
+		directEpisode := payload.Messages[2]
 		if got, want := directEpisode.MessageID, "msg-direct-01"; got != want {
 			t.Fatalf("direct episode message_id = %q, want %q", got, want)
 		}
@@ -291,9 +281,6 @@ func TestNetworkPeerMessagesKeepPresenceEpisodesScopedByRouting(t *testing.T) {
 		}
 		if got := directEpisode.ThreadID; got != "" {
 			t.Fatalf("direct episode thread_id = %q, want empty", got)
-		}
-		if got, want := directEpisode.PresenceCount, 1; got != want {
-			t.Fatalf("direct episode presence_count = %d, want %d", got, want)
 		}
 	})
 }

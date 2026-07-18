@@ -75,8 +75,8 @@ func TestSeedConfigPersistsNetworkOverlay(t *testing.T) {
 	homePaths := NewHomePaths(t)
 	SeedConfig(t, homePaths, ConfigSeedOptions{
 		Mutate: func(cfg *aghconfig.Config) {
-			cfg.Network.Enabled = true
-			cfg.Network.DefaultChannel = "builders"
+			cfg.Network.Enabled = false
+			cfg.Network.Live.Defaults.MaxWakes = 12
 		},
 	})
 
@@ -84,11 +84,11 @@ func TestSeedConfigPersistsNetworkOverlay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadForHome() error = %v", err)
 	}
-	if !loaded.Network.Enabled {
-		t.Fatal("loaded.Network.Enabled = false, want true")
+	if loaded.Network.Enabled {
+		t.Fatal("loaded.Network.Enabled = true, want false")
 	}
-	if got, want := loaded.Network.DefaultChannel, "builders"; got != want {
-		t.Fatalf("loaded.Network.DefaultChannel = %q, want %q", got, want)
+	if got, want := loaded.Network.Live.Defaults.MaxWakes, 12; got != want {
+		t.Fatalf("loaded.Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
 	}
 }
 

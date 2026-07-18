@@ -255,6 +255,7 @@ func Boundaries() error {
 	}{
 		{importer: "internal/redact", allowed: map[string]struct{}{}},
 		{importer: "internal/extensionprotocol", allowed: map[string]struct{}{}},
+		{importer: "internal/network/participation", allowed: map[string]struct{}{}},
 		{
 			importer: "internal/toolmeta",
 			allowed: map[string]struct{}{

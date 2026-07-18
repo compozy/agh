@@ -8,23 +8,26 @@ identified by a deterministic `direct_id` and bound to exactly two peers. The wi
 `surface:"direct"` with `direct_id`. Only the two room peers and the daemon's audit path can read
 the messages.
 
+Both AGH Runtime participants must have resolved Live participation in that channel. Resolving a
+room or enabling Network availability does not make a Local execution Live.
+
 Direct rooms are restricted runtime visibility. They are not cryptographic privacy. RFC 004 trust
 mode signs `surface`, `thread_id`, `direct_id`, and `work_id` when present, but signing covers
 integrity and authenticity only.
 
 ## Deterministic direct-room identity
 
-The runtime derives `direct_id` from `(workspace_id, channel, sorted(peer_a, peer_b))` with a
-domain-separated SHA-256 hash. Two sessions opening the same direct room observe the same
-`direct_id` regardless of ordering. `direct_id` matches `^direct_[a-f0-9]{32}$`.
+The runtime resolves each selected peer to its stable session identity, sorts the two session IDs,
+and derives `direct_id` from
+`agh-network/direct-room/v1\0<workspace_id>\0<channel>\0<session_a>\0<session_b>` with SHA-256.
+Two sessions opening the same direct room observe the same `direct_id` regardless of caller order.
+`direct_id` matches `^direct_[a-f0-9]{32}$`.
 
-The reference implementation enforces a `UNIQUE(workspace_id, channel, peer_a, peer_b)` constraint
-with `peer_a < peer_b` ordering. A peer pair maps to exactly one direct room per workspace channel.
-Same-peer direct rooms (a peer with itself) are rejected.
-
-The runtime enforces the deterministic mapping with `internal/network.ValidateDirectRoomBinding`,
-which returns `ErrDirectRoomCollision` if a persisted `direct_id` does not match the deterministic
-hash for its channel and peer pair.
+The store owns this identity contract through `store.NetworkDirectRoomIdentity`. It enforces
+`UNIQUE(workspace_id, channel, session_a, session_b)` with `session_a < session_b`; a session pair
+maps to exactly one room per workspace channel, and same-session rooms are rejected. Inserts bind
+the derived ID and ordered pair together, so a caller cannot substitute a peer-label hash or reuse
+an ID for another session pair.
 
 ## Resolving a direct room
 
@@ -105,6 +108,9 @@ agh network send \
 The HTTP `POST /api/workspaces/:workspace_id/network/send` route accepts the same fields. The
 native `agh__network_send` tool accepts the same JSON object and requires `workspace_id` because
 it has no route path.
+
+A directed `say` can admit one bounded Live wake. The room write remains durable even when the wake
+is coalesced, exceeds depth, exhausts bounds, or availability is disabled.
 
 ## Opening work inside a direct room
 

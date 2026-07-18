@@ -46,13 +46,16 @@ const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 	)
 ), tasks.updated_at) DESC, updated_at DESC, created_at DESC, id DESC`
 
-const taskRunSelectColumnsSQL = `id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+const taskRunSelectColumnsSQL = `
+	id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
 	claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-	network_channel, designation_group_id, '' AS claim_token,
-	claim_token_hash, lease_until, heartbeat_at, coordination_channel_id, queued_at,
+	network_spec_json, network_mode, network_channel, network_source,
+	designation_group_id, '' AS claim_token,
+	claim_token_hash, lease_until, heartbeat_at, queued_at,
 	claimed_at, started_at, ended_at, tokens_used, error, metadata_json, result_json, review_required,
 	review_request_round, review_policy_snapshot, review_request_id, parent_run_id, review_id,
-	review_round, continuation_reason, missing_work_json, next_round_guidance`
+	review_round, continuation_reason, missing_work_json, next_round_guidance,
+	network_wake_id, network_target_session_id, network_owner_key`
 
 const taskLatestEventSeqSelectSQL = `COALESCE((
 	SELECT MAX(te.event_seq)
@@ -224,7 +227,7 @@ func (g *TaskRepo) ListTasks(
 	normalized := normalizeTaskQuery(query)
 	// dynamic-sql: optional task filters, full-text matching, activity ordering, and limit alter the query shape.
 	sqlQuery := `SELECT
-		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+		id, identifier, scope, workspace_id, parent_task_id, title, description,
 		priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
 		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 		created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `,
@@ -241,7 +244,6 @@ func (g *TaskRepo) ListTasks(
 		store.StringClause("owner_kind", string(normalized.OwnerKind)),
 		store.StringClause("owner_ref", normalized.OwnerRef),
 		store.StringClause("parent_task_id", normalized.ParentTaskID),
-		store.StringClause("network_channel", normalized.NetworkChannel),
 		store.StringClause("created_by_kind", string(normalized.CreatedByKind)),
 		store.StringClause("created_by_ref", normalized.CreatedByRef),
 	)

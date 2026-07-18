@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-// ListThreadParticipants returns peers recorded in one public thread.
+// ListThreadParticipants returns sessions recorded in one public thread.
 func (g *NetworkRepo) ListThreadParticipants(
 	ctx context.Context,
 	ref store.NetworkChannelRef,
@@ -49,19 +49,19 @@ func (g *NetworkRepo) ListThreadParticipants(
 		}
 		participants = append(participants, store.NetworkThreadParticipant{
 			WorkspaceID: row.WorkspaceID, Channel: row.Channel, ThreadID: row.ThreadID,
-			PeerID: row.PeerID, FirstMessageID: row.FirstMessageID,
+			SessionID: row.SessionID, FirstMessageID: row.FirstMessageID,
 			FirstSeenAt: firstSeenAt, LastSeenAt: lastSeenAt,
 		})
 	}
 	return participants, nil
 }
 
-// UpdateNetworkThreadPeerTokenStats merges one delivered prompt into the thread/peer aggregate.
-func (g *NetworkRepo) UpdateNetworkThreadPeerTokenStats(
+// UpdateNetworkThreadSessionTokenStats merges one delivered prompt into the thread/session aggregate.
+func (g *NetworkRepo) UpdateNetworkThreadSessionTokenStats(
 	ctx context.Context,
-	update store.NetworkThreadPeerTokenStatsUpdate,
+	update store.NetworkThreadSessionTokenStatsUpdate,
 ) error {
-	if err := g.checkReady(ctx, "update network thread peer token stats"); err != nil {
+	if err := g.checkReady(ctx, "update network thread session token stats"); err != nil {
 		return err
 	}
 	if err := update.Validate(); err != nil {
@@ -77,11 +77,11 @@ func (g *NetworkRepo) UpdateNetworkThreadPeerTokenStats(
 		update.UpdatedAt = g.now()
 	}
 
-	if err := g.queries.UpsertNetworkThreadPeerTokenStats(
+	if err := g.queries.UpsertNetworkThreadSessionTokenStats(
 		ctx,
-		sqlcgen.UpsertNetworkThreadPeerTokenStatsParams{
+		sqlcgen.UpsertNetworkThreadSessionTokenStatsParams{
 			WorkspaceID: strings.TrimSpace(update.WorkspaceID), Channel: strings.TrimSpace(update.Channel),
-			ThreadID: strings.TrimSpace(update.ThreadID), PeerID: strings.TrimSpace(update.PeerID),
+			ThreadID: strings.TrimSpace(update.ThreadID), SessionID: strings.TrimSpace(update.SessionID),
 			DeliveredCount: update.DeliveredCount, PromptSizeBytes: update.PromptSizeBytes,
 			EstimatedPromptTokens: update.EstimatedPromptTokens,
 			FirstDeliveredAt:      store.FormatTimestamp(update.DeliveredAt),
@@ -89,44 +89,44 @@ func (g *NetworkRepo) UpdateNetworkThreadPeerTokenStats(
 			UpdatedAt:             store.FormatTimestamp(update.UpdatedAt),
 		},
 	); err != nil {
-		return fmt.Errorf("store: upsert network thread peer token stats: %w", err)
+		return fmt.Errorf("store: upsert network thread session token stats: %w", err)
 	}
 	return nil
 }
 
-// ListNetworkThreadPeerTokenStats returns prompt-cost aggregates for one public thread.
-func (g *NetworkRepo) ListNetworkThreadPeerTokenStats(
+// ListNetworkThreadSessionTokenStats returns prompt-cost aggregates for one public thread.
+func (g *NetworkRepo) ListNetworkThreadSessionTokenStats(
 	ctx context.Context,
-	query store.NetworkThreadPeerTokenStatsQuery,
-) (stats []store.NetworkThreadPeerTokenStats, err error) {
-	if err := g.checkReady(ctx, "list network thread peer token stats"); err != nil {
+	query store.NetworkThreadSessionTokenStatsQuery,
+) (stats []store.NetworkThreadSessionTokenStats, err error) {
+	if err := g.checkReady(ctx, "list network thread session token stats"); err != nil {
 		return nil, err
 	}
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
 
-	// dynamic-sql: optional thread/peer filters and the caller-provided limit change the statement shape.
-	sqlQuery := `SELECT workspace_id, channel, thread_id, peer_id, delivered_count, prompt_size_bytes,
+	// dynamic-sql: optional thread/session filters and the caller-provided limit change the statement shape.
+	sqlQuery := `SELECT workspace_id, channel, thread_id, session_id, delivered_count, prompt_size_bytes,
 		estimated_prompt_tokens, first_delivered_at, last_delivered_at, updated_at
-		FROM network_thread_peer_token_stats`
+		FROM network_thread_session_token_stats`
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("channel", query.Channel),
 		store.StringClause("thread_id", query.ThreadID),
-		store.StringClause("peer_id", query.PeerID),
+		store.StringClause("session_id", query.SessionID),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY last_delivered_at DESC, peer_id ASC"
+	sqlQuery += " ORDER BY last_delivered_at DESC, session_id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, fmt.Errorf("store: query network thread peer token stats: %w", err)
+		return nil, fmt.Errorf("store: query network thread session token stats: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			closeErr = fmt.Errorf("store: close network thread peer token stats rows: %w", closeErr)
+			closeErr = fmt.Errorf("store: close network thread session token stats rows: %w", closeErr)
 			if err != nil {
 				err = errors.Join(err, closeErr)
 				return
@@ -135,23 +135,23 @@ func (g *NetworkRepo) ListNetworkThreadPeerTokenStats(
 		}
 	}()
 
-	stats = make([]store.NetworkThreadPeerTokenStats, 0)
+	stats = make([]store.NetworkThreadSessionTokenStats, 0)
 	for rows.Next() {
-		stat, scanErr := scanNetworkThreadPeerTokenStats(rows)
+		stat, scanErr := scanNetworkThreadSessionTokenStats(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
 		stats = append(stats, stat)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate network thread peer token stats: %w", err)
+		return nil, fmt.Errorf("store: iterate network thread session token stats: %w", err)
 	}
 	return stats, nil
 }
 
-func scanNetworkThreadPeerTokenStats(scanner rowScanner) (store.NetworkThreadPeerTokenStats, error) {
+func scanNetworkThreadSessionTokenStats(scanner rowScanner) (store.NetworkThreadSessionTokenStats, error) {
 	var (
-		stats     store.NetworkThreadPeerTokenStats
+		stats     store.NetworkThreadSessionTokenStats
 		firstRaw  string
 		lastRaw   string
 		updateRaw string
@@ -160,7 +160,7 @@ func scanNetworkThreadPeerTokenStats(scanner rowScanner) (store.NetworkThreadPee
 		&stats.WorkspaceID,
 		&stats.Channel,
 		&stats.ThreadID,
-		&stats.PeerID,
+		&stats.SessionID,
 		&stats.DeliveredCount,
 		&stats.PromptSizeBytes,
 		&stats.EstimatedPromptTokens,
@@ -168,26 +168,29 @@ func scanNetworkThreadPeerTokenStats(scanner rowScanner) (store.NetworkThreadPee
 		&lastRaw,
 		&updateRaw,
 	); err != nil {
-		return store.NetworkThreadPeerTokenStats{}, fmt.Errorf("store: scan network thread peer token stats: %w", err)
+		return store.NetworkThreadSessionTokenStats{}, fmt.Errorf(
+			"store: scan network thread session token stats: %w",
+			err,
+		)
 	}
 	firstDeliveredAt, err := store.ParseTimestamp(firstRaw)
 	if err != nil {
-		return store.NetworkThreadPeerTokenStats{}, fmt.Errorf(
-			"store: parse network thread peer token stats first_delivered_at: %w",
+		return store.NetworkThreadSessionTokenStats{}, fmt.Errorf(
+			"store: parse network thread session token stats first_delivered_at: %w",
 			err,
 		)
 	}
 	lastDeliveredAt, err := store.ParseTimestamp(lastRaw)
 	if err != nil {
-		return store.NetworkThreadPeerTokenStats{}, fmt.Errorf(
-			"store: parse network thread peer token stats last_delivered_at: %w",
+		return store.NetworkThreadSessionTokenStats{}, fmt.Errorf(
+			"store: parse network thread session token stats last_delivered_at: %w",
 			err,
 		)
 	}
 	updatedAt, err := store.ParseTimestamp(updateRaw)
 	if err != nil {
-		return store.NetworkThreadPeerTokenStats{}, fmt.Errorf(
-			"store: parse network thread peer token stats updated_at: %w",
+		return store.NetworkThreadSessionTokenStats{}, fmt.Errorf(
+			"store: parse network thread session token stats updated_at: %w",
 			err,
 		)
 	}

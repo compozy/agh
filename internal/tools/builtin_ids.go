@@ -22,6 +22,8 @@ const (
 	ToolIDNetworkPeers ToolID = "agh__network_peers"
 	// ToolIDNetworkStatus reads daemon-owned network runtime status.
 	ToolIDNetworkStatus ToolID = "agh__network_status"
+	// ToolIDNetworkUsage reads bounded workspace-scoped network wake usage.
+	ToolIDNetworkUsage ToolID = "agh__network_usage"
 	// ToolIDNetworkChannels lists active AGH network channels.
 	ToolIDNetworkChannels ToolID = "agh__network_channels"
 	// ToolIDNetworkInbox reads queued inbound network messages for one local session.
@@ -38,8 +40,6 @@ const (
 	ToolIDNetworkSubscribe ToolID = "agh__network_subscribe"
 	// ToolIDNetworkMute mutes one AGH network delivery preference.
 	ToolIDNetworkMute ToolID = "agh__network_mute"
-	// ToolIDNetworkDigestMode sets one AGH network delivery preference to digest mode.
-	ToolIDNetworkDigestMode ToolID = "agh__network_digest_mode"
 	// ToolIDNetworkUnmute removes one AGH network delivery preference.
 	ToolIDNetworkUnmute ToolID = "agh__network_unmute"
 	// ToolIDNetworkThreads lists public network thread summaries.

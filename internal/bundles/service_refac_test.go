@@ -210,12 +210,11 @@ func TestServiceRefacs(t *testing.T) {
 		service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
 		activationID := ActivationResourceID("marketing-team", "marketing", "default", ScopeGlobal, "")
 		store.activations[activationID] = Activation{
-			ID:                          activationID,
-			ExtensionName:               "marketing-team",
-			BundleName:                  "marketing",
-			ProfileName:                 "default",
-			Scope:                       ScopeGlobal,
-			BindPrimaryChannelAsDefault: true,
+			ID:            activationID,
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
 		}
 		syncErr := errors.New("sync failed")
 		store.applyErr = syncErr
@@ -227,12 +226,6 @@ func TestServiceRefacs(t *testing.T) {
 		settings, err := service.NetworkSettings(testutil.Context(t))
 		if err != nil {
 			t.Fatalf("NetworkSettings() error = %v", err)
-		}
-		if got, want := settings.EffectiveDefaultChannel, "default"; got != want {
-			t.Fatalf("EffectiveDefaultChannel after failed reconcile = %q, want %q", got, want)
-		}
-		if got, want := settings.EffectiveDefaultSource, "config"; got != want {
-			t.Fatalf("EffectiveDefaultSource after failed reconcile = %q, want %q", got, want)
 		}
 		if got := len(settings.DeclaredChannels); got != 0 {
 			t.Fatalf("len(DeclaredChannels) after failed reconcile = %d, want 0", got)

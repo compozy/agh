@@ -6,6 +6,7 @@ import (
 	"time"
 
 	automation "github.com/compozy/agh/internal/automation/model"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -33,7 +34,9 @@ func normalizeAutomationJob(job automation.Job) automation.Job {
 		taskConfig := *job.Task
 		taskConfig.Title = strings.TrimSpace(taskConfig.Title)
 		taskConfig.Description = strings.TrimSpace(taskConfig.Description)
-		taskConfig.NetworkChannel = strings.TrimSpace(taskConfig.NetworkChannel)
+		taskConfig.NetworkParticipation = normalizeAutomationParticipationIntent(
+			taskConfig.NetworkParticipation,
+		)
 		if taskConfig.Owner != nil {
 			owner := *taskConfig.Owner
 			owner.Kind = taskpkg.OwnerKind(strings.TrimSpace(string(owner.Kind)))
@@ -83,7 +86,21 @@ func normalizeAutomationRun(run automation.Run) automation.Run {
 	run.Status = automation.RunStatus(strings.TrimSpace(string(run.Status)))
 	run.Error = strings.TrimSpace(run.Error)
 	run.DeliveryError = strings.TrimSpace(run.DeliveryError)
+	run.NetworkParticipation = normalizeAutomationParticipationIntent(run.NetworkParticipation)
 	return run
+}
+
+func normalizeAutomationParticipationIntent(
+	request *participation.Request,
+) *participation.Request {
+	if request == nil {
+		return nil
+	}
+	normalized, err := participation.NormalizeIntent(*request)
+	if err != nil {
+		return request
+	}
+	return &normalized
 }
 
 func normalizeJobOverlay(overlay automation.JobEnabledOverlay, now time.Time) (automation.JobEnabledOverlay, error) {

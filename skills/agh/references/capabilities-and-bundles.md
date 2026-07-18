@@ -62,6 +62,8 @@ UI-only management is incomplete.
 
 Bundles activate related runtime resources together. Treat bundle projection as daemon-owned state. Do not make a bundle depend on prompt prose for authority.
 
+Bundle activation reads expose `version`. Before confirming a changed Live requirement, read the activation with `agh bundle get <id> -o json`, then pass that value to `agh bundle update <id> --expected-version <version> --confirm-network-requirement -o json`. A `409 Conflict` means the activation changed; reread it and inspect the current digest instead of retrying with a stale version.
+
 When changing bundle behavior, update resources, registries, config docs, CLI/API surfaces, and tests in the same change. Greenfield AGH favors hard cuts over compatibility bridges.
 
 Activation list and detail payloads expose `spec_drift` by comparing the stored activation spec hash with the current installed bundle profile. Use `agh bundle list -o json` or the activation API to inspect it. Reapply with `agh bundle update <activation-id> -o json`; a successful reapply reconciles current resources, stores the current hash, and clears drift. Activation timestamps are informational and never signal bundle updates.
@@ -98,6 +100,11 @@ Hooks may deny, narrow, annotate, or observe. They must not bypass safety primit
 Skill-declared hooks are part of the skill contract. Keep hook declarations structured and validated, not buried in prose.
 
 Loop lifecycle hooks use the `loop.*` family for generation, gate, node-terminal, and terminal call sites. `loop.generation.pre` and `loop.gate.pre` are sync control hooks; node and terminal wake behavior is daemon-owned and fail-open.
+
+Network participation exposes `network.participation.pre_resolve` for deny-or-narrow control and
+`network.participation.resolved` for post-commit observation. The runtime derives whether a patch
+widens intent; a hook cannot self-authorize enrollment. Match either event by `workspace_id`,
+`channel`, `participation_mode`, or `participation_source`.
 
 ## Config Lifecycle
 

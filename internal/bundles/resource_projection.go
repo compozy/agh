@@ -14,10 +14,6 @@ import (
 	"github.com/compozy/agh/internal/soul"
 )
 
-const (
-	resourceProjectionConfigKey = "config"
-)
-
 // BundleActivationResourcePlan is the owned-resource composition plan produced from bundle.activation records.
 type BundleActivationResourcePlan struct {
 	revision            int64
@@ -35,8 +31,6 @@ type BundleActivationResourcePlan struct {
 	jobOwners           map[string]string
 	triggerOwners       map[string]string
 	bridgeOwners        map[string]string
-	effectiveDefault    string
-	effectiveSource     string
 	declaredChannels    []DeclaredChannel
 }
 
@@ -72,6 +66,8 @@ func (s *Service) Build(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 
 	activations := make([]Activation, 0, len(activationRecords))
 	var revision int64
@@ -85,6 +81,9 @@ func (s *Service) Build(
 		if record.Version > revision {
 			revision = record.Version
 		}
+	}
+	if _, err := s.reconcileNetworkRequirementDigests(ctx, activations); err != nil {
+		return nil, err
 	}
 
 	state, err := s.collectDesiredStateFromBundleRecords(ctx, activations, bundleRecords)
@@ -110,8 +109,6 @@ func (s *Service) Build(
 		jobOwners:           owners.jobs,
 		triggerOwners:       owners.triggers,
 		bridgeOwners:        owners.bridges,
-		effectiveDefault:    strings.TrimSpace(state.effectiveDefault),
-		effectiveSource:     strings.TrimSpace(state.effectiveSource),
 		declaredChannels:    state.declaredChannels,
 	}, nil
 }
@@ -206,7 +203,7 @@ func (s *Service) Apply(ctx context.Context, plan resources.ProjectionPlan) erro
 	if err := s.store.ApplyBundleActivationResources(ctx, *typed); err != nil {
 		return err
 	}
-	s.applyNetworkSettings(typed.effectiveDefault, typed.effectiveSource, typed.declaredChannels)
+	s.applyNetworkSettings(typed.declaredChannels)
 	return nil
 }
 
@@ -227,11 +224,8 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 		desiredBridges:        make([]bridgepkg.BridgeInstance, 0, capacity.bridges),
 		inventoryByActivation: make(map[string][]InventoryItem, len(activations)),
 		declaredChannels:      make([]DeclaredChannel, 0, capacity.channels),
-		effectiveDefault:      strings.TrimSpace(s.configuredDefault),
-		effectiveSource:       resourceProjectionConfigKey,
 	}
 
-	claimedActivation := ""
 	errs := make([]error, 0)
 	for _, activation := range activations {
 		state.activeActivationIDs[strings.TrimSpace(activation.ID)] = struct{}{}
@@ -250,17 +244,7 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 		state.desiredJobs = append(state.desiredJobs, resolved.jobs...)
 		state.desiredTriggers = append(state.desiredTriggers, resolved.triggers...)
 		state.desiredBridges = append(state.desiredBridges, resolved.bridges...)
-		claimedActivation, state.effectiveDefault, state.effectiveSource, resolveErr =
-			resolveActivationDefaultChannel(
-				activation,
-				resolved.profile,
-				claimedActivation,
-				state.effectiveDefault,
-				state.effectiveSource,
-			)
-		if resolveErr != nil {
-			errs = append(errs, resolveErr)
-		}
+		s.warnSpecHashDrift(ctx, activation, resolved.specContentHash)
 	}
 	if err := validateDesiredAgentScopeConflicts(state.desiredAgents); err != nil {
 		errs = append(errs, err)

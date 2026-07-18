@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"
 )
@@ -83,8 +84,9 @@ func GateFromContract(id string, contract dsl.Contract, maxRevisions int) Gate {
 //
 //revive:disable-next-line:exported // GateInput is the TechSpec contract name.
 type GateInput struct {
+	LoopRunID                string
 	Placement                Placement
-	Contract                 dsl.Contract
+	Contract                 *dsl.Contract
 	TemplateData             map[string]any
 	Revision                 int
 	BrokenJudgeStreak        int
@@ -96,6 +98,7 @@ type GateInput struct {
 	JudgeModel               string
 	JudgeUsageReporter       JudgeUsageReporter
 	JudgeEvidence            JudgeEvidence
+	NetworkParticipation     *participation.Spec
 }
 
 // JudgeEvidence is the authoritative completed candidate supplied to an agent judge.
@@ -246,15 +249,17 @@ type JudgeRunner interface {
 
 // JudgeRequest is the rendered agent-judge invocation.
 type JudgeRequest struct {
-	GateID        string
-	CriterionID   string
-	Attempt       int
-	CorrelationID string
-	WorkspaceID   string
-	Agent         string
-	Model         string
-	Rubric        string
-	Contract      dsl.Contract
+	LoopRunID            string
+	GateID               string
+	CriterionID          string
+	Attempt              int
+	CorrelationID        string
+	WorkspaceID          string
+	Agent                string
+	Model                string
+	Rubric               string
+	Contract             dsl.Contract
+	NetworkParticipation *participation.Spec
 }
 
 // JudgeResponse is the raw judge response payload.

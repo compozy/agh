@@ -16,77 +16,10 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/gate"
-	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/session"
 	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
-
-func TestLoopRuntimeSessionChannelShouldMatchNetworkGrammar(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name        string
-		workspaceID string
-		suffix      string
-		want        string
-	}{
-		{
-			name:        "Should preserve generated workspace ids",
-			workspaceID: "ws_524b04478f9c1062",
-			suffix:      "main",
-			want:        "loop_ws_524b04478f9c1062_main",
-		},
-		{
-			name:        "Should normalize invalid separators",
-			workspaceID: "WS:Alpha/Primary",
-			suffix:      "Review Gate:Approval",
-			want:        "loop_ws_alpha_primary_review_gate_approval",
-		},
-		{
-			name:        "Should fall back for empty fragments",
-			workspaceID: " ",
-			suffix:      " ",
-			want:        "loop_workspace_main",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := loopRuntimeSessionChannel(looppkg.WorkspaceID(tc.workspaceID), tc.suffix)
-			if got != tc.want {
-				t.Fatalf("loopRuntimeSessionChannel() = %q, want %q", got, tc.want)
-			}
-			if err := network.ValidateChannel(got); err != nil {
-				t.Fatalf("ValidateChannel(%q) error = %v", got, err)
-			}
-		})
-	}
-}
-
-func TestLoopRuntimeSessionChannelShouldBoundLongHandles(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should bound long handles and keep workspace scoped prefix", func(t *testing.T) {
-		t.Parallel()
-
-		got := loopRuntimeSessionChannel(
-			looppkg.WorkspaceID("ws_524b04478f9c1062"),
-			strings.Repeat("long-node-handle-", 8),
-		)
-		if len(got) > 64 {
-			t.Fatalf("loopRuntimeSessionChannel() length = %d, want <= 64: %q", len(got), got)
-		}
-		if err := network.ValidateChannel(got); err != nil {
-			t.Fatalf("ValidateChannel(%q) error = %v", got, err)
-		}
-		if !strings.HasPrefix(got, "loop_ws_524b04478f9c1062_") {
-			t.Fatalf("loopRuntimeSessionChannel() = %q, want workspace-scoped prefix", got)
-		}
-	})
-}
 
 func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 	t.Parallel()
@@ -106,6 +39,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			Permissions: string(aghconfig.PermissionModeDenyAll),
 		}})
 		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-policy"}
+		loopParticipation := daemonTestLiveParticipation("ws-loop", "loop-run-channel")
 		binder := &loopActionSessionBinder{
 			sessions: sessions,
 			policyGate: &loopSessionPolicyGate{
@@ -116,11 +50,13 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 
 		binding, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
-			WorkspaceID:   looppkg.WorkspaceID("ws-loop"),
-			Agent:         "task-worker",
-			Handle:        "execute_task",
-			AllowedTools:  []string{allowedTools[1], allowedTools[0], allowedTools[0]},
-			ContractBlock: "Follow the loop contract.",
+			WorkspaceID:          looppkg.WorkspaceID("ws-loop"),
+			LoopRunID:            looppkg.RunID("loop-run-policy"),
+			Agent:                "task-worker",
+			Handle:               "execute_task",
+			AllowedTools:         []string{allowedTools[1], allowedTools[0], allowedTools[0]},
+			ContractBlock:        "Follow the loop contract.",
+			NetworkParticipation: new(loopParticipation),
 		})
 		if err != nil {
 			t.Fatalf("BindActionSession() error = %v", err)
@@ -140,6 +76,12 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 		if got, want := createCall.Workspace, "ws-loop"; got != want {
 			t.Fatalf("CreateOpts.Workspace = %q, want %q", got, want)
+		}
+		if got := participationSnapshotValue(createCall.ResolvedNetworkParticipation); got != loopParticipation {
+			t.Fatalf("CreateOpts participation = %#v, want owner-bound %#v", got, loopParticipation)
+		}
+		if got, want := createCall.NetworkOwnerKey, "loop_run:loop-run-policy"; got != want {
+			t.Fatalf("CreateOpts.NetworkOwnerKey = %q, want %q", got, want)
 		}
 		if !slices.Equal(createCall.AllowedToolsOverride, allowedTools) {
 			t.Fatalf(
@@ -241,6 +183,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 				Text: `{"verdict":"pass","evidence":{"checked":true}}`,
 			}},
 		}
+		loopParticipation := daemonTestLiveParticipation("ws-loop", "loop-run-channel")
 		runner := &loopGateJudgeRunner{
 			sessions: sessions,
 			policyGate: &loopSessionPolicyGate{
@@ -252,13 +195,15 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 
 		_, err := runner.Judge(context.Background(), gate.JudgeRequest{
-			GateID:        "quality-gate",
-			CriterionID:   "review",
-			Attempt:       2,
-			CorrelationID: "goal-judge:stable-attempt",
-			WorkspaceID:   "ws-loop",
-			Agent:         "loop-judge",
-			Rubric:        "Review the evidence.",
+			GateID:               "quality-gate",
+			CriterionID:          "review",
+			LoopRunID:            "loop-run-judge",
+			Attempt:              2,
+			CorrelationID:        "goal-judge:stable-attempt",
+			WorkspaceID:          "ws-loop",
+			Agent:                "loop-judge",
+			Rubric:               "Review the evidence.",
+			NetworkParticipation: new(loopParticipation),
 		})
 		if err != nil {
 			t.Fatalf("Judge() error = %v", err)
@@ -269,6 +214,12 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 		if got, want := createCall.Permissions, aghconfig.PermissionModeDenyAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
+		}
+		if got := participationSnapshotValue(createCall.ResolvedNetworkParticipation); got != loopParticipation {
+			t.Fatalf("CreateOpts participation = %#v, want owner-bound %#v", got, loopParticipation)
+		}
+		if got, want := createCall.NetworkOwnerKey, "loop_run:loop-run-judge"; got != want {
+			t.Fatalf("CreateOpts.NetworkOwnerKey = %q, want %q", got, want)
 		}
 		if got, want := sessions.stopCount(), 1; got != want {
 			t.Fatalf("Stop call count = %d, want %d", got, want)
@@ -686,6 +637,10 @@ type loopActionBinderSessionManager struct {
 	stopSawCanceledContexts  []bool
 }
 
+func (m *loopActionBinderSessionManager) Status(context.Context, string) (*session.Info, error) {
+	return nil, session.ErrSessionNotFound
+}
+
 func (m *loopActionBinderSessionManager) Create(
 	_ context.Context,
 	opts session.CreateOpts,
@@ -701,16 +656,16 @@ func (m *loopActionBinderSessionManager) Create(
 		sessionID = "sess-loop-action"
 	}
 	created := &session.Session{
-		ID:          sessionID,
-		Name:        opts.Name,
-		AgentName:   opts.AgentName,
-		Model:       opts.Model,
-		WorkspaceID: opts.Workspace,
-		Workspace:   firstNonEmpty(opts.Workspace, opts.WorkspacePath),
-		Channel:     opts.Channel,
-		Type:        opts.Type,
-		State:       session.StateActive,
-		CreatedAt:   time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC),
+		ID:                   sessionID,
+		Name:                 opts.Name,
+		AgentName:            opts.AgentName,
+		Model:                opts.Model,
+		WorkspaceID:          opts.Workspace,
+		Workspace:            firstNonEmpty(opts.Workspace, opts.WorkspacePath),
+		NetworkParticipation: daemonTestParticipationFromCreateOpts(opts),
+		Type:                 opts.Type,
+		State:                session.StateActive,
+		CreatedAt:            time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC),
 	}
 	return created, m.createErr
 }
@@ -888,6 +843,10 @@ type loopPromptResultSessionManager struct {
 
 func (m loopPromptResultSessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {
 	return nil, errors.New("unexpected Create call")
+}
+
+func (m loopPromptResultSessionManager) Status(context.Context, string) (*session.Info, error) {
+	return nil, errors.New("unexpected Status call")
 }
 
 func (m loopPromptResultSessionManager) Prompt(

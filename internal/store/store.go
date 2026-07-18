@@ -41,6 +41,8 @@ var (
 	ErrNetworkWorkClosed = errors.New("store: network work closed")
 	// ErrNetworkCursorInvalid reports a malformed or query-mismatched network list cursor.
 	ErrNetworkCursorInvalid = errors.New("store: network cursor invalid")
+	// ErrNetworkChannelExists reports an attempted create for an existing workspace channel.
+	ErrNetworkChannelExists = errors.New("store: network channel already exists")
 )
 
 // EventRecorder captures session events and token usage in the per-session database.
@@ -94,6 +96,7 @@ type NetworkAuditStore interface {
 
 // NetworkChannelStore manages durable network channel metadata.
 type NetworkChannelStore interface {
+	CreateNetworkChannel(ctx context.Context, entry NetworkChannelEntry) error
 	WriteNetworkChannel(ctx context.Context, entry NetworkChannelEntry) error
 	GetNetworkChannel(ctx context.Context, ref NetworkChannelRef) (NetworkChannelEntry, error)
 	ListNetworkChannels(ctx context.Context, query NetworkChannelQuery) ([]NetworkChannelEntry, error)
@@ -167,13 +170,70 @@ type NetworkConversationStore interface {
 	GetWork(ctx context.Context, workspaceID string, workID string) (NetworkWorkEntry, error)
 }
 
+// NetworkAcceptanceStore owns atomic message acceptance and wake accounting.
+type NetworkAcceptanceStore interface {
+	AcceptNetworkMessage(
+		ctx context.Context,
+		req AcceptNetworkMessageRequest,
+	) (AcceptNetworkMessageResult, error)
+}
+
+// NetworkInboxStore reads immutable delivered dispositions by durable session identity.
+type NetworkInboxStore interface {
+	ListNetworkInbox(
+		ctx context.Context,
+		workspaceID string,
+		sessionID string,
+		channel string,
+		limit int,
+	) ([]NetworkMessageEntry, error)
+}
+
+// NetworkTaskStatusProjectionStore persists typed task transitions for subscribed recipients.
+type NetworkTaskStatusProjectionStore interface {
+	ListNetworkTaskStatusProjections(
+		ctx context.Context,
+		query NetworkTaskStatusProjectionQuery,
+	) ([]NetworkTaskStatusProjection, error)
+}
+
+// NetworkCausationStore resolves durable wake ancestry for bounded reply chains.
+type NetworkCausationStore interface {
+	ResolveNetworkCausation(
+		ctx context.Context,
+		workspaceID string,
+		causationID string,
+	) (rootID string, depth int, found bool, err error)
+}
+
+// NetworkWakeQueueStore reads committed wake work for daemon execution.
+type NetworkWakeQueueStore interface {
+	ListQueuedNetworkWakes(
+		ctx context.Context,
+		limit int,
+	) ([]CommittedNetworkNotification, error)
+	LoadNetworkWake(
+		ctx context.Context,
+		workspaceID string,
+		wakeID string,
+	) (WakeReservation, []NetworkMessageEntry, error)
+}
+
+// NetworkUsageStore reads truthful wake-ledger detail and aggregates.
+type NetworkUsageStore interface {
+	GetNetworkUsage(ctx context.Context, query NetworkUsageQuery) (NetworkUsageReport, error)
+}
+
 // NetworkPreferenceStore manages network delivery preferences and network-task links.
 type NetworkPreferenceStore interface {
 	PutNetworkSubscription(ctx context.Context, entry NetworkSubscriptionEntry) error
+	PutNetworkSubscriptionWithChannel(
+		ctx context.Context,
+		channel NetworkChannelEntry,
+		entry NetworkSubscriptionEntry,
+	) error
 	ListNetworkSubscriptions(ctx context.Context, query NetworkSubscriptionQuery) ([]NetworkSubscriptionEntry, error)
 	DeleteNetworkSubscription(ctx context.Context, ref NetworkSubscriptionRef) error
-	GetNetworkDeliveryGuidanceState(ctx context.Context, key string) (NetworkDeliveryGuidanceState, error)
-	PutNetworkDeliveryGuidanceState(ctx context.Context, state NetworkDeliveryGuidanceState) error
 	PutNetworkTaskThreadOrigin(ctx context.Context, origin NetworkTaskThreadOrigin) error
 	ListNetworkTaskThreadOrigins(
 		ctx context.Context,

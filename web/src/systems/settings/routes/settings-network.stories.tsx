@@ -30,7 +30,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Default network settings page with listener, delivery and channel defaults.
+ * Default network settings page with truthful availability and finite Live bounds.
  */
 export const Default: Story = {
   args: {},
@@ -39,7 +39,7 @@ export const Default: Story = {
 };
 
 /**
- * Dirty shell state -- the listener port has been edited so the save-bar reads
+ * Dirty shell state -- the Live wake default has been edited so the save-bar reads
  * Unsaved changes + the Save button enables.
  */
 export const Dirty: Story = {
@@ -48,13 +48,13 @@ export const Dirty: Story = {
   render: () => (
     <>
       <StorybookWorkspaceSetup />
-      <StorybookFieldDirtySetup testId="settings-page-network-port-input" value="4200" />
+      <StorybookFieldDirtySetup testId="settings-page-network-live-default-max-wakes" value="12" />
     </>
   ),
 };
 
 /**
- * Restart-required banner after changing network settings that reconfigure the daemon listener.
+ * Restart-required banner after a Network settings update requires daemon reconciliation.
  */
 export const RestartBanner: Story = {
   args: {},

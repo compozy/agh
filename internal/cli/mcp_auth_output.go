@@ -59,7 +59,7 @@ func mcpAuthStatusRows(status SettingsMCPAuthStatusRecord) []keyValue {
 	return []keyValue{
 		{Label: "Server", Value: stringOrDash(status.ServerName)},
 		{Label: mcpScopeValue, Value: stringOrDash(status.Scope)},
-		{Label: "Workspace", Value: stringOrDash(status.WorkspaceID)},
+		{Label: configWorkspaceValue, Value: stringOrDash(status.WorkspaceID)},
 		{Label: automationStatusValue, Value: stringOrDash(status.Status)},
 		{Label: "Remote URL", Value: stringOrDash(status.RemoteURL)},
 		{Label: "Auth Type", Value: stringOrDash(status.AuthType)},

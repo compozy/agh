@@ -2,10 +2,10 @@ package task
 
 import (
 	"context"
-
 	"fmt"
-
 	"strings"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // EnqueueRun persists one new queue-first task run under manager authority.
@@ -25,49 +25,162 @@ func (m *Service) EnqueueRun(
 	if err := requireLifecycleIdempotency(actor, normalizedSpec.IdempotencyKey, "enqueue_run"); err != nil {
 		return nil, err
 	}
-	if err := m.validateNetworkChannel("enqueue_run.network_channel", normalizedSpec.NetworkChannel); err != nil {
+	var result enqueueRunCommandResult
+	command := func(store ExecutionMutationStore) error {
+		var commandErr error
+		result, commandErr = m.enqueueRunWithStore(ctx, store, normalizedSpec, actor)
+		return commandErr
+	}
+	if transactions, ok := m.store.(ExecutionTransactionStore); ok {
+		if err := transactions.WithTaskExecutionTransaction(ctx, command); err != nil {
+			return nil, err
+		}
+	} else if err := command(m.store); err != nil {
 		return nil, err
 	}
-
-	_, run, existing, err := m.store.ReserveQueuedRun(
+	if result.existing {
+		return &result.run, nil
+	}
+	m.publishTaskEventsAfterCommand(ctx, []Event{result.event})
+	m.observeCommittedRunParticipation(ctx, result.participationObservation)
+	m.dispatchTaskRunEnqueued(
 		ctx,
-		QueueRunReservation{
-			TaskID:             normalizedSpec.TaskID,
-			RunID:              m.newID("run"),
-			RunKind:            normalizedSpec.RunKind,
-			LoopRunID:          normalizedSpec.LoopRunID,
-			IdempotencyKey:     normalizedSpec.IdempotencyKey,
-			Origin:             actor.Origin,
-			RequestedChannel:   normalizedSpec.NetworkChannel,
-			DesignationGroupID: normalizedSpec.DesignationGroupID,
-			Metadata:           normalizedSpec.Metadata,
-			QueuedAt:           m.now().UTC(),
-		},
+		result.run,
+		result.task,
+		actor,
+		normalizedSpec.IdempotencyKey,
 	)
+	return &result.run, nil
+}
+
+type enqueueRunCommandResult struct {
+	task                     Task
+	run                      Run
+	event                    Event
+	participationObservation *participation.ResolvedObservation
+	existing                 bool
+}
+
+func (m *Service) enqueueRunWithStore(
+	ctx context.Context,
+	store ExecutionMutationStore,
+	spec EnqueueRun,
+	actor ActorContext,
+) (enqueueRunCommandResult, error) {
+	normalizedSpec, err := normalizeEnqueueRunSpec(spec)
 	if err != nil {
-		return nil, err
+		return enqueueRunCommandResult{}, err
+	}
+	spec = normalizedSpec
+	if existing, ok, err := existingQueuedRunWithStore(
+		ctx,
+		store,
+		spec.TaskID,
+		spec.IdempotencyKey,
+		actor.Origin,
+	); err != nil {
+		return enqueueRunCommandResult{}, err
+	} else if ok {
+		taskRecord, taskErr := store.GetTask(ctx, existing.TaskID)
+		if taskErr == nil {
+			taskErr = m.authorizeTaskResource(ctx, actor, taskRecord)
+		}
+		return enqueueRunCommandResult{task: taskRecord, run: *existing, existing: true}, taskErr
+	}
+	taskRecord, err := store.GetTask(ctx, spec.TaskID)
+	if err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	if err := m.authorizeTaskResource(ctx, actor, taskRecord); err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	run, existing, err := m.reserveQueuedRunWithStore(ctx, store, taskRecord, spec, actor)
+	if err != nil {
+		return enqueueRunCommandResult{}, err
 	}
 	if existing {
-		return &run, nil
+		return enqueueRunCommandResult{task: taskRecord, run: run, existing: true}, nil
 	}
+	return m.finishEnqueuedRunWithStore(ctx, store, run, actor)
+}
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, normalizedSpec.TaskID, actor)
+func (m *Service) reserveQueuedRunWithStore(
+	ctx context.Context,
+	store ExecutionMutationStore,
+	taskRecord Task,
+	spec EnqueueRun,
+	actor ActorContext,
+) (Run, bool, error) {
+	runID := m.newID("run")
+	networkSpec, err := m.resolveQueuedRunParticipationWithStore(
+		ctx,
+		store,
+		taskRecord,
+		runID,
+		spec.DesignationGroupID,
+		spec.RunKind,
+		spec.LoopRunID,
+		spec.NetworkParticipation,
+		spec.NetworkParticipationSource,
+	)
 	if err != nil {
-		return nil, err
+		return Run{}, false, err
 	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
-		Attempt:               int(run.Attempt),
-		Status:                run.Status,
-		TaskStatus:            reconciledTask.Status,
-		NetworkChannel:        run.NetworkChannel,
-		CoordinationChannelID: run.CoordinationChannelID,
-		IdempotencyKey:        run.IdempotencyKey,
-	}); err != nil {
-		return nil, err
-	}
-	m.dispatchTaskRunEnqueued(ctx, run, reconciledTask, actor, normalizedSpec.IdempotencyKey)
 
-	return &run, nil
+	_, run, existing, err := store.ReserveQueuedRun(ctx, QueueRunReservation{
+		TaskID:             spec.TaskID,
+		RunID:              runID,
+		RunKind:            spec.RunKind,
+		LoopRunID:          spec.LoopRunID,
+		IdempotencyKey:     spec.IdempotencyKey,
+		Origin:             actor.Origin,
+		NetworkSpec:        networkSpec,
+		DesignationGroupID: spec.DesignationGroupID,
+		Metadata:           spec.Metadata,
+		QueuedAt:           m.now().UTC(),
+	})
+	if err != nil {
+		return Run{}, false, err
+	}
+	return run, existing, nil
+}
+
+func (m *Service) finishEnqueuedRunWithStore(
+	ctx context.Context,
+	store ExecutionMutationStore,
+	run Run,
+	actor ActorContext,
+) (enqueueRunCommandResult, error) {
+	reconciledTask, err := m.reconcileTaskCascadeWithStore(ctx, store, run.TaskID, actor)
+	if err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	event, err := m.newTaskEvent(run.TaskID, run.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
+		Attempt:        int(run.Attempt),
+		Status:         run.Status,
+		TaskStatus:     reconciledTask.Status,
+		IdempotencyKey: run.IdempotencyKey,
+	})
+	if err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	if err := store.CreateTaskEvent(ctx, event); err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	return enqueueRunCommandResult{
+		task:  reconciledTask,
+		run:   run,
+		event: event,
+		participationObservation: &participation.ResolvedObservation{
+			WorkspaceID: strings.TrimSpace(run.WorkspaceID),
+			Owner: participation.OwnerRef{
+				WorkspaceID: strings.TrimSpace(run.WorkspaceID),
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          strings.TrimSpace(run.ID),
+			},
+			Spec: run.NetworkSpecSnapshot(),
+		},
+	}, nil
 }
 
 func validateTaskForEnqueue(taskRecord Task) error {
@@ -79,100 +192,6 @@ func validateTaskForEnqueue(taskRecord Task) error {
 	default:
 		return nil
 	}
-}
-
-func validateExplicitRunClaimOwner(taskRecord Task, actor ActorContext) error {
-	if taskRecord.Owner == nil || taskRecord.Owner.IsZero() {
-		return nil
-	}
-	owner := *taskRecord.Owner
-	ref := strings.TrimSpace(owner.Ref)
-	switch owner.Kind.Normalize() {
-	case OwnerKindPool:
-		return fmt.Errorf(
-			"%w: task %q is assigned to pool owner %q and must be claimed by the matching agent session",
-			ErrPermissionDenied,
-			taskRecord.ID,
-			ref,
-		)
-	case OwnerKindAgentSession:
-		switch actor.Actor.Kind.Normalize() {
-		case ActorKindDaemon:
-			return nil
-		case ActorKindAgentSession:
-			if strings.TrimSpace(actor.Actor.Ref) == ref {
-				return nil
-			}
-		default:
-		}
-		return fmt.Errorf(
-			"%w: task %q is assigned to agent session %q",
-			ErrPermissionDenied,
-			taskRecord.ID,
-			ref,
-		)
-	default:
-		return nil
-	}
-}
-
-// ClaimRun transitions one queued run into the claimed state.
-func (m *Service) ClaimRun(
-	ctx context.Context,
-	runID string,
-	claim ClaimRun,
-	actor ActorContext,
-) (*Run, error) {
-	if err := requireWriteAuthority(actor); err != nil {
-		return nil, err
-	}
-
-	normalizedClaim, err := normalizeClaimRun(claim)
-	if err != nil {
-		return nil, err
-	}
-	if err := requireLifecycleIdempotency(actor, normalizedClaim.IdempotencyKey, "claim_run"); err != nil {
-		return nil, err
-	}
-
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
-		return nil, err
-	}
-	if err := requireRunTransition(run, TaskRunStatusClaimed); err != nil {
-		return nil, err
-	}
-	if err := validateExplicitRunClaimOwner(taskRecord, actor); err != nil {
-		return nil, err
-	}
-	if err := m.dispatchTaskRunPreClaim(ctx, run, taskRecord, actor); err != nil {
-		return nil, err
-	}
-
-	run.Status = TaskRunStatusClaimed
-	run.ClaimedBy = &ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref}
-	run.ClaimedAt = m.now().UTC()
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
-		return nil, err
-	}
-
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunClaimed, actor, runClaimedPayload{
-		Status:     run.Status,
-		TaskStatus: reconciledTask.Status,
-		ClaimedBy:  *run.ClaimedBy,
-	}); err != nil {
-		return nil, err
-	}
-	m.dispatchTaskRunPostClaim(ctx, run, reconciledTask, actor)
-
-	return &run, nil
 }
 
 // StartRun transitions one claimed or starting run into active execution.
@@ -194,17 +213,13 @@ func (m *Service) StartRun(
 		return nil, err
 	}
 
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
 	if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
 		return nil, err
 	}
-	if err := m.validateRunChannelUsable(ctx, taskRecord, run, actor, "start"); err != nil {
-		return nil, err
-	}
-
 	switch run.Status.Normalize() {
 	case TaskRunStatusClaimed:
 		if run.RunKind.Normalize() == RunKindCoordinator {
@@ -267,14 +282,11 @@ func (m *Service) AttachRunSession(
 		return nil, fmt.Errorf("%w: session id is required", ErrValidation)
 	}
 
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
 	if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
-		return nil, err
-	}
-	if err := m.validateRunChannelUsable(ctx, taskRecord, run, actor, "attach"); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(run.SessionID) != "" {

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -277,7 +278,36 @@ func TestGlobalDBTaskRunReviewStore(t *testing.T) {
 			ctx := testutil.Context(t)
 			globalDB := openTestGlobalDB(t)
 			globalDB.now = fixedTaskReviewStoreTime
-			taskRecord, runRecord := createReviewStoreTaskRun(t, globalDB, taskpkg.TaskRunStatusCompleted)
+			seedLoopTestWorkspaces(t, globalDB, "ws-review-store")
+			taskRecord := taskRecordForTest("task-review-store")
+			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask() error = %v", err)
+			}
+			wantParticipation := participation.Spec{
+				Version:         participation.SpecVersion,
+				Mode:            participation.ModeLive,
+				WorkspaceID:     "ws-review-store",
+				ChannelStrategy: participation.StrategyNamed,
+				ChannelID:       "review-builders",
+				Source:          participation.SourceExplicitRequest,
+				Bounds: participation.Bounds{
+					MaxWakes:         4,
+					MaxWakeWallTime:  "30s",
+					MaxTotalWallTime: "2m",
+					MaxInputTokens:   4096,
+					MaxOutputTokens:  4096,
+					MaxWakeDepth:     4,
+					CoalesceWindow:   "250ms",
+				},
+			}
+			runRecord := taskRunForTest("run-review-store", taskRecord.ID)
+			runRecord.Status = taskpkg.TaskRunStatusCompleted
+			runRecord.EndedAt = fixedTaskReviewStoreTime()
+			runRecord.WorkspaceID = wantParticipation.WorkspaceID
+			runRecord.SetNetworkState(wantParticipation, "", "", "")
+			if err := globalDB.CreateTaskRun(ctx, runRecord); err != nil {
+				t.Fatalf("CreateTaskRun(Live parent) error = %v", err)
+			}
 			review := taskReviewForGlobalDBTest("review-rejected", taskRecord.ID, runRecord.ID)
 			stored, _, err := globalDB.RequestRunReview(ctx, &review)
 			if err != nil {
@@ -308,6 +338,12 @@ func TestGlobalDBTaskRunReviewStore(t *testing.T) {
 				t.Fatalf("RecordRunReview(rejected) error = %v", err)
 			}
 			assertRejectedContinuationRun(t, result, runRecord.ID, stored.ReviewID)
+			if got := result.ContinuationRun.NetworkSpecSnapshot(); got != wantParticipation {
+				t.Fatalf("continuation participation = %#v, want %#v", got, wantParticipation)
+			}
+			if got, want := result.ContinuationRun.WorkspaceID, wantParticipation.WorkspaceID; got != want {
+				t.Fatalf("continuation workspace_id = %q, want %q", got, want)
+			}
 
 			replayed, err := globalDB.RecordRunReview(
 				ctx,
@@ -320,6 +356,9 @@ func TestGlobalDBTaskRunReviewStore(t *testing.T) {
 				t.Fatalf("RecordRunReview(replay) error = %v", err)
 			}
 			assertRejectedContinuationRun(t, replayed, runRecord.ID, stored.ReviewID)
+			if got := replayed.ContinuationRun.NetworkSpecSnapshot(); got != wantParticipation {
+				t.Fatalf("replayed continuation participation = %#v, want %#v", got, wantParticipation)
+			}
 			if got, want := replayed.ContinuationRun.ID, result.ContinuationRun.ID; got != want {
 				t.Fatalf("replay continuation id = %q, want %q", got, want)
 			}
@@ -438,6 +477,7 @@ func reviewStoreActorContext() taskpkg.ActorContext {
 			Kind: taskpkg.OriginKindCLI,
 			Ref:  "agh",
 		},
+		Scope:     taskpkg.CallerScope{Operator: true},
 		Authority: taskpkg.Authority{Read: true, Write: true},
 	}
 }

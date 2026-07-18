@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	redactpkg "github.com/compozy/agh/internal/redact"
-	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -65,18 +65,6 @@ type AgentWorkspacePayload struct {
 	ID      string `json:"id,omitempty"`
 	Name    string `json:"name,omitempty"`
 	RootDir string `json:"root_dir,omitempty"`
-}
-
-// AgentSessionPayload is the compact session context used by agent endpoints.
-type AgentSessionPayload struct {
-	ID        string                 `json:"id"`
-	Name      string                 `json:"name,omitempty"`
-	Type      session.Type           `json:"type,omitempty"`
-	State     session.State          `json:"state"`
-	Channel   string                 `json:"channel,omitempty"`
-	Lineage   *SessionLineagePayload `json:"lineage,omitempty"`
-	CreatedAt time.Time              `json:"created_at"`
-	UpdatedAt time.Time              `json:"updated_at"`
 }
 
 // SessionLineagePayload exposes safe parent/child lineage metadata for spawned sessions.
@@ -140,7 +128,6 @@ type CoordinatorConfigPayload struct {
 // CoordinationChannelPayload describes the stable task-run coordination channel binding.
 type CoordinationChannelPayload struct {
 	ID                  string                    `json:"id"`
-	Channel             string                    `json:"channel,omitempty"`
 	DisplayName         string                    `json:"display_name"`
 	Purpose             string                    `json:"purpose,omitempty"`
 	WorkspaceID         string                    `json:"workspace_id,omitempty"`
@@ -153,16 +140,16 @@ type CoordinationChannelPayload struct {
 
 // TaskRunLeaseSummaryPayload is the safe read projection for task-run lease state.
 type TaskRunLeaseSummaryPayload struct {
-	TaskID                string                      `json:"task_id"`
-	RunID                 string                      `json:"run_id"`
-	Status                taskpkg.RunStatus           `json:"status"`
-	SessionID             string                      `json:"session_id,omitempty"`
-	ClaimedBy             *taskpkg.ActorIdentity      `json:"claimed_by,omitempty"`
-	ClaimTokenHash        string                      `json:"claim_token_hash,omitempty"`
-	LeaseUntil            *time.Time                  `json:"lease_until,omitempty"`
-	HeartbeatAt           *time.Time                  `json:"heartbeat_at,omitempty"`
-	CoordinationChannelID string                      `json:"coordination_channel_id,omitempty"`
-	CoordinationChannel   *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
+	TaskID                       string                      `json:"task_id"`
+	RunID                        string                      `json:"run_id"`
+	Status                       taskpkg.RunStatus           `json:"status"`
+	SessionID                    string                      `json:"session_id,omitempty"`
+	ClaimedBy                    *taskpkg.ActorIdentity      `json:"claimed_by,omitempty"`
+	ClaimTokenHash               string                      `json:"claim_token_hash,omitempty"`
+	LeaseUntil                   *time.Time                  `json:"lease_until,omitempty"`
+	HeartbeatAt                  *time.Time                  `json:"heartbeat_at,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec         `json:"resolved_network_participation,omitempty"`
+	CoordinationChannel          *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
 }
 
 // AgentTaskContextPayload is the bounded active-task section in `/agent/context`.
@@ -257,55 +244,15 @@ type AgentContextPayload struct {
 	Provenance          AgentContextProvenancePayload          `json:"provenance"`
 }
 
-// AgentTaskClaimNextRequest captures the agent-initiated atomic next-work request.
-type AgentTaskClaimNextRequest struct {
-	WorkspaceID          string   `json:"workspace_id,omitempty"`
-	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
-	PriorityMin          int      `json:"priority_min,omitempty"`
-	LeaseSeconds         int64    `json:"lease_seconds,omitempty"`
-	Wait                 bool     `json:"wait,omitempty"`
-	IdempotencyKey       string   `json:"idempotency_key,omitempty"`
-}
-
-// AgentTaskClaimPayload is the synchronous claim response for the session-bound lease.
-type AgentTaskClaimPayload struct {
-	Task                TaskReferencePayload        `json:"task"`
-	Run                 TaskRunPayload              `json:"run"`
-	Lease               TaskRunLeaseSummaryPayload  `json:"lease"`
-	CoordinationChannel *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
-}
-
-// AgentTaskHeartbeatRequest extends the caller session's task-run lease.
-type AgentTaskHeartbeatRequest struct {
-	LeaseSeconds int64 `json:"lease_seconds,omitempty"`
-}
-
-// AgentTaskCompleteRequest completes the caller session's claimed task run.
-type AgentTaskCompleteRequest struct {
-	Result         json.RawMessage `json:"result,omitempty"`
-	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
-}
-
-// AgentTaskFailRequest fails the caller session's claimed task run.
-type AgentTaskFailRequest struct {
-	Error    string          `json:"error"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// AgentTaskReleaseRequest releases the caller session's claimed task run.
-type AgentTaskReleaseRequest struct {
-	Reason string `json:"reason,omitempty"`
-}
-
 // CoordinationMessageMetadataPayload carries typed task/run correlation for channel messages.
 type CoordinationMessageMetadataPayload struct {
-	TaskID                string                     `json:"task_id"`
-	RunID                 string                     `json:"run_id"`
-	WorkflowID            string                     `json:"workflow_id,omitempty"`
-	CoordinationChannelID string                     `json:"coordination_channel_id"`
-	MessageKind           CoordinationMessageKind    `json:"message_kind"`
-	CorrelationID         string                     `json:"correlation_id"`
-	Ext                   map[string]json.RawMessage `json:"ext,omitempty"`
+	TaskID        string                     `json:"task_id"`
+	RunID         string                     `json:"run_id"`
+	WorkflowID    string                     `json:"workflow_id,omitempty"`
+	ChannelID     string                     `json:"channel_id"`
+	MessageKind   CoordinationMessageKind    `json:"message_kind"`
+	CorrelationID string                     `json:"correlation_id"`
+	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
 }
 
 // AgentChannelSendRequest sends one task-bound coordination message.
@@ -373,7 +320,7 @@ func NormalizeAgentMePayload(payload AgentMePayload) AgentMePayload {
 	payload.Capabilities = normalizeAgentCapabilities(payload.Capabilities)
 	payload.Channels = normalizeCoordinationChannels(payload.Channels)
 	payload.ActiveTaskLeases = normalizeTaskRunLeases(payload.ActiveTaskLeases)
-	payload.Session.Lineage = NormalizeSessionLineagePayload(payload.Session.Lineage)
+	payload.Session = NormalizeAgentSessionPayload(payload.Session)
 	return payload
 }
 
@@ -383,7 +330,7 @@ func NormalizeAgentContextPayload(source *AgentContextPayload) AgentContextPaylo
 		return AgentContextPayload{}
 	}
 	payload := *source
-	payload.Session.Lineage = NormalizeSessionLineagePayload(payload.Session.Lineage)
+	payload.Session = NormalizeAgentSessionPayload(payload.Session)
 	payload.Soul.Tone = normalizeStrings(payload.Soul.Tone)
 	payload.Soul.Principles = normalizeStrings(payload.Soul.Principles)
 	if payload.Task.Lease != nil {
@@ -453,8 +400,8 @@ func (p CoordinationMessageMetadataPayload) Validate() error {
 	if strings.TrimSpace(p.RunID) == "" {
 		return fmt.Errorf("%w: run_id is required", ErrInvalidCoordinationMessageMetadata)
 	}
-	if strings.TrimSpace(p.CoordinationChannelID) == "" {
-		return fmt.Errorf("%w: coordination_channel_id is required", ErrInvalidCoordinationMessageMetadata)
+	if strings.TrimSpace(p.ChannelID) == "" {
+		return fmt.Errorf("%w: channel_id is required", ErrInvalidCoordinationMessageMetadata)
 	}
 	if strings.TrimSpace(p.CorrelationID) == "" {
 		return fmt.Errorf("%w: correlation_id is required", ErrInvalidCoordinationMessageMetadata)
@@ -476,7 +423,7 @@ func (p *CoordinationMessageMetadataPayload) UnmarshalJSON(data []byte) error {
 
 	type metadataAlias CoordinationMessageMetadataPayload
 	var decoded metadataAlias
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictContractJSON(data, &decoded); err != nil {
 		return err
 	}
 	*p = CoordinationMessageMetadataPayload(decoded)

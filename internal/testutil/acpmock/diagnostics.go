@@ -22,6 +22,7 @@ type DiagnosticsRecord struct {
 	ConfigOptionValue string             `json:"config_option_value,omitempty"`
 	LifecycleEvent    string             `json:"lifecycle_event,omitempty"`
 	MCPServers        []acpsdk.McpServer `json:"mcp_servers,omitempty"`
+	NetworkEnv        []string           `json:"network_env,omitempty"`
 	PromptIndex       int                `json:"prompt_index"`
 	Prompt            string             `json:"prompt"`
 	PromptMeta        acp.PromptMeta     `json:"prompt_meta"`

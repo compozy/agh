@@ -166,12 +166,12 @@ func parseNetworkThreadQuery(c *gin.Context) (store.NetworkThreadQuery, error) {
 		return store.NetworkThreadQuery{}, err
 	}
 	query := store.NetworkThreadQuery{
-		Search:  strings.TrimSpace(c.Query("query")),
-		PeerID:  strings.TrimSpace(c.Query("peer_id")),
-		Sort:    strings.TrimSpace(c.Query("sort")),
-		HasWork: hasWork,
-		Limit:   limit,
-		After:   strings.TrimSpace(c.Query("after")),
+		Search:    strings.TrimSpace(c.Query("query")),
+		SessionID: strings.TrimSpace(c.Query("session_id")),
+		Sort:      strings.TrimSpace(c.Query("sort")),
+		HasWork:   hasWork,
+		Limit:     limit,
+		After:     strings.TrimSpace(c.Query("after")),
 	}
 	if err := query.Validate(); err != nil {
 		return store.NetworkThreadQuery{}, NewNetworkValidationError(err)
@@ -189,12 +189,12 @@ func parseNetworkDirectRoomQuery(c *gin.Context) (store.NetworkDirectRoomQuery, 
 		return store.NetworkDirectRoomQuery{}, err
 	}
 	query := store.NetworkDirectRoomQuery{
-		Search:  strings.TrimSpace(c.Query("query")),
-		PeerID:  strings.TrimSpace(c.Query("peer_id")),
-		Sort:    strings.TrimSpace(c.Query("sort")),
-		HasWork: hasWork,
-		Limit:   limit,
-		After:   strings.TrimSpace(c.Query("after")),
+		Search:    strings.TrimSpace(c.Query("query")),
+		SessionID: strings.TrimSpace(c.Query("session_id")),
+		Sort:      strings.TrimSpace(c.Query("sort")),
+		HasWork:   hasWork,
+		Limit:     limit,
+		After:     strings.TrimSpace(c.Query("after")),
 	}
 	if err := query.Validate(); err != nil {
 		return store.NetworkDirectRoomQuery{}, NewNetworkValidationError(err)

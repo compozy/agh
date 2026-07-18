@@ -15,6 +15,7 @@ import (
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/network/participation"
 	sessionpkg "github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -25,6 +26,17 @@ const (
 	harnessNetworkDirectID = "direct_0123456789abcdef0123456789abcdef"
 	harnessNetworkWorkID   = "work_patch_42"
 )
+
+func harnessBuildersParticipationSpec() participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "ws-1",
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "builders",
+		Source:          participation.SourceExplicitRequest,
+	}
+}
 
 func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	t.Parallel()
@@ -65,10 +77,11 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 
 	metaPath := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, "sess-1"))
 	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-		ID:          "sess-1",
-		AgentName:   "coder",
-		WorkspaceID: "ws-1",
-		State:       "stopped",
+		ID:                   "sess-1",
+		AgentName:            "coder",
+		WorkspaceID:          "ws-1",
+		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		State:                "stopped",
 		Sandbox: &store.SessionSandboxMeta{
 			SandboxID:      "env-1",
 			Backend:        "local",
@@ -168,8 +181,12 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if got, want := resumedSession.State, sessionpkg.StateActive; got != want {
 		t.Fatalf("resumedSession.State = %q, want %q", got, want)
 	}
-	if got, want := resumedSession.Channel, "builders"; got != want {
-		t.Fatalf("resumedSession.Channel = %q, want %q", got, want)
+	if resumedSession.ResolvedNetworkParticipation == nil ||
+		resumedSession.ResolvedNetworkParticipation.ChannelID != "builders" {
+		t.Fatalf(
+			"resumedSession.ResolvedNetworkParticipation = %#v, want channel builders",
+			resumedSession.ResolvedNetworkParticipation,
+		)
 	}
 
 	stream, err := harness.PromptSession(testContext(t), "sess-1", "hello world")
@@ -297,9 +314,6 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if err := harness.CaptureNetworkArtifacts(testContext(t), "builders"); err != nil {
 		t.Fatalf("CaptureNetworkArtifacts() error = %v", err)
 	}
-	if err := harness.CaptureBridgeHealth(testContext(t)); err != nil {
-		t.Fatalf("CaptureBridgeHealth() error = %v", err)
-	}
 
 	createdBridge, err := harness.CreateBridge(testContext(t), aghcontract.CreateBridgeRequest{
 		Scope:         bridgepkg.ScopeWorkspace,
@@ -394,7 +408,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if err := harness.CaptureTaskRuns(testContext(t), "task-1", url.Values{"status": {"completed"}}); err != nil {
 		t.Fatalf("CaptureTaskRuns() error = %v", err)
 	}
-	if err := harness.CaptureBridgeHealth(testContext(t)); err != nil {
+	if err := harness.CaptureBridgeHealth(testContext(t), "brg-1"); err != nil {
 		t.Fatalf("CaptureBridgeHealth() error = %v", err)
 	}
 	if err := harness.CaptureBridgeRoutes(testContext(t), "brg-1"); err != nil {
@@ -717,6 +731,10 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/api/bridges/health/stream":
+				if got := r.URL.Query().Get("bridge_ids"); got != "brg-1" {
+					http.Error(w, "bridge_ids is required", http.StatusBadRequest)
+					return
+				}
 				w.Header().Set("Content-Type", "text/event-stream")
 				if _, err := fmt.Fprint(w, "event: bridge_health\ndata: not-json\n\n"); err != nil {
 					t.Errorf("fmt.Fprint(bridge health stream) error = %v", err)
@@ -771,7 +789,7 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 			harness.CaptureBridgeSecretBindings(ctx, "brg-1"),
 			"/api/bridges/brg-1/secret-bindings status 500: boom",
 		)
-		assertErrorContains(t, harness.CaptureBridgeHealth(ctx), "decode bridge health snapshot")
+		assertErrorContains(t, harness.CaptureBridgeHealth(ctx, "brg-1"), "decode bridge health snapshot")
 	})
 }
 
@@ -951,13 +969,13 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		}
 		writeJSON(w, aghcontract.SessionAttachResponse{
 			Session: aghcontract.SessionPayload{
-				ID:            "sess-1",
-				AgentName:     "coder",
-				WorkspaceID:   "ws-1",
-				WorkspacePath: "/workspace",
-				Channel:       "builders",
-				State:         "active",
-				Badge:         "idle",
+				ID:                           "sess-1",
+				AgentName:                    "coder",
+				WorkspaceID:                  "ws-1",
+				WorkspacePath:                "/workspace",
+				ResolvedNetworkParticipation: participation.CloneSpec(harnessBuildersParticipationSpec()),
+				State:                        "active",
+				Badge:                        "idle",
 				Sandbox: &aghcontract.SessionSandboxPayload{
 					SandboxID: "env-1",
 					Backend:   "local",
@@ -1074,8 +1092,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Directs: []aghcontract.NetworkDirectRoomPayload{{
 					Channel:            "builders",
 					DirectID:           harnessNetworkDirectID,
-					PeerA:              "coder.sess-1",
-					PeerB:              "reviewer.sess-2",
+					SessionA:           "sess-1",
+					SessionB:           "sess-2",
 					OpenedAt:           &now,
 					LastActivityAt:     &now,
 					MessageCount:       1,
@@ -1124,8 +1142,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			Direct: aghcontract.NetworkDirectRoomPayload{
 				Channel:        "builders",
 				DirectID:       harnessNetworkDirectID,
-				PeerA:          "coder.sess-1",
-				PeerB:          "reviewer.sess-2",
+				SessionA:       "sess-1",
+				SessionB:       "sess-2",
 				OpenedAt:       &now,
 				LastActivityAt: &now,
 			},
@@ -1139,8 +1157,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			Direct: aghcontract.NetworkDirectRoomPayload{
 				Channel:            "builders",
 				DirectID:           harnessNetworkDirectID,
-				PeerA:              "coder.sess-1",
-				PeerB:              "reviewer.sess-2",
+				SessionA:           "sess-1",
+				SessionB:           "sess-2",
 				OpenedAt:           &now,
 				LastActivityAt:     &now,
 				MessageCount:       1,
@@ -1183,9 +1201,8 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					Channel:         "builders",
 					Surface:         "thread",
 					ThreadID:        harnessNetworkThreadID,
-					OpenedByPeerID:  "coder.sess-1",
 					OpenedSessionID: "sess-1",
-					TargetPeerID:    "reviewer.sess-2",
+					TargetSessionID: "sess-2",
 					State:           "running",
 					OpenedAt:        &now,
 					LastActivityAt:  &now,
@@ -1199,7 +1216,6 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Enabled:           true,
 				Status:            "running",
 				LocalPeers:        1,
-				RemotePeers:       1,
 				Channels:          1,
 				MessagesSent:      3,
 				MessagesDelivered: 2,
@@ -1245,10 +1261,10 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					Channel:   "builders",
 					PeerCount: 1,
 					Sessions: []aghcontract.SessionPayload{{
-						ID:        "sess-1",
-						AgentName: "coder",
-						Channel:   "builders",
-						State:     "active",
+						ID:                           "sess-1",
+						AgentName:                    "coder",
+						ResolvedNetworkParticipation: participation.CloneSpec(harnessBuildersParticipationSpec()),
+						State:                        "active",
 					}},
 				},
 			})
@@ -1256,13 +1272,12 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		}
 		writeJSON(w, aghcontract.NetworkChannelsResponse{
 			Channels: []aghcontract.NetworkChannelPayload{{
-				Channel:         "builders",
-				PeerCount:       1,
-				LocalPeerCount:  1,
-				RemotePeerCount: 0,
-				SessionCount:    1,
-				MessageCount:    1,
-				LastActivityAt:  &now,
+				Channel:        "builders",
+				PeerCount:      1,
+				LocalPeerCount: 1,
+				SessionCount:   1,
+				MessageCount:   1,
+				LastActivityAt: &now,
 			}},
 		})
 	})
@@ -1272,10 +1287,10 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Channel:   "builders",
 				PeerCount: 1,
 				Sessions: []aghcontract.SessionPayload{{
-					ID:        "sess-1",
-					AgentName: "coder",
-					Channel:   "builders",
-					State:     "active",
+					ID:                           "sess-1",
+					AgentName:                    "coder",
+					ResolvedNetworkParticipation: participation.CloneSpec(harnessBuildersParticipationSpec()),
+					State:                        "active",
 				}},
 				Peers: []aghcontract.NetworkPeerPayload{{
 					SessionID:   new("sess-1"),
@@ -1762,7 +1777,17 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/bridges/health/stream", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/bridges/health/stream", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("bridge_ids"); got != "brg-1" {
+			reportHarnessHandlerError(
+				w,
+				handlerErrs,
+				http.StatusBadRequest,
+				"bridge_ids query = %q, want brg-1",
+				got,
+			)
+			return
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		payload, err := json.Marshal(aghcontract.BridgeHealthStreamPayload{
 			GeneratedAt: now,

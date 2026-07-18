@@ -231,9 +231,10 @@ func (q *Queries) SweepExpiredSessionAttachLocks(ctx context.Context, now string
 	return result.RowsAffected()
 }
 
-const upsertSession = `-- name: UpsertSession :exec
+const upsertSession = `-- name: UpsertSession :execrows
 INSERT INTO sessions (
-  id, name, agent_name, provider, workspace_id, session_type, channel, state,
+  id, name, agent_name, provider, workspace_id, session_type,
+  network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, spawn_budget_json, permission_policy_json,
   acp_session_id, stop_reason, stop_detail, failure_kind, failure_summary, crash_bundle_path,
@@ -244,18 +245,19 @@ INSERT INTO sessions (
   created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8, ?9,
-  ?10, ?11, ?12, ?13,
-  ?14, ?15, ?16,
-  ?17, ?18, ?19, ?20,
-  ?21, ?22, ?23,
+  ?6, ?7, ?8,
+  ?9, ?10, ?11, ?12,
+  ?13, ?14, ?15, ?16,
+  ?17, ?18, ?19,
+  ?20, ?21, ?22, ?23,
   ?24, ?25, ?26,
   ?27, ?28, ?29,
   ?30, ?31, ?32,
   ?33, ?34, ?35,
   ?36, ?37, ?38,
-  ?39, ?40,
-  ?41, ?42
+  ?39, ?40, ?41,
+  ?42, ?43,
+  ?44, ?45
 )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -263,7 +265,6 @@ ON CONFLICT(id) DO UPDATE SET
   provider = excluded.provider,
   workspace_id = excluded.workspace_id,
   session_type = excluded.session_type,
-  channel = excluded.channel,
   state = excluded.state,
   parent_session_id = excluded.parent_session_id,
   root_session_id = excluded.root_session_id,
@@ -298,6 +299,10 @@ ON CONFLICT(id) DO UPDATE SET
   sandbox_last_sync_at = excluded.sandbox_last_sync_at,
   sandbox_last_sync_error = excluded.sandbox_last_sync_error,
   updated_at = excluded.updated_at
+WHERE sessions.network_spec_json IS excluded.network_spec_json
+  AND sessions.network_mode IS excluded.network_mode
+  AND sessions.network_channel IS excluded.network_channel
+  AND sessions.network_source IS excluded.network_source
 `
 
 type UpsertSessionParams struct {
@@ -307,7 +312,10 @@ type UpsertSessionParams struct {
 	Provider                 string         `json:"provider"`
 	WorkspaceID              string         `json:"workspace_id"`
 	SessionType              string         `json:"session_type"`
-	Channel                  string         `json:"channel"`
+	NetworkSpecJson          string         `json:"network_spec_json"`
+	NetworkMode              string         `json:"network_mode"`
+	NetworkChannel           sql.NullString `json:"network_channel"`
+	NetworkSource            string         `json:"network_source"`
 	State                    string         `json:"state"`
 	ParentSessionID          sql.NullString `json:"parent_session_id"`
 	RootSessionID            sql.NullString `json:"root_session_id"`
@@ -345,15 +353,18 @@ type UpsertSessionParams struct {
 	UpdatedAt                string         `json:"updated_at"`
 }
 
-func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) error {
-	_, err := q.db.ExecContext(ctx, upsertSession,
+func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertSession,
 		arg.ID,
 		arg.Name,
 		arg.AgentName,
 		arg.Provider,
 		arg.WorkspaceID,
 		arg.SessionType,
-		arg.Channel,
+		arg.NetworkSpecJson,
+		arg.NetworkMode,
+		arg.NetworkChannel,
+		arg.NetworkSource,
 		arg.State,
 		arg.ParentSessionID,
 		arg.RootSessionID,
@@ -390,5 +401,8 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) er
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

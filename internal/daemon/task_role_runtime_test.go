@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	schedulerpkg "github.com/compozy/agh/internal/scheduler"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -52,7 +53,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Run("Should start the pool owner agent session when a run is enqueued", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-frontend", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-frontend", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-frontend", taskRecord.ID, "design-review")
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -73,8 +74,10 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got, want := call.Workspace, taskRecord.WorkspaceID; got != want {
 			t.Fatalf("CreateOpts.Workspace = %q, want %q", got, want)
 		}
-		if got, want := call.Channel, "design-review"; got != want {
-			t.Fatalf("CreateOpts.Channel = %q, want %q", got, want)
+		if got, want := participationSnapshotValue(
+			call.ResolvedNetworkParticipation,
+		).ChannelID, "design-review"; got != want {
+			t.Fatalf("CreateOpts resolved participation channel = %q, want %q", got, want)
 		}
 		if got, want := call.Type, session.SessionTypeSystem; got != want {
 			t.Fatalf("CreateOpts.Type = %q, want %q", got, want)
@@ -85,7 +88,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got := call.Model; got != "" {
 			t.Fatalf("CreateOpts.Model = %q, want provider-native default model resolution", got)
 		}
-		for _, required := range []string{"agh task next --wait -o json", "agh task run claim", run.ID, "design-review"} {
+		for _, required := range []string{"agh task next --run-id 'run-frontend' --wait -o json", run.ID, "design-review"} {
 			if !strings.Contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 			}
@@ -114,7 +117,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Run("Should return before session provisioning and cancel owned activation on shutdown", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-detached", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-detached", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-detached", taskRecord.ID, "design-review")
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := newBlockingTaskRoleRuntimeSessions()
@@ -161,7 +164,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Run("Should drain task role activation before daemon session shutdown snapshots", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-daemon-shutdown", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-daemon-shutdown", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-daemon-shutdown", taskRecord.ID, "design-review")
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := newShutdownOrderingSessionManager()
@@ -208,7 +211,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Run("Should include designated fan-out assignment in worker prompt", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-fanout", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-fanout", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-fanout", taskRecord.ID, "design-review")
 		run.DesignationGroupID = "tdg-fanout"
 		run.Metadata = json.RawMessage(`{"designation":{"index":2,"brief":"Audit billing latency"}}`)
@@ -240,12 +243,12 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reuse an active matching role session for duplicate queued runs", func(t *testing.T) {
+	t.Run("Should bind distinct role sessions to distinct owning runs", func(t *testing.T) {
 		t.Parallel()
 
-		firstTask := taskRoleRuntimeTask("task-frontend-a", "frontend-engineer-agent", "design-review")
+		firstTask := taskRoleRuntimeTask("task-frontend-a", "frontend-engineer-agent")
 		firstRun := taskRoleRuntimeRun("run-frontend-a", firstTask.ID, "design-review")
-		secondTask := taskRoleRuntimeTask("task-frontend-b", "frontend-engineer-agent", "design-review")
+		secondTask := taskRoleRuntimeTask("task-frontend-b", "frontend-engineer-agent")
 		secondRun := taskRoleRuntimeRun("run-frontend-b", secondTask.ID, "design-review")
 		store := newTaskRoleRuntimeStore(firstTask, secondTask, firstRun, secondRun)
 		sessions := &taskRoleRuntimeSessions{}
@@ -259,7 +262,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		})
 		runtime.wg.Wait()
 
-		if got, want := sessions.createCount(), 1; got != want {
+		if got, want := sessions.createCount(), 2; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
 		}
 		if got, want := sessions.promptCount(), 2; got != want {
@@ -268,12 +271,46 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if first, second := sessions.promptCall(0), sessions.promptCall(1); first.opts.TurnID == second.opts.TurnID {
 			t.Fatalf("distinct runs reused activation turn id %q", first.opts.TurnID)
 		}
+		if first, second := sessions.createCall(0).Name, sessions.createCall(1).Name; first == second {
+			t.Fatalf("role session names = %q, want run-bound identities", first)
+		}
+	})
+
+	t.Run("Should keep local role identity and prompt free of fictional channels", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-local", "frontend-engineer-agent")
+		run := taskRoleRuntimeRun("run-local", taskRecord.ID, "design-review")
+		run.SetNetworkState(participation.LocalSpec(), "", "", "")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		})
+		runtime.wg.Wait()
+
+		call := sessions.createCall(0)
+		if !strings.Contains(call.Name, "run-local") {
+			t.Fatalf("CreateOpts.Name = %q, want owning run identity", call.Name)
+		}
+		for _, forbidden := range []string{"Coordination channel", "default", "design-review"} {
+			if strings.Contains(call.PromptOverlay, forbidden) || strings.Contains(call.Name, forbidden) {
+				t.Fatalf(
+					"local role identity contains fictional channel %q: name=%q prompt=%q",
+					forbidden,
+					call.Name,
+					call.PromptOverlay,
+				)
+			}
+		}
 	})
 
 	t.Run("Should not reuse an active role session with different profile startup settings", func(t *testing.T) {
 		t.Parallel()
 
-		firstTask := taskRoleRuntimeTask("task-profile-a", "", "design-review")
+		firstTask := taskRoleRuntimeTask("task-profile-a", "")
 		firstTask.Owner = nil
 		firstRun := taskRoleRuntimeRun("run-profile-a", firstTask.ID, "design-review")
 		firstProfile := taskpkg.ExecutionProfile{
@@ -287,7 +324,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "evidence-lab-a"},
 			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
 		}
-		secondTask := taskRoleRuntimeTask("task-profile-b", "", "design-review")
+		secondTask := taskRoleRuntimeTask("task-profile-b", "")
 		secondTask.Owner = nil
 		secondRun := taskRoleRuntimeRun("run-profile-b", secondTask.ID, "design-review")
 		secondProfile := taskpkg.ExecutionProfile{
@@ -326,7 +363,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Run("Should start the selected execution-profile worker when no owner is set", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-profile-worker", "", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-profile-worker", "")
 		taskRecord.Owner = nil
 		run := taskRoleRuntimeRun("run-profile-worker", taskRecord.ID, "design-review")
 		profile := taskpkg.ExecutionProfile{
@@ -375,7 +412,8 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if !strings.Contains(call.PromptOverlay, "Runtime evidence mode is enabled") {
 			t.Fatalf("PromptOverlay missing runtime evidence guidance:\n%s", call.PromptOverlay)
 		}
-		if !strings.Contains(call.PromptOverlay, "agh task next --wait -o json --capability 'frontend'") {
+		claimCommand := "agh task next --run-id 'run-profile-worker' --wait -o json --capability 'frontend'"
+		if !strings.Contains(call.PromptOverlay, claimCommand) {
 			t.Fatalf("PromptOverlay missing required capability claim:\n%s", call.PromptOverlay)
 		}
 	})
@@ -383,11 +421,11 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Run("Should recover queued pool-owned runs on boot", func(t *testing.T) {
 		t.Parallel()
 
-		frontendTask := taskRoleRuntimeTask("task-frontend", "frontend-engineer-agent", "design-review")
+		frontendTask := taskRoleRuntimeTask("task-frontend", "frontend-engineer-agent")
 		frontendRun := taskRoleRuntimeRun("run-frontend", frontendTask.ID, "design-review")
-		analyticsTask := taskRoleRuntimeTask("task-analytics", "analytics-engineer-agent", "data-watch")
+		analyticsTask := taskRoleRuntimeTask("task-analytics", "analytics-engineer-agent")
 		analyticsRun := taskRoleRuntimeRun("run-analytics", analyticsTask.ID, "data-watch")
-		humanTask := taskRoleRuntimeTask("task-human", "human-owner", "ops")
+		humanTask := taskRoleRuntimeTask("task-human", "human-owner")
 		humanTask.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "local-user"}
 		humanRun := taskRoleRuntimeRun("run-human", humanTask.ID, "ops")
 		store := newTaskRoleRuntimeStore(frontendTask, frontendRun, analyticsTask, analyticsRun, humanTask, humanRun)
@@ -415,7 +453,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Run("Should spawn the pool owner with a TTL-bounded spawn budget lineage", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-starved", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-starved", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-starved", taskRecord.ID, "design-review")
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -478,7 +516,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Run("Should stop a fresh session when initial prompt dispatch fails and allow retry", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-prompt-retry", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-prompt-retry", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-prompt-retry", taskRecord.ID, "design-review")
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		dispatchErr := errors.New("synthetic prompt unavailable")
@@ -522,7 +560,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Run("Should preserve prompt and cleanup failures when stopping the fresh session fails", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-prompt-cleanup", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-prompt-cleanup", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-prompt-cleanup", taskRecord.ID, "design-review")
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		dispatchErr := errors.New("synthetic prompt unavailable")
@@ -550,7 +588,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			taskRecord := taskRoleRuntimeTask("task-cap-owner", "frontend-engineer-agent", "design-review")
+			taskRecord := taskRoleRuntimeTask("task-cap-owner", "frontend-engineer-agent")
 			run := taskRoleRuntimeRun("run-cap-owner", taskRecord.ID, "design-review")
 			run.RequiredCapabilities = []string{"sqlite"}
 			store := newTaskRoleRuntimeStore(taskRecord, run)
@@ -586,7 +624,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			taskRecord := taskRoleRuntimeTask("task-no-cap-owner", "", "design-review")
+			taskRecord := taskRoleRuntimeTask("task-no-cap-owner", "")
 			taskRecord.Owner = nil
 			run := taskRoleRuntimeRun("run-no-cap-owner", taskRecord.ID, "design-review")
 			store := newTaskRoleRuntimeStore(taskRecord, run)
@@ -620,7 +658,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Run("Should skip spawning when no agent covers the required capabilities", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-cap", "", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-cap", "")
 		taskRecord.Owner = nil
 		run := taskRoleRuntimeRun("run-cap", taskRecord.ID, "design-review")
 		run.RequiredCapabilities = []string{"go"}
@@ -648,7 +686,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Run("Should dispatch once after the first activation prompt completes", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-dup", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-dup", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-dup", taskRecord.ID, "design-review")
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -682,7 +720,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Run("Should preserve a completed activation across runtime reconstruction", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-reconstructed", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-reconstructed", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-reconstructed", taskRecord.ID, "design-review")
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -715,7 +753,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 	t.Run("Should dispatch once for a replacement session", func(t *testing.T) {
 		t.Parallel()
 
-		taskRecord := taskRoleRuntimeTask("task-replacement", "frontend-engineer-agent", "design-review")
+		taskRecord := taskRoleRuntimeTask("task-replacement", "frontend-engineer-agent")
 		run := taskRoleRuntimeRun("run-replacement", taskRecord.ID, "design-review")
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -806,36 +844,35 @@ func newTaskRoleRuntimeForTest(
 	return runtime
 }
 
-func taskRoleRuntimeTask(id string, ownerRef string, channel string) taskpkg.Task {
+func taskRoleRuntimeTask(id string, ownerRef string) taskpkg.Task {
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 	return taskpkg.Task{
-		ID:             id,
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    "ws-growth",
-		NetworkChannel: channel,
-		Title:          "Task " + id,
-		Status:         taskpkg.TaskStatusReady,
-		Priority:       taskpkg.PriorityMedium,
-		Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: ownerRef},
-		CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task-role-test"},
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:          id,
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: "ws-growth",
+		Title:       "Task " + id,
+		Status:      taskpkg.TaskStatusReady,
+		Priority:    taskpkg.PriorityMedium,
+		Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: ownerRef},
+		CreatedBy:   taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task-role-test"},
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 }
 
 func taskRoleRuntimeRun(id string, taskID string, channel string) taskpkg.Run {
-	return taskpkg.Run{
-		ID:                    id,
-		TaskID:                taskID,
-		Status:                taskpkg.TaskRunStatusQueued,
-		RunKind:               taskpkg.RunKindWorker,
-		Attempt:               1,
-		Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task-role-test"},
-		NetworkChannel:        channel,
-		CoordinationChannelID: channel,
-		QueuedAt:              time.Date(2026, 5, 6, 12, 1, 0, 0, time.UTC),
+	run := taskpkg.Run{
+		ID:       id,
+		TaskID:   taskID,
+		Status:   taskpkg.TaskRunStatusQueued,
+		RunKind:  taskpkg.RunKindWorker,
+		Attempt:  1,
+		Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task-role-test"},
+		QueuedAt: time.Date(2026, 5, 6, 12, 1, 0, 0, time.UTC),
 	}
+	run.SetNetworkState(daemonTestLiveParticipation("ws-growth", channel), "", "", "")
+	return run
 }
 
 type taskRoleRuntimeStore struct {
@@ -1011,29 +1048,29 @@ func (s *taskRoleRuntimeSessions) Create(_ context.Context, opts session.CreateO
 	s.createCalls = append(s.createCalls, opts)
 	id := fmt.Sprintf("role-%d", len(s.createCalls))
 	info := &session.Info{
-		ID:          id,
-		Name:        opts.Name,
-		AgentName:   opts.AgentName,
-		Provider:    opts.Provider,
-		WorkspaceID: opts.Workspace,
-		Workspace:   firstNonEmpty(opts.Workspace, opts.WorkspacePath),
-		Channel:     opts.Channel,
-		Type:        opts.Type,
-		State:       session.StateActive,
-		CreatedAt:   time.Date(2026, 5, 6, 12, 2, 0, len(s.createCalls), time.UTC),
+		ID:                   id,
+		Name:                 opts.Name,
+		AgentName:            opts.AgentName,
+		Provider:             opts.Provider,
+		WorkspaceID:          opts.Workspace,
+		Workspace:            firstNonEmpty(opts.Workspace, opts.WorkspacePath),
+		NetworkParticipation: daemonTestParticipationFromCreateOpts(opts),
+		Type:                 opts.Type,
+		State:                session.StateActive,
+		CreatedAt:            time.Date(2026, 5, 6, 12, 2, 0, len(s.createCalls), time.UTC),
 	}
 	s.infos = append(s.infos, info)
 	return &session.Session{
-		ID:          info.ID,
-		Name:        info.Name,
-		AgentName:   info.AgentName,
-		Provider:    info.Provider,
-		WorkspaceID: info.WorkspaceID,
-		Workspace:   info.Workspace,
-		Channel:     info.Channel,
-		Type:        info.Type,
-		State:       info.State,
-		CreatedAt:   info.CreatedAt,
+		ID:                   info.ID,
+		Name:                 info.Name,
+		AgentName:            info.AgentName,
+		Provider:             info.Provider,
+		WorkspaceID:          info.WorkspaceID,
+		Workspace:            info.Workspace,
+		NetworkParticipation: info.NetworkParticipation,
+		Type:                 info.Type,
+		State:                info.State,
+		CreatedAt:            info.CreatedAt,
 	}, nil
 }
 

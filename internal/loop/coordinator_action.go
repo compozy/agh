@@ -252,6 +252,7 @@ func actionExecutionInput(
 		OriginCreationDigest:     loopRun.Origin.CreationDigest,
 		GoalContextNudgeRatio:    new(loopRun.GoalContextNudgeRatio),
 		GoalSegmentEpoch:         meta.GoalSegmentEpoch,
+		NetworkParticipation:     new(loopRun.NetworkSpecSnapshot()),
 	}, nil
 }
 

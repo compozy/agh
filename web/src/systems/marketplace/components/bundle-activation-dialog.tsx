@@ -36,18 +36,19 @@ function BundleActivationDialog({
   const {
     activate,
     activateBundle,
-    bindPrimaryChannel,
+    confirmNetworkRequirement,
     error,
     preview,
     profile,
     rerunPreview,
     scope,
-    setBindPrimaryChannel,
+    setConfirmNetworkRequirement,
     setProfile,
     setScope,
   } = useBundleActivationDialog({ data, onOpenChange, open, workspaceId });
 
   if (!bundle) return null;
+  const requiresNetworkConfirmation = Boolean(preview.data?.activation.network_requirement_digest);
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
@@ -121,22 +122,32 @@ function BundleActivationDialog({
             </div>
           </fieldset>
 
-          <label className="flex items-start gap-3 rounded-md bg-canvas px-3 py-3">
-            <Switch
-              aria-label="Bind primary channel as default"
-              checked={bindPrimaryChannel}
-              onCheckedChange={setBindPrimaryChannel}
-              size="sm"
-            />
-            <span className="flex flex-col gap-0.5">
-              <span className="text-small-body font-medium text-fg-strong">
-                Bind primary channel as default
+          {requiresNetworkConfirmation ? (
+            <div className="flex items-start gap-3 rounded-md bg-canvas px-3 py-3">
+              <Switch
+                aria-describedby="marketplace-network-confirmation-description"
+                checked={confirmNetworkRequirement}
+                id="marketplace-network-confirmation"
+                onCheckedChange={setConfirmNetworkRequirement}
+                size="sm"
+              />
+              <span className="flex flex-col gap-0.5">
+                <label
+                  className="text-small-body font-medium text-fg-strong"
+                  htmlFor="marketplace-network-confirmation"
+                >
+                  Confirm Live network participation
+                </label>
+                <span
+                  className="text-form-hint text-muted"
+                  id="marketplace-network-confirmation-description"
+                >
+                  AGH records this extension’s current participation requirement with the
+                  activation.
+                </span>
               </span>
-              <span className="text-form-hint text-muted">
-                Route new sessions from this bundle through its primary channel.
-              </span>
-            </span>
-          </label>
+            </div>
+          ) : null}
 
           <section className="flex flex-col gap-2.5" aria-live="polite">
             <div className="flex items-center gap-2">
@@ -184,7 +195,13 @@ function BundleActivationDialog({
           </Button>
           <Button
             data-testid="bundle-activate-confirm"
-            disabled={!preview.data || preview.isPending || activate.isPending || Boolean(error)}
+            disabled={
+              !preview.data ||
+              preview.isPending ||
+              activate.isPending ||
+              Boolean(error) ||
+              (requiresNetworkConfirmation && !confirmNetworkRequirement)
+            }
             onClick={() => void activateBundle()}
             type="button"
           >

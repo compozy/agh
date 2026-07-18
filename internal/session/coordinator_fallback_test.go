@@ -140,11 +140,11 @@ func createBundledCoordinatorSession(t *testing.T, h *harness) *Session {
 	t.Helper()
 
 	created, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: aghconfig.DefaultCoordinatorAgentName,
-		Provider:  "claude",
-		Name:      "bundled-coordinator",
-		Workspace: h.workspaceID,
-		Channel:   "coord-fallback-test",
+		AgentName:                    aghconfig.DefaultCoordinatorAgentName,
+		Provider:                     "claude",
+		Name:                         "bundled-coordinator",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "coord-fallback-test"),
 		Lineage: &store.SessionLineage{
 			SpawnRole: string(SessionTypeCoordinator),
 			TTLExpiresAt: func() *time.Time {

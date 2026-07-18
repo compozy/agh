@@ -5,6 +5,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/soul"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -12,17 +13,17 @@ import (
 // StartupPromptContext carries the durable session metadata available during
 // startup prompt assembly and overlay selection.
 type StartupPromptContext struct {
-	SessionID    string
-	SessionName  string
-	AgentName    string
-	Provider     string
-	WorkspaceID  string
-	Workspace    string
-	Channel      string
-	SessionType  Type
-	SoulSnapshot *soul.Snapshot
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	SessionID            string
+	SessionName          string
+	AgentName            string
+	Provider             string
+	WorkspaceID          string
+	Workspace            string
+	NetworkParticipation participation.Spec
+	SessionType          Type
+	SoulSnapshot         *soul.Snapshot
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // StartupPromptAssembler optionally extends PromptAssembler with durable

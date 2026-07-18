@@ -10,9 +10,10 @@ import (
 const taskInboxCTESuffix = `,
 latest_inbox_run_candidates AS (
 	SELECT
-		id, task_id, status, attempt, previous_run_id, failure_kind, claimed_by_kind,
+		id, task_id, workspace_id, status, attempt, previous_run_id, failure_kind, claimed_by_kind,
 		claimed_by_ref, session_id, lease_until, heartbeat_at,
-		coordination_channel_id, queued_at, claimed_at, started_at,
+		network_spec_json, network_mode, network_channel, network_source,
+		queued_at, claimed_at, started_at,
 		ended_at, error,
 		ROW_NUMBER() OVER (
 			PARTITION BY task_id
@@ -38,6 +39,7 @@ inbox_candidates AS (
 		c.last_activity_at,
 		c.priority_rank,
 		lr.id AS run_id,
+		lr.workspace_id AS run_workspace_id,
 		lr.status AS run_status,
 		lr.attempt AS run_attempt,
 		lr.previous_run_id AS run_previous_run_id,
@@ -47,7 +49,10 @@ inbox_candidates AS (
 		lr.session_id AS run_session_id,
 		lr.lease_until AS run_lease_until,
 		lr.heartbeat_at AS run_heartbeat_at,
-		lr.coordination_channel_id AS run_coordination_channel_id,
+		lr.network_spec_json AS run_network_spec_json,
+		lr.network_mode AS run_network_mode,
+		lr.network_channel AS run_network_channel,
+		lr.network_source AS run_network_source,
 		lr.queued_at AS run_queued_at,
 		lr.claimed_at AS run_claimed_at,
 		lr.started_at AS run_started_at,
@@ -113,10 +118,10 @@ inbox AS (
 
 const taskInboxSelectColumns = `id, identifier, scope, workspace_id, title, priority,
 	status, owner_kind, owner_ref, latest_event_seq, approval_policy, approval_state,
-	max_attempts, last_activity_at, priority_rank, run_id, run_status, run_attempt,
+	max_attempts, last_activity_at, priority_rank, run_id, run_workspace_id, run_status, run_attempt,
 	run_previous_run_id, run_failure_kind, run_claimed_by_kind, run_claimed_by_ref,
-	run_session_id, run_lease_until, run_heartbeat_at, run_coordination_channel_id,
-	run_queued_at,
+	run_session_id, run_lease_until, run_heartbeat_at, run_network_spec_json,
+	run_network_mode, run_network_channel, run_network_source, run_queued_at,
 	run_claimed_at, run_started_at, run_ended_at, run_error, lane, is_unread,
 	triage_archived, triage_read, triage_dismissed, triage_last_seen_activity_at,
 	triage_updated_at`

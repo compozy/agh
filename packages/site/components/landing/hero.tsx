@@ -3,6 +3,7 @@ import { Eyebrow } from "@agh/ui";
 import { HeroPlayer } from "./hero-player";
 import { SUPPORTED_AGENT_COUNT } from "./provider-data";
 import { CtaButton } from "./primitives/cta-button";
+import { NETWORK_KIND_COUNT } from "./primitives/network-kinds";
 
 const featuredAgentNames = ["Claude Code", "OpenClaw", "Hermes"];
 const additionalAgentCount = Math.max(0, SUPPORTED_AGENT_COUNT - featuredAgentNames.length);
@@ -14,7 +15,7 @@ const featuredAgentDetail =
 const signalItems = [
   {
     label: "agh-network/v0, alpha runtime",
-    detail: "Seven message kinds. NATS-backed wire. Audited delivery.",
+    detail: `${NETWORK_KIND_COUNT} message kinds. Commit-first delivery. Audited outcomes.`,
   },
   {
     label: `${SUPPORTED_AGENT_COUNT} ACP drivers supported`,

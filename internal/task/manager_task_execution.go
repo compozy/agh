@@ -8,7 +8,7 @@ import (
 
 	"strings"
 
-	"time"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // PublishTask transitions one durable draft into manager-owned runnable reconciliation,
@@ -63,74 +63,138 @@ func (m *Service) executeTaskBoundary(
 	if trimmedID == "" {
 		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
 	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor); err != nil {
+		return nil, err
+	}
 	normalizedReq, err := normalizeTaskExecutionRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.validateNetworkChannel("task_execution.network_channel", normalizedReq.NetworkChannel); err != nil {
-		return nil, err
-	}
 	idempotencyKey := taskExecutionIdempotencyKey(trimmedID, action, normalizedReq.IdempotencyKey)
-	if existing, ok, err := m.taskExecutionFromIdempotency(ctx, trimmedID, idempotencyKey, action, actor); err != nil {
-		return nil, err
-	} else if ok {
-		return existing, nil
+	var result taskExecutionCommandResult
+	command := func(store ExecutionMutationStore) error {
+		var commandErr error
+		result, commandErr = m.executeTaskBoundaryWithStore(
+			ctx,
+			store,
+			trimmedID,
+			normalizedReq,
+			idempotencyKey,
+			action,
+			actor,
+		)
+		return commandErr
 	}
-
-	approvalTask, err := m.prepareTaskExecutionBoundary(ctx, trimmedID, action, actor)
-	if err != nil {
+	if transactions, ok := m.store.(ExecutionTransactionStore); ok {
+		if err := transactions.WithTaskExecutionTransaction(ctx, command); err != nil {
+			return nil, err
+		}
+	} else if err := command(m.store); err != nil {
 		return nil, err
 	}
+	m.publishTaskEventsAfterCommand(ctx, result.events)
+	m.observeCommittedRunParticipation(ctx, result.participationObservation)
+	if result.enqueued {
+		m.dispatchTaskRunEnqueued(
+			ctx,
+			result.execution.Run,
+			result.execution.Task,
+			actor,
+			result.execution.Run.IdempotencyKey,
+		)
+	}
+	return &result.execution, nil
+}
 
-	if execution, ok, err := m.approvalExistingRunExecution(
+type taskExecutionCommandResult struct {
+	execution                Execution
+	events                   []Event
+	participationObservation *participation.ResolvedObservation
+	enqueued                 bool
+}
+
+func (m *Service) executeTaskBoundaryWithStore(
+	ctx context.Context,
+	store ExecutionMutationStore,
+	taskID string,
+	req ExecutionRequest,
+	idempotencyKey string,
+	action ExecutionAction,
+	actor ActorContext,
+) (taskExecutionCommandResult, error) {
+	if existing, ok, err := m.taskExecutionFromIdempotencyWithStore(
 		ctx,
-		approvalTask,
+		store,
+		taskID,
+		idempotencyKey,
+		action,
+		actor,
 	); err != nil {
-		return nil, err
+		return taskExecutionCommandResult{}, err
 	} else if ok {
-		return execution, nil
+		return taskExecutionCommandResult{execution: *existing}, nil
 	}
 
-	if execution, ok, err := m.approvalAutoEnqueueExecution(
+	approvalTask, boundaryEvents, err := m.prepareTaskExecutionBoundaryWithStore(
 		ctx,
+		store,
+		taskID,
+		action,
+		actor,
+	)
+	if err != nil {
+		return taskExecutionCommandResult{}, err
+	}
+	if execution, ok, err := m.approvalExistingRunExecutionWithStore(ctx, store, approvalTask); err != nil {
+		return taskExecutionCommandResult{}, err
+	} else if ok {
+		return taskExecutionCommandResult{execution: *execution, events: boundaryEvents}, nil
+	}
+	if result, ok, err := m.approvalAutoEnqueueExecutionWithStore(
+		ctx,
+		store,
 		approvalTask,
-		normalizedReq,
+		req,
 		idempotencyKey,
 		actor,
 	); err != nil {
-		return nil, err
+		return taskExecutionCommandResult{}, err
 	} else if ok {
-		return execution, nil
+		result.events = append(boundaryEvents, result.events...)
+		return result, nil
 	}
 
-	run, err := m.EnqueueRun(ctx, EnqueueRun{
-		TaskID:         trimmedID,
-		IdempotencyKey: idempotencyKey,
-		NetworkChannel: normalizedReq.NetworkChannel,
-		Metadata:       normalizedReq.Metadata,
+	enqueued, err := m.enqueueRunWithStore(ctx, store, EnqueueRun{
+		TaskID:               taskID,
+		IdempotencyKey:       idempotencyKey,
+		NetworkParticipation: req.NetworkParticipation,
+		Metadata:             req.Metadata,
 	}, actor)
 	if err != nil {
-		return nil, err
+		return taskExecutionCommandResult{}, err
 	}
-	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
-	if err != nil {
-		return nil, err
-	}
-	return &Execution{
-		Task:   taskRecord,
-		Run:    *run,
-		Action: action,
+	return taskExecutionCommandResult{
+		execution: Execution{
+			Task:        enqueued.task,
+			Run:         enqueued.run,
+			Action:      action,
+			ExistingRun: enqueued.existing,
+		},
+		events:                   append(boundaryEvents, enqueued.event),
+		participationObservation: enqueued.participationObservation,
+		enqueued:                 !enqueued.existing,
 	}, nil
 }
 
-func (m *Service) approvalExistingRunExecution(
+func (m *Service) approvalExistingRunExecutionWithStore(
 	ctx context.Context,
+	store ExecutionMutationStore,
 	approvalTask *Task,
 ) (*Execution, bool, error) {
 	if approvalTask == nil {
 		return nil, false, nil
 	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: approvalTask.ID})
+	runs, err := store.ListTaskRuns(ctx, RunQuery{TaskID: approvalTask.ID})
 	if err != nil {
 		return nil, false, fmt.Errorf(
 			"task: list runs while approving task %q: %w",
@@ -166,7 +230,7 @@ func (m *Service) approvalExistingRunExecution(
 			openRun.TaskID,
 		)
 	}
-	taskRecord, err := m.store.GetTask(ctx, approvalTask.ID)
+	taskRecord, err := store.GetTask(ctx, approvalTask.ID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -178,89 +242,125 @@ func (m *Service) approvalExistingRunExecution(
 	}, true, nil
 }
 
-func (m *Service) prepareTaskExecutionBoundary(
+func (m *Service) prepareTaskExecutionBoundaryWithStore(
 	ctx context.Context,
+	store ExecutionMutationStore,
 	taskID string,
 	action ExecutionAction,
 	actor ActorContext,
-) (*Task, error) {
+) (*Task, []Event, error) {
 	switch action {
 	case ExecutionActionPublish:
-		_, err := m.publishTaskIntent(ctx, taskID, actor)
-		return nil, err
+		_, events, err := m.publishTaskIntentWithStore(ctx, store, taskID, actor)
+		return nil, events, err
 	case ExecutionActionApproval:
-		return m.transitionTaskApproval(
+		record, event, err := m.transitionTaskApprovalWithStore(
 			ctx,
+			store,
 			taskID,
 			ApprovalStateApproved,
 			taskEventApproved,
 			actor,
 		)
-	case ExecutionActionStart:
-		taskRecord, err := m.store.GetTask(ctx, taskID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return nil, m.ensureTaskExecutable(ctx, taskRecord)
+		return record, []Event{event}, nil
+	case ExecutionActionStart:
+		taskRecord, err := store.GetTask(ctx, taskID)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, nil, m.ensureTaskExecutableWithStore(ctx, store, taskRecord)
 	default:
-		return nil, fmt.Errorf("%w: unsupported task execution action %q", ErrValidation, action)
+		return nil, nil, fmt.Errorf("%w: unsupported task execution action %q", ErrValidation, action)
 	}
 }
 
-func (m *Service) approvalAutoEnqueueExecution(
+func (m *Service) approvalAutoEnqueueExecutionWithStore(
 	ctx context.Context,
+	store ExecutionMutationStore,
 	approvalTask *Task,
 	req ExecutionRequest,
 	executionIdempotencyKey string,
 	actor ActorContext,
-) (*Execution, bool, error) {
+) (taskExecutionCommandResult, bool, error) {
 	if approvalTask == nil ||
 		!approvalTask.AutoEnqueueOnReady ||
 		approvalTask.Status.Normalize() != TaskStatusReady {
-		return nil, false, nil
+		return taskExecutionCommandResult{}, false, nil
 	}
 	trigger := autoEnqueueTrigger{
 		Kind: autoEnqueueTriggerApprovalGranted,
 		Ref:  approvalTask.ID,
 	}
-	run, err := m.EnqueueRun(ctx, EnqueueRun{
-		TaskID:         approvalTask.ID,
-		IdempotencyKey: trigger.idempotencyKey(approvalTask.ID),
-		NetworkChannel: req.NetworkChannel,
-		Metadata:       req.Metadata,
+	enqueued, err := m.enqueueRunWithStore(ctx, store, EnqueueRun{
+		TaskID:               approvalTask.ID,
+		IdempotencyKey:       trigger.idempotencyKey(approvalTask.ID),
+		NetworkParticipation: req.NetworkParticipation,
+		Metadata:             req.Metadata,
 	}, actor)
 	if err != nil {
-		return nil, false, err
+		return taskExecutionCommandResult{}, false, err
 	}
-	if err := m.saveApprovalIdempotencyAlias(
+	if err := m.saveApprovalIdempotencyAliasWithStore(
 		ctx,
+		store,
 		approvalTask.ID,
-		run.ID,
+		enqueued.run.ID,
 		executionIdempotencyKey,
 		actor,
 	); err != nil {
-		return nil, false, err
+		return taskExecutionCommandResult{}, false, err
 	}
-	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
+	taskRecord, err := store.GetTask(ctx, enqueued.run.TaskID)
 	if err != nil {
-		return nil, false, err
+		return taskExecutionCommandResult{}, false, err
 	}
-	m.recordAutoEnqueueTriggered(ctx, *approvalTask, run, trigger, actor)
-	return &Execution{
-		Task:   taskRecord,
-		Run:    *run,
-		Action: ExecutionActionApproval,
+	autoEvent, err := m.newTaskEvent(
+		approvalTask.ID,
+		enqueued.run.ID,
+		taskEventAutoEnqueueTriggered,
+		actor,
+		autoEnqueueTriggeredPayload{
+			Status:      approvalTask.Status,
+			RunStatus:   enqueued.run.Status,
+			TriggerKind: trigger.Kind,
+			TriggerRef:  trigger.Ref,
+		},
+	)
+	if err != nil {
+		return taskExecutionCommandResult{}, false, err
+	}
+	if err := store.CreateTaskEvent(ctx, autoEvent); err != nil {
+		return taskExecutionCommandResult{}, false, err
+	}
+	events := []Event{enqueued.event, autoEvent}
+	if enqueued.existing {
+		events = []Event{autoEvent}
+	}
+	return taskExecutionCommandResult{
+		execution: Execution{
+			Task:        taskRecord,
+			Run:         enqueued.run,
+			Action:      ExecutionActionApproval,
+			ExistingRun: enqueued.existing,
+		},
+		events:                   events,
+		participationObservation: enqueued.participationObservation,
+		enqueued:                 !enqueued.existing,
 	}, true, nil
 }
 
-func (m *Service) saveApprovalIdempotencyAlias(
+func (m *Service) saveApprovalIdempotencyAliasWithStore(
 	ctx context.Context,
+	store IdempotencyStore,
 	taskID string,
 	runID string,
 	idempotencyKey string,
 	actor ActorContext,
 ) error {
-	if err := m.store.SaveTaskRunIdempotency(ctx, RunIdempotency{
+	if err := store.SaveTaskRunIdempotency(ctx, RunIdempotency{
 		IdempotencyKey: idempotencyKey,
 		RunID:          runID,
 		Origin:         actor.Origin,
@@ -276,14 +376,15 @@ func (m *Service) saveApprovalIdempotencyAlias(
 	return nil
 }
 
-func (m *Service) taskExecutionFromIdempotency(
+func (m *Service) taskExecutionFromIdempotencyWithStore(
 	ctx context.Context,
+	store ExecutionMutationStore,
 	taskID string,
 	idempotencyKey string,
 	action ExecutionAction,
 	actor ActorContext,
 ) (*Execution, bool, error) {
-	run, err := m.store.GetTaskRunByIdempotencyKey(ctx, idempotencyKey, actor.Origin)
+	run, err := store.GetTaskRunByIdempotencyKey(ctx, idempotencyKey, actor.Origin)
 	switch {
 	case errors.Is(err, ErrTaskRunIdempotencyNotFound):
 		return nil, false, nil
@@ -298,7 +399,7 @@ func (m *Service) taskExecutionFromIdempotency(
 			run.TaskID,
 		)
 	}
-	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
+	taskRecord, err := store.GetTask(ctx, run.TaskID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -308,111 +409,6 @@ func (m *Service) taskExecutionFromIdempotency(
 		Action:      action,
 		ExistingRun: true,
 	}, true, nil
-}
-
-func (m *Service) publishTaskIntent(
-	ctx context.Context,
-	id string,
-	actor ActorContext,
-) (*Task, error) {
-	record, err := m.store.GetTask(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if record.Status.Normalize() != TaskStatusDraft {
-		return nil, fmt.Errorf(
-			"%w: task %q cannot publish from %q",
-			ErrInvalidStatusTransition,
-			record.ID,
-			record.Status,
-		)
-	}
-
-	candidate := record
-	candidate.Status = TaskStatusPending
-	if err := m.ensureTaskExecutable(ctx, candidate); err != nil {
-		return nil, err
-	}
-
-	previousStatus := record.Status
-	record.Status = TaskStatusPending
-	record.UpdatedAt = m.now().UTC()
-	record.ClosedAt = time.Time{}
-	if err := m.store.UpdateTask(ctx, record, actor); err != nil {
-		return nil, err
-	}
-	m.dispatchTaskStatusChanged(ctx, record, previousStatus, record.Status, actor)
-
-	reconciled, err := m.reconcileTaskCascade(ctx, record.ID, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(ctx, reconciled.ID, "", taskEventPublished, actor, publishedTaskPayload{
-		PreviousStatus: TaskStatusDraft,
-		Status:         reconciled.Status,
-		ApprovalState:  reconciled.ApprovalState,
-	}); err != nil {
-		return nil, err
-	}
-
-	return &reconciled, nil
-}
-
-func (m *Service) transitionTaskApproval(
-	ctx context.Context,
-	id string,
-	target ApprovalState,
-	eventType string,
-	actor ActorContext,
-) (*Task, error) {
-	if err := requireWriteAuthority(actor); err != nil {
-		return nil, err
-	}
-
-	trimmedID := strings.TrimSpace(id)
-	if trimmedID == "" {
-		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
-	}
-
-	record, err := m.store.GetTask(ctx, trimmedID)
-	if err != nil {
-		return nil, err
-	}
-
-	previousApprovalState := normalizeApprovalStateOrDefault(
-		record.ApprovalPolicy,
-		record.ApprovalState,
-	)
-	if !taskApprovalDecisionAllowed(record, target) {
-		return nil, fmt.Errorf(
-			"%w: task %q cannot transition approval from %q to %q",
-			ErrInvalidStatusTransition,
-			record.ID,
-			previousApprovalState,
-			target.Normalize(),
-		)
-	}
-
-	record.ApprovalState = target.Normalize()
-	record.UpdatedAt = m.now().UTC()
-	record.ClosedAt = time.Time{}
-	if err := m.store.UpdateTask(ctx, record, actor); err != nil {
-		return nil, err
-	}
-
-	reconciled, err := m.reconcileTaskCascade(ctx, record.ID, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(ctx, reconciled.ID, "", eventType, actor, approvalDecisionTaskPayload{
-		PreviousApprovalState: previousApprovalState,
-		ApprovalState:         reconciled.ApprovalState,
-		Status:                reconciled.Status,
-	}); err != nil {
-		return nil, err
-	}
-
-	return &reconciled, nil
 }
 
 func taskApprovalDecisionAllowed(record Task, target ApprovalState) bool {

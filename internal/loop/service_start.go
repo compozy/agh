@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/task"
 )
 
@@ -43,6 +44,7 @@ func (s *service) Start(
 	if err != nil {
 		return nil, err
 	}
+	s.observeCommittedRunParticipation(ctx, created)
 	s.dispatchLoopStarted(ctx, created, actor)
 	return &created, nil
 }
@@ -74,6 +76,7 @@ func (s *service) StartInline(
 	if err != nil {
 		return nil, err
 	}
+	s.observeCommittedRunParticipation(ctx, created)
 	s.dispatchLoopStarted(ctx, created, actor)
 	return &created, nil
 }
@@ -115,6 +118,7 @@ func (s *service) ReplaceInline(
 	if err != nil {
 		return InlineReplaceResult{}, err
 	}
+	s.observeCommittedRunParticipation(ctx, committed.Run)
 	s.revokeGoalPromptLeases(ctx, committed.RevokedPromptLeases, TransitionCauseGoalReplace)
 	s.dispatchCoordinatorTerminal(ctx, committed.ReplacedRun, TransitionCauseGoalReplace, replacedAt)
 	s.dispatchLoopStarted(ctx, committed.Run, actor)
@@ -169,7 +173,34 @@ func (s *service) prepareResolvedStart(
 	if err != nil {
 		return Run{}, err
 	}
-	return s.startResolved(ws, loopName, resolved, effective, resolvedInputs, inputs, origin, policy, actor)
+	runID := s.newRunID()
+	networkSpec, err := s.resolveRunParticipation(
+		ctx,
+		ws,
+		runID,
+		inputs.NetworkParticipation,
+		inputs.NetworkParticipationSource,
+		resolved.Definition.NetworkParticipation,
+	)
+	if err != nil {
+		return Run{}, err
+	}
+	if err := validateLoopParticipation(resolved.Definition.Graph, networkSpec); err != nil {
+		return Run{}, err
+	}
+	return s.startResolved(
+		runID,
+		ws,
+		loopName,
+		resolved,
+		effective,
+		resolvedInputs,
+		inputs,
+		origin,
+		policy,
+		networkSpec,
+		actor,
+	)
 }
 
 func (s *service) resolveGoalRunPolicy(ctx context.Context, ws WorkspaceID) (GoalRunPolicy, error) {
@@ -187,6 +218,7 @@ func (s *service) resolveGoalRunPolicy(ctx context.Context, ws WorkspaceID) (Goa
 }
 
 func (s *service) startResolved(
+	runID RunID,
 	ws WorkspaceID,
 	loopName string,
 	resolved *ResolvedDefinition,
@@ -195,6 +227,7 @@ func (s *service) startResolved(
 	inputs Inputs,
 	origin RunOrigin,
 	policy GoalRunPolicy,
+	networkSpec participation.Spec,
 	actor task.ActorContext,
 ) (Run, error) {
 	snapshot, digest, err := BuildExecutedDefinitionSnapshot(resolved, effective)
@@ -202,8 +235,8 @@ func (s *service) startResolved(
 		return Run{}, err
 	}
 	now := s.now().UTC()
-	return Run{
-		ID: s.newRunID(), WorkspaceID: ws,
+	run := Run{
+		ID: runID, WorkspaceID: ws,
 		LoopName: loopName, Status: StatusRunning, Generation: 0,
 		ReattemptStrategy: effective.ReattemptStrategy, CreatedAt: now, StartedAt: now, LastProgressAt: now,
 		StartedBy: actor.Actor, StartedOrigin: actor.Origin,
@@ -213,5 +246,7 @@ func (s *service) startResolved(
 		BudgetWallSec: effective.BudgetWallSec, BudgetOnExceeded: effective.BudgetOnExceeded,
 		ParentLoopRunID: inputs.ParentLoopRunID, GoalContextNudgeRatio: policy.ContextNudgeRatio,
 		Origin: &origin, Inputs: resolvedInputs,
-	}, nil
+	}
+	run.SetNetworkSpec(networkSpec)
+	return run, nil
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 )
 
@@ -345,10 +346,11 @@ func creationOptionsForSpec(spec *sessionStartSpec) *store.SessionCreationOption
 		return cloneCreationOptions(spec.creationOptions)
 	}
 	return &store.SessionCreationOptions{
-		SessionID:   strings.TrimSpace(spec.sessionID),
-		Name:        strings.TrimSpace(spec.sessionName),
-		Channel:     strings.TrimSpace(spec.channel),
-		SessionType: string(normalizeSessionType(spec.sessionType)),
+		SessionID:            strings.TrimSpace(spec.sessionID),
+		Name:                 strings.TrimSpace(spec.sessionName),
+		NetworkOwnerKey:      strings.TrimSpace(spec.networkOwnerKey),
+		NetworkParticipation: spec.networkParticipation,
+		SessionType:          string(normalizeSessionType(spec.sessionType)),
 	}
 }
 
@@ -358,11 +360,22 @@ func validateRequestedCreationIdentity(opts CreateOpts) error {
 	if profile == nil || identity == nil {
 		return errors.New("session: creation profile and identity are required")
 	}
+	networkParticipation := participation.LocalSpec()
+	if opts.ResolvedNetworkParticipation != nil {
+		networkParticipation = *opts.ResolvedNetworkParticipation
+	}
 	spec := &sessionStartSpec{
-		sessionID:   strings.TrimSpace(opts.DesiredSessionID),
-		sessionName: strings.TrimSpace(opts.Name),
-		channel:     strings.TrimSpace(opts.Channel),
-		sessionType: normalizeSessionType(opts.Type),
+		sessionID:            strings.TrimSpace(opts.DesiredSessionID),
+		sessionName:          strings.TrimSpace(opts.Name),
+		networkOwnerKey:      strings.TrimSpace(opts.NetworkOwnerKey),
+		networkParticipation: networkParticipation,
+		sessionType:          normalizeSessionType(opts.Type),
+	}
+	if spec.networkOwnerKey == "" {
+		spec.networkOwnerKey = participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindSession,
+			ID:   spec.sessionID,
+		})
 	}
 	computed, err := identityForCreationProfile(*profile, spec)
 	if err != nil {

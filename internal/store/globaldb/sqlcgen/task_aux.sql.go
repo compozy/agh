@@ -51,11 +51,11 @@ LIMIT 1
 `
 
 type GetOpenTaskRunIDParams struct {
-	TaskID             string `json:"task_id"`
-	CompletedStatus    string `json:"completed_status"`
-	FailedStatus       string `json:"failed_status"`
-	CanceledStatus     string `json:"canceled_status"`
-	DesignationGroupID string `json:"designation_group_id"`
+	TaskID             sql.NullString `json:"task_id"`
+	CompletedStatus    string         `json:"completed_status"`
+	FailedStatus       string         `json:"failed_status"`
+	CanceledStatus     string         `json:"canceled_status"`
+	DesignationGroupID string         `json:"designation_group_id"`
 }
 
 func (q *Queries) GetOpenTaskRunID(ctx context.Context, arg GetOpenTaskRunIDParams) (string, error) {
@@ -171,9 +171,9 @@ const getTaskRunTaskID = `-- name: GetTaskRunTaskID :one
 SELECT task_id FROM task_runs WHERE id = ?1
 `
 
-func (q *Queries) GetTaskRunTaskID(ctx context.Context, id string) (string, error) {
+func (q *Queries) GetTaskRunTaskID(ctx context.Context, id string) (sql.NullString, error) {
 	row := q.db.QueryRowContext(ctx, getTaskRunTaskID, id)
-	var task_id string
+	var task_id sql.NullString
 	err := row.Scan(&task_id)
 	return task_id, err
 }
@@ -378,7 +378,7 @@ const listTaskEventRecordsAscending = `-- name: ListTaskEventRecordsAscending :m
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE task_id = ?1
+WHERE (CAST(?1 AS TEXT) = '' OR task_id = CAST(?1 AS TEXT))
   AND (CAST(?2 AS INTEGER) <= 0 OR event_seq > CAST(?2 AS INTEGER))
 ORDER BY event_seq ASC
 LIMIT ?3
@@ -443,7 +443,7 @@ const listTaskEventRecordsDescending = `-- name: ListTaskEventRecordsDescending 
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp
 FROM task_events
-WHERE task_id = ?1
+WHERE (CAST(?1 AS TEXT) = '' OR task_id = CAST(?1 AS TEXT))
   AND (CAST(?2 AS INTEGER) <= 0 OR event_seq > CAST(?2 AS INTEGER))
 ORDER BY event_seq DESC
 LIMIT ?3
@@ -635,7 +635,7 @@ FROM task_runs
 WHERE task_id = ?1
 `
 
-func (q *Queries) MaxTaskRunAttempt(ctx context.Context, taskID string) (int64, error) {
+func (q *Queries) MaxTaskRunAttempt(ctx context.Context, taskID sql.NullString) (int64, error) {
 	row := q.db.QueryRowContext(ctx, maxTaskRunAttempt, taskID)
 	var column_1 int64
 	err := row.Scan(&column_1)

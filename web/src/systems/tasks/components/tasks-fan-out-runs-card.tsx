@@ -13,27 +13,22 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
-  Input,
   Section,
   Spinner,
   Textarea,
 } from "@agh/ui";
+import { NetworkParticipationFields } from "@/systems/network";
 
 import { useTasksFanOutRunsCard } from "../hooks/use-tasks-fan-out-runs-card";
 import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
 
 export interface TasksFanOutRunsCardProps {
-  defaultNetworkChannel?: string | null;
   isPending?: boolean;
   onFanOut: (data: FanOutTaskRunsRequest) => Promise<FanOutTaskRunsResponse | void>;
 }
 
-export function TasksFanOutRunsCard({
-  defaultNetworkChannel = null,
-  isPending = false,
-  onFanOut,
-}: TasksFanOutRunsCardProps) {
-  const state = useTasksFanOutRunsCard({ defaultNetworkChannel, onFanOut });
+export function TasksFanOutRunsCard({ isPending = false, onFanOut }: TasksFanOutRunsCardProps) {
+  const state = useTasksFanOutRunsCard({ onFanOut });
 
   return (
     <Section
@@ -84,21 +79,6 @@ export function TasksFanOutRunsCard({
               ) : null}
 
               <Field>
-                <FieldLabel htmlFor="tasks-fan-out-network-channel">Network channel</FieldLabel>
-                <FieldDescription>
-                  Optional channel for coordinated runs and thread status-back.
-                </FieldDescription>
-                <Input
-                  className="font-mono"
-                  data-testid="tasks-fan-out-network-channel"
-                  id="tasks-fan-out-network-channel"
-                  onChange={event => state.setNetworkChannel(event.target.value)}
-                  placeholder="general"
-                  value={state.networkChannel}
-                />
-              </Field>
-
-              <Field>
                 <FieldLabel htmlFor="tasks-fan-out-designations">Assignments</FieldLabel>
                 <FieldDescription>
                   One line per run. Each line is injected as that worker's assignment brief.
@@ -112,6 +92,13 @@ export function TasksFanOutRunsCard({
                   variant="mono"
                 />
               </Field>
+
+              <NetworkParticipationFields
+                allowedStrategies={state.networkStrategies}
+                onChange={state.setNetworkParticipation}
+                testIdPrefix="tasks-fan-out-network"
+                value={state.networkParticipation}
+              />
             </div>
 
             <DialogFooter className="border-t border-line bg-canvas-soft px-5 py-3">

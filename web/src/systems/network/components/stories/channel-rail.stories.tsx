@@ -87,7 +87,7 @@ export const Default: Story = {
         onTogglePinned={() => undefined}
         pinnedChannels={allChannels.filter(channel => pinnedSet.has(channel.channel))}
         recents={recents}
-        selfPeerId={null}
+        selfSessionId={null}
         unpinnedChannels={allChannels.filter(channel => !pinnedSet.has(channel.channel))}
       />
     </PanelSurface>
@@ -108,7 +108,7 @@ export const Loading: Story = {
         onTogglePinned={() => undefined}
         pinnedChannels={[]}
         recents={[]}
-        selfPeerId={null}
+        selfSessionId={null}
         unpinnedChannels={[]}
       />
     </PanelSurface>
@@ -129,7 +129,7 @@ export const Empty: Story = {
         onTogglePinned={() => undefined}
         pinnedChannels={[]}
         recents={[]}
-        selfPeerId={null}
+        selfSessionId={null}
         unpinnedChannels={[]}
       />
     </PanelSurface>

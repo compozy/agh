@@ -10,7 +10,7 @@ import (
 )
 
 const getNetworkDirectRoom = `-- name: GetNetworkDirectRoom :one
-SELECT workspace_id, channel, direct_id, peer_a, peer_b,
+SELECT workspace_id, channel, direct_id, session_a, session_b,
        opened_at, opened_sequence, last_activity_at, last_activity_sequence,
        message_count, open_work_count, last_message_preview
 FROM network_direct_rooms
@@ -29,8 +29,8 @@ type GetNetworkDirectRoomRow struct {
 	WorkspaceID          string `json:"workspace_id"`
 	Channel              string `json:"channel"`
 	DirectID             string `json:"direct_id"`
-	PeerA                string `json:"peer_a"`
-	PeerB                string `json:"peer_b"`
+	SessionA             string `json:"session_a"`
+	SessionB             string `json:"session_b"`
 	OpenedAt             string `json:"opened_at"`
 	OpenedSequence       int64  `json:"opened_sequence"`
 	LastActivityAt       string `json:"last_activity_at"`
@@ -47,8 +47,8 @@ func (q *Queries) GetNetworkDirectRoom(ctx context.Context, arg GetNetworkDirect
 		&i.WorkspaceID,
 		&i.Channel,
 		&i.DirectID,
-		&i.PeerA,
-		&i.PeerB,
+		&i.SessionA,
+		&i.SessionB,
 		&i.OpenedAt,
 		&i.OpenedSequence,
 		&i.LastActivityAt,
@@ -67,21 +67,21 @@ SELECT
   message_count, participant_count, open_work_count,
   CAST(COALESCE((
     SELECT SUM(stats.delivered_count)
-    FROM network_thread_peer_token_stats AS stats
+    FROM network_thread_session_token_stats AS stats
     WHERE stats.workspace_id = network_threads.workspace_id
       AND stats.channel = network_threads.channel
       AND stats.thread_id = network_threads.thread_id
   ), 0) AS INTEGER) AS delivered_count,
   CAST(COALESCE((
     SELECT SUM(stats.prompt_size_bytes)
-    FROM network_thread_peer_token_stats AS stats
+    FROM network_thread_session_token_stats AS stats
     WHERE stats.workspace_id = network_threads.workspace_id
       AND stats.channel = network_threads.channel
       AND stats.thread_id = network_threads.thread_id
   ), 0) AS INTEGER) AS prompt_size_bytes,
   CAST(COALESCE((
     SELECT SUM(stats.estimated_prompt_tokens)
-    FROM network_thread_peer_token_stats AS stats
+    FROM network_thread_session_token_stats AS stats
     WHERE stats.workspace_id = network_threads.workspace_id
       AND stats.channel = network_threads.channel
       AND stats.thread_id = network_threads.thread_id
@@ -150,14 +150,14 @@ const listNetworkRecents = `-- name: ListNetworkRecents :many
 SELECT
 	recents.workspace_id, recents.channel, recents.surface, recents.container_id,
 	recents.last_activity_at, recents.last_activity_sequence, recents.last_message_preview,
-	recents.title, recents.participant_count, recents.peer_a, recents.peer_b
+	recents.title, recents.participant_count, recents.session_a, recents.session_b
 FROM (
 	SELECT
 		network_threads.workspace_id, network_threads.channel, 'thread' AS surface,
 		network_threads.thread_id AS container_id, network_threads.last_activity_at,
 		network_threads.last_activity_sequence, network_threads.last_message_preview,
 		network_threads.title, network_threads.participant_count,
-		'' AS peer_a, '' AS peer_b
+		'' AS session_a, '' AS session_b
 	FROM network_threads
 	WHERE network_threads.workspace_id = ?1
 	UNION ALL
@@ -165,7 +165,7 @@ FROM (
 		network_direct_rooms.workspace_id, network_direct_rooms.channel, 'direct' AS surface,
 		network_direct_rooms.direct_id AS container_id, network_direct_rooms.last_activity_at,
 		network_direct_rooms.last_activity_sequence, network_direct_rooms.last_message_preview,
-		'' AS title, 0 AS participant_count, network_direct_rooms.peer_a, network_direct_rooms.peer_b
+		'' AS title, 0 AS participant_count, network_direct_rooms.session_a, network_direct_rooms.session_b
 	FROM network_direct_rooms
 	WHERE network_direct_rooms.workspace_id = ?1
 ) AS recents
@@ -188,8 +188,8 @@ type ListNetworkRecentsRow struct {
 	LastMessagePreview   string `json:"last_message_preview"`
 	Title                string `json:"title"`
 	ParticipantCount     int64  `json:"participant_count"`
-	PeerA                string `json:"peer_a"`
-	PeerB                string `json:"peer_b"`
+	SessionA             string `json:"session_a"`
+	SessionB             string `json:"session_b"`
 }
 
 func (q *Queries) ListNetworkRecents(ctx context.Context, arg ListNetworkRecentsParams) ([]ListNetworkRecentsRow, error) {
@@ -211,8 +211,8 @@ func (q *Queries) ListNetworkRecents(ctx context.Context, arg ListNetworkRecents
 			&i.LastMessagePreview,
 			&i.Title,
 			&i.ParticipantCount,
-			&i.PeerA,
-			&i.PeerB,
+			&i.SessionA,
+			&i.SessionB,
 		); err != nil {
 			return nil, err
 		}

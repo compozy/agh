@@ -6,19 +6,6 @@ import (
 	"time"
 )
 
-type NetworkDeliveryGuidanceState struct {
-	SessionID                 string
-	ReplyGuidanceDelivered    bool
-	ProtocolGuidanceDelivered bool
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
-}
-
-// Validate ensures guidance state is keyed by one session.
-func (s NetworkDeliveryGuidanceState) Validate() error {
-	return requireField(s.SessionID, "network delivery guidance session_id")
-}
-
 // NetworkConversationRef identifies one persisted network conversation container.
 type NetworkConversationRef struct {
 	WorkspaceID string
@@ -72,12 +59,12 @@ func (r NetworkConversationRef) ContainerID() string {
 	}
 }
 
-// NetworkThreadParticipant is one peer recorded as present in a public thread.
+// NetworkThreadParticipant is one session recorded as present in a public thread.
 type NetworkThreadParticipant struct {
 	WorkspaceID    string
 	Channel        string
 	ThreadID       string
-	PeerID         string
+	SessionID      string
 	FirstMessageID string
 	FirstSeenAt    time.Time
 	LastSeenAt     time.Time
@@ -94,7 +81,7 @@ func (p NetworkThreadParticipant) Validate() error {
 	if err := ref.Validate(); err != nil {
 		return err
 	}
-	if err := validateNetworkPeerID(p.PeerID, "network thread participant peer_id"); err != nil {
+	if err := requireField(p.SessionID, "network thread participant session_id"); err != nil {
 		return err
 	}
 	if err := requireField(p.FirstMessageID, "network thread participant first_message_id"); err != nil {
@@ -109,12 +96,12 @@ func (p NetworkThreadParticipant) Validate() error {
 	return nil
 }
 
-// NetworkThreadPeerTokenStats aggregates delivered prompt cost by thread peer.
-type NetworkThreadPeerTokenStats struct {
+// NetworkThreadSessionTokenStats aggregates delivered prompt cost by thread session.
+type NetworkThreadSessionTokenStats struct {
 	WorkspaceID           string
 	Channel               string
 	ThreadID              string
-	PeerID                string
+	SessionID             string
 	DeliveredCount        int64
 	PromptSizeBytes       int64
 	EstimatedPromptTokens int64
@@ -123,12 +110,12 @@ type NetworkThreadPeerTokenStats struct {
 	UpdatedAt             time.Time
 }
 
-// NetworkThreadPeerTokenStatsUpdate increments one thread/peer prompt-cost row.
-type NetworkThreadPeerTokenStatsUpdate struct {
+// NetworkThreadSessionTokenStatsUpdate increments one thread/session prompt-cost row.
+type NetworkThreadSessionTokenStatsUpdate struct {
 	WorkspaceID           string
 	Channel               string
 	ThreadID              string
-	PeerID                string
+	SessionID             string
 	DeliveredCount        int64
 	PromptSizeBytes       int64
 	EstimatedPromptTokens int64
@@ -137,7 +124,7 @@ type NetworkThreadPeerTokenStatsUpdate struct {
 }
 
 // Validate ensures the prompt-cost update is scoped and additive.
-func (u NetworkThreadPeerTokenStatsUpdate) Validate() error {
+func (u NetworkThreadSessionTokenStatsUpdate) Validate() error {
 	ref := NetworkConversationRef{
 		WorkspaceID: u.WorkspaceID,
 		Channel:     u.Channel,
@@ -147,41 +134,41 @@ func (u NetworkThreadPeerTokenStatsUpdate) Validate() error {
 	if err := ref.Validate(); err != nil {
 		return err
 	}
-	if err := validateNetworkPeerID(u.PeerID, "network thread peer token stats peer_id"); err != nil {
+	if err := requireField(u.SessionID, "network thread session token stats session_id"); err != nil {
 		return err
 	}
 	if u.DeliveredCount < 0 {
 		return fmt.Errorf(
-			"store: network thread peer token stats delivered_count must be zero or positive: %d",
+			"store: network thread session token stats delivered_count must be zero or positive: %d",
 			u.DeliveredCount,
 		)
 	}
 	if u.PromptSizeBytes < 0 {
 		return fmt.Errorf(
-			"store: network thread peer token stats prompt_size_bytes must be zero or positive: %d",
+			"store: network thread session token stats prompt_size_bytes must be zero or positive: %d",
 			u.PromptSizeBytes,
 		)
 	}
 	if u.EstimatedPromptTokens < 0 {
 		return fmt.Errorf(
-			"store: network thread peer token stats estimated_prompt_tokens must be zero or positive: %d",
+			"store: network thread session token stats estimated_prompt_tokens must be zero or positive: %d",
 			u.EstimatedPromptTokens,
 		)
 	}
 	return nil
 }
 
-// NetworkThreadPeerTokenStatsQuery filters thread/peer prompt-cost aggregates.
-type NetworkThreadPeerTokenStatsQuery struct {
+// NetworkThreadSessionTokenStatsQuery filters thread/session prompt-cost aggregates.
+type NetworkThreadSessionTokenStatsQuery struct {
 	WorkspaceID string
 	Channel     string
 	ThreadID    string
-	PeerID      string
+	SessionID   string
 	Limit       int
 }
 
 // Validate ensures aggregate reads cannot cross workspace/thread boundaries.
-func (q NetworkThreadPeerTokenStatsQuery) Validate() error {
+func (q NetworkThreadSessionTokenStatsQuery) Validate() error {
 	ref := NetworkConversationRef{
 		WorkspaceID: q.WorkspaceID,
 		Channel:     q.Channel,
@@ -191,12 +178,12 @@ func (q NetworkThreadPeerTokenStatsQuery) Validate() error {
 	if err := ref.Validate(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(q.PeerID) != "" {
-		if err := validateNetworkPeerID(q.PeerID, "network thread peer token stats peer_id"); err != nil {
+	if strings.TrimSpace(q.SessionID) != "" {
+		if err := requireField(q.SessionID, "network thread session token stats session_id"); err != nil {
 			return err
 		}
 	}
-	return requirePositiveLimit(q.Limit, "network thread peer token stats limit")
+	return requirePositiveLimit(q.Limit, "network thread session token stats limit")
 }
 
 // Validate ensures the public-thread summary is internally consistent.
@@ -251,7 +238,7 @@ func (s NetworkThreadSummary) Validate() error {
 
 // Validate ensures the direct-room summary is internally consistent.
 func (s NetworkDirectRoomSummary) Validate() error {
-	if err := validateNetworkDirectRoom(s.WorkspaceID, s.Channel, s.DirectID, s.PeerA, s.PeerB); err != nil {
+	if err := validateNetworkDirectRoom(s.WorkspaceID, s.Channel, s.DirectID, s.SessionA, s.SessionB); err != nil {
 		return err
 	}
 	if s.OpenedAt.IsZero() {

@@ -1181,26 +1181,19 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			Network: &settingspkg.NetworkSection{
 				Config: aghconfig.NetworkConfig{
-					Enabled:        true,
-					DefaultChannel: "builders",
-					Port:           4222,
-					MaxPayload:     1024,
-					GreetInterval:  5,
-					MaxReplayAge:   10,
-					MaxQueueDepth:  32,
+					Enabled:      true,
+					MaxReplayAge: 10,
+					Live:         aghconfig.DefaultNetworkConfig().Live,
 				},
 				Runtime: settingspkg.NetworkRuntimeStatus{
-					Available:       true,
-					Enabled:         true,
-					Status:          "running",
-					ListenerHost:    "127.0.0.1",
-					ListenerPort:    4222,
-					LocalPeers:      1,
-					RemotePeers:     2,
-					Channels:        3,
-					QueuedMessages:  4,
-					QueuedSessions:  5,
-					DeliveryWorkers: 2,
+					Available:         true,
+					Enabled:           true,
+					Status:            "active",
+					LocalPeers:        1,
+					Channels:          3,
+					MessagesReceived:  4,
+					MessagesDelivered: 2,
+					MessagesRejected:  1,
 				},
 				Links: []settingspkg.OperationalLink{{Label: "network", Path: "/network"}},
 			},
@@ -1494,7 +1487,7 @@ func TestUpdateSettingsGeneralRejectsInvalidPayload(t *testing.T) {
 	}
 }
 
-func TestUpdateSettingsSectionHandlersRejectMissingConfig(t *testing.T) {
+func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1530,6 +1523,29 @@ func TestUpdateSettingsSectionHandlersRejectMissingConfig(t *testing.T) {
 			decodeJSON(t, resp.Body.Bytes(), &payload)
 			if !strings.Contains(payload.Error, tc.want) {
 				t.Fatalf("payload.Error = %q, want substring %q", payload.Error, tc.want)
+			}
+		})
+	}
+
+	for _, field := range []string{"default_channel", "port"} {
+		t.Run("network removed field "+field, func(t *testing.T) {
+			t.Parallel()
+
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			body := fmt.Appendf(nil, `{"config":{%q:"removed"}}`, field)
+
+			resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/network", body)
+			if got, want := resp.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+			}
+			if service.UpdateSectionCalls != 0 {
+				t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+			}
+			var payload contract.ErrorPayload
+			decodeJSON(t, resp.Body.Bytes(), &payload)
+			if !strings.Contains(payload.Error, "unknown_field") || !strings.Contains(payload.Error, field) {
+				t.Fatalf("payload.Error = %q, want unknown_field naming %q", payload.Error, field)
 			}
 		})
 	}
@@ -1693,23 +1709,34 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			path: "/api/settings/network",
 			body: contract.UpdateSettingsNetworkRequest{
 				Config: contract.SettingsNetworkConfigPayload{
-					Enabled:                        true,
-					DefaultChannel:                 "builders",
-					Port:                           4222,
-					MaxPayload:                     1024,
-					GreetInterval:                  5,
-					MaxReplayAge:                   10,
-					MaxQueueDepth:                  32,
-					ActivationTopK:                 4,
-					DigestFlushInterval:            "30s",
-					DigestMaxEnvelopes:             10,
-					ResponseGuidanceMaxBytes:       1024,
-					DeliveryStructuredBodyMaxBytes: 2048,
+					Enabled:      true,
+					MaxReplayAge: 10,
+					Live: contract.SettingsNetworkLiveConfigPayload{
+						Defaults: contract.SettingsNetworkLiveDefaultsPayload{
+							MaxWakes:         8,
+							MaxWakeWallTime:  "5m",
+							MaxTotalWallTime: "30m",
+							MaxInputTokens:   200_000,
+							MaxOutputTokens:  50_000,
+							MaxWakeDepth:     3,
+							CoalesceWindow:   "500ms",
+						},
+						Limits: contract.SettingsNetworkLiveLimitsPayload{
+							MaxWakes:          64,
+							MaxWakeWallTime:   "15m",
+							MaxTotalWallTime:  "2h",
+							MaxInputTokens:    1_000_000,
+							MaxOutputTokens:   200_000,
+							MaxWakeDepth:      5,
+							MinCoalesceWindow: "100ms",
+							MaxCoalesceWindow: "5s",
+						},
+					},
 				},
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.Network == nil || req.Network.DefaultChannel != "builders" {
+				if req.Network == nil || req.Network.MaxReplayAge != 10 {
 					t.Fatalf("req.Network = %#v, want populated network config", req.Network)
 				}
 			},
@@ -2885,8 +2912,8 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			t.Fatalf("override status = %d, want %d; body=%s", got, want, response.Body.String())
 		}
 		body := response.Body.String()
-		if !strings.Contains(body, "unknown field") || !strings.Contains(body, "command") {
-			t.Fatalf("override response = %s, want unknown command field detail", body)
+		if !strings.Contains(body, "unknown_field") || !strings.Contains(body, "command") {
+			t.Fatalf("override response = %s, want normalized unknown_field with command detail", body)
 		}
 		if service.InstallMCPCatalogCalls != 0 {
 			t.Fatalf("InstallMCPCatalogCalls = %d, want 0 after strict decode failure", service.InstallMCPCatalogCalls)

@@ -13,10 +13,48 @@ import (
 	"github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
+
+func testLiveParticipation(workspaceID string, channelID string) participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     workspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       channelID,
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         4,
+			MaxWakeWallTime:  "30s",
+			MaxTotalWallTime: "2m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  4096,
+			MaxWakeDepth:     4,
+			CoalesceWindow:   "250ms",
+		},
+	}
+}
+
+func testNamedParticipationRequest(channelID string) *participation.Request {
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	return &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		ChannelID:       &channelID,
+	}
+}
+
+func testParticipationRequestChannel(request *participation.Request) string {
+	if request == nil || request.ChannelID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*request.ChannelID)
+}
 
 type stubDreamTrigger struct {
 	Triggered bool
@@ -329,6 +367,13 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/webhooks/global/:endpoint", handlers.DeliverGlobalWebhook)
 	engine.POST("/webhooks/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
 	engine.GET("/network/status", handlers.NetworkStatus)
+	engine.GET("/workspaces/:workspace_id/network/usage", handlers.GetNetworkUsage)
+	engine.GET("/workspaces/:workspace_id/network-coordination", handlers.GetNetworkCoordination)
+	engine.PUT("/workspaces/:workspace_id/network-coordination", handlers.PutNetworkCoordination)
+	engine.PUT(
+		"/workspaces/:workspace_id/network-coordination/invitation",
+		handlers.PutNetworkCoordinationInvitation,
+	)
 	engine.GET("/workspaces/:workspace_id/network/peers", handlers.NetworkPeers)
 	engine.GET("/workspaces/:workspace_id/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
 	engine.GET("/workspaces/:workspace_id/network/peers/:peer_id", handlers.NetworkPeer)
@@ -339,7 +384,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/workspaces/:workspace_id/network/channels/:channel/subscriptions", handlers.NetworkSubscriptions)
 	engine.PUT("/workspaces/:workspace_id/network/channels/:channel/subscriptions", handlers.UpsertNetworkSubscription)
 	engine.DELETE(
-		"/workspaces/:workspace_id/network/channels/:channel/subscriptions/:peer_id",
+		"/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
 		handlers.DeleteNetworkSubscription,
 	)
 	engine.GET("/workspaces/:workspace_id/network/channels/:channel/messages", handlers.NetworkChannelMessages)
@@ -403,6 +448,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/tasks/:id/runs", handlers.EnqueueTaskRun)
 	engine.POST("/tasks/:id/runs/fan-out", handlers.FanOutTaskRuns)
 	engine.GET("/task-runs/:id", handlers.GetTaskRun)
+	engine.GET("/task-runs/:id/conversation/stream", handlers.StreamTaskRunConversation)
 	engine.GET("/runs/:id/inspect", handlers.InspectRun)
 	engine.POST("/runs/:id/release", handlers.ForceReleaseTaskRun)
 	engine.POST("/runs/:id/fail", handlers.ForceFailTaskRun)
@@ -414,7 +460,6 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/scheduler/resume", handlers.ResumeScheduler)
 	engine.POST("/scheduler/drain", handlers.DrainScheduler)
 	engine.GET("/scheduler/backlog", handlers.GetSchedulerBacklog)
-	engine.POST("/task-runs/:id/claim", handlers.ClaimTaskRun)
 	engine.POST("/task-runs/:id/start", handlers.StartTaskRun)
 	engine.POST("/task-runs/:id/attach-session", handlers.AttachTaskRunSession)
 	engine.POST("/task-runs/:id/complete", handlers.CompleteTaskRun)

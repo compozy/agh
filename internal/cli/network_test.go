@@ -48,22 +48,15 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			networkStatusFn: func(context.Context) (NetworkStatusRecord, error) {
 				return NetworkStatusRecord{
 					Enabled:              true,
-					Status:               "running",
-					ListenerHost:         "127.0.0.1",
-					ListenerPort:         4222,
+					Status:               "active",
 					LocalPeers:           1,
-					RemotePeers:          2,
 					Channels:             1,
-					QueuedMessages:       3,
-					QueuedSessions:       1,
-					DeliveryWorkers:      1,
 					MessagesSent:         4,
 					MessagesReceived:     5,
 					MessagesRejected:     1,
 					MessagesDelivered:    3,
 					WorkflowTaggedEvents: 2,
 					HandoffTaggedEvents:  1,
-					LastDisconnect:       "transport lost",
 					KindMetrics: []NetworkKindMetricRecord{{
 						Kind:      "say",
 						Sent:      4,
@@ -77,16 +70,12 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				seenPeersQuery = query
 				displayName := "Reviewer"
 				sessionID := "sess-a"
-				lastSeenAgeSeconds := int64(15)
-				lastSeen := fixedTestNow
-				expires := fixedTestNow.Add(time.Minute)
 				return []NetworkPeerRecord{{
-					PeerID:             "reviewer.sess-a",
-					SessionID:          &sessionID,
-					Channel:            "builders",
-					Local:              false,
-					PresenceState:      contract.NetworkPresenceActive,
-					LastSeenAgeSeconds: &lastSeenAgeSeconds,
+					PeerID:        "reviewer.sess-a",
+					SessionID:     &sessionID,
+					Channel:       "builders",
+					Local:         true,
+					PresenceState: contract.NetworkPresenceLocal,
 					PeerCard: NetworkPeerCardRecord{
 						PeerID:            "reviewer.sess-a",
 						DisplayName:       &displayName,
@@ -98,8 +87,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 						ArtifactsSupported:  []string{"text"},
 						TrustModesSupported: []string{"untrusted"},
 					},
-					LastSeen:  &lastSeen,
-					ExpiresAt: &expires,
+					JoinedAt: &fixedTestNow,
 				}}, nil
 			},
 			networkChannelsFn: func(_ context.Context, workspaceRef string) ([]NetworkChannelRecord, error) {
@@ -178,7 +166,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network status error = %v", err)
 		}
-		if !strings.Contains(statusOut, "Network") || !strings.Contains(statusOut, "Queued Messages") ||
+		if !strings.Contains(statusOut, "Network") || !strings.Contains(statusOut, "Live Participants") ||
 			!strings.Contains(statusOut, "Kind Metrics") {
 			t.Fatalf("network status output = %q, want summary and metrics", statusOut)
 		}
@@ -207,10 +195,8 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		if len(peers) != 1 || peers[0].PeerID != "reviewer.sess-a" {
 			t.Fatalf("peers = %#v, want one reviewer peer", peers)
 		}
-		if peers[0].PresenceState != contract.NetworkPresenceActive ||
-			peers[0].LastSeenAgeSeconds == nil ||
-			*peers[0].LastSeenAgeSeconds != 15 {
-			t.Fatalf("peer presence = %#v/%#v, want active age", peers[0].PresenceState, peers[0].LastSeenAgeSeconds)
+		if peers[0].PresenceState != contract.NetworkPresenceLocal {
+			t.Fatalf("peer presence = %q, want local", peers[0].PresenceState)
 		}
 
 		peersHumanOut, _, err := executeRootCommand(
@@ -227,8 +213,8 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network peers human error = %v", err)
 		}
-		if !strings.Contains(peersHumanOut, "Presence") || !strings.Contains(peersHumanOut, "active 15s ago") {
-			t.Fatalf("network peers human output = %q, want Presence column with age", peersHumanOut)
+		if !strings.Contains(peersHumanOut, "Presence") || !strings.Contains(peersHumanOut, "local") {
+			t.Fatalf("network peers human output = %q, want local Presence", peersHumanOut)
 		}
 
 		channelsOut, _, err := executeRootCommand(
@@ -414,8 +400,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 	direct := NetworkDirectRoomRecord{
 		Channel:            "builders",
 		DirectID:           directID,
-		PeerA:              "coder.sess-a",
-		PeerB:              "reviewer.sess-b",
+		SessionA:           "sess-a",
+		SessionB:           "sess-b",
 		OpenedAt:           &fixedTestNow,
 		LastActivityAt:     &fixedTestNow,
 		MessageCount:       1,
@@ -454,9 +440,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		Channel:         "builders",
 		Surface:         "direct",
 		DirectID:        directID,
-		OpenedByPeerID:  "coder.sess-a",
 		OpenedSessionID: "sess-a",
-		TargetPeerID:    "reviewer.sess-b",
+		TargetSessionID: "sess-b",
 		State:           "open",
 		OpenedAt:        &fixedTestNow,
 		LastActivityAt:  &fixedTestNow,
@@ -495,8 +480,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			"builders",
 			"--query",
 			"launch",
-			"--peer",
-			"reviewer.sess-b",
+			"--session",
+			"sess-b",
 			"--sort",
 			"alphabetical",
 			"--has-work",
@@ -511,7 +496,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t.Fatalf("network threads list error = %v", err)
 		}
 		if seenQuery.WorkspaceRef != "ws-alpha" || seenQuery.Channel != "builders" ||
-			seenQuery.Query != "launch" || seenQuery.PeerID != "reviewer.sess-b" ||
+			seenQuery.Query != "launch" || seenQuery.SessionID != "sess-b" ||
 			seenQuery.Sort != "alphabetical" || seenQuery.HasWork == nil || !*seenQuery.HasWork ||
 			seenQuery.Limit != 2 || seenQuery.After != "thread_0" {
 			t.Fatalf("seenQuery = %#v, want all thread list filters", seenQuery)
@@ -665,8 +650,8 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			"list",
 			"--channel",
 			"builders",
-			"--peer",
-			"reviewer.sess-b",
+			"--session",
+			"sess-b",
 			"--query",
 			"review",
 			"--sort",
@@ -683,7 +668,7 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t.Fatalf("network directs list error = %v", err)
 		}
 		if seenQuery.WorkspaceRef != "ws-alpha" || seenQuery.Channel != "builders" ||
-			seenQuery.Query != "review" || seenQuery.PeerID != "reviewer.sess-b" ||
+			seenQuery.Query != "review" || seenQuery.SessionID != "sess-b" ||
 			seenQuery.Sort != "created" || seenQuery.HasWork == nil || *seenQuery.HasWork ||
 			seenQuery.Limit != 2 || seenQuery.After != "direct_0" {
 			t.Fatalf("seenQuery = %#v, want all direct list filters", seenQuery)

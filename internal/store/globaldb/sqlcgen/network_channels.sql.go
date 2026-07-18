@@ -10,6 +10,41 @@ import (
 	"database/sql"
 )
 
+const createNetworkChannel = `-- name: CreateNetworkChannel :exec
+INSERT INTO network_channels (
+  channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
+  created_by, created_at, updated_at
+) VALUES (
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7, ?8
+)
+`
+
+type CreateNetworkChannelParams struct {
+	Channel           string `json:"channel"`
+	WorkspaceID       string `json:"workspace_id"`
+	Purpose           string `json:"purpose"`
+	FanoutPolicy      string `json:"fanout_policy"`
+	CoordinatorPeerID string `json:"coordinator_peer_id"`
+	CreatedBy         string `json:"created_by"`
+	CreatedAt         string `json:"created_at"`
+	UpdatedAt         string `json:"updated_at"`
+}
+
+func (q *Queries) CreateNetworkChannel(ctx context.Context, arg CreateNetworkChannelParams) error {
+	_, err := q.db.ExecContext(ctx, createNetworkChannel,
+		arg.Channel,
+		arg.WorkspaceID,
+		arg.Purpose,
+		arg.FanoutPolicy,
+		arg.CoordinatorPeerID,
+		arg.CreatedBy,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const deleteNetworkChannel = `-- name: DeleteNetworkChannel :exec
 DELETE FROM network_channels
 WHERE workspace_id = ?1 AND channel = ?2
@@ -178,18 +213,18 @@ func (q *Queries) IncrementNetworkChannelPresence(ctx context.Context, arg Incre
 }
 
 const insertNetworkChannelParticipant = `-- name: InsertNetworkChannelParticipant :execrows
-INSERT OR IGNORE INTO network_channel_participants (workspace_id, channel, peer_id)
+INSERT OR IGNORE INTO network_channel_participants (workspace_id, channel, session_id)
 VALUES (?1, ?2, ?3)
 `
 
 type InsertNetworkChannelParticipantParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
-	PeerID      string `json:"peer_id"`
+	SessionID   string `json:"session_id"`
 }
 
 func (q *Queries) InsertNetworkChannelParticipant(ctx context.Context, arg InsertNetworkChannelParticipantParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, insertNetworkChannelParticipant, arg.WorkspaceID, arg.Channel, arg.PeerID)
+	result, err := q.db.ExecContext(ctx, insertNetworkChannelParticipant, arg.WorkspaceID, arg.Channel, arg.SessionID)
 	if err != nil {
 		return 0, err
 	}

@@ -8,6 +8,7 @@ import (
 
 	configdefaults "github.com/compozy/agh/internal/config/defaults"
 	eventspkg "github.com/compozy/agh/internal/events"
+	"github.com/compozy/agh/internal/network/participation"
 
 	"github.com/compozy/agh/internal/store"
 )
@@ -75,58 +76,60 @@ const (
 type Option func(*managerOptions)
 
 type managerOptions struct {
-	store                Store
-	sessions             SessionExecutor
-	runtimeViews         RuntimeViewReader
-	inspectReader        InspectStateReader
-	eventObserver        EventObserver
-	reviewObserver       RunReviewRequestedObserver
-	taskHooks            RunHookDispatcher
-	coordinatorRunner    CoordinatorRunner
-	generationFinalizer  GenerationStateFinalizer
-	wakeNotifier         WakeNotifier
-	channelValidator     func(string) error
-	coordinatorStatusOK  func(string) bool
-	coordinatorHookOK    func(string) bool
-	profileValidation    ExecutionProfileValidationOptions
-	forceRecovery        ForceRecoveryOptions
-	now                  func() time.Time
-	newID                func(prefix string) string
-	cancelGracePeriod    time.Duration
-	starvationAge        time.Duration
-	blockRecurrenceLimit int
+	store                 Store
+	sessions              SessionExecutor
+	runtimeViews          RuntimeViewReader
+	inspectReader         InspectStateReader
+	eventObserver         EventObserver
+	reviewObserver        RunReviewRequestedObserver
+	taskHooks             RunHookDispatcher
+	coordinatorRunner     CoordinatorRunner
+	generationFinalizer   GenerationStateFinalizer
+	wakeNotifier          WakeNotifier
+	participationResolver participation.Resolver
+	coordinatorStatusOK   func(string) bool
+	coordinatorHookOK     func(string) bool
+	profileValidation     ExecutionProfileValidationOptions
+	forceRecovery         ForceRecoveryOptions
+	now                   func() time.Time
+	newID                 func(prefix string) string
+	cancelGracePeriod     time.Duration
+	starvationAge         time.Duration
+	blockRecurrenceLimit  int
 }
 
 // Service centralizes canonical task-domain creation, mutation, read, and
 // graph-management rules above the persistence layer.
 type Service struct {
-	store                Store
-	sessions             SessionExecutor
-	runtimeViews         RuntimeViewReader
-	inspectReader        InspectStateReader
-	eventObserver        EventObserver
-	reviewObserver       RunReviewRequestedObserver
-	taskHooks            RunHookDispatcher
-	coordinatorRunner    CoordinatorRunner
-	generationFinalizer  GenerationStateFinalizer
-	wakeNotifier         WakeNotifier
-	channelValidator     func(string) error
-	coordinatorStatusOK  func(string) bool
-	coordinatorHookOK    func(string) bool
-	profileValidation    ExecutionProfileValidationOptions
-	forceRecovery        ForceRecoveryOptions
-	now                  func() time.Time
-	newID                func(prefix string) string
-	cancelGracePeriod    time.Duration
-	starvationAge        time.Duration
-	blockRecurrenceLimit int
-	forceRateLimiter     *forceRunRateLimiter
-	wakeMu               sync.Mutex
-	wakeEventIDs         map[string]struct{}
-	wakeEventOrder       []string
-	liveMu               sync.Mutex
-	liveSubscribers      map[uint64]*taskStreamSubscriber
-	nextSubscriberID     uint64
+	store                 Store
+	sessions              SessionExecutor
+	runtimeViews          RuntimeViewReader
+	inspectReader         InspectStateReader
+	eventObserver         EventObserver
+	reviewObserver        RunReviewRequestedObserver
+	taskHooks             RunHookDispatcher
+	coordinatorRunner     CoordinatorRunner
+	generationFinalizer   GenerationStateFinalizer
+	wakeNotifier          WakeNotifier
+	participationResolver participation.Resolver
+	taskAuthorizer        ResourceAuthorizer
+	runReadAuthorizer     RunReadAuthorizer
+	coordinatorStatusOK   func(string) bool
+	coordinatorHookOK     func(string) bool
+	profileValidation     ExecutionProfileValidationOptions
+	forceRecovery         ForceRecoveryOptions
+	now                   func() time.Time
+	newID                 func(prefix string) string
+	cancelGracePeriod     time.Duration
+	starvationAge         time.Duration
+	blockRecurrenceLimit  int
+	forceRateLimiter      *forceRunRateLimiter
+	wakeMu                sync.Mutex
+	wakeEventIDs          map[string]struct{}
+	wakeEventOrder        []string
+	liveMu                sync.Mutex
+	liveSubscribers       map[uint64]*taskStreamSubscriber
+	nextSubscriberID      uint64
 }
 
 var _ Manager = (*Service)(nil)
@@ -203,12 +206,11 @@ func WithWakeNotifier(notifier WakeNotifier) Option {
 	}
 }
 
-// WithNetworkChannelValidator injects the active channel validator used to
-// check task and run bindings without coupling the task package to the network
-// runtime implementation.
-func WithNetworkChannelValidator(validator func(string) error) Option {
+// WithParticipationResolver injects the single network participation resolver
+// used before task-run reservation.
+func WithParticipationResolver(resolver participation.Resolver) Option {
 	return func(opts *managerOptions) {
-		opts.channelValidator = validator
+		opts.participationResolver = resolver
 	}
 }
 

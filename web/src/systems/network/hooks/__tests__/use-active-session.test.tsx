@@ -39,7 +39,6 @@ function buildChannel(overrides: Partial<NetworkChannel> = {}): NetworkChannel {
     message_count: 0,
     peer_count: 1,
     purpose: "test",
-    remote_peer_count: 0,
     session_count: 1,
     workspace_id: "ws",
     peers: [],

@@ -8,6 +8,8 @@ import (
 	"github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/store"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,6 +23,8 @@ type handlerConfig struct {
 	tasks              core.TaskService
 	network            core.NetworkService
 	networkStore       core.NetworkStore
+	networkUsage       store.NetworkUsageStore
+	coordination       workspacepkg.CoordinationCommands
 	observer           core.Observer
 	schemaStreams      core.SchemaStreamStatusReader
 	resources          core.ResourceService
@@ -96,73 +100,79 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		cfg.httpPort = cfg.config.HTTP.Port
 	}
 	boundHost := handlerBoundHost(cfg)
-	coreConfig := cfg.config
-	coreConfig.HTTP.Host = boundHost
 
 	return &Handlers{
-		BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{
-			TransportName:                "httpapi",
-			MaskInternalErrors:           true,
-			IncludeSessionWorkspaceInSSE: true,
-			Sessions:                     cfg.sessions,
-			SessionCatalog:               cfg.sessionCatalog,
-			Tasks:                        cfg.tasks,
-			Network:                      cfg.network,
-			NetworkStore:                 cfg.networkStore,
-			Observer:                     cfg.observer,
-			SchemaStreams:                cfg.schemaStreams,
-			Resources:                    cfg.resources,
-			Extensions:                   cfg.extensions,
-			Automation:                   cfg.automation,
-			Loops:                        cfg.loops,
-			Bridges:                      cfg.bridges,
-			Notifications:                cfg.notifications,
-			Bundles:                      cfg.bundles,
-			SupportBundles:               cfg.supportBundles,
-			Tools:                        cfg.tools,
-			Toolsets:                     cfg.toolsets,
-			ToolApprovals:                cfg.toolApprovals,
-			Settings:                     cfg.settings,
-			SettingsRestart:              cfg.settingsRestart,
-			SettingsUpdate:               cfg.settingsUpdate,
-			Vault:                        cfg.vault,
-			Workspaces:                   cfg.workspaces,
-			Onboarding:                   cfg.onboarding,
-			AgentCatalog:                 cfg.agentCatalog,
-			AgentDefinitionSync:          cfg.agentSync,
-			ModelCatalog:                 cfg.modelCatalog,
-			MarketplaceCatalog:           cfg.marketplaceCatalog,
-			AgentContextService:          cfg.agentContext,
-			CoordinatorConfig:            cfg.coordinatorConfig,
-			SoulAuthoring:                cfg.soulAuthoring,
-			SoulHistoryPurger:            cfg.soulHistoryPurger,
-			SoulRefresher:                cfg.soulRefresher,
-			HeartbeatAuthoring:           cfg.heartbeatAuthor,
-			HeartbeatHistoryPurger:       cfg.heartbeatPurger,
-			HeartbeatStatus:              cfg.heartbeatStatus,
-			HeartbeatWake:                cfg.heartbeatWake,
-			SessionHealth:                cfg.sessionHealth,
-			HeartbeatWakeEvents:          cfg.wakeEvents,
-			SkillsRegistry:               cfg.skillsRegistry,
-			SkillResources:               cfg.skillResources,
-			MemoryStore:                  cfg.memoryStore,
-			DreamTrigger:                 cfg.dreamTrigger,
-			MemoryExtractor:              cfg.memoryExtractor,
-			MemoryProviders:              cfg.memoryProviders,
-			MemorySessionLedger:          cfg.memoryLedger,
-			HomePaths:                    cfg.homePaths,
-			Config:                       coreConfig,
-			Logger:                       cfg.logger,
-			StartedAt:                    cfg.startedAt,
-			Now:                          cfg.now,
-			PollInterval:                 cfg.pollInterval,
-			AgentLoader:                  cfg.agentLoader,
-			HTTPPort:                     cfg.httpPort,
-		}),
+		BaseHandlers: core.NewBaseHandlers(coreHandlerConfig(cfg, boundHost)),
 		staticFS:     cfg.staticFS,
 		resourceAuth: append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
 		Extensions:   cfg.extensions,
 		boundHost:    boundHost,
+	}
+}
+
+func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerConfig {
+	coreConfig := cfg.config
+	coreConfig.HTTP.Host = boundHost
+	return &core.BaseHandlerConfig{
+		TransportName:                "httpapi",
+		MaskInternalErrors:           true,
+		IncludeSessionWorkspaceInSSE: true,
+		Sessions:                     cfg.sessions,
+		SessionCatalog:               cfg.sessionCatalog,
+		Tasks:                        cfg.tasks,
+		Network:                      cfg.network,
+		NetworkStore:                 cfg.networkStore,
+		NetworkUsage:                 cfg.networkUsage,
+		Coordination:                 cfg.coordination,
+		Observer:                     cfg.observer,
+		SchemaStreams:                cfg.schemaStreams,
+		Resources:                    cfg.resources,
+		Extensions:                   cfg.extensions,
+		Automation:                   cfg.automation,
+		Loops:                        cfg.loops,
+		Bridges:                      cfg.bridges,
+		Notifications:                cfg.notifications,
+		Bundles:                      cfg.bundles,
+		SupportBundles:               cfg.supportBundles,
+		Tools:                        cfg.tools,
+		Toolsets:                     cfg.toolsets,
+		ToolApprovals:                cfg.toolApprovals,
+		Settings:                     cfg.settings,
+		SettingsRestart:              cfg.settingsRestart,
+		SettingsUpdate:               cfg.settingsUpdate,
+		Vault:                        cfg.vault,
+		Workspaces:                   cfg.workspaces,
+		Onboarding:                   cfg.onboarding,
+		AgentCatalog:                 cfg.agentCatalog,
+		AgentDefinitionSync:          cfg.agentSync,
+		ModelCatalog:                 cfg.modelCatalog,
+		MarketplaceCatalog:           cfg.marketplaceCatalog,
+		AgentContextService:          cfg.agentContext,
+		CoordinatorConfig:            cfg.coordinatorConfig,
+		SoulAuthoring:                cfg.soulAuthoring,
+		SoulHistoryPurger:            cfg.soulHistoryPurger,
+		SoulRefresher:                cfg.soulRefresher,
+		HeartbeatAuthoring:           cfg.heartbeatAuthor,
+		HeartbeatHistoryPurger:       cfg.heartbeatPurger,
+		HeartbeatStatus:              cfg.heartbeatStatus,
+		HeartbeatWake:                cfg.heartbeatWake,
+		SessionHealth:                cfg.sessionHealth,
+		HeartbeatWakeEvents:          cfg.wakeEvents,
+		SkillsRegistry:               cfg.skillsRegistry,
+		SkillResources:               cfg.skillResources,
+		MemoryStore:                  cfg.memoryStore,
+		DreamTrigger:                 cfg.dreamTrigger,
+		MemoryExtractor:              cfg.memoryExtractor,
+		MemoryProviders:              cfg.memoryProviders,
+		MemorySessionLedger:          cfg.memoryLedger,
+		HomePaths:                    cfg.homePaths,
+		Config:                       coreConfig,
+		Logger:                       cfg.logger,
+		StartedAt:                    cfg.startedAt,
+		Now:                          cfg.now,
+		PollInterval:                 cfg.pollInterval,
+		AgentLoader:                  cfg.agentLoader,
+		HTTPPort:                     cfg.httpPort,
 	}
 }
 

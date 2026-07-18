@@ -3245,23 +3245,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/task-runs/{id}/claim": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Claim one queued task run */
-    post: operations["claimTaskRun"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/task-runs/{id}/complete": {
     parameters: {
       query?: never;
@@ -3273,6 +3256,23 @@ export interface paths {
     put?: never;
     /** Complete one running task run */
     post: operations["completeTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/task-runs/{id}/conversation/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream one task run coordination conversation */
+    get: operations["streamTaskRunConversation"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -4353,6 +4353,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/network-coordination": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get scoped network coordination settings, invitation state, and eligibility */
+    get: operations["getNetworkCoordination"];
+    /** Compare-and-set future-run network coordination for one scope */
+    put: operations["putNetworkCoordination"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network-coordination/invitation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Dismiss or reset the coordination invitation for a scope */
+    put: operations["putNetworkCoordinationInvitation"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/network/channels": {
     parameters: {
       query?: never;
@@ -4475,7 +4510,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{peer_id}": {
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{session_id}": {
     parameters: {
       query?: never;
       header?: never;
@@ -4622,6 +4657,23 @@ export interface paths {
     put?: never;
     /** Send one network message */
     post: operations["sendNetworkMessage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get workspace-scoped network wake usage from the ledger */
+    get: operations["getNetworkUsage"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -5156,7 +5208,6 @@ export interface operations {
                 | "result"
                 | "review_request"
               )[];
-              channel?: string;
               display_name: string;
               id: string;
               /** Format: date-time */
@@ -5286,7 +5337,7 @@ export interface operations {
           body: unknown;
           idempotency_key?: string;
           metadata: {
-            coordination_channel_id: string;
+            channel_id: string;
             correlation_id: string;
             ext?: {
               [key: string]: unknown;
@@ -5322,7 +5373,7 @@ export interface operations {
               from_session_id: string;
               message_id: string;
               metadata: {
-                coordination_channel_id: string;
+                channel_id: string;
                 correlation_id: string;
                 ext?: {
                   [key: string]: unknown;
@@ -5529,7 +5580,7 @@ export interface operations {
               from_session_id: string;
               message_id: string;
               metadata: {
-                coordination_channel_id: string;
+                channel_id: string;
                 correlation_id: string;
                 ext?: {
                   [key: string]: unknown;
@@ -5748,7 +5799,7 @@ export interface operations {
           body: unknown;
           idempotency_key?: string;
           metadata: {
-            coordination_channel_id: string;
+            channel_id: string;
             correlation_id: string;
             ext?: {
               [key: string]: unknown;
@@ -5783,7 +5834,7 @@ export interface operations {
               from_session_id: string;
               message_id: string;
               metadata: {
-                coordination_channel_id: string;
+                channel_id: string;
                 correlation_id: string;
                 ext?: {
                   [key: string]: unknown;
@@ -6001,7 +6052,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -6027,7 +6077,7 @@ export interface operations {
                     | "review_request";
                   message_id: string;
                   metadata: {
-                    coordination_channel_id: string;
+                    channel_id: string;
                     correlation_id: string;
                     ext?: {
                       [key: string]: unknown;
@@ -6088,7 +6138,6 @@ export interface operations {
                 session_id: string;
               };
               session: {
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 id: string;
@@ -6117,6 +6166,53 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 /** @enum {string} */
@@ -6163,7 +6259,6 @@ export interface operations {
                         | "daemon";
                       ref: string;
                     } | null;
-                    coordination_channel_id?: string;
                     designation?: {
                       brief?: string;
                       index: number;
@@ -6183,6 +6278,53 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    resolved_network_participation:
+                      | (
+                          | {
+                              /** @enum {string} */
+                              mode: "local";
+                              /** @enum {string} */
+                              source:
+                                | "explicit_request"
+                                | "task_profile"
+                                | "workspace_coordination"
+                                | "loop_definition"
+                                | "automation_job"
+                                | "built_in_local";
+                              /** @enum {string} */
+                              version: "network-participation/v1";
+                            }
+                          | {
+                              bounds: {
+                                coalesce_window: string;
+                                /** Format: int64 */
+                                max_input_tokens: number;
+                                /** Format: int64 */
+                                max_output_tokens: number;
+                                max_total_wall_time: string;
+                                max_wake_depth: number;
+                                max_wake_wall_time: string;
+                                max_wakes: number;
+                              };
+                              channel_id: string;
+                              /** @enum {string} */
+                              channel_strategy: "named" | "run" | "loop_run";
+                              /** @enum {string} */
+                              mode: "live";
+                              /** @enum {string} */
+                              source:
+                                | "explicit_request"
+                                | "task_profile"
+                                | "workspace_coordination"
+                                | "loop_definition"
+                                | "automation_job"
+                                | "built_in_local";
+                              /** @enum {string} */
+                              version: "network-participation/v1";
+                              workspace_id: string;
+                            }
+                        )
+                      | null;
                     run_kind?: number;
                     session_id?: string;
                     /** Format: date-time */
@@ -6212,6 +6354,66 @@ export interface operations {
                     };
                     /** Format: date-time */
                     created_at: string;
+                    network_participation?:
+                      | (
+                          | {
+                              /** @enum {string} */
+                              mode?: "local";
+                            }
+                          | {
+                              bounds?: {
+                                coalesce_window?: string;
+                                /** Format: int64 */
+                                max_input_tokens?: number;
+                                /** Format: int64 */
+                                max_output_tokens?: number;
+                                max_total_wall_time?: string;
+                                max_wake_depth?: number;
+                                max_wake_wall_time?: string;
+                                max_wakes?: number;
+                              };
+                              channel_id: string;
+                              /** @enum {string} */
+                              channel_strategy: "named";
+                              /** @enum {string} */
+                              mode: "live";
+                            }
+                          | {
+                              bounds?: {
+                                coalesce_window?: string;
+                                /** Format: int64 */
+                                max_input_tokens?: number;
+                                /** Format: int64 */
+                                max_output_tokens?: number;
+                                max_total_wall_time?: string;
+                                max_wake_depth?: number;
+                                max_wake_wall_time?: string;
+                                max_wakes?: number;
+                              };
+                              /** @enum {string} */
+                              channel_strategy: "run";
+                              /** @enum {string} */
+                              mode: "live";
+                            }
+                          | {
+                              bounds?: {
+                                coalesce_window?: string;
+                                /** Format: int64 */
+                                max_input_tokens?: number;
+                                /** Format: int64 */
+                                max_output_tokens?: number;
+                                max_total_wall_time?: string;
+                                max_wake_depth?: number;
+                                max_wake_wall_time?: string;
+                                max_wakes?: number;
+                              };
+                              /** @enum {string} */
+                              channel_strategy: "loop_run";
+                              /** @enum {string} */
+                              mode: "live";
+                            }
+                        )
+                      | null;
                     participants: {
                       allowed_agent_names?: string[];
                       allowed_channel_ids?: string[];
@@ -6284,7 +6486,6 @@ export interface operations {
                         | "daemon";
                       ref: string;
                     } | null;
-                    coordination_channel_id?: string;
                     designation?: {
                       brief?: string;
                       index: number;
@@ -6304,6 +6505,53 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    resolved_network_participation:
+                      | (
+                          | {
+                              /** @enum {string} */
+                              mode: "local";
+                              /** @enum {string} */
+                              source:
+                                | "explicit_request"
+                                | "task_profile"
+                                | "workspace_coordination"
+                                | "loop_definition"
+                                | "automation_job"
+                                | "built_in_local";
+                              /** @enum {string} */
+                              version: "network-participation/v1";
+                            }
+                          | {
+                              bounds: {
+                                coalesce_window: string;
+                                /** Format: int64 */
+                                max_input_tokens: number;
+                                /** Format: int64 */
+                                max_output_tokens: number;
+                                max_total_wall_time: string;
+                                max_wake_depth: number;
+                                max_wake_wall_time: string;
+                                max_wakes: number;
+                              };
+                              channel_id: string;
+                              /** @enum {string} */
+                              channel_strategy: "named" | "run" | "loop_run";
+                              /** @enum {string} */
+                              mode: "live";
+                              /** @enum {string} */
+                              source:
+                                | "explicit_request"
+                                | "task_profile"
+                                | "workspace_coordination"
+                                | "loop_definition"
+                                | "automation_job"
+                                | "built_in_local";
+                              /** @enum {string} */
+                              version: "network-participation/v1";
+                              workspace_id: string;
+                            }
+                        )
+                      | null;
                     run_kind?: number;
                     session_id?: string;
                     /** Format: date-time */
@@ -6367,7 +6615,6 @@ export interface operations {
                           | "daemon";
                         ref: string;
                       } | null;
-                      coordination_channel_id?: string;
                       designation?: {
                         brief?: string;
                         index: number;
@@ -6387,6 +6634,53 @@ export interface operations {
                       previous_run_id?: string;
                       /** Format: date-time */
                       queued_at: string;
+                      resolved_network_participation:
+                        | (
+                            | {
+                                /** @enum {string} */
+                                mode: "local";
+                                /** @enum {string} */
+                                source:
+                                  | "explicit_request"
+                                  | "task_profile"
+                                  | "workspace_coordination"
+                                  | "loop_definition"
+                                  | "automation_job"
+                                  | "built_in_local";
+                                /** @enum {string} */
+                                version: "network-participation/v1";
+                              }
+                            | {
+                                bounds: {
+                                  coalesce_window: string;
+                                  /** Format: int64 */
+                                  max_input_tokens: number;
+                                  /** Format: int64 */
+                                  max_output_tokens: number;
+                                  max_total_wall_time: string;
+                                  max_wake_depth: number;
+                                  max_wake_wall_time: string;
+                                  max_wakes: number;
+                                };
+                                channel_id: string;
+                                /** @enum {string} */
+                                channel_strategy: "named" | "run" | "loop_run";
+                                /** @enum {string} */
+                                mode: "live";
+                                /** @enum {string} */
+                                source:
+                                  | "explicit_request"
+                                  | "task_profile"
+                                  | "workspace_coordination"
+                                  | "loop_definition"
+                                  | "automation_job"
+                                  | "built_in_local";
+                                /** @enum {string} */
+                                version: "network-participation/v1";
+                                workspace_id: string;
+                              }
+                          )
+                        | null;
                       run_kind?: number;
                       session_id?: string;
                       /** Format: date-time */
@@ -6528,7 +6822,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -6539,11 +6832,57 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   /** Format: date-time */
                   lease_until?: string | null;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   run_id: string;
                   session_id?: string;
                   /** @enum {string} */
@@ -6934,7 +7273,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -6945,11 +7283,57 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 /** Format: date-time */
                 lease_until?: string | null;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 run_id: string;
                 session_id?: string;
                 /** @enum {string} */
@@ -6979,7 +7363,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -7016,7 +7399,6 @@ export interface operations {
                 session_id: string;
               };
               session: {
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 id: string;
@@ -7045,6 +7427,53 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 /** @enum {string} */
@@ -7764,7 +8193,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -7830,6 +8258,53 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -8035,6 +8510,7 @@ export interface operations {
           lease_seconds?: number;
           priority_min?: number;
           required_capabilities?: string[];
+          run_id?: string;
           wait?: boolean;
           workspace_id?: string;
         };
@@ -8059,7 +8535,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -8093,7 +8568,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -8104,11 +8578,57 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 /** Format: date-time */
                 lease_until?: string | null;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 run_id: string;
                 session_id?: string;
                 /** @enum {string} */
@@ -8149,7 +8669,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -8160,7 +8679,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -8177,7 +8695,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -8195,6 +8712,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -8461,7 +9025,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -8472,11 +9035,57 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               /** Format: date-time */
               lease_until?: string | null;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               run_id: string;
               session_id?: string;
               /** @enum {string} */
@@ -8721,7 +9330,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -8732,11 +9340,57 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               /** Format: date-time */
               lease_until?: string | null;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               run_id: string;
               session_id?: string;
               /** @enum {string} */
@@ -8981,7 +9635,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -8992,11 +9645,57 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               /** Format: date-time */
               lease_until?: string | null;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               run_id: string;
               session_id?: string;
               /** @enum {string} */
@@ -9240,7 +9939,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -9251,11 +9949,57 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               /** Format: date-time */
               lease_until?: string | null;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               run_id: string;
               session_id?: string;
               /** @enum {string} */
@@ -14820,6 +15564,66 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 loop_name: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 workspace_id: string;
               } | null;
               name: string;
@@ -14866,7 +15670,66 @@ export interface operations {
               target_kind: string;
               task?: {
                 description?: string;
-                network_channel?: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 owner?: {
                   /** @enum {string} */
                   kind:
@@ -14995,6 +15858,66 @@ export interface operations {
               [key: string]: unknown;
             };
             loop_name: string;
+            network_participation?:
+              | (
+                  | {
+                      /** @enum {string} */
+                      mode?: "local";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      channel_id: string;
+                      /** @enum {string} */
+                      channel_strategy: "named";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "loop_run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                )
+              | null;
             workspace_id: string;
           } | null;
           name: string;
@@ -15017,7 +15940,66 @@ export interface operations {
           target_kind?: string;
           task?: {
             description?: string;
-            network_channel?: string;
+            network_participation?:
+              | (
+                  | {
+                      /** @enum {string} */
+                      mode?: "local";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      channel_id: string;
+                      /** @enum {string} */
+                      channel_strategy: "named";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "loop_run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                )
+              | null;
             owner?: {
               /** @enum {string} */
               kind:
@@ -15061,6 +16043,66 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 loop_name: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 workspace_id: string;
               } | null;
               name: string;
@@ -15107,7 +16149,66 @@ export interface operations {
               target_kind: string;
               task?: {
                 description?: string;
-                network_channel?: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 owner?: {
                   /** @enum {string} */
                   kind:
@@ -15292,6 +16393,66 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 loop_name: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 workspace_id: string;
               } | null;
               name: string;
@@ -15338,7 +16499,66 @@ export interface operations {
               target_kind: string;
               task?: {
                 description?: string;
-                network_channel?: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 owner?: {
                   /** @enum {string} */
                   kind:
@@ -15571,7 +16791,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name?: string | null;
           enabled?: boolean | null;
           fire_limit?: {
             max: number;
@@ -15585,6 +16804,66 @@ export interface operations {
               [key: string]: unknown;
             };
             loop_name: string;
+            network_participation?:
+              | (
+                  | {
+                      /** @enum {string} */
+                      mode?: "local";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      channel_id: string;
+                      /** @enum {string} */
+                      channel_strategy: "named";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "loop_run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                )
+              | null;
             workspace_id: string;
           } | null;
           name?: string | null;
@@ -15602,10 +16881,68 @@ export interface operations {
             mode: "cron" | "every" | "at";
             time?: string;
           } | null;
-          target_kind?: string | null;
           task?: {
             description?: string;
-            network_channel?: string;
+            network_participation?:
+              | (
+                  | {
+                      /** @enum {string} */
+                      mode?: "local";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      channel_id: string;
+                      /** @enum {string} */
+                      channel_strategy: "named";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "loop_run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                )
+              | null;
             owner?: {
               /** @enum {string} */
               kind:
@@ -15619,7 +16956,6 @@ export interface operations {
             } | null;
             title?: string;
           } | null;
-          workspace_id?: string | null;
         };
       };
     };
@@ -15649,6 +16985,66 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 loop_name: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 workspace_id: string;
               } | null;
               name: string;
@@ -15695,7 +17091,66 @@ export interface operations {
               target_kind: string;
               task?: {
                 description?: string;
-                network_channel?: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 owner?: {
                   /** @enum {string} */
                   kind:
@@ -15911,6 +17366,66 @@ export interface operations {
               metadata?: {
                 [key: string]: unknown;
               };
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -16061,6 +17576,66 @@ export interface operations {
               metadata?: {
                 [key: string]: unknown;
               };
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -16221,6 +17796,66 @@ export interface operations {
               metadata?: {
                 [key: string]: unknown;
               };
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -16346,6 +17981,66 @@ export interface operations {
               metadata?: {
                 [key: string]: unknown;
               };
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -16501,6 +18196,66 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 loop_name: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 workspace_id: string;
               } | null;
               name: string;
@@ -16633,6 +18388,66 @@ export interface operations {
               [key: string]: unknown;
             };
             loop_name: string;
+            network_participation?:
+              | (
+                  | {
+                      /** @enum {string} */
+                      mode?: "local";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      channel_id: string;
+                      /** @enum {string} */
+                      channel_strategy: "named";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "loop_run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                )
+              | null;
             workspace_id: string;
           } | null;
           name: string;
@@ -16683,6 +18498,66 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 loop_name: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 workspace_id: string;
               } | null;
               name: string;
@@ -16877,6 +18752,66 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 loop_name: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 workspace_id: string;
               } | null;
               name: string;
@@ -17114,7 +19049,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name?: string | null;
           enabled?: boolean | null;
           endpoint_slug?: string | null;
           event?: string | null;
@@ -17133,6 +19067,66 @@ export interface operations {
               [key: string]: unknown;
             };
             loop_name: string;
+            network_participation?:
+              | (
+                  | {
+                      /** @enum {string} */
+                      mode?: "local";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      channel_id: string;
+                      /** @enum {string} */
+                      channel_strategy: "named";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "loop_run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                )
+              | null;
             workspace_id: string;
           } | null;
           name?: string | null;
@@ -17143,10 +19137,8 @@ export interface operations {
             /** @enum {string} */
             strategy: "none" | "backoff";
           } | null;
-          target_kind?: string | null;
           webhook_id?: string | null;
           webhook_secret_value?: string | null;
-          workspace_id?: string | null;
         };
       };
     };
@@ -17181,6 +19173,66 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 loop_name: string;
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 workspace_id: string;
               } | null;
               name: string;
@@ -17401,6 +19453,66 @@ export interface operations {
               metadata?: {
                 [key: string]: unknown;
               };
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -21338,7 +23450,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -21373,6 +23484,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -21386,6 +23500,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             }[];
           };
@@ -21454,8 +23570,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          bind_primary_channel_as_default: boolean;
           bundle_name: string;
+          confirm_network_requirement?: boolean;
           extension_name: string;
           profile_name: string;
           scope?: string;
@@ -21481,7 +23597,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -21516,6 +23631,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -21529,6 +23647,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             };
           };
@@ -21715,7 +23835,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -21750,6 +23869,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -21763,6 +23885,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             };
           };
@@ -21955,7 +24079,9 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          bind_primary_channel_as_default: boolean;
+          confirm_network_requirement?: boolean;
+          /** Format: int64 */
+          expected_version: number;
         };
       };
     };
@@ -21977,7 +24103,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -22012,6 +24137,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -22025,6 +24153,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             };
           };
@@ -22264,7 +24394,6 @@ export interface operations {
         content: {
           "application/json": {
             network: {
-              configured_default_channel?: string;
               declared_channels?: {
                 activation_id?: string;
                 bundle_name?: string;
@@ -22275,8 +24404,6 @@ export interface operations {
                 profile_name?: string;
                 workspace_id?: string;
               }[];
-              effective_default_channel?: string;
-              effective_default_source?: string;
             };
           };
         };
@@ -22344,8 +24471,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          bind_primary_channel_as_default: boolean;
           bundle_name: string;
+          confirm_network_requirement?: boolean;
           extension_name: string;
           profile_name: string;
           scope?: string;
@@ -22371,7 +24498,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -22406,6 +24532,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -22419,6 +24548,8 @@ export interface operations {
               }[];
               /** Format: date-time */
               updated_at: string;
+              /** Format: int64 */
+              version: number;
               workspace_id?: string;
             };
           };
@@ -24727,7 +26858,9 @@ export interface operations {
           | "network.work.transitioned"
           | "network.work.closed"
           | "network.peer.joined"
-          | "network.peer.left";
+          | "network.peer.left"
+          | "network.participation.pre_resolve"
+          | "network.participation.resolved";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -24755,12 +26888,12 @@ export interface operations {
                 agent_type?: string;
                 autonomy?: {
                   child_session_id?: string;
-                  coordination_channel_id?: string;
                   coordinator_session_id?: string;
                   loop_name?: string;
                   loop_run_id?: string;
                   node_id?: string;
                   parent_session_id?: string;
+                  participation_channel?: string;
                   release_reason?: string;
                   root_session_id?: string;
                   run_id?: string;
@@ -24777,6 +26910,8 @@ export interface operations {
                 kind?: string;
                 message_delta_type?: string;
                 message_role?: string;
+                participation_mode?: string;
+                participation_source?: string;
                 sandbox_backend?: string;
                 sandbox_id?: string;
                 sandbox_profile?: string;
@@ -30777,7 +32912,6 @@ export interface operations {
           "application/json": {
             network: {
               channels?: number;
-              configured_default_channel?: string;
               /** Format: int64 */
               conversation_messages?: number;
               declared_channels?: {
@@ -30790,11 +32924,8 @@ export interface operations {
                 profile_name?: string;
                 workspace_id?: string;
               }[];
-              delivery_workers?: number;
               /** Format: int64 */
               direct_resolves?: number;
-              effective_default_channel?: string;
-              effective_default_source?: string;
               enabled: boolean;
               /** Format: int64 */
               handoff_tagged_events?: number;
@@ -30809,9 +32940,6 @@ export interface operations {
                 /** Format: int64 */
                 sent?: number;
               }[];
-              last_disconnect?: string;
-              listener_host?: string;
-              listener_port?: number;
               local_peers?: number;
               /** Format: int64 */
               messages_delivered?: number;
@@ -30827,9 +32955,6 @@ export interface operations {
               open_threads?: number;
               /** Format: int64 */
               open_work_items?: number;
-              queued_messages?: number;
-              queued_sessions?: number;
-              remote_peers?: number;
               status: string;
               /** Format: int64 */
               work_transitions?: number;
@@ -31598,8 +33723,8 @@ export interface operations {
           | "pool";
         /** @description Filter by owner reference */
         owner_ref?: string;
-        /** @description Filter by network channel */
-        network_channel?: string;
+        /** @description Filter by resolved participation channel */
+        participation_channel?: string;
         /** @description Filter by task origin kind */
         origin_kind?:
           | "cli"
@@ -31639,7 +33764,53 @@ export interface operations {
                   /** Format: int64 */
                   latest_event_seq: number;
                   max_attempts: number;
-                  network_channel?: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   run_id: string;
                   /** @enum {string} */
                   run_status:
@@ -31753,8 +33924,8 @@ export interface operations {
                 backlog_threshold_ms: number;
                 backlog_warning: boolean;
                 depth?: {
+                  channel_id?: string;
                   count: number;
-                  network_channel?: string;
                   /** Format: int64 */
                   oldest_queue_age_ms: number;
                   /** Format: date-time */
@@ -32013,7 +34184,6 @@ export interface operations {
                         | "daemon";
                       ref: string;
                     } | null;
-                    coordination_channel_id?: string;
                     /** Format: date-time */
                     ended_at?: string | null;
                     error?: string;
@@ -32027,6 +34197,53 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    resolved_network_participation?:
+                      | (
+                          | {
+                              /** @enum {string} */
+                              mode: "local";
+                              /** @enum {string} */
+                              source:
+                                | "explicit_request"
+                                | "task_profile"
+                                | "workspace_coordination"
+                                | "loop_definition"
+                                | "automation_job"
+                                | "built_in_local";
+                              /** @enum {string} */
+                              version: "network-participation/v1";
+                            }
+                          | {
+                              bounds: {
+                                coalesce_window: string;
+                                /** Format: int64 */
+                                max_input_tokens: number;
+                                /** Format: int64 */
+                                max_output_tokens: number;
+                                max_total_wall_time: string;
+                                max_wake_depth: number;
+                                max_wake_wall_time: string;
+                                max_wakes: number;
+                              };
+                              channel_id: string;
+                              /** @enum {string} */
+                              channel_strategy: "named" | "run" | "loop_run";
+                              /** @enum {string} */
+                              mode: "live";
+                              /** @enum {string} */
+                              source:
+                                | "explicit_request"
+                                | "task_profile"
+                                | "workspace_coordination"
+                                | "loop_definition"
+                                | "automation_job"
+                                | "built_in_local";
+                              /** @enum {string} */
+                              version: "network-participation/v1";
+                              workspace_id: string;
+                            }
+                        )
+                      | null;
                     session_id?: string;
                     /** Format: date-time */
                     started_at?: string | null;
@@ -33791,7 +36008,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -33802,7 +36018,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -33819,7 +36034,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -33837,6 +36051,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -34055,7 +36316,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -34066,7 +36326,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -34083,7 +36342,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -34101,6 +36359,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -34302,7 +36607,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -34313,7 +36617,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -34330,7 +36633,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -34348,6 +36650,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -34708,7 +37057,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -34719,7 +37067,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -34738,6 +37085,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -34855,7 +37249,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -34890,6 +37283,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -35068,7 +37508,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -35079,7 +37518,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -35096,7 +37534,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -35114,6 +37551,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -35156,7 +37640,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -35167,7 +37650,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -35184,7 +37666,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -35202,6 +37683,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -35451,7 +37979,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -35462,7 +37989,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -35479,7 +38005,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -35497,6 +38022,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -35745,7 +38317,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -35756,7 +38327,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -35773,7 +38343,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -35791,6 +38360,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -35833,7 +38449,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -35844,7 +38459,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -35861,7 +38475,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -35879,6 +38492,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -36238,7 +38898,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -36249,7 +38908,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -36266,7 +38924,6 @@ export interface operations {
                   /** Format: date-time */
                   lease_until?: string | null;
                   metadata?: unknown;
-                  network_channel?: string;
                   origin: {
                     /** @enum {string} */
                     kind:
@@ -36284,6 +38941,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   result?: unknown;
                   session_id?: string;
                   /** Format: date-time */
@@ -36327,7 +39031,6 @@ export interface operations {
                         | "result"
                         | "review_request"
                       )[];
-                      channel?: string;
                       display_name: string;
                       id: string;
                       /** Format: date-time */
@@ -36338,7 +39041,6 @@ export interface operations {
                       workflow_id?: string;
                       workspace_id?: string;
                     } | null;
-                    coordination_channel_id?: string;
                     designation?: {
                       brief?: string;
                       index: number;
@@ -36357,6 +39059,53 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    resolved_network_participation?:
+                      | (
+                          | {
+                              /** @enum {string} */
+                              mode: "local";
+                              /** @enum {string} */
+                              source:
+                                | "explicit_request"
+                                | "task_profile"
+                                | "workspace_coordination"
+                                | "loop_definition"
+                                | "automation_job"
+                                | "built_in_local";
+                              /** @enum {string} */
+                              version: "network-participation/v1";
+                            }
+                          | {
+                              bounds: {
+                                coalesce_window: string;
+                                /** Format: int64 */
+                                max_input_tokens: number;
+                                /** Format: int64 */
+                                max_output_tokens: number;
+                                max_total_wall_time: string;
+                                max_wake_depth: number;
+                                max_wake_wall_time: string;
+                                max_wakes: number;
+                              };
+                              channel_id: string;
+                              /** @enum {string} */
+                              channel_strategy: "named" | "run" | "loop_run";
+                              /** @enum {string} */
+                              mode: "live";
+                              /** @enum {string} */
+                              source:
+                                | "explicit_request"
+                                | "task_profile"
+                                | "workspace_coordination"
+                                | "loop_definition"
+                                | "automation_job"
+                                | "built_in_local";
+                              /** @enum {string} */
+                              version: "network-participation/v1";
+                              workspace_id: string;
+                            }
+                        )
+                      | null;
                     session_id?: string;
                     /** Format: date-time */
                     started_at?: string | null;
@@ -36474,7 +39223,6 @@ export interface operations {
                     ref: string;
                   } | null;
                   needs_attention_reason?: string;
-                  network_channel?: string;
                   origin: {
                     /** @enum {string} */
                     kind:
@@ -36509,6 +39257,53 @@ export interface operations {
                   paused_reason?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   /** @enum {string} */
                   scope: "global" | "workspace";
                   /** @enum {string} */
@@ -37168,7 +39963,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -37234,6 +40028,53 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -37409,9 +40250,68 @@ export interface operations {
       content: {
         "application/json": {
           agent_name?: string;
-          channel?: string;
           model?: string;
           name?: string;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
           provider?: string;
           /** @enum {string} */
           reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -37483,7 +40383,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -37549,6 +40448,53 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -37838,7 +40784,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -37904,6 +40849,53 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -38982,7 +41974,9 @@ export interface operations {
                   | "network.work.transitioned"
                   | "network.work.closed"
                   | "network.peer.joined"
-                  | "network.peer.left";
+                  | "network.peer.left"
+                  | "network.participation.pre_resolve"
+                  | "network.participation.resolved";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -38991,12 +41985,12 @@ export interface operations {
                   agent_type?: string;
                   autonomy?: {
                     child_session_id?: string;
-                    coordination_channel_id?: string;
                     coordinator_session_id?: string;
                     loop_name?: string;
                     loop_run_id?: string;
                     node_id?: string;
                     parent_session_id?: string;
+                    participation_channel?: string;
                     release_reason?: string;
                     root_session_id?: string;
                     run_id?: string;
@@ -39013,6 +42007,8 @@ export interface operations {
                   kind?: string;
                   message_delta_type?: string;
                   message_role?: string;
+                  participation_mode?: string;
+                  participation_source?: string;
                   sandbox_backend?: string;
                   sandbox_id?: string;
                   sandbox_profile?: string;
@@ -39246,7 +42242,9 @@ export interface operations {
                   | "network.work.transitioned"
                   | "network.work.closed"
                   | "network.peer.joined"
-                  | "network.peer.left";
+                  | "network.peer.left"
+                  | "network.participation.pre_resolve"
+                  | "network.participation.resolved";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -39255,12 +42253,12 @@ export interface operations {
                   agent_type?: string;
                   autonomy?: {
                     child_session_id?: string;
-                    coordination_channel_id?: string;
                     coordinator_session_id?: string;
                     loop_name?: string;
                     loop_run_id?: string;
                     node_id?: string;
                     parent_session_id?: string;
+                    participation_channel?: string;
                     release_reason?: string;
                     root_session_id?: string;
                     run_id?: string;
@@ -39277,6 +42275,8 @@ export interface operations {
                   kind?: string;
                   message_delta_type?: string;
                   message_role?: string;
+                  participation_mode?: string;
+                  participation_source?: string;
                   sandbox_backend?: string;
                   sandbox_id?: string;
                   sandbox_profile?: string;
@@ -39709,7 +42709,9 @@ export interface operations {
               | "network.work.transitioned"
               | "network.work.closed"
               | "network.peer.joined"
-              | "network.peer.left";
+              | "network.peer.left"
+              | "network.participation.pre_resolve"
+              | "network.participation.resolved";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
             matcher: {
@@ -39718,12 +42720,12 @@ export interface operations {
               agent_type?: string;
               autonomy?: {
                 child_session_id?: string;
-                coordination_channel_id?: string;
                 coordinator_session_id?: string;
                 loop_name?: string;
                 loop_run_id?: string;
                 node_id?: string;
                 parent_session_id?: string;
+                participation_channel?: string;
                 release_reason?: string;
                 root_session_id?: string;
                 run_id?: string;
@@ -39740,6 +42742,8 @@ export interface operations {
               kind?: string;
               message_delta_type?: string;
               message_role?: string;
+              participation_mode?: string;
+              participation_source?: string;
               sandbox_backend?: string;
               sandbox_id?: string;
               sandbox_profile?: string;
@@ -42176,18 +45180,33 @@ export interface operations {
           "application/json": {
             available_scopes: "global"[];
             config: {
-              activation_top_k: number;
-              default_channel: string;
-              delivery_structured_body_max_bytes: number;
-              digest_flush_interval: string;
-              digest_max_envelopes: number;
               enabled: boolean;
-              greet_interval: number;
-              max_payload: number;
-              max_queue_depth: number;
+              live: {
+                defaults: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                limits: {
+                  max_coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                  min_coalesce_window: string;
+                };
+              };
               max_replay_age: number;
-              port: number;
-              response_guidance_max_bytes: number;
             };
             links?: {
               label: string;
@@ -42196,14 +45215,14 @@ export interface operations {
             runtime: {
               available: boolean;
               channels: number;
-              delivery_workers: number;
               enabled: boolean;
-              listener_host?: string;
-              listener_port?: number;
               local_peers: number;
-              queued_messages: number;
-              queued_sessions: number;
-              remote_peers: number;
+              /** Format: int64 */
+              messages_delivered: number;
+              /** Format: int64 */
+              messages_received: number;
+              /** Format: int64 */
+              messages_rejected: number;
               status?: string;
             };
             /** @enum {string} */
@@ -42259,18 +45278,33 @@ export interface operations {
       content: {
         "application/json": {
           config: {
-            activation_top_k: number;
-            default_channel: string;
-            delivery_structured_body_max_bytes: number;
-            digest_flush_interval: string;
-            digest_max_envelopes: number;
             enabled: boolean;
-            greet_interval: number;
-            max_payload: number;
-            max_queue_depth: number;
+            live: {
+              defaults: {
+                coalesce_window: string;
+                /** Format: int64 */
+                max_input_tokens: number;
+                /** Format: int64 */
+                max_output_tokens: number;
+                max_total_wall_time: string;
+                max_wake_depth: number;
+                max_wake_wall_time: string;
+                max_wakes: number;
+              };
+              limits: {
+                max_coalesce_window: string;
+                /** Format: int64 */
+                max_input_tokens: number;
+                /** Format: int64 */
+                max_output_tokens: number;
+                max_total_wall_time: string;
+                max_wake_depth: number;
+                max_wake_wall_time: string;
+                max_wakes: number;
+                min_coalesce_window: string;
+              };
+            };
             max_replay_age: number;
-            port: number;
-            response_guidance_max_bytes: number;
           };
         };
       };
@@ -46613,7 +49647,6 @@ export interface operations {
               http_port: number;
               network?: {
                 channels?: number;
-                configured_default_channel?: string;
                 /** Format: int64 */
                 conversation_messages?: number;
                 declared_channels?: {
@@ -46626,11 +49659,8 @@ export interface operations {
                   profile_name?: string;
                   workspace_id?: string;
                 }[];
-                delivery_workers?: number;
                 /** Format: int64 */
                 direct_resolves?: number;
-                effective_default_channel?: string;
-                effective_default_source?: string;
                 enabled: boolean;
                 /** Format: int64 */
                 handoff_tagged_events?: number;
@@ -46645,9 +49675,6 @@ export interface operations {
                   /** Format: int64 */
                   sent?: number;
                 }[];
-                last_disconnect?: string;
-                listener_host?: string;
-                listener_port?: number;
                 local_peers?: number;
                 /** Format: int64 */
                 messages_delivered?: number;
@@ -46663,9 +49690,6 @@ export interface operations {
                 open_threads?: number;
                 /** Format: int64 */
                 open_work_items?: number;
-                queued_messages?: number;
-                queued_sessions?: number;
-                remote_peers?: number;
                 status: string;
                 /** Format: int64 */
                 work_transitions?: number;
@@ -46915,8 +49939,8 @@ export interface operations {
                 owner_ref: string;
               }[];
               queue_depth?: {
+                channel_id?: string;
                 count: number;
-                network_channel?: string;
                 /** Format: int64 */
                 oldest_queue_age_ms: number;
                 /** Format: date-time */
@@ -46929,8 +49953,8 @@ export interface operations {
                 requeued: number;
               };
               run_totals?: {
+                channel_id?: string;
                 count: number;
-                network_channel?: string;
                 origin_kind: string;
                 status: string;
               }[];
@@ -46938,7 +49962,7 @@ export interface operations {
               stuck_runs?: {
                 /** Format: int64 */
                 age_ms: number;
-                network_channel?: string;
+                channel_id?: string;
                 origin_kind: string;
                 run_id: string;
                 session_id?: string;
@@ -46946,8 +49970,8 @@ export interface operations {
                 task_id: string;
               }[];
               task_totals?: {
+                channel_id?: string;
                 count: number;
-                network_channel?: string;
                 scope: string;
                 status: string;
               }[];
@@ -47613,7 +50637,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -47624,7 +50647,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -47641,7 +50663,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -47659,6 +50680,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -47887,6 +50955,83 @@ export interface operations {
         content: {
           "application/json": {
             run: {
+              network?: {
+                conversation: {
+                  channel: string;
+                  stream_url: string;
+                  surface: string;
+                  thread_id: string;
+                  workspace_id: string;
+                };
+                usage: {
+                  budget?: {
+                    exhausted_reason?: string;
+                    /** Format: int64 */
+                    input_tokens_used: number;
+                    /** Format: int64 */
+                    output_tokens_used: number;
+                    participation_status: {
+                      available: boolean;
+                      owner: {
+                        id: string;
+                        /** @enum {string} */
+                        kind: "session" | "task_run" | "loop_run" | "automation_run";
+                        workspace_id: string;
+                      };
+                      participating: boolean;
+                      reason?: string;
+                    };
+                    /** Format: date-time */
+                    updated_at: string;
+                    wakes_used: number;
+                    wall_time_used: string;
+                  } | null;
+                  details: {
+                    channel: string;
+                    charged_wall_time: string;
+                    depth: number;
+                    /** Format: int64 */
+                    input_tokens: number;
+                    /** Format: int64 */
+                    output_tokens: number;
+                    participation_status: {
+                      available: boolean;
+                      owner: {
+                        id: string;
+                        /** @enum {string} */
+                        kind: "session" | "task_run" | "loop_run" | "automation_run";
+                        workspace_id: string;
+                      };
+                      participating: boolean;
+                      reason?: string;
+                    };
+                    reason?: string;
+                    /** Format: date-time */
+                    reserved_at: string;
+                    root_id: string;
+                    /** Format: date-time */
+                    settled_at?: string | null;
+                    state: string;
+                    task_run_id: string;
+                    usage_state: string;
+                    wake_id: string;
+                    workspace_id: string;
+                  }[];
+                  next_cursor?: string;
+                  total: {
+                    actual_wake_count: number;
+                    charged_wall_time: string;
+                    /** Format: int64 */
+                    input_tokens: number;
+                    /** Format: int64 */
+                    output_tokens: number;
+                    reserved_wake_count: number;
+                    unavailable_wake_count: number;
+                    wake_count: number;
+                  };
+                  workspace_id: string;
+                };
+              } | null;
               run: {
                 attempt: number;
                 claim_token_hash?: string;
@@ -47913,7 +51058,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -47924,7 +51068,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -47941,7 +51084,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -47959,6 +51101,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -47977,7 +51166,6 @@ export interface operations {
               };
               session?: {
                 agent_name?: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 name?: string;
@@ -48005,7 +51193,7 @@ export interface operations {
                 /** Format: int64 */
                 turn_count?: number | null;
               };
-              task: {
+              task?: {
                 effective_paused?: boolean;
                 id: string;
                 identifier?: string;
@@ -48041,7 +51229,7 @@ export interface operations {
                   | "canceled";
                 title: string;
                 workspace_id?: string;
-              };
+              } | null;
             };
           };
         };
@@ -48200,7 +51388,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -48211,7 +51398,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -48228,7 +51414,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -48246,6 +51431,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -48445,7 +51677,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -48456,7 +51687,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -48473,7 +51703,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -48491,6 +51720,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -48637,250 +51913,6 @@ export interface operations {
       };
     };
   };
-  claimTaskRun: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Task run id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          idempotency_key?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            run: {
-              attempt: number;
-              claim_token_hash?: string;
-              /** Format: date-time */
-              claimed_at?: string | null;
-              claimed_by?: {
-                /** @enum {string} */
-                kind:
-                  | "human"
-                  | "agent_session"
-                  | "automation"
-                  | "extension"
-                  | "network_peer"
-                  | "daemon";
-                ref: string;
-              } | null;
-              coordination_channel?: {
-                allowed_message_kinds: (
-                  | "status"
-                  | "request"
-                  | "reply"
-                  | "blocker"
-                  | "handoff"
-                  | "result"
-                  | "review_request"
-                )[];
-                channel?: string;
-                display_name: string;
-                id: string;
-                /** Format: date-time */
-                last_activity_at?: string | null;
-                purpose?: string;
-                run_id?: string;
-                task_id?: string;
-                workflow_id?: string;
-                workspace_id?: string;
-              } | null;
-              coordination_channel_id?: string;
-              designation?: {
-                brief?: string;
-                index: number;
-              } | null;
-              designation_group_id?: string;
-              /** Format: date-time */
-              ended_at?: string | null;
-              error?: string;
-              failure_kind?: string;
-              /** Format: date-time */
-              heartbeat_at?: string | null;
-              id: string;
-              idempotency_key?: string;
-              /** Format: date-time */
-              lease_until?: string | null;
-              metadata?: unknown;
-              network_channel?: string;
-              origin: {
-                /** @enum {string} */
-                kind:
-                  | "cli"
-                  | "web"
-                  | "uds"
-                  | "http"
-                  | "automation"
-                  | "extension"
-                  | "network"
-                  | "agent_session"
-                  | "daemon";
-                ref: string;
-              };
-              previous_run_id?: string;
-              /** Format: date-time */
-              queued_at: string;
-              result?: unknown;
-              session_id?: string;
-              /** Format: date-time */
-              started_at?: string | null;
-              /** @enum {string} */
-              status:
-                | "queued"
-                | "claimed"
-                | "starting"
-                | "running"
-                | "completed"
-                | "failed"
-                | "canceled"
-                | "needs_attention";
-              task_id: string;
-            };
-          };
-        };
-      };
-      /** @description Task run not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Task-run claim conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Invalid task-run claim request */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Task service is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
   completeTaskRun: {
     parameters: {
       query?: never;
@@ -48934,7 +51966,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -48945,7 +51976,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -48962,7 +51992,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -48980,6 +52009,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -49126,6 +52202,254 @@ export interface operations {
       };
     };
   };
+  streamTaskRunConversation: {
+    parameters: {
+      query?: {
+        /** @description Replay messages after this message id */
+        after?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Task run conversation stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            message?: {
+              body: unknown;
+              causation_id?: string;
+              channel: string;
+              direct_id?: string;
+              direction: string;
+              display_name?: string;
+              intent?: string;
+              kind: string;
+              local?: boolean;
+              mentions?: string[];
+              message_id: string;
+              peer_from: string;
+              peer_to?: string;
+              preview_text?: string;
+              reply_to?: string;
+              session_id?: string;
+              /** Format: int64 */
+              size_bytes?: number;
+              surface?: string;
+              text?: string;
+              thread_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              trace_id?: string;
+              work_id?: string;
+              workspace_id?: string;
+            } | null;
+            usage?: {
+              budget?: {
+                exhausted_reason?: string;
+                /** Format: int64 */
+                input_tokens_used: number;
+                /** Format: int64 */
+                output_tokens_used: number;
+                participation_status: {
+                  available: boolean;
+                  owner: {
+                    id: string;
+                    /** @enum {string} */
+                    kind: "session" | "task_run" | "loop_run" | "automation_run";
+                    workspace_id: string;
+                  };
+                  participating: boolean;
+                  reason?: string;
+                };
+                /** Format: date-time */
+                updated_at: string;
+                wakes_used: number;
+                wall_time_used: string;
+              } | null;
+              details: {
+                channel: string;
+                charged_wall_time: string;
+                depth: number;
+                /** Format: int64 */
+                input_tokens: number;
+                /** Format: int64 */
+                output_tokens: number;
+                participation_status: {
+                  available: boolean;
+                  owner: {
+                    id: string;
+                    /** @enum {string} */
+                    kind: "session" | "task_run" | "loop_run" | "automation_run";
+                    workspace_id: string;
+                  };
+                  participating: boolean;
+                  reason?: string;
+                };
+                reason?: string;
+                /** Format: date-time */
+                reserved_at: string;
+                root_id: string;
+                /** Format: date-time */
+                settled_at?: string | null;
+                state: string;
+                task_run_id: string;
+                usage_state: string;
+                wake_id: string;
+                workspace_id: string;
+              }[];
+              next_cursor?: string;
+              total: {
+                actual_wake_count: number;
+                charged_wall_time: string;
+                /** Format: int64 */
+                input_tokens: number;
+                /** Format: int64 */
+                output_tokens: number;
+                reserved_wake_count: number;
+                unavailable_wake_count: number;
+                wake_count: number;
+              };
+              workspace_id: string;
+            } | null;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Local task run has no coordination conversation */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run id or conversation cursor */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task or Network service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   failTaskRun: {
     parameters: {
       query?: never;
@@ -49179,7 +52503,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -49190,7 +52513,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -49207,7 +52529,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -49225,6 +52546,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -49917,7 +53285,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -49928,7 +53295,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -49945,7 +53311,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -49963,6 +53328,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -50145,8 +53557,8 @@ export interface operations {
         owner_ref?: string;
         /** @description Filter by parent task ID */
         parent_task_id?: string;
-        /** @description Filter by network channel */
-        network_channel?: string;
+        /** @description Filter by resolved participation channel */
+        participation_channel?: string;
         /** @description Filter by task title or identifier */
         query?: string;
         /** @description Order by recent activity or priority */
@@ -50221,7 +53633,6 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
-                coordination_channel_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -50235,6 +53646,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -50296,7 +53754,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -50325,6 +53782,53 @@ export interface operations {
               parent_task_id?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -50494,7 +53998,66 @@ export interface operations {
           identifier?: string;
           max_attempts?: number | null;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
           owner?: {
             /** @enum {string} */
             kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
@@ -50574,7 +54137,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -50609,6 +54171,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -50830,7 +54439,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -50841,7 +54449,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -50860,6 +54467,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -50977,7 +54631,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -51012,6 +54665,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -51151,7 +54851,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -51162,7 +54861,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -51179,7 +54877,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -51197,6 +54894,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -51240,7 +54984,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -51251,7 +54994,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -51270,6 +55012,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -51387,7 +55176,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -51422,6 +55210,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -51497,7 +55332,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -51532,6 +55366,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -51799,7 +55680,66 @@ export interface operations {
           description?: string | null;
           max_attempts?: number | null;
           metadata?: unknown;
-          network_channel?: string | null;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
           owner?: {
             /** @enum {string} */
             kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
@@ -51875,7 +55815,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -51910,6 +55849,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -52075,7 +56061,66 @@ export interface operations {
         "application/json": {
           idempotency_key?: string;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
         };
       };
     };
@@ -52113,7 +56158,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -52124,7 +56168,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -52141,7 +56184,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -52159,6 +56201,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -52231,7 +56320,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -52266,6 +56354,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -53084,7 +57219,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -53119,6 +57253,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -53291,7 +57472,66 @@ export interface operations {
           identifier?: string;
           max_attempts?: number | null;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
           owner?: {
             /** @enum {string} */
             kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
@@ -53371,7 +57611,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -53406,6 +57645,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -53636,7 +57922,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -53647,7 +57932,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -53666,6 +57950,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -53783,7 +58114,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -53818,6 +58148,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -53957,7 +58334,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -53968,7 +58344,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -53985,7 +58360,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54003,6 +58377,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -54046,7 +58467,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -54057,7 +58477,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -54076,6 +58495,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -54193,7 +58659,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54228,6 +58693,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -54303,7 +58815,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54338,6 +58849,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -54537,7 +59095,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -54548,7 +59105,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -54567,6 +59123,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -54684,7 +59287,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54719,6 +59321,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -54858,7 +59507,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -54869,7 +59517,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -54886,7 +59533,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54904,6 +59550,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -54947,7 +59640,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -54958,7 +59650,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -54977,6 +59668,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -55094,7 +59832,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -55129,6 +59866,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -55204,7 +59988,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -55239,6 +60022,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -55394,6 +60224,66 @@ export interface operations {
               };
               /** Format: date-time */
               created_at: string;
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
               participants: {
                 allowed_agent_names?: string[];
                 allowed_channel_ids?: string[];
@@ -55570,6 +60460,66 @@ export interface operations {
           };
           /** Format: date-time */
           created_at: string;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
           participants: {
             allowed_agent_names?: string[];
             allowed_channel_ids?: string[];
@@ -55638,6 +60588,66 @@ export interface operations {
               };
               /** Format: date-time */
               created_at: string;
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
               participants: {
                 allowed_agent_names?: string[];
                 allowed_channel_ids?: string[];
@@ -56100,7 +61110,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -56111,7 +61120,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -56130,6 +61138,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -56247,7 +61302,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -56282,6 +61336,53 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -57085,7 +62186,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -57120,6 +62220,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -57335,7 +62482,66 @@ export interface operations {
         "application/json": {
           idempotency_key?: string;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
         };
       };
     };
@@ -57373,7 +62579,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -57384,7 +62589,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -57401,7 +62605,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -57419,6 +62622,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -57491,7 +62741,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -57526,6 +62775,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -57757,7 +63053,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -57792,6 +63087,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -58016,7 +63358,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -58051,6 +63392,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -58282,7 +63670,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -58317,6 +63704,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -58724,6 +64158,8 @@ export interface operations {
           | "needs_attention";
         /** @description Filter by attached session id */
         session_id?: string;
+        /** @description Filter by resolved participation channel */
+        participation_channel?: string;
         /** @description Maximum number of records to return */
         limit?: number;
       };
@@ -58769,7 +64205,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -58780,7 +64215,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -58797,7 +64231,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -58815,6 +64248,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -58952,7 +64432,66 @@ export interface operations {
         "application/json": {
           idempotency_key?: string;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
         };
       };
     };
@@ -58990,7 +64529,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -59001,7 +64539,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -59018,7 +64555,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -59036,6 +64572,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -59202,7 +64785,66 @@ export interface operations {
             metadata?: unknown;
           }[];
           idempotency_key?: string;
-          network_channel?: string;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
         };
       };
     };
@@ -59241,7 +64883,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -59252,7 +64893,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -59269,7 +64909,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -59287,6 +64926,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -59449,7 +65135,66 @@ export interface operations {
         "application/json": {
           idempotency_key?: string;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
         };
       };
     };
@@ -59487,7 +65232,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -59498,7 +65242,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -59515,7 +65258,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -59533,6 +65275,53 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -59605,7 +65394,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -59640,6 +65428,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -59868,7 +65703,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -59879,7 +65713,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -59898,6 +65731,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -60140,7 +66020,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -60151,7 +66030,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -60170,6 +66048,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -60379,7 +66304,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -60390,7 +66314,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -60409,6 +66332,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -60494,7 +66464,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -60505,7 +66474,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -60524,6 +66492,53 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?:
+                    | (
+                        | {
+                            /** @enum {string} */
+                            mode: "local";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                          }
+                        | {
+                            bounds: {
+                              coalesce_window: string;
+                              /** Format: int64 */
+                              max_input_tokens: number;
+                              /** Format: int64 */
+                              max_output_tokens: number;
+                              max_total_wall_time: string;
+                              max_wake_depth: number;
+                              max_wake_wall_time: string;
+                              max_wakes: number;
+                            };
+                            channel_id: string;
+                            /** @enum {string} */
+                            channel_strategy: "named" | "run" | "loop_run";
+                            /** @enum {string} */
+                            mode: "live";
+                            /** @enum {string} */
+                            source:
+                              | "explicit_request"
+                              | "task_profile"
+                              | "workspace_coordination"
+                              | "loop_definition"
+                              | "automation_job"
+                              | "built_in_local";
+                            /** @enum {string} */
+                            version: "network-participation/v1";
+                            workspace_id: string;
+                          }
+                      )
+                    | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -64649,6 +70664,66 @@ export interface operations {
                 metadata?: {
                   [key: string]: unknown;
                 };
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 /** Format: date-time */
                 scheduled_at?: string | null;
                 session_id?: string;
@@ -64841,6 +70916,66 @@ export interface operations {
                 metadata?: {
                   [key: string]: unknown;
                 };
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 /** Format: date-time */
                 scheduled_at?: string | null;
                 session_id?: string;
@@ -65408,7 +71543,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -65474,6 +71608,53 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -65861,7 +72042,9 @@ export interface operations {
           | "network.work.transitioned"
           | "network.work.closed"
           | "network.peer.joined"
-          | "network.peer.left";
+          | "network.peer.left"
+          | "network.participation.pre_resolve"
+          | "network.participation.resolved";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */
@@ -66044,6 +72227,53 @@ export interface operations {
               pause_requested: boolean;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              resolved_network_participation:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               start_metadata?: {
                 [key: string]: unknown;
               };
@@ -66330,6 +72560,66 @@ export interface operations {
                 name: string;
                 version?: number;
               };
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
               start?: {
                 input_mapping?: {
                   [key: string]: string;
@@ -66377,6 +72667,53 @@ export interface operations {
               pause_requested: boolean;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              resolved_network_participation:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               start_metadata?: {
                 [key: string]: unknown;
               };
@@ -68261,6 +74598,66 @@ export interface operations {
               name: string;
               version?: number;
             };
+            network_participation?:
+              | (
+                  | {
+                      /** @enum {string} */
+                      mode?: "local";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      channel_id: string;
+                      /** @enum {string} */
+                      channel_strategy: "named";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "loop_run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                )
+              | null;
             start?: {
               input_mapping?: {
                 [key: string]: string;
@@ -68448,6 +74845,66 @@ export interface operations {
                   name: string;
                   version?: number;
                 };
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 start?: {
                   input_mapping?: {
                     [key: string]: string;
@@ -68798,6 +75255,66 @@ export interface operations {
                   name: string;
                   version?: number;
                 };
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 start?: {
                   input_mapping?: {
                     [key: string]: string;
@@ -69242,6 +75759,66 @@ export interface operations {
               name: string;
               version?: number;
             };
+            network_participation?:
+              | (
+                  | {
+                      /** @enum {string} */
+                      mode?: "local";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      channel_id: string;
+                      /** @enum {string} */
+                      channel_strategy: "named";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "loop_run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                )
+              | null;
             start?: {
               input_mapping?: {
                 [key: string]: string;
@@ -69429,6 +76006,66 @@ export interface operations {
                   name: string;
                   version?: number;
                 };
+                network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode?: "local";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                      | {
+                          bounds?: {
+                            coalesce_window?: string;
+                            /** Format: int64 */
+                            max_input_tokens?: number;
+                            /** Format: int64 */
+                            max_output_tokens?: number;
+                            max_total_wall_time?: string;
+                            max_wake_depth?: number;
+                            max_wake_wall_time?: string;
+                            max_wakes?: number;
+                          };
+                          /** @enum {string} */
+                          channel_strategy: "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                        }
+                    )
+                  | null;
                 start?: {
                   input_mapping?: {
                     [key: string]: string;
@@ -70197,6 +76834,66 @@ export interface operations {
           inputs?: {
             [key: string]: unknown;
           };
+          network_participation?:
+            | (
+                | {
+                    /** @enum {string} */
+                    mode?: "local";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    channel_id: string;
+                    /** @enum {string} */
+                    channel_strategy: "named";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+                | {
+                    bounds?: {
+                      coalesce_window?: string;
+                      /** Format: int64 */
+                      max_input_tokens?: number;
+                      /** Format: int64 */
+                      max_output_tokens?: number;
+                      max_total_wall_time?: string;
+                      max_wake_depth?: number;
+                      max_wake_wall_time?: string;
+                      max_wakes?: number;
+                    };
+                    /** @enum {string} */
+                    channel_strategy: "loop_run";
+                    /** @enum {string} */
+                    mode: "live";
+                  }
+              )
+            | null;
           parent_loop_run_id?: string;
         };
       };
@@ -70277,6 +76974,53 @@ export interface operations {
               resolved_inputs: {
                 [key: string]: unknown;
               };
+              resolved_network_participation:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
             } | null;
             run?: {
               active_gate_id?: string;
@@ -70303,6 +77047,53 @@ export interface operations {
               pause_requested: boolean;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              resolved_network_participation:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               start_metadata?: {
                 [key: string]: unknown;
               };
@@ -70407,6 +77198,53 @@ export interface operations {
               resolved_inputs: {
                 [key: string]: unknown;
               };
+              resolved_network_participation:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
             } | null;
             run?: {
               active_gate_id?: string;
@@ -70433,6 +77271,53 @@ export interface operations {
               pause_requested: boolean;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              resolved_network_participation:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               start_metadata?: {
                 [key: string]: unknown;
               };
@@ -70814,6 +77699,66 @@ export interface operations {
               name: string;
               version?: number;
             };
+            network_participation?:
+              | (
+                  | {
+                      /** @enum {string} */
+                      mode?: "local";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      channel_id: string;
+                      /** @enum {string} */
+                      channel_strategy: "named";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                  | {
+                      bounds?: {
+                        coalesce_window?: string;
+                        /** Format: int64 */
+                        max_input_tokens?: number;
+                        /** Format: int64 */
+                        max_output_tokens?: number;
+                        max_total_wall_time?: string;
+                        max_wake_depth?: number;
+                        max_wake_wall_time?: string;
+                        max_wakes?: number;
+                      };
+                      /** @enum {string} */
+                      channel_strategy: "loop_run";
+                      /** @enum {string} */
+                      mode: "live";
+                    }
+                )
+              | null;
             start?: {
               input_mapping?: {
                 [key: string]: string;
@@ -71111,6 +78056,632 @@ export interface operations {
       };
     };
   };
+  getNetworkCoordination: {
+    parameters: {
+      query: {
+        /** @description Coordination scope */
+        scope: "workspace" | "task";
+        /** @description Task id required for task scope */
+        task_id?: string;
+        /** @description Run id used for daemon-owned invitation eligibility */
+        run_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            coordination: {
+              eligibility: {
+                coordinator: boolean;
+                eligible: boolean;
+                reason: string;
+                run_id?: string;
+                worker_count: number;
+              };
+              enabled: boolean;
+              invitation?: {
+                dismissed: boolean;
+                /** Format: date-time */
+                dismissed_at?: string | null;
+                dismissed_by?: string;
+                scope: string;
+                task_id?: string;
+              } | null;
+              /** Format: int64 */
+              revision: number;
+              scope: string;
+              task_id?: string;
+              /** Format: date-time */
+              updated_at?: string | null;
+              updated_by?: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid coordination scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Coordination scope is not authorized */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network coordination is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  putNetworkCoordination: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json":
+          | {
+              enabled: boolean;
+              /** Format: int64 */
+              expected_revision: number;
+              run_id?: string;
+              /** @enum {string} */
+              scope: "workspace";
+            }
+          | {
+              enabled: boolean;
+              /** Format: int64 */
+              expected_revision: number;
+              run_id?: string;
+              /** @enum {string} */
+              scope: "task";
+              task_id: string;
+            };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            coordination: {
+              eligibility: {
+                coordinator: boolean;
+                eligible: boolean;
+                reason: string;
+                run_id?: string;
+                worker_count: number;
+              };
+              enabled: boolean;
+              invitation?: {
+                dismissed: boolean;
+                /** Format: date-time */
+                dismissed_at?: string | null;
+                dismissed_by?: string;
+                scope: string;
+                task_id?: string;
+              } | null;
+              /** Format: int64 */
+              revision: number;
+              scope: string;
+              task_id?: string;
+              /** Format: date-time */
+              updated_at?: string | null;
+              updated_by?: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid coordination request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Coordination mutation is not authorized */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Stale revision or Network participation unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network coordination is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  putNetworkCoordinationInvitation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json":
+          | {
+              dismissed: boolean;
+              /** Format: int64 */
+              expected_revision: number;
+              run_id?: string;
+              /** @enum {string} */
+              scope: "workspace";
+            }
+          | {
+              dismissed: boolean;
+              /** Format: int64 */
+              expected_revision: number;
+              run_id?: string;
+              /** @enum {string} */
+              scope: "task";
+              task_id: string;
+            };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            coordination: {
+              eligibility: {
+                coordinator: boolean;
+                eligible: boolean;
+                reason: string;
+                run_id?: string;
+                worker_count: number;
+              };
+              enabled: boolean;
+              invitation?: {
+                dismissed: boolean;
+                /** Format: date-time */
+                dismissed_at?: string | null;
+                dismissed_by?: string;
+                scope: string;
+                task_id?: string;
+              } | null;
+              /** Format: int64 */
+              revision: number;
+              scope: string;
+              task_id?: string;
+              /** Format: date-time */
+              updated_at?: string | null;
+              updated_by?: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid invitation request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invitation mutation is not authorized */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Stale coordination revision */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network coordination is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listNetworkChannels: {
     parameters: {
       query?: {
@@ -71151,7 +78722,6 @@ export interface operations {
               peer_count: number;
               presence_count?: number;
               purpose?: string;
-              remote_peer_count?: number;
               session_count?: number;
               workspace_id?: string;
             }[];
@@ -71162,8 +78732,8 @@ export interface operations {
               last_activity_at?: string | null;
               last_message_preview?: string;
               participant_count?: number;
-              peer_a?: string;
-              peer_b?: string;
+              session_a?: string;
+              session_b?: string;
               surface: string;
               title?: string;
             }[];
@@ -71277,13 +78847,7 @@ export interface operations {
                 channel: string;
                 display_name?: string;
                 /** Format: date-time */
-                expires_at?: string | null;
-                /** Format: date-time */
                 joined_at?: string | null;
-                /** Format: date-time */
-                last_seen?: string | null;
-                /** Format: int64 */
-                last_seen_age_seconds?: number | null;
                 local: boolean;
                 peer_card: {
                   artifacts_supported: string[];
@@ -71306,7 +78870,6 @@ export interface operations {
               }[];
               presence_count?: number;
               purpose?: string;
-              remote_peer_count?: number;
               session_count?: number;
               sessions?: {
                 acp_caps?: {
@@ -71363,7 +78926,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -71429,6 +78991,53 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -71614,13 +79223,7 @@ export interface operations {
                 channel: string;
                 display_name?: string;
                 /** Format: date-time */
-                expires_at?: string | null;
-                /** Format: date-time */
                 joined_at?: string | null;
-                /** Format: date-time */
-                last_seen?: string | null;
-                /** Format: int64 */
-                last_seen_age_seconds?: number | null;
                 local: boolean;
                 peer_card: {
                   artifacts_supported: string[];
@@ -71643,7 +79246,6 @@ export interface operations {
               }[];
               presence_count?: number;
               purpose?: string;
-              remote_peer_count?: number;
               session_count?: number;
               sessions?: {
                 acp_caps?: {
@@ -71700,7 +79302,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -71766,6 +79367,53 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -71960,13 +79608,7 @@ export interface operations {
                 channel: string;
                 display_name?: string;
                 /** Format: date-time */
-                expires_at?: string | null;
-                /** Format: date-time */
                 joined_at?: string | null;
-                /** Format: date-time */
-                last_seen?: string | null;
-                /** Format: int64 */
-                last_seen_age_seconds?: number | null;
                 local: boolean;
                 peer_card: {
                   artifacts_supported: string[];
@@ -71989,7 +79631,6 @@ export interface operations {
               }[];
               presence_count?: number;
               purpose?: string;
-              remote_peer_count?: number;
               session_count?: number;
               sessions?: {
                 acp_caps?: {
@@ -72046,7 +79687,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -72112,6 +79752,53 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -72255,8 +79942,8 @@ export interface operations {
   listNetworkDirectRooms: {
     parameters: {
       query?: {
-        /** @description Filter by participant peer id */
-        peer_id?: string;
+        /** @description Filter by participant session id */
+        session_id?: string;
         /** @description Filter direct rooms by title, peer, or preview text */
         query?: string;
         /** @description Filter by presence of open work */
@@ -72296,8 +79983,8 @@ export interface operations {
               open_work_count: number;
               /** Format: date-time */
               opened_at?: string | null;
-              peer_a: string;
-              peer_b: string;
+              session_a: string;
+              session_b: string;
               workspace_id?: string;
             }[];
             page: {
@@ -72425,8 +80112,8 @@ export interface operations {
               open_work_count: number;
               /** Format: date-time */
               opened_at?: string | null;
-              peer_a: string;
-              peer_b: string;
+              session_a: string;
+              session_b: string;
               workspace_id?: string;
             };
           };
@@ -72592,8 +80279,8 @@ export interface operations {
               open_work_count: number;
               /** Format: date-time */
               opened_at?: string | null;
-              peer_a: string;
-              peer_b: string;
+              session_a: string;
+              session_b: string;
               workspace_id?: string;
             };
           };
@@ -72749,11 +80436,6 @@ export interface operations {
               message_id: string;
               peer_from: string;
               peer_to?: string;
-              presence_count?: number;
-              /** Format: date-time */
-              presence_last_seen_at?: string | null;
-              /** Format: date-time */
-              presence_started_at?: string | null;
               preview_text?: string;
               reply_to?: string;
               session_id?: string;
@@ -72881,8 +80563,8 @@ export interface operations {
   listNetworkSubscriptions: {
     parameters: {
       query?: {
-        /** @description Filter subscriptions by peer id */
-        peer_id?: string;
+        /** @description Filter subscriptions by session id */
+        session_id?: string;
         /** @description Filter subscriptions by thread id */
         thread_id?: string;
         /** @description Maximum number of subscriptions to return */
@@ -72910,9 +80592,8 @@ export interface operations {
               channel: string;
               /** Format: date-time */
               created_at?: string | null;
-              keyword_filters?: string[];
               mode: string;
-              peer_id: string;
+              session_id: string;
               thread_id?: string;
               /** Format: date-time */
               updated_at?: string | null;
@@ -73014,9 +80695,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          keyword_filters?: string[];
           mode: string;
-          peer_id: string;
+          session_id: string;
           thread_id?: string;
         };
       };
@@ -73033,9 +80713,8 @@ export interface operations {
               channel: string;
               /** Format: date-time */
               created_at?: string | null;
-              keyword_filters?: string[];
               mode: string;
-              peer_id: string;
+              session_id: string;
               thread_id?: string;
               /** Format: date-time */
               updated_at?: string | null;
@@ -73124,7 +80803,7 @@ export interface operations {
   deleteNetworkSubscription: {
     parameters: {
       query?: {
-        /** @description Delete the thread-scoped subscription for this peer */
+        /** @description Delete the thread-scoped subscription for this session */
         thread_id?: string;
       };
       header?: never;
@@ -73133,8 +80812,8 @@ export interface operations {
         workspace_id: string;
         /** @description Network channel */
         channel: string;
-        /** @description Network peer id */
-        peer_id: string;
+        /** @description Network session id */
+        session_id: string;
       };
       cookie?: never;
     };
@@ -73227,8 +80906,8 @@ export interface operations {
   listNetworkThreads: {
     parameters: {
       query?: {
-        /** @description Filter by participant peer id */
-        peer_id?: string;
+        /** @description Filter by participant session id */
+        session_id?: string;
         /** @description Filter threads by title, peer, or preview text */
         query?: string;
         /** @description Filter by presence of open work */
@@ -73392,7 +81071,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            peer_costs?: {
+            session_costs?: {
               /** Format: int64 */
               delivered_count?: number;
               /** Format: int64 */
@@ -73401,9 +81080,9 @@ export interface operations {
               first_delivered_at?: string | null;
               /** Format: date-time */
               last_delivered_at?: string | null;
-              peer_id: string;
               /** Format: int64 */
               prompt_size_bytes?: number;
+              session_id: string;
             }[];
             task_links?: {
               channel: string;
@@ -73596,11 +81275,6 @@ export interface operations {
               message_id: string;
               peer_from: string;
               peer_to?: string;
-              presence_count?: number;
-              /** Format: date-time */
-              presence_last_seen_at?: string | null;
-              /** Format: date-time */
-              presence_started_at?: string | null;
               preview_text?: string;
               reply_to?: string;
               session_id?: string;
@@ -73828,7 +81502,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -73863,6 +81536,53 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -74168,13 +81888,7 @@ export interface operations {
               channel: string;
               display_name?: string;
               /** Format: date-time */
-              expires_at?: string | null;
-              /** Format: date-time */
               joined_at?: string | null;
-              /** Format: date-time */
-              last_seen?: string | null;
-              /** Format: int64 */
-              last_seen_age_seconds?: number | null;
               local: boolean;
               peer_card: {
                 artifacts_supported: string[];
@@ -74315,13 +82029,7 @@ export interface operations {
               channel?: string;
               display_name?: string;
               /** Format: date-time */
-              expires_at?: string | null;
-              /** Format: date-time */
               joined_at?: string | null;
-              /** Format: date-time */
-              last_seen?: string | null;
-              /** Format: int64 */
-              last_seen_age_seconds?: number | null;
               local?: boolean;
               metrics: {
                 /** Format: int64 */
@@ -74624,6 +82332,209 @@ export interface operations {
       };
     };
   };
+  getNetworkUsage: {
+    parameters: {
+      query?: {
+        /** @description Filter by participation owner kind; requires owner_id */
+        owner_kind?: "session" | "task_run" | "loop_run" | "automation_run";
+        /** @description Filter by participation owner id; requires owner_kind */
+        owner_id?: string;
+        /** @description Filter by task or loop run id; mutually exclusive with owner */
+        run_id?: string;
+        /** @description Filter by Network channel */
+        channel?: string;
+        /** @description Continue from an opaque query-bound usage cursor */
+        cursor?: string;
+        /** @description Maximum usage details to return; defaults to 50 and cannot exceed 200 */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            budget?: {
+              exhausted_reason?: string;
+              /** Format: int64 */
+              input_tokens_used: number;
+              /** Format: int64 */
+              output_tokens_used: number;
+              participation_status: {
+                available: boolean;
+                owner: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "session" | "task_run" | "loop_run" | "automation_run";
+                  workspace_id: string;
+                };
+                participating: boolean;
+                reason?: string;
+              };
+              /** Format: date-time */
+              updated_at: string;
+              wakes_used: number;
+              wall_time_used: string;
+            } | null;
+            details: {
+              channel: string;
+              charged_wall_time: string;
+              depth: number;
+              /** Format: int64 */
+              input_tokens: number;
+              /** Format: int64 */
+              output_tokens: number;
+              participation_status: {
+                available: boolean;
+                owner: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "session" | "task_run" | "loop_run" | "automation_run";
+                  workspace_id: string;
+                };
+                participating: boolean;
+                reason?: string;
+              };
+              reason?: string;
+              /** Format: date-time */
+              reserved_at: string;
+              root_id: string;
+              /** Format: date-time */
+              settled_at?: string | null;
+              state: string;
+              task_run_id: string;
+              usage_state: string;
+              wake_id: string;
+              workspace_id: string;
+            }[];
+            next_cursor?: string;
+            total: {
+              actual_wake_count: number;
+              charged_wall_time: string;
+              /** Format: int64 */
+              input_tokens: number;
+              /** Format: int64 */
+              output_tokens: number;
+              reserved_wake_count: number;
+              unavailable_wake_count: number;
+              wake_count: number;
+            };
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid usage query or cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network usage is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getNetworkWork: {
     parameters: {
       query?: never;
@@ -74652,11 +82563,10 @@ export interface operations {
               last_activity_at?: string | null;
               /** Format: date-time */
               opened_at?: string | null;
-              opened_by_peer_id?: string;
               opened_session_id?: string;
               state: string;
               surface: string;
-              target_peer_id?: string;
+              target_session_id?: string;
               /** Format: date-time */
               terminal_at?: string | null;
               thread_id?: string;
@@ -74847,7 +82757,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -74913,6 +82822,53 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -75277,7 +83233,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -75343,6 +83298,53 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -78194,7 +86196,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -78205,7 +86206,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -78222,7 +86222,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -78240,6 +86239,53 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -78343,7 +86389,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -78409,6 +86454,53 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?:
+                  | (
+                      | {
+                          /** @enum {string} */
+                          mode: "local";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                        }
+                      | {
+                          bounds: {
+                            coalesce_window: string;
+                            /** Format: int64 */
+                            max_input_tokens: number;
+                            /** Format: int64 */
+                            max_output_tokens: number;
+                            max_total_wall_time: string;
+                            max_wake_depth: number;
+                            max_wake_wall_time: string;
+                            max_wakes: number;
+                          };
+                          channel_id: string;
+                          /** @enum {string} */
+                          channel_strategy: "named" | "run" | "loop_run";
+                          /** @enum {string} */
+                          mode: "live";
+                          /** @enum {string} */
+                          source:
+                            | "explicit_request"
+                            | "task_profile"
+                            | "workspace_coordination"
+                            | "loop_definition"
+                            | "automation_job"
+                            | "built_in_local";
+                          /** @enum {string} */
+                          version: "network-participation/v1";
+                          workspace_id: string;
+                        }
+                    )
+                  | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;

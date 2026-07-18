@@ -259,18 +259,35 @@ type SettingsAutomationConfigPayload struct {
 }
 
 type SettingsNetworkConfigPayload struct {
-	Enabled                        bool   `json:"enabled"`
-	DefaultChannel                 string `json:"default_channel"`
-	Port                           int    `json:"port"`
-	MaxPayload                     int    `json:"max_payload"`
-	GreetInterval                  int    `json:"greet_interval"`
-	MaxReplayAge                   int    `json:"max_replay_age"`
-	MaxQueueDepth                  int    `json:"max_queue_depth"`
-	ActivationTopK                 int    `json:"activation_top_k"`
-	DigestFlushInterval            string `json:"digest_flush_interval"`
-	DigestMaxEnvelopes             int    `json:"digest_max_envelopes"`
-	ResponseGuidanceMaxBytes       int    `json:"response_guidance_max_bytes"`
-	DeliveryStructuredBodyMaxBytes int    `json:"delivery_structured_body_max_bytes"`
+	Enabled      bool                             `json:"enabled"`
+	MaxReplayAge int                              `json:"max_replay_age"`
+	Live         SettingsNetworkLiveConfigPayload `json:"live"`
+}
+
+type SettingsNetworkLiveConfigPayload struct {
+	Defaults SettingsNetworkLiveDefaultsPayload `json:"defaults"`
+	Limits   SettingsNetworkLiveLimitsPayload   `json:"limits"`
+}
+
+type SettingsNetworkLiveDefaultsPayload struct {
+	MaxWakes         int    `json:"max_wakes"`
+	MaxWakeWallTime  string `json:"max_wake_wall_time"`
+	MaxTotalWallTime string `json:"max_total_wall_time"`
+	MaxInputTokens   int64  `json:"max_input_tokens"`
+	MaxOutputTokens  int64  `json:"max_output_tokens"`
+	MaxWakeDepth     int    `json:"max_wake_depth"`
+	CoalesceWindow   string `json:"coalesce_window"`
+}
+
+type SettingsNetworkLiveLimitsPayload struct {
+	MaxWakes          int    `json:"max_wakes"`
+	MaxWakeWallTime   string `json:"max_wake_wall_time"`
+	MaxTotalWallTime  string `json:"max_total_wall_time"`
+	MaxInputTokens    int64  `json:"max_input_tokens"`
+	MaxOutputTokens   int64  `json:"max_output_tokens"`
+	MaxWakeDepth      int    `json:"max_wake_depth"`
+	MinCoalesceWindow string `json:"min_coalesce_window"`
+	MaxCoalesceWindow string `json:"max_coalesce_window"`
 }
 
 type SettingsObservabilityConfigPayload struct {
@@ -347,17 +364,14 @@ type SettingsAutomationRuntimePayload struct {
 }
 
 type SettingsNetworkRuntimePayload struct {
-	Available       bool   `json:"available"`
-	Enabled         bool   `json:"enabled"`
-	Status          string `json:"status,omitempty"`
-	ListenerHost    string `json:"listener_host,omitempty"`
-	ListenerPort    int    `json:"listener_port,omitempty"`
-	LocalPeers      int    `json:"local_peers"`
-	RemotePeers     int    `json:"remote_peers"`
-	Channels        int    `json:"channels"`
-	QueuedMessages  int    `json:"queued_messages"`
-	QueuedSessions  int    `json:"queued_sessions"`
-	DeliveryWorkers int    `json:"delivery_workers"`
+	Available         bool   `json:"available"`
+	Enabled           bool   `json:"enabled"`
+	Status            string `json:"status,omitempty"`
+	LocalPeers        int    `json:"local_peers"`
+	Channels          int    `json:"channels"`
+	MessagesReceived  int64  `json:"messages_received"`
+	MessagesDelivered int64  `json:"messages_delivered"`
+	MessagesRejected  int64  `json:"messages_rejected"`
 }
 
 type SettingsObservabilityRuntimePayload struct {

@@ -1,19 +1,19 @@
 -- name: InsertNetworkDirectRoom :execrows
 INSERT OR IGNORE INTO network_direct_rooms (
-  workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
+  workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at,
   message_count, open_work_count, last_message_preview
 ) VALUES (
-  sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(direct_id), sqlc.arg(peer_a), sqlc.arg(peer_b),
+  sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(direct_id), sqlc.arg(session_a), sqlc.arg(session_b),
   sqlc.arg(opened_at), sqlc.arg(last_activity_at), 0, 0, ''
 );
 
--- name: GetNetworkDirectRoomByPeerPair :one
-SELECT workspace_id, channel, direct_id, peer_a, peer_b,
+-- name: GetNetworkDirectRoomBySessionPair :one
+SELECT workspace_id, channel, direct_id, session_a, session_b,
        opened_at, opened_sequence, last_activity_at, last_activity_sequence,
        message_count, open_work_count, last_message_preview
 FROM network_direct_rooms
 WHERE workspace_id = sqlc.arg(workspace_id) AND channel = sqlc.arg(channel)
-  AND peer_a = sqlc.arg(peer_a) AND peer_b = sqlc.arg(peer_b);
+  AND session_a = sqlc.arg(session_a) AND session_b = sqlc.arg(session_b);
 
 -- name: InsertNetworkTimelineMessage :execresult
 INSERT INTO network_timeline_log (
@@ -53,12 +53,12 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND channel = sqlc.arg(channel)
 
 -- name: UpsertNetworkThreadParticipant :exec
 INSERT INTO network_thread_participants (
-  workspace_id, channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
+  workspace_id, channel, thread_id, session_id, first_message_id, first_seen_at, last_seen_at
 ) VALUES (
-  sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(thread_id), sqlc.arg(peer_id),
+  sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(thread_id), sqlc.arg(session_id),
   sqlc.arg(first_message_id), sqlc.arg(first_seen_at), sqlc.arg(last_seen_at)
 )
-ON CONFLICT(workspace_id, channel, thread_id, peer_id) DO UPDATE SET
+ON CONFLICT(workspace_id, channel, thread_id, session_id) DO UPDATE SET
   last_seen_at = excluded.last_seen_at;
 
 -- name: CountNetworkThreadMessages :one
@@ -130,18 +130,18 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND work_id = sqlc.arg(work_id);
 
 -- name: InsertNetworkWork :exec
 INSERT INTO network_work (
-  work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_peer_id,
-  opened_session_id, target_peer_id, state, opened_at, last_activity_at, terminal_at
+  work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
+  target_session_id, state, opened_at, last_activity_at, terminal_at
 ) VALUES (
   sqlc.arg(work_id), sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(surface),
-  sqlc.narg(thread_id), sqlc.narg(direct_id), sqlc.arg(opened_by_peer_id),
-  sqlc.arg(opened_session_id), sqlc.arg(target_peer_id), sqlc.arg(state),
+  sqlc.narg(thread_id), sqlc.narg(direct_id), sqlc.arg(opened_by_session_id),
+  sqlc.narg(target_session_id), sqlc.arg(state),
   sqlc.arg(opened_at), sqlc.arg(last_activity_at), NULL
 );
 
 -- name: GetNetworkWork :one
-SELECT work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_peer_id,
-       opened_session_id, target_peer_id, state, opened_at, last_activity_at, terminal_at
+SELECT work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
+       target_session_id, state, opened_at, last_activity_at, terminal_at
 FROM network_work
 WHERE workspace_id = sqlc.arg(workspace_id) AND work_id = sqlc.arg(work_id);
 

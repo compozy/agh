@@ -123,10 +123,12 @@ func (payload AutomationTriggerPreFirePayload) cloneForAsync() AutomationTrigger
 }
 
 func (payload CoordinatorPreSpawnPayload) cloneForAsync() CoordinatorPreSpawnPayload {
+	payload.CoordinatorContext = cloneCoordinatorContext(payload.CoordinatorContext)
 	return payload
 }
 
 func (payload CoordinatorLifecyclePayload) cloneForAsync() CoordinatorLifecyclePayload {
+	payload.CoordinatorContext = cloneCoordinatorContext(payload.CoordinatorContext)
 	return payload
 }
 
@@ -149,21 +151,25 @@ func (payload TaskRunLeasePayload) cloneForAsync() TaskRunLeasePayload {
 }
 
 func (payload LoopLifecyclePayload) cloneForAsync() LoopLifecyclePayload {
+	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
 
 func (payload LoopGenerationPayload) cloneForAsync() LoopGenerationPayload {
+	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
 
 func (payload LoopGatePayload) cloneForAsync() LoopGatePayload {
+	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
 
 func (payload LoopNodeTerminalPayload) cloneForAsync() LoopNodeTerminalPayload {
+	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
@@ -247,32 +253,15 @@ func cloneAutomationTriggerPreFirePayload(payload AutomationTriggerPreFirePayloa
 	return payload
 }
 
-func cloneTaskRunEnqueuedPayload(payload TaskRunEnqueuedPayload) TaskRunEnqueuedPayload {
-	payload.TaskRunContext = cloneTaskRunContext(payload.TaskRunContext)
-	return payload
-}
-
-func cloneTaskRunPreClaimPayload(payload TaskRunPreClaimPayload) TaskRunPreClaimPayload {
-	payload.TaskRunContext = cloneTaskRunContext(payload.TaskRunContext)
-	payload.Criteria.RequiredCapabilities = cloneStringSlice(payload.Criteria.RequiredCapabilities)
-	return payload
-}
-
-func cloneTaskRunContext(payload TaskRunContext) TaskRunContext {
-	if payload.RunKind != nil {
-		runKind := *payload.RunKind
-		payload.RunKind = &runKind
-	}
-	return payload
-}
-
 func cloneSpawnPreCreatePayload(payload SpawnPreCreatePayload) SpawnPreCreatePayload {
+	payload.SpawnContext = cloneSpawnContext(payload.SpawnContext)
 	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
 	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
 	return payload
 }
 
 func cloneSpawnLifecyclePayload(payload SpawnLifecyclePayload) SpawnLifecyclePayload {
+	payload.SpawnContext = cloneSpawnContext(payload.SpawnContext)
 	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
 	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
 	return payload

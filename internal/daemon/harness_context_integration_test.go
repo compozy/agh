@@ -59,23 +59,12 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		discardLogger(),
 		daemonInstance.harnessResolver,
 		nil,
-		append(
-			defaultPromptInputAugmenterDescriptors(
-				memory.NewRecallAugmenter(daemonInstance.memoryStore),
-				newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
-					return workspaceResolver
-				}),
-				daemonInstance.situationContext.Augment,
-			),
-			// Mirror boot.go: register the network response register augmenter so the
-			// resolver can enable it on network turns without tripping the guard.
-			promptInputAugmenterDescriptor{
-				Name:           HarnessAugmenterNetworkResponseRegister,
-				Order:          networkResponseAugmenterOrder,
-				Budget:         cfg.Network.ResponseGuidanceMaxBytes,
-				BudgetBehavior: promptInputAugmenterBudgetBehaviorTrim,
-				Augmenter:      newNetworkResponseRegisterAugmenter(),
-			},
+		defaultPromptInputAugmenterDescriptors(
+			memory.NewRecallAugmenter(daemonInstance.memoryStore),
+			newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
+				return workspaceResolver
+			}),
+			daemonInstance.situationContext.Augment,
 		)...,
 	)
 	if err != nil {
@@ -85,10 +74,10 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
 	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-		AgentName: resolvedWorkspace.Agents[0].Name,
-		Name:      "networked",
-		Workspace: resolvedWorkspace.ID,
-		Channel:   "builders",
+		AgentName:                    resolvedWorkspace.Agents[0].Name,
+		Name:                         "networked",
+		Workspace:                    resolvedWorkspace.ID,
+		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr(resolvedWorkspace.ID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -117,11 +106,11 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	})
 
 	startupResolved, err := daemonInstance.harnessResolver.ResolveStartup(session.StartupPromptContext{
-		SessionType: created.Info().Type,
-		Channel:     created.Info().Channel,
-		WorkspaceID: created.Info().WorkspaceID,
-		Workspace:   created.Info().Workspace,
-		AgentName:   created.Info().AgentName,
+		SessionType:          created.Info().Type,
+		NetworkParticipation: created.Info().NetworkParticipation,
+		WorkspaceID:          created.Info().WorkspaceID,
+		Workspace:            created.Info().Workspace,
+		AgentName:            created.Info().AgentName,
 	})
 	if err != nil {
 		t.Fatalf("ResolveStartup() error = %v", err)
@@ -242,8 +231,8 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<agh-situation-context>") {
 		t.Fatalf("user prompt message = %q, want situation context augmentation", got)
 	}
-	if got := driver.promptCalls[0].Message; !strings.Contains(got, `"coordination_channel_id":"coord-run-1"`) {
-		t.Fatalf("user prompt message = %q, want active task coordination channel", got)
+	if got := driver.promptCalls[0].Message; !strings.Contains(got, `"channel_id":"coord-run-1"`) {
+		t.Fatalf("user prompt message = %q, want resolved task participation channel", got)
 	}
 	if got := strings.Count(driver.promptCalls[0].Message, "<agh-situation-context>"); got != 1 {
 		t.Fatalf("user prompt situation context occurrences = %d, want 1", got)
@@ -259,10 +248,10 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	}
 	if !slices.Equal(
 		networkResolved.Policy.EnableAugmenters,
-		[]HarnessAugmenter{HarnessAugmenterSkills, HarnessAugmenterNetworkResponseRegister},
+		[]HarnessAugmenter{HarnessAugmenterSkills},
 	) {
 		t.Fatalf(
-			"network EnableAugmenters = %#v, want skills and network response register",
+			"network EnableAugmenters = %#v, want skills",
 			networkResolved.Policy.EnableAugmenters,
 		)
 	}
@@ -305,10 +294,10 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
 	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-		AgentName: resolvedWorkspace.Agents[0].Name,
-		Name:      "networked",
-		Workspace: resolvedWorkspace.ID,
-		Channel:   "builders",
+		AgentName:                    resolvedWorkspace.Agents[0].Name,
+		Name:                         "networked",
+		Workspace:                    resolvedWorkspace.ID,
+		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr(resolvedWorkspace.ID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -491,16 +480,18 @@ func seedHarnessSituationTaskRun(
 		t.Fatalf("CreateTask() error = %v", err)
 	}
 	run := taskpkg.Run{
-		ID:             "run-context",
-		TaskID:         taskRecord.ID,
-		Status:         taskpkg.TaskRunStatusRunning,
-		Attempt:        1,
-		SessionID:      sessionID,
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "test"},
-		NetworkChannel: "coord-run-1",
-		Metadata:       json.RawMessage(`{"coordination_channel_id":"coord-run-1","workflow_id":"wf-run-1"}`),
-		QueuedAt:       now,
-		StartedAt:      now.Add(time.Minute),
+		ID:        "run-context",
+		TaskID:    taskRecord.ID,
+		Status:    taskpkg.TaskRunStatusRunning,
+		Attempt:   1,
+		SessionID: sessionID,
+		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "test"},
+		RunNetworkState: &taskpkg.RunNetworkState{
+			NetworkSpec: daemonTestLiveParticipation(workspaceID, "coord-run-1"),
+		},
+		Metadata:  json.RawMessage(`{"workflow_id":"wf-run-1"}`),
+		QueuedAt:  now,
+		StartedAt: now.Add(time.Minute),
 	}
 	if err := daemonInstance.tasks.store.CreateTaskRun(testutil.Context(t), run); err != nil {
 		t.Fatalf("CreateTaskRun() error = %v", err)

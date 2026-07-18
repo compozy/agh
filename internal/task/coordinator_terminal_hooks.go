@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 type coordinatorResultContext struct {
@@ -37,23 +38,22 @@ func (m *Service) dispatchCoordinatorTerminal(
 			Timestamp: m.now().UTC(),
 		},
 		LoopContext: hookspkg.LoopContext{
-			LoopRunID:             strings.TrimSpace(result.LoopRunID),
-			ParentLoopRunID:       strings.TrimSpace(loopContext.ParentRunID),
-			WorkspaceID:           strings.TrimSpace(loopContext.WorkspaceID),
-			LoopName:              strings.TrimSpace(loopContext.Name),
-			Generation:            loopContext.Generation,
-			TaskID:                strings.TrimSpace(result.Run.TaskID),
-			RunID:                 strings.TrimSpace(result.Run.ID),
-			RunKind:               runKind,
-			WorkflowID:            taskRunMetadataString(result.Run.Metadata, "workflow_id"),
-			CoordinationChannelID: taskRunCoordinationChannelID(result.Run),
-			NetworkChannel:        strings.TrimSpace(result.Run.NetworkChannel),
-			AgentName:             taskRunHookAgentName(result.Run, actor),
-			SessionID:             strings.TrimSpace(result.Run.SessionID),
-			ActorKind:             string(actor.Actor.Kind.Normalize()),
-			ActorID:               strings.TrimSpace(actor.Actor.Ref),
-			OriginKind:            string(actor.Origin.Kind.Normalize()),
-			OriginRef:             strings.TrimSpace(actor.Origin.Ref),
+			LoopRunID:                    strings.TrimSpace(result.LoopRunID),
+			ParentLoopRunID:              strings.TrimSpace(loopContext.ParentRunID),
+			WorkspaceID:                  strings.TrimSpace(loopContext.WorkspaceID),
+			LoopName:                     strings.TrimSpace(loopContext.Name),
+			Generation:                   loopContext.Generation,
+			TaskID:                       strings.TrimSpace(result.Run.TaskID),
+			RunID:                        strings.TrimSpace(result.Run.ID),
+			RunKind:                      runKind,
+			WorkflowID:                   taskRunMetadataString(result.Run.Metadata, "workflow_id"),
+			ResolvedNetworkParticipation: participation.CloneSpec(result.Run.NetworkSpecSnapshot()),
+			AgentName:                    taskRunHookAgentName(result.Run, actor),
+			SessionID:                    strings.TrimSpace(result.Run.SessionID),
+			ActorKind:                    string(actor.Actor.Kind.Normalize()),
+			ActorID:                      strings.TrimSpace(actor.Actor.Ref),
+			OriginKind:                   string(actor.Origin.Kind.Normalize()),
+			OriginRef:                    strings.TrimSpace(actor.Origin.Ref),
 		},
 		Status: strings.TrimSpace(loopStatus),
 	}

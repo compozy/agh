@@ -546,6 +546,7 @@ func TestWatchEventsEvaluatorHelpers(t *testing.T) {
 		terminal := watchEventsBlockedTerminal("bad_state")
 		if terminal == nil {
 			t.Fatal("watchEventsBlockedTerminal() = nil, want terminal")
+			return
 		}
 		if got, want := terminal.Status, string(StatusBlocked); got != want {
 			t.Fatalf("terminal status = %q, want %q", got, want)
@@ -625,7 +626,7 @@ func newWatchCoordinatorRunnerWithGraphForTest(
 	)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: runs},
-		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
+		&coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		WithCoordinatorWatchPoller(poller),
@@ -705,7 +706,7 @@ func newWatchEventsCoordinatorRunnerForTest(
 	)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: map[string]task.Run{coordinatorRun.ID: coordinatorRun}},
-		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
+		&coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		WithCoordinatorWatchEventsLedger(ledger),

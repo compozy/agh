@@ -322,8 +322,9 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 	}
 
 	registry := resources.NewCodecRegistry()
+	testKind := resources.ResourceKind("test.resource")
 	codec, err := resources.NewJSONCodec[spec](
-		resources.ResourceKind("bundle.activation"),
+		testKind,
 		1024,
 		func(_ context.Context, scope resources.ResourceScope, value spec) (spec, error) {
 			if scope.Kind != resources.ResourceScopeKindGlobal {
@@ -352,7 +353,7 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 			listActor = actor
 			gotFilter = filter
 			return []resources.RawRecord{{
-				Kind:      resources.ResourceKind("bundle.activation"),
+				Kind:      testKind,
 				ID:        "demo",
 				Version:   2,
 				Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
@@ -394,7 +395,7 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 		},
 		DeleteRawFn: func(_ context.Context, actor resources.MutationActor, kind resources.ResourceKind, id string, expectedVersion int64) error {
 			deleteActor = actor
-			if kind != resources.ResourceKind("bundle.activation") || id != "demo" || expectedVersion != 2 {
+			if kind != testKind || id != "demo" || expectedVersion != 2 {
 				t.Fatalf("DeleteRaw() args = kind:%q id:%q expected_version:%d", kind, id, expectedVersion)
 			}
 			return nil
@@ -411,23 +412,23 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 
 	records, err := service.List(
 		context.Background(),
-		resources.ResourceFilter{Kind: resources.ResourceKind("bundle.activation"), Limit: 5},
+		resources.ResourceFilter{Kind: testKind, Limit: 5},
 	)
 	if err != nil {
 		t.Fatalf("service.List() error = %v", err)
 	}
-	if len(records) != 1 || gotFilter.Kind != resources.ResourceKind("bundle.activation") || gotFilter.Limit != 5 {
+	if len(records) != 1 || gotFilter.Kind != testKind || gotFilter.Limit != 5 {
 		t.Fatalf("service.List() records=%#v filter=%#v", records, gotFilter)
 	}
 
-	if _, err := service.Get(context.Background(), resources.ResourceKind("bundle.activation"), "demo"); err != nil {
+	if _, err := service.Get(context.Background(), testKind, "demo"); err != nil {
 		t.Fatalf("service.Get() error = %v", err)
 	}
 
 	if _, err := service.Put(
 		context.Background(),
 		resources.RawDraft{
-			Kind:     resources.ResourceKind("bundle.activation"),
+			Kind:     testKind,
 			ID:       "demo",
 			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			SpecJSON: []byte(`{"name":"  demo  "}`),
@@ -439,7 +440,7 @@ func TestOperatorResourceServiceUsesDefaultControlActorAndCodecValidation(t *tes
 		t.Fatalf("service.Put() canonical spec = %s, want %s", string(gotDraft.SpecJSON), `{"name":"demo"}`)
 	}
 
-	if err := service.Delete(context.Background(), resources.ResourceKind("bundle.activation"), "demo", 2); err != nil {
+	if err := service.Delete(context.Background(), testKind, "demo", 2); err != nil {
 		t.Fatalf("service.Delete() error = %v", err)
 	}
 
@@ -469,8 +470,9 @@ func TestOperatorResourceServicePutReturnsCodecValidationError(t *testing.T) {
 	}
 
 	registry := resources.NewCodecRegistry()
+	testKind := resources.ResourceKind("test.resource")
 	codec, err := resources.NewJSONCodec[spec](
-		resources.ResourceKind("bundle.activation"),
+		testKind,
 		1024,
 		func(context.Context, resources.ResourceScope, spec) (spec, error) {
 			return spec{}, fmt.Errorf("%w: name is required", resources.ErrValidation)
@@ -500,7 +502,7 @@ func TestOperatorResourceServicePutReturnsCodecValidationError(t *testing.T) {
 	_, err = service.Put(
 		context.Background(),
 		resources.RawDraft{
-			Kind:     resources.ResourceKind("bundle.activation"),
+			Kind:     testKind,
 			ID:       "demo",
 			Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			SpecJSON: []byte(`{"name":"demo"}`),
@@ -514,6 +516,56 @@ func TestOperatorResourceServicePutReturnsCodecValidationError(t *testing.T) {
 	}
 	if called {
 		t.Fatal("raw store PutRaw() was called after codec validation failed")
+	}
+}
+
+func TestOperatorResourceServiceRejectsGenericBundleActivationMutation(t *testing.T) {
+	t.Parallel()
+
+	putCalled := false
+	deleteCalled := false
+	service, err := NewOperatorResourceService(&ResourceServiceConfig{
+		RawStore: stubRawStore{
+			PutRawFn: func(context.Context, resources.MutationActor, resources.RawDraft) (resources.RawRecord, error) {
+				putCalled = true
+				return resources.RawRecord{}, nil
+			},
+			DeleteRawFn: func(
+				context.Context,
+				resources.MutationActor,
+				resources.ResourceKind,
+				string,
+				int64,
+			) error {
+				deleteCalled = true
+				return nil
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewOperatorResourceService() error = %v", err)
+	}
+
+	_, putErr := service.Put(context.Background(), resources.RawDraft{
+		Kind:     resources.ResourceKind("bundle.activation"),
+		ID:       "act-1",
+		Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		SpecJSON: []byte(`{}`),
+	})
+	if !errors.Is(putErr, resources.ErrDirectMutationNotAllowed) {
+		t.Fatalf("Put(bundle.activation) error = %v, want ErrDirectMutationNotAllowed", putErr)
+	}
+	deleteErr := service.Delete(
+		context.Background(),
+		resources.ResourceKind("bundle.activation"),
+		"act-1",
+		1,
+	)
+	if !errors.Is(deleteErr, resources.ErrDirectMutationNotAllowed) {
+		t.Fatalf("Delete(bundle.activation) error = %v, want ErrDirectMutationNotAllowed", deleteErr)
+	}
+	if putCalled || deleteCalled {
+		t.Fatalf("raw mutations called: put=%t delete=%t, want both false", putCalled, deleteCalled)
 	}
 }
 

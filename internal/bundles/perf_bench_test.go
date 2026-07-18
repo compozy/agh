@@ -61,7 +61,6 @@ func newBenchmarkBundleService(bundleCount int, activationCount int) (*Service, 
 		func(context.Context, string) (*extensionpkg.Extension, error) {
 			return nil, extensionpkg.ErrExtensionNotFound
 		},
-		WithConfiguredDefaultChannel("default"),
 		WithLogger(discardBundleTestLogger()),
 		WithNow(func() time.Time {
 			return time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)

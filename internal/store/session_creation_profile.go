@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 const SessionCreationProfileVersion = 1
@@ -42,10 +44,11 @@ type SessionCreationProfile struct {
 // SessionCreationOptions are deterministic per-session options excluded from
 // the stable policy digest but included in the creation digest.
 type SessionCreationOptions struct {
-	SessionID   string `json:"session_id"`
-	Name        string `json:"name,omitempty"`
-	Channel     string `json:"channel,omitempty"`
-	SessionType string `json:"session_type"`
+	SessionID            string             `json:"session_id"`
+	Name                 string             `json:"name,omitempty"`
+	NetworkOwnerKey      string             `json:"network_owner_key"`
+	NetworkParticipation participation.Spec `json:"network_participation"`
+	SessionType          string             `json:"session_type"`
 }
 
 // NormalizeSessionCreationProfile produces the only canonical digest input.
@@ -143,10 +146,16 @@ func (p SessionCreationProfile) CreationDigest(opts SessionCreationOptions) (str
 	}
 	opts.SessionID = strings.TrimSpace(opts.SessionID)
 	opts.Name = strings.TrimSpace(opts.Name)
-	opts.Channel = strings.TrimSpace(opts.Channel)
+	opts.NetworkOwnerKey = strings.TrimSpace(opts.NetworkOwnerKey)
 	opts.SessionType = strings.TrimSpace(opts.SessionType)
 	if opts.SessionID == "" || opts.SessionType == "" {
 		return "", fmt.Errorf("store: session creation digest requires session_id and session_type")
+	}
+	if err := participation.ValidateSpec(opts.NetworkParticipation); err != nil {
+		return "", fmt.Errorf("store: validate session creation participation: %w", err)
+	}
+	if err := participation.ValidateOwnerKey(opts.NetworkOwnerKey); err != nil {
+		return "", fmt.Errorf("store: validate session creation network owner: %w", err)
 	}
 	creationJSON, err := json.Marshal(opts)
 	if err != nil {

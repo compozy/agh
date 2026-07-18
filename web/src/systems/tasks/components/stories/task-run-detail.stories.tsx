@@ -312,9 +312,26 @@ export const ExhaustedNeedsAttention: Story = {
   ),
 };
 
-export const Empty: Story = {
-  name: "Empty",
-  render: () => <DetailSurface isLive={false} items={[]} run={buildRun()} />,
+export const NetworkWake: Story = {
+  name: "Taskless Network wake",
+  render: () => (
+    <DetailSurface
+      isLive={false}
+      items={[]}
+      run={buildRun({
+        run: {
+          ...buildRun().run,
+          id: "run_network_wake",
+          task_id: "",
+          attempt: 1,
+          status: "completed",
+          ended_at: "2026-04-11T14:45:45Z",
+          origin: { kind: "network", ref: "release-room" },
+        },
+        task: undefined,
+      } as Partial<TaskRunDetailView>)}
+    />
+  ),
 };
 
 export const Queued: Story = {

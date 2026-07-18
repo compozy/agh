@@ -8,11 +8,16 @@ import (
 	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/providers"
 	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/agh/internal/store"
 )
 
 type daemonSettingsRuntimeApplier struct {
-	daemon *Daemon
-	state  *bootState
+	daemon              *Daemon
+	state               *bootState
+	networkAvailability store.NetworkAvailabilityStore
+	networkWakeRunner   interface {
+		SetEnabled(context.Context, bool) error
+	}
 }
 
 func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
@@ -26,52 +31,103 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 
 	a.daemon.mu.Lock()
 	previous := a.state.cfg
-	a.state.cfg = next
-	a.daemon.config = next
 	a.daemon.mu.Unlock()
 
 	failures := a.applyRuntimeDependencies(ctx, &next)
 	if len(failures) > 0 {
-		a.daemon.mu.Lock()
-		a.state.cfg = previous
-		a.daemon.config = previous
-		a.daemon.mu.Unlock()
-		a.reconcileExtensionMarketplace(&previous)
-		if a.state.modelCatalog != nil {
-			if err := a.state.modelCatalog.ReconcileConfig(ctx, &previous); err != nil {
-				failures = append(failures, configApplyFailure(
-					"model_catalog_rollback",
-					diagnosticcontract.CategoryConfig,
-					"Model catalog rollback failed",
-					err,
-				))
-			}
-		}
-		if a.state.marketplace != nil {
-			if err := a.state.marketplace.ReconcileConfig(ctx, &previous); err != nil {
-				failures = append(failures, configApplyFailure(
-					"marketplace_rollback",
-					diagnosticcontract.CategoryConfig,
-					"Marketplace rollback failed",
-					err,
-				))
-			}
-		}
-		if a.state.toolMCPResources != nil {
-			if err := a.state.toolMCPResources.Sync(ctx); err != nil {
-				failures = append(failures, configApplyFailure(
-					"mcp_rollback",
-					diagnosticcontract.CategoryMCP,
-					"MCP runtime rollback failed",
-					err,
-				))
-			}
-		}
-		return failures
+		return a.rollbackRuntimeDependencies(ctx, &previous, failures)
 	}
+
+	availabilityChanged := a.networkAvailability != nil && previous.Network.Enabled != next.Network.Enabled
+	if availabilityChanged {
+		if failure := a.persistNetworkAvailability(
+			ctx,
+			next.Network.Enabled,
+			"config.apply",
+			"network_availability",
+			"Network availability sync failed",
+		); failure != nil {
+			return a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
+		}
+		if a.networkWakeRunner != nil {
+			if err := a.networkWakeRunner.SetEnabled(ctx, next.Network.Enabled); err != nil {
+				failures := []settingspkg.ApplyFailure{configApplyFailure(
+					"network_wake_runner",
+					diagnosticcontract.CategoryConfig,
+					"Network wake runner sync failed",
+					err,
+				)}
+				if rollbackErr := a.networkWakeRunner.SetEnabled(ctx, previous.Network.Enabled); rollbackErr != nil {
+					failures = append(failures, configApplyFailure(
+						"network_wake_runner_rollback",
+						diagnosticcontract.CategoryConfig,
+						"Network wake runner rollback failed",
+						rollbackErr,
+					))
+				}
+				if failure := a.persistNetworkAvailability(
+					ctx,
+					previous.Network.Enabled,
+					"config.rollback",
+					"network_availability_rollback",
+					"Network availability rollback failed",
+				); failure != nil {
+					failures = append(failures, *failure)
+				}
+				return a.rollbackRuntimeDependencies(ctx, &previous, failures)
+			}
+		}
+		if networkRuntime, ok := a.state.network.(interface{ SetEnabled(bool) }); ok {
+			networkRuntime.SetEnabled(next.Network.Enabled)
+		}
+	}
+
+	a.daemon.mu.Lock()
+	a.state.cfg = next
+	a.daemon.config = next
+	a.daemon.mu.Unlock()
 
 	providers.InvalidatePreStartCache()
 	return nil
+}
+
+func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
+	ctx context.Context,
+	previous *aghconfig.Config,
+	failures []settingspkg.ApplyFailure,
+) []settingspkg.ApplyFailure {
+	a.reconcileExtensionMarketplace(previous)
+	if a.state.modelCatalog != nil {
+		if err := a.state.modelCatalog.ReconcileConfig(ctx, previous); err != nil {
+			failures = append(failures, configApplyFailure(
+				"model_catalog_rollback",
+				diagnosticcontract.CategoryConfig,
+				"Model catalog rollback failed",
+				err,
+			))
+		}
+	}
+	if a.state.marketplace != nil {
+		if err := a.state.marketplace.ReconcileConfig(ctx, previous); err != nil {
+			failures = append(failures, configApplyFailure(
+				"marketplace_rollback",
+				diagnosticcontract.CategoryConfig,
+				"Marketplace rollback failed",
+				err,
+			))
+		}
+	}
+	if a.state.toolMCPResources != nil {
+		if err := a.state.toolMCPResources.SyncConfig(ctx, previous); err != nil {
+			failures = append(failures, configApplyFailure(
+				"mcp_rollback",
+				diagnosticcontract.CategoryMCP,
+				"MCP runtime rollback failed",
+				err,
+			))
+		}
+	}
+	return failures
 }
 
 func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
@@ -101,7 +157,7 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 		}
 	}
 	if a.state.toolMCPResources != nil {
-		if err := a.state.toolMCPResources.Sync(ctx); err != nil {
+		if err := a.state.toolMCPResources.SyncConfig(ctx, next); err != nil {
 			failures = append(failures, configApplyFailure(
 				"mcp",
 				diagnosticcontract.CategoryMCP,
@@ -122,6 +178,25 @@ func (a daemonSettingsRuntimeApplier) reconcileExtensionMarketplace(cfg *aghconf
 		return
 	}
 	service.reconcileMarketplaceConfig(cfg.Extensions.Marketplace)
+}
+
+func (a daemonSettingsRuntimeApplier) persistNetworkAvailability(
+	ctx context.Context,
+	enabled bool,
+	updatedBy string,
+	subsystem string,
+	summary string,
+) *settingspkg.ApplyFailure {
+	if _, err := a.networkAvailability.SetNetworkAvailability(ctx, enabled, updatedBy); err != nil {
+		failure := configApplyFailure(
+			subsystem,
+			diagnosticcontract.CategoryConfig,
+			summary,
+			err,
+		)
+		return &failure
+	}
+	return nil
 }
 
 func configApplyFailure(

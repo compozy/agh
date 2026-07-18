@@ -63,7 +63,7 @@ function buildEntries(
         kind: "direct",
         preview: direct.last_message_preview ?? "No messages yet.",
         timestamp: direct.last_activity_at ?? null,
-        title: `${direct.peer_a} ↔ ${direct.peer_b}`,
+        title: `${direct.session_a} ↔ ${direct.session_b}`,
       },
       href: direct.direct_id,
     });

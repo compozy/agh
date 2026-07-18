@@ -246,7 +246,7 @@ describe("network query options , surface isolation", () => {
   it("catalog queries preserve counted envelopes and bind only stable server filters to the key", async () => {
     const options = networkThreadsOptions("ws_alpha", "builders", {
       has_work: true,
-      peer_id: "peer.alpha",
+      session_id: "session.alpha",
       query: "release",
       sort: "alphabetical",
     });
@@ -260,7 +260,7 @@ describe("network query options , surface isolation", () => {
       "thread",
       "list",
       "release",
-      "peer.alpha",
+      "session.alpha",
       true,
       "alphabetical",
       50,
@@ -278,7 +278,7 @@ describe("network query options , surface isolation", () => {
         after: "thread_cursor",
         has_work: true,
         limit: 50,
-        peer_id: "peer.alpha",
+        session_id: "session.alpha",
         query: "release",
         sort: "alphabetical",
       },

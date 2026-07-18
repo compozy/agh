@@ -14,7 +14,7 @@
  * deterministic and the schedule math is reproducible.
  */
 
-import type { CreateAutomationJobRequest } from "../types";
+import type { CreateAutomationJobRequest, UpdateAutomationJobRequest } from "../types";
 import {
   projectAutomationJobRequest,
   type AutomationEditorMode,
@@ -56,7 +56,11 @@ export interface JobRunDigest {
   task: {
     title: string;
     owner: string;
-    channel: string | null;
+    participation: {
+      channelId: string | null;
+      channelStrategy: string | null;
+      mode: "local" | "live";
+    };
     description: string;
     runStatus: "delegated";
   } | null;
@@ -69,7 +73,7 @@ export interface JobPreviewModel {
   nextRuns: JobNextRun[] | null;
   nextRunsEmptyReason: string | null;
   runDigest: JobRunDigest;
-  request: AutomationRequestProjection<CreateAutomationJobRequest>;
+  request: AutomationRequestProjection<CreateAutomationJobRequest | UpdateAutomationJobRequest>;
   targetIssue: string | null;
 }
 
@@ -243,6 +247,7 @@ function buildRunDigest(draft: Draft): JobRunDigest {
   const target = projectAutomationTarget(draft);
   if (output === "task" && draft.task) {
     const task = draft.task;
+    const participation = task.network_participation;
     return {
       output: "task",
       agentName: null,
@@ -251,7 +256,14 @@ function buildRunDigest(draft: Draft): JobRunDigest {
       task: {
         title: task.title?.trim() ? task.title : draft.name,
         owner: ownerLabel(task.owner) ?? "unassigned",
-        channel: task.network_channel?.trim() ? task.network_channel : null,
+        participation: {
+          mode: participation?.mode === "live" ? "live" : "local",
+          channelStrategy: participation?.mode === "live" ? participation.channel_strategy : null,
+          channelId:
+            participation?.mode === "live" && participation.channel_strategy === "named"
+              ? participation.channel_id
+              : null,
+        },
         description: task.description?.trim() ? task.description : draft.prompt,
         runStatus: "delegated",
       },

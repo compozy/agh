@@ -11,10 +11,9 @@ import (
 func normalizeNetworkSubscriptionEntry(entry store.NetworkSubscriptionEntry) store.NetworkSubscriptionEntry {
 	normalized := store.NetworkSubscriptionEntry{
 		WorkspaceID: strings.TrimSpace(entry.WorkspaceID), Channel: strings.TrimSpace(entry.Channel),
-		ThreadID: strings.TrimSpace(entry.ThreadID), PeerID: strings.TrimSpace(entry.PeerID),
+		ThreadID: strings.TrimSpace(entry.ThreadID), SessionID: strings.TrimSpace(entry.SessionID),
 		Mode: strings.TrimSpace(entry.Mode), CreatedAt: entry.CreatedAt, UpdatedAt: entry.UpdatedAt,
 	}
-	normalized.KeywordFilters = normalizeStringSlice(entry.KeywordFilters)
 	return normalized
 }
 
@@ -30,14 +29,13 @@ func normalizeNetworkTaskThreadOrigin(origin store.NetworkTaskThreadOrigin) stor
 
 func scanNetworkSubscription(scanner rowScanner) (store.NetworkSubscriptionEntry, error) {
 	var entry store.NetworkSubscriptionEntry
-	var filtersRaw, createdAtRaw, updatedAtRaw string
+	var createdAtRaw, updatedAtRaw string
 	if err := scanner.Scan(
-		&entry.WorkspaceID, &entry.Channel, &entry.ThreadID, &entry.PeerID, &entry.Mode,
-		&filtersRaw, &createdAtRaw, &updatedAtRaw,
+		&entry.WorkspaceID, &entry.Channel, &entry.ThreadID, &entry.SessionID, &entry.Mode,
+		&createdAtRaw, &updatedAtRaw,
 	); err != nil {
 		return store.NetworkSubscriptionEntry{}, fmt.Errorf("store: scan network subscription: %w", err)
 	}
-	entry.KeywordFilters = stringSliceFromJSON(filtersRaw)
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {
 		return store.NetworkSubscriptionEntry{}, fmt.Errorf("store: parse network subscription created_at: %w", err)

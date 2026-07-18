@@ -1,7 +1,11 @@
 // Package dsl defines the agh.loop/v1 authoring document.
 package dsl
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/compozy/agh/internal/network/participation"
+)
 
 const (
 	// APIVersion is the only loop DSL version accepted by this package.
@@ -17,19 +21,28 @@ type NodeID string
 
 // Definition is the canonical agh.loop/v1 document.
 type Definition struct {
-	APIVersion  string            `json:"apiVersion"            yaml:"apiVersion"`
-	Kind        string            `json:"kind"                  yaml:"kind"`
-	Meta        Meta              `json:"meta"                  yaml:"meta"`
-	Concurrency ConcurrencyPolicy `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
-	Inputs      map[string]Input  `json:"inputs,omitempty"      yaml:"inputs,omitempty"`
-	Contract    Contract          `json:"contract"              yaml:"contract"`
-	Graph       Graph             `json:"graph"                 yaml:"graph"`
-	Start       []StartBinding    `json:"start,omitempty"       yaml:"start,omitempty"`
-	Extra       map[string]any    `json:"-"                     yaml:",inline"`
+	APIVersion                string            `json:"apiVersion"            yaml:"apiVersion"`
+	Kind                      string            `json:"kind"                  yaml:"kind"`
+	Meta                      Meta              `json:"meta"                  yaml:"meta"`
+	Concurrency               ConcurrencyPolicy `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
+	Inputs                    map[string]Input  `json:"inputs,omitempty"      yaml:"inputs,omitempty"`
+	Contract                  Contract          `json:"contract"              yaml:"contract"`
+	Graph                     Graph             `json:"graph"                 yaml:"graph"`
+	*DefinitionExtensionState `                                               yaml:",inline"`
+	Extra                     map[string]any `json:"-"                     yaml:",inline"`
+}
+
+// DefinitionExtensionState keeps optional authoring extensions off the hot Definition value.
+type DefinitionExtensionState struct {
+	Start                []StartBinding         `json:"start,omitempty"                 yaml:"start,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty" yaml:"network_participation,omitempty"`
 }
 
 // Normalize applies document-level zero-value semantics without inventing authoring defaults.
 func (d *Definition) Normalize() {
+	if d.DefinitionExtensionState == nil {
+		d.DefinitionExtensionState = &DefinitionExtensionState{}
+	}
 	if d.APIVersion == "" {
 		d.APIVersion = APIVersion
 	}

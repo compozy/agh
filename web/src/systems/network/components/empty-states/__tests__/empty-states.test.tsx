@@ -7,12 +7,24 @@ import { describe, expect, it, vi } from "vitest";
 import { DaemonDown, DirectEmpty, DirectsEmpty, NetworkEmpty, ThreadEmpty, ThreadsEmpty } from "..";
 
 describe("Empty / disabled / error state copy (`_design.md` §7.2 + §7.3)", () => {
-  it("NetworkEmpty matches the disabled-state copy verbatim", () => {
-    render(<NetworkEmpty />);
-    expect(screen.getByText("The network is off.")).toBeInTheDocument();
-    expect(
-      screen.getByText("Enable the embedded network in your AGH config to start.")
-    ).toBeInTheDocument();
+  it("NetworkEmpty matches the ready-state orientation copy and opens settings", async () => {
+    const onOpenSettings = vi.fn();
+    const user = userEvent.setup();
+    render(<NetworkEmpty onOpenSettings={onOpenSettings} />);
+    expect(screen.getByTestId("network-empty")).toBeInTheDocument();
+    expect(screen.getByText("Network is ready when you are.")).toBeInTheDocument();
+    expect(screen.getByText(/Executions stay Local by default/i)).toBeInTheDocument();
+    expect(screen.getByText(/Choose Live explicitly/i)).toBeInTheDocument();
+    expect(screen.getByText(/never enrolls an execution/i)).toBeInTheDocument();
+    await user.click(screen.getByTestId("network-empty-open-settings"));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("NetworkEmpty names who can change availability when disabled", () => {
+    render(<NetworkEmpty disabledByAdmin />);
+    expect(screen.getByText("Network is disabled.")).toBeInTheDocument();
+    expect(screen.getByText(/operator with admin access/i)).toBeInTheDocument();
+    expect(screen.getByText(/Local work remains available/i)).toBeInTheDocument();
   });
 
   it("ThreadsEmpty matches the no-threads copy verbatim", () => {

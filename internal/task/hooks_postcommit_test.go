@@ -27,9 +27,9 @@ func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) 
 		actor := validActorContext()
 		taskRecord, run := enqueueRunForPostCommitHookTest(t, manager, actor)
 
-		claimed, err := manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		claimed, err := claimExactRunForTest(context.Background(), manager, run.ID, actor)
 		if err != nil {
-			t.Fatalf("ClaimRun() error = %v", err)
+			t.Fatalf("claimExactRunForTest() error = %v", err)
 		}
 		if got, want := claimed.Status, TaskRunStatusClaimed; got != want {
 			t.Fatalf("claimed.Status = %q, want %q", got, want)
@@ -147,6 +147,7 @@ func validAgentActorContextForPostCommitHookTest() ActorContext {
 	agent := validActorContext()
 	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-post-commit-hooks"}
 	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+	agent.Scope = CallerScope{SessionID: "sess-post-commit-hooks", WorkspaceID: "ws-post-commit-hooks"}
 	return agent
 }
 

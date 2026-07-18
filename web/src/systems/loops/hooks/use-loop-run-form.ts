@@ -1,6 +1,12 @@
 import { useState } from "react";
 
 import { toast } from "@agh/ui";
+import {
+  networkParticipationDraftFromPayload,
+  isNetworkParticipationDraftValid,
+  serializeNetworkParticipation,
+  type NetworkParticipationDraft,
+} from "@/systems/network";
 
 import {
   buildConfigOverrides,
@@ -43,13 +49,20 @@ export function useLoopRunForm({
   const [overrides, setOverrides] = useState<LoopOverrideDraft>(() =>
     initialOverrideDraft(effectiveConfig)
   );
+  const [networkParticipation, setNetworkParticipation] = useState<NetworkParticipationDraft>(() =>
+    networkParticipationDraftFromPayload(loop.definition.network_participation)
+  );
+  const [networkParticipationOverridden, setNetworkParticipationOverridden] = useState(false);
   const [plan, setPlan] = useState<LoopDryRunPreview | null>(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const runMutation = useRunLoop();
   const dryMutation = useRunLoop();
   const missing = new Set(missingRequiredInputs(schema, inputs));
-  const valid = isRunFormValid(schema, inputs);
+  const valid =
+    isRunFormValid(schema, inputs) &&
+    (!networkParticipationOverridden ||
+      isNetworkParticipationDraftValid(networkParticipation, ["named", "loop_run"]));
   const busy = runMutation.isPending || dryMutation.isPending;
   const configOverrides = buildConfigOverrides(overrides, effectiveConfig);
 
@@ -57,6 +70,9 @@ export function useLoopRunForm({
     return {
       inputs: serializeRunInputs(schema, inputs),
       config_overrides: configOverrides,
+      ...(networkParticipationOverridden
+        ? { network_participation: serializeNetworkParticipation(networkParticipation) }
+        : {}),
     };
   }
 
@@ -68,6 +84,12 @@ export function useLoopRunForm({
   function setOverridesDraft(next: LoopOverrideDraft) {
     setPlan(null);
     setOverrides(next);
+  }
+
+  function setNetworkParticipationDraft(next: NetworkParticipationDraft) {
+    setPlan(null);
+    setNetworkParticipationOverridden(true);
+    setNetworkParticipation(next);
   }
 
   function handleDryRun() {
@@ -107,6 +129,7 @@ export function useLoopRunForm({
     schema,
     inputs,
     overrides,
+    networkParticipation,
     configOverrides,
     plan,
     submitAttempted,
@@ -115,6 +138,7 @@ export function useLoopRunForm({
     busy,
     setInput,
     setOverridesDraft,
+    setNetworkParticipationDraft,
     handleDryRun,
     handleRun,
   };

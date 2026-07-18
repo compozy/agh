@@ -1,11 +1,11 @@
 ---
 title: "agh network channels update"
-description: "Update a runtime channel delivery policy"
+description: "Update runtime channel routing metadata"
 ---
 
 ## agh network channels update
 
-Update a runtime channel delivery policy
+Update runtime channel routing metadata
 
 ```
 agh network channels update [channel] [flags]
@@ -16,7 +16,7 @@ agh network channels update [channel] [flags]
 ```
       --channel string               Channel name when not passed as an argument
       --coordinator-peer-id string   Coordinator peer id; pass empty to clear
-      --fanout-policy string         Delivery activation policy: capability_match, coordinator, or all_members
+      --fanout-policy string         Channel routing metadata: capability_match, coordinator, or all_members; never enrolls or wakes executions
   -h, --help                         help for update
       --purpose string               Human-readable channel purpose
 ```

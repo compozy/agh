@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -39,17 +40,18 @@ type LoopCatchUpPolicyRequest struct {
 
 // LoopStartRequest starts one loop target from an automation fire.
 type LoopStartRequest struct {
-	WorkspaceID     string
-	LoopName        string
-	Kind            LoopStartKind
-	Inputs          map[string]any
-	InputMapping    map[string]string
-	TriggerPayload  map[string]any
-	Actor           taskpkg.ActorContext
-	AutomationRunID string
-	ScheduledAt     *time.Time
-	CatchUp         bool
-	CatchUpPolicy   SchedulerCatchUpPolicy
+	WorkspaceID          string
+	LoopName             string
+	Kind                 LoopStartKind
+	Inputs               map[string]any
+	InputMapping         map[string]string
+	TriggerPayload       map[string]any
+	NetworkParticipation *participation.Request
+	Actor                taskpkg.ActorContext
+	AutomationRunID      string
+	ScheduledAt          *time.Time
+	CatchUp              bool
+	CatchUpPolicy        SchedulerCatchUpPolicy
 }
 
 // LoopStartResult returns the observable loop_run correlation for an automation fire.
@@ -102,17 +104,18 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
 	}
 	result, err := d.loopStarter.StartLoop(ctx, LoopStartRequest{
-		WorkspaceID:     strings.TrimSpace(target.WorkspaceID),
-		LoopName:        strings.TrimSpace(target.LoopName),
-		Kind:            req.loopStartKind(),
-		Inputs:          cloneJSONMap(target.Inputs),
-		InputMapping:    cloneStringMap(target.InputMapping),
-		TriggerPayload:  cloneJSONMap(req.envelopeData()),
-		Actor:           actor,
-		AutomationRunID: strings.TrimSpace(scheduledRun.ID),
-		ScheduledAt:     cloneTimePointer(req.ScheduledAt),
-		CatchUp:         req.CatchUp,
-		CatchUpPolicy:   req.CatchUpPolicy,
+		WorkspaceID:          strings.TrimSpace(target.WorkspaceID),
+		LoopName:             strings.TrimSpace(target.LoopName),
+		Kind:                 req.loopStartKind(),
+		Inputs:               cloneJSONMap(target.Inputs),
+		InputMapping:         cloneStringMap(target.InputMapping),
+		TriggerPayload:       cloneJSONMap(req.envelopeData()),
+		NetworkParticipation: cloneParticipationRequest(target.NetworkParticipation),
+		Actor:                actor,
+		AutomationRunID:      strings.TrimSpace(scheduledRun.ID),
+		ScheduledAt:          cloneTimePointer(req.ScheduledAt),
+		CatchUp:              req.CatchUp,
+		CatchUpPolicy:        req.CatchUpPolicy,
 	})
 	if err != nil {
 		if req.CatchUp && errors.Is(err, ErrLoopConcurrencyConflict) {

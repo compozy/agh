@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 
 import { Input } from "@agh/ui";
 
@@ -24,14 +24,21 @@ function validateIntegerInput(rawValue: string, min: number): string | null {
   }
 
   const parsed = Number.parseInt(trimmed, 10);
-  if (!Number.isFinite(parsed) || parsed < min) {
+  if (!Number.isSafeInteger(parsed)) {
+    return "Enter a safely representable whole number.";
+  }
+  if (parsed < min) {
     return `Value must be ${min} or greater.`;
   }
 
   return null;
 }
 
-function SettingsNumberInput({
+function SettingsNumberInput({ value, ...props }: SettingsNumberInputProps) {
+  return <SettingsNumberInputControl value={value} {...props} />;
+}
+
+function SettingsNumberInputControl({
   value,
   min = 0,
   onValueChange,
@@ -39,6 +46,11 @@ function SettingsNumberInput({
   ...props
 }: SettingsNumberInputProps) {
   const [rawValue, setRawValue] = useState(() => String(value));
+
+  useEffect(() => {
+    const nextRawValue = String(value);
+    setRawValue(current => (current === nextRawValue ? current : nextRawValue));
+  }, [value]);
 
   const validationMessage = validateIntegerInput(rawValue, min);
 

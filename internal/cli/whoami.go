@@ -36,7 +36,7 @@ func whoamiBundle(identity IdentityRecord) outputBundle {
 		jsonValue: identity,
 		human: func() (string, error) {
 			return renderHumanSection("Identity", []keyValue{
-				{Label: "Session ID", Value: stringOrDash(identity.SessionID)},
+				{Label: sessionIDLabel, Value: stringOrDash(identity.SessionID)},
 				{Label: whoamiAgentValue, Value: stringOrDash(identity.Agent)},
 				{Label: "Agent Name", Value: stringOrDash(identity.AgentName)},
 			}), nil

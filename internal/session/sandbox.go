@@ -142,7 +142,7 @@ func (m *Manager) prepareSandboxForStart(
 		return acp.StartOpts{}, err
 	}
 
-	return sandboxStartOpts(opts, prepared, state), nil
+	return sandboxStartOpts(opts, prepared, state)
 }
 
 func (m *Manager) initializeSandboxMetaForStart(
@@ -792,31 +792,6 @@ func (m *Manager) logSandboxLifecycle(event SandboxLifecycleEvent) {
 	if notifier, ok := m.notifier.(SandboxLifecycleNotifier); ok {
 		notifier.OnSandboxLifecycleEvent(m.lifecycleCtx, event)
 	}
-}
-
-func sandboxStartOpts(
-	opts acp.StartOpts,
-	prepared envpkg.Prepared,
-	state envpkg.SessionState,
-) acp.StartOpts {
-	next := opts
-	if command := strings.TrimSpace(prepared.Launch.Command); command != "" {
-		next.Command = command
-	}
-	if prepared.Launch.Env != nil {
-		next.Env = append([]string(nil), prepared.Launch.Env...)
-	}
-	next.Cwd = strings.TrimSpace(prepared.RuntimeRootDir)
-	if next.Cwd == "" {
-		next.Cwd = strings.TrimSpace(state.RuntimeRootDir)
-	}
-	next.AdditionalDirs = append([]string(nil), prepared.RuntimeAdditionalDirs...)
-	if next.AdditionalDirs == nil {
-		next.AdditionalDirs = append([]string(nil), state.RuntimeAdditionalDirs...)
-	}
-	next.Launcher = prepared.Launcher
-	next.ToolHost = prepared.ToolHost
-	return next
 }
 
 func initialSessionSandboxMeta(

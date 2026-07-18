@@ -269,9 +269,7 @@ function BundleInventory() {
               onUpdate={() =>
                 update.mutate({
                   id: activation.id,
-                  body: {
-                    bind_primary_channel_as_default: activation.bind_primary_channel_as_default,
-                  },
+                  body: { expected_version: activation.version },
                 })
               }
               pending={update.isPending && update.variables?.id === activation.id}

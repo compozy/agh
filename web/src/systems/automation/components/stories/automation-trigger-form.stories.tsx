@@ -76,7 +76,7 @@ function TriggerFormHarness({
 
   return (
     <CenteredSurface className="items-start justify-center p-6">
-      <div className="grid h-(--height-modal-xl) max-h-[90vh] w-full max-w-(--width-modal-xl) grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-line bg-canvas-soft">
+      <div className="grid h-(--height-modal-xl) max-h-[90vh] w-full max-w-(--width-modal-xl) grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-line bg-canvas-soft">
         <AutomationTriggerForm
           activeWorkspaceId={storyWorkspaceIds.hq}
           agents={storyAgents}
@@ -196,6 +196,12 @@ export const WorkspaceLoopTarget: Story = {
           input_mapping: {},
           inputs: { pr: 2 },
           loop_name: "reviews-watch",
+          network_participation: {
+            mode: "live",
+            channel_strategy: "named",
+            channel_id: "release-room",
+            bounds: { max_wakes: 3 },
+          },
           workspace_id: storyWorkspaceIds.hq,
         },
         name: "review-on-stop",
@@ -206,10 +212,12 @@ export const WorkspaceLoopTarget: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const target = await canvas.findByTestId("automation-target-details");
-    target.scrollIntoView({ block: "center" });
-    await expect(target).toHaveTextContent("reviews-watch");
-    await expect(target).toHaveTextContent(storyWorkspaceIds.hq);
+    const participation = await canvas.findByTestId("loop-target-participation");
+    participation.scrollIntoView({ block: "center" });
+    await expect(canvas.getByTestId("loop-target-participation-mode")).toHaveValue("live");
+    await expect(canvas.getByTestId("loop-target-participation-channel")).toHaveValue(
+      "release-room"
+    );
     await expect(canvas.getByTestId("submit-trigger-form")).toBeEnabled();
   },
 };

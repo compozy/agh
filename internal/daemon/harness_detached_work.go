@@ -1,12 +1,14 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -31,7 +33,6 @@ type detachedHarnessWakeTarget struct {
 	SessionID   string `json:"session_id"`
 	SessionType string `json:"session_type,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
-	Channel     string `json:"channel,omitempty"`
 }
 
 type detachedHarnessTaskMetadata struct {
@@ -43,7 +44,6 @@ type detachedHarnessTaskMetadata struct {
 	OwnerSessionID       string                    `json:"owner_session_id"`
 	OwnerSessionType     string                    `json:"owner_session_type,omitempty"`
 	OwnerWorkspaceID     string                    `json:"owner_workspace_id,omitempty"`
-	OwnerChannel         string                    `json:"owner_channel,omitempty"`
 	WakeTarget           detachedHarnessWakeTarget `json:"wake_target"`
 }
 
@@ -56,7 +56,6 @@ type detachedHarnessRunMetadata struct {
 	OwnerSessionID       string                    `json:"owner_session_id"`
 	OwnerSessionType     string                    `json:"owner_session_type,omitempty"`
 	OwnerWorkspaceID     string                    `json:"owner_workspace_id,omitempty"`
-	OwnerChannel         string                    `json:"owner_channel,omitempty"`
 	WakeTarget           detachedHarnessWakeTarget `json:"wake_target"`
 	Reentry              *detachedHarnessReentry   `json:"reentry,omitempty"`
 }
@@ -74,7 +73,6 @@ type detachedHarnessSubmitRequest struct {
 	WorkspaceID    string
 	Summary        string
 	Description    string
-	NetworkChannel string
 	TurnSource     session.TurnSource
 	WakeTarget     detachedHarnessWakeTargetInput
 }
@@ -103,12 +101,10 @@ type normalizedDetachedHarnessSubmitRequest struct {
 	WorkspaceID      string
 	Summary          string
 	Description      string
-	NetworkChannel   string
 	TurnSource       session.TurnSource
 	OwnerSessionID   string
 	OwnerSessionType string
 	OwnerWorkspaceID string
-	OwnerChannel     string
 	WakeTarget       detachedHarnessWakeTarget
 }
 
@@ -185,7 +181,6 @@ func (b *harnessDetachedWorkBridge) submit(
 	run, err := b.tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: normalized.SubmissionKey,
-		NetworkChannel: normalized.NetworkChannel,
 		Metadata:       runMetadataJSON,
 	}, actor)
 	if err != nil {
@@ -250,17 +245,14 @@ func (b *harnessDetachedWorkBridge) normalizeSubmitRequest(
 		WorkspaceID:      workspaceID,
 		Summary:          detachedHarnessSummary(req.Summary),
 		Description:      strings.TrimSpace(req.Description),
-		NetworkChannel:   detachedHarnessChannel(req.NetworkChannel, ownerInfo.Channel),
 		TurnSource:       normalizeDetachedHarnessTurnSource(req.TurnSource),
 		OwnerSessionID:   strings.TrimSpace(ownerInfo.ID),
 		OwnerSessionType: string(ownerInfo.Type),
 		OwnerWorkspaceID: strings.TrimSpace(ownerInfo.WorkspaceID),
-		OwnerChannel:     strings.TrimSpace(ownerInfo.Channel),
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   strings.TrimSpace(wakeInfo.ID),
 			SessionType: string(wakeInfo.Type),
 			WorkspaceID: strings.TrimSpace(wakeInfo.WorkspaceID),
-			Channel:     strings.TrimSpace(wakeInfo.Channel),
 		},
 	}, nil
 }
@@ -372,12 +364,11 @@ func (b *harnessDetachedWorkBridge) ensureTask(
 	}
 
 	created, err := b.tasks.CreateTask(ctx, taskpkg.CreateTask{
-		ID:             req.TaskID,
-		Scope:          req.Scope,
-		WorkspaceID:    req.WorkspaceID,
-		NetworkChannel: req.NetworkChannel,
-		Title:          req.Summary,
-		Description:    req.Description,
+		ID:          req.TaskID,
+		Scope:       req.Scope,
+		WorkspaceID: req.WorkspaceID,
+		Title:       req.Summary,
+		Description: req.Description,
 		Owner: &taskpkg.Ownership{
 			Kind: taskpkg.OwnerKindAgentSession,
 			Ref:  req.OwnerSessionID,
@@ -411,7 +402,6 @@ func buildDetachedHarnessTaskMetadata(req normalizedDetachedHarnessSubmitRequest
 		OwnerSessionID:       req.OwnerSessionID,
 		OwnerSessionType:     req.OwnerSessionType,
 		OwnerWorkspaceID:     req.OwnerWorkspaceID,
-		OwnerChannel:         req.OwnerChannel,
 		WakeTarget:           req.WakeTarget,
 	}
 }
@@ -426,7 +416,6 @@ func buildDetachedHarnessRunMetadata(req normalizedDetachedHarnessSubmitRequest)
 		OwnerSessionID:       req.OwnerSessionID,
 		OwnerSessionType:     req.OwnerSessionType,
 		OwnerWorkspaceID:     req.OwnerWorkspaceID,
-		OwnerChannel:         req.OwnerChannel,
 		WakeTarget:           req.WakeTarget,
 		Reentry:              nil,
 	}
@@ -448,7 +437,6 @@ func validateDetachedHarnessTaskMatch(
 ) error {
 	if record.Scope != req.Scope ||
 		record.WorkspaceID != req.WorkspaceID ||
-		record.NetworkChannel != req.NetworkChannel ||
 		record.Title != req.Summary ||
 		record.Description != req.Description ||
 		record.CreatedBy != actor.Actor ||
@@ -526,7 +514,7 @@ func validateDetachedHarnessRunMatch(
 
 func decodeDetachedHarnessTaskMetadata(raw json.RawMessage) (detachedHarnessTaskMetadata, error) {
 	var metadata detachedHarnessTaskMetadata
-	if err := json.Unmarshal(raw, &metadata); err != nil {
+	if err := decodeDetachedHarnessMetadata(raw, &metadata); err != nil {
 		return detachedHarnessTaskMetadata{}, fmt.Errorf(
 			"%w: decode detached harness task metadata: %v",
 			taskpkg.ErrValidation,
@@ -546,7 +534,7 @@ func decodeDetachedHarnessTaskMetadata(raw json.RawMessage) (detachedHarnessTask
 
 func decodeDetachedHarnessRunMetadata(raw json.RawMessage) (detachedHarnessRunMetadata, error) {
 	var metadata detachedHarnessRunMetadata
-	if err := json.Unmarshal(raw, &metadata); err != nil {
+	if err := decodeDetachedHarnessMetadata(raw, &metadata); err != nil {
 		return detachedHarnessRunMetadata{}, fmt.Errorf(
 			"%w: decode detached harness run metadata: %v",
 			taskpkg.ErrValidation,
@@ -562,6 +550,23 @@ func decodeDetachedHarnessRunMetadata(raw json.RawMessage) (detachedHarnessRunMe
 		)
 	}
 	return metadata, nil
+}
+
+func decodeDetachedHarnessMetadata(raw json.RawMessage, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("multiple JSON values")
+		}
+		return err
+	}
+	return nil
 }
 
 func maybeDecodeDetachedHarnessRunMetadata(raw json.RawMessage) (detachedHarnessRunMetadata, bool, error) {
@@ -608,14 +613,6 @@ func detachedHarnessSummary(summary string) string {
 		return defaultDetachedHarnessSummary
 	}
 	return trimmed
-}
-
-func detachedHarnessChannel(requested string, ownerChannel string) string {
-	trimmed := strings.TrimSpace(requested)
-	if trimmed != "" {
-		return trimmed
-	}
-	return strings.TrimSpace(ownerChannel)
 }
 
 func normalizeDetachedHarnessTurnSource(source session.TurnSource) session.TurnSource {

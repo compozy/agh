@@ -200,7 +200,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	ctx.Request = httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&limit=3",
+		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&participation_channel=builders&limit=3",
 		http.NoBody,
 	)
 
@@ -222,7 +222,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	runCtx.Request = httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/tasks/task-1/runs?status=running&session_id=sess-1&limit=1",
+		"/tasks/task-1/runs?status=running&session_id=sess-1&participation_channel=builders&limit=1",
 		http.NoBody,
 	)
 
@@ -230,7 +230,10 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseTaskRunListQuery() error = %v", err)
 	}
-	if runQuery.Status != taskpkg.TaskRunStatusRunning || runQuery.SessionID != "sess-1" || runQuery.Limit != 1 {
+	if runQuery.Status != taskpkg.TaskRunStatusRunning ||
+		runQuery.SessionID != "sess-1" ||
+		runQuery.ParticipationChannel != "builders" ||
+		runQuery.Limit != 1 {
 		t.Fatalf("parseTaskRunListQuery() = %#v", runQuery)
 	}
 
@@ -239,9 +242,6 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		contract.AddTaskDependencyRequest{DependsOnTaskID: "task-2"},
 	); err != nil {
 		t.Fatalf("addTaskDependencyFromRequest() error = %v", err)
-	}
-	if _, err := claimTaskRunFromRequest(contract.ClaimTaskRunRequest{IdempotencyKey: "claim-1"}); err != nil {
-		t.Fatalf("claimTaskRunFromRequest() error = %v", err)
 	}
 	if _, err := startTaskRunFromRequest(contract.StartTaskRunRequest{IdempotencyKey: "start-1"}); err != nil {
 		t.Fatalf("startTaskRunFromRequest() error = %v", err)
@@ -272,18 +272,16 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	} else {
 		assertTaskValidationError(t, err, "run_failure.error is required")
 	}
-	if err := validateTaskChannel("task.network_channel", "bad.channel"); err == nil {
-		t.Fatal("validateTaskChannel(invalid) error = nil, want non-nil")
+	if err := validateParticipationChannel("task.participation_channel", "bad.channel"); err == nil {
+		t.Fatal("validateParticipationChannel(invalid) error = nil, want non-nil")
 	} else {
-		assertTaskValidationError(t, err, `task.network_channel: network: invalid field: channel="bad.channel"`)
+		assertTaskValidationError(t, err, `task.participation_channel: network: invalid field: channel="bad.channel"`)
 	}
 	if _, err := enqueueTaskRunFromRequest(
 		"task-1",
-		contract.EnqueueTaskRunRequest{NetworkChannel: "bad.channel"},
-	); err == nil {
-		t.Fatal("enqueueTaskRunFromRequest(invalid) error = nil, want non-nil")
-	} else {
-		assertTaskValidationError(t, err, `enqueue_run.network_channel: network: invalid field: channel="bad.channel"`)
+		contract.EnqueueTaskRunRequest{},
+	); err != nil {
+		t.Fatalf("enqueueTaskRunFromRequest(empty) error = %v", err)
 	}
 	if _, err := requiredPathID("", "task id"); err == nil {
 		t.Fatal("requiredPathID(empty) error = nil, want non-nil")
@@ -337,6 +335,20 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		assertTaskValidationError(t, err, `invalid integer "bad"`)
 	}
 
+	invalidChannelRecorder := httptest.NewRecorder()
+	invalidChannelCtx, _ := gin.CreateTestContext(invalidChannelRecorder)
+	invalidChannelCtx.Request = httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/tasks/task-1/runs?participation_channel=invalid%20channel",
+		http.NoBody,
+	)
+	if _, err := parseTaskRunListQuery(invalidChannelCtx); err == nil {
+		t.Fatal("parseTaskRunListQuery(invalid participation channel) error = nil, want non-nil")
+	} else {
+		assertTaskValidationError(t, err, "task_run_query.participation_channel")
+	}
+
 	decodeRecorder := httptest.NewRecorder()
 	decodeCtx, _ := gin.CreateTestContext(decodeRecorder)
 	decodeCtx.Request = httptest.NewRequestWithContext(
@@ -351,6 +363,22 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		t.Fatal("decodeOptionalJSON(invalid) error = nil, want non-nil")
 	} else if !strings.Contains(err.Error(), "unexpected EOF") {
 		t.Fatalf("decodeOptionalJSON(invalid) error = %q, want unexpected EOF", err.Error())
+	}
+
+	unknownRecorder := httptest.NewRecorder()
+	unknownCtx, _ := gin.CreateTestContext(unknownRecorder)
+	unknownCtx.Request = httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/tasks/task-1/runs",
+		bytes.NewBufferString(`{"network_channel":"builders"}`),
+	)
+	unknownCtx.Request.Header.Set("Content-Type", "application/json")
+	var enqueuePayload contract.EnqueueTaskRunRequest
+	if err := decodeOptionalJSON(unknownCtx, &enqueuePayload); err == nil {
+		t.Fatal("decodeOptionalJSON(unknown field) error = nil, want non-nil")
+	} else if !errors.Is(err, ErrUnknownJSONField) || !strings.Contains(err.Error(), "network_channel") {
+		t.Fatalf("decodeOptionalJSON(unknown field) error = %q, want unknown_field with field named", err.Error())
 	}
 }
 
@@ -395,22 +423,25 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 
 		claimedAt := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 		run := taskpkg.Run{
-			ID:                    "run-lease",
-			TaskID:                "task-lease",
-			Status:                taskpkg.TaskRunStatusRunning,
-			Attempt:               1,
-			ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
-			SessionID:             "sess-lease",
-			Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-			ClaimTokenHash:        "sha256:" + strings.Repeat("c", 64),
-			LeaseUntil:            claimedAt.Add(15 * time.Minute),
-			HeartbeatAt:           claimedAt.Add(time.Minute),
-			CoordinationChannelID: "coord-lease",
-			QueuedAt:              claimedAt.Add(-time.Minute),
-			ClaimedAt:             claimedAt,
-			StartedAt:             claimedAt.Add(time.Minute),
+			ID:                 "run-lease",
+			TaskID:             "task-lease",
+			Status:             taskpkg.TaskRunStatusRunning,
+			Attempt:            1,
+			ClaimedBy:          &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
+			SessionID:          "sess-lease",
+			Origin:             taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+			ClaimTokenHash:     "sha256:" + strings.Repeat("c", 64),
+			LeaseUntil:         claimedAt.Add(15 * time.Minute),
+			HeartbeatAt:        claimedAt.Add(time.Minute),
+			RunNetworkState:    &taskpkg.RunNetworkState{NetworkSpec: coreTestLiveParticipation("ws-1", "coord-lease")},
+			QueuedAt:           claimedAt.Add(-time.Minute),
+			ClaimedAt:          claimedAt,
+			StartedAt:          claimedAt.Add(time.Minute),
+			DesignationGroupID: "designation-group",
+			Error:              "provider rejected agh_claim_error-secret",
 			Metadata: json.RawMessage(
-				`{"keep":"metadata","claim_token":"raw-secret-token","nested":{"claim_token":"nested-secret"}}`,
+				`{"keep":"metadata","claim_token":"raw-secret-token","nested":{"claim_token":"nested-secret"},` +
+					`"designation":{"index":1,"brief":"Review with agh_claim_designation-secret"}}`,
 			),
 			Result: json.RawMessage(`[{"ok":true},{"claim_token":"result-secret"}]`),
 		}
@@ -425,8 +456,13 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 		if payload.HeartbeatAt == nil || !payload.HeartbeatAt.Equal(run.HeartbeatAt) {
 			t.Fatalf("HeartbeatAt = %v, want %v", payload.HeartbeatAt, run.HeartbeatAt)
 		}
-		if payload.CoordinationChannelID != run.CoordinationChannelID {
-			t.Fatalf("CoordinationChannelID = %q, want %q", payload.CoordinationChannelID, run.CoordinationChannelID)
+		if payload.ResolvedNetworkParticipation == nil ||
+			payload.ResolvedNetworkParticipation.ChannelID != run.NetworkSpecSnapshot().ChannelID {
+			t.Fatalf(
+				"ResolvedNetworkParticipation = %#v, want channel %q",
+				payload.ResolvedNetworkParticipation,
+				run.NetworkSpecSnapshot().ChannelID,
+			)
 		}
 
 		content, err := json.Marshal(payload)
@@ -437,10 +473,21 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 		if strings.Contains(encoded, `"claim_token"`) {
 			t.Fatalf("TaskRunPayload JSON exposed raw claim_token field: %s", encoded)
 		}
-		for _, rawValue := range []string{"raw-secret-token", "nested-secret", "result-secret"} {
+		for _, rawValue := range []string{
+			"raw-secret-token",
+			"nested-secret",
+			"result-secret",
+			"agh_claim_error-secret",
+			"agh_claim_designation-secret",
+		} {
 			if strings.Contains(encoded, rawValue) {
 				t.Fatalf("TaskRunPayload JSON exposed raw token value %q: %s", rawValue, encoded)
 			}
+		}
+		if payload.Designation == nil || payload.Designation.Index != 1 ||
+			strings.Contains(payload.Designation.Brief, "agh_claim_designation-secret") ||
+			!strings.Contains(payload.Designation.Brief, "agh_claim_[REDACTED]") {
+			t.Fatalf("TaskRunPayload designation = %#v, want redacted index-1 projection", payload.Designation)
 		}
 		if !strings.Contains(encoded, `"claim_token_hash"`) || !strings.Contains(encoded, run.ClaimTokenHash) {
 			t.Fatalf("TaskRunPayload JSON = %s, want claim_token_hash", encoded)

@@ -1,17 +1,1231 @@
 package globaldb
 
 import (
+	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
+
+func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist sender and delivered thread recipients as durable participants", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 1, 55, 0, 0, time.UTC)
+		message := threadMessage(
+			"msg-thread-participants",
+			"thread_delivery_evidence",
+			"coder.sess-abc",
+			"Please review",
+			now,
+		)
+		_, err := globalDB.AcceptNetworkMessage(testutil.Context(t), store.AcceptNetworkMessageRequest{
+			Message: message,
+			Dispositions: []store.NetworkMessageDisposition{
+				{RecipientSessionID: "other.sess-peer", Decision: store.NetworkDispositionIgnore},
+				{RecipientSessionID: "reviewer.sess-xyz", Decision: store.NetworkDispositionDeliver},
+			},
+		})
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage() error = %v", err)
+		}
+		participants, err := globalDB.ListThreadParticipants(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			message.ThreadID,
+		)
+		if err != nil {
+			t.Fatalf("ListThreadParticipants() error = %v", err)
+		}
+		got := make([]string, 0, len(participants))
+		for _, participant := range participants {
+			got = append(got, participant.SessionID)
+		}
+		want := []string{"coder.sess-abc", "reviewer.sess-xyz"}
+		if !sameStrings(got, want) {
+			t.Fatalf("thread participants = %#v, want delivered evidence %#v", got, want)
+		}
+		thread, err := globalDB.GetThread(testutil.Context(t), store.NetworkChannelRef{
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Channel:     "builders",
+		}, message.ThreadID)
+		if err != nil {
+			t.Fatalf("GetThread() error = %v", err)
+		}
+		if thread.ParticipantCount != 2 {
+			t.Fatalf("thread participant_count = %d, want 2", thread.ParticipantCount)
+		}
+	})
+
+	t.Run("Should atomically accept a direct wake and return only committed notifications", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 0, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return now }
+		req := networkWakeAcceptanceRequest(t, "msg-accept-1", "wake-1", "run-wake-1", now)
+
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage() error = %v", err)
+		}
+		if result.AcceptanceSeq <= 0 || result.Duplicate || result.AvailabilityEpoch != 1 {
+			t.Fatalf("acceptance result = %#v, want new acceptance at availability epoch 1", result)
+		}
+		if len(result.Admitted) != 1 || result.Admitted[0].TaskRunID != "run-wake-1" ||
+			result.Admitted[0].OwnerKey != "session:reviewer.sess-xyz" {
+			t.Fatalf("admitted wakes = %#v, want one durable reservation", result.Admitted)
+		}
+		if len(result.Notify) != 1 || result.Notify[0].TaskRunID != "run-wake-1" ||
+			result.Notify[0].AcceptanceSeq != result.AcceptanceSeq {
+			t.Fatalf("committed notifications = %#v, want admitted task run", result.Notify)
+		}
+		run, err := globalDB.GetTaskRun(testutil.Context(t), "run-wake-1")
+		if err != nil {
+			t.Fatalf("GetTaskRun(network wake) error = %v", err)
+		}
+		if !run.IsNetworkWake() || run.TaskID != "" || run.Status != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("network wake run = %#v, want queued taskless wake", run)
+		}
+		wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
+		if wakeID != "wake-1" || targetSessionID != "reviewer.sess-xyz" ||
+			ownerKey != "session:reviewer.sess-xyz" {
+			t.Fatalf("network wake correlation = (%q, %q, %q)", wakeID, targetSessionID, ownerKey)
+		}
+		assertNetworkAcceptanceRowCounts(t, globalDB, "msg-accept-1", "session:reviewer.sess-xyz", 1, 1)
+
+		duplicate, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(duplicate) error = %v", err)
+		}
+		if !duplicate.Duplicate || duplicate.AcceptanceSeq != result.AcceptanceSeq ||
+			len(duplicate.Notify) != 0 || len(duplicate.Dispositions) != 1 {
+			t.Fatalf("duplicate acceptance = %#v, want durable evidence without notification", duplicate)
+		}
+		assertNetworkAcceptanceRowCounts(t, globalDB, "msg-accept-1", "session:reviewer.sess-xyz", 1, 1)
+	})
+
+	t.Run("Should coalesce only while the open wake is queued and inside its window", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		base := time.Date(2026, 7, 14, 2, 10, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return base }
+		first := networkWakeAcceptanceRequest(t, "msg-coalesce-1", "wake-coalesced", "run-coalesced", base)
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first); err != nil {
+			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
+		}
+
+		second := networkWakeAcceptanceRequest(
+			t,
+			"msg-coalesce-2",
+			"wake-unused-2",
+			"run-unused-2",
+			base.Add(100*time.Millisecond),
+		)
+		second.Admissions[0].RootID = first.Admissions[0].RootID
+		coalesced, err := globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(coalesced) error = %v", err)
+		}
+		if len(coalesced.Admitted) != 0 || len(coalesced.Notify) != 0 || len(coalesced.Skipped) != 1 ||
+			coalesced.Skipped[0].Reason != store.NetworkWakeSkipCoalesced ||
+			coalesced.Skipped[0].WakeID != "wake-coalesced" {
+			t.Fatalf("coalesced acceptance = %#v", coalesced)
+		}
+		assertNetworkAcceptanceRowCounts(t, globalDB, "msg-coalesce-2", "session:reviewer.sess-xyz", 1, 2)
+
+		third := networkWakeAcceptanceRequest(
+			t,
+			"msg-coalesce-3",
+			"wake-unused-3",
+			"run-unused-3",
+			base.Add(time.Second),
+		)
+		third.Admissions[0].RootID = first.Admissions[0].RootID
+		accumulated, err := globalDB.AcceptNetworkMessage(testutil.Context(t), third)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(after cutoff) error = %v", err)
+		}
+		if len(accumulated.Skipped) != 1 || accumulated.Skipped[0].Reason != store.NetworkWakeSkipInFlight {
+			t.Fatalf("after-cutoff acceptance = %#v, want in_flight skip", accumulated)
+		}
+		assertNetworkAcceptanceRowCounts(t, globalDB, "msg-coalesce-3", "session:reviewer.sess-xyz", 1, 2)
+	})
+
+	t.Run("Should stop coalescing as soon as the canonical wake run is claimed", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		base := time.Date(2026, 7, 14, 2, 15, 0, 0, time.UTC)
+		first := networkWakeAcceptanceRequest(t, "msg-claimed-1", "wake-claimed", "run-claimed", base)
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first); err != nil {
+			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
+		}
+		if _, err := globalDB.ClaimNextRun(testutil.Context(t), taskpkg.ClaimCriteria{
+			RunID: "run-claimed", RunKind: taskpkg.RunKindNetworkWake,
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: networkStoreTestWorkspaceID,
+			TargetSessionID: "reviewer.sess-xyz", ClaimerSessionID: "reviewer.sess-xyz", Now: base,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(network wake) error = %v", err)
+		}
+		second := networkWakeAcceptanceRequest(
+			t,
+			"msg-claimed-2",
+			"wake-unused-claimed",
+			"run-unused-claimed",
+			base.Add(100*time.Millisecond),
+		)
+		second.Admissions[0].RootID = first.Admissions[0].RootID
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(after claim) error = %v", err)
+		}
+		if len(result.Skipped) != 1 || result.Skipped[0].Reason != store.NetworkWakeSkipInFlight {
+			t.Fatalf("after-claim acceptance = %#v, want in_flight", result)
+		}
+		got := networkRowCount(
+			t,
+			globalDB,
+			"network_wake_sources",
+			"owner_key",
+			first.Admissions[0].OwnerKey,
+		)
+		if got != 1 {
+			t.Fatalf("after-claim wake source count = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should roll back every acceptance row when a recipient is outside the workspace", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"network-foreign-recipient",
+			filepath.Join(t.TempDir(), "foreign-workspace"),
+		)
+		now := time.Date(2026, 7, 14, 2, 20, 0, 0, time.UTC)
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID: "sess-foreign-recipient", AgentName: "coder", Provider: "claude",
+			WorkspaceID: foreignWorkspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(foreign) error = %v", err)
+		}
+		req := networkWakeAcceptanceRequest(t, "msg-foreign-recipient", "wake-foreign", "run-foreign", now)
+		req.Dispositions[0].RecipientSessionID = "sess-foreign-recipient"
+		req.Admissions[0].RecipientSessionID = "sess-foreign-recipient"
+
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req); err == nil {
+			t.Fatal("AcceptNetworkMessage(foreign recipient) error = nil, want non-nil")
+		}
+		assertNoTimelineOrAuditRows(t, globalDB, req.Message.MessageID)
+		if got := networkRowCount(t, globalDB, "task_runs", "id", "run-foreign"); got != 0 {
+			t.Fatalf("rolled-back wake run count = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject raw claim tokens at the accept boundary before durable writes", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name   string
+			mutate func(*store.AcceptNetworkMessageRequest, string)
+		}{
+			{
+				name: "nested body metadata",
+				mutate: func(req *store.AcceptNetworkMessageRequest, token string) {
+					req.Message.Body = json.RawMessage(`{"metadata":{"claim_token":"` + token + `"}}`)
+				},
+			},
+			{
+				name: "extension metadata",
+				mutate: func(req *store.AcceptNetworkMessageRequest, token string) {
+					req.Message.ExtJSON = json.RawMessage(`{"agh.metadata":{"claim_token":"` + token + `"}}`)
+				},
+			},
+		}
+		for index, test := range tests {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				t.Parallel()
+
+				globalDB := openNetworkConversationRepositoryTestDB(t)
+				token := "agh_claim_ACCEPT_SECRET_" + strconv.Itoa(index)
+				req := networkWakeAcceptanceRequest(
+					t,
+					"msg-unsafe-accept-"+strconv.Itoa(index),
+					"wake-unsafe-accept-"+strconv.Itoa(index),
+					"run-unsafe-accept-"+strconv.Itoa(index),
+					time.Date(2026, 7, 14, 2, 25+index, 0, 0, time.UTC),
+				)
+				test.mutate(&req, token)
+				_, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+				assertRawClaimTokenRejected(t, err, token)
+				assertNoTimelineOrAuditRows(t, globalDB, req.Message.MessageID)
+				if got := networkRowCount(t, globalDB, "task_runs", "id", req.Admissions[0].TaskRunID); got != 0 {
+					t.Fatalf("unsafe accept wake run count = %d, want 0", got)
+				}
+			})
+		}
+	})
+
+	t.Run("Should apply structural eligibility, depth, and address gates before admission", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name   string
+			mutate func(*store.AcceptNetworkMessageRequest)
+			reason string
+		}{
+			{
+				name: "control message",
+				mutate: func(req *store.AcceptNetworkMessageRequest) {
+					req.Admissions[0].Eligible = false
+					req.Admissions[0].Addressed = false
+					req.Admissions[0].Trigger = store.NetworkWakeTriggerNone
+					req.Admissions[0].WakeID = ""
+					req.Admissions[0].TaskRunID = ""
+					req.Admissions[0].RootID = ""
+				},
+				reason: store.NetworkWakeSkipNotEligible,
+			},
+			{
+				name: "unaddressed say",
+				mutate: func(req *store.AcceptNetworkMessageRequest) {
+					req.Admissions[0].Addressed = false
+					req.Admissions[0].Trigger = store.NetworkWakeTriggerNone
+					req.Admissions[0].WakeID = ""
+					req.Admissions[0].TaskRunID = ""
+					req.Admissions[0].RootID = ""
+				},
+				reason: store.NetworkWakeSkipNotAddressed,
+			},
+			{
+				name: "depth cap",
+				mutate: func(req *store.AcceptNetworkMessageRequest) {
+					req.Admissions[0].Depth = req.Admissions[0].Spec.Bounds.MaxWakeDepth
+				},
+				reason: store.NetworkWakeSkipDepthExceeded,
+			},
+		}
+		for index, test := range tests {
+			t.Run("Should skip "+test.name, func(t *testing.T) {
+				t.Parallel()
+
+				globalDB := openNetworkConversationRepositoryTestDB(t)
+				now := time.Date(2026, 7, 14, 2, 50+index, 0, 0, time.UTC)
+				req := networkWakeAcceptanceRequest(
+					t,
+					"msg-gate-"+strconv.Itoa(index),
+					"wake-gate-"+strconv.Itoa(index),
+					"run-gate-"+strconv.Itoa(index),
+					now,
+				)
+				test.mutate(&req)
+				result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+				if err != nil {
+					t.Fatalf("AcceptNetworkMessage() error = %v", err)
+				}
+				if len(result.Skipped) != 1 || result.Skipped[0].Reason != test.reason ||
+					len(result.Admitted) != 0 || len(result.Notify) != 0 {
+					t.Fatalf("gated acceptance = %#v, want %q skip", result, test.reason)
+				}
+				got := networkRowCount(
+					t,
+					globalDB,
+					"network_live_wakes",
+					"owner_key",
+					req.Admissions[0].OwnerKey,
+				)
+				if got != 0 {
+					t.Fatalf("gated wake count = %d, want 0", got)
+				}
+			})
+		}
+	})
+
+	t.Run("Should linearize disable and never readmit an accumulated envelope after re-enable", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 3, 0, 0, 0, time.UTC)
+		disabled, err := globalDB.SetNetworkAvailability(testutil.Context(t), false, "test:disable")
+		if err != nil {
+			t.Fatalf("SetNetworkAvailability(false) error = %v", err)
+		}
+		req := networkWakeAcceptanceRequest(t, "msg-disabled", "wake-disabled", "run-disabled", now)
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(disabled) error = %v", err)
+		}
+		if result.AvailabilityEpoch != disabled.Epoch || len(result.Skipped) != 1 ||
+			result.Skipped[0].Reason != store.NetworkWakeSkipNetworkDisabled {
+			t.Fatalf("disabled acceptance = %#v, want epoch %d network_disabled", result, disabled.Epoch)
+		}
+		if _, err := globalDB.SetNetworkAvailability(testutil.Context(t), true, "test:enable"); err != nil {
+			t.Fatalf("SetNetworkAvailability(true) error = %v", err)
+		}
+		replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(re-enabled replay) error = %v", err)
+		}
+		if !replayed.Duplicate || len(replayed.Admitted) != 0 || len(replayed.Notify) != 0 {
+			t.Fatalf("re-enabled replay = %#v, want duplicate evidence only", replayed)
+		}
+		if got := networkRowCount(t, globalDB, "task_runs", "id", "run-disabled"); got != 0 {
+			t.Fatalf("disabled replay wake run count = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should linearize concurrent disable and admissions by persisted epoch", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 3, 5, 0, 0, time.UTC)
+		const workers = 8
+		requests := make([]store.AcceptNetworkMessageRequest, workers)
+		connections := make([]*GlobalDB, workers+1)
+		for index := range connections {
+			connection, err := OpenGlobalDB(testutil.Context(t), globalDB.Path())
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(concurrent %d) error = %v", index, err)
+			}
+			connections[index] = connection
+			t.Cleanup(func() {
+				if closeErr := connection.Close(context.Background()); closeErr != nil {
+					t.Errorf("Close(concurrent %d) error = %v", index, closeErr)
+				}
+			})
+		}
+		for index := range workers {
+			requests[index] = networkWakeAcceptanceRequest(
+				t,
+				"msg-disable-race-"+strconv.Itoa(index),
+				"wake-disable-race-"+strconv.Itoa(index),
+				"run-disable-race-"+strconv.Itoa(index),
+				now,
+			)
+			requests[index].Admissions[0].RootID = "root-disable-race-" + strconv.Itoa(index)
+		}
+
+		type admissionOutcome struct {
+			index  int
+			result store.AcceptNetworkMessageResult
+			err    error
+		}
+		start := make(chan struct{})
+		admissions := make(chan admissionOutcome, workers)
+		disableResult := make(chan struct {
+			availability store.NetworkAvailability
+			err          error
+		}, 1)
+		var waitGroup sync.WaitGroup
+		waitGroup.Add(workers + 1)
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			availability, err := connections[workers].SetNetworkAvailability(
+				context.Background(),
+				false,
+				"test:concurrent-disable",
+			)
+			disableResult <- struct {
+				availability store.NetworkAvailability
+				err          error
+			}{availability: availability, err: err}
+		}()
+		for index := range workers {
+			go func(index int) {
+				defer waitGroup.Done()
+				<-start
+				result, err := connections[index].AcceptNetworkMessage(
+					context.Background(),
+					requests[index],
+				)
+				admissions <- admissionOutcome{index: index, result: result, err: err}
+			}(index)
+		}
+		close(start)
+		waitGroup.Wait()
+		close(admissions)
+		disabled := <-disableResult
+		if disabled.err != nil {
+			t.Fatalf("SetNetworkAvailability(concurrent disable) error = %v", disabled.err)
+		}
+		if disabled.availability.Enabled || disabled.availability.Epoch != 2 {
+			t.Fatalf("concurrent disabled availability = %#v, want disabled epoch 2", disabled.availability)
+		}
+
+		for outcome := range admissions {
+			if outcome.err != nil {
+				t.Fatalf("AcceptNetworkMessage(concurrent %d) error = %v", outcome.index, outcome.err)
+			}
+			switch outcome.result.AvailabilityEpoch {
+			case 1:
+				input := requests[outcome.index].Admissions[0]
+				switch {
+				case len(outcome.result.Admitted) == 1:
+					reservation := outcome.result.Admitted[0]
+					if outcome.result.Duplicate || outcome.result.AcceptanceSeq <= 0 ||
+						len(outcome.result.Skipped) != 0 || len(outcome.result.Notify) != 1 ||
+						reservation.WakeID != input.WakeID || reservation.TaskRunID != input.TaskRunID ||
+						reservation.WorkspaceID != input.WorkspaceID || reservation.OwnerKey != input.OwnerKey {
+						t.Fatalf(
+							"epoch-1 admission %d = %#v, want one exact durable reservation",
+							outcome.index,
+							outcome.result,
+						)
+					}
+					notification := outcome.result.Notify[0]
+					if notification.WorkspaceID != input.WorkspaceID ||
+						notification.RecipientSessionID != input.RecipientSessionID ||
+						notification.TaskRunID != input.TaskRunID ||
+						notification.AcceptanceSeq != outcome.result.AcceptanceSeq {
+						t.Fatalf(
+							"epoch-1 notification %d = %#v, want exact committed reservation notification",
+							outcome.index,
+							notification,
+						)
+					}
+				case len(outcome.result.Skipped) == 1:
+					skip := outcome.result.Skipped[0]
+					if outcome.result.Duplicate || outcome.result.AcceptanceSeq <= 0 ||
+						len(outcome.result.Admitted) != 0 || len(outcome.result.Notify) != 0 ||
+						skip.Reason != store.NetworkWakeSkipBudgetExhausted ||
+						skip.RecipientSessionID != input.RecipientSessionID || skip.OwnerKey != input.OwnerKey ||
+						skip.WakeID != "" {
+						t.Fatalf(
+							"epoch-1 admission %d = %#v, want exact budget-exhausted accumulation",
+							outcome.index,
+							outcome.result,
+						)
+					}
+				default:
+					t.Fatalf(
+						"epoch-1 admission %d = %#v, want one reservation or budget-exhausted skip",
+						outcome.index,
+						outcome.result,
+					)
+				}
+			case disabled.availability.Epoch:
+				if len(outcome.result.Admitted) != 0 || len(outcome.result.Skipped) != 1 ||
+					outcome.result.Skipped[0].Reason != store.NetworkWakeSkipNetworkDisabled {
+					t.Fatalf("epoch-%d admission %d = %#v, want network_disabled accumulation",
+						disabled.availability.Epoch,
+						outcome.index,
+						outcome.result,
+					)
+				}
+			default:
+				t.Fatalf("admission %d availability epoch = %d, want 1 or %d",
+					outcome.index,
+					outcome.result.AvailabilityEpoch,
+					disabled.availability.Epoch,
+				)
+			}
+		}
+
+		enabled, err := globalDB.SetNetworkAvailability(testutil.Context(t), true, "test:concurrent-enable")
+		if err != nil {
+			t.Fatalf("SetNetworkAvailability(re-enable) error = %v", err)
+		}
+		if !enabled.Enabled || enabled.Epoch != 3 {
+			t.Fatalf("re-enabled availability = %#v, want enabled epoch 3", enabled)
+		}
+		wakeCount := networkRowCount(
+			t,
+			globalDB,
+			"network_live_wakes",
+			"owner_key",
+			"session:reviewer.sess-xyz",
+		)
+		for index, req := range requests {
+			replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+			if err != nil {
+				t.Fatalf("AcceptNetworkMessage(replay %d) error = %v", index, err)
+			}
+			if !replayed.Duplicate || len(replayed.Admitted) != 0 || len(replayed.Notify) != 0 {
+				t.Fatalf("re-enabled replay %d = %#v, want durable duplicate only", index, replayed)
+			}
+		}
+		if got := networkRowCount(
+			t,
+			globalDB,
+			"network_live_wakes",
+			"owner_key",
+			"session:reviewer.sess-xyz",
+		); got != wakeCount {
+			t.Fatalf("wake count after replays = %d, want unchanged %d", got, wakeCount)
+		}
+	})
+
+	t.Run("Should serialize a burst into one wake and durable coalesced sources", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 3, 10, 0, 0, time.UTC)
+		const workers = 10
+		requests := make([]store.AcceptNetworkMessageRequest, workers)
+		for index := range workers {
+			requests[index] = networkWakeAcceptanceRequest(
+				t,
+				"msg-burst-"+strconv.Itoa(index),
+				"wake-burst-"+strconv.Itoa(index),
+				"run-burst-"+strconv.Itoa(index),
+				now,
+			)
+			requests[index].Admissions[0].RootID = "root-burst"
+		}
+		results := make(chan store.AcceptNetworkMessageResult, workers)
+		errs := make(chan error, workers)
+		var waitGroup sync.WaitGroup
+		var ready sync.WaitGroup
+		start := make(chan struct{})
+		ready.Add(workers)
+		for index := range workers {
+			waitGroup.Add(1)
+			go func(index int) {
+				defer waitGroup.Done()
+				ready.Done()
+				<-start
+				result, err := globalDB.AcceptNetworkMessage(context.Background(), requests[index])
+				if err != nil {
+					errs <- err
+					return
+				}
+				results <- result
+			}(index)
+		}
+		ready.Wait()
+		close(start)
+		waitGroup.Wait()
+		close(results)
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("AcceptNetworkMessage(concurrent) error = %v", err)
+			}
+		}
+		admitted := 0
+		coalesced := 0
+		for result := range results {
+			admitted += len(result.Admitted)
+			if len(result.Skipped) == 1 && result.Skipped[0].Reason == store.NetworkWakeSkipCoalesced {
+				coalesced++
+			}
+		}
+		if admitted != 1 || coalesced != workers-1 {
+			t.Fatalf("burst outcomes admitted=%d coalesced=%d, want 1 and %d", admitted, coalesced, workers-1)
+		}
+		ownerKey := "session:reviewer.sess-xyz"
+		if got := networkRowCount(t, globalDB, "network_live_wakes", "owner_key", ownerKey); got != 1 {
+			t.Fatalf("burst wake count = %d, want 1", got)
+		}
+		if got := networkRowCount(t, globalDB, "network_wake_sources", "owner_key", ownerKey); got != workers {
+			t.Fatalf("burst source count = %d, want %d", got, workers)
+		}
+	})
+
+	t.Run("Should linearize a coalesce attempt racing the canonical run claim", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		claimDB, err := OpenGlobalDB(testutil.Context(t), globalDB.Path())
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(claim connection) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := claimDB.Close(context.Background()); closeErr != nil {
+				t.Errorf("Close(claim connection) error = %v", closeErr)
+			}
+		})
+		base := time.Date(2026, 7, 14, 3, 15, 0, 0, time.UTC)
+		first := networkWakeAcceptanceRequest(t, "msg-claim-race-1", "wake-claim-race", "run-claim-race", base)
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first); err != nil {
+			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
+		}
+		second := networkWakeAcceptanceRequest(
+			t,
+			"msg-claim-race-2",
+			"wake-claim-race-unused",
+			"run-claim-race-unused",
+			base.Add(50*time.Millisecond),
+		)
+		second.Admissions[0].RootID = first.Admissions[0].RootID
+
+		start := make(chan struct{})
+		acceptResult := make(chan store.AcceptNetworkMessageResult, 1)
+		claimResult := make(chan taskpkg.ClaimResult, 1)
+		errs := make(chan error, 2)
+		var waitGroup sync.WaitGroup
+		waitGroup.Add(2)
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			result, err := globalDB.AcceptNetworkMessage(context.Background(), second)
+			if err != nil {
+				errs <- err
+				return
+			}
+			acceptResult <- result
+		}()
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			result, err := claimDB.ClaimNextRun(context.Background(), taskpkg.ClaimCriteria{
+				RunID: "run-claim-race", RunKind: taskpkg.RunKindNetworkWake,
+				Scope: taskpkg.ScopeWorkspace, WorkspaceID: networkStoreTestWorkspaceID,
+				TargetSessionID: "reviewer.sess-xyz", ClaimerSessionID: "reviewer.sess-xyz",
+				LeaseDuration: time.Minute, Now: base.Add(50 * time.Millisecond),
+			})
+			if err != nil {
+				errs <- err
+				return
+			}
+			claimResult <- result
+		}()
+		close(start)
+		waitGroup.Wait()
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("claim/coalesce race error = %v", err)
+			}
+		}
+		accepted := <-acceptResult
+		claimed := <-claimResult
+		if claimed.Run.ID != "run-claim-race" || claimed.Run.Status != taskpkg.TaskRunStatusClaimed {
+			t.Fatalf("claimed wake = %#v, want run-claim-race claimed", claimed.Run)
+		}
+		if len(accepted.Admitted) != 0 || len(accepted.Skipped) != 1 {
+			t.Fatalf("racing acceptance = %#v, want one accumulation outcome", accepted)
+		}
+		sourceCount := networkRowCount(
+			t,
+			globalDB,
+			"network_wake_sources",
+			"owner_key",
+			"session:reviewer.sess-xyz",
+		)
+		switch accepted.Skipped[0].Reason {
+		case store.NetworkWakeSkipCoalesced:
+			if sourceCount != 2 {
+				t.Fatalf("coalesced race source count = %d, want 2", sourceCount)
+			}
+		case store.NetworkWakeSkipInFlight:
+			if sourceCount != 1 {
+				t.Fatalf("claimed-first race source count = %d, want 1", sourceCount)
+			}
+		default:
+			t.Fatalf("racing acceptance skip = %q, want coalesced or in_flight", accepted.Skipped[0].Reason)
+		}
+		if got := networkRowCount(
+			t,
+			globalDB,
+			"network_live_wakes",
+			"owner_key",
+			"session:reviewer.sess-xyz",
+		); got != 1 {
+			t.Fatalf("claim/coalesce race wake count = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should give one concurrent last-wake winner across distinct roots", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 3, 20, 0, 0, time.UTC)
+		const workers = 10
+		requests := make([]store.AcceptNetworkMessageRequest, workers)
+		for index := range workers {
+			requests[index] = networkWakeAcceptanceRequest(
+				t,
+				"msg-last-wake-"+strconv.Itoa(index),
+				"wake-last-wake-"+strconv.Itoa(index),
+				"run-last-wake-"+strconv.Itoa(index),
+				now,
+			)
+			requests[index].Admissions[0].Spec.Bounds.MaxWakes = 1
+			requests[index].Admissions[0].RootID = "root-last-wake-" + strconv.Itoa(index)
+		}
+		results := make(chan store.AcceptNetworkMessageResult, workers)
+		errs := make(chan error, workers)
+		var waitGroup sync.WaitGroup
+		var ready sync.WaitGroup
+		start := make(chan struct{})
+		ready.Add(workers)
+		for index := range workers {
+			waitGroup.Add(1)
+			go func(index int) {
+				defer waitGroup.Done()
+				ready.Done()
+				<-start
+				result, err := globalDB.AcceptNetworkMessage(context.Background(), requests[index])
+				if err != nil {
+					errs <- err
+					return
+				}
+				results <- result
+			}(index)
+		}
+		ready.Wait()
+		close(start)
+		waitGroup.Wait()
+		close(results)
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("AcceptNetworkMessage(concurrent last wake) error = %v", err)
+			}
+		}
+		admitted := 0
+		exhausted := 0
+		for result := range results {
+			admitted += len(result.Admitted)
+			if len(result.Skipped) == 1 && result.Skipped[0].Reason == store.NetworkWakeSkipBudgetExhausted {
+				exhausted++
+			}
+		}
+		if admitted != 1 || exhausted != workers-1 {
+			t.Fatalf("last-wake outcomes admitted=%d exhausted=%d, want 1 and %d", admitted, exhausted, workers-1)
+		}
+		ownerKey := "session:reviewer.sess-xyz"
+		if got := networkRowCount(t, globalDB, "network_live_wakes", "owner_key", ownerKey); got != 1 {
+			t.Fatalf("last-wake ledger count = %d, want 1", got)
+		}
+		if got := networkRowCount(t, globalDB, "network_wake_sources", "owner_key", ownerKey); got != 1 {
+			t.Fatalf("last-wake source count = %d, want one winning source", got)
+		}
+	})
+}
+
+func TestGlobalDBSettleNetworkWake(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should replace reservations with actual usage exactly once", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 30, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return now }
+		accepted, err := globalDB.AcceptNetworkMessage(
+			testutil.Context(t),
+			networkWakeAcceptanceRequest(t, "msg-settle", "wake-settle", "run-settle", now),
+		)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage() error = %v", err)
+		}
+		reservation := accepted.Admitted[0]
+		outcome := store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateSucceeded, ActualWallTime: 40 * time.Millisecond,
+			ActualInputTokens: 100, ActualOutputTokens: 50, UsageState: store.NetworkWakeUsageActual,
+		}
+		settlement := claimNetworkWakeSettlementForTest(t, globalDB, reservation)
+		settlement.Outcome = outcome
+		settled, err := globalDB.SettleNetworkWake(testutil.Context(t), settlement)
+		if err != nil {
+			t.Fatalf("SettleNetworkWake() error = %v", err)
+		}
+		if settled.Duplicate || settled.Run.Status != taskpkg.TaskRunStatusCompleted {
+			t.Fatalf("SettleNetworkWake() = %#v, want first completed settlement", settled)
+		}
+		assertNetworkWakeUsage(t, globalDB, "wake-settle", "succeeded", 40, 100, 50, "actual")
+		assertNetworkWakeBudget(t, globalDB, reservation.OwnerKey, 1, 40, 100, 50)
+
+		duplicate, err := globalDB.SettleNetworkWake(testutil.Context(t), settlement)
+		if err != nil {
+			t.Fatalf("SettleNetworkWake(duplicate) error = %v", err)
+		}
+		if !duplicate.Duplicate || duplicate.Outcome != outcome {
+			t.Fatalf("SettleNetworkWake(duplicate) = %#v, want stored identical result", duplicate)
+		}
+		settlement.Outcome.ActualInputTokens = 900
+		settlement.Outcome.ActualOutputTokens = 900
+		if _, err := globalDB.SettleNetworkWake(testutil.Context(t), settlement); !errors.Is(
+			err,
+			taskpkg.ErrNetworkWakeSettlementConflict,
+		) {
+			t.Fatalf("SettleNetworkWake(conflict) error = %v, want settlement conflict", err)
+		}
+		assertNetworkWakeUsage(t, globalDB, "wake-settle", "succeeded", 40, 100, 50, "actual")
+		assertNetworkWakeBudget(t, globalDB, reservation.OwnerKey, 1, 40, 100, 50)
+		if got := networkWakeEventCount(t, globalDB, "wake-settle", networkWakeEventSettled); got != 1 {
+			t.Fatalf("settled event count = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should keep conservative reservations when usage is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 40, 0, 0, time.UTC)
+		accepted, err := globalDB.AcceptNetworkMessage(
+			testutil.Context(t),
+			networkWakeAcceptanceRequest(t, "msg-unknown-usage", "wake-unknown", "run-unknown", now),
+		)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage() error = %v", err)
+		}
+		settlement := claimNetworkWakeSettlementForTest(t, globalDB, accepted.Admitted[0])
+		settlement.Outcome = store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateFailed, UsageState: store.NetworkWakeUsageUnavailable,
+			Reason: "provider usage unavailable",
+		}
+		if _, err := globalDB.SettleNetworkWake(testutil.Context(t), settlement); err != nil {
+			t.Fatalf("SettleNetworkWake(unavailable) error = %v", err)
+		}
+		assertNetworkWakeUsage(t, globalDB, "wake-unknown", "failed", 500, 1000, 1000, "usage_unavailable")
+		assertNetworkWakeBudget(t, globalDB, accepted.Admitted[0].OwnerKey, 1, 500, 1000, 1000)
+	})
+
+	t.Run("Should charge canceled usage once and never readmit its source envelope", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 41, 0, 0, time.UTC)
+		req := networkWakeAcceptanceRequest(t, "msg-canceled", "wake-canceled", "run-canceled", now)
+		accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage() error = %v", err)
+		}
+		settlement := claimNetworkWakeSettlementForTest(t, globalDB, accepted.Admitted[0])
+		settlement.Outcome = store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateCanceled, ActualWallTime: 25 * time.Millisecond,
+			ActualInputTokens: 20, ActualOutputTokens: 10, UsageState: store.NetworkWakeUsageActual,
+			Reason: "availability disabled",
+		}
+		if _, err := globalDB.SettleNetworkWake(testutil.Context(t), settlement); err != nil {
+			t.Fatalf("SettleNetworkWake(canceled) error = %v", err)
+		}
+		assertNetworkWakeUsage(t, globalDB, "wake-canceled", "canceled", 25, 20, 10, "actual")
+		assertNetworkWakeBudget(t, globalDB, accepted.Admitted[0].OwnerKey, 1, 25, 20, 10)
+
+		replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(canceled replay) error = %v", err)
+		}
+		if !replayed.Duplicate || len(replayed.Admitted) != 0 || len(replayed.Notify) != 0 {
+			t.Fatalf("canceled replay = %#v, want durable duplicate without re-admission", replayed)
+		}
+	})
+
+	t.Run("Should aggregate usage by workspace channel and owner run from ledger detail", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 42, 0, 0, time.UTC)
+		const ownerRunID = "parent-run-usage"
+		first := networkWakeAcceptanceRequest(t, "msg-usage-1", "wake-usage-1", "run-usage-1", now)
+		first.Admissions[0].OwnerKey = "task_run:" + ownerRunID
+		accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(first usage) error = %v", err)
+		}
+		settlement := claimNetworkWakeSettlementForTest(t, globalDB, accepted.Admitted[0])
+		settlement.Outcome = store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateSucceeded, ActualWallTime: 40 * time.Millisecond,
+			ActualInputTokens: 100, ActualOutputTokens: 50, UsageState: store.NetworkWakeUsageActual,
+		}
+		if _, err := globalDB.SettleNetworkWake(testutil.Context(t), settlement); err != nil {
+			t.Fatalf("SettleNetworkWake(first usage) error = %v", err)
+		}
+		second := networkWakeAcceptanceRequest(
+			t,
+			"msg-usage-2",
+			"wake-usage-2",
+			"run-usage-2",
+			now.Add(time.Second),
+		)
+		second.Admissions[0].OwnerKey = "task_run:" + ownerRunID
+		accepted, err = globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(second usage) error = %v", err)
+		}
+		settlement = claimNetworkWakeSettlementForTest(t, globalDB, accepted.Admitted[0])
+		settlement.Outcome = store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateFailed, UsageState: store.NetworkWakeUsageUnavailable,
+		}
+		if _, err := globalDB.SettleNetworkWake(testutil.Context(t), settlement); err != nil {
+			t.Fatalf("SettleNetworkWake(second usage) error = %v", err)
+		}
+
+		report, err := globalDB.GetNetworkUsage(testutil.Context(t), store.NetworkUsageQuery{
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Channel:     "builders",
+			RunID:       ownerRunID,
+		})
+		if err != nil {
+			t.Fatalf("GetNetworkUsage() error = %v", err)
+		}
+		if len(report.Details) != 2 {
+			t.Fatalf("GetNetworkUsage().Details length = %d, want 2", len(report.Details))
+		}
+		if report.Details[0].WakeID != "wake-usage-2" || report.Details[1].WakeID != "wake-usage-1" {
+			t.Fatalf("GetNetworkUsage().Details order = %#v, want newest first", report.Details)
+		}
+		if report.Total.WakeCount != 2 || report.Total.ActualWakeCount != 1 ||
+			report.Total.UnavailableWakeCount != 1 || report.Total.ReservedWakeCount != 0 ||
+			report.Total.ChargedWallTime != 540*time.Millisecond ||
+			report.Total.InputTokens != 100 || report.Total.OutputTokens != 50 {
+			t.Fatalf("GetNetworkUsage().Total = %#v", report.Total)
+		}
+		if report.Budget == nil || report.Budget.OwnerKey != "task_run:"+ownerRunID ||
+			report.Budget.WakesUsed != 2 || report.Budget.WallTimeUsed != 540*time.Millisecond ||
+			report.Budget.InputTokensUsed != 1000 || report.Budget.OutputTokensUsed != 1000 {
+			t.Fatalf("GetNetworkUsage().Budget = %#v, want durable owner consumption", report.Budget)
+		}
+		var detailWall time.Duration
+		var detailInput int64
+		var detailOutput int64
+		for _, detail := range report.Details {
+			if detail.UsageState == store.NetworkWakeUsageUnavailable &&
+				(detail.InputTokens != 0 || detail.OutputTokens != 0) {
+				t.Fatalf("unavailable usage detail = %#v, want zero actual tokens", detail)
+			}
+			detailWall += detail.ChargedWallTime
+			detailInput += detail.InputTokens
+			detailOutput += detail.OutputTokens
+		}
+		if detailWall != report.Total.ChargedWallTime || detailInput != report.Total.InputTokens ||
+			detailOutput != report.Total.OutputTokens {
+			t.Fatalf(
+				"usage aggregate = %#v, details = (%s, %d, %d)",
+				report.Total,
+				detailWall,
+				detailInput,
+				detailOutput,
+			)
+		}
+		ownerReport, err := globalDB.GetNetworkUsage(testutil.Context(t), store.NetworkUsageQuery{
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Owner: &participation.OwnerRef{
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          ownerRunID,
+			},
+		})
+		if err != nil {
+			t.Fatalf("GetNetworkUsage(owner) error = %v", err)
+		}
+		if ownerReport.Total != report.Total || len(ownerReport.Details) != len(report.Details) {
+			t.Fatalf("GetNetworkUsage(owner) = %#v, want run-filter result %#v", ownerReport, report)
+		}
+
+		empty, err := globalDB.GetNetworkUsage(testutil.Context(t), store.NetworkUsageQuery{
+			WorkspaceID: "workspace-with-zero-participation",
+		})
+		if err != nil {
+			t.Fatalf("GetNetworkUsage(empty workspace) error = %v", err)
+		}
+		if len(empty.Details) != 0 || empty.Total != (store.NetworkUsageSummary{}) || empty.Budget != nil {
+			t.Fatalf("GetNetworkUsage(empty workspace) = %#v, want zero", empty)
+		}
+	})
+
+	t.Run("Should paginate 205 usage rows without gaps while totals remain complete", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 3, 0, 0, 0, time.UTC)
+		for index := range 205 {
+			suffix := fmt.Sprintf("%03d", index)
+			request := networkWakeAcceptanceRequest(
+				t,
+				"msg-page-"+suffix,
+				"wake-page-"+suffix,
+				"run-page-"+suffix,
+				now.Add(time.Duration(index)*time.Nanosecond),
+			)
+			request.Admissions[0].Spec.Bounds.MaxWakes = 205
+			accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), request)
+			if err != nil {
+				t.Fatalf("AcceptNetworkMessage(page %d) error = %v", index, err)
+			}
+			if len(accepted.Admitted) != 1 {
+				t.Fatalf("AcceptNetworkMessage(page %d).Admitted = %#v", index, accepted.Admitted)
+			}
+			settlement := claimNetworkWakeSettlementForTest(t, globalDB, accepted.Admitted[0])
+			settlement.Outcome = store.NetworkWakeOutcome{
+				State:              store.NetworkWakeStateSucceeded,
+				ActualWallTime:     time.Millisecond,
+				ActualInputTokens:  1,
+				ActualOutputTokens: 1,
+				UsageState:         store.NetworkWakeUsageActual,
+			}
+			if _, err := globalDB.SettleNetworkWake(testutil.Context(t), settlement); err != nil {
+				t.Fatalf("SettleNetworkWake(page %d) error = %v", index, err)
+			}
+		}
+
+		seen := make(map[string]struct{}, 205)
+		cursor := ""
+		pageSizes := make([]int, 0, 5)
+		for page := range 5 {
+			report, err := globalDB.GetNetworkUsage(testutil.Context(t), store.NetworkUsageQuery{
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+				Cursor:      cursor,
+				Limit:       50,
+				LimitSet:    true,
+			})
+			if err != nil {
+				t.Fatalf("GetNetworkUsage(page %d) error = %v", page, err)
+			}
+			pageSizes = append(pageSizes, len(report.Details))
+			if report.Total.WakeCount != 205 || report.Total.ActualWakeCount != 205 ||
+				report.Total.InputTokens != 205 || report.Total.OutputTokens != 205 {
+				t.Fatalf("GetNetworkUsage(page %d).Total = %#v, want full 205-row scope", page, report.Total)
+			}
+			for _, detail := range report.Details {
+				if _, duplicate := seen[detail.WakeID]; duplicate {
+					t.Fatalf("GetNetworkUsage(page %d) duplicated %q", page, detail.WakeID)
+				}
+				seen[detail.WakeID] = struct{}{}
+			}
+			if page < 4 && report.NextCursor == "" {
+				t.Fatalf("GetNetworkUsage(page %d).NextCursor is empty", page)
+			}
+			if page == 4 && report.NextCursor != "" {
+				t.Fatalf("GetNetworkUsage(last page).NextCursor = %q, want empty", report.NextCursor)
+			}
+			cursor = report.NextCursor
+		}
+		if got := fmt.Sprint(pageSizes); got != "[50 50 50 50 5]" {
+			t.Fatalf("usage page sizes = %s, want [50 50 50 50 5]", got)
+		}
+		if len(seen) != 205 {
+			t.Fatalf("unique usage rows = %d, want 205", len(seen))
+		}
+	})
+
+	t.Run("Should persist budget exhaustion and accumulate later eligible messages", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			reason    string
+			configure func(*participation.Bounds, *store.NetworkWakeOutcome)
+		}{
+			{
+				name:   "maximum wakes",
+				reason: networkWakeExhaustionMaxWakes,
+				configure: func(bounds *participation.Bounds, outcome *store.NetworkWakeOutcome) {
+					bounds.MaxWakes = 1
+					outcome.ActualWallTime = 10 * time.Millisecond
+				},
+			},
+			{
+				name:   "maximum total wall time",
+				reason: "max_total_wall_time",
+				configure: func(bounds *participation.Bounds, outcome *store.NetworkWakeOutcome) {
+					bounds.MaxWakes = 3
+					bounds.MaxWakeWallTime = "10ms"
+					bounds.MaxTotalWallTime = "10ms"
+					outcome.ActualWallTime = 10 * time.Millisecond
+				},
+			},
+			{
+				name:   "maximum input tokens",
+				reason: "max_input_tokens",
+				configure: func(bounds *participation.Bounds, outcome *store.NetworkWakeOutcome) {
+					bounds.MaxWakes = 3
+					bounds.MaxInputTokens = 1
+					outcome.ActualWallTime = time.Millisecond
+					outcome.ActualInputTokens = 1
+				},
+			},
+			{
+				name:   "maximum output tokens",
+				reason: "max_output_tokens",
+				configure: func(bounds *participation.Bounds, outcome *store.NetworkWakeOutcome) {
+					bounds.MaxWakes = 3
+					bounds.MaxOutputTokens = 1
+					outcome.ActualWallTime = time.Millisecond
+					outcome.ActualOutputTokens = 1
+				},
+			},
+		}
+		for index, test := range tests {
+			t.Run("Should persist "+test.name+" exhaustion", func(t *testing.T) {
+				t.Parallel()
+
+				globalDB := openNetworkConversationRepositoryTestDB(t)
+				now := time.Date(2026, 7, 14, 2, 45+index, 0, 0, time.UTC)
+				suffix := strconv.Itoa(index)
+				first := networkWakeAcceptanceRequest(
+					t,
+					"msg-budget-first-"+suffix,
+					"wake-budget-first-"+suffix,
+					"run-budget-first-"+suffix,
+					now,
+				)
+				outcome := store.NetworkWakeOutcome{
+					State:      store.NetworkWakeStateSucceeded,
+					UsageState: store.NetworkWakeUsageActual,
+				}
+				test.configure(&first.Admissions[0].Spec.Bounds, &outcome)
+				accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first)
+				if err != nil {
+					t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
+				}
+				if len(accepted.Admitted) != 1 {
+					t.Fatalf("AcceptNetworkMessage(first).Admitted = %#v, want one reservation", accepted.Admitted)
+				}
+				settlement := claimNetworkWakeSettlementForTest(t, globalDB, accepted.Admitted[0])
+				settlement.Outcome = outcome
+				if _, err := globalDB.SettleNetworkWake(testutil.Context(t), settlement); err != nil {
+					t.Fatalf("SettleNetworkWake(first) error = %v", err)
+				}
+
+				second := networkWakeAcceptanceRequest(
+					t,
+					"msg-budget-second-"+suffix,
+					"wake-budget-second-"+suffix,
+					"run-budget-second-"+suffix,
+					now.Add(time.Second),
+				)
+				second.Admissions[0].Spec.Bounds = first.Admissions[0].Spec.Bounds
+				result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+				if err != nil {
+					t.Fatalf("AcceptNetworkMessage(exhausted) error = %v", err)
+				}
+				if len(result.Admitted) != 0 || len(result.Notify) != 0 || len(result.Skipped) != 1 ||
+					result.Skipped[0].Reason != store.NetworkWakeSkipBudgetExhausted {
+					t.Fatalf("exhausted acceptance = %#v, want one budget_exhausted skip", result)
+				}
+				var exhaustedReason string
+				if err := globalDB.db.QueryRowContext(
+					testutil.Context(t),
+					`SELECT exhausted_reason FROM network_participation_budgets
+WHERE workspace_id = ? AND owner_key = ?`,
+					first.Admissions[0].WorkspaceID,
+					first.Admissions[0].OwnerKey,
+				).Scan(&exhaustedReason); err != nil {
+					t.Fatalf("query exhausted budget error = %v", err)
+				}
+				if exhaustedReason != test.reason {
+					t.Fatalf("exhausted_reason = %q, want %q", exhaustedReason, test.reason)
+				}
+			})
+		}
+	})
+}
 
 func TestGlobalDBResolveDirectRoom(t *testing.T) {
 	t.Parallel()
@@ -19,8 +1233,8 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 	t.Run("Should return one durable room for concurrent resolves of the same pair", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
-		expectedID, expectedPeerA, expectedPeerB, err := store.NetworkDirectRoomIdentity(
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		expectedID, expectedSessionA, expectedSessionB, err := store.NetworkDirectRoomIdentity(
 			networkStoreTestWorkspaceID,
 			"builders",
 			"reviewer.sess-xyz",
@@ -46,14 +1260,16 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 				summary, resolveErr := globalDB.ResolveDirectRoom(testutil.Context(t), store.NetworkDirectRoomEntry{
 					WorkspaceID: networkStoreTestWorkspaceID,
 					Channel:     "builders",
-					PeerA:       peerA,
-					PeerB:       peerB,
+					SessionA:    peerA,
+					SessionB:    peerB,
 				})
 				if resolveErr != nil {
 					errs <- resolveErr
 					return
 				}
-				if summary.DirectID != expectedID || summary.PeerA != expectedPeerA || summary.PeerB != expectedPeerB {
+				if summary.DirectID != expectedID ||
+					summary.SessionA != expectedSessionA ||
+					summary.SessionB != expectedSessionB {
 					errs <- errors.New("resolved direct room summary did not match deterministic identity")
 				}
 			}(index)
@@ -85,7 +1301,7 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 	t.Run("Should fail closed when a deterministic direct id is already bound to another pair", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		directID, _, _, err := store.NetworkDirectRoomIdentity(
 			networkStoreTestWorkspaceID,
 			"builders",
@@ -100,8 +1316,8 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		_, err = globalDB.ResolveDirectRoom(testutil.Context(t), store.NetworkDirectRoomEntry{
 			WorkspaceID: networkStoreTestWorkspaceID,
 			Channel:     "builders",
-			PeerA:       "coder.sess-abc",
-			PeerB:       "reviewer.sess-xyz",
+			SessionA:    "coder.sess-abc",
+			SessionB:    "reviewer.sess-xyz",
 		})
 		if !errors.Is(err, store.ErrNetworkDirectRoomCollision) {
 			t.Fatalf("ResolveDirectRoom(collision) error = %v, want ErrNetworkDirectRoomCollision", err)
@@ -111,14 +1327,14 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 	t.Run("Should anchor the first message in a room resolved before its timeline exists", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		ctx := testutil.Context(t)
 		openedAt := time.Date(2026, 7, 11, 19, 0, 0, 0, time.UTC)
 		room, err := globalDB.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
 			WorkspaceID:    networkStoreTestWorkspaceID,
 			Channel:        "builders",
-			PeerA:          "coder.sess-abc",
-			PeerB:          "reviewer.sess-xyz",
+			SessionA:       "coder.sess-abc",
+			SessionB:       "reviewer.sess-xyz",
 			OpenedAt:       openedAt,
 			LastActivityAt: openedAt,
 		})
@@ -135,8 +1351,8 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		if _, err := globalDB.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
 			WorkspaceID:    networkStoreTestWorkspaceID,
 			Channel:        "builders",
-			PeerA:          "coder.sess-abc",
-			PeerB:          "planner.sess-123",
+			SessionA:       "coder.sess-abc",
+			SessionB:       "planner.sess-123",
 			OpenedAt:       openedAt.Add(time.Minute),
 			LastActivityAt: openedAt.Add(time.Minute),
 		}); err != nil {
@@ -242,7 +1458,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 	t.Run("Should open a thread and derive message and participant counts from committed rows", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 14, 0, 0, 0, time.UTC)
 		messages := []store.NetworkConversationMessage{
 			threadMessage("msg_thread_root", "thread_store_counts", "coder.sess-abc", "hello builders", startedAt),
@@ -294,7 +1510,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		if got, want := thread.MessageCount, 3; got != want {
 			t.Fatalf("thread.MessageCount = %d, want %d", got, want)
 		}
-		if got, want := thread.ParticipantCount, 3; got != want {
+		if got, want := thread.ParticipantCount, 2; got != want {
 			t.Fatalf("thread.ParticipantCount = %d, want %d", got, want)
 		}
 		if got, want := thread.LastMessagePreview, "reviewing"; got != want {
@@ -315,7 +1531,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		if got, want := threads.Threads[0].ThreadID, "thread_store_counts"; got != want {
 			t.Fatalf("threads[0].ThreadID = %q, want %q", got, want)
 		}
-		if got, want := threads.Threads[0].ParticipantCount, 3; got != want {
+		if got, want := threads.Threads[0].ParticipantCount, 2; got != want {
 			t.Fatalf("threads[0].ParticipantCount = %d, want %d", got, want)
 		}
 
@@ -329,11 +1545,11 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		}
 		participantSet := make(map[string]bool, len(participants))
 		for _, participant := range participants {
-			participantSet[participant.PeerID] = true
+			participantSet[participant.SessionID] = true
 		}
-		for _, want := range []string{"coder.sess-abc", "reviewer.sess-xyz", "planner.sess-plan"} {
+		for _, want := range []string{"coder.sess-abc", "reviewer.sess-xyz"} {
 			if !participantSet[want] {
-				t.Fatalf("participants = %#v, want peer %q", participantSet, want)
+				t.Fatalf("participants = %#v, want session %q", participantSet, want)
 			}
 		}
 
@@ -370,10 +1586,10 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		}
 	})
 
-	t.Run("Should aggregate delivered prompt cost by thread peer", func(t *testing.T) {
+	t.Run("Should aggregate delivered prompt cost by thread session", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 14, 30, 0, 0, time.UTC)
 		thread := threadMessage(
 			"msg_thread_cost_root",
@@ -386,12 +1602,12 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 			t.Fatalf("WriteConversationMessage(thread) error = %v", err)
 		}
 
-		updates := []store.NetworkThreadPeerTokenStatsUpdate{
+		updates := []store.NetworkThreadSessionTokenStatsUpdate{
 			{
 				WorkspaceID:           networkStoreTestWorkspaceID,
 				Channel:               "builders",
 				ThreadID:              "thread_store_cost",
-				PeerID:                "reviewer.sess-xyz",
+				SessionID:             "reviewer.sess-xyz",
 				DeliveredCount:        1,
 				PromptSizeBytes:       400,
 				EstimatedPromptTokens: 100,
@@ -402,7 +1618,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 				WorkspaceID:           networkStoreTestWorkspaceID,
 				Channel:               "builders",
 				ThreadID:              "thread_store_cost",
-				PeerID:                "reviewer.sess-xyz",
+				SessionID:             "reviewer.sess-xyz",
 				DeliveredCount:        1,
 				PromptSizeBytes:       200,
 				EstimatedPromptTokens: 50,
@@ -411,14 +1627,14 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 			},
 		}
 		for _, update := range updates {
-			if err := globalDB.UpdateNetworkThreadPeerTokenStats(testutil.Context(t), update); err != nil {
-				t.Fatalf("UpdateNetworkThreadPeerTokenStats() error = %v", err)
+			if err := globalDB.UpdateNetworkThreadSessionTokenStats(testutil.Context(t), update); err != nil {
+				t.Fatalf("UpdateNetworkThreadSessionTokenStats() error = %v", err)
 			}
 		}
 
-		stats, err := globalDB.ListNetworkThreadPeerTokenStats(
+		stats, err := globalDB.ListNetworkThreadSessionTokenStats(
 			testutil.Context(t),
-			store.NetworkThreadPeerTokenStatsQuery{
+			store.NetworkThreadSessionTokenStatsQuery{
 				WorkspaceID: networkStoreTestWorkspaceID,
 				Channel:     "builders",
 				ThreadID:    "thread_store_cost",
@@ -426,7 +1642,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 			},
 		)
 		if err != nil {
-			t.Fatalf("ListNetworkThreadPeerTokenStats() error = %v", err)
+			t.Fatalf("ListNetworkThreadSessionTokenStats() error = %v", err)
 		}
 		if got, want := len(stats), 1; got != want {
 			t.Fatalf("len(stats) = %d, want %d", got, want)
@@ -473,7 +1689,7 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 	t.Run("Should update only the matching direct room and isolate thread and direct queries", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 15, 0, 0, 0, time.UTC)
 		directID, _, _, err := store.NetworkDirectRoomIdentity(
 			networkStoreTestWorkspaceID,
@@ -583,6 +1799,216 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 			t.Fatalf("work.DirectID = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should isolate identical conversation and work identities across workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"network-store-foreign",
+			filepath.Join(t.TempDir(), "foreign-workspace"),
+		)
+		startedAt := time.Date(2026, 7, 14, 15, 0, 0, 0, time.UTC)
+		for _, sessionID := range []string{"foreign.coder", "foreign.reviewer"} {
+			if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+				ID: sessionID, AgentName: "coder", Provider: "claude",
+				WorkspaceID: foreignWorkspaceID, State: "active",
+				CreatedAt: startedAt, UpdatedAt: startedAt,
+			}); err != nil {
+				t.Fatalf("RegisterSession(%q, foreign) error = %v", sessionID, err)
+			}
+		}
+
+		const (
+			channel   = "builders"
+			threadID  = "thread_workspace_scope"
+			threadMsg = "msg_workspace_thread"
+			directMsg = "msg_workspace_direct"
+			workID    = "work_workspace_scope"
+		)
+		mainThread := threadMessage(threadMsg, threadID, "coder.sess-abc", "main thread", startedAt)
+		foreignThread := threadMessage(
+			threadMsg,
+			threadID,
+			"foreign.coder",
+			"foreign thread",
+			startedAt.Add(time.Minute),
+		)
+		foreignThread.WorkspaceID = foreignWorkspaceID
+		for name, message := range map[string]store.NetworkConversationMessage{
+			"main thread":    mainThread,
+			"foreign thread": foreignThread,
+		} {
+			if _, err := globalDB.WriteConversationMessage(testutil.Context(t), message); err != nil {
+				t.Fatalf("WriteConversationMessage(%s) error = %v", name, err)
+			}
+		}
+
+		mainDirectID, _, _, err := store.NetworkDirectRoomIdentity(
+			networkStoreTestWorkspaceID,
+			channel,
+			"coder.sess-abc",
+			"reviewer.sess-xyz",
+		)
+		if err != nil {
+			t.Fatalf("NetworkDirectRoomIdentity(main) error = %v", err)
+		}
+		foreignDirectID, _, _, err := store.NetworkDirectRoomIdentity(
+			foreignWorkspaceID,
+			channel,
+			"foreign.coder",
+			"foreign.reviewer",
+		)
+		if err != nil {
+			t.Fatalf("NetworkDirectRoomIdentity(foreign) error = %v", err)
+		}
+		if mainDirectID == foreignDirectID {
+			t.Fatalf("workspace-qualified direct identities unexpectedly match: %q", mainDirectID)
+		}
+		for name, message := range map[string]store.NetworkConversationMessage{
+			"main direct": {
+				MessageID: directMsg, SessionID: "coder.sess-abc",
+				WorkspaceID: networkStoreTestWorkspaceID, Channel: channel,
+				Surface: store.NetworkSurfaceDirect, DirectID: mainDirectID,
+				Direction: "sent", PeerFrom: "coder.sess-abc", PeerTo: "reviewer.sess-xyz",
+				Kind: store.NetworkKindSay, WorkID: workID,
+				Text: "main direct", PreviewText: "main direct",
+				Body: []byte(`{"text":"main direct"}`), Timestamp: startedAt.Add(2 * time.Minute),
+			},
+			"foreign direct": {
+				MessageID: directMsg, SessionID: "foreign.coder",
+				WorkspaceID: foreignWorkspaceID, Channel: channel,
+				Surface: store.NetworkSurfaceDirect, DirectID: foreignDirectID,
+				Direction: "sent", PeerFrom: "foreign.coder", PeerTo: "foreign.reviewer",
+				Kind: store.NetworkKindSay, WorkID: workID,
+				Text: "foreign direct", PreviewText: "foreign direct",
+				Body: []byte(`{"text":"foreign direct"}`), Timestamp: startedAt.Add(3 * time.Minute),
+			},
+		} {
+			if _, err := globalDB.WriteConversationMessage(testutil.Context(t), message); err != nil {
+				t.Fatalf("WriteConversationMessage(%s) error = %v", name, err)
+			}
+		}
+
+		workspaceCases := []struct {
+			name          string
+			workspaceID   string
+			directID      string
+			sessionID     string
+			threadPreview string
+			directPreview string
+		}{
+			{
+				name: "main", workspaceID: networkStoreTestWorkspaceID, directID: mainDirectID,
+				sessionID:     "coder.sess-abc",
+				threadPreview: "main thread", directPreview: "main direct",
+			},
+			{
+				name: "foreign", workspaceID: foreignWorkspaceID, directID: foreignDirectID,
+				sessionID:     "foreign.coder",
+				threadPreview: "foreign thread", directPreview: "foreign direct",
+			},
+		}
+		for _, test := range workspaceCases {
+			ref := store.NetworkChannelRef{WorkspaceID: test.workspaceID, Channel: channel}
+			thread, err := globalDB.GetThread(testutil.Context(t), ref, threadID)
+			if err != nil {
+				t.Fatalf("GetThread(%s) error = %v", test.name, err)
+			}
+			if thread.WorkspaceID != test.workspaceID || thread.LastMessagePreview != test.threadPreview {
+				t.Fatalf(
+					"GetThread(%s) = %#v, want workspace %q preview %q",
+					test.name,
+					thread,
+					test.workspaceID,
+					test.threadPreview,
+				)
+			}
+			threads, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{Limit: 10})
+			if err != nil {
+				t.Fatalf("ListThreads(%s) error = %v", test.name, err)
+			}
+			if threads.Total != 1 || len(threads.Threads) != 1 || threads.Threads[0].ThreadID != threadID ||
+				threads.Threads[0].LastMessagePreview != test.threadPreview {
+				t.Fatalf("ListThreads(%s) = %#v, want only workspace-scoped thread", test.name, threads)
+			}
+
+			direct, err := globalDB.GetDirectRoom(testutil.Context(t), ref, test.directID)
+			if err != nil {
+				t.Fatalf("GetDirectRoom(%s) error = %v", test.name, err)
+			}
+			if direct.WorkspaceID != test.workspaceID || direct.LastMessagePreview != test.directPreview {
+				t.Fatalf(
+					"GetDirectRoom(%s) = %#v, want workspace %q preview %q",
+					test.name,
+					direct,
+					test.workspaceID,
+					test.directPreview,
+				)
+			}
+			directs, err := globalDB.ListDirectRooms(
+				testutil.Context(t),
+				ref,
+				store.NetworkDirectRoomQuery{SessionID: test.sessionID, Limit: 10},
+			)
+			if err != nil {
+				t.Fatalf("ListDirectRooms(%s) error = %v", test.name, err)
+			}
+			if directs.Total != 1 || len(directs.Directs) != 1 || directs.Directs[0].DirectID != test.directID ||
+				directs.Directs[0].LastMessagePreview != test.directPreview {
+				t.Fatalf("ListDirectRooms(%s) = %#v, want only workspace-scoped direct room", test.name, directs)
+			}
+
+			for surface, conversationRef := range map[string]store.NetworkConversationRef{
+				"thread": {
+					WorkspaceID: test.workspaceID, Channel: channel,
+					Surface: store.NetworkSurfaceThread, ThreadID: threadID,
+				},
+				"direct": {
+					WorkspaceID: test.workspaceID, Channel: channel,
+					Surface: store.NetworkSurfaceDirect, DirectID: test.directID,
+				},
+			} {
+				messages, err := globalDB.ListConversationMessages(
+					testutil.Context(t),
+					conversationRef,
+					store.NetworkConversationMessageQuery{Limit: 10},
+				)
+				if err != nil {
+					t.Fatalf("ListConversationMessages(%s, %s) error = %v", test.name, surface, err)
+				}
+				wantPreview := test.threadPreview
+				if surface == "direct" {
+					wantPreview = test.directPreview
+				}
+				if len(messages) != 1 || messages[0].WorkspaceID != test.workspaceID ||
+					messages[0].PreviewText != wantPreview {
+					t.Fatalf(
+						"ListConversationMessages(%s, %s) = %#v, want workspace-scoped payload",
+						test.name,
+						surface,
+						messages,
+					)
+				}
+			}
+
+			work, err := globalDB.GetWork(testutil.Context(t), test.workspaceID, workID)
+			if err != nil {
+				t.Fatalf("GetWork(%s) error = %v", test.name, err)
+			}
+			if work.WorkspaceID != test.workspaceID || work.DirectID != test.directID {
+				t.Fatalf(
+					"GetWork(%s) = %#v, want workspace %q direct %q",
+					test.name,
+					work,
+					test.workspaceID,
+					test.directID,
+				)
+			}
+		}
+	})
 }
 
 func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
@@ -591,7 +2017,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 	t.Run("Should page thread and direct summaries and filter conversation messages", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 18, 0, 0, 0, time.UTC)
 		threadMessages := []store.NetworkConversationMessage{
 			threadMessage("msg_query_one", "thread_query_cursors", "coder.sess-abc", "first", startedAt),
@@ -731,8 +2157,8 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
-				PeerID: "coder.sess-abc",
-				Limit:  1,
+				SessionID: "coder.sess-abc",
+				Limit:     1,
 			},
 		)
 		if err != nil {
@@ -753,9 +2179,9 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
-				PeerID: "coder.sess-abc",
-				Limit:  1,
-				After:  firstDirectPage.NextCursor,
+				SessionID: "coder.sess-abc",
+				Limit:     1,
+				After:     firstDirectPage.NextCursor,
 			},
 		)
 		if err != nil {
@@ -780,7 +2206,7 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 	t.Run("Should filter before paging and walk alphabetical thread pages without gaps", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 		messages := []store.NetworkConversationMessage{
 			threadMessage("msg_sort_zulu", "thread_sort_zulu", "peer.zulu", "Zulu", startedAt),
@@ -896,7 +2322,7 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 	t.Run("Should continue from the captured sort tuple when the anchor mutates", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
 		for index, threadID := range []string{"thread_mutation_oldest", "thread_mutation_anchor", "thread_mutation_newest"} {
 			message := threadMessage(
@@ -953,7 +2379,7 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 	t.Run("Should return the latest message tail in chronological order", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 7, 10, 13, 0, 0, 0, time.UTC)
 		for _, id := range []string{"zulu", "yankee", "xray", "whiskey", "victor"} {
 			message := threadMessage(
@@ -1017,7 +2443,7 @@ func TestGlobalDBNetworkChannelProjectionTracksTimelineWrites(t *testing.T) {
 	t.Run("Should aggregate channel timeline projections atomically", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
 		first := threadMessage(
 			"msg_projection_first",
@@ -1087,7 +2513,7 @@ func TestGlobalDBNetworkChannelProjectionTracksTimelineWrites(t *testing.T) {
 		if got, want := projection.PresenceCount, 1; got != want {
 			t.Fatalf("projection.PresenceCount = %d, want %d", got, want)
 		}
-		if got, want := projection.HistoricalParticipantCount, 5; got != want {
+		if got, want := projection.HistoricalParticipantCount, 3; got != want {
 			t.Fatalf("projection.HistoricalParticipantCount = %d, want %d", got, want)
 		}
 		if projection.LastActivityAt == nil || !projection.LastActivityAt.Equal(startedAt.Add(2*time.Minute)) {
@@ -1139,7 +2565,7 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 	t.Run("Should apply receipt states and resume needs-input work from a say message", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 19, 0, 0, 0, time.UTC)
 		opening := threadMessage(
 			"msg_receipt_open",
@@ -1175,6 +2601,12 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 		}
 		if got, want := failedWork.State, store.NetworkWorkStateFailed; got != want {
 			t.Fatalf("failedWork.State = %q, want %q", got, want)
+		}
+		if got, want := failedWork.OpenedBySessionID, "coder.sess-abc"; got != want {
+			t.Fatalf("failedWork.OpenedBySessionID = %q, want %q", got, want)
+		}
+		if got, want := failedWork.TargetSessionID, "reviewer.sess-xyz"; got != want {
+			t.Fatalf("failedWork.TargetSessionID = %q, want %q", got, want)
 		}
 
 		needsInput := threadMessage(
@@ -1223,6 +2655,25 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 		if got, want := resumedWork.State, store.NetworkWorkStateWorking; got != want {
 			t.Fatalf("resumedWork.State = %q, want %q", got, want)
 		}
+
+		reopened := openGlobalDBForTest(t, globalDB.path)
+		reopenedWork, err := reopened.GetWork(
+			testutil.Context(t),
+			networkStoreTestWorkspaceID,
+			"work_needs_input",
+		)
+		if err != nil {
+			t.Fatalf("GetWork(reopened) error = %v", err)
+		}
+		if got, want := reopenedWork.State, store.NetworkWorkStateWorking; got != want {
+			t.Fatalf("reopened work state = %q, want durable %q", got, want)
+		}
+		if got, want := reopenedWork.OpenedBySessionID, "coder.sess-abc"; got != want {
+			t.Fatalf("reopened work opener = %q, want %q", got, want)
+		}
+		if got, want := reopenedWork.TargetSessionID, "reviewer.sess-xyz"; got != want {
+			t.Fatalf("reopened work target = %q, want %q", got, want)
+		}
 	})
 }
 
@@ -1232,7 +2683,7 @@ func TestGlobalDBWriteConversationMessageRejectsInvalidLifecycleWrites(t *testin
 	t.Run("Should reject invalid work mutations without keeping timeline or audit side effects", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 20, 0, 0, 0, time.UTC)
 		receiptWithoutWork := threadReceiptMessage(
 			"msg_receipt_missing_work",
@@ -1381,7 +2832,7 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 	t.Run("Should reject invalid cursors and missing conversation rows", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 21, 0, 0, 0, time.UTC)
 		if _, err := globalDB.WriteConversationMessage(
 			testutil.Context(t),
@@ -1442,9 +2893,9 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
-				PeerID: "other.sess-peer",
-				Limit:  10,
-				After:  directID,
+				SessionID: "other.sess-peer",
+				Limit:     10,
+				After:     directID,
 			},
 		)
 		if err == nil {
@@ -1460,8 +2911,8 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 			BeforeMessageID: "msg_missing",
 			Limit:           10,
 		})
-		if err == nil {
-			t.Fatal("ListConversationMessages(missing cursor) error = nil, want non-nil")
+		if !errors.Is(err, store.ErrNetworkCursorInvalid) {
+			t.Fatalf("ListConversationMessages(missing cursor) error = %v, want ErrNetworkCursorInvalid", err)
 		}
 		_, err = globalDB.ListConversationMessages(testutil.Context(t), ref, store.NetworkConversationMessageQuery{
 			BeforeMessageID: "msg_query_error",
@@ -1482,7 +2933,7 @@ func TestGlobalDBWriteConversationMessageIdempotencyAndRollback(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openTestGlobalDB(t)
+			globalDB := openNetworkConversationRepositoryTestDB(t)
 			startedAt := time.Date(2026, 5, 5, 16, 0, 0, 0, time.UTC)
 			opening := threadMessage("msg_work_open", "thread_store_work", "coder.sess-abc", "please review", startedAt)
 			opening.PeerTo = "reviewer.sess-xyz"
@@ -1581,7 +3032,7 @@ func TestGlobalDBWriteConversationMessageIdempotencyAndRollback(t *testing.T) {
 	t.Run("Should roll back message and side effects when direct room binding fails", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		directID, _, _, err := store.NetworkDirectRoomIdentity(
 			networkStoreTestWorkspaceID,
 			"builders",
@@ -1630,7 +3081,7 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 	t.Run("Should reject raw claim tokens before persisting message or audit rows", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		message := threadMessage(
 			"msg_raw_claim_token",
 			"thread_store_redaction",
@@ -1640,9 +3091,7 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 		)
 
 		_, err := globalDB.WriteConversationMessage(testutil.Context(t), message)
-		if err == nil {
-			t.Fatal("WriteConversationMessage(raw claim token) error = nil, want non-nil")
-		}
+		assertRawClaimTokenRejected(t, err, "agh_claim_NET05TOKEN123")
 		if got := networkRowCount(t, globalDB, "network_timeline_log", "message_id", message.MessageID); got != 0 {
 			t.Fatalf("raw-token message count = %d, want 0", got)
 		}
@@ -1654,7 +3103,7 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 	t.Run("Should reject raw claim tokens in timeline text fields even when body is redacted", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		message := threadMessage(
 			"msg_raw_claim_token_text",
 			"thread_store_redaction",
@@ -1665,16 +3114,14 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 		message.Body = []byte(`{"text":"[redacted]"}`)
 
 		_, err := globalDB.WriteConversationMessage(testutil.Context(t), message)
-		if err == nil {
-			t.Fatal("WriteConversationMessage(raw text claim token) error = nil, want non-nil")
-		}
+		assertRawClaimTokenRejected(t, err, "agh_claim_NET05TEXT123")
 		assertNoTimelineOrAuditRows(t, globalDB, message.MessageID)
 	})
 
 	t.Run("Should reject raw claim tokens in direct audit writes", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
 			WorkspaceID: networkStoreTestWorkspaceID,
 			SessionID:   "sess-audit-token",
@@ -1686,9 +3133,7 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 			Reason:      "agh_claim_NET05TOKEN123",
 			Size:        1,
 		})
-		if err == nil {
-			t.Fatal("WriteNetworkAudit(raw claim token) error = nil, want non-nil")
-		}
+		assertRawClaimTokenRejected(t, err, "agh_claim_NET05TOKEN123")
 		if got := networkRowCount(t, globalDB, "network_audit_log", "message_id", "msg_audit_token"); got != 0 {
 			t.Fatalf("raw-token audit count = %d, want 0", got)
 		}
@@ -1704,7 +3149,7 @@ func threadMessage(
 ) store.NetworkConversationMessage {
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
@@ -1719,6 +3164,196 @@ func threadMessage(
 	}
 }
 
+func networkWakeAcceptanceRequest(
+	t *testing.T,
+	messageID string,
+	wakeID string,
+	taskRunID string,
+	timestamp time.Time,
+) store.AcceptNetworkMessageRequest {
+	t.Helper()
+
+	directID, _, _, err := store.NetworkDirectRoomIdentity(
+		networkStoreTestWorkspaceID,
+		"builders",
+		"coder.sess-abc",
+		"reviewer.sess-xyz",
+	)
+	if err != nil {
+		t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
+	}
+	spec := participation.Spec{
+		Version: participation.SpecVersion, Mode: participation.ModeLive,
+		WorkspaceID: networkStoreTestWorkspaceID, ChannelStrategy: participation.StrategyNamed,
+		ChannelID: "builders", Source: participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes: 3, MaxWakeWallTime: "500ms", MaxTotalWallTime: "2s",
+			MaxInputTokens: 1000, MaxOutputTokens: 1000, MaxWakeDepth: 3,
+			CoalesceWindow: "250ms",
+		},
+	}
+	return store.AcceptNetworkMessageRequest{
+		Message: store.NetworkConversationMessage{
+			MessageID: messageID, SessionID: "coder.sess-abc",
+			WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders",
+			Surface: store.NetworkSurfaceDirect, DirectID: directID,
+			Direction: "sent", PeerFrom: "coder.sess-abc", PeerTo: "reviewer.sess-xyz",
+			Kind: store.NetworkKindSay, Text: "Please review", PreviewText: "Please review",
+			Body: []byte(`{"text":"Please review"}`), Timestamp: timestamp,
+		},
+		Dispositions: []store.NetworkMessageDisposition{{
+			RecipientSessionID: "reviewer.sess-xyz", Decision: store.NetworkDispositionDeliver,
+		}},
+		Admissions: []store.NetworkWakeAdmissionInput{{
+			WorkspaceID:        networkStoreTestWorkspaceID,
+			RecipientSessionID: "reviewer.sess-xyz", OwnerKey: "session:reviewer.sess-xyz",
+			Spec: spec, Trigger: store.NetworkWakeTriggerDirect, Eligible: true, Addressed: true,
+			RootID: messageID, Depth: 0, WakeID: wakeID, TaskRunID: taskRunID,
+		}},
+	}
+}
+
+func assertNetworkAcceptanceRowCounts(
+	t *testing.T,
+	globalDB *GlobalDB,
+	messageID string,
+	ownerKey string,
+	wakeCount int,
+	sourceCount int,
+) {
+	t.Helper()
+
+	if got := networkRowCount(t, globalDB, "network_timeline_log", "message_id", messageID); got != 1 {
+		t.Fatalf("timeline count for %q = %d, want 1", messageID, got)
+	}
+	if got := networkRowCount(t, globalDB, "network_message_dispositions", "message_id", messageID); got != 1 {
+		t.Fatalf("disposition count for %q = %d, want 1", messageID, got)
+	}
+	if got := networkRowCount(t, globalDB, "network_live_wakes", "owner_key", ownerKey); got != wakeCount {
+		t.Fatalf("wake count for %q = %d, want %d", ownerKey, got, wakeCount)
+	}
+	if got := networkRowCount(t, globalDB, "network_wake_sources", "owner_key", ownerKey); got != sourceCount {
+		t.Fatalf("wake source count for %q = %d, want %d", ownerKey, got, sourceCount)
+	}
+}
+
+func assertNetworkWakeUsage(
+	t *testing.T,
+	globalDB *GlobalDB,
+	wakeID string,
+	wantState string,
+	wantWallMS int64,
+	wantInput int64,
+	wantOutput int64,
+	wantUsageState string,
+) {
+	t.Helper()
+
+	var state string
+	var wallMS, inputTokens, outputTokens int64
+	var usageState string
+	if err := globalDB.db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT state, actual_wall_ms, input_tokens, output_tokens, usage_state
+FROM network_live_wakes WHERE wake_id = ?`,
+		wakeID,
+	).Scan(&state, &wallMS, &inputTokens, &outputTokens, &usageState); err != nil {
+		t.Fatalf("query network wake usage error = %v", err)
+	}
+	if state != wantState || wallMS != wantWallMS || inputTokens != wantInput ||
+		outputTokens != wantOutput || usageState != wantUsageState {
+		t.Fatalf(
+			"wake usage = (%q, %d, %d, %d, %q), want (%q, %d, %d, %d, %q)",
+			state, wallMS, inputTokens, outputTokens, usageState,
+			wantState, wantWallMS, wantInput, wantOutput, wantUsageState,
+		)
+	}
+}
+
+func claimNetworkWakeSettlementForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	reservation store.WakeReservation,
+) taskpkg.NetworkWakeSettlement {
+	t.Helper()
+
+	run, err := globalDB.GetTaskRun(testutil.Context(t), reservation.TaskRunID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(network wake) error = %v", err)
+	}
+	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
+	actor, err := taskpkg.DeriveDaemonActorContext("network-wake-test", "test.network_wake")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	claimedBy := actor.Actor
+	now := globalDB.now().UTC()
+	claim, err := globalDB.ClaimNextRun(testutil.Context(t), taskpkg.ClaimCriteria{
+		RunID:            run.ID,
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      run.WorkspaceID,
+		RunKind:          taskpkg.RunKindNetworkWake,
+		TargetSessionID:  targetSessionID,
+		ClaimerSessionID: targetSessionID,
+		ClaimedBy:        &claimedBy,
+		LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
+		Now:              now,
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun(network wake) error = %v", err)
+	}
+	return taskpkg.NetworkWakeSettlement{
+		WorkspaceID: run.WorkspaceID, WakeID: wakeID, TaskRunID: run.ID,
+		ClaimToken: claim.ClaimToken, TargetSessionID: targetSessionID, OwnerKey: ownerKey,
+		Now: now, Actor: actor,
+	}
+}
+
+func networkWakeEventCount(t *testing.T, globalDB *GlobalDB, wakeID string, eventType string) int {
+	t.Helper()
+
+	var count int
+	if err := globalDB.db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT COUNT(*) FROM network_wake_events WHERE wake_id = ? AND event_type = ?`,
+		wakeID,
+		eventType,
+	).Scan(&count); err != nil {
+		t.Fatalf("count network wake events error = %v", err)
+	}
+	return count
+}
+
+func assertNetworkWakeBudget(
+	t *testing.T,
+	globalDB *GlobalDB,
+	ownerKey string,
+	wantWakes int,
+	wantWallMS int64,
+	wantInput int64,
+	wantOutput int64,
+) {
+	t.Helper()
+
+	var wakes int
+	var wallMS, inputTokens, outputTokens int64
+	if err := globalDB.db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT wakes_used, wall_ms_used, input_tokens_used, output_tokens_used
+FROM network_participation_budgets WHERE owner_key = ?`,
+		ownerKey,
+	).Scan(&wakes, &wallMS, &inputTokens, &outputTokens); err != nil {
+		t.Fatalf("query network wake budget error = %v", err)
+	}
+	if wakes != wantWakes || wallMS != wantWallMS || inputTokens != wantInput || outputTokens != wantOutput {
+		t.Fatalf(
+			"wake budget = (%d, %d, %d, %d), want (%d, %d, %d, %d)",
+			wakes, wallMS, inputTokens, outputTokens,
+			wantWakes, wantWallMS, wantInput, wantOutput,
+		)
+	}
+}
+
 func threadTraceMessage(
 	messageID string,
 	threadID string,
@@ -1729,7 +3364,7 @@ func threadTraceMessage(
 ) store.NetworkConversationMessage {
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
@@ -1754,7 +3389,7 @@ func threadReceiptMessage(
 ) store.NetworkConversationMessage {
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
@@ -1786,7 +3421,7 @@ func writeDirectMessage(
 	}
 	result, err := globalDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceDirect,
@@ -1801,6 +3436,57 @@ func writeDirectMessage(
 		Timestamp:   timestamp,
 	})
 	return directID, result, err
+}
+
+func openNetworkConversationRepositoryTestDB(t *testing.T) *GlobalDB {
+	t.Helper()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"network-store",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
+	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+	for _, sessionID := range []string{
+		"alpha.sess",
+		"coder.sess-abc",
+		"founder.sess-main",
+		"other.sess-peer",
+		"peer.alpha",
+		"peer.author",
+		"peer.beta",
+		"peer.direct",
+		"peer.mentioned",
+		"peer.mutation",
+		"peer.presence",
+		"peer.reviewer",
+		"peer.second",
+		"peer.tail",
+		"peer.work",
+		"peer.zulu",
+		"planner.sess-123",
+		"planner.sess-plan",
+		"reviewer.sess-xyz",
+		"sess-direct",
+		"sess-direct-collision",
+		"sess-projection-presence",
+		"zulu.sess",
+	} {
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID:          sessionID,
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: workspaceID,
+			State:       "active",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
+		}
+	}
+	return globalDB
 }
 
 func messageIDs(messages []store.NetworkConversationMessage) []string {
@@ -1840,6 +3526,20 @@ func assertNetworkCursorHidesSequence(t *testing.T, cursor string) {
 	}
 	if strings.Contains(string(decoded), "sequence") {
 		t.Fatalf("network cursor exposes global sequence: %s", decoded)
+	}
+}
+
+func assertRawClaimTokenRejected(t *testing.T, err error, token string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatal("raw claim token write error = nil, want rejection")
+	}
+	if !strings.Contains(err.Error(), "contains raw claim_token material") {
+		t.Fatalf("raw claim token write error = %v, want claim-token validation rejection", err)
+	}
+	if strings.Contains(err.Error(), token) {
+		t.Fatalf("raw claim token write error leaked token: %v", err)
 	}
 }
 

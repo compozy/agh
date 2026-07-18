@@ -4,7 +4,9 @@ import type {
   NetworkDirectsListQuery,
   NetworkSurface,
   NetworkThreadsListQuery,
+  NetworkUsageFilters,
 } from "../types";
+import type { NetworkCoordinationRef } from "../adapters/network-coordination-api";
 
 function normalizeText(value?: string | null) {
   return value?.trim() ?? "";
@@ -17,7 +19,7 @@ function normalizeLimit(value?: number | null) {
 function catalogQuerySegments(query?: NetworkThreadsListQuery | NetworkDirectsListQuery) {
   return [
     normalizeText(query?.query),
-    normalizeText(query?.peer_id),
+    normalizeText(query?.session_id),
     query?.has_work ?? null,
     normalizeText(query?.sort),
     normalizeLimit(query?.limit),
@@ -29,6 +31,16 @@ function messageFilterSegments(query?: NetworkConversationMessageFilters) {
     normalizeText(query?.kind),
     normalizeText(query?.work_id),
     normalizeLimit(query?.limit),
+  ] as const;
+}
+
+function usageFilterSegments(filters?: NetworkUsageFilters) {
+  return [
+    normalizeText(filters?.owner_kind),
+    normalizeText(filters?.owner_id),
+    normalizeText(filters?.run_id),
+    normalizeText(filters?.channel),
+    normalizeLimit(filters?.limit),
   ] as const;
 }
 
@@ -58,11 +70,11 @@ export const networkKeys = {
   subscriptions: (
     workspaceId: string,
     channel: string,
-    query?: { peer_id?: string | null; thread_id?: string | null }
+    query?: { session_id?: string | null; thread_id?: string | null }
   ) =>
     [
       ...networkKeys.subscriptionsRoot(workspaceId, channel),
-      normalizeText(query?.peer_id),
+      normalizeText(query?.session_id),
       normalizeText(query?.thread_id),
     ] as const,
 
@@ -167,4 +179,16 @@ export const networkKeys = {
   peerDetails: (workspaceId: string) => [...networkKeys.peersRoot(workspaceId), "detail"] as const,
   peerDetail: (workspaceId: string, peerId: string) =>
     [...networkKeys.peerDetails(workspaceId), normalizeText(peerId)] as const,
+
+  coordinationRoot: (workspaceId: string) =>
+    [...networkKeys.workspace(workspaceId), "coordination"] as const,
+  coordination: (workspaceId: string, ref: NetworkCoordinationRef) =>
+    [
+      ...networkKeys.coordinationRoot(workspaceId),
+      ref.scope,
+      normalizeText(ref.taskId),
+      normalizeText(ref.runId),
+    ] as const,
+  usage: (workspaceId: string, filters?: NetworkUsageFilters) =>
+    [...networkKeys.workspace(workspaceId), "usage", ...usageFilterSegments(filters)] as const,
 };

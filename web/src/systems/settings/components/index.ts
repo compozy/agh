@@ -16,6 +16,7 @@ export { ProviderInspectorSheet } from "./provider-inspector-sheet";
 export { ProviderInspectView } from "./provider-inspect-view";
 export { ProviderLogo } from "./provider-logo";
 export { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
+export { NetworkSettingsSections } from "./network-settings-sections";
 export { ProvidersGrid } from "./providers-grid";
 export { ProvidersListFilters } from "./providers-list-filters";
 export { SettingsDecimalInput } from "./settings-decimal-input";

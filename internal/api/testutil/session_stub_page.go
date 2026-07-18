@@ -61,7 +61,13 @@ func stubSessionListMatch(info *session.Info, query session.ListQuery, now time.
 	if search == "" {
 		return true
 	}
-	for _, value := range []string{info.ID, info.Name, info.AgentName, info.Provider, info.Channel} {
+	for _, value := range []string{
+		info.ID,
+		info.Name,
+		info.AgentName,
+		info.Provider,
+		info.NetworkParticipation.ChannelID,
+	} {
 		if strings.Contains(strings.ToLower(value), search) {
 			return true
 		}

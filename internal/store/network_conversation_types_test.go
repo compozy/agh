@@ -1,15 +1,132 @@
 package store
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 const networkConversationTestWorkspaceID = "ws_store_validation"
 
+func TestNetworkUsageQueryValidationAndCursor(t *testing.T) {
+	t.Parallel()
+
+	owner := &participation.OwnerRef{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Kind:        participation.OwnerKindTaskRun,
+		ID:          "run-1",
+	}
+	normalized, cursor, err := NormalizeNetworkUsageQuery(NetworkUsageQuery{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Owner:       owner,
+		Channel:     " builders ",
+	})
+	if err != nil {
+		t.Fatalf("NormalizeNetworkUsageQuery(default) error = %v", err)
+	}
+	if normalized.Limit != DefaultNetworkUsageLimit || normalized.Channel != "builders" || cursor != nil {
+		t.Fatalf("NormalizeNetworkUsageQuery(default) = %#v, cursor=%#v", normalized, cursor)
+	}
+
+	normalized, _, err = NormalizeNetworkUsageQuery(NetworkUsageQuery{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Limit:       MaxNetworkUsageLimit,
+		LimitSet:    true,
+	})
+	if err != nil || normalized.Limit != MaxNetworkUsageLimit {
+		t.Fatalf("NormalizeNetworkUsageQuery(max) = %#v, error = %v", normalized, err)
+	}
+
+	for _, limit := range []int{0, MaxNetworkUsageLimit + 1} {
+		_, _, err = NormalizeNetworkUsageQuery(NetworkUsageQuery{
+			WorkspaceID: networkConversationTestWorkspaceID,
+			Limit:       limit,
+			LimitSet:    true,
+		})
+		if !errors.Is(err, ErrNetworkUsageLimitInvalid) {
+			t.Fatalf("NormalizeNetworkUsageQuery(limit=%d) error = %v", limit, err)
+		}
+	}
+
+	_, _, err = NormalizeNetworkUsageQuery(NetworkUsageQuery{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Owner:       owner,
+		RunID:       "run-1",
+	})
+	if !errors.Is(err, ErrNetworkUsageQueryInvalid) {
+		t.Fatalf("NormalizeNetworkUsageQuery(owner+run) error = %v", err)
+	}
+
+	position := NetworkUsageCursorPosition{
+		ReservedAt: time.Date(2026, 7, 16, 18, 30, 0, 123, time.UTC),
+		WakeID:     "wake-050",
+	}
+	encoded, err := EncodeNetworkUsageCursor(normalized, position)
+	if err != nil {
+		t.Fatalf("EncodeNetworkUsageCursor() error = %v", err)
+	}
+	normalized.Cursor = encoded
+	_, decoded, err := NormalizeNetworkUsageQuery(normalized)
+	if err != nil {
+		t.Fatalf("NormalizeNetworkUsageQuery(cursor) error = %v", err)
+	}
+	if decoded == nil || !decoded.ReservedAt.Equal(position.ReservedAt) || decoded.WakeID != position.WakeID {
+		t.Fatalf("decoded cursor = %#v, want %#v", decoded, position)
+	}
+
+	normalized.Channel = "another-channel"
+	_, _, err = NormalizeNetworkUsageQuery(normalized)
+	if !errors.Is(err, ErrNetworkUsageCursorInvalid) {
+		t.Fatalf("NormalizeNetworkUsageQuery(reused cursor) error = %v", err)
+	}
+	_, _, err = NormalizeNetworkUsageQuery(NetworkUsageQuery{
+		WorkspaceID: networkConversationTestWorkspaceID,
+		Cursor:      "not-base64",
+	})
+	if !errors.Is(err, ErrNetworkUsageCursorInvalid) {
+		t.Fatalf("NormalizeNetworkUsageQuery(malformed cursor) error = %v", err)
+	}
+}
+
+func TestValidateJavaScriptSafeInteger(t *testing.T) {
+	t.Parallel()
+
+	if err := ValidateJavaScriptSafeInteger("tokens", MaxJavaScriptSafeInteger); err != nil {
+		t.Fatalf("ValidateJavaScriptSafeInteger(max) error = %v", err)
+	}
+	if err := ValidateJavaScriptSafeInteger("tokens", MaxJavaScriptSafeInteger+1); !errors.Is(
+		err,
+		ErrNetworkUsageUnsafeInteger,
+	) {
+		t.Fatalf("ValidateJavaScriptSafeInteger(max+1) error = %v", err)
+	}
+}
+
 func TestNetworkConversationRefValidation(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should derive the stable direct-room identity from the documented hash vector", func(t *testing.T) {
+		t.Parallel()
+
+		directID, sessionA, sessionB, err := NetworkDirectRoomIdentity(
+			networkConversationTestWorkspaceID,
+			"builders",
+			"sess-b",
+			"sess-a",
+		)
+		if err != nil {
+			t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
+		}
+		if got, want := directID, "direct_5101ac7ba31424a87228708e21b268bb"; got != want {
+			t.Fatalf("direct id = %q, want known vector %q", got, want)
+		}
+		if sessionA != "sess-a" || sessionB != "sess-b" {
+			t.Fatalf("ordered sessions = %q/%q, want sess-a/sess-b", sessionA, sessionB)
+		}
+	})
 
 	tests := []struct {
 		name    string
@@ -143,15 +260,15 @@ func TestNetworkChannelEntryValidation(t *testing.T) {
 	}
 }
 
-func TestNormalizeNetworkDirectRoomPeers(t *testing.T) {
+func TestNormalizeNetworkDirectRoomSessions(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should return peers in lexicographic order", func(t *testing.T) {
 		t.Parallel()
 
-		peerA, peerB, err := NormalizeNetworkDirectRoomPeers("reviewer.sess-xyz", "coder.sess-abc")
+		peerA, peerB, err := NormalizeNetworkDirectRoomSessions("reviewer.sess-xyz", "coder.sess-abc")
 		if err != nil {
-			t.Fatalf("NormalizeNetworkDirectRoomPeers() error = %v", err)
+			t.Fatalf("NormalizeNetworkDirectRoomSessions() error = %v", err)
 		}
 		if got, want := peerA, "coder.sess-abc"; got != want {
 			t.Fatalf("peerA = %q, want %q", got, want)
@@ -164,18 +281,18 @@ func TestNormalizeNetworkDirectRoomPeers(t *testing.T) {
 	t.Run("Should reject same peers", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, err := NormalizeNetworkDirectRoomPeers("coder.sess-abc", " coder.sess-abc ")
+		_, _, err := NormalizeNetworkDirectRoomSessions("coder.sess-abc", " coder.sess-abc ")
 		if err == nil || !strings.Contains(err.Error(), "must differ") {
-			t.Fatalf("NormalizeNetworkDirectRoomPeers() error = %v, want same-peer rejection", err)
+			t.Fatalf("NormalizeNetworkDirectRoomSessions() error = %v, want same-peer rejection", err)
 		}
 	})
 
-	t.Run("Should reject invalid peers", func(t *testing.T) {
+	t.Run("Should reject missing sessions", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, err := NormalizeNetworkDirectRoomPeers("coder/sess", "reviewer.sess-xyz")
-		if err == nil || !strings.Contains(err.Error(), "peer_a") {
-			t.Fatalf("NormalizeNetworkDirectRoomPeers() error = %v, want peer_a rejection", err)
+		_, _, err := NormalizeNetworkDirectRoomSessions("  ", "reviewer.sess-xyz")
+		if err == nil || !strings.Contains(err.Error(), "session_a") {
+			t.Fatalf("NormalizeNetworkDirectRoomSessions() error = %v, want session_a rejection", err)
 		}
 	})
 }
@@ -226,8 +343,8 @@ func TestNetworkConversationSummaryValidation(t *testing.T) {
 			WorkspaceID:    networkConversationTestWorkspaceID,
 			Channel:        "builders",
 			DirectID:       "direct_0123456789abcdef0123456789abcdef",
-			PeerA:          "coder.sess-abc",
-			PeerB:          "reviewer.sess-xyz",
+			SessionA:       "coder.sess-abc",
+			SessionB:       "reviewer.sess-xyz",
 			OpenedAt:       now,
 			LastActivityAt: now,
 			MessageCount:   1,
@@ -237,8 +354,8 @@ func TestNetworkConversationSummaryValidation(t *testing.T) {
 			t.Fatalf("Validate(direct summary) error = %v", err)
 		}
 
-		summary.PeerA = "reviewer.sess-xyz"
-		summary.PeerB = "coder.sess-abc"
+		summary.SessionA = "reviewer.sess-xyz"
+		summary.SessionB = "coder.sess-abc"
 		if err := summary.Validate(); err == nil || !strings.Contains(err.Error(), "lexicographic") {
 			t.Fatalf("Validate(direct summary) error = %v, want peer ordering rejection", err)
 		}
@@ -256,8 +373,8 @@ func TestNetworkDirectRoomEntryValidation(t *testing.T) {
 			WorkspaceID:    networkConversationTestWorkspaceID,
 			Channel:        "builders",
 			DirectID:       "direct_0123456789abcdef0123456789abcdef",
-			PeerA:          "coder.sess-abc",
-			PeerB:          "reviewer.sess-xyz",
+			SessionA:       "sess-coder",
+			SessionB:       "sess-reviewer",
 			OpenedAt:       now,
 			LastActivityAt: now,
 		}
@@ -277,15 +394,15 @@ func TestNetworkWorkEntryValidation(t *testing.T) {
 
 	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 	valid := NetworkWorkEntry{
-		WorkspaceID:    networkConversationTestWorkspaceID,
-		WorkID:         "work_patch_42",
-		Channel:        "builders",
-		Surface:        NetworkSurfaceThread,
-		ThreadID:       "thread_patch_42",
-		OpenedByPeerID: "coder.sess-abc",
-		State:          NetworkWorkStateSubmitted,
-		OpenedAt:       now,
-		LastActivityAt: now,
+		WorkspaceID:       networkConversationTestWorkspaceID,
+		WorkID:            "work_patch_42",
+		Channel:           "builders",
+		Surface:           NetworkSurfaceThread,
+		ThreadID:          "thread_patch_42",
+		OpenedBySessionID: "sess-coder",
+		State:             NetworkWorkStateSubmitted,
+		OpenedAt:          now,
+		LastActivityAt:    now,
 	}
 
 	tests := []struct {

@@ -29,35 +29,60 @@ func (g *TaskRunRepo) FailRunLease(
 
 	var updated taskpkg.Run
 	if err := g.tasks.withTaskImmediateTransaction(ctx, "fail task run lease", func(exec taskSQLExecutor) error {
-		current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
-		if err != nil {
-			return err
+		current, loadErr := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+		if loadErr != nil {
+			return loadErr
 		}
-		if err := requireCurrentRunLease(current, normalized.ClaimToken, normalized.Now); err != nil {
-			return err
+		if current.IsNetworkWake() {
+			return fmt.Errorf(
+				"%w: network_wake runs must be failed through network settlement",
+				taskpkg.ErrValidation,
+			)
 		}
-		if err := requireLeaseTerminalTransition(current, taskpkg.TaskRunStatusFailed); err != nil {
-			return err
-		}
-		if current.RunKind.Normalize() == taskpkg.RunKindCoordinator {
-			normalized.Failure = taskpkg.CanonicalCoordinatorRunFailure(normalized.Failure)
-		}
-		affected, err := sqlcgen.New(exec).FailTaskRunLease(ctx, sqlcgen.FailTaskRunLeaseParams{
-			Status:         taskpkg.TaskRunStatusFailed.String(),
-			EndedAt:        nullableTaskTime(normalized.Now),
-			TokensUsed:     normalized.TokensUsed,
-			Error:          nullableTaskString(normalized.Failure.Error),
-			ID:             current.ID,
-			ClaimTokenHash: nullableTaskString(current.ClaimTokenHash),
-		})
-		if err != nil {
-			return fmt.Errorf("store: fail task run lease %q: %w", current.ID, err)
-		}
-		if affected == 0 {
-			return fmt.Errorf("store: task run lease %q: %w", current.ID, taskpkg.ErrTaskRunNotFound)
-		}
+		var err error
+		updated, err = g.failRunLeaseWithExecutor(ctx, exec, normalized)
+		return err
+	}); err != nil {
+		return taskpkg.Run{}, err
+	}
+	return updated, nil
+}
+
+func (g *TaskRunRepo) failRunLeaseWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	normalized taskpkg.LeaseFailure,
+) (taskpkg.Run, error) {
+	current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := requireCurrentRunLease(current, normalized.ClaimToken, normalized.Now); err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := requireLeaseTerminalTransition(current, taskpkg.TaskRunStatusFailed); err != nil {
+		return taskpkg.Run{}, err
+	}
+	if current.RunKind.Normalize() == taskpkg.RunKindCoordinator {
+		normalized.Failure = taskpkg.CanonicalCoordinatorRunFailure(normalized.Failure)
+	}
+	affected, err := sqlcgen.New(exec).FailTaskRunLease(ctx, sqlcgen.FailTaskRunLeaseParams{
+		Status:         taskpkg.TaskRunStatusFailed.String(),
+		EndedAt:        nullableTaskTime(normalized.Now),
+		TokensUsed:     normalized.TokensUsed,
+		Error:          nullableTaskString(normalized.Failure.Error),
+		ID:             current.ID,
+		ClaimTokenHash: nullableTaskString(current.ClaimTokenHash),
+	})
+	if err != nil {
+		return taskpkg.Run{}, fmt.Errorf("store: fail task run lease %q: %w", current.ID, err)
+	}
+	if affected == 0 {
+		return taskpkg.Run{}, fmt.Errorf("store: task run lease %q: %w", current.ID, taskpkg.ErrTaskRunNotFound)
+	}
+	if current.IsTaskAnchored() {
 		if err := settleCoordinatorFailureLoopWithExecutor(ctx, exec, current, normalized); err != nil {
-			return err
+			return taskpkg.Run{}, err
 		}
 		if err := recordLoopNodeTerminalWithExecutor(
 			ctx,
@@ -68,20 +93,16 @@ func (g *TaskRunRepo) FailRunLease(
 			nil,
 			normalized.Now,
 		); err != nil {
-			return err
+			return taskpkg.Run{}, err
 		}
 		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-			return err
+			return taskpkg.Run{}, err
 		}
 		if err := appendFailedRunLeaseWatchEvent(ctx, exec, current, normalized); err != nil {
-			return err
+			return taskpkg.Run{}, err
 		}
-		updated, err = g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
-		return err
-	}); err != nil {
-		return taskpkg.Run{}, err
 	}
-	return updated, nil
+	return g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
 }
 
 func appendFailedRunLeaseWatchEvent(
@@ -144,8 +165,10 @@ func (g *TaskRunRepo) ListAutonomyLeaseHandles(
 }
 
 func autonomyLeaseHandleFromGenerated(row sqlcgen.ListAutonomyLeaseHandlesRow) (taskpkg.AutonomyLeaseHandle, error) {
+	workspaceID := strings.TrimSpace(row.WorkspaceID)
 	handle := taskpkg.AutonomyLeaseHandle{
-		RunID: row.ID, TaskID: row.TaskID, WorkspaceID: row.WorkspaceID,
+		RunID: row.ID, TaskID: taskNullStringValue(row.TaskID), RunKind: taskpkg.ParseRunKind(row.RunKind).Normalize(),
+		WorkspaceID: workspaceID, TargetSessionID: row.TargetSessionID, OwnerKey: row.OwnerKey,
 		Status: taskpkg.ParseRunStatus(row.Status).Normalize(), SessionID: row.SessionID,
 		ClaimToken: row.ClaimToken, ClaimTokenHash: row.ClaimTokenHash,
 	}
@@ -226,8 +249,10 @@ func (g *TaskRunRepo) RecoverExpiredRunLeases(
 				if err := requeueExpiredLease(ctx, exec, current, snapshot); err != nil {
 					return err
 				}
-				if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-					return err
+				if current.IsTaskAnchored() {
+					if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+						return err
+					}
 				}
 				updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
 				if err != nil {

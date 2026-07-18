@@ -333,11 +333,11 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 		WorkspaceID: "ws-1",
 	}
 	metadata := contract.CoordinationMessageMetadataPayload{
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		CoordinationChannelID: "builders",
-		MessageKind:           contract.CoordinationMessageStatus,
-		CorrelationID:         "run-1",
+		TaskID:        "task-1",
+		RunID:         "run-1",
+		ChannelID:     "builders",
+		MessageKind:   contract.CoordinationMessageStatus,
+		CorrelationID: "run-1",
 	}
 
 	tests := []struct {
@@ -426,7 +426,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 						case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels":
 							return newHTTPResponse(
 								http.StatusOK,
-								`{"channels":[{"id":"builders","channel":"builders","display_name":"builders","workspace_id":"ws-1","allowed_message_kinds":["status","request","reply","blocker","handoff","result","review_request"]}]}`,
+								`{"channels":[{"id":"builders","display_name":"builders","workspace_id":"ws-1","allowed_message_kinds":["status","request","reply","blocker","handoff","result","review_request"]}]}`,
 							), nil
 						case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels/builders/recv":
 							if req.URL.Query().Get("wait") != "true" || req.URL.Query().Get("limit") != "3" {
@@ -434,7 +434,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 							}
 							return newHTTPResponse(
 								http.StatusOK,
-								`{"messages":[{"message_id":"msg-1","channel_id":"builders","from_session_id":"sess-peer","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}]}`,
+								`{"messages":[{"message_id":"msg-1","channel_id":"builders","from_session_id":"sess-peer","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}]}`,
 							), nil
 						case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/builders/send":
 							body, err := io.ReadAll(req.Body)
@@ -447,7 +447,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 							}
 							return newHTTPResponse(
 								http.StatusAccepted,
-								`{"message":{"message_id":"msg-send","channel_id":"builders","from_session_id":"sess-1","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
+								`{"message":{"message_id":"msg-send","channel_id":"builders","from_session_id":"sess-1","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
 							), nil
 						case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/reply":
 							body, err := io.ReadAll(req.Body)
@@ -459,7 +459,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 							}
 							return newHTTPResponse(
 								http.StatusAccepted,
-								`{"message":{"message_id":"msg-reply","channel_id":"builders","from_session_id":"sess-1","to_session_id":"sess-peer","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"reply","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
+								`{"message":{"message_id":"msg-reply","channel_id":"builders","from_session_id":"sess-1","to_session_id":"sess-peer","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"reply","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
 							), nil
 						default:
 							t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
@@ -702,10 +702,27 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 						payload.RequiredCapabilities[0] != "go" {
 						t.Fatalf("claim-next body = %#v, want parsed request", payload)
 					}
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"claim":{"task":{"id":"task-1","title":"Run task","status":"in_progress","scope":"workspace","workspace_id":"ws-1"},"run":{"id":"run-1","task_id":"task-1","status":"claimed","attempt":1,"session_id":"sess-1","queued_at":"2026-04-03T12:00:00Z"},"lease":{"task_id":"task-1","run_id":"run-1","status":"claimed","session_id":"sess-1","coordination_channel_id":"builders","claim_token_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"coordination_channel":{"id":"builders","channel":"builders","display_name":"Builders","allowed_message_kinds":["status"]}}}`,
-					), nil
+					resolved := testLiveResolvedParticipation("builders")
+					body := mustJSON(t, contract.AgentTaskClaimResponse{Claim: contract.AgentTaskClaimPayload{
+						Task: contract.TaskReferencePayload{
+							ID: "task-1", Title: "Run task", Status: taskpkg.TaskStatusInProgress,
+							Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-1",
+						},
+						Run: contract.TaskRunPayload{
+							ID: "run-1", TaskID: "task-1", Status: taskpkg.TaskRunStatusClaimed,
+							Attempt: 1, SessionID: "sess-1", QueuedAt: fixedTestNow,
+						},
+						Lease: contract.TaskRunLeaseSummaryPayload{
+							TaskID: "task-1", RunID: "run-1", Status: taskpkg.TaskRunStatusClaimed,
+							SessionID: "sess-1", ResolvedNetworkParticipation: resolved,
+							ClaimTokenHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						},
+						CoordinationChannel: &contract.CoordinationChannelPayload{
+							ID: "builders", DisplayName: "Builders",
+							AllowedMessageKinds: []contract.CoordinationMessageKind{contract.CoordinationMessageStatus},
+						},
+					}})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/heartbeat":
 					sawHeartbeat = true
 					var payload contract.AgentTaskHeartbeatRequest
@@ -715,7 +732,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 					if payload.LeaseSeconds != 60 {
 						t.Fatalf("heartbeat body = %#v, want lease duration only", payload)
 					}
-					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusClaimed), nil
+					return agentTaskLeaseHTTPResponse(t, taskpkg.TaskRunStatusClaimed), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/complete":
 					sawComplete = true
 					var payload contract.AgentTaskCompleteRequest
@@ -725,7 +742,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 					if string(payload.Result) != `{"ok":true}` {
 						t.Fatalf("complete body = %#v, want result only", payload)
 					}
-					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusCompleted), nil
+					return agentTaskLeaseHTTPResponse(t, taskpkg.TaskRunStatusCompleted), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/fail":
 					sawFail = true
 					var payload contract.AgentTaskFailRequest
@@ -736,7 +753,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 						string(payload.Metadata) != `{"code":"E_TASK"}` {
 						t.Fatalf("fail body = %#v, want error metadata only", payload)
 					}
-					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusFailed), nil
+					return agentTaskLeaseHTTPResponse(t, taskpkg.TaskRunStatusFailed), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/release":
 					sawRelease = true
 					var payload contract.AgentTaskReleaseRequest
@@ -746,7 +763,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 					if payload.Reason != "handoff" {
 						t.Fatalf("release body = %#v, want reason only", payload)
 					}
-					return agentTaskLeaseHTTPResponse(taskpkg.TaskRunStatusQueued), nil
+					return agentTaskLeaseHTTPResponse(t, taskpkg.TaskRunStatusQueued), nil
 				default:
 					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
 					return nil, nil
@@ -769,6 +786,11 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if !claim.Claimed || claim.Claim == nil || claim.Claim.Lease.ClaimTokenHash == "" {
 			t.Fatalf("AgentTaskClaimNext() = %#v, want claimed session-bound lease response", claim)
 		}
+		assertResolvedParticipation(
+			t,
+			claim.Claim.Lease.ResolvedNetworkParticipation,
+			*testLiveResolvedParticipation("builders"),
+		)
 	})
 	t.Run("Should return no work", func(t *testing.T) {
 		noWork, err := client.AgentTaskClaimNext(
@@ -793,6 +815,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusClaimed {
 			t.Fatalf("AgentTaskHeartbeat() = %#v, %v", lease, err)
 		}
+		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	t.Run("Should complete claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskComplete(
@@ -804,6 +827,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusCompleted {
 			t.Fatalf("AgentTaskComplete() = %#v, %v", lease, err)
 		}
+		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	t.Run("Should fail claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskFail(
@@ -818,6 +842,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusFailed {
 			t.Fatalf("AgentTaskFail() = %#v, %v", lease, err)
 		}
+		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	t.Run("Should release claimed task", func(t *testing.T) {
 		lease, err := client.AgentTaskRelease(
@@ -829,6 +854,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 		if err != nil || lease.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("AgentTaskRelease() = %#v, %v", lease, err)
 		}
+		assertResolvedParticipation(t, lease.ResolvedNetworkParticipation, *testLiveResolvedParticipation("builders"))
 	})
 	if !sawClaim || !sawNoWork || !sawHeartbeat || !sawComplete || !sawFail || !sawRelease {
 		t.Fatalf(
@@ -941,12 +967,16 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 	})
 }
 
-func agentTaskLeaseHTTPResponse(status taskpkg.RunStatus) *http.Response {
-	return newHTTPResponse(
-		http.StatusOK,
-		`{"lease":{"task_id":"task-1","run_id":"run-1","status":"`+
-			status.String()+`","session_id":"sess-1","coordination_channel_id":"builders"}}`,
-	)
+func agentTaskLeaseHTTPResponse(t *testing.T, status taskpkg.RunStatus) *http.Response {
+	t.Helper()
+	body := mustJSON(t, contract.AgentTaskLeaseResponse{Lease: contract.TaskRunLeaseSummaryPayload{
+		TaskID:                       "task-1",
+		RunID:                        "run-1",
+		Status:                       status,
+		SessionID:                    "sess-1",
+		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+	}})
+	return newHTTPResponse(http.StatusOK, string(body))
 }
 
 func TestUnixSocketClientToolMethods(t *testing.T) {
@@ -1439,8 +1469,9 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
 							t.Fatalf("decode task execution body: %v", err)
 						}
-						if request.IdempotencyKey != "idem-1" || request.NetworkChannel != "builders" {
-							t.Fatalf("task execution request = %#v, want idempotency and channel", request)
+						assertLiveNamedParticipationRequest(t, request.NetworkParticipation, "builders")
+						if request.IdempotencyKey != "idem-1" {
+							t.Fatalf("task execution request = %#v, want idempotency", request)
 						}
 						return newHTTPResponse(http.StatusOK, string(mustJSON(t, sampleTaskExecutionRecord()))), nil
 					default:
@@ -1451,9 +1482,9 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 			},
 		}
 		request := TaskExecutionRequest{
-			IdempotencyKey: "idem-1",
-			NetworkChannel: "builders",
-			Metadata:       json.RawMessage(`{"source":"cli-test"}`),
+			IdempotencyKey:       "idem-1",
+			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
+			Metadata:             json.RawMessage(`{"source":"cli-test"}`),
 		}
 
 		published, err := client.PublishTask(context.Background(), " task-1 ", request)
@@ -2814,8 +2845,8 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if got := req.URL.Query().Get("parent_task_id"); got != "task-root" {
 						t.Fatalf("task parent_task_id query = %q, want %q", got, "task-root")
 					}
-					if got := req.URL.Query().Get("network_channel"); got != "builders" {
-						t.Fatalf("task network_channel query = %q, want %q", got, "builders")
+					if got := req.URL.Query().Get("participation_channel"); got != "builders" {
+						t.Fatalf("task participation_channel query = %q, want %q", got, "builders")
 					}
 					if got := req.URL.Query().Get("limit"); got != "3" {
 						t.Fatalf("task limit query = %q, want %q", got, "3")
@@ -2830,9 +2861,9 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(create task body) error = %v", err)
 					}
+					assertLiveNamedParticipationRequest(t, payload.NetworkParticipation, "builders")
 					if payload.Scope != taskpkg.ScopeWorkspace ||
 						payload.Workspace != "alpha" ||
-						payload.NetworkChannel != "builders" ||
 						payload.Title != "Investigate flaky task runs" ||
 						payload.Owner == nil ||
 						payload.Owner.Kind != taskpkg.OwnerKindPool ||
@@ -2849,14 +2880,13 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(update task body) error = %v", err)
 					}
-					if payload.Title == nil || *payload.Title != "Investigate resolved" ||
-						payload.NetworkChannel == nil ||
-						*payload.NetworkChannel != "ops" {
+					assertLiveNamedParticipationRequest(t, payload.NetworkParticipation, "ops")
+					if payload.Title == nil || *payload.Title != "Investigate resolved" {
 						t.Fatalf("update task payload = %#v", payload)
 					}
 					updated := sampleTaskRecord()
 					updated.Title = "Investigate resolved"
-					updated.NetworkChannel = "ops"
+					updated.ResolvedNetworkParticipation = testLiveResolvedParticipation("ops")
 					body := mustJSON(t, contract.TaskResponse{Task: updated})
 					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks/task-1/cancel":
@@ -2903,7 +2933,8 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(enqueue run body) error = %v", err)
 					}
-					if payload.IdempotencyKey != "idem-1" || payload.NetworkChannel != "builders" {
+					assertLiveNamedParticipationRequest(t, payload.NetworkParticipation, "builders")
+					if payload.IdempotencyKey != "idem-1" {
 						t.Fatalf("enqueue run payload = %#v", payload)
 					}
 					if got, want := string(payload.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
@@ -2917,6 +2948,9 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					}
 					if got := req.URL.Query().Get("session_id"); got != "sess-1" {
 						t.Fatalf("task runs session_id query = %q, want %q", got, "sess-1")
+					}
+					if got := req.URL.Query().Get("participation_channel"); got != "builders" {
+						t.Fatalf("task runs participation_channel query = %q, want %q", got, "builders")
 					}
 					if got := req.URL.Query().Get("limit"); got != "2" {
 						t.Fatalf("task runs limit query = %q, want %q", got, "2")
@@ -2932,19 +2966,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					body := mustJSON(t, contract.TaskRunDetailResponse{
 						Run: sampleTaskRunDetailRecord(taskpkg.TaskRunStatusQueued),
 					})
-					return newHTTPResponse(http.StatusOK, string(body)), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/claim":
-					var payload contract.ClaimTaskRunRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(claim run body) error = %v", err)
-					}
-					if payload.IdempotencyKey != "idem-claim" {
-						t.Fatalf("claim run payload = %#v", payload)
-					}
-					body := mustJSON(
-						t,
-						contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusClaimed)},
-					)
 					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/start":
 					var payload contract.StartTaskRunRequest
@@ -3019,14 +3040,14 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 
 	t.Run("Should list tasks", func(t *testing.T) {
 		tasks, err := client.ListTasks(ctx, TaskListQuery{
-			Scope:          taskpkg.CatalogScopeWorkspace,
-			Workspace:      "alpha",
-			Status:         taskpkg.TaskStatusReady,
-			OwnerKind:      taskpkg.OwnerKindPool,
-			OwnerRef:       "triage",
-			ParentTaskID:   "task-root",
-			NetworkChannel: "builders",
-			Limit:          3,
+			Scope:                taskpkg.CatalogScopeWorkspace,
+			Workspace:            "alpha",
+			Status:               taskpkg.TaskStatusReady,
+			OwnerKind:            taskpkg.OwnerKindPool,
+			OwnerRef:             "triage",
+			ParentTaskID:         "task-root",
+			ParticipationChannel: "builders",
+			Limit:                3,
 		})
 		if err != nil || len(tasks.Tasks) != 1 || tasks.Tasks[0].ID != "task-1" {
 			t.Fatalf("ListTasks() = %#v, %v", tasks, err)
@@ -3035,11 +3056,11 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 
 	t.Run("Should create get update and cancel tasks", func(t *testing.T) {
 		created, err := client.CreateTask(ctx, CreateTaskRequest{
-			Scope:          taskpkg.ScopeWorkspace,
-			Workspace:      "alpha",
-			NetworkChannel: "builders",
-			Title:          "Investigate flaky task runs",
-			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+			Scope:                taskpkg.ScopeWorkspace,
+			Workspace:            "alpha",
+			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
+			Title:                "Investigate flaky task runs",
+			Owner:                &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
 		})
 		if err != nil || created.ID != "task-1" {
 			t.Fatalf("CreateTask() = %#v, %v", created, err)
@@ -3051,12 +3072,13 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		}
 
 		updated, err := client.UpdateTask(ctx, "task-1", UpdateTaskRequest{
-			Title:          new("Investigate resolved"),
-			NetworkChannel: new("ops"),
+			Title:                new("Investigate resolved"),
+			NetworkParticipation: testLiveNamedParticipationRequest("ops"),
 		})
-		if err != nil || updated.Title != "Investigate resolved" || updated.NetworkChannel != "ops" {
+		if err != nil || updated.Title != "Investigate resolved" {
 			t.Fatalf("UpdateTask() = %#v, %v", updated, err)
 		}
+		assertResolvedParticipation(t, updated.ResolvedNetworkParticipation, *testLiveResolvedParticipation("ops"))
 
 		canceled, err := client.CancelTask(ctx, "task-1", CancelTaskRequest{Reason: "operator-request"})
 		if err != nil || canceled.Status != taskpkg.TaskStatusCanceled {
@@ -3088,18 +3110,19 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		}
 
 		enqueued, err := client.EnqueueTaskRun(ctx, "task-1", EnqueueTaskRunRequest{
-			IdempotencyKey: "idem-1",
-			NetworkChannel: "builders",
-			Metadata:       json.RawMessage(`{"schema":"agh.harness.detached.v1"}`),
+			IdempotencyKey:       "idem-1",
+			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
+			Metadata:             json.RawMessage(`{"schema":"agh.harness.detached.v1"}`),
 		})
 		if err != nil || enqueued.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("EnqueueTaskRun() = %#v, %v", enqueued, err)
 		}
 
 		runs, err := client.ListTaskRuns(ctx, "task-1", TaskRunListQuery{
-			Status:    taskpkg.TaskRunStatusRunning,
-			SessionID: "sess-1",
-			Limit:     2,
+			Status:               taskpkg.TaskRunStatusRunning,
+			SessionID:            "sess-1",
+			ParticipationChannel: "builders",
+			Limit:                2,
 		})
 		if err != nil || len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusRunning {
 			t.Fatalf("ListTaskRuns() = %#v, %v", runs, err)
@@ -3111,11 +3134,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 			shown.Run.Status != taskpkg.TaskRunStatusQueued ||
 			shown.Task.ID != "task-1" {
 			t.Fatalf("GetTaskRun() = %#v, %v", shown, err)
-		}
-
-		claimed, err := client.ClaimTaskRun(ctx, "run-1", ClaimTaskRunRequest{IdempotencyKey: "idem-claim"})
-		if err != nil || claimed.Status != taskpkg.TaskRunStatusClaimed {
-			t.Fatalf("ClaimTaskRun() = %#v, %v", claimed, err)
 		}
 
 		started, err := client.StartTaskRun(ctx, "run-1", StartTaskRunRequest{IdempotencyKey: "idem-start"})
@@ -3608,23 +3626,25 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	}
 
 	if got := taskValues(TaskListQuery{
-		Scope:          taskpkg.CatalogScopeWorkspace,
-		Workspace:      "alpha",
-		Status:         taskpkg.TaskStatusReady,
-		OwnerKind:      taskpkg.OwnerKindPool,
-		OwnerRef:       "triage",
-		ParentTaskID:   "task-root",
-		NetworkChannel: "builders",
-		Limit:          3,
-	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("network_channel") != "builders" || got.Get("limit") != "3" {
+		Scope:                taskpkg.CatalogScopeWorkspace,
+		Workspace:            "alpha",
+		Status:               taskpkg.TaskStatusReady,
+		OwnerKind:            taskpkg.OwnerKindPool,
+		OwnerRef:             "triage",
+		ParentTaskID:         "task-root",
+		ParticipationChannel: "builders",
+		Limit:                3,
+	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("participation_channel") != "builders" || got.Get("limit") != "3" {
 		t.Fatalf("taskValues() = %v, want all task filters", got)
 	}
 
 	if got := taskRunValues(TaskRunListQuery{
-		Status:    taskpkg.TaskRunStatusRunning,
-		SessionID: "sess-1",
-		Limit:     2,
-	}); got.Get("status") != "running" || got.Get("session_id") != "sess-1" || got.Get("limit") != "2" {
+		Status:               taskpkg.TaskRunStatusRunning,
+		SessionID:            "sess-1",
+		ParticipationChannel: "builders",
+		Limit:                2,
+	}); got.Get("status") != "running" || got.Get("session_id") != "sess-1" ||
+		got.Get("participation_channel") != "builders" || got.Get("limit") != "2" {
 		t.Fatalf("taskRunValues() = %v, want all task run filters", got)
 	}
 

@@ -13,8 +13,9 @@ import {
   storyHeroNetworkChannel,
   storyPeople,
 } from "@/storybook/fintech-scenario";
+import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { runIsCoordinated, taskLifecyclePhase } from "../../lib/task-formatters";
-import type { TaskInboxView, TaskListPage } from "../../types";
+import type { TaskInboxView, TaskListPage, TaskRun } from "../../types";
 import {
   agentContextFixture,
   awaitingApprovalTaskFixture,
@@ -22,6 +23,8 @@ import {
   buildTaskBridgeNotificationSubscriptionFixture,
   buildTaskContextBundleFixture,
   buildTaskExecutionProfileFixture,
+  buildTaskRunFixture,
+  buildTaskRunRecordFixture,
   buildTaskRunReviewFixture,
   buildTaskRunReviewVerdictResultFixture,
   coordinatorEnabledWorkspaceFixture,
@@ -48,6 +51,35 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe("tasks fixtures cover the manual-first lifecycle states", () => {
+  it("Should default generic run fixtures to a canonical Local snapshot", () => {
+    for (const run of [buildTaskRunFixture(), buildTaskRunRecordFixture()]) {
+      expect(run.resolved_network_participation).toEqual(buildLocalNetworkParticipationFixture());
+    }
+  });
+
+  it("Should derive catalog participation from the active run and preserve it in run responses", async () => {
+    const task = TASK_FIXTURES.find(candidate => candidate.id === "task_006");
+    expect(task?.active_run).not.toBeNull();
+    expect(task?.resolved_network_participation).toBe(
+      task?.active_run?.resolved_network_participation
+    );
+    expect(task?.resolved_network_participation).toMatchObject({
+      bounds: { max_wakes: 8 },
+      channel_id: storyHeroNetworkChannel,
+      channel_strategy: "named",
+      mode: "live",
+      source: "explicit_request",
+      workspace_id: storyDefaultWorkspaceId,
+    });
+
+    const response = await fetch("http://localhost/api/tasks/task_006/runs");
+    const body = (await response.json()) as { runs: TaskRun[] };
+    expect(response.status).toBe(200);
+    expect(body.runs[0]?.resolved_network_participation).toEqual(
+      task?.active_run?.resolved_network_participation
+    );
+  });
+
   it("savedIntentTaskFixture is a draft with no run and resolves to publish", () => {
     expect(savedIntentTaskFixture.status).toBe("draft");
     expect(savedIntentTaskFixture.draft).toBe(true);
@@ -66,9 +98,12 @@ describe("tasks fixtures cover the manual-first lifecycle states", () => {
   it("queuedCoordinatedTaskFixture has a queued run bound to a coordination channel", () => {
     expect(queuedCoordinatedTaskFixture.active_run?.status).toBe("queued");
     expect(runIsCoordinated(queuedCoordinatedTaskFixture.active_run)).toBe(true);
-    expect(queuedCoordinatedTaskFixture.active_run?.coordination_channel_id).toBe(
-      "coord-task-queued"
-    );
+    const participation = queuedCoordinatedTaskFixture.active_run?.resolved_network_participation;
+    expect(participation?.mode).toBe("live");
+    if (participation?.mode !== "live") {
+      throw new Error("queued coordinated fixture must carry Live participation");
+    }
+    expect(participation.channel_id).toBe("coord-task-queued");
     expect(queuedCoordinatedTaskFixture.active_run).not.toHaveProperty("claim_token_hash");
     expect(queuedCoordinatedTaskFixture.active_run).not.toHaveProperty("coordination_channel");
     expect(taskLifecyclePhase(queuedCoordinatedTaskFixture)).toBe("queued");
@@ -117,7 +152,7 @@ describe("tasks MSW handlers preserve counted query contracts", () => {
       approval_state: "pending",
       include_drafts: "false",
       limit: "1",
-      network_channel: storyHeroNetworkChannel,
+      participation_channel: storyHeroNetworkChannel,
       owner_kind: "human",
       owner_ref: storyPeople.productLead,
       parent_task_id: "task_001",
@@ -142,7 +177,7 @@ describe("tasks MSW handlers preserve counted query contracts", () => {
 
     const exclusions: [string, string][] = [
       ["approval_state", "approved"],
-      ["network_channel", "unrelated-channel"],
+      ["participation_channel", "unrelated-channel"],
       ["owner_kind", "agent_session"],
       ["owner_ref", "another-owner"],
       ["parent_task_id", "task_other"],

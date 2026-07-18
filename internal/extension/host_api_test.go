@@ -28,6 +28,7 @@ import (
 	protocol "github.com/compozy/agh/internal/extensionprotocol"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/network/participation"
 	observepkg "github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/sandbox"
@@ -86,13 +87,18 @@ func TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead(t *
 func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
+	env := newHostAPITestEnv(t, withHostAPITestLiveParticipation())
 	env.grant("ext-create", []string{"sessions/create"}, []string{"session.write"})
 
-	result, err := env.call(t, "ext-create", "sessions/create", map[string]string{
+	result, err := env.call(t, "ext-create", "sessions/create", map[string]any{
 		"agent":     "coder",
 		"provider":  "fake-alt",
 		"workspace": env.workspaceID,
+		"network_participation": map[string]any{
+			"mode":             "live",
+			"channel_strategy": "named",
+			"channel_id":       "builders",
+		},
 	})
 	if err != nil {
 		t.Fatalf("Handle(sessions/create) error = %v", err)
@@ -117,6 +123,32 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	if info.Provider != "fake-alt" {
 		t.Fatalf("created session provider = %q, want %q", info.Provider, "fake-alt")
 	}
+	if info.NetworkParticipation.Mode != participation.ModeLive ||
+		info.NetworkParticipation.ChannelID != "builders" {
+		t.Fatalf(
+			"created session participation = %#v, want Live builders",
+			info.NetworkParticipation,
+		)
+	}
+
+	_, err = env.call(t, "ext-create", "sessions/create", map[string]any{
+		"agent":           "coder",
+		"workspace":       env.workspaceID,
+		"network_channel": "legacy",
+	})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	assertErrorContains(t, err, "network_channel")
+}
+
+func TestDecodeHostAPIParamsRejectsUnknownFieldsByDefault(t *testing.T) {
+	t.Parallel()
+
+	var params struct {
+		WorkspaceID string `json:"workspace_id"`
+	}
+	err := decodeHostAPIParams(json.RawMessage(`{"workspace_id":"ws-1","legacy":true}`), &params)
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	assertErrorContains(t, err, "legacy")
 }
 
 func TestHostAPIHandlerSessionsCreateReturnsCapabilityDeniedWithoutSessionWrite(t *testing.T) {
@@ -2731,9 +2763,8 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 	}
 
 	updateResult, err := env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
-		"id":           created.ID,
-		"workspace_id": env.workspace.RootDir,
-		"prompt":       "Updated host API job prompt",
+		"id":     created.ID,
+		"prompt": "Updated host API job prompt",
 		"schedule": map[string]any{
 			"mode":     "every",
 			"interval": "15m",
@@ -2783,6 +2814,83 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 
 	if _, err := env.call(t, "ext-automation", "automation/jobs/delete", map[string]any{"id": created.ID}); err != nil {
 		t.Fatalf("Handle(automation/jobs/delete) error = %v", err)
+	}
+}
+
+func TestHostAPIHandlerAutomationCreateTargetParity(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t, withHostAPITestLoopStarter(&hostAPITestLoopStarter{}))
+	env.grant(
+		"ext-automation-targets",
+		[]string{"automation/jobs/create", "automation/triggers/create"},
+		[]string{"automation.write"},
+	)
+
+	jobResult, err := env.call(t, "ext-automation-targets", "automation/jobs/create", map[string]any{
+		"name":         "host-api-task-job",
+		"scope":        "workspace",
+		"workspace_id": env.workspace.RootDir,
+		"target_kind":  "agent",
+		"schedule": map[string]any{
+			"mode":     "every",
+			"interval": "5m",
+		},
+		"task": map[string]any{
+			"title": "Scheduled task",
+			"network_participation": map[string]any{
+				"mode": "local",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Handle(automation/jobs/create task target) error = %v", err)
+	}
+	var job automationpkg.Job
+	decodeResult(t, jobResult, &job)
+	if job.TargetKind != automationpkg.TargetKindAgent || job.Task == nil || job.Task.Title != "Scheduled task" {
+		t.Fatalf("created task job = %#v, want preserved target kind and task config", job)
+	}
+
+	triggerResult, err := env.call(
+		t,
+		"ext-automation-targets",
+		"automation/triggers/create",
+		map[string]any{
+			"name":         "host-api-loop-trigger",
+			"scope":        "workspace",
+			"workspace_id": env.workspace.RootDir,
+			"target_kind":  "loop",
+			"event":        "ext.release.ready",
+			"loop_target": map[string]any{
+				"workspace_id": env.workspaceID,
+				"loop_name":    "release",
+				"inputs":       map[string]any{"environment": "staging"},
+				"input_mapping": map[string]string{
+					"commit": "data.sha",
+				},
+				"network_participation": map[string]any{"mode": "local"},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("Handle(automation/triggers/create loop target) error = %v", err)
+	}
+	var trigger apicontract.TriggerPayload
+	decodeResult(t, triggerResult, &trigger)
+	if trigger.TargetKind != automationpkg.TargetKindLoop || trigger.LoopTarget == nil {
+		t.Fatalf("created loop trigger = %#v, want preserved loop target", trigger)
+	}
+	if got, want := trigger.LoopTarget.LoopName, "release"; got != want {
+		t.Fatalf("created loop target name = %q, want %q", got, want)
+	}
+	if trigger.LoopTarget.NetworkParticipation == nil ||
+		trigger.LoopTarget.NetworkParticipation.Mode == nil ||
+		*trigger.LoopTarget.NetworkParticipation.Mode != participation.ModeLocal {
+		t.Fatalf(
+			"created loop target participation = %#v, want local",
+			trigger.LoopTarget.NetworkParticipation,
+		)
 	}
 }
 
@@ -2864,9 +2972,8 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		}
 
 		updateResult, err := env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
-			"id":           created.ID,
-			"workspace_id": env.workspace.RootDir,
-			"prompt":       `Updated {{ index .Data "repo" }}`,
+			"id":     created.ID,
+			"prompt": `Updated {{ index .Data "repo" }}`,
 			"filter": map[string]string{
 				"data.repo": "acme/api",
 			},
@@ -3196,43 +3303,78 @@ func TestHostAPIHandlerTaskOperationsRequireCapabilities(t *testing.T) {
 func TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-tasks", []string{"tasks/create"}, []string{"task.write"})
+	t.Run("Should reject client-supplied identity fields under strict decode", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
-		"scope": taskpkg.ScopeGlobal,
-		"title": "Trusted extension task",
-		"created_by": map[string]any{
-			"kind": "human",
-			"ref":  "spoofed-user",
-		},
-		"origin": map[string]any{
-			"kind": "cli",
-			"ref":  "spoofed-origin",
-		},
+		tests := []struct {
+			name  string
+			field string
+			value map[string]any
+		}{
+			{
+				name:  "Should reject created_by independently",
+				field: "created_by",
+				value: map[string]any{"kind": "human", "ref": "spoofed-user"},
+			},
+			{
+				name:  "Should reject origin independently",
+				field: "origin",
+				value: map[string]any{"kind": "cli", "ref": "spoofed-origin"},
+			},
+		}
+		for _, testCase := range tests {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				env := newHostAPITestEnv(t)
+				env.grant("ext-tasks", []string{"tasks/create"}, []string{"task.write"})
+				params := map[string]any{
+					"scope": taskpkg.ScopeGlobal,
+					"title": "Spoofed extension task",
+				}
+				params[testCase.field] = testCase.value
+				_, err := env.call(t, "ext-tasks", "tasks/create", params)
+				if err == nil {
+					t.Fatalf("Handle(tasks/create with %s) error = nil, want invalid params", testCase.field)
+				}
+				assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+				assertErrorContains(t, err, testCase.field)
+			})
+		}
 	})
-	if err != nil {
-		t.Fatalf("Handle(tasks/create) error = %v", err)
-	}
 
-	var created apicontract.TaskPayload
-	decodeResult(t, result, &created)
-	stored, err := env.registry.GetTask(testutil.Context(t), created.ID)
-	if err != nil {
-		t.Fatalf("registry.GetTask(%q) error = %v", created.ID, err)
-	}
-	if got, want := stored.CreatedBy.Kind, taskpkg.ActorKindExtension; got != want {
-		t.Fatalf("stored.CreatedBy.Kind = %q, want %q", got, want)
-	}
-	if got, want := stored.CreatedBy.Ref, "ext-tasks"; got != want {
-		t.Fatalf("stored.CreatedBy.Ref = %q, want %q", got, want)
-	}
-	if got, want := stored.Origin.Kind, taskpkg.OriginKindExtension; got != want {
-		t.Fatalf("stored.Origin.Kind = %q, want %q", got, want)
-	}
-	if got, want := stored.Origin.Ref, "ext-tasks"; got != want {
-		t.Fatalf("stored.Origin.Ref = %q, want %q", got, want)
-	}
+	t.Run("Should stamp trusted extension identity on create", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		env.grant("ext-tasks", []string{"tasks/create"}, []string{"task.write"})
+		result, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
+			"scope": taskpkg.ScopeGlobal,
+			"title": "Trusted extension task",
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks/create) error = %v", err)
+		}
+
+		var created apicontract.TaskPayload
+		decodeResult(t, result, &created)
+		stored, err := env.registry.GetTask(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("registry.GetTask(%q) error = %v", created.ID, err)
+		}
+		if got, want := stored.CreatedBy.Kind, taskpkg.ActorKindExtension; got != want {
+			t.Fatalf("stored.CreatedBy.Kind = %q, want %q", got, want)
+		}
+		if got, want := stored.CreatedBy.Ref, "ext-tasks"; got != want {
+			t.Fatalf("stored.CreatedBy.Ref = %q, want %q", got, want)
+		}
+		if got, want := stored.Origin.Kind, taskpkg.OriginKindExtension; got != want {
+			t.Fatalf("stored.Origin.Kind = %q, want %q", got, want)
+		}
+		if got, want := stored.Origin.Ref, "ext-tasks"; got != want {
+			t.Fatalf("stored.Origin.Ref = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestHostAPIHandlerTaskRunStartRespectsManagerTransitions(t *testing.T) {
@@ -3292,7 +3434,6 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ops",
 		},
-		NetworkChannel: "tasks_ops",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.CreateTask(parent) error = %v", err)
@@ -3309,7 +3450,6 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ops",
 		},
-		NetworkChannel: "tasks_ops",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.CreateChildTask(filtered) error = %v", err)
@@ -3324,7 +3464,6 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ops",
 		},
-		NetworkChannel: "tasks_ops",
 	}, actor); err != nil {
 		t.Fatalf("tasks.CreateChildTask(draft) error = %v", err)
 	}
@@ -3337,7 +3476,6 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 			Kind: taskpkg.OwnerKindPool,
 			Ref:  "backlog",
 		},
-		NetworkChannel: "tasks_other",
 	}, actor); err != nil {
 		t.Fatalf("tasks.CreateChildTask(other) error = %v", err)
 	}
@@ -3367,16 +3505,15 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	listResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
-		"scope":           taskpkg.ScopeWorkspace,
-		"workspace":       env.workspaceID,
-		"priority":        taskpkg.PriorityHigh,
-		"approval_state":  taskpkg.ApprovalStatePending,
-		"owner_kind":      taskpkg.OwnerKindExtension,
-		"owner_ref":       "ops",
-		"parent_task_id":  parent.ID,
-		"network_channel": "tasks_ops",
-		"query":           "Filtered",
-		"limit":           10,
+		"scope":          taskpkg.ScopeWorkspace,
+		"workspace":      env.workspaceID,
+		"priority":       taskpkg.PriorityHigh,
+		"approval_state": taskpkg.ApprovalStatePending,
+		"owner_kind":     taskpkg.OwnerKindExtension,
+		"owner_ref":      "ops",
+		"parent_task_id": parent.ID,
+		"query":          "Filtered",
+		"limit":          10,
 	})
 	if err != nil {
 		t.Fatalf("Handle(tasks) error = %v", err)
@@ -3432,14 +3569,13 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	withDraftsResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
-		"scope":           taskpkg.ScopeWorkspace,
-		"workspace":       env.workspaceID,
-		"owner_kind":      taskpkg.OwnerKindExtension,
-		"owner_ref":       "ops",
-		"parent_task_id":  parent.ID,
-		"network_channel": "tasks_ops",
-		"include_drafts":  true,
-		"limit":           10,
+		"scope":          taskpkg.ScopeWorkspace,
+		"workspace":      env.workspaceID,
+		"owner_kind":     taskpkg.OwnerKindExtension,
+		"owner_ref":      "ops",
+		"parent_task_id": parent.ID,
+		"include_drafts": true,
+		"limit":          10,
 	})
 	if err != nil {
 		t.Fatalf("Handle(tasks include_drafts) error = %v", err)
@@ -3514,10 +3650,26 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
+	usageStore := &recordingHostAPINetworkUsageStore{
+		report: store.NetworkUsageReport{
+			Total: store.NetworkUsageSummary{
+				WakeCount:       1,
+				ActualWakeCount: 1,
+				ChargedWallTime: 3 * time.Second,
+				InputTokens:     321,
+				OutputTokens:    45,
+			},
+		},
+	}
+	env := newHostAPITestEnv(
+		t,
+		withHostAPITestLiveParticipation(),
+		withHostAPITestNetworkUsageStore(usageStore),
+	)
 	env.grant(
 		"ext-reader",
 		[]string{
+			"tasks",
 			"tasks/runs/get",
 			"tasks/timeline",
 			"tasks/tree",
@@ -3546,7 +3698,6 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ext-reader",
 		},
-		NetworkChannel: "builders",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.CreateChildTask(child) error = %v", err)
@@ -3566,24 +3717,50 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		t.Fatalf("tasks.CreateTask(approval) error = %v", err)
 	}
 
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	channelID := "builders"
 	queued, err := env.tasks.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
 		TaskID:         child.ID,
 		IdempotencyKey: "host-api-read-run",
-		NetworkChannel: "builders",
+		NetworkParticipation: &participation.Request{
+			Mode:            &mode,
+			ChannelStrategy: &strategy,
+			ChannelID:       &channelID,
+		},
+		NetworkParticipationSource: participation.SourceExplicitRequest,
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.EnqueueRun() error = %v", err)
 	}
-	if _, err := env.tasks.ClaimRun(testutil.Context(t), queued.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "host-api-read-claim",
-	}, actor); err != nil {
-		t.Fatalf("tasks.ClaimRun() error = %v", err)
-	}
+	seedHostAPIRunClaimed(t, env, queued.ID, "ext-reader")
 	started, err := env.tasks.StartRun(testutil.Context(t), queued.ID, taskpkg.StartRun{
 		IdempotencyKey: "host-api-read-start",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.StartRun() error = %v", err)
+	}
+	wantParticipation := started.NetworkSpecSnapshot()
+	if err := participation.ValidateSpec(wantParticipation); err != nil {
+		t.Fatalf("started run participation = %#v, want valid Live snapshot: %v", wantParticipation, err)
+	}
+
+	filteredResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
+		"participation_channel": channelID,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks participation channel filter) error = %v", err)
+	}
+	var filteredPage apicontract.TasksResponse
+	decodeResult(t, filteredResult, &filteredPage)
+	if got, want := len(filteredPage.Tasks), 1; got != want {
+		t.Fatalf("len(tasks participation channel filter) = %d, want %d", got, want)
+	}
+	if got, want := filteredPage.Tasks[0].ID, child.ID; got != want {
+		t.Fatalf("tasks participation channel filter id = %q, want %q", got, want)
+	}
+	if got := filteredPage.Tasks[0].ResolvedNetworkParticipation; got == nil || got.ChannelID != channelID {
+		t.Fatalf("tasks participation channel filter snapshot = %#v, want channel %q", got, channelID)
 	}
 
 	runDetailResult, err := env.call(t, "ext-reader", "tasks/runs/get", map[string]any{"id": started.ID})
@@ -3596,6 +3773,9 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if got, want := runDetail.Run.ID, started.ID; got != want {
 		t.Fatalf("tasks/runs/get.run.id = %q, want %q", got, want)
 	}
+	if runDetail.Task == nil {
+		t.Fatal("tasks/runs/get.task = nil, want child task")
+	}
 	if got, want := runDetail.Task.ID, child.ID; got != want {
 		t.Fatalf("tasks/runs/get.task.id = %q, want %q", got, want)
 	}
@@ -3604,6 +3784,27 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	}
 	if got, want := runDetail.Session.SessionID, started.SessionID; got != want {
 		t.Fatalf("tasks/runs/get.session.session_id = %q, want %q", got, want)
+	}
+	if got := runDetail.Run.ResolvedNetworkParticipation; got == nil || *got != wantParticipation {
+		t.Fatalf("tasks/runs/get.run.resolved_network_participation = %#v, want %#v", got, wantParticipation)
+	}
+	if runDetail.Network == nil {
+		t.Fatal("tasks/runs/get.network = nil, want Live conversation and usage")
+	}
+	conversation := runDetail.Network.Conversation
+	if conversation.WorkspaceID != env.workspaceID || conversation.Channel != channelID ||
+		conversation.Surface != store.NetworkSurfaceThread ||
+		conversation.ThreadID != apicontract.TaskRunConversationThreadID ||
+		conversation.StreamURL != "/api/task-runs/"+started.ID+"/conversation/stream" {
+		t.Fatalf("tasks/runs/get.network.conversation = %#v, want deterministic Live reference", conversation)
+	}
+	if got := runDetail.Network.Usage.Total; got.InputTokens != 321 || got.OutputTokens != 45 ||
+		got.ActualWakeCount != 1 || got.ChargedWallTime != "3s" {
+		t.Fatalf("tasks/runs/get.network.usage.total = %#v, want nonzero bound usage", got)
+	}
+	usageQuery := usageStore.lastQuery()
+	if usageQuery.WorkspaceID != env.workspaceID || usageQuery.RunID != started.ID {
+		t.Fatalf("tasks/runs/get usage query = %#v, want workspace/run fence", usageQuery)
 	}
 
 	timelineResult, err := env.call(t, "ext-reader", "tasks/timeline", map[string]any{
@@ -3619,10 +3820,18 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if len(timeline) == 0 {
 		t.Fatal("tasks/timeline len = 0, want task events")
 	}
-	if !slices.ContainsFunc(timeline, func(item apicontract.TaskTimelineItemPayload) bool {
-		return item.Task.ID == child.ID && item.Run != nil && item.Run.ID == started.ID
-	}) {
+	var timelineRun *apicontract.TaskRunSummaryPayload
+	for i := range timeline {
+		if timeline[i].Task.ID == child.ID && timeline[i].Run != nil && timeline[i].Run.ID == started.ID {
+			timelineRun = timeline[i].Run
+			break
+		}
+	}
+	if timelineRun == nil {
 		t.Fatal("tasks/timeline missing run-linked event for started run")
+	}
+	if got := timelineRun.ResolvedNetworkParticipation; got == nil || *got != wantParticipation {
+		t.Fatalf("tasks/timeline run participation = %#v, want %#v", got, wantParticipation)
 	}
 
 	treeResult, err := env.call(t, "ext-reader", "tasks/tree", map[string]any{"id": root.ID})
@@ -3635,10 +3844,19 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if got, want := tree.Root.Task.ID, root.ID; got != want {
 		t.Fatalf("tasks/tree.root.task.id = %q, want %q", got, want)
 	}
-	if !slices.ContainsFunc(tree.Descendants, func(node apicontract.TaskTreeNodePayload) bool {
-		return node.Task.ID == child.ID && node.ActiveRun != nil && node.ActiveRun.ID == started.ID
-	}) {
+	var treeRun *apicontract.TaskRunSummaryPayload
+	for i := range tree.Descendants {
+		if tree.Descendants[i].Task.ID == child.ID && tree.Descendants[i].ActiveRun != nil &&
+			tree.Descendants[i].ActiveRun.ID == started.ID {
+			treeRun = tree.Descendants[i].ActiveRun
+			break
+		}
+	}
+	if treeRun == nil {
 		t.Fatal("tasks/tree missing child node with active run")
+	}
+	if got := treeRun.ResolvedNetworkParticipation; got == nil || *got != wantParticipation {
+		t.Fatalf("tasks/tree active run participation = %#v, want %#v", got, wantParticipation)
 	}
 
 	dashboardResult, err := env.call(t, "ext-reader", "tasks/dashboard", map[string]any{
@@ -3654,10 +3872,22 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if dashboard.Totals.ActiveRuns < 1 {
 		t.Fatalf("tasks/dashboard active_runs = %d, want >= 1", dashboard.Totals.ActiveRuns)
 	}
-	if !slices.ContainsFunc(dashboard.ActiveRuns.Items, func(item apicontract.TaskDashboardActiveRunPayload) bool {
-		return item.RunID == started.ID && item.TaskID == child.ID
-	}) {
+	var dashboardRun *apicontract.TaskDashboardActiveRunPayload
+	for i := range dashboard.ActiveRuns.Items {
+		if dashboard.ActiveRuns.Items[i].RunID == started.ID &&
+			dashboard.ActiveRuns.Items[i].TaskID == child.ID {
+			dashboardRun = &dashboard.ActiveRuns.Items[i]
+			break
+		}
+	}
+	if dashboardRun == nil {
 		t.Fatal("tasks/dashboard active runs missing started run")
+	}
+	if got := dashboardRun.ResolvedNetworkParticipation; got == nil || *got != wantParticipation {
+		t.Fatalf("tasks/dashboard active run participation = %#v, want %#v", got, wantParticipation)
+	}
+	if dashboardRun.LatestEventSeq == 0 {
+		t.Fatal("tasks/dashboard active run latest_event_seq = 0, want durable stream fence")
 	}
 
 	inboxResult, err := env.call(t, "ext-reader", "tasks/inbox", map[string]any{
@@ -3699,7 +3929,6 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 		"priority":        taskpkg.PriorityLow,
 		"max_attempts":    2,
 		"approval_policy": taskpkg.ApprovalPolicyManual,
-		"network_channel": "tasks_initial",
 		"owner": map[string]any{
 			"kind": taskpkg.OwnerKindPool,
 			"ref":  "triage",
@@ -3720,7 +3949,6 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 		"priority":        taskpkg.PriorityHigh,
 		"max_attempts":    5,
 		"approval_policy": taskpkg.ApprovalPolicyNone,
-		"network_channel": "tasks_updated",
 		"owner": map[string]any{
 			"kind": taskpkg.OwnerKindExtension,
 			"ref":  "ext-writer",
@@ -3747,9 +3975,6 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 	}
 	if got, want := updated.ApprovalPolicy, taskpkg.ApprovalPolicyNone; got != want {
 		t.Fatalf("tasks/update approval_policy = %q, want %q", got, want)
-	}
-	if got, want := updated.NetworkChannel, "tasks_updated"; got != want {
-		t.Fatalf("tasks/update network_channel = %q, want %q", got, want)
 	}
 	if updated.Owner == nil {
 		t.Fatal("tasks/update owner = nil, want extension owner")
@@ -3817,7 +4042,6 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 			"tasks/create",
 			"tasks/runs",
 			"tasks/runs/enqueue",
-			"tasks/runs/claim",
 			"tasks/runs/attach_session",
 			"tasks/runs/start",
 			"tasks/runs/complete",
@@ -3862,20 +4086,6 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		return run
 	}
 
-	claimRun := func(runID string, idempotencyKey string) apicontract.TaskRunPayload {
-		t.Helper()
-
-		result, err := env.call(t, "ext-runs", "tasks/runs/claim", map[string]any{
-			"id":              runID,
-			"idempotency_key": idempotencyKey,
-		})
-		if err != nil {
-			t.Fatalf("Handle(tasks/runs/claim %q) error = %v", runID, err)
-		}
-		var run apicontract.TaskRunPayload
-		decodeResult(t, result, &run)
-		return run
-	}
 	assertMetadataPhase := func(label string, raw json.RawMessage, want string) {
 		t.Helper()
 
@@ -3894,13 +4104,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		"phase": "extension",
 	})
 	assertMetadataPhase("tasks/runs/enqueue", completedQueued.Metadata, "extension")
-	completedClaimed := claimRun(completedQueued.ID, "claim-complete")
-	if got, want := completedClaimed.Status, taskpkg.TaskRunStatusClaimed; got != want {
-		t.Fatalf("tasks/runs/claim status = %q, want %q", got, want)
-	}
-	if completedClaimed.ClaimedBy == nil {
-		t.Fatal("tasks/runs/claim claimed_by = nil, want extension actor")
-	}
+	seedHostAPIRunClaimed(t, env, completedQueued.ID, "ext-runs")
 
 	boundSession := env.createSession(t)
 	attachResult, err := env.call(t, "ext-runs", "tasks/runs/attach_session", map[string]any{
@@ -3950,7 +4154,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 
 	failedTask := createTask("Failed run task")
 	failedQueued := enqueueRun(failedTask.ID, "enqueue-fail", nil)
-	_ = claimRun(failedQueued.ID, "claim-fail")
+	seedHostAPIRunClaimed(t, env, failedQueued.ID, "ext-runs")
 	_, err = env.call(t, "ext-runs", "tasks/runs/start", map[string]any{
 		"id":              failedQueued.ID,
 		"idempotency_key": "start-fail",
@@ -3980,7 +4184,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 
 	cancelledTask := createTask("Canceled run task")
 	cancelledQueued := enqueueRun(cancelledTask.ID, "enqueue-cancel", nil)
-	_ = claimRun(cancelledQueued.ID, "claim-cancel")
+	seedHostAPIRunClaimed(t, env, cancelledQueued.ID, "ext-runs")
 	cancelRunResult, err := env.call(t, "ext-runs", "tasks/runs/cancel", map[string]any{
 		"id":     cancelledQueued.ID,
 		"reason": " no longer needed ",
@@ -4183,10 +4387,10 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 				name:   "ShouldRejectInvalidListChannel",
 				method: "tasks",
 				params: map[string]any{
-					"network_channel": "not valid",
+					"participation_channel": "not valid",
 				},
 				wantCode: HostAPIInvalidParamsCode,
-				wantText: "task_query.network_channel",
+				wantText: "task_query.participation_channel",
 			},
 			{
 				name:     "ShouldRequireUpdateChanges",
@@ -4212,9 +4416,9 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 			{
 				name:     "ShouldRejectInvalidDashboardChannel",
 				method:   "tasks/dashboard",
-				params:   map[string]any{"network_channel": "not valid"},
+				params:   map[string]any{"participation_channel": "not valid"},
 				wantCode: HostAPIInvalidParamsCode,
-				wantText: "task_dashboard_query.network_channel",
+				wantText: "task_dashboard_query.participation_channel",
 			},
 			{
 				name:     "ShouldRejectInvalidInboxLane",
@@ -4252,7 +4456,6 @@ func TestHostAPIHandlerTaskMethodsRequireIdentifiers(t *testing.T) {
 			"tasks/runs",
 			"tasks/runs/get",
 			"tasks/runs/enqueue",
-			"tasks/runs/claim",
 			"tasks/runs/start",
 			"tasks/runs/complete",
 			"tasks/runs/fail",
@@ -4311,12 +4514,6 @@ func TestHostAPIHandlerTaskMethodsRequireIdentifiers(t *testing.T) {
 			wantText: "task_id is required",
 		},
 		{
-			name:     "ShouldRequireTaskIDForRunClaim",
-			method:   "tasks/runs/claim",
-			params:   map[string]any{"idempotency_key": "idem"},
-			wantText: "id is required",
-		},
-		{
 			name:     "ShouldRequireTaskIDForRunStart",
 			method:   "tasks/runs/start",
 			params:   map[string]any{"idempotency_key": "idem"},
@@ -4367,7 +4564,6 @@ func TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords(t *testing.T) 
 			"tasks/cancel",
 			"tasks/runs",
 			"tasks/runs/get",
-			"tasks/runs/claim",
 			"tasks/runs/start",
 			"tasks/runs/attach_session",
 			"tasks/runs/complete",
@@ -4423,12 +4619,6 @@ func TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords(t *testing.T) 
 			name:     "ShouldReturnRunNotFoundForGetRun",
 			method:   "tasks/runs/get",
 			params:   map[string]any{"id": "run-missing"},
-			wantText: "task run not found",
-		},
-		{
-			name:     "ShouldReturnRunNotFoundForClaim",
-			method:   "tasks/runs/claim",
-			params:   map[string]any{"id": "run-missing", "idempotency_key": "idem"},
 			wantText: "task run not found",
 		},
 		{
@@ -4529,14 +4719,6 @@ func TestMapTaskRPCErrorTranslatesKnownErrors(t *testing.T) {
 			wantText: "permission denied",
 		},
 		{
-			name:     "ShouldMapStaleNetworkChannel",
-			resource: "task_run",
-			id:       "run-1",
-			err:      taskpkg.ErrStaleNetworkChannel,
-			wantCode: HostAPIInvalidParamsCode,
-			wantText: "stale network channel",
-		},
-		{
 			name:     "ShouldPassThroughUnknownErrors",
 			resource: "task",
 			id:       "task-1",
@@ -4628,7 +4810,10 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 		t.Fatalf("taskDetailPayloadFromView(nil).Task.ID = %q, want empty", zeroDetail.Task.ID)
 	}
 
-	zeroRunDetail := taskRunDetailPayloadFromView(nil)
+	zeroRunDetail, err := env.handler.taskRunDetailPayloadFromView(testutil.Context(t), nil)
+	if err != nil {
+		t.Fatalf("taskRunDetailPayloadFromView(nil) error = %v", err)
+	}
 	if zeroRunDetail.Run.ID != "" {
 		t.Fatalf("taskRunDetailPayloadFromView(nil).Run.ID = %q, want empty", zeroRunDetail.Run.ID)
 	}
@@ -4665,6 +4850,71 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 	}
 }
 
+func TestHostAPITaskPayloadsRedactRawClaimTokens(t *testing.T) {
+	t.Parallel()
+
+	view := taskpkg.View{
+		Summary: taskpkg.Summary{Title: "summary agh_claim_summary-secret"},
+		Task: taskpkg.Task{
+			Title:       "task agh_claim_title-secret",
+			Description: "description agh_claim_description-secret",
+			Metadata: json.RawMessage(
+				`{"keep":"safe","claim_token":"agh_claim_task-field","note":"agh_claim_task-value"}`,
+			),
+		},
+		Runs: []taskpkg.Run{{
+			Error:    "run failed with agh_claim_error-secret",
+			Metadata: json.RawMessage(`{"claim_token":"agh_claim_run-field","keep":"run-safe"}`),
+			Result:   json.RawMessage(`{"note":"agh_claim_result-secret"}`),
+		}},
+		Events: []taskpkg.Event{{
+			Payload: json.RawMessage(`{"note":"agh_claim_event-secret"}`),
+		}},
+	}
+	timeline := taskTimelineItemPayloadFromItem(taskpkg.TimelineItem{
+		Task:    taskpkg.Reference{Title: "timeline agh_claim_reference-secret"},
+		Run:     &taskpkg.RunSummary{Error: "summary agh_claim_run-summary-secret"},
+		Payload: json.RawMessage(`{"note":"agh_claim_timeline-secret"}`),
+	})
+	payload := struct {
+		Detail   apicontract.TaskDetailPayload       `json:"detail"`
+		Timeline apicontract.TaskTimelineItemPayload `json:"timeline"`
+	}{
+		Detail:   taskDetailPayloadFromView(&view),
+		Timeline: timeline,
+	}
+	content, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(task payloads) error = %v", err)
+	}
+	for _, secret := range []string{
+		"agh_claim_summary-secret",
+		"agh_claim_title-secret",
+		"agh_claim_description-secret",
+		"agh_claim_task-field",
+		"agh_claim_task-value",
+		"agh_claim_error-secret",
+		"agh_claim_run-field",
+		"agh_claim_result-secret",
+		"agh_claim_event-secret",
+		"agh_claim_reference-secret",
+		"agh_claim_run-summary-secret",
+		"agh_claim_timeline-secret",
+	} {
+		if strings.Contains(string(content), secret) {
+			t.Fatalf("Host task payloads exposed raw claim token %q: %s", secret, content)
+		}
+	}
+	if strings.Contains(string(content), `"claim_token"`) {
+		t.Fatalf("Host task payloads exposed raw claim token material: %s", content)
+	}
+	for _, want := range []string{`"keep":"safe"`, `"keep":"run-safe"`} {
+		if !strings.Contains(string(content), want) {
+			t.Fatalf("Host task payloads missing safe metadata %s: %s", want, content)
+		}
+	}
+}
+
 func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T) {
 	t.Parallel()
 
@@ -4681,7 +4931,7 @@ func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T)
 		"network_channel": "not valid",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "create_task.network_channel")
+	assertErrorContains(t, err, "network_channel")
 
 	createResult, err := env.call(t, "ext-invalid", "tasks/create", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
@@ -4709,7 +4959,7 @@ func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T)
 		"network_channel": "not valid",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "enqueue_run.network_channel")
+	assertErrorContains(t, err, "network_channel")
 }
 
 func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
@@ -4734,9 +4984,24 @@ func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "cancel_run.metadata")
 
+	query, err := taskRunQueryFromParams(apicontract.TaskRunListQuery{
+		ParticipationChannel: " builders ",
+		Limit:                2,
+	})
+	if err != nil {
+		t.Fatalf("taskRunQueryFromParams(valid) error = %v", err)
+	}
+	if query.ParticipationChannel != "builders" || query.Limit != 2 {
+		t.Fatalf("taskRunQueryFromParams(valid) = %#v, want shared run filters", query)
+	}
+
 	_, err = taskRunQueryFromParams(apicontract.TaskRunListQuery{Limit: -1})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "task_run_query.limit")
+
+	_, err = taskRunQueryFromParams(apicontract.TaskRunListQuery{ParticipationChannel: "not valid"})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	assertErrorContains(t, err, "task_run_query.participation_channel")
 
 	env := newHostAPITestEnv(t)
 	_, err = env.handler.taskQueryFromParams(testutil.Context(t), hostAPITasksParams{Limit: -1})
@@ -4765,11 +5030,129 @@ type hostAPITestEnv struct {
 	handler     *HostAPIHandler
 }
 
+func seedHostAPIRunClaimed(t *testing.T, env *hostAPITestEnv, runID string, extensionName string) taskpkg.Run {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	run, err := env.registry.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("registry.GetTaskRun(%q) error = %v", runID, err)
+	}
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{
+		Kind: taskpkg.ActorKindExtension,
+		Ref:  extensionName,
+	}
+	run.ClaimedAt = env.currentTime().UTC()
+	if err := env.registry.UpdateTaskRun(ctx, run); err != nil {
+		t.Fatalf("registry.UpdateTaskRun(%q) error = %v", runID, err)
+	}
+	return run
+}
+
 type hostAPITestEnvConfig struct {
-	hooks *hookspkg.Hooks
+	hooks             *hookspkg.Hooks
+	liveParticipation bool
+	networkUsage      store.NetworkUsageStore
+	loopStarter       automationpkg.LoopStarter
 }
 
 type hostAPITestEnvOption func(*hostAPITestEnvConfig)
+
+func withHostAPITestLiveParticipation() hostAPITestEnvOption {
+	return func(cfg *hostAPITestEnvConfig) {
+		cfg.liveParticipation = true
+	}
+}
+
+func withHostAPITestNetworkUsageStore(usageStore store.NetworkUsageStore) hostAPITestEnvOption {
+	return func(cfg *hostAPITestEnvConfig) {
+		cfg.networkUsage = usageStore
+	}
+}
+
+func withHostAPITestLoopStarter(starter automationpkg.LoopStarter) hostAPITestEnvOption {
+	return func(cfg *hostAPITestEnvConfig) {
+		cfg.loopStarter = starter
+	}
+}
+
+type hostAPITestLoopStarter struct{}
+
+func (*hostAPITestLoopStarter) ValidateLoopTarget(
+	context.Context,
+	automationpkg.LoopTargetValidationRequest,
+) error {
+	return nil
+}
+
+func (*hostAPITestLoopStarter) StartLoop(
+	context.Context,
+	automationpkg.LoopStartRequest,
+) (automationpkg.LoopStartResult, error) {
+	return automationpkg.LoopStartResult{RunID: "looprun-host-api"}, nil
+}
+
+func newHostAPITestParticipationResolver(t testing.TB) participation.Resolver {
+	t.Helper()
+
+	resolver, err := participation.NewResolver(participation.ResolverOptions{
+		Defaults: participation.Bounds{
+			MaxWakes:         4,
+			MaxWakeWallTime:  "30s",
+			MaxTotalWallTime: "2m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  4096,
+			MaxWakeDepth:     4,
+			CoalesceWindow:   "250ms",
+		},
+		Limits: participation.Limits{
+			MaxWakes:          16,
+			MaxWakeWallTime:   "2m",
+			MaxTotalWallTime:  "10m",
+			MaxInputTokens:    65536,
+			MaxOutputTokens:   65536,
+			MaxWakeDepth:      16,
+			MinCoalesceWindow: "100ms",
+			MaxCoalesceWindow: "5s",
+		},
+		Availability: func(context.Context) (bool, error) {
+			return true, nil
+		},
+		ChannelExists: func(context.Context, string, string) (bool, error) {
+			return true, nil
+		},
+		LiveSupport: func(context.Context, participation.ResolveInput) (bool, error) {
+			return true, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("participation.NewResolver() error = %v", err)
+	}
+	return resolver
+}
+
+type recordingHostAPINetworkUsageStore struct {
+	mu     sync.Mutex
+	report store.NetworkUsageReport
+	query  store.NetworkUsageQuery
+}
+
+func (s *recordingHostAPINetworkUsageStore) GetNetworkUsage(
+	_ context.Context,
+	query store.NetworkUsageQuery,
+) (store.NetworkUsageReport, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.query = query
+	return s.report, nil
+}
+
+func (s *recordingHostAPINetworkUsageStore) lastQuery() store.NetworkUsageQuery {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.query
+}
 
 type recordingHostAPIRecallProvider struct {
 	stubMemoryProvider
@@ -4831,11 +5214,12 @@ func (e *hostAPITestTaskSessionExecutor) StartTaskSession(
 		return nil, fmt.Errorf("%w: start task session spec is required", taskpkg.ErrValidation)
 	}
 
+	networkSpec := spec.Run.NetworkSpecSnapshot()
 	opts := session.CreateOpts{
-		AgentName: "coder",
-		Name:      "task:" + strings.TrimSpace(spec.Task.Title),
-		Channel:   strings.TrimSpace(spec.Run.NetworkChannel),
-		Type:      session.SessionTypeSystem,
+		AgentName:                    "coder",
+		Name:                         "task:" + strings.TrimSpace(spec.Task.Title),
+		ResolvedNetworkParticipation: &networkSpec,
+		Type:                         session.SessionTypeSystem,
 	}
 	switch spec.Task.Scope.Normalize() {
 	case taskpkg.ScopeWorkspace:
@@ -5048,7 +5432,7 @@ Review the workspace changes carefully.
 		}
 	})
 
-	sessions, err := session.NewManager(
+	sessionOptions := []session.Option{
 		session.WithHomePaths(homePaths),
 		session.WithDriver(driver),
 		session.WithNotifier(observer),
@@ -5059,7 +5443,14 @@ Review the workspace changes carefully.
 		session.WithNow(func() time.Time { return env.currentTime() }),
 		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),
 		session.WithTurnIDGenerator(sequentialSessionIDGenerator("turn")),
-	)
+	}
+	if cfg.liveParticipation {
+		sessionOptions = append(
+			sessionOptions,
+			session.WithParticipationResolver(newHostAPITestParticipationResolver(t)),
+		)
+	}
+	sessions, err := session.NewManager(sessionOptions...)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
@@ -5105,6 +5496,9 @@ Review the workspace changes carefully.
 	if cfg.hooks != nil {
 		automationOpts = append(automationOpts, automationpkg.WithHooks(cfg.hooks))
 	}
+	if cfg.loopStarter != nil {
+		automationOpts = append(automationOpts, automationpkg.WithLoopStarter(cfg.loopStarter))
+	}
 	automationManager, err := automationpkg.New(automationOpts...)
 	if err != nil {
 		t.Fatalf("automation.New() error = %v", err)
@@ -5118,14 +5512,21 @@ Review the workspace changes carefully.
 		}
 	})
 
-	taskManager, err := taskpkg.NewManager(
+	taskOptions := []taskpkg.Option{
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(&hostAPITestTaskSessionExecutor{
 			sessions:            sessions,
 			globalWorkspacePath: homePaths.HomeDir,
 		}),
 		taskpkg.WithManagerNow(func() time.Time { return env.currentTime() }),
-	)
+	}
+	if cfg.liveParticipation {
+		taskOptions = append(
+			taskOptions,
+			taskpkg.WithParticipationResolver(newHostAPITestParticipationResolver(t)),
+		)
+	}
+	taskManager, err := taskpkg.NewManager(taskOptions...)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
@@ -5143,6 +5544,7 @@ Review the workspace changes carefully.
 		WithHostAPIBridgeDedupStore(registry),
 		WithHostAPIResourceStore(resourceKernel),
 		WithHostAPIResourceCodecRegistry(resourceCodecs),
+		WithHostAPINetworkUsageStore(cfg.networkUsage),
 		WithHostAPINow(func() time.Time { return env.currentTime() }),
 		WithHostAPIBridgeIngressConfig(15*time.Minute, time.Minute),
 		WithHostAPIRateLimit(1000, 1000),
@@ -5885,6 +6287,7 @@ func mustStoredPromptEvent(t *testing.T, id string, sequence int64, event acp.Ag
 type promptSessionManagerStub struct {
 	promptFn func(context.Context, string, string) (<-chan acp.AgentEvent, error)
 	eventsFn func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	statusFn func(context.Context, string) (*session.Info, error)
 }
 
 func (s promptSessionManagerStub) Create(context.Context, session.CreateOpts) (*session.Session, error) {
@@ -5895,7 +6298,10 @@ func (s promptSessionManagerStub) ListAll(context.Context) ([]*session.Info, err
 	return nil, errors.New("unexpected list call")
 }
 
-func (s promptSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
+func (s promptSessionManagerStub) Status(ctx context.Context, id string) (*session.Info, error) {
+	if s.statusFn != nil {
+		return s.statusFn(ctx, id)
+	}
 	return nil, errors.New("unexpected status call")
 }
 

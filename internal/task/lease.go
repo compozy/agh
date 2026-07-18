@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	redactpkg "github.com/compozy/agh/internal/redact"
 )
 
@@ -45,19 +46,22 @@ var canonicalTaskIDTokenPattern = regexp.MustCompile(`\btask-[A-Za-z0-9][A-Za-z0
 
 // ClaimCriteria captures the atomic next-work filters for one claiming session.
 type ClaimCriteria struct {
-	RunID                 string               `json:"run_id,omitempty"`
-	Scope                 Scope                `json:"scope,omitempty"`
-	WorkspaceID           string               `json:"workspace_id,omitempty"`
-	RunKind               RunKind              `json:"run_kind,omitempty"`
-	ClaimerSessionID      string               `json:"claimer_session_id"`
-	ClaimedBy             *ActorIdentity       `json:"claimed_by,omitempty"`
-	AgentName             string               `json:"agent_name,omitempty"`
-	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
-	PriorityMin           int                  `json:"priority_min,omitempty"`
-	CoordinationChannelID string               `json:"coordination_channel_id,omitempty"`
-	Soul                  *SoulClaimProvenance `json:"soul,omitempty"`
-	LeaseDuration         time.Duration        `json:"lease_duration"`
-	Now                   time.Time            `json:"now"`
+	RunID                string         `json:"run_id,omitempty"`
+	Scope                Scope          `json:"scope,omitempty"`
+	WorkspaceID          string         `json:"workspace_id,omitempty"`
+	RunKind              RunKind        `json:"run_kind,omitempty"`
+	TargetSessionID      string         `json:"target_session_id,omitempty"`
+	ClaimerSessionID     string         `json:"claimer_session_id"`
+	ClaimedBy            *ActorIdentity `json:"claimed_by,omitempty"`
+	AgentName            string         `json:"agent_name,omitempty"`
+	RequiredCapabilities []string       `json:"required_capabilities,omitempty"`
+	PriorityMin          int            `json:"priority_min,omitempty"`
+	ParticipationChannel string         `json:"participation_channel,omitempty"`
+	// CallerNetworkParticipation is trusted hook context, never run-selection input.
+	CallerNetworkParticipation *participation.Spec  `json:"-"`
+	Soul                       *SoulClaimProvenance `json:"soul,omitempty"`
+	LeaseDuration              time.Duration        `json:"lease_duration"`
+	Now                        time.Time            `json:"now"`
 }
 
 // SoulClaimProvenance captures pre-resolved session Soul data at claim time.
@@ -71,7 +75,6 @@ type SoulClaimProvenance struct {
 // CoordinationChannelMetadata is the safe channel display metadata returned with a claim.
 type CoordinationChannelMetadata struct {
 	ID                  string    `json:"id"`
-	Channel             string    `json:"channel,omitempty"`
 	DisplayName         string    `json:"display_name"`
 	Purpose             string    `json:"purpose,omitempty"`
 	WorkspaceID         string    `json:"workspace_id,omitempty"`
@@ -84,7 +87,7 @@ type CoordinationChannelMetadata struct {
 
 // ClaimResult is the successful synchronous claim result. ClaimToken is raw and must not cross public surfaces.
 type ClaimResult struct {
-	Task                Task                         `json:"task"`
+	Task                *Task                        `json:"task,omitempty"`
 	Run                 Run                          `json:"run"`
 	ClaimToken          string                       `json:"claim_token"`
 	LeaseUntil          time.Time                    `json:"lease_until"`
@@ -98,14 +101,16 @@ type LeaseHeartbeat struct {
 	LeaseDuration time.Duration `json:"lease_duration"`
 	Now           time.Time     `json:"now"`
 	TokensUsed    int64         `json:"tokens_used,omitempty"`
+	Actor         ActorContext  `json:"-"`
 }
 
 // LeaseRelease captures a token-fenced release request.
 type LeaseRelease struct {
-	RunID      string    `json:"run_id"`
-	ClaimToken string    `json:"claim_token"`
-	Reason     string    `json:"reason,omitempty"`
-	Now        time.Time `json:"now"`
+	RunID      string       `json:"run_id"`
+	ClaimToken string       `json:"claim_token"`
+	Reason     string       `json:"reason,omitempty"`
+	Now        time.Time    `json:"now"`
+	Actor      ActorContext `json:"-"`
 }
 
 // LeaseCompletion captures a token-fenced successful terminal transition.

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
 import { agentFixtures } from "@/systems/agent/mocks";
+import type { NetworkParticipationDraft } from "@/systems/network";
 import type {
   RuntimeModelOption,
   RuntimeProviderOption,
@@ -62,6 +63,17 @@ const runtimeValue = {
   reasoning_effort: "high",
 } satisfies RuntimeSelectorValue;
 
+const localParticipation = {
+  mode: "local",
+  channelStrategy: "",
+  channelId: "",
+} satisfies NetworkParticipationDraft;
+const liveParticipation = {
+  mode: "live",
+  channelStrategy: "named",
+  channelId: "release-room",
+} satisfies NetworkParticipationDraft;
+
 const baseArgs = {
   open: true,
   onOpenChange: fn(),
@@ -80,8 +92,10 @@ const baseArgs = {
   providersLoading: false,
   providersError: null,
   hasProviderOptions: true,
+  networkParticipation: localParticipation,
   onAgentChange: fn(),
   onRuntimeChange: fn(),
+  onNetworkParticipationChange: fn(),
   onCatalogRefresh: fn(),
   onOpenProviderSettings: fn(),
   onSubmit: fn(),
@@ -131,6 +145,16 @@ export const SubmitError: Story = {
   args: {
     ...baseArgs,
     submitError: "Provider codex rejected the selected reasoning effort.",
+  },
+};
+
+/**
+ * Explicit Live participation exposes only the named strategy accepted by Session creation.
+ */
+export const LiveParticipation: Story = {
+  args: {
+    ...baseArgs,
+    networkParticipation: liveParticipation,
   },
 };
 

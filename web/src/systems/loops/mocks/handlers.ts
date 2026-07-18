@@ -1,5 +1,10 @@
 import { HttpResponse, type HttpHandler } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
+import {
+  buildLiveNetworkParticipationFixture,
+  buildLocalNetworkParticipationFixture,
+  type ResolvedNetworkParticipationFixture,
+} from "@/test/network-participation-fixtures";
 import type {
   LoopAnnotationsUpdateRequest,
   LoopConfigUpdateRequest,
@@ -218,43 +223,84 @@ export const handlers: HttpHandler[] = [
     const body = (await request.json().catch(() => ({}))) as Partial<LoopAnnotationsUpdateRequest>;
     return HttpResponse.json({ annotations: body.annotations ?? loopAnnotationsFixture });
   }),
-  aghApiMock.post("/api/workspaces/{workspace_id}/loops/{name}/run", ({ request, params }) => {
-    const url = new URL(request.url);
-    const name = String(params.name);
-    const entry = catalogByName.get(name);
-    if (!entry) {
-      return HttpResponse.json({ error: `Loop not found: ${name}` }, { status: 404 });
-    }
-    const detail = entry.last_run ? loopRunDetailByRunId.get(entry.last_run.id) : undefined;
-    if (url.searchParams.get("dry") === "true") {
-      return HttpResponse.json({
-        dry_run: {
-          loop_name: name,
-          generation: 1,
-          resolved_inputs: {},
-          contract: entry.contract,
-          nodes: [{ id: "plan", kind: "run-agent", class: "action" }],
-          effective_config: {
-            iteration_cap: 12,
-            budget_tokens: 500_000,
-            budget_wall_sec: 3_600,
-            budget_on_exceeded: "halt",
-            fan_out_width: 4,
-            gate_max_revisions: 3,
-            human_gate_enabled: true,
-            model_defaults: { judge: "claude", worker: "codex" },
-            no_progress_window: 3,
-            reattempt_strategy: "failed_only",
-            enabled_checks_json: null,
+  aghApiMock.post(
+    "/api/workspaces/{workspace_id}/loops/{name}/run",
+    async ({ request, params }) => {
+      const url = new URL(request.url);
+      const name = String(params.name);
+      const workspaceId = String(params.workspace_id);
+      const entry = catalogByName.get(name);
+      if (!entry) {
+        return HttpResponse.json({ error: `Loop not found: ${name}` }, { status: 404 });
+      }
+      const detail = entry.last_run ? loopRunDetailByRunId.get(entry.last_run.id) : undefined;
+      const body = (await request.json().catch(() => ({}))) as {
+        network_participation?: {
+          mode?: string | null;
+          channel_id?: string | null;
+          channel_strategy?: string | null;
+        } | null;
+      };
+      const requested = body.network_participation;
+      let resolvedParticipation: ResolvedNetworkParticipationFixture =
+        buildLocalNetworkParticipationFixture();
+      if (requested?.mode === "live") {
+        const strategy = requested.channel_strategy;
+        const channelId = requested.channel_id?.trim() ?? "";
+        if (strategy === "named" && channelId) {
+          resolvedParticipation = buildLiveNetworkParticipationFixture({ workspaceId, channelId });
+        } else if (strategy === "loop_run") {
+          resolvedParticipation = buildLiveNetworkParticipationFixture({
+            workspaceId,
+            channelId: `loop-${detail?.run.id ?? name}`,
+            channelStrategy: "loop_run",
+          });
+        } else {
+          return HttpResponse.json(
+            { error: "Loop Live participation requires named or loop_run strategy." },
+            { status: 422 }
+          );
+        }
+      }
+      if (url.searchParams.get("dry") === "true") {
+        return HttpResponse.json({
+          dry_run: {
+            loop_name: name,
+            generation: 1,
+            resolved_inputs: {},
+            resolved_network_participation: resolvedParticipation,
+            contract: entry.contract,
+            nodes: [{ id: "plan", kind: "run-agent", class: "action" }],
+            effective_config: {
+              iteration_cap: 12,
+              budget_tokens: 500_000,
+              budget_wall_sec: 3_600,
+              budget_on_exceeded: "halt",
+              fan_out_width: 4,
+              gate_max_revisions: 3,
+              human_gate_enabled: true,
+              model_defaults: { judge: "claude", worker: "codex" },
+              no_progress_window: 3,
+              reattempt_strategy: "failed_only",
+              enabled_checks_json: null,
+            },
+          },
+        });
+      }
+      if (!detail) {
+        return HttpResponse.json({ error: `Loop run not found for ${name}` }, { status: 404 });
+      }
+      return HttpResponse.json(
+        {
+          run: {
+            ...detail.run,
+            resolved_network_participation: resolvedParticipation,
           },
         },
-      });
+        { status: 201 }
+      );
     }
-    if (!detail) {
-      return HttpResponse.json({ error: `Loop run not found for ${name}` }, { status: 404 });
-    }
-    return HttpResponse.json({ run: detail?.run }, { status: 201 });
-  }),
+  ),
   aghApiMock.post("/api/workspaces/{workspace_id}/loops/{name}/validate", async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as {
       definition?: { graph?: { nodes?: unknown[]; edges?: unknown[] } };

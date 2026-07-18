@@ -1,9 +1,7 @@
 import { DetailHeader, Eyebrow } from "@agh/ui";
 
-import { cn } from "@/lib/utils";
-
 import { formatNetworkPresenceLabel } from "../../lib/network-formatters";
-import type { NetworkPresence, NetworkPresenceState } from "../../types";
+import type { NetworkPresence } from "../../types";
 import { DetailComposer } from "../composer/detail-composer";
 import { ConversationError } from "../empty-states/conversation-error";
 import { DirectEmpty } from "../empty-states/direct-empty";
@@ -18,48 +16,26 @@ export interface DirectRoomProps {
   channel: string;
   directId: string;
   /** Used to render the *other* party's identity at the top per `_design.md` §5.6. */
-  selfPeerId?: string;
+  selfSessionId?: string;
 }
 
 interface PresenceBadgeProps {
   presence: NetworkPresence;
 }
 
-function presenceDotTone(state: NetworkPresenceState): string {
-  switch (state) {
-    case "local":
-      return "bg-info";
-    case "active":
-      return "bg-success";
-    case "inactive":
-      return "bg-warning";
-    case "expired":
-      return "bg-danger";
-    default:
-      return "bg-muted";
-  }
-}
-
 function PresenceBadge({ presence }: PresenceBadgeProps) {
-  const label = formatNetworkPresenceLabel(presence.state, presence.lastSeenAgeSeconds);
+  const label = formatNetworkPresenceLabel(presence.state);
   return (
     <span
       aria-label={`peer presence ${label}`}
-      className={cn(
-        "inline-flex min-w-0 items-center gap-1 text-form-label text-muted",
-        presence.state === "active" && "text-fg"
-      )}
+      className="inline-flex min-w-0 items-center gap-1 text-form-label text-muted"
       data-state={presence.state}
       data-testid="network-direct-presence"
-      title="Derived from network greet activity: active within GreetInterval, inactive within the 2x window."
+      title="This peer is joined to the local daemon."
     >
       <span
         aria-hidden="true"
-        className={cn(
-          "inline-block size-1.5 shrink-0 rounded-full",
-          presenceDotTone(presence.state),
-          presence.state === "active" && "motion-safe:animate-pulse"
-        )}
+        className="inline-block size-1.5 shrink-0 rounded-full bg-info"
         data-testid="network-direct-presence-dot"
       />
       <span className="min-w-0 truncate">{label}</span>
@@ -67,8 +43,8 @@ function PresenceBadge({ presence }: PresenceBadgeProps) {
   );
 }
 
-export function DirectRoom({ workspaceId, channel, directId, selfPeerId }: DirectRoomProps) {
-  const view = useDirectRoomView({ workspaceId, channel, directId, selfPeerId });
+export function DirectRoom({ workspaceId, channel, directId, selfSessionId }: DirectRoomProps) {
+  const view = useDirectRoomView({ workspaceId, channel, directId, selfSessionId });
   const { room, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
   const otherPeerId = room.otherPeerId;
   const detailError = room.detailError;

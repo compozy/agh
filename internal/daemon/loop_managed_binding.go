@@ -63,25 +63,12 @@ func (b *loopActionSessionBinder) BindActionSession(
 		return looppkg.ActionSessionBinding{}, err
 	}
 	if activeFound {
-		if err := b.validateActiveBindingPolicy(ctx, req, active); err != nil {
-			return looppkg.ActionSessionBinding{}, err
-		}
-		if active.Ownership == goalpkg.BindingOwnershipOriginBorrowed &&
-			strings.TrimSpace(req.OriginSessionID) != "" {
-			return b.adoptOriginBinding(ctx, req, key)
-		}
-		if active.BindingEpoch >= req.TargetBindingEpoch {
-			return actionBindingFromGoal(req, active), nil
-		}
-		if req.TargetBindingEpoch != active.BindingEpoch+1 {
-			return looppkg.ActionSessionBinding{}, bindingMismatch("requested binding epoch skips the active epoch")
+		binding, handled, err := b.bindFromActiveSession(ctx, req, key, active)
+		if err != nil || handled {
+			return binding, err
 		}
 	}
-
-	if !activeFound && strings.TrimSpace(req.OriginSessionID) != "" {
-		return b.adoptOriginBinding(ctx, req, key)
-	}
-	return b.ensureRunOwnedBinding(ctx, creator, req, key, active, activeFound)
+	return b.bindMissingOrAdvancedSession(ctx, creator, req, key, active, activeFound)
 }
 
 func (b *loopActionSessionBinder) bindEphemeralActionSession(

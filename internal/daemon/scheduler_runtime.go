@@ -265,14 +265,6 @@ func (r *schedulerRuntime) shutdownWaker(ctx context.Context) error {
 	return r.waker.shutdown(ctx)
 }
 
-func (s schedulerTaskSource) ActiveRuns(ctx context.Context) ([]taskpkg.Run, error) {
-	return s.store.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{
-		taskpkg.TaskRunStatusClaimed,
-		taskpkg.TaskRunStatusStarting,
-		taskpkg.TaskRunStatusRunning,
-	})
-}
-
 func (s schedulerTaskSource) RecoverExpiredRunLeases(
 	ctx context.Context,
 	recovery taskpkg.ExpiredLeaseRecovery,

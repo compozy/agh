@@ -142,11 +142,13 @@ func (o HookRunOutcome) Validate() error {
 
 // NetworkMatcher narrows network observation hooks by low-cardinality fields.
 type NetworkMatcher struct {
-	Channel   string `json:"channel,omitempty"    yaml:"channel,omitempty"`
-	Surface   string `json:"surface,omitempty"    yaml:"surface,omitempty"`
-	Kind      string `json:"kind,omitempty"       yaml:"kind,omitempty"`
-	Direction string `json:"direction,omitempty"  yaml:"direction,omitempty"`
-	WorkState string `json:"work_state,omitempty" yaml:"work_state,omitempty"`
+	Channel             string `json:"channel,omitempty"              yaml:"channel,omitempty"`
+	Surface             string `json:"surface,omitempty"              yaml:"surface,omitempty"`
+	Kind                string `json:"kind,omitempty"                 yaml:"kind,omitempty"`
+	Direction           string `json:"direction,omitempty"            yaml:"direction,omitempty"`
+	WorkState           string `json:"work_state,omitempty"           yaml:"work_state,omitempty"`
+	ParticipationMode   string `json:"participation_mode,omitempty"   yaml:"participation_mode,omitempty"`
+	ParticipationSource string `json:"participation_source,omitempty" yaml:"participation_source,omitempty"`
 }
 
 // CompactionMatcher narrows context-compaction hooks by compaction metadata.
@@ -182,19 +184,19 @@ type HookMatcher struct {
 
 // AutonomyMatcher narrows autonomy hooks by task, coordinator, and spawn correlation fields.
 type AutonomyMatcher struct {
-	TaskID                string `json:"task_id,omitempty"                 yaml:"task_id,omitempty"`
-	RunID                 string `json:"run_id,omitempty"                  yaml:"run_id,omitempty"`
-	LoopRunID             string `json:"loop_run_id,omitempty"             yaml:"loop_run_id,omitempty"`
-	LoopName              string `json:"loop_name,omitempty"               yaml:"loop_name,omitempty"`
-	NodeID                string `json:"node_id,omitempty"                 yaml:"node_id,omitempty"`
-	WorkflowID            string `json:"workflow_id,omitempty"             yaml:"workflow_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty" yaml:"coordination_channel_id,omitempty"`
-	CoordinatorSessionID  string `json:"coordinator_session_id,omitempty"  yaml:"coordinator_session_id,omitempty"`
-	ParentSessionID       string `json:"parent_session_id,omitempty"       yaml:"parent_session_id,omitempty"`
-	RootSessionID         string `json:"root_session_id,omitempty"         yaml:"root_session_id,omitempty"`
-	ChildSessionID        string `json:"child_session_id,omitempty"        yaml:"child_session_id,omitempty"`
-	SpawnRole             string `json:"spawn_role,omitempty"              yaml:"spawn_role,omitempty"`
-	ReleaseReason         string `json:"release_reason,omitempty"          yaml:"release_reason,omitempty"`
+	TaskID               string `json:"task_id,omitempty"                yaml:"task_id,omitempty"`
+	RunID                string `json:"run_id,omitempty"                 yaml:"run_id,omitempty"`
+	LoopRunID            string `json:"loop_run_id,omitempty"            yaml:"loop_run_id,omitempty"`
+	LoopName             string `json:"loop_name,omitempty"              yaml:"loop_name,omitempty"`
+	NodeID               string `json:"node_id,omitempty"                yaml:"node_id,omitempty"`
+	WorkflowID           string `json:"workflow_id,omitempty"            yaml:"workflow_id,omitempty"`
+	ParticipationChannel string `json:"participation_channel,omitempty"  yaml:"participation_channel,omitempty"`
+	CoordinatorSessionID string `json:"coordinator_session_id,omitempty" yaml:"coordinator_session_id,omitempty"`
+	ParentSessionID      string `json:"parent_session_id,omitempty"      yaml:"parent_session_id,omitempty"`
+	RootSessionID        string `json:"root_session_id,omitempty"        yaml:"root_session_id,omitempty"`
+	ChildSessionID       string `json:"child_session_id,omitempty"       yaml:"child_session_id,omitempty"`
+	SpawnRole            string `json:"spawn_role,omitempty"             yaml:"spawn_role,omitempty"`
+	ReleaseReason        string `json:"release_reason,omitempty"         yaml:"release_reason,omitempty"`
 }
 
 // HookDecl is the declarative record supplied by config, agent definitions, or skills.

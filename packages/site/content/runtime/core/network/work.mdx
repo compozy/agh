@@ -12,6 +12,9 @@ containers.
 ID, a claim token, or a queue ownership token. The runtime [task domain](/runtime/core/autonomy/task-runs-and-leases)
 remains the only durable owner of claim, lease, heartbeat, complete, fail, and release transitions.
 
+It is also not a Live wake reservation. Network wake runs use the canonical `task_runs` substrate
+and an accounting ledger; conversation `work_id` never becomes their claim or usage identity.
+
 ## Lifecycle states
 
 Work moves through six states. Three are terminal:
@@ -101,5 +104,5 @@ agh network status -o json
 - [Protocol Model](/runtime/core/network/protocol) defines the wire shape.
 - [Work Lifecycle](/protocol/interactions) is the protocol-side reference for state transitions
   and conversation-container binding.
-- [Task Ingress](/runtime/core/network/task-ingress) explains how authenticated peers map to the
-  durable task domain. `work_id` and `task_runs.id` are intentionally distinct.
+- [Task Promotion](/runtime/core/network/task-promotion) explains the explicit thread-to-task
+  transition. `work_id` and `task_runs.id` are intentionally distinct.

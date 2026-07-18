@@ -1,11 +1,9 @@
 package task
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-
 	"strings"
 )
 
@@ -17,60 +15,6 @@ func nextRunAttempt(runs []Run) int {
 		}
 	}
 	return maxAttempt + 1
-}
-
-func (m *Service) validateNetworkChannel(path string, channel string) error {
-	if m == nil || m.channelValidator == nil {
-		return nil
-	}
-
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return nil
-	}
-	if err := m.channelValidator(trimmed); err != nil {
-		return fmt.Errorf("%w: %s: %w", ErrValidation, path, err)
-	}
-	return nil
-}
-
-func (m *Service) validateRunChannelUsable(
-	ctx context.Context,
-	taskRecord Task,
-	run Run,
-	actor ActorContext,
-	operation string,
-) error {
-	channel := resolvedRunChannel(run.NetworkChannel, taskRecord.NetworkChannel)
-	if strings.TrimSpace(channel) == "" {
-		return nil
-	}
-	if err := m.validateNetworkChannel("task_run.network_channel", channel); err == nil {
-		return nil
-	}
-
-	rejectedErr := fmt.Errorf(
-		"%w: task %q run %q channel %q is no longer valid",
-		ErrStaleNetworkChannel,
-		taskRecord.ID,
-		run.ID,
-		strings.TrimSpace(channel),
-	)
-	if recordErr := m.recordTaskEvent(ctx, taskRecord.ID, run.ID, taskEventRunRejected, actor, rejectedRunPayload{
-		Operation:      strings.TrimSpace(operation),
-		Reason:         "stale_network_channel",
-		NetworkChannel: strings.TrimSpace(channel),
-	}); recordErr != nil {
-		return errorsJoin(rejectedErr, recordErr)
-	}
-	return rejectedErr
-}
-
-func resolvedRunChannel(requested string, taskChannel string) string {
-	if strings.TrimSpace(requested) != "" {
-		return strings.TrimSpace(requested)
-	}
-	return strings.TrimSpace(taskChannel)
 }
 
 func errorsJoin(errs ...error) error {

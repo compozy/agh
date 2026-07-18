@@ -1,7 +1,7 @@
 import { Network as NetworkIcon } from "lucide-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
+import { Spinner, useTopbarSlot } from "@agh/ui";
 
 import type { TopbarRouteContext } from "@/types/topbar";
 import {
@@ -85,7 +85,7 @@ function NetworkRouteShell() {
           className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
           data-testid="network-disabled-state"
         >
-          <NetworkEmpty onOpenSettings={view.networkCreate.openNetworkSettings} />
+          <NetworkEmpty disabledByAdmin onOpenSettings={view.networkCreate.openNetworkSettings} />
         </div>
         {view.networkCreate.dialog}
       </>
@@ -115,7 +115,7 @@ function NetworkRouteShell() {
             recents={[]}
             rightRailMode="thread"
             rightRailOpen={false}
-            selfPeerId={null}
+            selfSessionId={null}
             threadCount={null}
             unpinnedChannels={[]}
           >
@@ -123,11 +123,9 @@ function NetworkRouteShell() {
               className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
               data-testid="network-no-channels-state"
             >
-              <Empty
+              <NetworkEmpty
                 className="max-w-xl"
-                description="Create one or accept an invite."
-                icon={NetworkIcon}
-                title="No channels yet."
+                onOpenSettings={view.networkCreate.openNetworkSettings}
               />
             </div>
           </NetworkShell>
@@ -192,7 +190,7 @@ function NetworkRouteShell() {
           rightRailContent={rightRailContent}
           rightRailMode={view.showOverlayInRightRail ? "thread" : "inspector"}
           rightRailOpen={view.showOverlayInRightRail || showInspectorInRightRail}
-          selfPeerId={view.railView.session.session?.peerId ?? null}
+          selfSessionId={view.railView.session.session?.sessionId ?? null}
           threadCount={threadCount}
           unpinnedChannels={page.unpinnedChannels}
         >

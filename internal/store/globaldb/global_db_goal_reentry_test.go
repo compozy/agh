@@ -43,7 +43,6 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 			initialRunID,
 			looppkg.GoalSegmentIdempotencyKey(loopRun.ID, 1, "converge", 0, 1),
 			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-			"",
 			metadata,
 			now,
 		)

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"maps"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -167,6 +168,7 @@ func cloneJobTaskConfig(config *JobTaskConfig) *JobTaskConfig {
 		owner := *config.Owner
 		cloned.Owner = &owner
 	}
+	cloned.NetworkParticipation = cloneParticipationRequest(config.NetworkParticipation)
 	return &cloned
 }
 
@@ -179,7 +181,7 @@ func sameJobTaskConfig(left *JobTaskConfig, right *JobTaskConfig) bool {
 	default:
 		return left.Title == right.Title &&
 			left.Description == right.Description &&
-			left.NetworkChannel == right.NetworkChannel &&
+			reflect.DeepEqual(left.NetworkParticipation, right.NetworkParticipation) &&
 			sameTaskOwnership(left.Owner, right.Owner)
 	}
 }

@@ -30,6 +30,7 @@ import (
 	localprovider "github.com/compozy/agh/internal/memory/provider/local"
 	"github.com/compozy/agh/internal/memory/provider/local/memstore"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/notifications"
 	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 	"github.com/compozy/agh/internal/observe"
@@ -94,6 +95,8 @@ type bootState struct {
 	scheduler              *schedulerRuntime
 	coordinator            *coordinatorRuntime
 	network                networkRuntime
+	networkWakeRunner      *networkWakeRunner
+	participationResolver  participation.Resolver
 	toolRegistry           toolspkg.Registry
 	toolsets               core.ToolsetRegistry
 	toolApprovals          toolspkg.ApprovalTokenIssuer
@@ -261,7 +264,6 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		SkillsAugmenter:                     state.skillsRegistry != nil,
 		SituationAugmenter:                  state.situationContext != nil,
 		DurableMemoryAugmenter:              state.memoryStore != nil,
-		NetworkResponseRegisterAugmenter:    state.cfg.Network.ResponseGuidanceMaxBytes > 0,
 		SyntheticTurnsEnabled:               true,
 		DetachedTaskRuntimeEnabled:          true,
 	})
@@ -273,7 +275,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 				prependProviders,
 				appendProviders,
 				state.situationContext,
-				state.cfg.Network.ResponseGuidanceMaxBytes,
+				0,
 			)...,
 		),
 	)
@@ -285,19 +287,6 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		}),
 		state.situationContext.Augment,
 	)
-	if state.cfg.Network.ResponseGuidanceMaxBytes > 0 {
-		promptAugmenterDescriptors = append(
-			promptAugmenterDescriptors,
-			promptInputAugmenterDescriptor{
-				Name:           HarnessAugmenterNetworkResponseRegister,
-				Order:          networkResponseAugmenterOrder,
-				Budget:         state.cfg.Network.ResponseGuidanceMaxBytes,
-				BudgetBehavior: promptInputAugmenterBudgetBehaviorTrim,
-				Critical:       false,
-				Augmenter:      newNetworkResponseRegisterAugmenter(),
-			},
-		)
-	}
 	promptAugmenter, err := newPromptInputCompositeAugmenter(
 		state.logger,
 		state.harnessResolver,
@@ -497,6 +486,9 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
 	state.registry = registry
+	if err := reconcileBootNetworkAvailability(ctx, state); err != nil {
+		return err
+	}
 	if state.skillsRegistry != nil {
 		state.skillsRegistry.SetEventSummaryStore(registry)
 	}
@@ -647,6 +639,11 @@ func (d *Daemon) bootMemorySessionRuntime(ctx context.Context, state *bootState)
 		return err
 	}
 	state.ledgerMaterializer = ledgerMaterializer
+	resolver, err := ensureDaemonParticipationResolver(state, state.registry)
+	if err != nil {
+		return err
+	}
+	state.participationResolver = resolver
 
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
 	if err != nil {
@@ -1136,47 +1133,6 @@ func (d *Daemon) bootResourceReconcile(
 	return nil
 }
 
-func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	if state == nil {
-		return errors.New("daemon: boot network state is required")
-	}
-	if !state.cfg.Network.Enabled {
-		return nil
-	}
-	if state.sessions == nil {
-		return errors.New("daemon: session manager is required before booting network")
-	}
-
-	bindable, ok := state.sessions.(networkBindableSessionManager)
-	if !ok {
-		return errMissingNetworkBindingSurface
-	}
-
-	manager, err := network.NewManager(
-		ctx,
-		state.cfg.Network,
-		bindable,
-		d.homePaths.NetworkAuditFile,
-		state.registry,
-		network.WithManagerLogger(state.logger),
-		network.WithManagerTaskService(state.deps.Tasks),
-		network.WithManagerHookDispatcher(state.notifier),
-	)
-	if err != nil {
-		return fmt.Errorf("daemon: create network manager: %w", err)
-	}
-
-	bindable.SetNetworkPeerLifecycle(manager)
-	bindable.SetTurnEndNotifier(manager.OnTurnEnd)
-	cleanup.add(func(ctx context.Context) error {
-		return manager.Shutdown(ctx)
-	})
-
-	state.network = manager
-	state.deps.Network = manager
-	return nil
-}
-
 func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil {
 		return errors.New("daemon: hook boot state is required")
@@ -1241,6 +1197,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	state.hooks = hooks
 	state.hookDispatcher = hooks
 	state.hookBindings = hookBindings
+	attachParticipationResolverHooks(state.participationResolver, hooks)
 	return nil
 }
 
@@ -1370,19 +1327,20 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 	}
 
 	manager, err := d.newAutomationManager(automationManagerDeps{
-		Store:               store,
-		Sessions:            state.sessions,
-		Tasks:               tasks,
-		WorkspaceResolver:   state.workspaceResolver,
-		Config:              state.cfg.Automation,
-		Hooks:               state.hooks,
-		WebhookSecrets:      state.providerVault,
-		Logger:              state.logger.With("component", "automation"),
-		GlobalWorkspacePath: d.homePaths.HomeDir,
-		ResourceStore:       resourceRawStore(state.resourceKernel),
-		ResourceCodecs:      state.resourceCodecs,
-		LoopCatalog:         state.loopCatalog,
-		ToolRegistry:        state.deps.ToolRegistry,
+		Store:                 store,
+		Sessions:              state.sessions,
+		Tasks:                 tasks,
+		WorkspaceResolver:     state.workspaceResolver,
+		Config:                state.cfg.Automation,
+		Hooks:                 state.hooks,
+		WebhookSecrets:        state.providerVault,
+		Logger:                state.logger.With("component", "automation"),
+		GlobalWorkspacePath:   d.homePaths.HomeDir,
+		ResourceStore:         resourceRawStore(state.resourceKernel),
+		ResourceCodecs:        state.resourceCodecs,
+		LoopCatalog:           state.loopCatalog,
+		ToolRegistry:          state.deps.ToolRegistry,
+		ParticipationResolver: state.participationResolver,
 		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 			if state.resourceReconcile == nil {
 				return nil
@@ -1448,7 +1406,6 @@ func (d *Daemon) bootBundles(_ context.Context, state *bootState) error {
 			)
 		},
 		bundlepkg.WithWorkspaceResolver(state.workspaceResolver),
-		bundlepkg.WithConfiguredDefaultChannel(state.cfg.Network.DefaultChannel),
 		bundlepkg.WithLogger(state.logger),
 		bundlepkg.WithNow(d.now),
 	)
@@ -1796,10 +1753,8 @@ func daemonNetworkInfo(
 	}
 
 	return &NetworkInfo{
-		Enabled:      status.Enabled,
-		Status:       strings.TrimSpace(status.Status),
-		ListenerHost: strings.TrimSpace(status.ListenerHost),
-		ListenerPort: status.ListenerPort,
+		Enabled: status.Enabled,
+		Status:  strings.TrimSpace(status.Status),
 	}, nil
 }
 

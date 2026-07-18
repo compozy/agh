@@ -1,13 +1,12 @@
 -- name: UpsertNetworkSubscription :exec
 INSERT INTO network_subscriptions (
-  workspace_id, channel, thread_id, peer_id, mode, keyword_filters_json, created_at, updated_at
+  workspace_id, channel, thread_id, session_id, mode, created_at, updated_at
 ) VALUES (
-  sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(thread_id), sqlc.arg(peer_id),
-  sqlc.arg(mode), sqlc.arg(keyword_filters_json), sqlc.arg(created_at), sqlc.arg(updated_at)
+  sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(thread_id), sqlc.arg(session_id),
+  sqlc.arg(mode), sqlc.arg(created_at), sqlc.arg(updated_at)
 )
-ON CONFLICT(workspace_id, channel, thread_id, peer_id) DO UPDATE SET
+ON CONFLICT(workspace_id, channel, thread_id, session_id) DO UPDATE SET
   mode = excluded.mode,
-  keyword_filters_json = excluded.keyword_filters_json,
   updated_at = excluded.updated_at;
 
 -- name: DeleteNetworkSubscription :exec
@@ -15,24 +14,7 @@ DELETE FROM network_subscriptions
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND channel = sqlc.arg(channel)
   AND thread_id = sqlc.arg(thread_id)
-  AND peer_id = sqlc.arg(peer_id);
-
--- name: GetNetworkDeliveryGuidanceState :one
-SELECT session_id, reply_guidance_delivered, protocol_guidance_delivered, created_at, updated_at
-FROM network_delivery_guidance_state
-WHERE session_id = sqlc.arg(session_id);
-
--- name: UpsertNetworkDeliveryGuidanceState :exec
-INSERT INTO network_delivery_guidance_state (
-  session_id, reply_guidance_delivered, protocol_guidance_delivered, created_at, updated_at
-) VALUES (
-  sqlc.arg(session_id), sqlc.arg(reply_guidance_delivered), sqlc.arg(protocol_guidance_delivered),
-  sqlc.arg(created_at), sqlc.arg(updated_at)
-)
-ON CONFLICT(session_id) DO UPDATE SET
-  reply_guidance_delivered = excluded.reply_guidance_delivered,
-  protocol_guidance_delivered = excluded.protocol_guidance_delivered,
-  updated_at = excluded.updated_at;
+  AND session_id = sqlc.arg(session_id);
 
 -- name: UpsertNetworkTaskThreadOrigin :exec
 INSERT INTO network_task_thread_origins (

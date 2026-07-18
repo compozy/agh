@@ -44,6 +44,30 @@ min_agh_version = "0.5.0"
 | `description`     | no       | Shown in extension metadata.                                              |
 | `min_agh_version` | yes      | Semantic version compared against the current daemon version.             |
 
+## Network Participation Requirements
+
+An extension that needs its bundle-owned work to participate Live must declare that requirement in
+the manifest. The block is top-level, next to `[extension]`:
+
+```toml
+[network_participation]
+required = true
+mode = "live"
+channel_scopes = ["builders", "release"]
+```
+
+| Field            | Required | Notes                                                                                             |
+| ---------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `required`       | yes      | Set to `true` to declare a requirement. `false` cannot carry a mode or channel scopes.            |
+| `mode`           | yes      | Must be `"live"` when the requirement is enabled.                                                 |
+| `channel_scopes` | no       | Named channels the extension may require. Values are trimmed, deduplicated, sorted, and digested. |
+
+AGH hashes the normalized block into the bundle activation's Network requirement digest. Preview
+shows the digest; activation requires explicit operator confirmation. If an extension update
+changes the digest, AGH advances the activation version, clears the prior confirmation, and blocks
+projection until the operator reads the current activation and confirms it with that exact version.
+Declared channels remain inventory: confirmation does not enroll any execution into Live.
+
 ## Resource-Only Extensions
 
 Resource-only extensions do not need a persistent subprocess. They become active after AGH loads and

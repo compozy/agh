@@ -9,6 +9,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 )
@@ -65,11 +66,15 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 	kind string,
 ) session.CreateOpts {
 	opts := session.CreateOpts{
-		AgentName:       strings.TrimSpace(agent),
-		Model:           strings.TrimSpace(req.Model),
-		CWD:             strings.TrimSpace(req.CWD),
-		Name:            loopRuntimeSessionName(kind, agent, req.Handle),
-		Channel:         loopRuntimeSessionChannel(req.WorkspaceID, req.Handle),
+		AgentName:                    strings.TrimSpace(agent),
+		Model:                        strings.TrimSpace(req.Model),
+		CWD:                          strings.TrimSpace(req.CWD),
+		Name:                         loopRuntimeSessionName(kind, agent, req.Handle),
+		ResolvedNetworkParticipation: req.NetworkParticipation,
+		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindLoopRun,
+			ID:   string(req.LoopRunID),
+		}),
 		PromptOverlay:   strings.TrimSpace(req.ContractBlock),
 		ContractOverlay: strings.TrimSpace(req.ContractBlock),
 		Type:            session.SessionTypeSystem,
@@ -87,17 +92,21 @@ func createOptionsFromProfile(
 	profile store.SessionCreationProfile,
 ) session.CreateOpts {
 	return session.CreateOpts{
-		AgentName:            profile.AgentName,
-		Provider:             profile.Provider,
-		Model:                profile.Model,
-		ReasoningEffort:      profile.ReasoningEffort,
-		CWD:                  profile.CWD,
-		SandboxRef:           profile.SandboxRef,
-		DisableSandbox:       profile.SandboxMode == store.SessionCreationSandboxNone,
-		Permissions:          aghconfig.PermissionMode(profile.Permissions),
-		Name:                 loopRuntimeSessionName(loopManagedGoalKind, profile.AgentName, req.Handle),
-		Workspace:            profile.WorkspaceID,
-		Channel:              loopRuntimeSessionChannel(req.WorkspaceID, req.Handle),
+		AgentName:                    profile.AgentName,
+		Provider:                     profile.Provider,
+		Model:                        profile.Model,
+		ReasoningEffort:              profile.ReasoningEffort,
+		CWD:                          profile.CWD,
+		SandboxRef:                   profile.SandboxRef,
+		DisableSandbox:               profile.SandboxMode == store.SessionCreationSandboxNone,
+		Permissions:                  aghconfig.PermissionMode(profile.Permissions),
+		Name:                         loopRuntimeSessionName(loopManagedGoalKind, profile.AgentName, req.Handle),
+		Workspace:                    profile.WorkspaceID,
+		ResolvedNetworkParticipation: req.NetworkParticipation,
+		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindLoopRun,
+			ID:   string(req.LoopRunID),
+		}),
 		PromptOverlay:        profile.PromptOverlay,
 		ContractOverlay:      profile.ContractOverlay,
 		RuntimeMode:          profile.RuntimeMode,
@@ -153,11 +162,13 @@ func bindingCreationIdentity(
 	if err != nil {
 		return store.SessionCreationIdentity{}, err
 	}
+	networkParticipation := participationSnapshotValue(opts.ResolvedNetworkParticipation)
 	creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
-		SessionID:   sessionID,
-		Name:        opts.Name,
-		Channel:     opts.Channel,
-		SessionType: string(opts.Type),
+		SessionID:            sessionID,
+		Name:                 opts.Name,
+		NetworkOwnerKey:      opts.NetworkOwnerKey,
+		NetworkParticipation: networkParticipation,
+		SessionType:          string(opts.Type),
 	})
 	if err != nil {
 		return store.SessionCreationIdentity{}, err

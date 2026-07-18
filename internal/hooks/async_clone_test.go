@@ -3,6 +3,8 @@ package hooks
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
@@ -332,18 +334,31 @@ func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {
 		t.Parallel()
 
 		original := TaskRunPreClaimPayload{
+			TaskRunContext: &TaskRunContext{
+				ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+					ChannelID: "operations",
+				}),
+			},
 			Criteria: TaskRunClaimCriteria{
 				RequiredCapabilities: []string{"network"},
 			},
 		}
 		cloned := cloneAsyncPayload(original)
 		original.Criteria.RequiredCapabilities[0] = "mutated"
+		original.ResolvedNetworkParticipation.ChannelID = "mutated"
 
 		if cloned.Criteria.RequiredCapabilities[0] != "network" {
 			t.Fatalf(
 				"cloned required capability = %q, want %q",
 				cloned.Criteria.RequiredCapabilities[0],
 				"network",
+			)
+		}
+		if cloned.ResolvedNetworkParticipation.ChannelID != "operations" {
+			t.Fatalf(
+				"cloned network channel = %q, want %q",
+				cloned.ResolvedNetworkParticipation.ChannelID,
+				"operations",
 			)
 		}
 	})

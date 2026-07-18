@@ -1,6 +1,10 @@
 package hooks
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/compozy/agh/internal/network/participation"
+)
 
 func TestHookMatcherMatchesSession(t *testing.T) {
 	t.Parallel()
@@ -340,32 +344,36 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 		AgentName:   "coordinator",
 		WorkspaceID: "ws-1",
 		Autonomy: &AutonomyMatcher{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			WorkflowID:            "wf-1",
-			CoordinationChannelID: "coord-ch-1",
-			CoordinatorSessionID:  "coord-sess-1",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			WorkflowID:           "wf-1",
+			ParticipationChannel: "coord-ch-1",
+			CoordinatorSessionID: "coord-sess-1",
 		},
 	}
 	if !coordinatorMatcher.MatchesCoordinator(CoordinatorContext{
-		AgentName:             "coordinator",
-		WorkspaceID:           "ws-1",
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		WorkflowID:            "wf-1",
-		CoordinationChannelID: "coord-ch-1",
-		CoordinatorSessionID:  "coord-sess-1",
+		AgentName:            "coordinator",
+		WorkspaceID:          "ws-1",
+		TaskID:               "task-1",
+		RunID:                "run-1",
+		WorkflowID:           "wf-1",
+		CoordinatorSessionID: "coord-sess-1",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			ChannelID: "coord-ch-1",
+		}),
 	}) {
 		t.Fatal("MatchesCoordinator() = false, want true")
 	}
 	if coordinatorMatcher.MatchesCoordinator(CoordinatorContext{
-		AgentName:             "coordinator",
-		WorkspaceID:           "ws-1",
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		WorkflowID:            "wf-1",
-		CoordinationChannelID: "coord-ch-2",
-		CoordinatorSessionID:  "coord-sess-1",
+		AgentName:            "coordinator",
+		WorkspaceID:          "ws-1",
+		TaskID:               "task-1",
+		RunID:                "run-1",
+		WorkflowID:           "wf-1",
+		CoordinatorSessionID: "coord-sess-1",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			ChannelID: "coord-ch-2",
+		}),
 	}) {
 		t.Fatal("MatchesCoordinator() = true, want false for coordination channel mismatch")
 	}
@@ -373,27 +381,31 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 	taskRunMatcher := HookMatcher{
 		WorkspaceID: "ws-1",
 		Autonomy: &AutonomyMatcher{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			CoordinationChannelID: "coord-*",
-			ReleaseReason:         "timeout",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			ParticipationChannel: "coord-*",
+			ReleaseReason:        "timeout",
 		},
 	}
 	if !taskRunMatcher.MatchesTaskRun(TaskRunContext{
-		WorkspaceID:           "ws-1",
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		CoordinationChannelID: "coord-ch-1",
-		ReleaseReason:         "timeout",
+		WorkspaceID: "ws-1",
+		TaskID:      "task-1",
+		RunID:       "run-1",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			ChannelID: "coord-ch-1",
+		}),
+		ReleaseReason: "timeout",
 	}) {
 		t.Fatal("MatchesTaskRun() = false, want true")
 	}
 	if taskRunMatcher.MatchesTaskRun(TaskRunContext{
-		WorkspaceID:           "ws-1",
-		TaskID:                "task-1",
-		RunID:                 "run-2",
-		CoordinationChannelID: "coord-ch-1",
-		ReleaseReason:         "timeout",
+		WorkspaceID: "ws-1",
+		TaskID:      "task-1",
+		RunID:       "run-2",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			ChannelID: "coord-ch-1",
+		}),
+		ReleaseReason: "timeout",
 	}) {
 		t.Fatal("MatchesTaskRun() = true, want false for run mismatch")
 	}
@@ -401,21 +413,26 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 	taskMatcher := HookMatcher{
 		WorkspaceID: "ws-1",
 		Autonomy: &AutonomyMatcher{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			CoordinationChannelID: "coord-*",
-			ReleaseReason:         "blocked",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			ParticipationChannel: "coord-*",
+			ReleaseReason:        "blocked",
 		},
 	}
 	t.Run("Should match task contexts with autonomy fields", func(t *testing.T) {
 		t.Parallel()
 
 		if !taskMatcher.MatchesTask(TaskContext{
-			WorkspaceID:           "ws-1",
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			CoordinationChannelID: "coord-ch-1",
-			ReleaseReason:         "blocked",
+			WorkspaceID: "ws-1",
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				Version:   participation.SpecVersion,
+				Mode:      participation.ModeLive,
+				ChannelID: "coord-ch-1",
+				Source:    participation.SourceExplicitRequest,
+			}),
+			ReleaseReason: "blocked",
 		}) {
 			t.Fatal("MatchesTask() = false, want true")
 		}
@@ -424,11 +441,16 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 		t.Parallel()
 
 		if taskMatcher.MatchesTask(TaskContext{
-			WorkspaceID:           "ws-1",
-			TaskID:                "task-2",
-			RunID:                 "run-1",
-			CoordinationChannelID: "coord-ch-1",
-			ReleaseReason:         "blocked",
+			WorkspaceID: "ws-1",
+			TaskID:      "task-2",
+			RunID:       "run-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				Version:   participation.SpecVersion,
+				Mode:      participation.ModeLive,
+				ChannelID: "coord-ch-1",
+				Source:    participation.SourceExplicitRequest,
+			}),
+			ReleaseReason: "blocked",
 		}) {
 			t.Fatal("MatchesTask() = true, want false for task mismatch")
 		}
@@ -437,30 +459,34 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 	spawnMatcher := HookMatcher{
 		WorkspaceID: "ws-1",
 		Autonomy: &AutonomyMatcher{
-			ParentSessionID:       "parent-1",
-			RootSessionID:         "root-1",
-			ChildSessionID:        "child-*",
-			SpawnRole:             "reviewer",
-			CoordinationChannelID: "coord-ch-1",
+			ParentSessionID:      "parent-1",
+			RootSessionID:        "root-1",
+			ChildSessionID:       "child-*",
+			SpawnRole:            "reviewer",
+			ParticipationChannel: "coord-ch-1",
 		},
 	}
 	if !spawnMatcher.MatchesSpawn(SpawnContext{
-		WorkspaceID:           "ws-1",
-		ParentSessionID:       "parent-1",
-		RootSessionID:         "root-1",
-		ChildSessionID:        "child-1",
-		SpawnRole:             "reviewer",
-		CoordinationChannelID: "coord-ch-1",
+		WorkspaceID:     "ws-1",
+		ParentSessionID: "parent-1",
+		RootSessionID:   "root-1",
+		ChildSessionID:  "child-1",
+		SpawnRole:       "reviewer",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			ChannelID: "coord-ch-1",
+		}),
 	}) {
 		t.Fatal("MatchesSpawn() = false, want true")
 	}
 	if spawnMatcher.MatchesSpawn(SpawnContext{
-		WorkspaceID:           "ws-1",
-		ParentSessionID:       "parent-1",
-		RootSessionID:         "root-1",
-		ChildSessionID:        "child-1",
-		SpawnRole:             "coder",
-		CoordinationChannelID: "coord-ch-1",
+		WorkspaceID:     "ws-1",
+		ParentSessionID: "parent-1",
+		RootSessionID:   "root-1",
+		ChildSessionID:  "child-1",
+		SpawnRole:       "coder",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			ChannelID: "coord-ch-1",
+		}),
 	}) {
 		t.Fatal("MatchesSpawn() = true, want false for spawn role mismatch")
 	}

@@ -17,6 +17,13 @@ import type {
 } from "@/systems/runtime";
 import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 import { useWorkspace } from "@/systems/workspace";
+import {
+  networkParticipationDraftFromValues,
+  networkParticipationValidationMessage,
+  serializeNetworkParticipation,
+  type NetworkParticipationDraft,
+  type NetworkParticipationStrategy,
+} from "@/systems/network";
 
 import {
   MODEL_CATALOG_PENDING,
@@ -40,6 +47,9 @@ export interface SessionCreateDialogDraft {
   providerOverride: string;
   modelOverride: string;
   reasoningEffort: ReasoningEffort | "";
+  networkParticipationMode: "local" | "live";
+  networkChannelId: string;
+  networkChannelStrategy: NetworkParticipationStrategy | "";
 }
 
 export interface SessionCreateDialogState {
@@ -70,6 +80,8 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   onOpenChange: (open: boolean) => void;
   onAgentChange: (agentName: string) => void;
   onRuntimeChange: (next: RuntimeSelectorValue) => void;
+  onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
+  networkParticipation: NetworkParticipationDraft;
   refreshCatalog: () => void;
   openProviderSettings: () => void;
   submit: () => Promise<void>;
@@ -142,6 +154,9 @@ export function useSessionCreateDialog({
     providerOverride: "",
     modelOverride: "",
     reasoningEffort: "",
+    networkParticipationMode: "local",
+    networkChannelId: "",
+    networkChannelStrategy: "",
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingAgentName, setPendingAgentName] = useState<string | null>(null);
@@ -233,6 +248,9 @@ export function useSessionCreateDialog({
       providerOverride: "",
       modelOverride: "",
       reasoningEffort: "",
+      networkParticipationMode: "local",
+      networkChannelId: "",
+      networkChannelStrategy: "",
     });
     setSubmitError(null);
     setOpenState(true);
@@ -247,7 +265,25 @@ export function useSessionCreateDialog({
 
   const onAgentChange = (agentName: string) => {
     setSubmitError(null);
-    setDraft({ agentName, providerOverride: "", modelOverride: "", reasoningEffort: "" });
+    setDraft({
+      agentName,
+      providerOverride: "",
+      modelOverride: "",
+      reasoningEffort: "",
+      networkParticipationMode: "local",
+      networkChannelId: "",
+      networkChannelStrategy: "",
+    });
+  };
+
+  const onNetworkParticipationChange = (next: NetworkParticipationDraft) => {
+    setSubmitError(null);
+    setDraft(current => ({
+      ...current,
+      networkParticipationMode: next.mode,
+      networkChannelId: next.channelId,
+      networkChannelStrategy: next.channelStrategy,
+    }));
   };
 
   const onRuntimeChange = (next: RuntimeSelectorValue) => {
@@ -276,6 +312,18 @@ export function useSessionCreateDialog({
       setSubmitError(modelSelection.error ?? MODEL_CATALOG_PENDING);
       return;
     }
+    const networkParticipation = networkParticipationDraftFromValues(
+      draft.networkParticipationMode,
+      draft.networkChannelId,
+      draft.networkChannelStrategy
+    );
+    const participationError = networkParticipationValidationMessage(networkParticipation, [
+      "named",
+    ]);
+    if (participationError) {
+      setSubmitError(participationError);
+      return;
+    }
 
     setSubmitError(null);
     setPendingAgentName(agentName);
@@ -296,6 +344,7 @@ export function useSessionCreateDialog({
         provider,
         ...(modelDiffersFromDefault ? { model: effectiveSelectedModel } : {}),
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+        network_participation: serializeNetworkParticipation(networkParticipation),
       });
     } catch (error) {
       const message = describeError("Failed to create session.", error);
@@ -342,6 +391,12 @@ export function useSessionCreateDialog({
     onOpenChange: handleOpenChange,
     onAgentChange,
     onRuntimeChange,
+    onNetworkParticipationChange,
+    networkParticipation: networkParticipationDraftFromValues(
+      draft.networkParticipationMode,
+      draft.networkChannelId,
+      draft.networkChannelStrategy
+    ),
     refreshCatalog,
     openProviderSettings,
     submit,

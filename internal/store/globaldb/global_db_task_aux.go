@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -33,7 +34,7 @@ type queuedRunReservationInput struct {
 	loopRunID          string
 	idempotencyKey     string
 	origin             taskpkg.Origin
-	requestedChannel   string
+	networkSpec        participation.Spec
 	designationGroupID string
 	metadata           json.RawMessage
 	queuedAt           time.Time

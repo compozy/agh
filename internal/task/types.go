@@ -3,6 +3,8 @@ package task
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // Scope identifies whether a task is daemon-global or workspace-scoped.
@@ -168,6 +170,8 @@ const (
 	RunKindWorker
 	// RunKindCoordinator identifies in-daemon generation coordinator runs.
 	RunKindCoordinator
+	// RunKindNetworkWake identifies durable Network admission work without a task anchor.
+	RunKindNetworkWake
 )
 
 // String returns the durable string representation of the task-run kind.
@@ -177,6 +181,8 @@ func (k RunKind) String() string {
 		return "worker"
 	case RunKindCoordinator:
 		return "coordinator"
+	case RunKindNetworkWake:
+		return "network_wake"
 	default:
 		return ""
 	}
@@ -399,11 +405,19 @@ type Authority struct {
 	CreateWorkspace bool `json:"create_workspace"`
 }
 
-// ActorContext carries the authenticated principal, ingress origin, and resolved task authority.
+// CallerScope carries daemon-derived caller ownership for scoped operations.
+type CallerScope struct {
+	SessionID   string `json:"session_id,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Operator    bool   `json:"operator,omitempty"`
+}
+
+// ActorContext carries the authenticated principal, ingress origin, resolved task authority, and caller scope.
 type ActorContext struct {
 	Actor     ActorIdentity `json:"actor"`
 	Origin    Origin        `json:"origin"`
 	Authority Authority     `json:"authority"`
+	Scope     CallerScope   `json:"scope"`
 }
 
 // Task is the durable coordination record owned by the task domain.
@@ -413,7 +427,6 @@ type Task struct {
 	Scope          Scope          `json:"scope"`
 	WorkspaceID    string         `json:"workspace_id,omitempty"`
 	ParentTaskID   string         `json:"parent_task_id,omitempty"`
-	NetworkChannel string         `json:"network_channel,omitempty"`
 	Title          string         `json:"title"`
 	Description    string         `json:"description,omitempty"`
 	Priority       Priority       `json:"priority,omitempty"`
@@ -467,24 +480,24 @@ type RunReviewLineage struct {
 
 // Run is the durable execution record for one task attempt.
 type Run struct {
-	ID                    string            `json:"id"`
-	TaskID                string            `json:"task_id"`
-	Attempt               int32             `json:"attempt"`
-	RunKind               RunKind           `json:"run_kind,omitempty"`
-	LoopRunID             string            `json:"loop_run_id,omitempty"`
-	Status                RunStatus         `json:"status"`
-	PreviousRunID         string            `json:"previous_run_id,omitempty"`
-	FailureKind           string            `json:"failure_kind,omitempty"`
-	ClaimedBy             *ActorIdentity    `json:"claimed_by,omitempty"`
-	SessionID             string            `json:"session_id,omitempty"`
-	Origin                Origin            `json:"origin"`
-	IdempotencyKey        string            `json:"idempotency_key,omitempty"`
-	NetworkChannel        string            `json:"network_channel,omitempty"`
+	ID             string         `json:"id"`
+	TaskID         string         `json:"task_id"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Attempt        int32          `json:"attempt"`
+	RunKind        RunKind        `json:"run_kind,omitempty"`
+	Status         RunStatus      `json:"status"`
+	LoopRunID      string         `json:"loop_run_id,omitempty"`
+	PreviousRunID  string         `json:"previous_run_id,omitempty"`
+	FailureKind    string         `json:"failure_kind,omitempty"`
+	ClaimedBy      *ActorIdentity `json:"claimed_by,omitempty"`
+	SessionID      string         `json:"session_id,omitempty"`
+	Origin         Origin         `json:"origin"`
+	IdempotencyKey string         `json:"idempotency_key,omitempty"`
+	*RunNetworkState
 	DesignationGroupID    string            `json:"designation_group_id,omitempty"`
 	ClaimTokenHash        string            `json:"claim_token_hash,omitempty"`
 	LeaseUntil            time.Time         `json:"lease_until"`
 	HeartbeatAt           time.Time         `json:"heartbeat_at"`
-	CoordinationChannelID string            `json:"coordination_channel_id,omitempty"`
 	RequiredCapabilities  []string          `json:"required_capabilities,omitempty"`
 	PreferredCapabilities []string          `json:"preferred_capabilities,omitempty"`
 	Review                *RunReviewLineage `json:"review,omitempty"`
@@ -536,7 +549,6 @@ type Summary struct {
 	Scope           Scope                 `json:"scope"`
 	WorkspaceID     string                `json:"workspace_id,omitempty"`
 	ParentTaskID    string                `json:"parent_task_id,omitempty"`
-	NetworkChannel  string                `json:"network_channel,omitempty"`
 	Title           string                `json:"title"`
 	Priority        Priority              `json:"priority,omitempty"`
 	Status          Status                `json:"status"`
@@ -611,29 +623,29 @@ type DependencyReference struct {
 
 // RunSummary captures the operator-facing run chip data used by enriched task cards.
 type RunSummary struct {
-	ID                    string                 `json:"id"`
-	TaskID                string                 `json:"task_id"`
-	RunKind               RunKind                `json:"run_kind,omitempty"`
-	LoopRunID             string                 `json:"loop_run_id,omitempty"`
-	Status                RunStatus              `json:"status"`
-	Attempt               int                    `json:"attempt"`
-	PreviousRunID         string                 `json:"previous_run_id,omitempty"`
-	FailureKind           string                 `json:"failure_kind,omitempty"`
-	MaxAttempts           int                    `json:"max_attempts"`
-	SessionID             string                 `json:"session_id,omitempty"`
-	ClaimedBy             *ActorIdentity         `json:"claimed_by,omitempty"`
-	ClaimTokenHash        string                 `json:"claim_token_hash,omitempty"`
-	LeaseUntil            time.Time              `json:"lease_until"`
-	HeartbeatAt           time.Time              `json:"heartbeat_at"`
-	CoordinationChannelID string                 `json:"coordination_channel_id,omitempty"`
-	DesignationGroupID    string                 `json:"designation_group_id,omitempty"`
-	Designation           *RunDesignationSummary `json:"designation,omitempty"`
-	QueuedAt              time.Time              `json:"queued_at"`
-	ClaimedAt             time.Time              `json:"claimed_at"`
-	StartedAt             time.Time              `json:"started_at"`
-	EndedAt               time.Time              `json:"ended_at"`
-	TokensUsed            int64                  `json:"tokens_used,omitempty"`
-	Error                 string                 `json:"error,omitempty"`
+	ID                           string                 `json:"id"`
+	TaskID                       string                 `json:"task_id"`
+	RunKind                      RunKind                `json:"run_kind,omitempty"`
+	LoopRunID                    string                 `json:"loop_run_id,omitempty"`
+	Status                       RunStatus              `json:"status"`
+	Attempt                      int                    `json:"attempt"`
+	PreviousRunID                string                 `json:"previous_run_id,omitempty"`
+	FailureKind                  string                 `json:"failure_kind,omitempty"`
+	MaxAttempts                  int                    `json:"max_attempts"`
+	SessionID                    string                 `json:"session_id,omitempty"`
+	ClaimedBy                    *ActorIdentity         `json:"claimed_by,omitempty"`
+	ClaimTokenHash               string                 `json:"claim_token_hash,omitempty"`
+	LeaseUntil                   time.Time              `json:"lease_until"`
+	HeartbeatAt                  time.Time              `json:"heartbeat_at"`
+	ResolvedNetworkParticipation *participation.Spec    `json:"resolved_network_participation"`
+	DesignationGroupID           string                 `json:"designation_group_id,omitempty"`
+	Designation                  *RunDesignationSummary `json:"designation,omitempty"`
+	QueuedAt                     time.Time              `json:"queued_at"`
+	ClaimedAt                    time.Time              `json:"claimed_at"`
+	StartedAt                    time.Time              `json:"started_at"`
+	EndedAt                      time.Time              `json:"ended_at"`
+	TokensUsed                   int64                  `json:"tokens_used,omitempty"`
+	Error                        string                 `json:"error,omitempty"`
 }
 
 // View is the expanded read model returned from single-task lookups.
@@ -649,36 +661,36 @@ type View struct {
 
 // CreateTask captures the mutable inputs accepted when creating a new task.
 type CreateTask struct {
-	ID                 string          `json:"id,omitempty"`
-	Identifier         string          `json:"identifier,omitempty"`
-	Scope              Scope           `json:"scope"`
-	WorkspaceID        string          `json:"workspace_id,omitempty"`
-	ParentTaskID       string          `json:"parent_task_id,omitempty"`
-	NetworkChannel     string          `json:"network_channel,omitempty"`
-	Title              string          `json:"title"`
-	Description        string          `json:"description,omitempty"`
-	Priority           Priority        `json:"priority,omitempty"`
-	MaxAttempts        *int            `json:"max_attempts,omitempty"`
-	Draft              bool            `json:"draft,omitempty"`
-	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy     ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Owner              *Ownership      `json:"owner,omitempty"`
-	WakeCreator        *bool           `json:"wake_creator,omitempty"`
-	Metadata           json.RawMessage `json:"metadata,omitempty"`
+	ID                   string                 `json:"id,omitempty"`
+	Identifier           string                 `json:"identifier,omitempty"`
+	Scope                Scope                  `json:"scope"`
+	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	ParentTaskID         string                 `json:"parent_task_id,omitempty"`
+	Title                string                 `json:"title"`
+	Description          string                 `json:"description,omitempty"`
+	Priority             Priority               `json:"priority,omitempty"`
+	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
+	Draft                bool                   `json:"draft,omitempty"`
+	AutoEnqueueOnReady   bool                   `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy       ApprovalPolicy         `json:"approval_policy,omitempty"`
+	Owner                *Ownership             `json:"owner,omitempty"`
+	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
 // Patch captures the mutable task fields accepted by update operations.
 type Patch struct {
-	Title              *string          `json:"title,omitempty"`
-	Description        *string          `json:"description,omitempty"`
-	Priority           *Priority        `json:"priority,omitempty"`
-	MaxAttempts        *int             `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Metadata           *json.RawMessage `json:"metadata,omitempty"`
-	NetworkChannel     *string          `json:"network_channel,omitempty"`
-	Owner              *Ownership       `json:"owner,omitempty"`
-	ClearOwner         bool             `json:"clear_owner,omitempty"`
+	Title                *string                `json:"title,omitempty"`
+	Description          *string                `json:"description,omitempty"`
+	Priority             *Priority              `json:"priority,omitempty"`
+	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   *bool                  `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy       *ApprovalPolicy        `json:"approval_policy,omitempty"`
+	Metadata             *json.RawMessage       `json:"metadata,omitempty"`
+	Owner                *Ownership             `json:"owner,omitempty"`
+	ClearOwner           bool                   `json:"clear_owner,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 }
 
 // CancelTask captures the task-level cancellation request payload.
@@ -703,9 +715,9 @@ const (
 // ExecutionRequest captures the mutable inputs accepted when an operator
 // publish, start, or approval action enqueues executable work.
 type ExecutionRequest struct {
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
-	NetworkChannel string          `json:"network_channel,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	IdempotencyKey       string                 `json:"idempotency_key,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
 // Execution captures the task and run created or resolved at the explicit
@@ -726,32 +738,14 @@ type AddDependency struct {
 
 // EnqueueRun captures the mutable inputs accepted when queuing a task run.
 type EnqueueRun struct {
-	TaskID             string          `json:"task_id"`
-	RunKind            RunKind         `json:"run_kind,omitempty"`
-	LoopRunID          string          `json:"loop_run_id,omitempty"`
-	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
-	NetworkChannel     string          `json:"network_channel,omitempty"`
-	DesignationGroupID string          `json:"designation_group_id,omitempty"`
-	Metadata           json.RawMessage `json:"metadata,omitempty"`
-}
-
-// QueueRunReservation captures the canonical store-level queue reservation input.
-type QueueRunReservation struct {
-	TaskID             string          `json:"task_id"`
-	RunID              string          `json:"run_id"`
-	RunKind            RunKind         `json:"run_kind,omitempty"`
-	LoopRunID          string          `json:"loop_run_id,omitempty"`
-	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
-	Origin             Origin          `json:"origin"`
-	RequestedChannel   string          `json:"requested_channel,omitempty"`
-	DesignationGroupID string          `json:"designation_group_id,omitempty"`
-	Metadata           json.RawMessage `json:"metadata,omitempty"`
-	QueuedAt           time.Time       `json:"queued_at"`
-}
-
-// ClaimRun captures one run-claim request.
-type ClaimRun struct {
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	TaskID                     string                 `json:"task_id"`
+	RunKind                    RunKind                `json:"run_kind,omitempty"`
+	LoopRunID                  string                 `json:"loop_run_id,omitempty"`
+	IdempotencyKey             string                 `json:"idempotency_key,omitempty"`
+	NetworkParticipation       *participation.Request `json:"network_participation,omitempty"`
+	NetworkParticipationSource participation.Source   `json:"-"`
+	DesignationGroupID         string                 `json:"designation_group_id,omitempty"`
+	Metadata                   json.RawMessage        `json:"metadata,omitempty"`
 }
 
 // StartRun captures one run-start request.
@@ -1008,29 +1002,28 @@ type RunStarvationMutation struct {
 
 // Query captures the supported list filters for task reads.
 type Query struct {
-	Scope          Scope         `json:"scope,omitempty"`
-	WorkspaceID    string        `json:"workspace_id,omitempty"`
-	Status         Status        `json:"status,omitempty"`
-	Priority       Priority      `json:"priority,omitempty"`
-	ApprovalState  ApprovalState `json:"approval_state,omitempty"`
-	OwnerKind      OwnerKind     `json:"owner_kind,omitempty"`
-	OwnerRef       string        `json:"owner_ref,omitempty"`
-	ParentTaskID   string        `json:"parent_task_id,omitempty"`
-	NetworkChannel string        `json:"network_channel,omitempty"`
-	Search         string        `json:"search,omitempty"`
-	CreatedByKind  ActorKind     `json:"created_by_kind,omitempty"`
-	CreatedByRef   string        `json:"created_by_ref,omitempty"`
-	Limit          int           `json:"limit,omitempty"`
+	Scope         Scope         `json:"scope,omitempty"`
+	WorkspaceID   string        `json:"workspace_id,omitempty"`
+	Status        Status        `json:"status,omitempty"`
+	Priority      Priority      `json:"priority,omitempty"`
+	ApprovalState ApprovalState `json:"approval_state,omitempty"`
+	OwnerKind     OwnerKind     `json:"owner_kind,omitempty"`
+	OwnerRef      string        `json:"owner_ref,omitempty"`
+	ParentTaskID  string        `json:"parent_task_id,omitempty"`
+	Search        string        `json:"search,omitempty"`
+	CreatedByKind ActorKind     `json:"created_by_kind,omitempty"`
+	CreatedByRef  string        `json:"created_by_ref,omitempty"`
+	Limit         int           `json:"limit,omitempty"`
 }
 
 // RunQuery captures the supported list filters for task-run reads.
 type RunQuery struct {
-	TaskID                string    `json:"task_id,omitempty"`
-	Status                RunStatus `json:"status,omitempty"`
-	SessionID             string    `json:"session_id,omitempty"`
-	CoordinationChannelID string    `json:"coordination_channel_id,omitempty"`
-	DesignationGroupID    string    `json:"designation_group_id,omitempty"`
-	Limit                 int       `json:"limit,omitempty"`
+	TaskID               string    `json:"task_id,omitempty"`
+	Status               RunStatus `json:"status,omitempty"`
+	SessionID            string    `json:"session_id,omitempty"`
+	DesignationGroupID   string    `json:"designation_group_id,omitempty"`
+	ParticipationChannel string    `json:"participation_channel,omitempty"`
+	Limit                int       `json:"limit,omitempty"`
 }
 
 // EventQuery captures the supported list filters for task-event reads.

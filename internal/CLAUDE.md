@@ -13,7 +13,7 @@ Repo-wide rules (Critical Rules, Workflow, Build, Commits, Skill Dispatch, Memor
 - **`daemon/` is the sole composition root** — the only package that imports all others. Reconciliation logic running at boot belongs to composition root and is not "legacy support".
 - **No package imports `daemon/`, `api/`, or `cli/`** — dependencies flow downward only.
 - **Interfaces defined where consumed** (Go-style) — `session/` defines `AgentDriver`, `acp/` implements it.
-- **Direct function calls through interfaces** — no event bus, no reflection-based routing, no NATS as inter-package coordination. NATS is permitted **only** inside `internal/network` as the embedded wire transport for the AGH Network protocol; daemon packages communicate via interfaces and the Notifier pattern, never by publishing to subjects.
+- **Direct function calls through interfaces** — no event bus or reflection-based routing. Network acceptance commits before in-process notification; daemon packages communicate through interfaces and the Notifier pattern.
 - **Notifier pattern for fan-out** — typed interface for observability and SSE, not a generic bus.
 - **No back-pointers between packages** — inject callbacks or interfaces.
 - **Functional options for constructors** — `NewManager(opts ...Option)`.
@@ -106,7 +106,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 | `internal/mcp`                  | MCP server lifecycle / sidecars                                               |
 | `internal/memory`               | Persistent dual-scope memory (global + workspace + agent), provenance, recall |
 | `internal/memory/consolidation` | Dream consolidation runtime (Time → Sessions → Lock gate cascade)             |
-| `internal/network`              | AGH Network channels/peers/wire, NATS profile                                 |
+| `internal/network`              | AGH Network participation, conversations, durable acceptance, bounded wakes   |
 | `internal/observe`              | Event recording, health metrics, query engine                                 |
 | `internal/procutil`             | Process utilities, process-group signaling, Windows fallback                  |
 | `internal/providerenv`          | Provider env/home isolation helpers shared by session launch and CLI auth     |

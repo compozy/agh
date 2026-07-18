@@ -6,6 +6,12 @@ import {
   useLoopTargetCatalog,
   type LoopTargetDraft,
 } from "@/systems/loops";
+import {
+  isNetworkParticipationDraftValid,
+  networkParticipationDraftFromPayload,
+  serializeNetworkParticipation,
+  type NetworkParticipationDraft,
+} from "@/systems/network";
 
 import {
   automationTargetMode,
@@ -106,13 +112,23 @@ function computeCanSubmit(
     const loopWorkspaceValid =
       loopWorkspaceId !== "" &&
       (draft.scope === "global" || loopWorkspaceId === (draft.workspace_id ?? ""));
+    const participationValid = isNetworkParticipationDraftValid(
+      networkParticipationDraftFromPayload(draft.loop_target?.network_participation),
+      ["named", "loop_run"]
+    );
     return (
-      Boolean(draft.loop_target?.loop_name.trim()) && loopTargetCompatible && loopWorkspaceValid
+      Boolean(draft.loop_target?.loop_name.trim()) &&
+      loopTargetCompatible &&
+      loopWorkspaceValid &&
+      participationValid
     );
   }
   if (target === "task") {
     // Task mode: owner is optional, title/description fall back to the job — nothing more required.
-    return true;
+    return isNetworkParticipationDraftValid(
+      networkParticipationDraftFromPayload(draft.task?.network_participation),
+      ["named", "run"]
+    );
   }
   return draft.agent_name.trim() !== "" && draft.prompt.trim() !== "";
 }
@@ -229,6 +245,10 @@ export function useAutomationJobForm({
     patchTask({ owner: { ...owner, ref } });
   };
 
+  const handleTaskNetworkParticipation = (next: NetworkParticipationDraft) => {
+    patchTask({ network_participation: serializeNetworkParticipation(next) });
+  };
+
   const handleScheduleMode = (next: AutomationScheduleMode) => {
     setCronFrequencyOverride(null);
     if (next === "cron") {
@@ -310,9 +330,9 @@ export function useAutomationJobForm({
     onPromptChange: (prompt: string) => patch({ prompt }),
     onTaskTitle: (title: string) => patchTask({ title }),
     onTaskDescription: (description: string) => patchTask({ description }),
-    onTaskChannel: (network_channel: string) => patchTask({ network_channel }),
     onOwnerKind: handleOwnerKind,
     onOwnerRef: handleOwnerRef,
+    onTaskNetworkParticipation: handleTaskNetworkParticipation,
 
     // schedule mode
     onScheduleMode: handleScheduleMode,

@@ -25,7 +25,8 @@ const loopRunSelectColumnsSQL = `
 	control_actor_kind, control_actor_id, control_requested_at, inputs_json, iteration_cap,
 	started_by_kind, started_by_ref, started_origin_kind, started_origin_ref,
 	goal_context_nudge_ratio, origin_kind, origin_session_id,
-	origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest`
+	origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest,
+	network_spec_json, network_mode, network_channel, network_source`
 
 // CreateLoopRunForStart atomically applies the loop concurrency policy and persists a new run.
 func (g *LoopRepo) CreateLoopRunForStart(
@@ -131,7 +132,11 @@ func insertLoopRun(
 	inputsJSON []byte,
 	startMetadataJSON []byte,
 ) error {
-	err := sqlcgen.New(exec).InsertLoopRun(ctx, loopRunInsertParams(run, inputsJSON, startMetadataJSON))
+	params, err := loopRunInsertParams(run, inputsJSON, startMetadataJSON)
+	if err != nil {
+		return err
+	}
+	err = sqlcgen.New(exec).InsertLoopRun(ctx, params)
 	if err != nil {
 		return fmt.Errorf("store: insert loop run %q: %w", run.ID, err)
 	}

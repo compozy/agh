@@ -9,17 +9,19 @@ import (
 )
 
 type automationLoopTargetEncoded struct {
-	workspaceID      string
-	loopName         string
-	inputsJSON       any
-	inputMappingJSON any
+	workspaceID              string
+	loopName                 string
+	inputsJSON               any
+	inputMappingJSON         any
+	networkParticipationJSON any
 }
 
 type automationLoopTargetRecord struct {
-	workspaceID     sql.NullString
-	loopName        sql.NullString
-	inputsRaw       sql.NullString
-	inputMappingRaw sql.NullString
+	workspaceID             sql.NullString
+	loopName                sql.NullString
+	inputsRaw               sql.NullString
+	inputMappingRaw         sql.NullString
+	networkParticipationRaw sql.NullString
 }
 
 func normalizeAutomationTargetKind(kind automation.TargetKind, target *automation.LoopTarget) automation.TargetKind {
@@ -41,6 +43,9 @@ func normalizeAutomationLoopTarget(target *automation.LoopTarget) *automation.Lo
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.LoopName = strings.TrimSpace(normalized.LoopName)
 	normalized.InputMapping = normalizeStringMap(normalized.InputMapping)
+	normalized.NetworkParticipation = normalizeAutomationParticipationIntent(
+		normalized.NetworkParticipation,
+	)
 	return &normalized
 }
 
@@ -74,11 +79,20 @@ func encodeAutomationLoopTarget(
 	if err != nil {
 		return automationLoopTargetEncoded{}, err
 	}
+	networkParticipationJSON, err := encodeOptionalAutomationJSON(
+		target.NetworkParticipation,
+		target.NetworkParticipation == nil,
+		label+".network_participation",
+	)
+	if err != nil {
+		return automationLoopTargetEncoded{}, err
+	}
 	return automationLoopTargetEncoded{
-		workspaceID:      strings.TrimSpace(target.WorkspaceID),
-		loopName:         strings.TrimSpace(target.LoopName),
-		inputsJSON:       inputsJSON,
-		inputMappingJSON: inputMappingJSON,
+		workspaceID:              strings.TrimSpace(target.WorkspaceID),
+		loopName:                 strings.TrimSpace(target.LoopName),
+		inputsJSON:               inputsJSON,
+		inputMappingJSON:         inputMappingJSON,
+		networkParticipationJSON: networkParticipationJSON,
 	}, nil
 }
 
@@ -119,6 +133,13 @@ func decodeAutomationLoopTarget(
 	); err != nil {
 		return err
 	}
+	if err := decodeOptionalAutomationJSON(
+		record.networkParticipationRaw,
+		&decoded.NetworkParticipation,
+		label+".network_participation",
+	); err != nil {
+		return err
+	}
 	*target = &decoded
 	return nil
 }
@@ -127,7 +148,8 @@ func (r automationLoopTargetRecord) hasAnyValue() bool {
 	return r.workspaceID.Valid ||
 		r.loopName.Valid ||
 		r.inputsRaw.Valid ||
-		r.inputMappingRaw.Valid
+		r.inputMappingRaw.Valid ||
+		r.networkParticipationRaw.Valid
 }
 
 func decodeOptionalAutomationJSON[T any](raw sql.NullString, target *T, label string) error {

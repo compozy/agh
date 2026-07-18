@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -56,7 +57,7 @@ func (m *Service) RequestRunReview(
 		return RunReview{}, false, err
 	}
 
-	taskRecord, err := m.store.GetTask(ctx, normalized.TaskID)
+	taskRecord, err := m.loadAuthorizedTask(ctx, m.store, normalized.TaskID, actor)
 	if err != nil {
 		return RunReview{}, false, err
 	}
@@ -72,6 +73,9 @@ func (m *Service) RequestRunReview(
 			run.TaskID,
 			taskRecord.ID,
 		)
+	}
+	if err := m.authorizeRunResource(ctx, actor, run, taskRecord); err != nil {
+		return RunReview{}, false, err
 	}
 	if !IsTerminalRunStatus(run.Status) {
 		return RunReview{}, false, fmt.Errorf(
@@ -159,7 +163,14 @@ func (m *Service) GetRunReview(ctx context.Context, reviewID string, actor Actor
 	if trimmedID == "" {
 		return RunReview{}, fmt.Errorf("%w: review_id is required", ErrValidation)
 	}
-	return m.store.GetRunReview(ctx, trimmedID)
+	review, err := m.store.GetRunReview(ctx, trimmedID)
+	if err != nil {
+		return RunReview{}, err
+	}
+	if err := m.authorizeRunReviewResource(ctx, actor, review); err != nil {
+		return RunReview{}, err
+	}
+	return review, nil
 }
 
 // RecordRunReview persists an authoritative reviewer verdict and optional continuation run.
@@ -173,6 +184,13 @@ func (m *Service) RecordRunReview(
 	}
 	normalized := req.Normalize()
 	if err := normalized.Validate("record_run_review"); err != nil {
+		return RunReviewResult{}, err
+	}
+	review, err := m.store.GetRunReview(ctx, normalized.ReviewID)
+	if err != nil {
+		return RunReviewResult{}, err
+	}
+	if err := m.authorizeRunReviewResource(ctx, actor, review); err != nil {
 		return RunReviewResult{}, err
 	}
 
@@ -208,6 +226,13 @@ func (m *Service) BindRunReviewSession(
 	}
 	normalized := req.Normalize()
 	if err := normalized.Validate("run_review_binding"); err != nil {
+		return RunReviewBinding{}, err
+	}
+	review, err := m.store.GetRunReview(ctx, normalized.ReviewID)
+	if err != nil {
+		return RunReviewBinding{}, err
+	}
+	if err := m.authorizeRunReviewResource(ctx, actor, review); err != nil {
 		return RunReviewBinding{}, err
 	}
 
@@ -342,6 +367,9 @@ func (m *Service) LookupRunReviewForSession(
 	if err != nil {
 		return RunReviewBinding{}, err
 	}
+	if err := m.authorizeRunReviewResource(ctx, actor, review); err != nil {
+		return RunReviewBinding{}, err
+	}
 	return runReviewBindingFromReview(review), nil
 }
 
@@ -362,5 +390,31 @@ func (m *Service) ListRunReviews(
 	if err := normalized.Validate("run_review_query"); err != nil {
 		return nil, err
 	}
-	return m.store.ListRunReviews(ctx, normalized)
+	if normalized.TaskID != "" {
+		if _, err := m.loadAuthorizedTask(ctx, m.store, normalized.TaskID, actor); err != nil {
+			return nil, err
+		}
+	}
+	if normalized.RunID != "" {
+		run, taskRecord, err := m.loadRunWithTask(ctx, normalized.RunID)
+		if err != nil {
+			return nil, err
+		}
+		if err := m.authorizeRunResource(ctx, actor, run, taskRecord); err != nil {
+			return nil, err
+		}
+	}
+	reviews, err := m.store.ListRunReviews(ctx, normalized)
+	if err != nil || isTaskOperator(actor) {
+		return reviews, err
+	}
+	visible := make([]RunReview, 0, len(reviews))
+	for idx := range reviews {
+		if err := m.authorizeRunReviewResource(ctx, actor, reviews[idx]); err == nil {
+			visible = append(visible, reviews[idx])
+		} else if !errors.Is(err, ErrPermissionDenied) && !errors.Is(err, ErrTaskNotFound) {
+			return nil, err
+		}
+	}
+	return visible, nil
 }

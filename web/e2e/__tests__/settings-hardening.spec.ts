@@ -48,10 +48,15 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     /restart required/i
   );
 
-  const nextChannel = `settings-${Date.now()}`;
+  const networkBefore = await runtime.requestJSON<{
+    config: { max_replay_age: number };
+  }>("/api/settings/network");
+  const nextMaxReplayAge = networkBefore.config.max_replay_age + 1;
   await appPage.goto(runtime.url("/settings/network"), { waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("settings-page-network-default-channel-input")).toBeVisible();
-  await appPage.getByTestId("settings-page-network-default-channel-input").fill(nextChannel);
+  await expect(appPage.getByTestId("settings-page-network-enrollment-note")).toBeVisible();
+  await expect(appPage.getByTestId("settings-page-network-greet-interval")).toHaveCount(0);
+  await expect(appPage.getByTestId("settings-page-network-max-queue-depth")).toHaveCount(0);
+  await appPage.getByTestId("settings-page-network-max-replay-age").fill(String(nextMaxReplayAge));
   await expect(appPage.getByTestId("settings-page-network-save")).toBeEnabled();
   await appPage.getByTestId("settings-page-network-save").click();
   await expect(appPage.getByTestId("settings-page-network-save-applied")).toContainText(
@@ -126,10 +131,10 @@ test("operator applies Memory, Network, Automation, and Observability settings w
         "-o",
         "json",
       ]),
-      network_default_channel: await runCLIJSON(runtime.paths, [
+      network_max_replay_age: await runCLIJSON(runtime.paths, [
         "config",
         "get",
-        "network.default_channel",
+        "network.max_replay_age",
         "-o",
         "json",
       ]),
@@ -160,7 +165,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
   };
 
   expect(JSON.stringify(parity.http.memory)).toContain(`"top_k":${nextTopK}`);
-  expect(JSON.stringify(parity.http.network)).toContain(nextChannel);
+  expect(JSON.stringify(parity.http.network)).toContain(`"max_replay_age":${nextMaxReplayAge}`);
   expect(JSON.stringify(parity.http.automation)).toContain(
     `"max_concurrent_jobs":${nextMaxConcurrent}`
   );
@@ -168,7 +173,9 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     `"retention_days":${nextRetentionDays}`
   );
   expect(JSON.stringify(parity.cli.memory_top_k)).toContain(`"value":${nextTopK}`);
-  expect(JSON.stringify(parity.cli.network_default_channel)).toContain(nextChannel);
+  expect(JSON.stringify(parity.cli.network_max_replay_age)).toContain(
+    `"value":${nextMaxReplayAge}`
+  );
   expect(JSON.stringify(parity.cli.automation_max_concurrent_jobs)).toContain(
     `"value":${nextMaxConcurrent}`
   );
@@ -176,7 +183,9 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     `"value":${nextRetentionDays}`
   );
   expect(parity.config_file_excerpt).toContain("[network]");
-  expect(parity.config_file_excerpt).toContain(`default_channel = "${nextChannel}"`);
+  expect(parity.config_file_excerpt).toMatch(
+    new RegExp(`max_replay_age\\s*=\\s*${nextMaxReplayAge}`)
+  );
   expect(JSON.stringify(parity)).not.toMatch(sensitivePattern);
 
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);

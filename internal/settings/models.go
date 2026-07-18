@@ -454,17 +454,14 @@ type AutomationRuntimeStatus struct {
 
 // NetworkRuntimeStatus summarizes network runtime state.
 type NetworkRuntimeStatus struct {
-	Available       bool
-	Enabled         bool
-	Status          string
-	ListenerHost    string
-	ListenerPort    int
-	LocalPeers      int
-	RemotePeers     int
-	Channels        int
-	QueuedMessages  int
-	QueuedSessions  int
-	DeliveryWorkers int
+	Available         bool
+	Enabled           bool
+	Status            string
+	LocalPeers        int
+	Channels          int
+	MessagesReceived  int64
+	MessagesDelivered int64
+	MessagesRejected  int64
 }
 
 // ObservabilityRuntimeStatus summarizes observability runtime state.

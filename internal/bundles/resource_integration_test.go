@@ -325,7 +325,6 @@ func newBundleResourceIntegrationHarness(t *testing.T) *bundleResourceIntegratio
 			}
 			return newMarketingExtension(), nil
 		},
-		WithConfiguredDefaultChannel("default"),
 		WithNow(func() time.Time {
 			return time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC)
 		}),

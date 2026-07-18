@@ -53,12 +53,12 @@ func (q NetworkMessageQuery) Validate() error {
 
 // NetworkThreadQuery filters and orders public-thread summary lookups.
 type NetworkThreadQuery struct {
-	Search  string
-	PeerID  string
-	Sort    string
-	HasWork *bool
-	Limit   int
-	After   string
+	Search    string
+	SessionID string
+	Sort      string
+	HasWork   *bool
+	Limit     int
+	After     string
 }
 
 // NetworkThreadPage is one bounded, counted page of public-thread summaries.
@@ -75,8 +75,8 @@ func (q NetworkThreadQuery) Validate() error {
 	if err := validateNetworkConversationSort(q.Sort); err != nil {
 		return err
 	}
-	if peerID := strings.TrimSpace(q.PeerID); peerID != "" {
-		if err := validateNetworkPeerID(peerID, "network thread query peer_id"); err != nil {
+	if sessionID := strings.TrimSpace(q.SessionID); sessionID != "" {
+		if err := requireField(sessionID, "network thread query session_id"); err != nil {
 			return err
 		}
 	}
@@ -86,7 +86,7 @@ func (q NetworkThreadQuery) Validate() error {
 // Normalize applies canonical whitespace, sort, and server-owned bounds.
 func (q NetworkThreadQuery) Normalize() NetworkThreadQuery {
 	q.Search = strings.ToLower(strings.TrimSpace(q.Search))
-	q.PeerID = strings.TrimSpace(q.PeerID)
+	q.SessionID = strings.TrimSpace(q.SessionID)
 	q.Sort = NormalizeNetworkConversationSort(q.Sort)
 	q.After = strings.TrimSpace(q.After)
 	q.Limit = NormalizeNetworkConversationListLimit(q.Limit)
@@ -95,12 +95,12 @@ func (q NetworkThreadQuery) Normalize() NetworkThreadQuery {
 
 // NetworkDirectRoomQuery filters and orders direct-room summary lookups.
 type NetworkDirectRoomQuery struct {
-	Search  string
-	PeerID  string
-	Sort    string
-	HasWork *bool
-	Limit   int
-	After   string
+	Search    string
+	SessionID string
+	Sort      string
+	HasWork   *bool
+	Limit     int
+	After     string
 }
 
 // NetworkDirectRoomPage is one bounded, counted page of direct-room summaries.
@@ -117,8 +117,8 @@ func (q NetworkDirectRoomQuery) Validate() error {
 	if err := validateNetworkConversationSort(q.Sort); err != nil {
 		return err
 	}
-	if peerID := strings.TrimSpace(q.PeerID); peerID != "" {
-		if err := validateNetworkPeerID(peerID, "network direct room query peer_id"); err != nil {
+	if sessionID := strings.TrimSpace(q.SessionID); sessionID != "" {
+		if err := requireField(sessionID, "network direct room query session_id"); err != nil {
 			return err
 		}
 	}
@@ -128,7 +128,7 @@ func (q NetworkDirectRoomQuery) Validate() error {
 // Normalize applies canonical whitespace, sort, and server-owned bounds.
 func (q NetworkDirectRoomQuery) Normalize() NetworkDirectRoomQuery {
 	q.Search = strings.ToLower(strings.TrimSpace(q.Search))
-	q.PeerID = strings.TrimSpace(q.PeerID)
+	q.SessionID = strings.TrimSpace(q.SessionID)
 	q.Sort = NormalizeNetworkConversationSort(q.Sort)
 	q.After = strings.TrimSpace(q.After)
 	q.Limit = NormalizeNetworkConversationListLimit(q.Limit)

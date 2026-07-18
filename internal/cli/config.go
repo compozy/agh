@@ -304,14 +304,12 @@ var (
 		"agents.heartbeat.wake_event_retention":             configSetDuration,
 		"agents.heartbeat.session_health_stale_after":       configSetDuration,
 		"agents.heartbeat.session_health_hook_min_interval": configSetDuration,
-		"network.enabled":                                   configSetBool,
-		"network.default_channel":                           configSetString,
-		"network.port":                                      configSetInt,
-		"network.max_payload":                               configSetInt,
-		"network.greet_interval":                            configSetInt,
-		"network.max_replay_age":                            configSetInt,
-		"network.max_queue_depth":                           configSetInt,
-	}, loopAndGoalConfigSetPathKinds(), extensionConfigSetPathKinds(), marketplaceConfigSetPathKinds())
+	},
+		networkConfigSetPathKinds(),
+		loopAndGoalConfigSetPathKinds(),
+		extensionConfigSetPathKinds(),
+		marketplaceConfigSetPathKinds(),
+	)
 )
 
 func newConfigCommand(deps commandDeps) *cobra.Command {

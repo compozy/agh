@@ -184,14 +184,10 @@ describe("captureRouteState", () => {
   });
 
   it("captures bridge route context, selected bridge, and dialog state", async () => {
-    window.history.replaceState({}, "", "/bridges");
+    window.history.replaceState({}, "", "/bridges?scope=global");
     document.title = "AGH";
     document.body.innerHTML = `
-      <div data-testid="bridge-scope-pills">
-        <button data-testid="bridge-scope-all" aria-pressed="false"></button>
-        <button data-testid="bridge-scope-global" aria-pressed="true"></button>
-        <button data-testid="bridge-scope-workspace" aria-pressed="false"></button>
-      </div>
+      <button data-testid="bridge-list-filters-add"></button>
       <aside data-testid="bridge-list-panel">
         <button data-testid="bridge-item-brg_ops"></button>
         <button data-testid="bridge-item-brg_support"></button>

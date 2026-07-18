@@ -803,7 +803,7 @@ func parseUpdateSettingsNetworkRequest(c *gin.Context) (settingspkg.SectionUpdat
 	var body struct {
 		Config *contract.SettingsNetworkConfigPayload `json:"config"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil {
+	if err := decodeStrictJSONBody(c, &body); err != nil {
 		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
 			fmt.Errorf("decode network settings request: %w", err),
 		)
@@ -1549,34 +1549,6 @@ func automationSettingsFromPayload(
 		MaxConcurrentJobs: config.MaxConcurrentJobs,
 		DefaultFireLimit:  config.DefaultFireLimit,
 	}, nil
-}
-
-func networkConfigFromPayload(payload contract.SettingsNetworkConfigPayload) (aghconfig.NetworkConfig, error) {
-	digestFlushInterval, err := parseSettingsDuration(
-		"network.config.digest_flush_interval",
-		payload.DigestFlushInterval,
-	)
-	if err != nil {
-		return aghconfig.NetworkConfig{}, err
-	}
-	value := aghconfig.NetworkConfig{
-		Enabled:                        payload.Enabled,
-		DefaultChannel:                 strings.TrimSpace(payload.DefaultChannel),
-		Port:                           payload.Port,
-		MaxPayload:                     payload.MaxPayload,
-		GreetInterval:                  payload.GreetInterval,
-		MaxReplayAge:                   payload.MaxReplayAge,
-		MaxQueueDepth:                  payload.MaxQueueDepth,
-		ActivationTopK:                 payload.ActivationTopK,
-		DigestFlushInterval:            digestFlushInterval,
-		DigestMaxEnvelopes:             payload.DigestMaxEnvelopes,
-		ResponseGuidanceMaxBytes:       payload.ResponseGuidanceMaxBytes,
-		DeliveryStructuredBodyMaxBytes: payload.DeliveryStructuredBodyMaxBytes,
-	}
-	if err := value.Validate(); err != nil {
-		return aghconfig.NetworkConfig{}, NewSettingsValidationError(err)
-	}
-	return value, nil
 }
 
 func observabilityConfigFromPayload(

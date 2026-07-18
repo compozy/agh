@@ -13,7 +13,10 @@ import (
 type sessionInfoRow struct {
 	session              store.SessionInfo
 	name                 sql.NullString
-	channel              string
+	networkSpecJSON      string
+	networkMode          string
+	networkChannel       sql.NullString
+	networkSource        string
 	sessionType          string
 	parentSessionID      sql.NullString
 	rootSessionID        sql.NullString
@@ -64,7 +67,17 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		session.Name = row.name.String
 	}
 	session.Provider = strings.TrimSpace(row.session.Provider)
-	session.Channel = strings.TrimSpace(row.channel)
+	networkSpec, err := decodeParticipationSnapshot(
+		session.WorkspaceID,
+		row.networkSpecJSON,
+		row.networkMode,
+		row.networkChannel,
+		row.networkSource,
+	)
+	if err != nil {
+		return store.SessionInfo{}, err
+	}
+	session.SetNetworkSpec(networkSpec)
 	session.SessionType = store.NormalizeSessionType(row.sessionType)
 	lineage, err := scanSessionLineage(
 		session.ID,
@@ -166,7 +179,10 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.session.AgentName,
 		&row.session.Provider,
 		&row.session.WorkspaceID,
-		&row.channel,
+		&row.networkSpecJSON,
+		&row.networkMode,
+		&row.networkChannel,
+		&row.networkSource,
 		&row.sessionType,
 		&row.parentSessionID,
 		&row.rootSessionID,

@@ -496,30 +496,6 @@ func mergeSandboxSessionState(
 	return next
 }
 
-func sessionInfoFromSandboxReconcileMeta(meta store.SessionMeta) store.SessionInfo {
-	stopReason := store.StopReason("")
-	if meta.StopReason != nil {
-		stopReason = *meta.StopReason
-	}
-	return store.SessionInfo{
-		ID:           strings.TrimSpace(meta.ID),
-		Name:         strings.TrimSpace(meta.Name),
-		AgentName:    strings.TrimSpace(meta.AgentName),
-		Provider:     strings.TrimSpace(meta.Provider),
-		WorkspaceID:  strings.TrimSpace(meta.WorkspaceID),
-		Channel:      strings.TrimSpace(meta.Channel),
-		SessionType:  strings.TrimSpace(meta.SessionType),
-		Lineage:      store.NormalizeSessionLineage(meta.ID, meta.Lineage),
-		State:        strings.TrimSpace(meta.State),
-		ACPSessionID: cloneDaemonStringPointer(meta.ACPSessionID),
-		StopReason:   stopReason,
-		StopDetail:   strings.TrimSpace(meta.StopDetail),
-		Sandbox:      cloneDaemonSessionSandboxMeta(meta.Sandbox),
-		CreatedAt:    meta.CreatedAt,
-		UpdatedAt:    meta.UpdatedAt,
-	}
-}
-
 func sandboxReconcileLogAttrs(
 	meta store.SessionMeta,
 	envMeta *store.SessionSandboxMeta,

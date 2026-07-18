@@ -149,12 +149,13 @@ check_interval = "45m"
 
 [network]
 enabled = true
-default_channel = "builders"
-port = 4333
-max_payload = 65536
-greet_interval = 45
 max_replay_age = 600
-max_queue_depth = 250
+
+[network.live.defaults]
+max_wakes = 12
+
+[network.live.limits]
+max_wakes = 80
 `)
 
 	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -330,23 +331,14 @@ max_queue_depth = 250
 	if !cfg.Network.Enabled {
 		t.Fatal("Load() Network.Enabled = false, want true")
 	}
-	if got, want := cfg.Network.DefaultChannel, "builders"; got != want {
-		t.Fatalf("Load() Network.DefaultChannel = %q, want %q", got, want)
-	}
-	if got, want := cfg.Network.Port, 4333; got != want {
-		t.Fatalf("Load() Network.Port = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.MaxPayload, 65536; got != want {
-		t.Fatalf("Load() Network.MaxPayload = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.GreetInterval, 45; got != want {
-		t.Fatalf("Load() Network.GreetInterval = %d, want %d", got, want)
-	}
 	if got, want := cfg.Network.MaxReplayAge, 600; got != want {
 		t.Fatalf("Load() Network.MaxReplayAge = %d, want %d", got, want)
 	}
-	if got, want := cfg.Network.MaxQueueDepth, 250; got != want {
-		t.Fatalf("Load() Network.MaxQueueDepth = %d, want %d", got, want)
+	if got, want := cfg.Network.Live.Defaults.MaxWakes, 12; got != want {
+		t.Fatalf("Load() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
+	}
+	if got, want := cfg.Network.Live.Limits.MaxWakes, 80; got != want {
+		t.Fatalf("Load() Network.Live.Limits.MaxWakes = %d, want %d", got, want)
 	}
 
 	claude, err := cfg.ResolveProvider("claude")
@@ -2364,14 +2356,11 @@ func TestDefaultConfigUsesResolvedHomePaths(t *testing.T) {
 	if !cfg.Network.Enabled {
 		t.Fatal("defaultConfig() Network.Enabled = false, want true")
 	}
-	if got, want := cfg.Network.DefaultChannel, "default"; got != want {
-		t.Fatalf("defaultConfig() Network.DefaultChannel = %q, want %q", got, want)
+	if got, want := cfg.Network.Live.Defaults.MaxWakes, 8; got != want {
+		t.Fatalf("defaultConfig() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
 	}
-	if got, want := cfg.Network.Port, -1; got != want {
-		t.Fatalf("defaultConfig() Network.Port = %d, want %d", got, want)
-	}
-	if got, want := cfg.Network.MaxPayload, 1<<20; got != want {
-		t.Fatalf("defaultConfig() Network.MaxPayload = %d, want %d", got, want)
+	if got, want := cfg.Network.Live.Limits.MaxWakes, 64; got != want {
+		t.Fatalf("defaultConfig() Network.Live.Limits.MaxWakes = %d, want %d", got, want)
 	}
 }
 
@@ -2391,7 +2380,6 @@ func TestLoadRespectsExplicitNetworkDisable(t *testing.T) {
 	writeFile(t, homePaths.ConfigFile, `
 [network]
 enabled = false
-default_channel = "operators"
 `)
 
 	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
@@ -2400,9 +2388,6 @@ default_channel = "operators"
 	}
 	if cfg.Network.Enabled {
 		t.Fatal("Load() Network.Enabled = true, want explicit false override to win")
-	}
-	if got, want := cfg.Network.DefaultChannel, "operators"; got != want {
-		t.Fatalf("Load() Network.DefaultChannel = %q, want %q", got, want)
 	}
 }
 
@@ -2420,67 +2405,32 @@ func TestNetworkConfigValidateRejectsInvalidValues(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "invalid port",
+			name: "Should reject invalid live default max wakes",
 			mutate: func(cfg *Config) {
-				cfg.Network.Port = 0
+				cfg.Network.Live.Defaults.MaxWakes = 0
 			},
-			wantErr: "network.port",
+			wantErr: "network.live.defaults",
 		},
 		{
-			name: "invalid payload",
+			name: "Should reject live default above ceiling",
 			mutate: func(cfg *Config) {
-				cfg.Network.MaxPayload = 0
+				cfg.Network.Live.Defaults.MaxWakes = cfg.Network.Live.Limits.MaxWakes + 1
 			},
-			wantErr: "network.max_payload",
+			wantErr: networkLiveLimitsMaxWakesPath,
 		},
 		{
-			name: "payload over int32",
+			name: "Should reject invalid coalesce range",
 			mutate: func(cfg *Config) {
-				cfg.Network.MaxPayload = 1 << 31
+				cfg.Network.Live.Limits.MinCoalesceWindow = "6s"
 			},
-			wantErr: "network.max_payload",
+			wantErr: networkLiveLimitsMinCoalesceWindowPath,
 		},
 		{
-			name: "invalid greet interval",
-			mutate: func(cfg *Config) {
-				cfg.Network.GreetInterval = 0
-			},
-			wantErr: "network.greet_interval",
-		},
-		{
-			name: "invalid replay age",
+			name: "Should reject invalid replay age",
 			mutate: func(cfg *Config) {
 				cfg.Network.MaxReplayAge = 0
 			},
 			wantErr: "network.max_replay_age",
-		},
-		{
-			name: "invalid queue depth",
-			mutate: func(cfg *Config) {
-				cfg.Network.MaxQueueDepth = 0
-			},
-			wantErr: "network.max_queue_depth",
-		},
-		{
-			name: "Should reject response guidance bytes over int32",
-			mutate: func(cfg *Config) {
-				cfg.Network.ResponseGuidanceMaxBytes = 1 << 31
-			},
-			wantErr: "network.response_guidance_max_bytes",
-		},
-		{
-			name: "Should reject delivery structured body bytes over int32",
-			mutate: func(cfg *Config) {
-				cfg.Network.DeliveryStructuredBodyMaxBytes = 1 << 31
-			},
-			wantErr: "network.delivery_structured_body_max_bytes",
-		},
-		{
-			name: "ShouldRejectInvalidDefaultChannel",
-			mutate: func(cfg *Config) {
-				cfg.Network.DefaultChannel = "Bad Channel"
-			},
-			wantErr: "network.default_channel",
 		},
 	}
 
@@ -2497,6 +2447,49 @@ func TestNetworkConfigValidateRejectsInvalidValues(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("Validate() error = %q, want substring %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestLoadGlobalConfigRejectsRemovedNetworkKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{name: "Should reject default_channel", key: "default_channel", value: `"builders"`},
+		{name: "Should reject port", key: "port", value: "4222"},
+		{name: "Should reject max_payload", key: "max_payload", value: "65536"},
+		{name: "Should reject activation_top_k", key: "activation_top_k", value: "3"},
+		{name: "Should reject digest_flush_interval", key: "digest_flush_interval", value: `"250ms"`},
+		{name: "Should reject digest_max_envelopes", key: "digest_max_envelopes", value: "10"},
+		{name: "Should reject response_guidance_max_bytes", key: "response_guidance_max_bytes", value: "512"},
+		{
+			name:  "Should reject delivery_structured_body_max_bytes",
+			key:   "delivery_structured_body_max_bytes",
+			value: "4096",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			writeFile(t, homePaths.ConfigFile, "[network]\n"+tc.key+" = "+tc.value+"\n")
+
+			_, err = LoadGlobalConfig(homePaths)
+			if err == nil {
+				t.Fatalf("LoadGlobalConfig() error = nil, want removed key %q rejected", tc.key)
+			}
+			if !strings.Contains(err.Error(), "network."+tc.key) {
+				t.Fatalf("LoadGlobalConfig() error = %q, want path network.%s", err, tc.key)
 			}
 		})
 	}

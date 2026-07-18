@@ -142,7 +142,6 @@ type StubTaskManager struct {
 		taskpkg.ClaimCriteria,
 		taskpkg.ActorContext,
 	) (*taskpkg.ClaimResult, error)
-	ClaimRunFn             func(context.Context, string, taskpkg.ClaimRun, taskpkg.ActorContext) (*taskpkg.Run, error)
 	StartRunFn             func(context.Context, string, taskpkg.StartRun, taskpkg.ActorContext) (*taskpkg.Run, error)
 	AttachRunSessionFn     func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Run, error)
 	HeartbeatRunLeaseFn    func(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
@@ -176,8 +175,13 @@ type StubTaskManager struct {
 		taskpkg.SchedulerBacklogQuery,
 		taskpkg.ActorContext,
 	) (taskpkg.SchedulerBacklog, error)
-	CompleteRunLeaseFn          func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
-	FailRunLeaseFn              func(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
+	CompleteRunLeaseFn  func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
+	FailRunLeaseFn      func(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
+	SettleNetworkWakeFn func(
+		context.Context,
+		taskpkg.NetworkWakeSettlement,
+		taskpkg.ActorContext,
+	) (*taskpkg.NetworkWakeSettlementResult, error)
 	LookupActiveRunForSessionFn func(
 		context.Context,
 		string,
@@ -556,18 +560,6 @@ func (s *StubTaskManager) ClaimNextRun(
 	return nil, taskpkg.ErrNoClaimableRun
 }
 
-func (s *StubTaskManager) ClaimRun(
-	ctx context.Context,
-	runID string,
-	claim taskpkg.ClaimRun,
-	actor taskpkg.ActorContext,
-) (*taskpkg.Run, error) {
-	if s.ClaimRunFn != nil {
-		return s.ClaimRunFn(ctx, runID, claim, actor)
-	}
-	return nil, taskpkg.ErrTaskRunNotFound
-}
-
 func (s *StubTaskManager) StartRun(
 	ctx context.Context,
 	runID string,
@@ -780,6 +772,17 @@ func (s *StubTaskManager) FailRunLease(
 ) (*taskpkg.Run, error) {
 	if s.FailRunLeaseFn != nil {
 		return s.FailRunLeaseFn(ctx, failure, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s *StubTaskManager) SettleNetworkWake(
+	ctx context.Context,
+	settlement taskpkg.NetworkWakeSettlement,
+	actor taskpkg.ActorContext,
+) (*taskpkg.NetworkWakeSettlementResult, error) {
+	if s.SettleNetworkWakeFn != nil {
+		return s.SettleNetworkWakeFn(ctx, settlement, actor)
 	}
 	return nil, taskpkg.ErrTaskRunNotFound
 }

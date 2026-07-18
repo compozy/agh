@@ -122,6 +122,23 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("beta");
   });
 
+  it("Should keep scope immutable and omit it from the Job edit preview", () => {
+    const { onChange } = renderJobForm({
+      draft: {
+        ...createAutomationJobDraft(WORKSPACE_ID),
+        name: "nightly-docs",
+      },
+      mode: "edit",
+    });
+
+    expect(screen.getByTestId("job-scope-global")).toBeDisabled();
+    expect(screen.getByTestId("job-scope-workspace")).toBeDisabled();
+    expect(screen.getByTestId("job-workspace-select")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("job-scope-global"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent('"scope"');
+  });
+
   it("Should switch output mode to task, reveal task fields, set draft.task, and hide the agent prompt", () => {
     const { onChange } = renderJobForm({
       draft: {
@@ -170,6 +187,39 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("job-target-agent")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("Should serialize the Automation Task participation control without legacy fields", () => {
+    const { onChange } = renderJobForm();
+    fireEvent.click(screen.getByTestId("job-target-task"));
+
+    expect(screen.getByTestId("job-task-participation-mode")).toHaveValue("local");
+    fireEvent.change(screen.getByTestId("job-task-participation-mode"), {
+      target: { value: "live" },
+    });
+    fireEvent.change(screen.getByTestId("job-task-participation-channel"), {
+      target: { value: "release-room" },
+    });
+    fireEvent.change(screen.getByTestId("job-task-participation-strategy"), {
+      target: { value: "named" },
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        task: expect.objectContaining({
+          network_participation: {
+            mode: "live",
+            channel_id: "release-room",
+            channel_strategy: "named",
+          },
+        }),
+      })
+    );
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent(
+      /"channel"|"network_channel"|"coordination_channel_id"/
+    );
+    expect(screen.getByTestId("job-preview-task-participation")).toHaveTextContent("Live");
+    expect(screen.getByTestId("job-preview-task-channel")).toHaveTextContent("release-room");
+  });
+
   it("Should switch the target to Run loop with a static input form and no payload mapping (§9.14)", () => {
     const { onChange } = renderJobForm();
 
@@ -177,7 +227,10 @@ describe("AutomationJobForm", () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         target_kind: "loop",
-        loop_target: expect.objectContaining({ loop_name: "" }),
+        loop_target: expect.objectContaining({
+          loop_name: "",
+          network_participation: { mode: "local" },
+        }),
         task: undefined,
       })
     );
@@ -195,6 +248,25 @@ describe("AutomationJobForm", () => {
     // Jobs fire on a schedule, not an event, so there is no payload mapping table.
     expect(screen.queryByTestId("loop-input-mapping")).not.toBeInTheDocument();
     expect(screen.getAllByTestId("loop-input-control").length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByTestId("loop-target-participation-mode"), {
+      target: { value: "live" },
+    });
+    expect(screen.getByTestId("submit-job-form")).toBeDisabled();
+    fireEvent.change(screen.getByTestId("loop-target-participation-channel"), {
+      target: { value: "loop-release-room" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        loop_target: expect.objectContaining({
+          network_participation: {
+            mode: "live",
+            channel_id: "loop-release-room",
+            channel_strategy: "named",
+          },
+        }),
+      })
+    );
   });
 
   it("Should offer only Loops that declare schedule starts", () => {
@@ -270,6 +342,10 @@ describe("AutomationJobForm", () => {
     });
 
     expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("reviews-watch");
+    expect(screen.getByRole("combobox", { name: "Loop" })).toBeDisabled();
+    expect(screen.getByTestId("job-target-agent")).toBeDisabled();
+    expect(screen.getByTestId("job-target-task")).toBeDisabled();
+    expect(screen.getByTestId("job-target-loop")).toBeDisabled();
     expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
       "reviews-watch does not declare the schedule start kind"
     );
@@ -309,7 +385,7 @@ describe("AutomationJobForm", () => {
 
     const request = screen.getByTestId("automation-request-payload");
     expect(request).toHaveTextContent("PATCH /api/automation/jobs/{id}");
-    expect(request).toHaveTextContent('"target_kind": "loop"');
+    expect(request).not.toHaveTextContent('"target_kind"');
     expect(request).toHaveTextContent('"loop_target"');
     expect(request).toHaveTextContent('"slug": "helix-v1-launch"');
   });

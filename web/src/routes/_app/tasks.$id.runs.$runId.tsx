@@ -5,6 +5,12 @@ import { Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskRunPage } from "@/hooks/routes/use-task-run-page";
 import {
+  formatTaskRunBounds,
+  TaskRunConversationPanel,
+  TaskRunCoordinationInvitationHost,
+  useTaskRunConversation,
+} from "@/systems/network";
+import {
   TaskRunDetailHeader,
   TaskInspectDiagnosticsCard,
   TaskRunTimelinePanel,
@@ -22,7 +28,9 @@ export const Route = createFileRoute("/_app/tasks/$id/runs/$runId")({
 function TaskRunDetailRoute() {
   const { id, runId } = Route.useParams();
   const page = useTaskRunPage(id, runId);
-  const timelineQuery = useTaskTimeline(id, {}, { enabled: Boolean(id) });
+  const taskId = page.run?.task?.id ?? "";
+  const timelineQuery = useTaskTimeline(taskId, {}, { enabled: Boolean(taskId) });
+  const conversation = useTaskRunConversation(runId, page.run?.network);
 
   if (page.runLoading) {
     return (
@@ -62,6 +70,12 @@ function TaskRunDetailRoute() {
   }
 
   const timelineItems = timelineQuery.data ?? [];
+  const record = run.run;
+  const participation = record.resolved_network_participation;
+  const coordinationWorkspaceId =
+    (participation?.mode === "live" ? participation.workspace_id : undefined) ??
+    page.task?.task.workspace_id ??
+    "";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-run-detail-content">
@@ -93,6 +107,33 @@ function TaskRunDetailRoute() {
         className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
         data-testid="tasks-run-detail-main"
       >
+        <div
+          className="rounded-md border border-border px-3 py-2 text-sm"
+          data-testid="tasks-run-participation-chip"
+        >
+          Participation: {participation?.mode ?? "local"}
+          {participation?.mode === "live" ? ` · ${participation.channel_id}` : ""}
+        </div>
+        {taskId && coordinationWorkspaceId ? (
+          <TaskRunCoordinationInvitationHost
+            runId={record.id}
+            taskId={taskId}
+            workspaceId={coordinationWorkspaceId}
+          />
+        ) : null}
+        {conversation && run.network ? (
+          <TaskRunConversationPanel
+            boundsLabel={formatTaskRunBounds(record, run.network)}
+            conversationError={conversation.error}
+            conversationLoading={conversation.isLoading}
+            hasMoreMessages={conversation.hasOlder}
+            isFetchingMore={conversation.isLoadingOlder}
+            messages={conversation.messages}
+            onLoadMore={conversation.loadOlder}
+            streamError={conversation.streamError}
+            usage={conversation.usage}
+          />
+        ) : null}
         <TaskRunTimelinePanel
           isLive={page.isLive}
           isLoading={timelineQuery.isLoading && timelineItems.length === 0}

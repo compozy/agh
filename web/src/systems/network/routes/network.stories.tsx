@@ -107,14 +107,9 @@ export const Disabled: Story = {
             network: {
               ...storybookNetworkStatus,
               channels: 0,
-              delivery_workers: 0,
-              configured_default_channel: storyHeroNetworkChannel,
               enabled: false,
-              effective_default_channel: storyHeroNetworkChannel,
               local_peers: 0,
-              queued_messages: 0,
-              remote_peers: 0,
-              status: "stopped",
+              status: "disabled",
             },
           })
         ),

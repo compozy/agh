@@ -1,6 +1,15 @@
 import { useState, type FormEvent } from "react";
 
+import {
+  DEFAULT_NETWORK_PARTICIPATION_DRAFT,
+  networkParticipationValidationMessage,
+  serializeNetworkParticipation,
+  type NetworkParticipationDraft,
+} from "@/systems/network";
+
 import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
+
+const FAN_OUT_NETWORK_STRATEGIES = ["named", "run"] as const;
 
 const DEFAULT_DESIGNATIONS = [
   "Investigate runtime data path",
@@ -9,7 +18,6 @@ const DEFAULT_DESIGNATIONS = [
 ].join("\n");
 
 export interface UseTasksFanOutRunsCardParams {
-  defaultNetworkChannel?: string | null;
   onFanOut: (data: FanOutTaskRunsRequest) => Promise<FanOutTaskRunsResponse | void>;
 }
 
@@ -21,28 +29,21 @@ function parseDesignations(value: string): FanOutTaskRunsRequest["designations"]
     .map(brief => ({ brief }));
 }
 
-function trimOrUndefined(value: string): string | undefined {
-  const trimmed = value.trim();
-  return trimmed === "" ? undefined : trimmed;
-}
-
-export function useTasksFanOutRunsCard({
-  defaultNetworkChannel,
-  onFanOut,
-}: UseTasksFanOutRunsCardParams) {
+export function useTasksFanOutRunsCard({ onFanOut }: UseTasksFanOutRunsCardParams) {
   const [open, setOpen] = useState(false);
-  const [networkChannel, setNetworkChannel] = useState(defaultNetworkChannel ?? "");
   const [designationsText, setDesignationsText] = useState(DEFAULT_DESIGNATIONS);
   const [formError, setFormError] = useState<string | null>(null);
+  const [networkParticipation, setNetworkParticipation] = useState<NetworkParticipationDraft>({
+    ...DEFAULT_NETWORK_PARTICIPATION_DRAFT,
+  });
   const designations = parseDesignations(designationsText);
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (nextOpen) {
-      setNetworkChannel(defaultNetworkChannel ?? "");
-    } else {
+    if (!nextOpen) {
       setFormError(null);
       setDesignationsText(DEFAULT_DESIGNATIONS);
+      setNetworkParticipation({ ...DEFAULT_NETWORK_PARTICIPATION_DRAFT });
     }
   };
 
@@ -56,10 +57,18 @@ export function useTasksFanOutRunsCard({
       setFormError("Add at least one assignment.");
       return;
     }
+    const participationError = networkParticipationValidationMessage(
+      networkParticipation,
+      FAN_OUT_NETWORK_STRATEGIES
+    );
+    if (participationError) {
+      setFormError(participationError);
+      return;
+    }
 
     const payload: FanOutTaskRunsRequest = {
       designations,
-      network_channel: trimOrUndefined(networkChannel),
+      network_participation: serializeNetworkParticipation(networkParticipation),
     };
 
     try {
@@ -76,10 +85,11 @@ export function useTasksFanOutRunsCard({
     formError,
     handleOpenChange,
     handleSubmit,
-    networkChannel,
+    networkParticipation,
+    networkStrategies: FAN_OUT_NETWORK_STRATEGIES,
     open,
     openDialog,
     setDesignationsText,
-    setNetworkChannel,
+    setNetworkParticipation,
   };
 }

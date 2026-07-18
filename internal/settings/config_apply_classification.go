@@ -45,3 +45,12 @@ func (s *service) classifyGeneralRequest(ctx context.Context, req SectionUpdateR
 	changed := diffGeneralSettings(&cfg, *req.General)
 	return lifecycleForChangedPaths(changed, lifecycle.RestartRequired)
 }
+
+func (s *service) classifyNetworkRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
+	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return lifecycle.RestartRequired
+	}
+	changed := diffNetworkSettings(cfg.Network, *req.Network)
+	return lifecycleForChangedPaths(changed, lifecycle.RestartRequired)
+}

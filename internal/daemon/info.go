@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/network"
 )
 
 // Info is the persisted daemon discovery record written to daemon.json.
@@ -21,10 +23,8 @@ type Info struct {
 
 // NetworkInfo is the persisted daemon-safe network diagnostics snapshot.
 type NetworkInfo struct {
-	Enabled      bool   `json:"enabled"`
-	Status       string `json:"status"`
-	ListenerHost string `json:"listener_host,omitempty"`
-	ListenerPort int    `json:"listener_port,omitempty"`
+	Enabled bool   `json:"enabled"`
+	Status  string `json:"status"`
 }
 
 // Validate ensures the persisted daemon info remains usable for discovery.
@@ -47,11 +47,21 @@ func (i Info) Validate() error {
 
 // Validate ensures the persisted network diagnostics remain usable.
 func (n NetworkInfo) Validate() error {
-	if strings.TrimSpace(n.Status) == "" {
+	status := strings.TrimSpace(n.Status)
+	if status == "" {
 		return errors.New("daemon: network status is required")
 	}
-	if n.ListenerPort < 0 || n.ListenerPort > 65535 {
-		return fmt.Errorf("daemon: network listener port must be between 0 and 65535: %d", n.ListenerPort)
+	switch status {
+	case network.StatusDisabled:
+		if n.Enabled {
+			return errors.New("daemon: disabled network status requires enabled=false")
+		}
+	case network.StatusReady, network.StatusActive:
+		if !n.Enabled {
+			return fmt.Errorf("daemon: network status %q requires enabled=true", status)
+		}
+	default:
+		return fmt.Errorf("daemon: unsupported network status %q", status)
 	}
 	return nil
 }

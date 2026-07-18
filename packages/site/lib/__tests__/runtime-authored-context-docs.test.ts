@@ -111,7 +111,7 @@ describe("authored context runtime docs", () => {
       "agh session status",
       "agh session inspect",
       "include_health=true",
-      "AGH Network presence",
+      "AGH Network membership",
     ]);
   });
 
@@ -172,7 +172,7 @@ describe("authored context runtime docs", () => {
     const protocol = readDoc("core/network/protocol.mdx");
 
     expectIncludesAll(protocol, [
-      "Network presence is independent from authored context",
+      "Network participation is independent from authored context",
       "greet",
       "`SOUL.md`",
       "`HEARTBEAT.md`",

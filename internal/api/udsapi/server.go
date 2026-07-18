@@ -19,6 +19,8 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/store"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -65,6 +67,8 @@ type Server struct {
 	tasks              core.TaskService
 	network            core.NetworkService
 	networkStore       core.NetworkStore
+	networkUsage       store.NetworkUsageStore
+	coordination       workspacepkg.CoordinationCommands
 	observer           core.Observer
 	schemaStreams      core.SchemaStreamStatusReader
 	resources          core.ResourceService
@@ -199,20 +203,6 @@ func WithSessionCatalog(catalog core.SessionCatalog) Option {
 func WithTaskService(service core.TaskService) Option {
 	return func(server *Server) {
 		server.tasks = service
-	}
-}
-
-// WithNetworkService injects the runtime network manager.
-func WithNetworkService(service core.NetworkService) Option {
-	return func(server *Server) {
-		server.network = service
-	}
-}
-
-// WithNetworkStore injects the persisted network query store.
-func WithNetworkStore(store core.NetworkStore) Option {
-	return func(server *Server) {
-		server.networkStore = store
 	}
 }
 
@@ -582,6 +572,8 @@ func (s *Server) handlerConfig() *handlerConfig {
 		tasks:              s.tasks,
 		network:            s.network,
 		networkStore:       s.networkStore,
+		networkUsage:       s.networkUsage,
+		coordination:       s.coordination,
 		observer:           s.observer,
 		schemaStreams:      s.schemaStreams,
 		resources:          s.resources,
@@ -867,6 +859,8 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Tasks:                        cfg.tasks,
 			Network:                      cfg.network,
 			NetworkStore:                 cfg.networkStore,
+			NetworkUsage:                 cfg.networkUsage,
+			Coordination:                 cfg.coordination,
 			Observer:                     cfg.observer,
 			SchemaStreams:                cfg.schemaStreams,
 			Resources:                    cfg.resources,

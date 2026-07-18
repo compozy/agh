@@ -17,11 +17,11 @@ func (g *NetworkRepo) normalizeDirectRoomEntry(
 	entry store.NetworkDirectRoomEntry,
 ) (store.NetworkDirectRoomEntry, error) {
 	now := g.now()
-	directID, peerA, peerB, err := store.NetworkDirectRoomIdentity(
+	directID, sessionA, sessionB, err := store.NetworkDirectRoomIdentity(
 		entry.WorkspaceID,
 		entry.Channel,
-		entry.PeerA,
-		entry.PeerB,
+		entry.SessionA,
+		entry.SessionB,
 	)
 	if err != nil {
 		return store.NetworkDirectRoomEntry{}, err
@@ -38,8 +38,8 @@ func (g *NetworkRepo) normalizeDirectRoomEntry(
 		WorkspaceID:    strings.TrimSpace(entry.WorkspaceID),
 		Channel:        strings.TrimSpace(entry.Channel),
 		DirectID:       directID,
-		PeerA:          peerA,
-		PeerB:          peerB,
+		SessionA:       sessionA,
+		SessionB:       sessionB,
 		OpenedAt:       entry.OpenedAt,
 		LastActivityAt: entry.LastActivityAt,
 	}
@@ -112,7 +112,7 @@ func resolveDirectRoomWithExecutor(
 ) (store.NetworkDirectRoomSummary, bool, error) {
 	rowsAffected, err := sqlcgen.New(exec).InsertNetworkDirectRoom(ctx, sqlcgen.InsertNetworkDirectRoomParams{
 		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, DirectID: entry.DirectID,
-		PeerA: entry.PeerA, PeerB: entry.PeerB,
+		SessionA: entry.SessionA, SessionB: entry.SessionB,
 		OpenedAt:       store.FormatTimestamp(entry.OpenedAt),
 		LastActivityAt: store.FormatTimestamp(entry.LastActivityAt),
 	})
@@ -120,22 +120,22 @@ func resolveDirectRoomWithExecutor(
 		return store.NetworkDirectRoomSummary{}, false, fmt.Errorf("store: insert network direct room: %w", err)
 	}
 
-	summary, err := getDirectRoomByPeerPairWithExecutor(
+	summary, err := getDirectRoomBySessionPairWithExecutor(
 		ctx,
 		exec,
 		entry.WorkspaceID,
 		entry.Channel,
-		entry.PeerA,
-		entry.PeerB,
+		entry.SessionA,
+		entry.SessionB,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return store.NetworkDirectRoomSummary{}, false, fmt.Errorf(
-				"%w: direct_id=%q peer_a=%q peer_b=%q",
+				"%w: direct_id=%q session_a=%q session_b=%q",
 				store.ErrNetworkDirectRoomCollision,
 				entry.DirectID,
-				entry.PeerA,
-				entry.PeerB,
+				entry.SessionA,
+				entry.SessionB,
 			)
 		}
 		return store.NetworkDirectRoomSummary{}, false, err
@@ -151,18 +151,18 @@ func resolveDirectRoomWithExecutor(
 	return summary, rowsAffected > 0, nil
 }
 
-func getDirectRoomByPeerPairWithExecutor(
+func getDirectRoomBySessionPairWithExecutor(
 	ctx context.Context,
 	exec networkSQLExecutor,
 	workspaceID string,
 	channel string,
-	peerA string,
-	peerB string,
+	sessionA string,
+	sessionB string,
 ) (store.NetworkDirectRoomSummary, error) {
-	row, err := sqlcgen.New(exec).GetNetworkDirectRoomByPeerPair(
+	row, err := sqlcgen.New(exec).GetNetworkDirectRoomBySessionPair(
 		ctx,
-		sqlcgen.GetNetworkDirectRoomByPeerPairParams{
-			WorkspaceID: workspaceID, Channel: channel, PeerA: peerA, PeerB: peerB,
+		sqlcgen.GetNetworkDirectRoomBySessionPairParams{
+			WorkspaceID: workspaceID, Channel: channel, SessionA: sessionA, SessionB: sessionB,
 		},
 	)
 	if err != nil {
@@ -178,7 +178,7 @@ func getDirectRoomByPeerPairWithExecutor(
 	}
 	return store.NetworkDirectRoomSummary{
 		WorkspaceID: row.WorkspaceID, Channel: row.Channel, DirectID: row.DirectID,
-		PeerA: row.PeerA, PeerB: row.PeerB, OpenedAt: openedAt,
+		SessionA: row.SessionA, SessionB: row.SessionB, OpenedAt: openedAt,
 		OpenedSequence: row.OpenedSequence, LastActivityAt: lastActivityAt,
 		LastActivitySequence: row.LastActivitySequence, MessageCount: int(row.MessageCount),
 		OpenWorkCount: int(row.OpenWorkCount), LastMessagePreview: row.LastMessagePreview,
@@ -243,24 +243,27 @@ func insertNetworkTimelineMessageWithExecutor(
 	return true, sequence, nil
 }
 
-func lookupNetworkMessageTimestamp(
+func lookupNetworkMessageAcceptance(
 	ctx context.Context,
 	exec networkSQLExecutor,
 	workspaceID string,
 	messageID string,
-) time.Time {
-	timestampRaw, err := sqlcgen.New(exec).GetNetworkMessageTimestamp(
-		ctx,
-		sqlcgen.GetNetworkMessageTimestampParams{WorkspaceID: workspaceID, MessageID: messageID},
-	)
-	if err != nil {
-		return time.Time{}
+) (int64, time.Time, error) {
+	// dynamic-sql: this exact identity lookup is intentionally scoped by workspace and message id.
+	const query = `
+SELECT sequence, timestamp
+FROM network_timeline_log
+WHERE workspace_id = ? AND message_id = ?`
+	var sequence int64
+	var timestampRaw string
+	if err := exec.QueryRowContext(ctx, query, workspaceID, messageID).Scan(&sequence, &timestampRaw); err != nil {
+		return 0, time.Time{}, fmt.Errorf("store: lookup network message acceptance: %w", err)
 	}
 	timestamp, err := store.ParseTimestamp(timestampRaw)
 	if err != nil {
-		return time.Time{}
+		return 0, time.Time{}, fmt.Errorf("store: parse network message acceptance timestamp: %w", err)
 	}
-	return timestamp
+	return sequence, timestamp, nil
 }
 
 func ensureNetworkConversationContainer(
@@ -304,7 +307,7 @@ func ensureNetworkDirectRoomWithExecutor(
 	if strings.TrimSpace(entry.PeerTo) == "" {
 		return false, fmt.Errorf("store: network direct message peer_to is required")
 	}
-	directID, peerA, peerB, err := store.NetworkDirectRoomIdentity(
+	directID, sessionA, sessionB, err := store.NetworkDirectRoomIdentity(
 		entry.WorkspaceID,
 		entry.Channel,
 		entry.PeerFrom,
@@ -325,8 +328,8 @@ func ensureNetworkDirectRoomWithExecutor(
 		WorkspaceID:    entry.WorkspaceID,
 		Channel:        entry.Channel,
 		DirectID:       directID,
-		PeerA:          peerA,
-		PeerB:          peerB,
+		SessionA:       sessionA,
+		SessionB:       sessionB,
 		OpenedAt:       entry.Timestamp,
 		LastActivityAt: entry.Timestamp,
 	})

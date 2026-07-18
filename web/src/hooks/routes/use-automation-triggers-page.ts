@@ -5,6 +5,7 @@ import {
   AutomationApiError,
   automationTriggerToDraft,
   buildAutomationTriggerRequest,
+  automationTriggerUpdateFromDraft,
   createAutomationDialogHandle,
   createAutomationTriggerDraft,
   createLoopTargetTriggerDraft,
@@ -112,7 +113,10 @@ export function useAutomationTriggersPage(
       const trigger =
         editor.mode === "create"
           ? await createTriggerMutation.mutateAsync(payload)
-          : await updateTriggerMutation.mutateAsync({ data: payload, id: editor.id });
+          : await updateTriggerMutation.mutateAsync({
+              data: automationTriggerUpdateFromDraft(payload),
+              id: editor.id,
+            });
 
       page.setSelectedId(trigger.id);
       setEditor(null);

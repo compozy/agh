@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +23,7 @@ import (
 	apitestutil "github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/session"
 	settingspkg "github.com/compozy/agh/internal/settings"
@@ -142,6 +144,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/marketplace/search",
 		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 		"GET /api/workspaces/:workspace_id/network/inbox",
+		"GET /api/workspaces/:workspace_id/network/usage",
+		"GET /api/workspaces/:workspace_id/network-coordination",
+		"PUT /api/workspaces/:workspace_id/network-coordination",
+		"PUT /api/workspaces/:workspace_id/network-coordination/invitation",
 		"GET /api/workspaces/:workspace_id/network/peers",
 		"GET /api/workspaces/:workspace_id/network/peers/:peer_id",
 		"GET /api/workspaces/:workspace_id/network/channels",
@@ -224,6 +230,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/tasks/:id/runs",
 		"GET /api/runs/:id/inspect",
 		"GET /api/task-runs/:id",
+		"GET /api/task-runs/:id/conversation/stream",
 		"GET /api/task-runs/:id/reviews",
 		"GET /api/task-reviews/:id",
 		"GET /api/tools",
@@ -355,7 +362,6 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/skills/marketplace/update",
 		"POST /api/task-runs/:id/attach-session",
 		"POST /api/task-runs/:id/cancel",
-		"POST /api/task-runs/:id/claim",
 		"POST /api/task-runs/:id/complete",
 		"POST /api/task-runs/:id/fail",
 		"POST /api/task-runs/:id/reviews",
@@ -404,18 +410,38 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/vault/secrets",
 		"DELETE /api/workspaces/:workspace_id/loops/:name",
 		"DELETE /api/agents/:name",
-		"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:peer_id",
+		"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
 	}
 	sort.Strings(want)
 
 	if len(got) != len(want) {
-		t.Fatalf("len(routes) = %d, want %d\nroutes=%v", len(got), len(want), got)
+		t.Fatalf(
+			"len(routes) = %d, want %d; missing=%v unexpected=%v",
+			len(got),
+			len(want),
+			routeDifference(want, got),
+			routeDifference(got, want),
+		)
 	}
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("route[%d] = %q, want %q", i, got[i], want[i])
 		}
 	}
+}
+
+func routeDifference(left []string, right []string) []string {
+	rightSet := make(map[string]struct{}, len(right))
+	for _, route := range right {
+		rightSet[route] = struct{}{}
+	}
+	difference := make([]string, 0)
+	for _, route := range left {
+		if _, ok := rightSet[route]; !ok {
+			difference = append(difference, route)
+		}
+	}
+	return difference
 }
 func TestRegisterRoutesRejectsLegacyStatusSurfaces(t *testing.T) {
 	t.Parallel()
@@ -506,6 +532,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"POST /api/scheduler/pause":                                    "PauseScheduler",
 		"POST /api/scheduler/resume":                                   "ResumeScheduler",
 		"GET /api/task-runs/:id":                                       "GetTaskRun",
+		"GET /api/task-runs/:id/conversation/stream":                   "StreamTaskRunConversation",
 		"GET /api/task-runs/:id/reviews":                               "ListTaskRunReviews",
 		"GET /api/task-reviews/:id":                                    "GetTaskRunReview",
 		"GET /api/tasks/:id/blocks":                                    "ListTaskBlocks",
@@ -1553,13 +1580,10 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" ||
-				opts.WorkspacePath != "" ||
-				opts.Channel != "builders" {
+				opts.WorkspacePath != "" || opts.NetworkParticipation != nil {
 				t.Fatalf("Create() opts = %#v", opts)
 			}
-			sess := newSession("sess-123")
-			sess.Channel = "builders"
-			return sess, nil
+			return newSession("sess-123"), nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -1570,7 +1594,7 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/sessions",
-		[]byte(`{"agent_name":"coder","name":"demo","workspace":"alpha","channel":"builders"}`),
+		[]byte(`{"agent_name":"coder","name":"demo","workspace":"alpha"}`),
 	)
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
@@ -1586,8 +1610,65 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	if response.Session.WorkspaceID != "ws-workspace" || response.Session.WorkspacePath != "/workspace" {
 		t.Fatalf("session workspace = %#v", response.Session)
 	}
-	if response.Session.Channel != "builders" {
-		t.Fatalf("session channel = %q, want %q", response.Session.Channel, "builders")
+	if response.Session.ResolvedNetworkParticipation != nil &&
+		response.Session.ResolvedNetworkParticipation.Mode != "local" {
+		t.Fatalf(
+			"session resolved_network_participation = %#v, want Local session projection",
+			response.Session.ResolvedNetworkParticipation,
+		)
+	}
+}
+
+func TestCreateSessionHandlerMapsNetworkParticipationFailures(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{
+			name:       "Should reject an invalid strategy as a bad request",
+			err:        participation.ErrStrategyInvalid,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "Should report an unknown channel as not found",
+			err:        participation.ErrChannelUnknown,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "Should report disabled Live participation as a conflict",
+			err:        participation.ErrUnavailable,
+			wantStatus: http.StatusConflict,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := stubSessionManager{
+				CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+					return nil, fmt.Errorf("resolve participation: %w", tc.err)
+				},
+			}
+			engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+			const requestBody = `{
+				"agent_name":"coder",
+				"workspace":"alpha",
+				"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"builders"}
+			}`
+			recorder := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/sessions",
+				[]byte(requestBody),
+			)
+
+			if recorder.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, tc.wantStatus, recorder.Body.String())
+			}
+		})
 	}
 }
 

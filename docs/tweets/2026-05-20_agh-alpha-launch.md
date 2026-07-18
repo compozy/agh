@@ -113,7 +113,7 @@ All seven tweets pass Pedro voice gate (`x-pedro-voice` skill) with score below 
 Each topical tweet was grounded in a parallel Explore subagent brief that read the actual code, docs, and launch blog. The launch blog at `packages/site/content/blog/posts/introducing-agh-the-first-agent-network-protocol.mdx` is the canonical source for the positioning, and `COPY.md` (repo root) governs the verbal grammar.
 
 - **Runtime brief:** session durability, event ledger path, daemon singleton, CLI/HTTP/UDS/Web UI parity.
-- **Network brief:** six message kinds (greet/whois/say/capability/receipt/trace), work_id lifecycle, NATS-backed embedded runtime, the MCP kicker line.
+- **Network brief:** six message kinds (greet/whois/say/capability/receipt/trace), work_id lifecycle, commit-first in-process delivery, the MCP kicker line.
 - **Memory brief:** typed indexes (user/feedback/project/reference), global vs workspace scopes, dream consolidation gating, file-backed markdown.
 - **Bridges brief:** Slack/Discord/Telegram/GitHub/Linear, extension-owned adapters, durable route records, `agh bridge create/routes/test-delivery`.
 - **Extensibility brief:** 16 hook event families, five-layer skill precedence, `extension.toml`, `AGENT.md`, marketplace provenance.

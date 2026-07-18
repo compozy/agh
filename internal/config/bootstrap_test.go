@@ -202,12 +202,10 @@ func TestSaveBootstrapConfigNetworkBehavior(t *testing.T) {
 		name               string
 		seed               string
 		wantEnabled        bool
-		wantDefaultChannel string
 		wantNetworkSection bool
 	}{
 		{
 			name:               "ShouldKeepNetworkEnabledByDefaultOnFirstRun",
-			wantDefaultChannel: "default",
 			wantEnabled:        true,
 			wantNetworkSection: false,
 		},
@@ -216,10 +214,8 @@ func TestSaveBootstrapConfigNetworkBehavior(t *testing.T) {
 			seed: `
 [network]
 enabled = false
-default_channel = "legacy"
 `,
 			wantEnabled:        false,
-			wantDefaultChannel: "legacy",
 			wantNetworkSection: true,
 		},
 	}
@@ -244,10 +240,6 @@ default_channel = "legacy"
 			if got := cfg.Network.Enabled; got != tt.wantEnabled {
 				t.Fatalf("SaveBootstrapConfig() Network.Enabled = %t, want %t", got, tt.wantEnabled)
 			}
-			if got := cfg.Network.DefaultChannel; got != tt.wantDefaultChannel {
-				t.Fatalf("SaveBootstrapConfig() Network.DefaultChannel = %q, want %q", got, tt.wantDefaultChannel)
-			}
-
 			reloaded, err := LoadGlobalConfig(homePaths)
 			if err != nil {
 				t.Fatalf("LoadGlobalConfig() error = %v", err)
@@ -255,10 +247,6 @@ default_channel = "legacy"
 			if got := reloaded.Network.Enabled; got != tt.wantEnabled {
 				t.Fatalf("LoadGlobalConfig() Network.Enabled = %t, want %t", got, tt.wantEnabled)
 			}
-			if got := reloaded.Network.DefaultChannel; got != tt.wantDefaultChannel {
-				t.Fatalf("LoadGlobalConfig() Network.DefaultChannel = %q, want %q", got, tt.wantDefaultChannel)
-			}
-
 			contents, err := os.ReadFile(homePaths.ConfigFile)
 			if err != nil {
 				t.Fatalf("ReadFile(config) error = %v", err)
@@ -274,7 +262,6 @@ default_channel = "legacy"
 			for _, want := range []string{
 				"[network]",
 				`enabled = false`,
-				`default_channel = "legacy"`,
 			} {
 				if !strings.Contains(text, want) {
 					t.Fatalf("config contents missing %q\n%s", want, text)

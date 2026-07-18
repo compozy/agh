@@ -20,6 +20,10 @@ func (m *Service) publishCompletedLeaseSettlement(
 	defer publicationCancel()
 
 	run := settlement.Run
+	if run.IsNetworkWake() {
+		m.dispatchTaskRunCompleted(publicationCtx, run, Task{}, actor)
+		return &run, nil
+	}
 	reconciledTask, publicationErr := m.publishCompletedRunSettlement(publicationCtx, settlement, actor)
 	m.dispatchTerminalWake(publicationCtx, reconciledTask, run, actor)
 	advisoryCtx, advisoryCancel := context.WithTimeout(publicationCtx, autoEnqueueDispatchTimeout)
@@ -48,7 +52,7 @@ func (m *Service) publishCompletedRunSettlement(
 	defer publicationCancel()
 
 	for _, transition := range settlement.StatusTransitions {
-		m.dispatchTaskStatusChanged(
+		m.dispatchTaskStatusChangedAfterWrite(
 			publicationCtx,
 			transition.Task,
 			transition.PreviousStatus,

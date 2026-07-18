@@ -31,6 +31,10 @@ import {
   storyPeople,
   storySessionIds,
 } from "@/storybook/fintech-scenario";
+import {
+  buildLiveNetworkParticipationFixture,
+  buildLocalNetworkParticipationFixture,
+} from "@/test/network-participation-fixtures";
 
 type TaskDependencyReference = NonNullable<TaskDetailView["dependency_references"]>[number];
 type TaskActiveRun = NonNullable<TaskListItem["active_run"]>;
@@ -59,7 +63,7 @@ export function buildTaskRunFixture(overrides: Partial<TaskActiveRun> = {}): Tas
     started_at: "2026-04-17T09:59:00Z",
     session_id: storySessionIds.product,
     claimed_by: { kind: "agent_session", ref: storyAgentNames.product },
-    coordination_channel_id: "coord-launch-001",
+    resolved_network_participation: buildLocalNetworkParticipationFixture(),
     ...overrides,
   };
 }
@@ -76,7 +80,7 @@ export function buildTaskRunRecordFixture(overrides: Partial<TaskRun> = {}): Tas
     claimed_by: { kind: "agent_session", ref: storyAgentNames.product },
     origin: { kind: "cli", ref: storyPeople.primaryOperator },
     claim_token_hash: "sha256:launch-command-run",
-    coordination_channel_id: "coord-launch-001",
+    resolved_network_participation: buildLocalNetworkParticipationFixture(),
     coordination_channel: {
       id: "coord-launch-001",
       display_name: "TASK-1 coordination",
@@ -147,6 +151,16 @@ export const nonEscalatedRecoverTaskFixture: TaskListItem = buildTaskFixture({
   owner: { kind: "agent_session", ref: storyAgentNames.product },
 });
 
+const approvalPendingActiveRun = buildTaskRunFixture({
+  id: "run_006",
+  task_id: "task_006",
+  status: "needs_attention",
+  resolved_network_participation: buildLiveNetworkParticipationFixture({
+    workspaceId: STORYBOOK_WORKSPACE_ID,
+    channelId: STORYBOOK_CHANNEL,
+  }),
+});
+
 export const TASK_FIXTURES: TaskListItem[] = [
   buildTaskFixture(),
   buildTaskFixture({
@@ -165,7 +179,12 @@ export const TASK_FIXTURES: TaskListItem[] = [
       started_at: "2026-04-17T17:42:00Z",
       session_id: storySessionIds.frontend,
       claimed_by: { kind: "agent_session", ref: storyAgentNames.frontend },
-      coordination_channel_id: "coord-launch-002",
+      resolved_network_participation: buildLiveNetworkParticipationFixture({
+        workspaceId: STORYBOOK_WORKSPACE_ID,
+        channelId: "coord-launch-002",
+        channelStrategy: "run",
+        source: "workspace_coordination",
+      }),
     }),
     child_count: 0,
     dependency_count: 0,
@@ -222,8 +241,8 @@ export const TASK_FIXTURES: TaskListItem[] = [
     approval_policy: "manual",
     approval_state: "pending",
     parent_task_id: "task_001",
-    network_channel: STORYBOOK_CHANNEL,
-    active_run: null,
+    active_run: approvalPendingActiveRun,
+    resolved_network_participation: approvalPendingActiveRun.resolved_network_participation,
     owner: { kind: "human", ref: storyPeople.productLead },
   }),
   buildTaskFixture({
@@ -319,7 +338,12 @@ export const TASK_FIXTURES: TaskListItem[] = [
       started_at: null,
       session_id: undefined,
       claimed_by: undefined,
-      coordination_channel_id: "coord-launch-014",
+      resolved_network_participation: buildLiveNetworkParticipationFixture({
+        workspaceId: STORYBOOK_WORKSPACE_ID,
+        channelId: "coord-launch-014",
+        channelStrategy: "run",
+        source: "workspace_coordination",
+      }),
     }),
     child_count: 0,
     dependency_count: 0,
@@ -387,7 +411,6 @@ export function buildTaskRecordFixture(
       "Coordinate the launch-week decision, capture the blocker context, and leave a crisp operator-ready outcome.",
     approval_policy: task.approval_policy,
     approval_state: task.approval_state,
-    network_channel: STORYBOOK_CHANNEL,
     max_attempts: task.active_run?.max_attempts ?? 3,
     ...overrides,
   } as TaskRecord;
@@ -1075,6 +1098,13 @@ export function buildTaskRunDetailFixture(
           state: "active",
           ...overrides.session,
         } as TaskRunDetailView["session"]);
+  const task =
+    overrides.task === null
+      ? null
+      : (buildTaskRecordFixture(
+          TASK_FIXTURES[0]!,
+          overrides.task ?? undefined
+        ) as unknown as TaskRunDetailView["task"]);
 
   return {
     run: buildTaskRunRecordFixture({
@@ -1090,10 +1120,7 @@ export function buildTaskRunDetailFixture(
       claimed_by: { kind: "agent_session", ref: storyAgentNames.product },
       ...overrides.run,
     }),
-    task: buildTaskRecordFixture(
-      TASK_FIXTURES[0]!,
-      overrides.task
-    ) as unknown as TaskRunDetailView["task"],
+    task,
     summary: {
       last_activity_at: "2026-04-17T18:01:00Z",
       last_event_type: "task.run_progress",
@@ -1157,7 +1184,6 @@ export function buildCreatedTaskFixture(body?: Partial<CreateTaskRequest>): Task
       dependency_count: 0,
       priority: body?.priority ?? "medium",
       approval_policy: body?.approval_policy,
-      network_channel: body?.network_channel ?? STORYBOOK_CHANNEL,
     }),
     {
       description: body?.description ?? "",
@@ -1225,7 +1251,12 @@ export const queuedCoordinatedTaskFixture: TaskListItem = buildTaskFixture({
     queued_at: "2026-04-17T09:55:00Z",
     started_at: null,
     session_id: undefined,
-    coordination_channel_id: "coord-task-queued",
+    resolved_network_participation: buildLiveNetworkParticipationFixture({
+      workspaceId: STORYBOOK_WORKSPACE_ID,
+      channelId: "coord-task-queued",
+      channelStrategy: "run",
+      source: "workspace_coordination",
+    }),
   }),
   child_count: 0,
   dependency_count: 0,
@@ -1370,7 +1401,12 @@ export function buildTaskRunReviewVerdictResultFixture(
       started_at: null,
       session_id: undefined,
       claim_token_hash: "sha256:continuation-launch-command",
-      coordination_channel_id: "coord-launch-001",
+      resolved_network_participation: buildLiveNetworkParticipationFixture({
+        workspaceId: STORYBOOK_WORKSPACE_ID,
+        channelId: "coord-launch-001",
+        channelStrategy: "run",
+        source: "workspace_coordination",
+      }),
     }) as TaskRunReviewVerdictResult["continuation_run"],
     circuit_opened: false,
     ...overrides,
@@ -1482,7 +1518,12 @@ export function buildTaskContextBundleFixture(
       max_attempts: 3,
       session_id: storySessionIds.product,
       claim_token_hash: "sha256:launch-command-run",
-      coordination_channel_id: "coord-launch-001",
+      resolved_network_participation: buildLiveNetworkParticipationFixture({
+        workspaceId: STORYBOOK_WORKSPACE_ID,
+        channelId: "coord-launch-001",
+        channelStrategy: "run",
+        source: "workspace_coordination",
+      }),
     },
     execution_profile: overrides.execution_profile ?? buildTaskExecutionProfileFixture(),
     latest_event_seq: overrides.latest_event_seq ?? 14,

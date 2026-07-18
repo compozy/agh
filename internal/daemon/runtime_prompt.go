@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -110,7 +111,9 @@ func renderAGHRuntimeEnvelope(startup session.StartupPromptContext) string {
 	writeAGHRuntimeFact(&builder, "provider", startup.Provider)
 	writeAGHRuntimeFact(&builder, "workspace_id", startup.WorkspaceID)
 	writeAGHRuntimeFact(&builder, "workspace", startup.Workspace)
-	writeAGHRuntimeFact(&builder, "channel", startup.Channel)
+	if startup.NetworkParticipation.Mode == participation.ModeLive {
+		writeAGHRuntimeFact(&builder, "channel", startup.NetworkParticipation.ChannelID)
+	}
 	builder.WriteString(aghRuntimeEnvelopeEnd)
 	return strings.TrimSpace(builder.String())
 }

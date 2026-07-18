@@ -4,8 +4,13 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TaskEditorModal, type TaskEditorModalMode } from "../task-editor-modal";
-import { createTaskEditorDraft, type TaskEditorDraft } from "../../lib/task-editor";
+import {
+  createTaskEditorDraft,
+  taskEditorDraftFromTask,
+  type TaskEditorDraft,
+} from "../../lib/task-editor";
 import { getTaskTemplate, type TaskTemplateId } from "../../lib/task-templates";
+import { buildTaskExecutionProfileFixture } from "../../mocks/fixtures";
 import type { TaskRecord } from "../../types";
 
 interface RenderModalOptions {
@@ -202,12 +207,11 @@ describe("TaskEditorModal", () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ title: "Ship it" }), false);
   });
 
-  it("Should render edit mode without the toolbar or templates and with the channel input", () => {
+  it("Should render edit mode without the toolbar, templates, or network channel input", () => {
     const draft: TaskEditorDraft = {
       ...createTaskEditorDraft("blank", "ws_alpha"),
       title: "Summarize review feedback",
       maxAttempts: 3,
-      networkChannel: "launch-room",
     };
 
     renderModal({ mode: "edit", draft, task: editTask });
@@ -217,7 +221,42 @@ describe("TaskEditorModal", () => {
     expect(screen.queryByTestId("task-mode-advanced")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-template-one_shot")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-title-input")).toHaveValue("Summarize review feedback");
-    expect(screen.getByTestId("task-network-input")).toHaveValue("launch-room");
+    expect(screen.queryByTestId("task-network-input")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
+  });
+
+  it("Should submit persisted Live participation inherited from a Loop run", () => {
+    const loopTask = {
+      ...editTask,
+      execution_mode: "loop_run",
+    } as TaskRecord;
+    const draft = taskEditorDraftFromTask(
+      loopTask,
+      buildTaskExecutionProfileFixture({
+        task_id: loopTask.id,
+        network_participation: {
+          mode: "live",
+          channel_strategy: "loop_run",
+        },
+      })
+    );
+
+    const { onSubmit } = renderModal({ mode: "edit", draft, task: loopTask });
+
+    expect(screen.getByTestId("task-editor-participation-mode")).toHaveValue("live");
+    expect(screen.getByTestId("task-editor-participation-strategy")).toHaveValue("loop_run");
+    expect(screen.queryByTestId("task-editor-participation-channel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-editor-modal-submit")).toBeEnabled();
+
+    fireEvent.submit(screen.getByTestId("task-editor-modal-form"));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        networkParticipationMode: "live",
+        networkChannelId: "",
+        networkChannelStrategy: "loop_run",
+      }),
+      false
+    );
   });
 });

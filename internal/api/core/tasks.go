@@ -12,7 +12,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
@@ -44,7 +44,6 @@ const (
 	taskActionGetRun           = "get_run"
 	taskActionEnqueueRun       = "enqueue_run"
 	taskActionFanOutRuns       = "fan_out_runs"
-	taskActionClaimRun         = "claim_run"
 	taskActionStartRun         = "start_run"
 	taskActionAttachRun        = "attach_run_session"
 	taskActionCompleteRun      = "complete_run"
@@ -198,7 +197,7 @@ func (h *BaseHandlers) CreateTask(c *gin.Context) {
 	}
 
 	var req contract.CreateTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -223,7 +222,6 @@ func (h *BaseHandlers) CreateTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-
 	c.JSON(http.StatusCreated, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
 }
 
@@ -274,7 +272,7 @@ func (h *BaseHandlers) BlockTask(c *gin.Context) {
 	}
 
 	var req contract.CreateTaskBlockRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -560,7 +558,7 @@ func (h *BaseHandlers) UpdateTask(c *gin.Context) {
 	}
 
 	var req contract.UpdateTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -585,7 +583,6 @@ func (h *BaseHandlers) UpdateTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-
 	record, err := manager.UpdateTask(c.Request.Context(), taskID, patch, actor)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
@@ -637,7 +634,7 @@ func (h *BaseHandlers) SetTaskExecutionProfile(c *gin.Context) {
 	}
 
 	var req contract.SetTaskExecutionProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -840,7 +837,7 @@ func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 	}
 
 	var req contract.CreateTaskChildRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -866,7 +863,6 @@ func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-
 	c.JSON(http.StatusCreated, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
 }
 
@@ -1030,8 +1026,18 @@ func (h *BaseHandlers) GetTaskRun(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
+	if view == nil {
+		h.respondError(c, http.StatusInternalServerError, errors.New("api: task run detail is required"))
+		return
+	}
 
-	c.JSON(http.StatusOK, contract.TaskRunDetailResponse{Run: TaskRunDetailPayloadFromView(view)})
+	payload := TaskRunDetailPayloadFromView(view)
+	payload.Network, err = h.taskRunNetworkPayload(c.Request.Context(), view.Run)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskRunDetailResponse{Run: payload})
 }
 
 // TaskTimeline returns the task-native live timeline for one task.
@@ -1374,7 +1380,7 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 		return
 	}
 	var req contract.FanOutTaskRunsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -1419,115 +1425,6 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 		DesignationGroupID: groupID,
 		Runs:               TaskRunPayloadsFromRuns(runs),
 	})
-}
-
-type preparedFanOutDesignation struct {
-	idempotencyKey string
-	metadata       json.RawMessage
-}
-
-func prepareFanOutTaskRunsRequest(
-	req contract.FanOutTaskRunsRequest,
-	maxDesignations int,
-) ([]preparedFanOutDesignation, error) {
-	if len(req.Designations) == 0 {
-		return nil, NewTaskValidationError(errors.New("designations are required"))
-	}
-	if len(req.Designations) > maxDesignations {
-		return nil, NewTaskValidationError(fmt.Errorf("designations cannot exceed %d", maxDesignations))
-	}
-	if err := validateTaskChannel("fan_out_runs.network_channel", req.NetworkChannel); err != nil {
-		return nil, err
-	}
-	prepared := make([]preparedFanOutDesignation, 0, len(req.Designations))
-	for index, designation := range req.Designations {
-		metadata, err := fanOutDesignationMetadata(index, designation)
-		if err != nil {
-			return nil, err
-		}
-		idempotencyKey := fanOutDesignationIdempotencyKey(req.IdempotencyKey, designation, index)
-		if idempotencyKey == "" {
-			return nil, NewTaskValidationError(fmt.Errorf(
-				"designations[%d].idempotency_key is required when fan_out_runs.idempotency_key is empty",
-				index,
-			))
-		}
-		prepared = append(prepared, preparedFanOutDesignation{
-			idempotencyKey: idempotencyKey,
-			metadata:       metadata,
-		})
-	}
-	return prepared, nil
-}
-
-func enqueueFanOutTaskRuns(
-	ctx context.Context,
-	manager TaskService,
-	actor taskpkg.ActorContext,
-	taskID string,
-	groupID string,
-	req contract.FanOutTaskRunsRequest,
-	prepared []preparedFanOutDesignation,
-) ([]taskpkg.Run, error) {
-	runs := make([]taskpkg.Run, 0, len(req.Designations))
-	for index := range req.Designations {
-		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
-			TaskID:             taskID,
-			IdempotencyKey:     prepared[index].idempotencyKey,
-			NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
-			DesignationGroupID: groupID,
-			Metadata:           prepared[index].metadata,
-		}, actor)
-		if err != nil {
-			return nil, err
-		}
-		runs = append(runs, *run)
-	}
-	return runs, nil
-}
-
-// ClaimTaskRun claims one queued run.
-func (h *BaseHandlers) ClaimTaskRun(c *gin.Context) {
-	manager, ok := h.requireTaskManager(c)
-	if !ok {
-		return
-	}
-
-	runID, err := requiredPathID(c.Param("id"), "run id")
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	var req contract.ClaimTaskRunRequest
-	if err := decodeOptionalJSON(c, &req); err != nil {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
-			NewTaskValidationError(fmt.Errorf("%s: decode claim run request: %w", h.transportName(), err)),
-		)
-		return
-	}
-
-	actor, err := h.taskActorContext(c, taskActionClaimRun)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	claim, err := claimTaskRunFromRequest(req)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	run, err := manager.ClaimRun(c.Request.Context(), runID, claim, actor)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.TaskRunResponse{Run: TaskRunPayloadFromRun(run)})
 }
 
 // StartTaskRun starts one claimed run.
@@ -2020,26 +1917,23 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	if err := validateTaskChannel("create_task.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.CreateTask{}, err
-	}
 
 	spec := taskpkg.CreateTask{
-		ID:                 strings.TrimSpace(req.ID),
-		Identifier:         strings.TrimSpace(req.Identifier),
-		Scope:              scope,
-		WorkspaceID:        workspaceID,
-		NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
-		Title:              strings.TrimSpace(req.Title),
-		Description:        strings.TrimSpace(req.Description),
-		Priority:           req.Priority.Normalize(),
-		MaxAttempts:        req.MaxAttempts,
-		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
-		Draft:              req.Draft,
-		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
-		Owner:              cloneOwnership(req.Owner),
-		WakeCreator:        cloneBoolPtr(req.WakeCreator),
-		Metadata:           cloneRawMessage(req.Metadata),
+		ID:                   strings.TrimSpace(req.ID),
+		Identifier:           strings.TrimSpace(req.Identifier),
+		Scope:                scope,
+		WorkspaceID:          workspaceID,
+		Title:                strings.TrimSpace(req.Title),
+		Description:          strings.TrimSpace(req.Description),
+		Priority:             req.Priority.Normalize(),
+		MaxAttempts:          req.MaxAttempts,
+		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
+		Draft:                req.Draft,
+		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
+		Owner:                cloneOwnership(req.Owner),
+		WakeCreator:          cloneBoolPtr(req.WakeCreator),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_task"); err != nil {
 		return taskpkg.CreateTask{}, err
@@ -2056,26 +1950,23 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	if err := validateTaskChannel("create_child_task.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.CreateTask{}, err
-	}
 
 	spec := taskpkg.CreateTask{
-		ID:                 strings.TrimSpace(req.ID),
-		Identifier:         strings.TrimSpace(req.Identifier),
-		Scope:              scope,
-		WorkspaceID:        workspaceID,
-		NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
-		Title:              strings.TrimSpace(req.Title),
-		Description:        strings.TrimSpace(req.Description),
-		Priority:           req.Priority.Normalize(),
-		MaxAttempts:        req.MaxAttempts,
-		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
-		Draft:              req.Draft,
-		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
-		Owner:              cloneOwnership(req.Owner),
-		WakeCreator:        cloneBoolPtr(req.WakeCreator),
-		Metadata:           cloneRawMessage(req.Metadata),
+		ID:                   strings.TrimSpace(req.ID),
+		Identifier:           strings.TrimSpace(req.Identifier),
+		Scope:                scope,
+		WorkspaceID:          workspaceID,
+		Title:                strings.TrimSpace(req.Title),
+		Description:          strings.TrimSpace(req.Description),
+		Priority:             req.Priority.Normalize(),
+		MaxAttempts:          req.MaxAttempts,
+		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
+		Draft:                req.Draft,
+		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
+		Owner:                cloneOwnership(req.Owner),
+		WakeCreator:          cloneBoolPtr(req.WakeCreator),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_child_task"); err != nil {
 		return taskpkg.CreateTask{}, err
@@ -2084,23 +1975,17 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 }
 
 func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error) {
-	if req.NetworkChannel != nil {
-		if err := validateTaskChannel("task_patch.network_channel", *req.NetworkChannel); err != nil {
-			return taskpkg.Patch{}, err
-		}
-	}
-
 	patch := taskpkg.Patch{
-		Title:              trimStringPtr(req.Title),
-		Description:        trimStringPtr(req.Description),
-		Priority:           normalizePriorityPtr(req.Priority),
-		MaxAttempts:        req.MaxAttempts,
-		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
-		ApprovalPolicy:     normalizeApprovalPolicyPtr(req.ApprovalPolicy),
-		Metadata:           cloneRawMessagePtr(req.Metadata),
-		NetworkChannel:     trimStringPtr(req.NetworkChannel),
-		Owner:              cloneOwnership(req.Owner),
-		ClearOwner:         req.ClearOwner,
+		Title:                trimStringPtr(req.Title),
+		Description:          trimStringPtr(req.Description),
+		Priority:             normalizePriorityPtr(req.Priority),
+		MaxAttempts:          req.MaxAttempts,
+		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
+		ApprovalPolicy:       normalizeApprovalPolicyPtr(req.ApprovalPolicy),
+		Metadata:             cloneRawMessagePtr(req.Metadata),
+		Owner:                cloneOwnership(req.Owner),
+		ClearOwner:           req.ClearOwner,
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
 	}
 	if err := patch.Validate("task_patch"); err != nil {
 		return taskpkg.Patch{}, err
@@ -2161,15 +2046,11 @@ func addTaskDependencyFromRequest(taskID string, req contract.AddTaskDependencyR
 }
 
 func enqueueTaskRunFromRequest(taskID string, req contract.EnqueueTaskRunRequest) (taskpkg.EnqueueRun, error) {
-	if err := validateTaskChannel("enqueue_run.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.EnqueueRun{}, err
-	}
-
 	spec := taskpkg.EnqueueRun{
-		TaskID:         strings.TrimSpace(taskID),
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
-		Metadata:       append(json.RawMessage(nil), req.Metadata...),
+		TaskID:               strings.TrimSpace(taskID),
+		IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             append(json.RawMessage(nil), req.Metadata...),
 	}
 	if err := spec.Validate("enqueue_run"); err != nil {
 		return taskpkg.EnqueueRun{}, err
@@ -2285,26 +2166,15 @@ func fanOutDesignationRollupJSON(runs []taskpkg.Run, now time.Time) json.RawMess
 }
 
 func taskExecutionRequestFromRequest(req contract.TaskExecutionRequest) (taskpkg.ExecutionRequest, error) {
-	if err := validateTaskChannel("task_execution.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.ExecutionRequest{}, err
-	}
 	spec := taskpkg.ExecutionRequest{
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
-		Metadata:       append(json.RawMessage(nil), req.Metadata...),
+		IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             append(json.RawMessage(nil), req.Metadata...),
 	}
 	if err := spec.Validate("task_execution"); err != nil {
 		return taskpkg.ExecutionRequest{}, err
 	}
 	return spec, nil
-}
-
-func claimTaskRunFromRequest(req contract.ClaimTaskRunRequest) (taskpkg.ClaimRun, error) {
-	claim := taskpkg.ClaimRun{IdempotencyKey: strings.TrimSpace(req.IdempotencyKey)}
-	if err := claim.Validate("claim_run"); err != nil {
-		return taskpkg.ClaimRun{}, err
-	}
-	return claim, nil
 }
 
 func startTaskRunFromRequest(req contract.StartTaskRunRequest) (taskpkg.StartRun, error) {
@@ -2414,17 +2284,6 @@ func (h *BaseHandlers) resolveTaskWorkspaceBinding(
 	return h.lookupWorkspaceID(ctx, trimmed)
 }
 
-func validateTaskChannel(path string, channel string) error {
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return nil
-	}
-	if err := network.ValidateChannel(trimmed); err != nil {
-		return NewTaskValidationError(fmt.Errorf("%s: %w", path, err))
-	}
-	return nil
-}
-
 func requiredPathID(raw string, field string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -2434,7 +2293,7 @@ func requiredPathID(raw string, field string) (string, error) {
 }
 
 func decodeOptionalJSON(c *gin.Context, dest any) error {
-	if err := c.ShouldBindJSON(dest); err != nil && !errors.Is(err, io.EOF) {
+	if err := decodeStrictJSONBody(c, dest); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 	return nil
@@ -2456,45 +2315,45 @@ func TaskSummaryPayloadFromSummary(record *taskpkg.Summary) contract.TaskSummary
 	}
 
 	return contract.TaskSummaryPayload{
-		ID:                   record.ID,
-		Identifier:           record.Identifier,
-		Scope:                record.Scope,
-		WorkspaceID:          record.WorkspaceID,
-		ParentTaskID:         record.ParentTaskID,
-		NetworkChannel:       record.NetworkChannel,
-		Title:                taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
-		Priority:             record.Priority,
-		MaxAttempts:          record.MaxAttempts,
-		AutoEnqueueOnReady:   record.AutoEnqueueOnReady,
-		Status:               record.Status,
-		ApprovalPolicy:       record.ApprovalPolicy,
-		ApprovalState:        record.ApprovalState,
-		Draft:                record.Draft,
-		Owner:                cloneOwnership(record.Owner),
-		CurrentRunID:         record.CurrentRunID,
-		LatestEventSeq:       record.LatestEventSeq,
-		Paused:               record.Paused,
-		PausedBy:             record.PausedBy,
-		PausedAt:             optionalTime(record.PausedAt),
-		PausedReason:         taskpkg.RedactClaimTokens(strings.TrimSpace(record.PausedReason)),
-		EffectivePaused:      record.EffectivePaused,
-		PausedByTaskID:       record.PausedByTaskID,
-		BlockedReasons:       blockedReasonsPayload(record.BlockedReasons),
-		NeedsAttention:       recordNeedsAttention(record.NeedsAttention, record.Status),
-		NeedsAttentionReason: needsAttentionReason(record.NeedsAttention),
-		NeedsAttentionAt:     needsAttentionAt(record.NeedsAttention),
-		NeedsAttentionBy:     needsAttentionBy(record.NeedsAttention),
-		WakeCreator:          record.WakeCreator,
-		CreatedBy:            record.CreatedBy,
-		Origin:               record.Origin,
-		CreatedAt:            record.CreatedAt,
-		UpdatedAt:            record.UpdatedAt,
-		ClosedAt:             optionalTime(record.ClosedAt),
-		ChildCount:           int(record.ChildCount),
-		DependencyCount:      int(record.DependencyCount),
-		Dependencies:         TaskDependencyReferencePayloadsFromReferences(record.Dependencies),
-		ActiveRun:            TaskRunSummaryPayloadFromSummary(record.ActiveRun),
-		LastActivityAt:       optionalTime(record.LastActivityAt),
+		ID:                           record.ID,
+		Identifier:                   record.Identifier,
+		Scope:                        record.Scope,
+		WorkspaceID:                  record.WorkspaceID,
+		ParentTaskID:                 record.ParentTaskID,
+		ResolvedNetworkParticipation: resolvedParticipationFromRunSummary(record.ActiveRun),
+		Title:                        taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
+		Priority:                     record.Priority,
+		MaxAttempts:                  record.MaxAttempts,
+		AutoEnqueueOnReady:           record.AutoEnqueueOnReady,
+		Status:                       record.Status,
+		ApprovalPolicy:               record.ApprovalPolicy,
+		ApprovalState:                record.ApprovalState,
+		Draft:                        record.Draft,
+		Owner:                        cloneOwnership(record.Owner),
+		CurrentRunID:                 record.CurrentRunID,
+		LatestEventSeq:               record.LatestEventSeq,
+		Paused:                       record.Paused,
+		PausedBy:                     record.PausedBy,
+		PausedAt:                     optionalTime(record.PausedAt),
+		PausedReason:                 taskpkg.RedactClaimTokens(strings.TrimSpace(record.PausedReason)),
+		EffectivePaused:              record.EffectivePaused,
+		PausedByTaskID:               record.PausedByTaskID,
+		BlockedReasons:               blockedReasonsPayload(record.BlockedReasons),
+		NeedsAttention:               recordNeedsAttention(record.NeedsAttention, record.Status),
+		NeedsAttentionReason:         needsAttentionReason(record.NeedsAttention),
+		NeedsAttentionAt:             needsAttentionAt(record.NeedsAttention),
+		NeedsAttentionBy:             needsAttentionBy(record.NeedsAttention),
+		WakeCreator:                  record.WakeCreator,
+		CreatedBy:                    record.CreatedBy,
+		Origin:                       record.Origin,
+		CreatedAt:                    record.CreatedAt,
+		UpdatedAt:                    record.UpdatedAt,
+		ClosedAt:                     optionalTime(record.ClosedAt),
+		ChildCount:                   int(record.ChildCount),
+		DependencyCount:              int(record.DependencyCount),
+		Dependencies:                 TaskDependencyReferencePayloadsFromReferences(record.Dependencies),
+		ActiveRun:                    TaskRunSummaryPayloadFromSummary(record.ActiveRun),
+		LastActivityAt:               optionalTime(record.LastActivityAt),
 	}
 }
 
@@ -2510,7 +2369,6 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,
 		ParentTaskID:       record.ParentTaskID,
-		NetworkChannel:     record.NetworkChannel,
 		Title:              taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
 		Description:        taskpkg.RedactClaimTokens(strings.TrimSpace(record.Description)),
 		Priority:           record.Priority,
@@ -2544,7 +2402,7 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		CreatedAt:            record.CreatedAt,
 		UpdatedAt:            record.UpdatedAt,
 		ClosedAt:             optionalTime(record.ClosedAt),
-		Metadata:             redactRawClaimTokenFields(record.Metadata),
+		Metadata:             taskpkg.RedactClaimTokenJSON(record.Metadata),
 	}
 }
 
@@ -2606,7 +2464,7 @@ func TaskBlockPayloadFromBlock(block taskpkg.TaskBlock) contract.TaskBlockPayloa
 		WorkspaceID: strings.TrimSpace(block.WorkspaceID),
 		Kind:        block.Kind.Normalize(),
 		Reason:      taskpkg.RedactClaimTokens(strings.TrimSpace(block.Reason)),
-		Details:     redactRawClaimTokenFields(block.Details),
+		Details:     taskpkg.RedactClaimTokenJSON(block.Details),
 		CreatedAt:   block.CreatedAt,
 		CreatedBy:   block.CreatedBy,
 		ExpiresAt:   optionalTime(block.ExpiresAt),
@@ -2660,30 +2518,35 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		return contract.TaskRunPayload{}
 	}
 
+	networkSpec := run.NetworkSpecSnapshot()
+	var designation *taskpkg.RunDesignationSummary
+	if runDesignation, ok := taskpkg.DesignationFromRun(*run); ok {
+		designation = runDesignation.Summary()
+	}
 	return contract.TaskRunPayload{
-		ID:                    run.ID,
-		TaskID:                run.TaskID,
-		Status:                run.Status,
-		Attempt:               int(run.Attempt),
-		PreviousRunID:         run.PreviousRunID,
-		FailureKind:           run.FailureKind,
-		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
-		SessionID:             run.SessionID,
-		Origin:                run.Origin,
-		IdempotencyKey:        run.IdempotencyKey,
-		NetworkChannel:        run.NetworkChannel,
-		DesignationGroupID:    run.DesignationGroupID,
-		ClaimTokenHash:        run.ClaimTokenHash,
-		LeaseUntil:            optionalTime(run.LeaseUntil),
-		HeartbeatAt:           optionalTime(run.HeartbeatAt),
-		CoordinationChannelID: run.CoordinationChannelID,
-		QueuedAt:              run.QueuedAt,
-		ClaimedAt:             optionalTime(run.ClaimedAt),
-		StartedAt:             optionalTime(run.StartedAt),
-		EndedAt:               optionalTime(run.EndedAt),
-		Error:                 run.Error,
-		Metadata:              redactRawClaimTokenFields(run.Metadata),
-		Result:                redactRawClaimTokenFields(run.Result),
+		ID:                           run.ID,
+		TaskID:                       run.TaskID,
+		Status:                       run.Status,
+		Attempt:                      int(run.Attempt),
+		PreviousRunID:                run.PreviousRunID,
+		FailureKind:                  run.FailureKind,
+		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
+		SessionID:                    run.SessionID,
+		Origin:                       run.Origin,
+		IdempotencyKey:               run.IdempotencyKey,
+		ResolvedNetworkParticipation: participation.CloneSpec(networkSpec),
+		DesignationGroupID:           run.DesignationGroupID,
+		Designation:                  designation,
+		ClaimTokenHash:               run.ClaimTokenHash,
+		LeaseUntil:                   optionalTime(run.LeaseUntil),
+		HeartbeatAt:                  optionalTime(run.HeartbeatAt),
+		QueuedAt:                     run.QueuedAt,
+		ClaimedAt:                    optionalTime(run.ClaimedAt),
+		StartedAt:                    optionalTime(run.StartedAt),
+		EndedAt:                      optionalTime(run.EndedAt),
+		Error:                        taskpkg.RedactClaimTokens(run.Error),
+		Metadata:                     taskpkg.RedactClaimTokenJSON(run.Metadata),
+		Result:                       taskpkg.RedactClaimTokenJSON(run.Result),
 	}
 }
 
@@ -2727,57 +2590,6 @@ func optionalTaskRunPayload(run *taskpkg.Run) *contract.TaskRunPayload {
 	return &payload
 }
 
-func redactRawClaimTokenFields(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	var decoded any
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return cloneRawMessage(raw)
-	}
-	redacted, changed := redactRawClaimTokenValue(decoded)
-	if !changed {
-		return cloneRawMessage(raw)
-	}
-	encoded, err := json.Marshal(redacted)
-	if err != nil {
-		return nil
-	}
-	return encoded
-}
-
-func redactRawClaimTokenValue(value any) (any, bool) {
-	switch typed := value.(type) {
-	case map[string]any:
-		changed := false
-		redacted := make(map[string]any, len(typed))
-		for key, nested := range typed {
-			if strings.EqualFold(strings.TrimSpace(key), "claim_token") {
-				changed = true
-				continue
-			}
-			next, nestedChanged := redactRawClaimTokenValue(nested)
-			redacted[key] = next
-			changed = changed || nestedChanged
-		}
-		return redacted, changed
-	case []any:
-		changed := false
-		redacted := make([]any, len(typed))
-		for idx, nested := range typed {
-			next, nestedChanged := redactRawClaimTokenValue(nested)
-			redacted[idx] = next
-			changed = changed || nestedChanged
-		}
-		return redacted, changed
-	case string:
-		redacted := taskpkg.RedactClaimTokens(typed)
-		return redacted, redacted != typed
-	default:
-		return value, false
-	}
-}
-
 // TaskEventPayloadsFromEvents converts task events into shared payloads.
 func TaskEventPayloadsFromEvents(events []taskpkg.Event) []contract.TaskEventPayload {
 	payloads := make([]contract.TaskEventPayload, 0, len(events))
@@ -2789,7 +2601,7 @@ func TaskEventPayloadsFromEvents(events []taskpkg.Event) []contract.TaskEventPay
 			EventType: event.EventType,
 			Actor:     event.Actor,
 			Origin:    event.Origin,
-			Payload:   cloneRawMessage(event.Payload),
+			Payload:   taskpkg.RedactClaimTokenJSON(event.Payload),
 			Timestamp: event.Timestamp,
 		})
 	}
@@ -2831,7 +2643,7 @@ func TaskDesignationRollupPayloadsFromStore(
 		payloads = append(payloads, contract.TaskDesignationRollupPayload{
 			DesignationGroupID: strings.TrimSpace(rollup.DesignationGroupID),
 			TaskID:             strings.TrimSpace(rollup.TaskID),
-			Summary:            cloneRawMessage(rollup.SummaryJSON),
+			Summary:            taskpkg.RedactClaimTokenJSON(rollup.SummaryJSON),
 			CreatedAt:          rollup.CreatedAt,
 		})
 	}
@@ -2872,7 +2684,7 @@ func TaskInspectRunPayloadFromSummary(summary *taskpkg.InspectRunSummary) *contr
 		HeartbeatAt:             optionalTime(summary.HeartbeatAt),
 		HeartbeatAgeSeconds:     cloneInt64Ptr(summary.HeartbeatAgeSeconds),
 		Retries:                 summary.Retries,
-		LastErrorSummary:        summary.LastErrorSummary,
+		LastErrorSummary:        taskpkg.RedactClaimTokens(strings.TrimSpace(summary.LastErrorSummary)),
 		FailureKind:             summary.FailureKind,
 		BoundSessionID:          summary.BoundSessionID,
 		StartedAt:               optionalTime(summary.StartedAt),
@@ -2912,7 +2724,7 @@ func TaskInspectSessionPayloadFromSummary(
 		WorkspaceID:    summary.WorkspaceID,
 		StartedAt:      optionalTime(summary.StartedAt),
 		LastActivityAt: optionalTime(summary.LastActivityAt),
-		StopReason:     summary.StopReason,
+		StopReason:     taskpkg.RedactClaimTokens(strings.TrimSpace(summary.StopReason)),
 		FailureKind:    summary.FailureKind,
 	}
 }
@@ -2930,7 +2742,7 @@ func TaskInspectEventPayloadsFromSummaries(
 			TaskID:    summary.TaskID,
 			RunID:     summary.RunID,
 			Outcome:   summary.Outcome,
-			Summary:   summary.Summary,
+			Summary:   taskpkg.RedactClaimTokens(strings.TrimSpace(summary.Summary)),
 			Timestamp: summary.Timestamp,
 		})
 	}
@@ -2943,7 +2755,7 @@ func TaskInspectSchedulerPayloadFromState(state taskpkg.InspectSchedulerState) c
 		Paused:    state.Paused,
 		PausedBy:  state.PausedBy,
 		PausedAt:  optionalTime(state.PausedAt),
-		Reason:    state.Reason,
+		Reason:    taskpkg.RedactClaimTokens(strings.TrimSpace(state.Reason)),
 		UpdatedAt: optionalTime(state.UpdatedAt),
 	}
 }

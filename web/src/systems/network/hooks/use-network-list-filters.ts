@@ -66,8 +66,8 @@ export function useNetworkListFilters({
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearch = useDeferredValue(searchQuery.trim());
   const session = useActiveNetworkSession(channel, { workspaceId });
-  const selfPeerId = session.session?.peerId ?? null;
-  const canFilterBySelf = Boolean(selfPeerId);
+  const selfSessionId = session.session?.sessionId ?? null;
+  const canFilterBySelf = Boolean(selfSessionId);
   const effectiveFilters = canFilterBySelf
     ? filters
     : filters.filter(filter => filter.field !== "includes_me");
@@ -84,7 +84,7 @@ export function useNetworkListFilters({
   const serverQuery = {
     ...(deferredSearch ? { query: deferredSearch } : {}),
     ...(selected.has("has_work") ? { has_work: true } : {}),
-    ...(selected.has("includes_me") && selfPeerId ? { peer_id: selfPeerId } : {}),
+    ...(selected.has("includes_me") && selfSessionId ? { session_id: selfSessionId } : {}),
     sort,
   };
   const queryEnabled = enabled && Boolean(workspaceId) && Boolean(channel);

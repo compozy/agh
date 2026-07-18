@@ -37,17 +37,17 @@ const (
 	watchEventsPayloadWillRetry   = "will_retry"
 	watchEventsPayloadWorkState   = "work_state"
 
-	watchEventsPayloadCoordinatorSessionID  = "coordinator_session_id"
-	watchEventsPayloadCoordinationChannelID = "coordination_channel_id"
-	watchEventsPayloadDecisionKind          = "decision_kind"
-	watchEventsPayloadDecision              = "decision"
-	watchEventsPayloadModel                 = "model"
-	watchEventsPayloadProvider              = "provider"
-	watchEventsPayloadRecordType            = "record_type"
-	watchEventsPayloadSequence              = "sequence"
-	watchEventsPayloadStopReason            = "stop_reason"
-	watchEventsPayloadTurnID                = "turn_id"
-	watchEventsPayloadWorkflowID            = "workflow_id"
+	watchEventsPayloadCoordinatorSessionID         = "coordinator_session_id"
+	watchEventsPayloadResolvedNetworkParticipation = "resolved_network_participation"
+	watchEventsPayloadDecisionKind                 = "decision_kind"
+	watchEventsPayloadDecision                     = "decision"
+	watchEventsPayloadModel                        = "model"
+	watchEventsPayloadProvider                     = "provider"
+	watchEventsPayloadRecordType                   = "record_type"
+	watchEventsPayloadSequence                     = "sequence"
+	watchEventsPayloadStopReason                   = "stop_reason"
+	watchEventsPayloadTurnID                       = "turn_id"
+	watchEventsPayloadWorkflowID                   = "workflow_id"
 )
 
 const (

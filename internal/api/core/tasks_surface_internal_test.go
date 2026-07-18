@@ -42,7 +42,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		ginCtx.Request = httptest.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
-			"/tasks?scope=workspace&workspace=alpha&status=ready&priority=high&include_drafts=true&approval_state=pending&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&query=review&limit=7",
+			"/tasks?scope=workspace&workspace=alpha&status=ready&priority=high&include_drafts=true&approval_state=pending&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&participation_channel=builders&query=review&limit=7",
 			http.NoBody,
 		)
 
@@ -66,7 +66,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			domainQuery.OwnerKind != taskpkg.OwnerKindPool ||
 			domainQuery.OwnerRef != "reviewers" ||
 			domainQuery.ParentTaskID != "task-root" ||
-			domainQuery.NetworkChannel != "builders" ||
+			domainQuery.ParticipationChannel != "builders" ||
 			domainQuery.Search != "review" ||
 			domainQuery.Limit != 7 {
 			t.Fatalf("taskListDomainQuery() = %#v", domainQuery)
@@ -166,7 +166,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		dashboardCtx.Request = httptest.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
-			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&network_channel=builders&origin_kind=http",
+			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&participation_channel=builders&origin_kind=http",
 			http.NoBody,
 		)
 
@@ -174,7 +174,8 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ParseTaskDashboardQuery() error = %v", err)
 		}
-		if dashboardQuery.OriginKind != taskpkg.OriginKindHTTP || dashboardQuery.NetworkChannel != "builders" {
+		if dashboardQuery.OriginKind != taskpkg.OriginKindHTTP ||
+			dashboardQuery.ParticipationChannel != "builders" {
 			t.Fatalf("ParseTaskDashboardQuery() = %#v", dashboardQuery)
 		}
 
@@ -186,7 +187,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			domainDashboard.WorkspaceID != "ws-alpha" ||
 			domainDashboard.OwnerKind != taskpkg.OwnerKindHuman ||
 			domainDashboard.OwnerRef != "alice" ||
-			domainDashboard.NetworkChannel != "builders" ||
+			domainDashboard.ParticipationChannel != "builders" ||
 			domainDashboard.OriginKind != taskpkg.OriginKindHTTP {
 			t.Fatalf("taskDashboardDomainQuery() = %#v", domainDashboard)
 		}

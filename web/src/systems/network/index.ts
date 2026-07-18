@@ -58,8 +58,12 @@ export type {
   NetworkThreadsResponse,
   NetworkThreadsListQuery,
   NetworkThreadSummary,
+  NetworkUsageFilters,
+  NetworkUsageQuery,
   NetworkWorkDetail,
   NetworkWorkResponse,
+  TaskRunNetworkProjection,
+  TaskRunNetworkUsage,
 } from "./types";
 
 // Adapters
@@ -117,7 +121,6 @@ export {
   getNetworkStatusTone,
   getPeerDisplayName,
   getPeerRecencyAt,
-  isNetworkRunning,
   isNetworkWorkState,
   isTerminalNetworkWorkState,
   shouldRenderNetworkWorkChip,
@@ -129,6 +132,7 @@ export {
 export type { NetworkWorkState } from "./lib/network-formatters";
 export { formatElapsedSeconds, useElapsedSeconds } from "./lib/use-elapsed";
 export type { UseElapsedOptions } from "./lib/use-elapsed";
+export { formatTaskRunBounds } from "./lib/task-run-network";
 export {
   NETWORK_IDENTITY_PALETTE,
   getIdentityInitial,
@@ -183,6 +187,8 @@ export type {
 } from "./hooks/use-directs";
 export { useNetworkMessages } from "./hooks/use-messages";
 export type { UseNetworkMessagesArgs, UseNetworkMessagesResult } from "./hooks/use-messages";
+export { useTaskRunConversation } from "./hooks/use-task-run-conversation";
+export type { UseTaskRunConversationResult } from "./hooks/use-task-run-conversation";
 export { useNetworkPage } from "./hooks/use-network-page";
 export type { UseNetworkPageResult } from "./hooks/use-network-page";
 export { useDirectRoom } from "./hooks/use-direct-room";
@@ -269,6 +275,48 @@ export {
 export { KindChip } from "@agh/ui";
 export type { KindChipProps } from "@agh/ui";
 export { NetworkCreateChannelDialog } from "./components/network-create-channel-dialog";
+export { NetworkCoordinationInvitation } from "./components/coordination-invitation";
+export type { NetworkCoordinationInvitationProps } from "./components/coordination-invitation";
+export { NetworkParticipationFields } from "./components/network-participation-fields";
+export type { NetworkParticipationFieldsProps } from "./components/network-participation-fields";
+export { TaskRunCoordinationInvitationHost } from "./components/task-run-coordination-invitation-host";
+export type { TaskRunCoordinationInvitationHostProps } from "./components/task-run-coordination-invitation-host";
+export { TaskRunConversationPanel } from "./components/task-run-conversation-panel";
+export type { TaskRunConversationPanelProps } from "./components/task-run-conversation-panel";
+export {
+  DEFAULT_NETWORK_PARTICIPATION_DRAFT,
+  NETWORK_PARTICIPATION_STRATEGIES,
+  isNetworkParticipationDraftValid,
+  isNetworkParticipationStrategy,
+  networkParticipationDraftFromPayload,
+  networkParticipationDraftFromValues,
+  networkParticipationValidationMessage,
+  serializeNetworkParticipation,
+} from "./lib/network-participation";
+export type {
+  NetworkParticipationDraft,
+  NetworkParticipationMode,
+  NetworkParticipationPayload,
+  NetworkParticipationStrategy,
+} from "./lib/network-participation";
+export {
+  useAcceptNetworkCoordinationInvitation,
+  useDismissNetworkCoordinationInvitation,
+  useNetworkCoordination,
+  useNetworkUsage,
+} from "./hooks/use-network-coordination";
+export { networkCoordinationOptions, networkUsageOptions } from "./lib/query-options";
+export {
+  getNetworkCoordination,
+  getNetworkUsage,
+  putNetworkCoordination,
+  putNetworkCoordinationInvitation,
+} from "./adapters/network-coordination-api";
+export type {
+  NetworkCoordinationRef,
+  NetworkCoordinationResponse,
+  NetworkUsageResponse,
+} from "./adapters/network-coordination-api";
 
 // Components — timeline subtree
 export {

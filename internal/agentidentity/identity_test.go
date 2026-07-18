@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -180,6 +181,12 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			}
 			if caller.Actor.Actor.Kind != taskpkg.ActorKindAgentSession || caller.Actor.Actor.Ref != "sess-1" {
 				t.Fatalf("caller.Actor.Actor = %#v, want agent session sess-1", caller.Actor.Actor)
+			}
+			if got, want := caller.Actor.Scope, (taskpkg.CallerScope{
+				SessionID:   "sess-1",
+				WorkspaceID: "ws-1",
+			}); got != want {
+				t.Fatalf("caller.Actor.Scope = %#v, want %#v", got, want)
 			}
 			if caller.Actor.Origin.Kind != tt.wantOrigin || caller.Actor.Origin.Ref != "agent.test" {
 				t.Fatalf("caller.Actor.Origin = %#v, want %s agent.test", caller.Actor.Origin, tt.wantOrigin)
@@ -367,9 +374,10 @@ func TestResolveDefaultsAgentSessionOrigin(t *testing.T) {
 			},
 			Lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
-					ID:        " sess-1 ",
-					AgentName: " coder ",
-					State:     session.StateActive,
+					ID:          " sess-1 ",
+					AgentName:   " coder ",
+					WorkspaceID: " ws-1 ",
+					State:       session.StateActive,
 				}, nil
 			},
 		})
@@ -397,25 +405,43 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 26, 11, 0, 0, 0, time.UTC)
+		wantParticipation := participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     "ws-1",
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "builders",
+			Source:          participation.SourceExplicitRequest,
+			Bounds: participation.Bounds{
+				MaxWakes:         4,
+				MaxWakeWallTime:  "30s",
+				MaxTotalWallTime: "2m",
+				MaxInputTokens:   4096,
+				MaxOutputTokens:  4096,
+				MaxWakeDepth:     4,
+				CoalesceWindow:   "250ms",
+			},
+		}
 		info := &session.Info{
-			ID:               "sess-1",
-			Name:             "worker",
-			AgentName:        "coder",
-			Provider:         "provider",
-			Model:            "gpt-5.4",
-			WorkspaceID:      "ws-1",
-			Workspace:        "/workspace",
-			Channel:          "main",
-			Type:             session.SessionTypeUser,
-			State:            session.StateActive,
-			SoulSnapshotID:   "soul-1",
-			SoulDigest:       "digest-1",
-			ParentSoulDigest: "digest-parent",
-			CreatedAt:        now,
-			UpdatedAt:        now,
+			ID:                   "sess-1",
+			Name:                 "worker",
+			AgentName:            "coder",
+			Provider:             "provider",
+			Model:                "gpt-5.4",
+			WorkspaceID:          "ws-1",
+			Workspace:            "/workspace",
+			NetworkParticipation: wantParticipation,
+			Type:                 session.SessionTypeUser,
+			State:                session.StateActive,
+			SoulSnapshotID:       "soul-1",
+			SoulDigest:           "digest-1",
+			ParentSoulDigest:     "digest-parent",
+			CreatedAt:            now,
+			UpdatedAt:            now,
 		}
 
 		got := SessionSnapshotFromInfo(info)
+		info.NetworkParticipation.ChannelID = "mutated-after-conversion"
 		if got.ID != info.ID ||
 			got.Name != info.Name ||
 			got.AgentName != info.AgentName ||
@@ -423,7 +449,7 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 			got.Model != info.Model ||
 			got.WorkspaceID != info.WorkspaceID ||
 			got.WorkspacePath != info.Workspace ||
-			got.Channel != info.Channel ||
+			got.NetworkSpecSnapshot() != wantParticipation ||
 			got.Type != info.Type ||
 			got.State != info.State ||
 			got.SoulSnapshotID != info.SoulSnapshotID ||

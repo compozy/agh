@@ -224,22 +224,6 @@ func (a *mockAgent) LoadSession(
 	return acpsdk.LoadSessionResponse{ConfigOptions: configOptions}, nil
 }
 
-func (a *mockAgent) writeSessionDiagnostics(
-	event string,
-	sessionID string,
-	servers []acpsdk.McpServer,
-) error {
-	if len(servers) == 0 {
-		return nil
-	}
-	return a.writeDiagnostics(acpmock.DiagnosticsRecord{
-		AgentName:      a.agent.Name,
-		SessionID:      sessionID,
-		LifecycleEvent: event,
-		MCPServers:     append([]acpsdk.McpServer(nil), servers...),
-	})
-}
-
 func (a *mockAgent) SetSessionMode(
 	context.Context,
 	acpsdk.SetSessionModeRequest,
@@ -464,7 +448,7 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 	if err := a.writeDiagnostics(record); err != nil {
 		return acpsdk.PromptResponse{}, err
 	}
-	return acpsdk.PromptResponse{StopReason: stopReason(turn.StopReason)}, nil
+	return acpsdk.PromptResponse{StopReason: stopReason(turn.StopReason), Usage: promptResponseUsage(turn)}, nil
 }
 
 func (a *mockAgent) ensurePromptSession(sessionID string) {
@@ -832,6 +816,8 @@ func (a *mockAgent) performDriverControl(ctx context.Context, control acpmock.Dr
 	case acpmock.DriverControlBlockUntilCancel:
 		<-ctx.Done()
 		return ctx.Err()
+	case acpmock.DriverControlDelay:
+		return nil
 	default:
 		return fmt.Errorf("unsupported driver_control action %s", control.Action)
 	}

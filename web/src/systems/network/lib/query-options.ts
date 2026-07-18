@@ -20,6 +20,11 @@ import {
   listNetworkThreads,
   type NetworkSubscriptionsListQuery,
 } from "../adapters/network-api";
+import {
+  getNetworkCoordination,
+  getNetworkUsage,
+  type NetworkCoordinationRef,
+} from "../adapters/network-coordination-api";
 import type {
   NetworkChannelsQuery,
   NetworkConversationMessageFilters,
@@ -28,6 +33,7 @@ import type {
   NetworkMessagePageParam,
   NetworkSurface,
   NetworkThreadsListQuery,
+  NetworkUsageFilters,
 } from "../types";
 import {
   latestNetworkTailId,
@@ -68,11 +74,11 @@ function normalizeCatalogQuery(
   query: NetworkThreadsListQuery | NetworkDirectsListQuery,
   limit = NETWORK_DEFAULT_LIST_LIMIT
 ): NetworkCatalogStableQuery {
-  const { after: _after, peer_id: peerId, query: search, sort, ...stable } = query;
+  const { after: _after, session_id: sessionId, query: search, sort, ...stable } = query;
   return {
     ...stable,
     ...(search?.trim() ? { query: search.trim() } : {}),
-    ...(peerId?.trim() ? { peer_id: peerId.trim() } : {}),
+    ...(sessionId?.trim() ? { session_id: sessionId.trim() } : {}),
     limit: query.limit ?? limit,
     sort: sort?.trim() || "recent_activity",
   };
@@ -98,6 +104,33 @@ export function networkStatusOptions() {
     staleTime: STATUS_STALE_TIME,
     refetchInterval: STATUS_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
+  });
+}
+
+export function networkCoordinationOptions(
+  workspaceId: string,
+  ref: NetworkCoordinationRef,
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: networkKeys.coordination(workspaceId, ref),
+    queryFn: ({ signal }) => getNetworkCoordination(workspaceId, ref, signal),
+    enabled: Boolean(workspaceId) && enabled,
+  });
+}
+
+export function networkUsageOptions(
+  workspaceId: string,
+  filters: NetworkUsageFilters = {},
+  enabled = true
+) {
+  return infiniteQueryOptions({
+    queryKey: networkKeys.usage(workspaceId, filters),
+    queryFn: ({ pageParam, signal }) =>
+      getNetworkUsage(workspaceId, { ...filters, cursor: pageParam ?? undefined }, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: lastPage => lastPage.next_cursor || undefined,
+    enabled: Boolean(workspaceId) && enabled,
   });
 }
 

@@ -54,6 +54,8 @@ const (
 	ReasonMCPAuthRefreshFailed ReasonCode = "mcp_auth_refresh_failed"
 	// ReasonNetworkRawTokenRejected reports raw claim-token fields in network payloads.
 	ReasonNetworkRawTokenRejected ReasonCode = "network_raw_token_rejected"
+	// ReasonNetworkNotParticipating reports a Local session attempting a Network operation.
+	ReasonNetworkNotParticipating ReasonCode = "not_participating"
 	// ReasonSourceDisabled reports a disabled source.
 	ReasonSourceDisabled ReasonCode = "source_disabled"
 	// ReasonPolicyDenied reports a policy denial.
@@ -172,6 +174,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonMCPAuthInvalid:                 {},
 	ReasonMCPAuthRefreshFailed:           {},
 	ReasonNetworkRawTokenRejected:        {},
+	ReasonNetworkNotParticipating:        {},
 	ReasonSourceDisabled:                 {},
 	ReasonPolicyDenied:                   {},
 	ReasonVisibilityDenied:               {},

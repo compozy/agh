@@ -240,6 +240,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/marketplace/search",
 		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 		"GET /api/workspaces/:workspace_id/network/inbox",
+		"GET /api/workspaces/:workspace_id/network/usage",
+		"GET /api/workspaces/:workspace_id/network-coordination",
+		"PUT /api/workspaces/:workspace_id/network-coordination",
+		"PUT /api/workspaces/:workspace_id/network-coordination/invitation",
 		"GET /api/workspaces/:workspace_id/network/peers",
 		"GET /api/workspaces/:workspace_id/network/peers/:peer_id",
 		"GET /api/workspaces/:workspace_id/network/channels",
@@ -311,6 +315,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/scheduler",
 		"GET /api/scheduler/backlog",
 		"GET /api/task-runs/:id",
+		"GET /api/task-runs/:id/conversation/stream",
 		"GET /api/task-runs/:id/reviews",
 		"GET /api/runs/:id/inspect",
 		"GET /api/task-reviews/:id",
@@ -458,7 +463,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/skills/marketplace/update",
 		"POST /api/task-runs/:id/attach-session",
 		"POST /api/task-runs/:id/cancel",
-		"POST /api/task-runs/:id/claim",
 		"POST /api/task-runs/:id/complete",
 		"POST /api/task-runs/:id/fail",
 		"POST /api/task-runs/:id/reviews",
@@ -506,7 +510,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PUT /api/vault/secrets",
 		"DELETE /api/workspaces/:workspace_id/loops/:name",
 		"DELETE /api/agents/:name",
-		"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:peer_id",
+		"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
 	}
 	sort.Strings(want)
 
@@ -1012,6 +1016,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"POST /api/runs/bulk/fail":                                     "BulkForceFailTaskRuns",
 		"POST /api/runs/bulk/release":                                  "BulkForceReleaseTaskRuns",
 		"GET /api/task-runs/:id":                                       "GetTaskRun",
+		"GET /api/task-runs/:id/conversation/stream":                   "StreamTaskRunConversation",
 		"GET /api/task-runs/:id/reviews":                               "ListTaskRunReviews",
 		"GET /api/task-reviews/:id":                                    "GetTaskRunReview",
 		"GET /api/tasks/:id/execution-profile":                         "GetTaskExecutionProfile",
@@ -1136,13 +1141,10 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" ||
-				opts.WorkspacePath != "" ||
-				opts.Channel != "builders" {
+				opts.WorkspacePath != "" || opts.NetworkParticipation != nil {
 				t.Fatalf("Create() opts = %#v", opts)
 			}
-			sess := newSession("sess-123")
-			sess.Channel = "builders"
-			return sess, nil
+			return newSession("sess-123"), nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -1153,7 +1155,7 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/sessions",
-		[]byte(`{"agent_name":"coder","name":"demo","workspace":"alpha","channel":"builders"}`),
+		[]byte(`{"agent_name":"coder","name":"demo","workspace":"alpha"}`),
 	)
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
@@ -1169,8 +1171,12 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	if response.Session.WorkspaceID != "ws-workspace" || response.Session.WorkspacePath != "/workspace" {
 		t.Fatalf("session workspace = %#v", response.Session)
 	}
-	if response.Session.Channel != "builders" {
-		t.Fatalf("session channel = %q, want %q", response.Session.Channel, "builders")
+	if response.Session.ResolvedNetworkParticipation != nil &&
+		response.Session.ResolvedNetworkParticipation.Mode != "local" {
+		t.Fatalf(
+			"session resolved_network_participation = %#v, want Local session projection",
+			response.Session.ResolvedNetworkParticipation,
+		)
 	}
 }
 

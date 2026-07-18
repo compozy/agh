@@ -15,6 +15,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -58,13 +59,13 @@ type harnessReentrySessionManager interface {
 }
 
 type harnessWakeTargetSnapshot struct {
-	SessionID   string
-	AgentName   string
-	Type        session.Type
-	State       session.State
-	WorkspaceID string
-	Channel     string
-	Missing     bool
+	SessionID            string
+	AgentName            string
+	Type                 session.Type
+	State                session.State
+	WorkspaceID          string
+	NetworkParticipation participation.Spec
+	Missing              bool
 }
 
 type harnessReentryDecision struct {
@@ -286,54 +287,6 @@ func (b *harnessReentryBridge) recoverPendingRuns(ctx context.Context) error {
 	return nil
 }
 
-func (b *harnessReentryBridge) loadRecoveredDetachedHarnessRuns(
-	ctx context.Context,
-) ([]recoveredDetachedHarnessRun, error) {
-	runs, err := b.store.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{
-		taskpkg.TaskRunStatusCompleted,
-		taskpkg.TaskRunStatusFailed,
-		taskpkg.TaskRunStatusCanceled,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("daemon: list detached terminal runs for reentry recovery: %w", err)
-	}
-
-	recovered := make([]recoveredDetachedHarnessRun, 0, len(runs))
-	for _, run := range runs {
-		metadata, ok, err := maybeDecodeDetachedHarnessRunMetadata(run.Metadata)
-		if err != nil {
-			return nil, err
-		}
-		if !ok || detachedHarnessReentryProcessed(metadata.Reentry) {
-			continue
-		}
-		sequence, timestamp, lookupErr := b.latestDetachedTerminalSequence(ctx, run.TaskID, run.ID)
-		if lookupErr != nil {
-			return nil, lookupErr
-		}
-		if timestamp.IsZero() {
-			timestamp = run.EndedAt
-		}
-		recovered = append(recovered, recoveredDetachedHarnessRun{
-			run:           run,
-			completionSeq: sequence,
-			completedAt:   timestamp,
-		})
-	}
-
-	sort.SliceStable(recovered, func(i, j int) bool {
-		if !recovered[i].completedAt.Equal(recovered[j].completedAt) {
-			return recovered[i].completedAt.Before(recovered[j].completedAt)
-		}
-		if recovered[i].completionSeq != recovered[j].completionSeq {
-			return recovered[i].completionSeq < recovered[j].completionSeq
-		}
-		return recovered[i].run.ID < recovered[j].run.ID
-	})
-
-	return recovered, nil
-}
-
 func (b *harnessReentryBridge) latestDetachedTerminalSequence(
 	ctx context.Context,
 	taskID string,
@@ -535,11 +488,11 @@ func (b *harnessReentryBridge) resolveWakeTargetSnapshot(
 	metadata detachedHarnessRunMetadata,
 ) harnessWakeTargetSnapshot {
 	target := harnessWakeTargetSnapshot{
-		SessionID:   strings.TrimSpace(metadata.WakeTarget.SessionID),
-		Type:        session.Type(strings.TrimSpace(metadata.WakeTarget.SessionType)),
-		WorkspaceID: strings.TrimSpace(metadata.WakeTarget.WorkspaceID),
-		Channel:     strings.TrimSpace(metadata.WakeTarget.Channel),
-		Missing:     true,
+		SessionID:            strings.TrimSpace(metadata.WakeTarget.SessionID),
+		Type:                 session.Type(strings.TrimSpace(metadata.WakeTarget.SessionType)),
+		WorkspaceID:          strings.TrimSpace(metadata.WakeTarget.WorkspaceID),
+		NetworkParticipation: participation.LocalSpec(),
+		Missing:              true,
 	}
 
 	info, err := b.sessions.Status(b.operationContext(), target.SessionID)
@@ -551,9 +504,7 @@ func (b *harnessReentryBridge) resolveWakeTargetSnapshot(
 		if workspaceID := strings.TrimSpace(info.WorkspaceID); workspaceID != "" {
 			target.WorkspaceID = workspaceID
 		}
-		if channel := strings.TrimSpace(info.Channel); channel != "" {
-			target.Channel = channel
-		}
+		target.NetworkParticipation = info.NetworkParticipation
 		target.Missing = false
 	case errors.Is(err, session.ErrSessionNotFound):
 		target.Missing = true
@@ -591,9 +542,9 @@ func (b *harnessReentryBridge) evaluateDecision(
 	input := HarnessResolutionInput{
 		Surface: ResolutionSurfaceTurn,
 		Session: HarnessSessionInput{
-			Type:        target.Type,
-			Channel:     target.Channel,
-			WorkspaceID: target.WorkspaceID,
+			Type:                 target.Type,
+			NetworkParticipation: target.NetworkParticipation,
+			WorkspaceID:          target.WorkspaceID,
 		},
 		Turn: HarnessTurnRequest{
 			Source: session.TurnSourceSynthetic,

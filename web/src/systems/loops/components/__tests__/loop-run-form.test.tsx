@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch } from "@/test/msw-fetch";
+import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { LoopRunForm } from "../run-form/loop-run-form";
 import { handlers } from "../../mocks";
 import { loopDetailByName, loopEffectiveConfigFixture } from "../../mocks/fixtures";
@@ -114,6 +115,96 @@ describe("LoopRunForm", () => {
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_running"));
+    await expect(runRequestBody()).resolves.not.toHaveProperty("network_participation");
+  });
+
+  it("Should return canonical immutable snapshots from dry-run and run mock responses", async () => {
+    const dryResponse = await fetch(
+      `http://localhost/api/workspaces/${WS}/loops/software-delivery/run?dry=true`,
+      {
+        body: JSON.stringify({ network_participation: { mode: "local" } }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+    const dryBody = (await dryResponse.json()) as {
+      dry_run: {
+        resolved_network_participation: {
+          bounds: { max_wakes: number };
+          mode: string;
+          source: string;
+        };
+      };
+    };
+    expect(dryBody.dry_run.resolved_network_participation).toEqual(
+      buildLocalNetworkParticipationFixture()
+    );
+
+    const runResponse = await fetch(
+      `http://localhost/api/workspaces/${WS}/loops/software-delivery/run`,
+      {
+        body: JSON.stringify({
+          network_participation: {
+            channel_id: " release-room ",
+            channel_strategy: "named",
+            mode: "live",
+          },
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+    const runBody = (await runResponse.json()) as {
+      run: {
+        resolved_network_participation: {
+          bounds: { max_wakes: number };
+          channel_id: string;
+          channel_strategy: string;
+          mode: string;
+          source: string;
+          workspace_id: string;
+        };
+      };
+    };
+    expect(runBody.run.resolved_network_participation).toMatchObject({
+      bounds: { max_wakes: 8 },
+      channel_id: "release-room",
+      channel_strategy: "named",
+      mode: "live",
+      source: "explicit_request",
+      workspace_id: WS,
+    });
+  });
+
+  it("Should serialize an explicit Live run without legacy participation fields", async () => {
+    renderForm();
+    expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("Local");
+    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
+      target: { value: "ship it" },
+    });
+    fireEvent.change(screen.getByTestId("loop-run-participation-mode"), {
+      target: { value: "live" },
+    });
+    fireEvent.change(screen.getByTestId("loop-run-participation-channel"), {
+      target: { value: "release-room" },
+    });
+    fireEvent.change(screen.getByTestId("loop-run-participation-strategy"), {
+      target: { value: "named" },
+    });
+    expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("Live");
+    expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("release-room");
+
+    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await expect(runRequestBody()).resolves.toEqual({
+      inputs: expect.any(Object),
+      config_overrides: null,
+      network_participation: {
+        mode: "live",
+        channel_id: "release-room",
+        channel_strategy: "named",
+      },
+    });
   });
 
   it("Should start a run for the selected Loop, not the fixture default", async () => {

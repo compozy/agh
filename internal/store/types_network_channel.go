@@ -33,8 +33,6 @@ const (
 
 	// NetworkSubscriptionModeMute suppresses unmentioned matching traffic.
 	NetworkSubscriptionModeMute = "mute"
-	// NetworkSubscriptionModeDigest converts matching traffic to compact digests.
-	NetworkSubscriptionModeDigest = "digest"
 	// NetworkSubscriptionModeFull preserves full prompt injection.
 	NetworkSubscriptionModeFull = "full"
 
@@ -320,12 +318,12 @@ func (q NetworkChannelQuery) Validate() error {
 	return requirePositiveLimit(q.Limit, "network channel limit")
 }
 
-// NetworkSubscriptionRef identifies one peer's channel or thread delivery mode.
+// NetworkSubscriptionRef identifies one session's channel or thread delivery mode.
 type NetworkSubscriptionRef struct {
 	WorkspaceID string
 	Channel     string
 	ThreadID    string
-	PeerID      string
+	SessionID   string
 }
 
 // Validate ensures the subscription target is workspace-qualified.
@@ -338,19 +336,18 @@ func (r NetworkSubscriptionRef) Validate() error {
 			return err
 		}
 	}
-	return validateNetworkPeerID(r.PeerID, "network subscription peer_id")
+	return requireField(r.SessionID, "network subscription session_id")
 }
 
-// NetworkSubscriptionEntry stores one peer delivery preference.
+// NetworkSubscriptionEntry stores one session delivery preference.
 type NetworkSubscriptionEntry struct {
-	WorkspaceID    string
-	Channel        string
-	ThreadID       string
-	PeerID         string
-	Mode           string
-	KeywordFilters []string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	WorkspaceID string
+	Channel     string
+	ThreadID    string
+	SessionID   string
+	Mode        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Validate ensures one subscription row is usable by zero-token routing.
@@ -359,27 +356,23 @@ func (e NetworkSubscriptionEntry) Validate() error {
 		WorkspaceID: e.WorkspaceID,
 		Channel:     e.Channel,
 		ThreadID:    e.ThreadID,
-		PeerID:      e.PeerID,
+		SessionID:   e.SessionID,
 	}).Validate(); err != nil {
 		return err
 	}
 	if err := ValidateNetworkSubscriptionMode(e.Mode); err != nil {
 		return err
 	}
-	for _, filter := range e.KeywordFilters {
-		if strings.TrimSpace(filter) == "" {
-			return fmt.Errorf("store: network subscription keyword filter cannot be blank")
-		}
-	}
 	return nil
 }
 
-// NetworkSubscriptionQuery filters peer delivery preferences.
+// NetworkSubscriptionQuery filters session delivery preferences.
 type NetworkSubscriptionQuery struct {
 	WorkspaceID string
 	Channel     string
 	ThreadID    string
-	PeerID      string
+	SessionID   string
+	ExactThread bool
 	Limit       int
 }
 
@@ -393,8 +386,8 @@ func (q NetworkSubscriptionQuery) Validate() error {
 			return err
 		}
 	}
-	if strings.TrimSpace(q.PeerID) != "" {
-		if err := validateNetworkPeerID(q.PeerID, "network subscription peer_id"); err != nil {
+	if strings.TrimSpace(q.SessionID) != "" {
+		if err := requireField(q.SessionID, "network subscription session_id"); err != nil {
 			return err
 		}
 	}
@@ -404,11 +397,9 @@ func (q NetworkSubscriptionQuery) Validate() error {
 // ValidateNetworkSubscriptionMode checks one delivery preference mode.
 func ValidateNetworkSubscriptionMode(mode string) error {
 	switch strings.TrimSpace(mode) {
-	case NetworkSubscriptionModeMute, NetworkSubscriptionModeDigest, NetworkSubscriptionModeFull:
+	case NetworkSubscriptionModeMute, NetworkSubscriptionModeFull:
 		return nil
 	default:
 		return fmt.Errorf("store: unsupported network subscription mode %q", mode)
 	}
 }
-
-// NetworkDeliveryGuidanceState records which network guidance a session has already seen.

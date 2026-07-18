@@ -16,7 +16,8 @@ const (
 	sessionCatalogSortRecent        = "recent"
 )
 
-const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, workspace_id, channel, session_type,
+const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, workspace_id,
+	network_spec_json, network_mode, network_channel, network_source, session_type,
 	parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
 	auto_stop_on_parent, spawn_budget_json, permission_policy_json,
 	state, acp_session_id, stop_reason, stop_detail,
@@ -131,8 +132,11 @@ func sessionCatalogPageFilters(
 		store.StringClause("agent_name", query.AgentName),
 	)
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
-		where = append(where, `(instr(lower(id), ?) > 0 OR instr(lower(COALESCE(name, '')), ?) > 0 OR
-			instr(lower(agent_name), ?) > 0 OR instr(lower(provider), ?) > 0 OR instr(lower(channel), ?) > 0)`)
+		where = append(where, `(instr(lower(id), ?) > 0 OR
+			instr(lower(COALESCE(name, '')), ?) > 0 OR
+			instr(lower(agent_name), ?) > 0 OR
+			instr(lower(provider), ?) > 0 OR
+			instr(lower(COALESCE(network_channel, '')), ?) > 0)`)
 		for range 5 {
 			args = append(args, search)
 		}

@@ -14,7 +14,6 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
-	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
 )
 
@@ -76,7 +75,7 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 	}
 
 	var req contract.CreateJobRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -87,7 +86,11 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 		return
 	}
 
-	job := jobFromCreateRequest(req)
+	job, err := jobFromCreateRequest(req)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		return
+	}
 	if err := job.Validate("job"); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
@@ -145,7 +148,7 @@ func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 	}
 
 	var req contract.UpdateJobRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -179,7 +182,11 @@ func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 		}
 		updated, err = manager.SetJobEnabled(c.Request.Context(), current.ID, *req.Enabled)
 	default:
-		next := applyJobPatch(current, req)
+		next, patchErr := applyJobPatch(current, req)
+		if patchErr != nil {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(patchErr))
+			return
+		}
 		if err := next.Validate("job"); err != nil {
 			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 			return
@@ -313,7 +320,7 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 	}
 
 	var req contract.CreateTriggerRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -366,7 +373,7 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 	}
 
 	var req contract.UpdateTriggerRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -400,7 +407,11 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 		}
 		updated, err = manager.SetTriggerEnabled(c.Request.Context(), current.ID, *req.Enabled)
 	default:
-		next := applyTriggerPatch(current, req)
+		next, patchErr := applyTriggerPatch(current, req)
+		if patchErr != nil {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(patchErr))
+			return
+		}
 		webhookSecret := webhookSecretWriteFromUpdateRequest(req)
 		updated, err = manager.UpdateTrigger(c.Request.Context(), next, webhookSecret)
 	}
@@ -749,11 +760,11 @@ func decodeWebhookPayloadData(payload []byte) map[string]any {
 
 // AutomationJobFromCreateRequest converts the shared create payload into the
 // canonical automation job model.
-func AutomationJobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
+func AutomationJobFromCreateRequest(req contract.CreateJobRequest) (automationpkg.Job, error) {
 	return jobFromCreateRequest(req)
 }
 
-func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
+func jobFromCreateRequest(req contract.CreateJobRequest) (automationpkg.Job, error) {
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled
@@ -770,7 +781,10 @@ func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 	}
 
 	schedule := req.Schedule
-	taskConfig := cloneAutomationJobTaskConfig(req.Task)
+	taskConfig, err := cloneAutomationJobTaskConfig(req.Task)
+	if err != nil {
+		return automationpkg.Job{}, err
+	}
 	return automationpkg.Job{
 		Scope:       req.Scope,
 		Name:        strings.TrimSpace(req.Name),
@@ -785,30 +799,21 @@ func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 		Retry:       retry,
 		FireLimit:   fireLimit,
 		Source:      automationpkg.JobSourceDynamic,
-	}
+	}, nil
 }
 
 // ApplyAutomationJobPatch applies the shared patch payload to an automation job model.
-func ApplyAutomationJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) automationpkg.Job {
+func ApplyAutomationJobPatch(
+	current automationpkg.Job,
+	req contract.UpdateJobRequest,
+) (automationpkg.Job, error) {
 	return applyJobPatch(current, req)
 }
 
-func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) automationpkg.Job {
+func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) (automationpkg.Job, error) {
 	next := current
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
-	}
-	if req.TargetKind != nil {
-		next.TargetKind = *req.TargetKind
-		if next.TargetKind.Normalize() == automationpkg.TargetKindAgent && req.LoopTarget == nil {
-			next.LoopTarget = nil
-		}
-	}
-	if req.AgentName != nil {
-		next.AgentName = strings.TrimSpace(*req.AgentName)
-	}
-	if req.WorkspaceID != nil {
-		next.WorkspaceID = strings.TrimSpace(*req.WorkspaceID)
 	}
 	if req.Prompt != nil {
 		next.Prompt = strings.TrimSpace(*req.Prompt)
@@ -818,7 +823,11 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) aut
 		next.Schedule = &schedule
 	}
 	if req.Task != nil {
-		next.Task = cloneAutomationJobTaskConfig(req.Task)
+		taskConfig, err := cloneAutomationJobTaskConfig(req.Task)
+		if err != nil {
+			return automationpkg.Job{}, err
+		}
+		next.Task = taskConfig
 	}
 	if req.LoopTarget != nil {
 		next.LoopTarget = cloneAutomationLoopTarget(req.LoopTarget)
@@ -832,7 +841,10 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) aut
 	if req.FireLimit != nil {
 		next.FireLimit = *req.FireLimit
 	}
-	return next
+	if err := automationpkg.ValidateImmutableJobTarget(current, next); err != nil {
+		return automationpkg.Job{}, err
+	}
+	return next, nil
 }
 
 // ValidateAutomationConfigJobUpdate enforces the config-backed job mutation policy.
@@ -845,9 +857,6 @@ func validateConfigJobUpdate(req contract.UpdateJobRequest) error {
 	case req.Enabled == nil:
 		return errors.New("config-backed automation jobs only accept enabled updates")
 	case req.Name != nil ||
-		req.TargetKind != nil ||
-		req.AgentName != nil ||
-		req.WorkspaceID != nil ||
 		req.Prompt != nil ||
 		req.Schedule != nil ||
 		req.Task != nil ||
@@ -858,23 +867,6 @@ func validateConfigJobUpdate(req contract.UpdateJobRequest) error {
 	default:
 		return nil
 	}
-}
-
-func cloneAutomationJobTaskConfig(config *automationpkg.JobTaskConfig) *automationpkg.JobTaskConfig {
-	if config == nil {
-		return nil
-	}
-	cloned := *config
-	cloned.Title = strings.TrimSpace(cloned.Title)
-	cloned.Description = strings.TrimSpace(cloned.Description)
-	cloned.NetworkChannel = strings.TrimSpace(cloned.NetworkChannel)
-	if config.Owner != nil {
-		owner := *config.Owner
-		owner.Kind = taskpkg.OwnerKind(strings.TrimSpace(string(owner.Kind)))
-		owner.Ref = strings.TrimSpace(owner.Ref)
-		cloned.Owner = &owner
-	}
-	return &cloned
 }
 
 // AutomationTriggerFromCreateRequest converts the shared create payload into
@@ -922,26 +914,17 @@ func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.T
 func ApplyAutomationTriggerPatch(
 	current automationpkg.Trigger,
 	req contract.UpdateTriggerRequest,
-) automationpkg.Trigger {
+) (automationpkg.Trigger, error) {
 	return applyTriggerPatch(current, req)
 }
 
-func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTriggerRequest) automationpkg.Trigger {
+func applyTriggerPatch(
+	current automationpkg.Trigger,
+	req contract.UpdateTriggerRequest,
+) (automationpkg.Trigger, error) {
 	next := current
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
-	}
-	if req.TargetKind != nil {
-		next.TargetKind = *req.TargetKind
-		if next.TargetKind.Normalize() == automationpkg.TargetKindAgent && req.LoopTarget == nil {
-			next.LoopTarget = nil
-		}
-	}
-	if req.AgentName != nil {
-		next.AgentName = strings.TrimSpace(*req.AgentName)
-	}
-	if req.WorkspaceID != nil {
-		next.WorkspaceID = strings.TrimSpace(*req.WorkspaceID)
 	}
 	if req.Prompt != nil {
 		next.Prompt = strings.TrimSpace(*req.Prompt)
@@ -964,6 +947,9 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 	if req.FireLimit != nil {
 		next.FireLimit = *req.FireLimit
 	}
+	if err := automationpkg.ValidateImmutableTriggerTarget(current, next); err != nil {
+		return automationpkg.Trigger{}, err
+	}
 
 	event := strings.TrimSpace(next.Event)
 	if req.WebhookID != nil {
@@ -980,7 +966,7 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 		next.WebhookSecretRef = ""
 	}
 
-	return next
+	return next, nil
 }
 
 func webhookSecretWriteFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.WebhookSecretWrite {
@@ -1012,9 +998,6 @@ func validateConfigTriggerUpdate(req contract.UpdateTriggerRequest) error {
 	case req.Enabled == nil:
 		return errors.New("config-backed automation triggers only accept enabled updates")
 	case req.Name != nil ||
-		req.TargetKind != nil ||
-		req.AgentName != nil ||
-		req.WorkspaceID != nil ||
 		req.Prompt != nil ||
 		req.Event != nil ||
 		req.Filter != nil ||

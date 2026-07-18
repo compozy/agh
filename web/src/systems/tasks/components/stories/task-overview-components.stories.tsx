@@ -182,7 +182,6 @@ export const OperationalCards: Story = {
         onDelete={async () => undefined}
       />
       <TasksFanOutRunsCard
-        defaultNetworkChannel={detail.task.network_channel}
         onFanOut={async () => ({ designation_group_id: "desig_storybook", runs: [] })}
       />
       <TasksExecutionProfileCard
@@ -220,7 +219,6 @@ export const Orchestration: Story = {
   render: () => (
     <TasksDetailOrchestrationPanel
       fanOut={{
-        defaultNetworkChannel: detail.task.network_channel,
         onFanOut: async () => ({ designation_group_id: "desig_storybook", runs: [] }),
       }}
       profile={{

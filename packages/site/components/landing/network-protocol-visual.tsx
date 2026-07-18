@@ -25,56 +25,56 @@ const STEPS: Step[] = [
     to: "NET",
     kind: "greet",
     direction: "->",
-    payload: `{ agent: "coder", caps: ["code","review"] }`,
-    hint: "Coder announces itself on the channel.",
+    payload: `{ peer_card: { peer_id: "coder.session-a", profiles_supported: ["agh-network/v0"], capabilities: ["code","review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } }`,
+    hint: "A Live coder announces itself inside the current daemon.",
   },
   {
-    from: "NET",
+    from: "B",
     to: "A",
     kind: "greet",
     direction: "<-",
-    payload: `{ agents: 12, peers: 3 }`,
-    hint: "Network responds with visible membership.",
+    payload: `{ peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["agh-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } }`,
+    hint: "A Live reviewer advertises its peer card; the daemon routes the committed greet to local members.",
   },
   {
     from: "A",
     to: "NET",
     kind: "whois",
     direction: "->",
-    payload: `{ need: "deploy staging" }`,
-    hint: "Coder asks for a peer that can deploy.",
+    payload: `{ type: "request", query: "review release" }`,
+    hint: "Coder asks for a local session that can review the release.",
   },
   {
-    from: "NET",
+    from: "B",
     to: "A",
     kind: "whois",
     direction: "<-",
-    payload: `{ match: "deployer@ci-runner-03" }`,
-    hint: "Network resolves a matching peer.",
+    payload: `{ reply_to: "msg_whois_001", body: { type: "response", peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["agh-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } } }`,
+    hint: "The matched Live reviewer owns the response; the daemon commits and routes it in process.",
   },
   {
     from: "A",
     to: "B",
     kind: "say",
     direction: "->",
-    payload: `{ surface: "direct", direct_id: "direct_...", work_id: "work_deploy_staging", to: "deployer", body: { text: "deploy staging" } }`,
-    hint: "Structured task is delegated peer-to-peer in a restricted direct room.",
+    payload: `{ id: "msg_review_001", surface: "direct", direct_id: "direct_...", to: "reviewer.session-b", work_id: "work_release_review", body: { text: "review release" } }`,
+    hint: "The direct message commits before the daemon wakes the addressed Live session.",
   },
   {
     from: "B",
     to: "A",
     kind: "trace",
     direction: "..",
-    payload: `{ status: "running", step: 2/4 }`,
-    hint: "Deployer streams progress back to coder.",
+    payload: `{ surface: "direct", direct_id: "direct_...", work_id: "work_release_review", body: { state: "working", message: "step 2 of 4" } }`,
+    hint: "Reviewer records progress without turning conversation into task authority.",
   },
   {
     from: "B",
     to: "A",
     kind: "receipt",
     direction: "<-",
-    payload: `{ ok: true, url: "https://staging.agh..." }`,
-    hint: "Delegation completes with an auditable receipt.",
+    payload: `{ surface: "direct", direct_id: "direct_...", work_id: "work_release_review", body: { for_id: "msg_review_001", status: "accepted" } }`,
+    hint: "The collaboration records a durable receipt; provider usage is stored separately.",
   },
 ];
 
@@ -104,9 +104,9 @@ function reducer(state: State, action: Action): State {
 }
 
 function fromLabel(lane: Lane) {
-  if (lane === "A") return "Coder · desk-01";
-  if (lane === "B") return "Deployer · ci-runner-03";
-  return "AGH Network";
+  if (lane === "A") return "Coder · session-a";
+  if (lane === "B") return "Reviewer · session-b";
+  return "AGH daemon";
 }
 
 function directionGlyph(d: Direction, from: Lane, to: Lane) {
@@ -174,14 +174,14 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       tabIndex={0}
       role="group"
       aria-roledescription="protocol walkthrough"
-      aria-label="agh-network/v0 seven-step delegation sequence"
+      aria-label="agh-network/v0 seven-step in-process collaboration sequence"
       className="min-w-0 max-w-full overflow-hidden rounded-diagram border border-line bg-rail outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {/* Header , lane labels */}
       <div className="grid grid-cols-3 gap-2 border-b border-line bg-canvas-soft p-3 sm:gap-4 sm:px-4 md:px-6">
-        <LaneHeader title="Agent A" subtitle="coder · desk-01" />
-        <LaneHeader title="AGH Network" subtitle="agh-network/v0 · nats" accent />
-        <LaneHeader title="Agent B" subtitle="deployer · ci-runner-03" />
+        <LaneHeader title="Session A" subtitle="coder · Live" />
+        <LaneHeader title="AGH daemon" subtitle="agh-network/v0 · in-process" accent />
+        <LaneHeader title="Session B" subtitle="reviewer · Live" />
       </div>
 
       {/* Body */}

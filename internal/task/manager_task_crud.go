@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // CreateTask derives one canonical task record from trusted actor context and
@@ -21,13 +23,46 @@ func (m *Service) CreateTask(
 	if err != nil {
 		return nil, err
 	}
+	if err := m.authorizeTaskScope(
+		ctx,
+		actor,
+		normalizedSpec.Scope,
+		normalizedSpec.WorkspaceID,
+	); err != nil {
+		return nil, err
+	}
 	if err := m.validateParentConstraints(ctx, normalizedSpec); err != nil {
 		return nil, err
 	}
-	if err := m.validateNetworkChannel("create_task.network_channel", normalizedSpec.NetworkChannel); err != nil {
+
+	record := m.newTaskRecord(normalizedSpec, actor)
+	if err := record.Validate(); err != nil {
 		return nil, err
 	}
+	profile, err := m.newDefinitionProfile(record.ID, normalizedSpec.NetworkParticipation)
+	if err != nil {
+		return nil, err
+	}
+	event, err := m.newTaskEvent(record.ID, "", taskEventCreated, actor, createdTaskPayload{
+		Scope:        record.Scope,
+		WorkspaceID:  record.WorkspaceID,
+		ParentTaskID: record.ParentTaskID,
+		Status:       record.Status,
+		Owner:        cloneOwnership(record.Owner),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
+		Task: record, Profile: profile, Events: []Event{event},
+	}); err != nil {
+		return nil, err
+	}
+	m.publishTaskEventsAfterCommand(ctx, []Event{event})
+	return &record, nil
+}
 
+func (m *Service) newTaskRecord(normalizedSpec CreateTask, actor ActorContext) Task {
 	now := m.now().UTC()
 	record := Task{
 		ID:                 normalizedSpec.ID,
@@ -35,7 +70,6 @@ func (m *Service) CreateTask(
 		Scope:              normalizedSpec.Scope,
 		WorkspaceID:        normalizedSpec.WorkspaceID,
 		ParentTaskID:       normalizedSpec.ParentTaskID,
-		NetworkChannel:     normalizedSpec.NetworkChannel,
 		Title:              normalizedSpec.Title,
 		Description:        normalizedSpec.Description,
 		Priority:           normalizedSpec.Priority,
@@ -55,24 +89,7 @@ func (m *Service) CreateTask(
 	if strings.TrimSpace(record.ID) == "" {
 		record.ID = m.newID("task")
 	}
-	if err := record.Validate(); err != nil {
-		return nil, err
-	}
-	if err := m.store.CreateTask(ctx, record); err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(ctx, record.ID, "", taskEventCreated, actor, createdTaskPayload{
-		Scope:          record.Scope,
-		WorkspaceID:    record.WorkspaceID,
-		ParentTaskID:   record.ParentTaskID,
-		Status:         record.Status,
-		NetworkChannel: record.NetworkChannel,
-		Owner:          cloneOwnership(record.Owner),
-	}); err != nil {
-		return nil, err
-	}
-
-	return &record, nil
+	return record
 }
 
 // CreateChildTask creates one child task beneath the supplied parent and emits
@@ -94,20 +111,58 @@ func (m *Service) CreateChildTask(
 			ErrValidation,
 		)
 	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedParentID, actor); err != nil {
+		return nil, err
+	}
 
 	spec.ParentTaskID = trimmedParentID
-	child, err := m.CreateTask(ctx, spec, actor)
+	if err := requireCreateAuthority(actor, spec.Scope); err != nil {
+		return nil, err
+	}
+	normalizedSpec, err := normalizeCreateTaskSpec(spec)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(ctx, trimmedParentID, "", taskEventChildCreated, actor, childCreatedTaskPayload{
-		ChildTaskID:      child.ID,
-		ChildScope:       child.Scope,
-		ChildWorkspaceID: child.WorkspaceID,
+	if err := m.authorizeTaskScope(
+		ctx,
+		actor,
+		normalizedSpec.Scope,
+		normalizedSpec.WorkspaceID,
+	); err != nil {
+		return nil, err
+	}
+	if err := m.validateParentConstraints(ctx, normalizedSpec); err != nil {
+		return nil, err
+	}
+	child := m.newTaskRecord(normalizedSpec, actor)
+	if err := child.Validate(); err != nil {
+		return nil, err
+	}
+	profile, err := m.newDefinitionProfile(child.ID, normalizedSpec.NetworkParticipation)
+	if err != nil {
+		return nil, err
+	}
+	createdEvent, err := m.newTaskEvent(child.ID, "", taskEventCreated, actor, createdTaskPayload{
+		Scope: child.Scope, WorkspaceID: child.WorkspaceID, ParentTaskID: child.ParentTaskID,
+		Status: child.Status, Owner: cloneOwnership(child.Owner),
+	})
+	if err != nil {
+		return nil, err
+	}
+	parentEvent, err := m.newTaskEvent(trimmedParentID, "", taskEventChildCreated, actor, childCreatedTaskPayload{
+		ChildTaskID: child.ID, ChildScope: child.Scope, ChildWorkspaceID: child.WorkspaceID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	events := []Event{createdEvent, parentEvent}
+	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
+		Task: child, Profile: profile, Events: events,
 	}); err != nil {
 		return nil, err
 	}
-	return child, nil
+	m.publishTaskEventsAfterCommand(ctx, events)
+	return &child, nil
 }
 
 // DeleteTask removes one task after verifying it is not still in use by child
@@ -138,7 +193,7 @@ func (m *Service) deleteTaskWithStore(
 	trimmedID string,
 	actor ActorContext,
 ) error {
-	record, err := store.GetTask(ctx, trimmedID)
+	record, err := m.loadAuthorizedTask(ctx, store, trimmedID, actor)
 	if err != nil {
 		return fmt.Errorf("task: load task %q for delete: %w", trimmedID, err)
 	}
@@ -190,51 +245,107 @@ func (m *Service) UpdateTask(
 	if err != nil {
 		return nil, err
 	}
-	if normalizedPatch.NetworkChannel != nil {
-		if err := m.validateNetworkChannel("task_patch.network_channel", *normalizedPatch.NetworkChannel); err != nil {
-			return nil, err
-		}
-	}
-
-	current, err := m.store.GetTask(ctx, trimmedID)
+	current, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor)
 	if err != nil {
 		return nil, err
 	}
 
 	updated, changedFields := applyTaskPatch(current, normalizedPatch)
+	updateTaskRow := len(changedFields) > 0
+	if normalizedPatch.NetworkParticipation != nil {
+		changedFields = append(changedFields, "network_participation")
+	}
 	if len(changedFields) == 0 {
 		return &current, nil
 	}
 
-	dependencies, err := m.store.ListDependencies(ctx, trimmedID)
+	if updateTaskRow {
+		dependencies, err := m.store.ListDependencies(ctx, trimmedID)
+		if err != nil {
+			return nil, err
+		}
+		runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: trimmedID})
+		if err != nil {
+			return nil, err
+		}
+		canonicalStatus, err := m.canonicalTaskStatus(ctx, updated, dependencies, runs)
+		if err != nil {
+			return nil, err
+		}
+		updated.Status = canonicalStatus
+		updated.UpdatedAt = m.now().UTC()
+	}
+	events, err := m.taskUpdateEvents(
+		updated,
+		changedFields,
+		normalizedPatch.NetworkParticipation != nil,
+		actor,
+	)
 	if err != nil {
 		return nil, err
 	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: trimmedID})
-	if err != nil {
-		return nil, err
-	}
-
-	canonicalStatus, err := m.canonicalTaskStatus(ctx, updated, dependencies, runs)
-	if err != nil {
-		return nil, err
-	}
-	updated.Status = canonicalStatus
-	updated.UpdatedAt = m.now().UTC()
-	if err := m.store.UpdateTask(ctx, updated, actor); err != nil {
-		return nil, err
-	}
-	if current.Status.Normalize() != updated.Status.Normalize() {
-		m.dispatchTaskStatusChanged(ctx, updated, current.Status, updated.Status, actor)
-	}
-	if err := m.recordTaskEvent(ctx, updated.ID, "", taskEventUpdated, actor, updatedTaskPayload{
-		ChangedFields: append([]string(nil), changedFields...),
-		Status:        updated.Status,
+	if _, err := m.store.UpdateTaskDefinition(ctx, &UpdateTaskDefinitionMutation{
+		Task:                      updated,
+		UpdateTaskRow:             updateTaskRow,
+		PatchNetworkParticipation: normalizedPatch.NetworkParticipation != nil,
+		NetworkParticipation:      participation.CloneRequest(normalizedPatch.NetworkParticipation),
+		Actor:                     actor,
+		Events:                    events,
 	}); err != nil {
 		return nil, err
 	}
+	m.publishTaskEventsAfterCommand(ctx, events)
+	if current.Status.Normalize() != updated.Status.Normalize() {
+		m.dispatchTaskStatusChangedAfterWrite(ctx, updated, current.Status, updated.Status, actor)
+	}
 
 	return &updated, nil
+}
+
+func (m *Service) taskUpdateEvents(
+	updated Task,
+	changedFields []string,
+	includeProfileEvent bool,
+	actor ActorContext,
+) ([]Event, error) {
+	updatedEvent, err := m.newTaskEvent(updated.ID, "", taskEventUpdated, actor, updatedTaskPayload{
+		ChangedFields: append([]string(nil), changedFields...),
+		Status:        updated.Status,
+	})
+	if err != nil {
+		return nil, err
+	}
+	events := []Event{updatedEvent}
+	if !includeProfileEvent {
+		return events, nil
+	}
+	profileEvent, err := m.newTaskEvent(
+		updated.ID,
+		"",
+		taskEventProfileUpdated,
+		actor,
+		profileMutationEventPayload{TaskID: updated.ID},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return append(events, profileEvent), nil
+}
+
+func (m *Service) newDefinitionProfile(
+	taskID string,
+	request *participation.Request,
+) (*ExecutionProfile, error) {
+	if request == nil {
+		return nil, nil
+	}
+	profile := defaultExecutionProfile(taskID)
+	profile.NetworkParticipation = participation.CloneRequest(request)
+	normalized, err := profile.Normalize(m.profileValidation)
+	if err != nil {
+		return nil, err
+	}
+	return &normalized, nil
 }
 
 // CancelTask propagates manager-owned cancellation through the target task,
@@ -260,6 +371,9 @@ func (m *Service) CancelTask(
 
 	tree, root, err := m.loadCancellationTree(ctx, trimmedID)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.authorizeTaskTreeMutation(ctx, actor, tree); err != nil {
 		return nil, err
 	}
 	if err := m.ensureTaskCancelable(ctx, root); err != nil {
@@ -316,10 +430,6 @@ func applyTaskPatchReferences(updated Task, patch Patch, changedFields []string)
 	if patch.Metadata != nil && !sameRawJSON(updated.Metadata, *patch.Metadata) {
 		updated.Metadata = cloneRawJSON(*patch.Metadata)
 		changedFields = append(changedFields, TaskFieldMetadata)
-	}
-	if patch.NetworkChannel != nil && updated.NetworkChannel != *patch.NetworkChannel {
-		updated.NetworkChannel = *patch.NetworkChannel
-		changedFields = append(changedFields, TaskFieldNetworkChannel)
 	}
 	if patch.Owner != nil && !sameOwnership(updated.Owner, patch.Owner) {
 		updated.Owner = cloneOwnership(patch.Owner)

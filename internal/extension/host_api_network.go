@@ -1,7 +1,6 @@
 package extensionpkg
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -9,7 +8,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	apicontract "github.com/compozy/agh/internal/api/contract"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
@@ -22,6 +20,7 @@ func registerHostAPINetworkMethodHandlers(
 	handlers map[string]hostAPIMethodFunc,
 ) {
 	handlers[string(extensioncontract.HostAPIMethodNetworkStatus)] = handler.handleNetworkStatus
+	handlers[string(extensioncontract.HostAPIMethodNetworkUsage)] = handler.handleNetworkUsage
 	handlers[string(extensioncontract.HostAPIMethodNetworkChannels)] = handler.handleNetworkChannels
 	handlers[string(extensioncontract.HostAPIMethodNetworkPeers)] = handler.handleNetworkPeers
 	handlers[string(extensioncontract.HostAPIMethodNetworkThreads)] = handler.handleNetworkThreads
@@ -32,21 +31,6 @@ func registerHostAPINetworkMethodHandlers(
 	handlers[string(extensioncontract.HostAPIMethodNetworkDirectMessages)] = handler.handleNetworkDirectMessages
 	handlers[string(extensioncontract.HostAPIMethodNetworkWorkGet)] = handler.handleNetworkWorkGet
 	handlers[string(extensioncontract.HostAPIMethodNetworkSend)] = handler.handleNetworkSend
-}
-
-func (h *HostAPIHandler) handleNetworkStatus(ctx context.Context, raw json.RawMessage) (any, error) {
-	if err := decodeHostAPIParams(raw, &struct{}{}); err != nil {
-		return nil, err
-	}
-	service, err := h.requireHostAPINetworkService()
-	if err != nil {
-		return nil, err
-	}
-	status, err := service.Status(ctx)
-	if err != nil {
-		return nil, mapHostAPINetworkRPCError(err)
-	}
-	return hostAPINetworkStatusPayload(status), nil
 }
 
 func (h *HostAPIHandler) handleNetworkChannels(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -93,46 +77,6 @@ func (h *HostAPIHandler) handleNetworkPeers(ctx context.Context, raw json.RawMes
 		return nil, mapHostAPINetworkRPCError(err)
 	}
 	return hostAPINetworkPeerPayloads(peers), nil
-}
-
-func (h *HostAPIHandler) handleNetworkThreads(ctx context.Context, raw json.RawMessage) (any, error) {
-	var params extensioncontract.NetworkThreadsParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
-		return nil, err
-	}
-	networkStore, err := h.requireHostAPINetworkStore()
-	if err != nil {
-		return nil, err
-	}
-	channel, err := hostAPINetworkChannel(params.Channel)
-	if err != nil {
-		return nil, err
-	}
-	query, err := hostAPINetworkThreadQuery(params)
-	if err != nil {
-		return nil, err
-	}
-	workspaceID, err := h.hostAPINetworkWorkspaceID(ctx, params.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	page, err := networkStore.ListThreads(
-		ctx,
-		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
-		query,
-	)
-	if err != nil {
-		return nil, mapHostAPINetworkRPCError(err)
-	}
-	return apicontract.NetworkThreadsResponse{
-		Threads: hostAPINetworkThreadSummaryPayloads(page.Threads),
-		Page: apicontract.CountedCursorPagePayload{
-			NextCursor: page.NextCursor,
-			HasMore:    page.HasMore,
-			Total:      page.Total,
-			Limit:      page.Limit,
-		},
-	}, nil
 }
 
 func (h *HostAPIHandler) handleNetworkThreadGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -200,46 +144,6 @@ func (h *HostAPIHandler) handleNetworkThreadMessages(ctx context.Context, raw js
 	return apicontract.NetworkThreadMessagesResponse{Messages: payload, Page: page}, nil
 }
 
-func (h *HostAPIHandler) handleNetworkDirects(ctx context.Context, raw json.RawMessage) (any, error) {
-	var params extensioncontract.NetworkDirectsParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
-		return nil, err
-	}
-	networkStore, err := h.requireHostAPINetworkStore()
-	if err != nil {
-		return nil, err
-	}
-	channel, err := hostAPINetworkChannel(params.Channel)
-	if err != nil {
-		return nil, err
-	}
-	query, err := hostAPINetworkDirectRoomQuery(params)
-	if err != nil {
-		return nil, err
-	}
-	workspaceID, err := h.hostAPINetworkWorkspaceID(ctx, params.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	page, err := networkStore.ListDirectRooms(
-		ctx,
-		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
-		query,
-	)
-	if err != nil {
-		return nil, mapHostAPINetworkRPCError(err)
-	}
-	return apicontract.NetworkDirectRoomsResponse{
-		Directs: hostAPINetworkDirectRoomPayloads(page.Directs),
-		Page: apicontract.CountedCursorPagePayload{
-			NextCursor: page.NextCursor,
-			HasMore:    page.HasMore,
-			Total:      page.Total,
-			Limit:      page.Limit,
-		},
-	}, nil
-}
-
 func (h *HostAPIHandler) handleNetworkDirectResolve(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params extensioncontract.NetworkDirectResolveParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
@@ -269,11 +173,19 @@ func (h *HostAPIHandler) handleNetworkDirectResolve(ctx context.Context, raw jso
 	if err != nil {
 		return nil, err
 	}
+	if err := h.requireHostAPINetworkParticipant(ctx, workspaceID, sessionID, channel); err != nil {
+		return nil, err
+	}
 	local, remote, err := h.resolveHostAPIDirectPeers(ctx, service, workspaceID, channel, sessionID, peerID)
 	if err != nil {
 		return nil, mapHostAPINetworkRPCError(err)
 	}
-	directID, peerA, peerB, err := network.DirectRoomIdentity(workspaceID, channel, local.PeerID, remote.PeerID)
+	directID, sessionA, sessionB, err := store.NetworkDirectRoomIdentity(
+		workspaceID,
+		channel,
+		*local.SessionID,
+		*remote.SessionID,
+	)
 	if err != nil {
 		return nil, mapHostAPINetworkRPCError(err)
 	}
@@ -282,8 +194,8 @@ func (h *HostAPIHandler) handleNetworkDirectResolve(ctx context.Context, raw jso
 		WorkspaceID:    workspaceID,
 		Channel:        channel,
 		DirectID:       directID,
-		PeerA:          peerA,
-		PeerB:          peerB,
+		SessionA:       sessionA,
+		SessionB:       sessionB,
 		OpenedAt:       now,
 		LastActivityAt: now,
 	})
@@ -368,6 +280,14 @@ func (h *HostAPIHandler) handleNetworkSend(ctx context.Context, raw json.RawMess
 	if err != nil {
 		return nil, mapHostAPINetworkRPCError(err)
 	}
+	if err := h.requireHostAPINetworkParticipant(
+		ctx,
+		workspaceID,
+		params.SessionID,
+		params.Channel,
+	); err != nil {
+		return nil, err
+	}
 	id, err := service.Send(ctx, sendReq)
 	if err != nil {
 		return nil, mapHostAPINetworkRPCError(err)
@@ -432,6 +352,13 @@ func (h *HostAPIHandler) resolveHostAPIDirectPeers(
 			channel,
 		)
 	}
+	if remote.SessionID == nil || strings.TrimSpace(*remote.SessionID) == "" {
+		return network.PeerInfo{}, network.PeerInfo{}, fmt.Errorf(
+			"%w: peer_id=%q has no participating session",
+			network.ErrTargetPeerNotFound,
+			peerID,
+		)
+	}
 	return local, remote, nil
 }
 
@@ -447,144 +374,6 @@ func hostAPINetworkFindPeer(peers []network.PeerInfo, peerID string) (network.Pe
 
 func (h *HostAPIHandler) hostAPINetworkWorkspaceID(ctx context.Context, raw string) (string, error) {
 	return h.resolveRequiredWorkspaceID(ctx, raw)
-}
-
-func hostAPINetworkChannel(channel string) (string, error) {
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return "", invalidParamsRPCError(errors.New("channel is required"))
-	}
-	if err := network.ValidateChannel(trimmed); err != nil {
-		return "", invalidParamsRPCError(err)
-	}
-	return trimmed, nil
-}
-
-func hostAPINetworkSendRequestFromPayload(req apicontract.NetworkSendRequest) (network.SendRequest, error) {
-	if strings.TrimSpace(req.WorkspaceID) == "" {
-		return network.SendRequest{}, invalidParamsRPCError(errors.New("workspace_id is required"))
-	}
-	if strings.TrimSpace(req.SessionID) == "" {
-		return network.SendRequest{}, invalidParamsRPCError(errors.New("session_id is required"))
-	}
-	if strings.TrimSpace(req.Channel) == "" {
-		return network.SendRequest{}, invalidParamsRPCError(errors.New("channel is required"))
-	}
-	if strings.TrimSpace(req.Kind) == "" {
-		return network.SendRequest{}, invalidParamsRPCError(errors.New("kind is required"))
-	}
-	if len(bytes.TrimSpace(req.Body)) == 0 {
-		return network.SendRequest{}, invalidParamsRPCError(errors.New("body is required"))
-	}
-	if !json.Valid(req.Body) {
-		return network.SendRequest{}, invalidParamsRPCError(errors.New("body must be valid JSON"))
-	}
-	if err := hostAPINetworkSendNoRawClaimToken(req); err != nil {
-		return network.SendRequest{}, err
-	}
-	if err := hostAPINetworkSendConversation(req); err != nil {
-		return network.SendRequest{}, err
-	}
-
-	sendReq := network.SendRequest{
-		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
-		SessionID:   strings.TrimSpace(req.SessionID),
-		Channel:     strings.TrimSpace(req.Channel),
-		Kind:        network.Kind(strings.TrimSpace(req.Kind)),
-		Body:        hostAPICloneRawMessage(req.Body),
-		ExpiresAt:   hostAPICloneInt64Ptr(req.ExpiresAt),
-		Ext:         hostAPICloneRawMap(req.Ext),
-	}
-	if to := strings.TrimSpace(req.To); to != "" {
-		sendReq.To = hostAPIPtrString(to)
-	}
-	if surface := strings.TrimSpace(req.Surface); surface != "" {
-		networkSurface := network.Surface(surface)
-		sendReq.Surface = &networkSurface
-	}
-	if threadID := strings.TrimSpace(req.ThreadID); threadID != "" {
-		sendReq.ThreadID = hostAPIPtrString(threadID)
-	}
-	if directID := strings.TrimSpace(req.DirectID); directID != "" {
-		sendReq.DirectID = hostAPIPtrString(directID)
-	}
-	if workID := strings.TrimSpace(req.WorkID); workID != "" {
-		sendReq.WorkID = hostAPIPtrString(workID)
-	}
-	if replyTo := strings.TrimSpace(req.ReplyTo); replyTo != "" {
-		sendReq.ReplyTo = hostAPIPtrString(replyTo)
-	}
-	if traceID := strings.TrimSpace(req.TraceID); traceID != "" {
-		sendReq.TraceID = hostAPIPtrString(traceID)
-	}
-	if causationID := strings.TrimSpace(req.CausationID); causationID != "" {
-		sendReq.CausationID = hostAPIPtrString(causationID)
-	}
-	if id := strings.TrimSpace(req.ID); id != "" {
-		sendReq.ID = hostAPIPtrString(id)
-	}
-	return sendReq, nil
-}
-
-func hostAPINetworkSendConversation(req apicontract.NetworkSendRequest) error {
-	kind := network.Kind(strings.TrimSpace(req.Kind))
-	if err := kind.Validate(); err != nil {
-		return invalidParamsRPCError(err)
-	}
-
-	surface := strings.TrimSpace(req.Surface)
-	threadID := strings.TrimSpace(req.ThreadID)
-	directID := strings.TrimSpace(req.DirectID)
-	workID := strings.TrimSpace(req.WorkID)
-	if kind == network.KindGreet || kind == network.KindWhois {
-		if surface != "" || threadID != "" || directID != "" || workID != "" {
-			return invalidParamsRPCError(fmt.Errorf(
-				"%w: %s cannot carry conversation or work fields",
-				network.ErrInvalidField,
-				kind,
-			))
-		}
-		return nil
-	}
-
-	if surface == "" {
-		return invalidParamsRPCError(fmt.Errorf("%w: surface is required", network.ErrMissingField))
-	}
-	ref := network.ConversationRef{
-		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
-		Channel:     strings.TrimSpace(req.Channel),
-		Surface:     network.Surface(surface),
-		ThreadID:    threadID,
-		DirectID:    directID,
-	}
-	if err := ref.Validate(); err != nil {
-		return invalidParamsRPCError(err)
-	}
-	if workID != "" {
-		if err := network.ValidateWorkID(workID); err != nil {
-			return invalidParamsRPCError(err)
-		}
-	}
-	if kind == network.KindCapability || kind == network.KindReceipt || kind == network.KindTrace {
-		if workID == "" {
-			return invalidParamsRPCError(fmt.Errorf("%w: work_id is required", network.ErrMissingField))
-		}
-	}
-	return nil
-}
-
-func hostAPINetworkSendNoRawClaimToken(req apicontract.NetworkSendRequest) error {
-	payload := struct {
-		Body json.RawMessage            `json:"body"`
-		Ext  map[string]json.RawMessage `json:"ext,omitempty"`
-	}{
-		Body: req.Body,
-		Ext:  req.Ext,
-	}
-	if err := apicontract.ValidateNoRawClaimTokenField(payload); err != nil {
-		return invalidParamsRPCError(fmt.Errorf("raw claim_token fields are forbidden: %w", err))
-	}
-	return nil
 }
 
 func mapHostAPINetworkRPCError(err error) error {
@@ -633,14 +422,8 @@ func hostAPINetworkStatusPayload(status *network.Status) apicontract.NetworkStat
 	return apicontract.NetworkStatusPayload{
 		Enabled:              status.Enabled,
 		Status:               strings.TrimSpace(status.Status),
-		ListenerHost:         strings.TrimSpace(status.ListenerHost),
-		ListenerPort:         status.ListenerPort,
 		LocalPeers:           status.LocalPeers,
-		RemotePeers:          status.RemotePeers,
 		Channels:             status.Channels,
-		QueuedMessages:       status.QueuedMessages,
-		QueuedSessions:       status.QueuedSessions,
-		DeliveryWorkers:      status.DeliveryWorkers,
 		MessagesSent:         status.MessagesSent,
 		MessagesReceived:     status.MessagesReceived,
 		MessagesRejected:     status.MessagesRejected,
@@ -653,7 +436,6 @@ func hostAPINetworkStatusPayload(status *network.Status) apicontract.NetworkStat
 		ConversationMessages: status.ConversationMessages,
 		WorkTransitions:      status.WorkTransitions,
 		DirectResolves:       status.DirectResolves,
-		LastDisconnect:       strings.TrimSpace(status.LastDisconnect),
 		KindMetrics:          kindMetrics,
 	}
 }
@@ -713,9 +495,8 @@ func hostAPINetworkPeerPayload(peer network.PeerInfo) apicontract.NetworkPeerPay
 			TrustModesSupported: append([]string(nil), peer.PeerCard.TrustModesSupported...),
 			Ext:                 hostAPICloneRawMap(peer.PeerCard.Ext),
 		},
-		JoinedAt:  hostAPICloneTimePtr(peer.JoinedAt),
-		LastSeen:  hostAPICloneTimePtr(peer.LastSeen),
-		ExpiresAt: hostAPICloneTimePtr(peer.ExpiresAt),
+		JoinedAt:      hostAPICloneTimePtr(peer.JoinedAt),
+		PresenceState: apicontract.NetworkPresenceLocal,
 	}
 }
 
@@ -777,8 +558,8 @@ func hostAPINetworkDirectRoomPayload(direct store.NetworkDirectRoomSummary) apic
 		WorkspaceID:        strings.TrimSpace(direct.WorkspaceID),
 		Channel:            strings.TrimSpace(direct.Channel),
 		DirectID:           strings.TrimSpace(direct.DirectID),
-		PeerA:              strings.TrimSpace(direct.PeerA),
-		PeerB:              strings.TrimSpace(direct.PeerB),
+		SessionA:           strings.TrimSpace(direct.SessionA),
+		SessionB:           strings.TrimSpace(direct.SessionB),
 		OpenedAt:           hostAPITimeValuePtr(direct.OpenedAt),
 		LastActivityAt:     hostAPITimeValuePtr(direct.LastActivityAt),
 		MessageCount:       direct.MessageCount,
@@ -832,9 +613,7 @@ func hostAPINetworkWorkPayload(work store.NetworkWorkEntry) apicontract.NetworkW
 		Surface:         strings.TrimSpace(work.Surface),
 		ThreadID:        strings.TrimSpace(work.ThreadID),
 		DirectID:        strings.TrimSpace(work.DirectID),
-		OpenedByPeerID:  strings.TrimSpace(work.OpenedByPeerID),
-		OpenedSessionID: strings.TrimSpace(work.OpenedSessionID),
-		TargetPeerID:    strings.TrimSpace(work.TargetPeerID),
+		OpenedSessionID: strings.TrimSpace(work.OpenedBySessionID),
 		State:           strings.TrimSpace(work.State),
 		OpenedAt:        hostAPITimeValuePtr(work.OpenedAt),
 		LastActivityAt:  hostAPITimeValuePtr(work.LastActivityAt),
@@ -856,6 +635,7 @@ func hostAPINetworkSendPayloadFromRequest(
 		DirectID:    strings.TrimSpace(req.DirectID),
 		Kind:        strings.TrimSpace(req.Kind),
 		To:          strings.TrimSpace(req.To),
+		Mentions:    hostAPICloneTrimmedStrings(req.Mentions),
 		WorkID:      strings.TrimSpace(req.WorkID),
 		ReplyTo:     strings.TrimSpace(req.ReplyTo),
 		TraceID:     strings.TrimSpace(req.TraceID),
@@ -873,58 +653,4 @@ func hostAPINetworkMessagePreview(message store.NetworkConversationMessage) stri
 		return text
 	}
 	return strings.TrimSpace(string(message.Body))
-}
-
-func hostAPITimeValuePtr(value time.Time) *time.Time {
-	if value.IsZero() {
-		return nil
-	}
-	copyValue := value.UTC()
-	return &copyValue
-}
-
-func hostAPICloneTimePtr(value *time.Time) *time.Time {
-	if value == nil || value.IsZero() {
-		return nil
-	}
-	return hostAPITimeValuePtr(*value)
-}
-
-func hostAPICloneInt64Ptr(value *int64) *int64 {
-	if value == nil {
-		return nil
-	}
-	copyValue := *value
-	return &copyValue
-}
-
-func hostAPICloneStringPtr(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	copyValue := strings.TrimSpace(*value)
-	return &copyValue
-}
-
-func hostAPIPtrString(value string) *string {
-	copyValue := strings.TrimSpace(value)
-	return &copyValue
-}
-
-func hostAPICloneRawMessage(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	return append(json.RawMessage(nil), raw...)
-}
-
-func hostAPICloneRawMap[T ~map[string]json.RawMessage](source T) map[string]json.RawMessage {
-	if len(source) == 0 {
-		return nil
-	}
-	cloned := make(map[string]json.RawMessage, len(source))
-	for key, value := range source {
-		cloned[key] = hostAPICloneRawMessage(value)
-	}
-	return cloned
 }

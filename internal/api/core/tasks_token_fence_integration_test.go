@@ -22,10 +22,10 @@ type taskRunTokenFenceCapture struct {
 	actorContext taskpkg.ActorContext
 }
 
-func TestTaskRunTokenFenceHandlersHonorHistoricalOwnershipIntegration(t *testing.T) {
+func TestTaskRunTokenFenceHandlersHonorImmutableParticipationOwnershipIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return conflicts for human complete and fail on token-fenced historical runs", func(t *testing.T) {
+	t.Run("Should return conflicts for human complete and fail on token-fenced participation runs", func(t *testing.T) {
 		t.Parallel()
 
 		testCases := []struct {
@@ -157,11 +157,12 @@ func TestTaskRunTokenFenceHandlersHonorHistoricalOwnershipIntegration(t *testing
 	})
 
 	t.Run(
-		"Should preserve mixed-ownership bindings when human cancel overrides a token-fenced historical run",
+		"Should preserve mixed-ownership bindings when human cancel overrides a token-fenced participation run",
 		func(t *testing.T) {
 			t.Parallel()
 
 			now := time.Date(2026, 4, 28, 11, 0, 0, 0, time.UTC)
+			networkSpec := testLiveParticipation("ws-alpha", "scope-direct-history")
 			capture := &taskRunTokenFenceCapture{}
 			fixture := newHandlerFixtureWithTasks(
 				t,
@@ -186,14 +187,13 @@ func TestTaskRunTokenFenceHandlersHonorHistoricalOwnershipIntegration(t *testing
 								Kind: taskpkg.ActorKindAgentSession,
 								Ref:  "sess-history-mixed",
 							},
-							SessionID:             "sess-history-mixed",
-							Origin:                actor.Origin,
-							QueuedAt:              now.Add(-2 * time.Minute),
-							StartedAt:             now.Add(-time.Minute),
-							EndedAt:               now,
-							Metadata:              req.Metadata,
-							NetworkChannel:        "scope-direct-history",
-							CoordinationChannelID: "scope-direct-history",
+							SessionID:       "sess-history-mixed",
+							Origin:          actor.Origin,
+							QueuedAt:        now.Add(-2 * time.Minute),
+							StartedAt:       now.Add(-time.Minute),
+							EndedAt:         now,
+							Metadata:        req.Metadata,
+							RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: networkSpec},
 						}, nil
 					},
 				},
@@ -228,14 +228,12 @@ func TestTaskRunTokenFenceHandlersHonorHistoricalOwnershipIntegration(t *testing
 			if payload.Run.SessionID != "sess-history-mixed" {
 				t.Fatalf("payload.Run.SessionID = %q, want %q", payload.Run.SessionID, "sess-history-mixed")
 			}
-			if payload.Run.NetworkChannel != "scope-direct-history" {
-				t.Fatalf("payload.Run.NetworkChannel = %q, want %q", payload.Run.NetworkChannel, "scope-direct-history")
-			}
-			if payload.Run.CoordinationChannelID != "scope-direct-history" {
+			if payload.Run.ResolvedNetworkParticipation == nil ||
+				*payload.Run.ResolvedNetworkParticipation != networkSpec {
 				t.Fatalf(
-					"payload.Run.CoordinationChannelID = %q, want %q",
-					payload.Run.CoordinationChannelID,
-					"scope-direct-history",
+					"payload.Run.ResolvedNetworkParticipation = %#v, want %#v",
+					payload.Run.ResolvedNetworkParticipation,
+					networkSpec,
 				)
 			}
 			if payload.Run.Origin.Ref != "tasks.cancel_run" {

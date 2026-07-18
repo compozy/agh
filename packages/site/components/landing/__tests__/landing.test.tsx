@@ -95,6 +95,9 @@ describe("Hero", () => {
   it("renders four proof-of-life signal tiles", () => {
     render(<Hero />);
     expect(screen.getByText("agh-network/v0, alpha runtime")).toBeDefined();
+    expect(
+      screen.getByText("6 message kinds. Commit-first delivery. Audited outcomes.")
+    ).toBeDefined();
     expect(screen.getByText(`${SUPPORTED_AGENT_COUNT} ACP drivers supported`)).toBeDefined();
     expect(screen.getByText("Tool registry, one control path")).toBeDefined();
     expect(screen.getByText("Single binary, no infra")).toBeDefined();
@@ -358,7 +361,7 @@ describe("NetworkSection", () => {
   it("renders the protocol walkthrough and supporting cards", () => {
     render(<NetworkSection />);
     expect(screen.getByText("Implemented commands")).toBeDefined();
-    expect(screen.getByText("NATS under the hood, JSON over the wire")).toBeDefined();
+    expect(screen.getByText("Commit first, dispatch in-process")).toBeDefined();
     expect(screen.getByText("Receipts are first-class")).toBeDefined();
     expect(screen.getByLabelText(/Pause walkthrough|Play walkthrough/)).toBeDefined();
   });

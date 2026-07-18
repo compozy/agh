@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -25,7 +26,7 @@ func BenchmarkDecodeHostAPIParamsTaskCreate(b *testing.B) {
 		"identifier":"bench-task",
 		"scope":"workspace",
 		"workspace":"ws-bench",
-		"network_channel":"agent/bench",
+		"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"agent/bench"},
 		"title":"Benchmark task",
 		"description":"Benchmark payload decode",
 		"metadata":{"body":"%s","labels":["alpha","beta","gamma"]}
@@ -160,14 +161,13 @@ func extensionBenchmarkTaskSummaries(count int) []taskpkg.Summary {
 	now := time.Unix(1_700_000_000, 0).UTC()
 	for i := range count {
 		summaries = append(summaries, taskpkg.Summary{
-			ID:             fmt.Sprintf("task-%03d", i),
-			Identifier:     fmt.Sprintf("bench-%03d", i),
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    "ws-bench",
-			ParentTaskID:   fmt.Sprintf("parent-%03d", i%8),
-			NetworkChannel: "agent/bench",
-			Title:          fmt.Sprintf("Benchmark task %03d", i),
-			Status:         taskpkg.TaskStatusReady,
+			ID:           fmt.Sprintf("task-%03d", i),
+			Identifier:   fmt.Sprintf("bench-%03d", i),
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-bench",
+			ParentTaskID: fmt.Sprintf("parent-%03d", i%8),
+			Title:        fmt.Sprintf("Benchmark task %03d", i),
+			Status:       taskpkg.TaskStatusReady,
 			Owner: &taskpkg.Ownership{
 				Kind: taskpkg.OwnerKindExtension,
 				Ref:  fmt.Sprintf("owner-%03d", i%4),
@@ -204,13 +204,19 @@ func extensionBenchmarkTaskRuns(count int) []taskpkg.Run {
 			SessionID:      fmt.Sprintf("session-%03d", i),
 			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindExtension, Ref: "bench-ext"},
 			IdempotencyKey: fmt.Sprintf("idem-%03d", i),
-			NetworkChannel: "agent/bench",
-			QueuedAt:       now.Add(time.Duration(i) * time.Second),
-			ClaimedAt:      now.Add(time.Duration(i+1) * time.Second),
-			StartedAt:      now.Add(time.Duration(i+2) * time.Second),
-			EndedAt:        time.Time{},
-			Error:          "",
-			Result:         append(json.RawMessage(nil), result...),
+			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.Spec{
+				Version:         participation.SpecVersion,
+				Mode:            participation.ModeLive,
+				ChannelStrategy: participation.StrategyNamed,
+				ChannelID:       "agent/bench",
+				Source:          participation.SourceExplicitRequest,
+			}},
+			QueuedAt:  now.Add(time.Duration(i) * time.Second),
+			ClaimedAt: now.Add(time.Duration(i+1) * time.Second),
+			StartedAt: now.Add(time.Duration(i+2) * time.Second),
+			EndedAt:   time.Time{},
+			Error:     "",
+			Result:    append(json.RawMessage(nil), result...),
 		})
 	}
 	return runs

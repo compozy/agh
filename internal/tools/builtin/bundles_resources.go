@@ -185,7 +185,7 @@ func nativeResourceDescriptor(
 
 const bundleInfoInputSchema = `{"type":"object","required":["id"],"properties":{"id":{"type":"string"}},"additionalProperties":false}`
 
-const bundleActivateInputSchema = `{"type":"object","required":["extension_name","bundle_name"],"properties":{"extension_name":{"type":"string"},"bundle_name":{"type":"string"},"profile_name":{"type":"string"},"scope":{"type":"string"},"workspace":{"type":"string"},"bind_primary_channel_as_default":{"type":"boolean"}},"additionalProperties":false}`
+const bundleActivateInputSchema = `{"type":"object","required":["extension_name","bundle_name"],"properties":{"extension_name":{"type":"string"},"bundle_name":{"type":"string"},"profile_name":{"type":"string"},"scope":{"type":"string"},"workspace":{"type":"string"},"confirm_network_requirement":{"type":"boolean"}},"additionalProperties":false}`
 
 const resourceFilterInputSchema = `{"type":"object","properties":{"kind":{"type":"string"},"limit":{"type":"integer"},"scope_kind":{"type":"string"},"scope_id":{"type":"string"},"owner_kind":{"type":"string"},"owner_id":{"type":"string"},"source_kind":{"type":"string"},"source_id":{"type":"string"}},"additionalProperties":false}`
 

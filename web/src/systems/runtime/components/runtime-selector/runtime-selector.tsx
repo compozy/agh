@@ -120,7 +120,7 @@ export function RuntimeSelector({
         initialFocus={popup.resolveInitialFocus}
         finalFocus={popup.finalFocus}
         aria-label="Runtime selector"
-        className="max-h-[min(520px,82vh)] w-[min(528px,94vw)] overflow-hidden p-0 shadow-overlay"
+        className="max-h-[min(520px,var(--available-height))] w-[min(528px,94vw)] overflow-hidden p-0 shadow-overlay"
       >
         <div
           ref={popupRef}

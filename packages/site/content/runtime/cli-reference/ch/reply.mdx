@@ -22,7 +22,7 @@ agh ch reply [flags]
     --to-message msg-123 \
     --task-id task-123 \
     --run-id run-123 \
-    --coordination-channel-id coord-run-123 \
+    --channel-id coord-run-123 \
     --correlation-id run-123 \
     --body '{"answer":"ready for review"}'
 ```
@@ -30,17 +30,17 @@ agh ch reply [flags]
 ### Options
 
 ```
-      --body string                      Raw JSON body for the reply message
-      --coordination-channel-id string   Coordination channel id; defaults to channel
-      --correlation-id string            Correlation id; defaults to run id
-  -h, --help                             help for reply
-      --idempotency-key string           Optional idempotency key/message id
-      --kind string                      Coordination message kind (default "reply")
-      --metadata-ext string              Optional JSON object for coordination metadata ext
-      --run-id string                    Run id for coordination metadata
-      --task-id string                   Task id for coordination metadata
-      --to-message string                Message id to reply to
-      --workflow-id string               Workflow id for coordination metadata
+      --body string              Raw JSON body for the reply message
+      --channel-id string        Channel id; defaults to channel
+      --correlation-id string    Correlation id; defaults to run id
+  -h, --help                     help for reply
+      --idempotency-key string   Optional idempotency key/message id
+      --kind string              Coordination message kind (default "reply")
+      --metadata-ext string      Optional JSON object for coordination metadata ext
+      --run-id string            Run id for coordination metadata
+      --task-id string           Task id for coordination metadata
+      --to-message string        Message id to reply to
+      --workflow-id string       Workflow id for coordination metadata
 ```
 
 ### Options inherited from parent commands

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // LoopSource is the public source-provenance tier for a Loop definition.
@@ -129,9 +131,10 @@ type LoopVersionConflictResponse struct {
 
 // RunLoopRequest starts a Loop, or previews it when dry=true.
 type RunLoopRequest struct {
-	Inputs          map[string]any `json:"inputs,omitempty"`
-	ParentLoopRunID string         `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides *LoopConfig    `json:"config_overrides,omitempty"`
+	Inputs               map[string]any         `json:"inputs,omitempty"`
+	ParentLoopRunID      string                 `json:"parent_loop_run_id,omitempty"`
+	ConfigOverrides      *LoopConfig            `json:"config_overrides,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 }
 
 // RunLoopResponse returns either a persisted run or a dry-run plan preview.
@@ -142,12 +145,13 @@ type RunLoopResponse struct {
 
 // LoopPlanPayload is the public dry-run preview.
 type LoopPlanPayload struct {
-	LoopName        string                `json:"loop_name"`
-	ResolvedInputs  map[string]any        `json:"resolved_inputs"`
-	Generation      int                   `json:"generation"`
-	Nodes           []LoopPlanNodePreview `json:"nodes"`
-	Contract        LoopContract          `json:"contract"`
-	EffectiveConfig LoopEffectiveConfig   `json:"effective_config"`
+	LoopName                     string                `json:"loop_name"`
+	ResolvedInputs               map[string]any        `json:"resolved_inputs"`
+	Generation                   int                   `json:"generation"`
+	Nodes                        []LoopPlanNodePreview `json:"nodes"`
+	Contract                     LoopContract          `json:"contract"`
+	EffectiveConfig              LoopEffectiveConfig   `json:"effective_config"`
+	ResolvedNetworkParticipation *participation.Spec   `json:"resolved_network_participation"`
 }
 
 // LoopPlanNodePreview is one gen-1 node materialized by dry-run.
@@ -230,33 +234,34 @@ type PutLoopAnnotationsRequest struct {
 
 // LoopRunPayload is the public loop_run aggregate projection.
 type LoopRunPayload struct {
-	ID                  string                `json:"id"`
-	WorkspaceID         string                `json:"workspace_id"`
-	LoopName            string                `json:"loop_name"`
-	Status              LoopRunStatus         `json:"status"`
-	Generation          int                   `json:"generation"`
-	ReattemptStrategy   LoopReattemptStrategy `json:"reattempt_strategy"`
-	CreatedAt           time.Time             `json:"created_at"`
-	StartedAt           time.Time             `json:"started_at"`
-	LastProgressAt      time.Time             `json:"last_progress_at"`
-	StartedByKind       string                `json:"started_by_kind,omitempty"`
-	StartedByRef        string                `json:"started_by_ref,omitempty"`
-	StartedOriginKind   string                `json:"started_origin_kind,omitempty"`
-	StartedOriginRef    string                `json:"started_origin_ref,omitempty"`
-	DefinitionVersion   int                   `json:"definition_version"`
-	DefinitionDigest    string                `json:"definition_digest,omitempty"`
-	ActiveGateID        string                `json:"active_gate_id,omitempty"`
-	BudgetApprovalSeq   int                   `json:"budget_approval_seq,omitempty"`
-	StartMetadata       map[string]any        `json:"start_metadata,omitempty"`
-	ConsecutiveFailures int                   `json:"consecutive_failures"`
-	IterationCap        int                   `json:"iteration_cap"`
-	BudgetTokens        int                   `json:"budget_tokens"`
-	BudgetWallSec       int                   `json:"budget_wall_sec"`
-	BudgetOnExceeded    LoopBudgetExceeded    `json:"budget_on_exceeded"`
-	TokensUsed          int64                 `json:"tokens_used"`
-	ParentLoopRunID     string                `json:"parent_loop_run_id,omitempty"`
-	PauseRequested      bool                  `json:"pause_requested"`
-	Inputs              map[string]any        `json:"inputs,omitempty"`
+	ID                           string                `json:"id"`
+	WorkspaceID                  string                `json:"workspace_id"`
+	LoopName                     string                `json:"loop_name"`
+	Status                       LoopRunStatus         `json:"status"`
+	Generation                   int                   `json:"generation"`
+	ReattemptStrategy            LoopReattemptStrategy `json:"reattempt_strategy"`
+	CreatedAt                    time.Time             `json:"created_at"`
+	StartedAt                    time.Time             `json:"started_at"`
+	LastProgressAt               time.Time             `json:"last_progress_at"`
+	StartedByKind                string                `json:"started_by_kind,omitempty"`
+	StartedByRef                 string                `json:"started_by_ref,omitempty"`
+	StartedOriginKind            string                `json:"started_origin_kind,omitempty"`
+	StartedOriginRef             string                `json:"started_origin_ref,omitempty"`
+	DefinitionVersion            int                   `json:"definition_version"`
+	DefinitionDigest             string                `json:"definition_digest,omitempty"`
+	ActiveGateID                 string                `json:"active_gate_id,omitempty"`
+	BudgetApprovalSeq            int                   `json:"budget_approval_seq,omitempty"`
+	StartMetadata                map[string]any        `json:"start_metadata,omitempty"`
+	ConsecutiveFailures          int                   `json:"consecutive_failures"`
+	IterationCap                 int                   `json:"iteration_cap"`
+	BudgetTokens                 int                   `json:"budget_tokens"`
+	BudgetWallSec                int                   `json:"budget_wall_sec"`
+	BudgetOnExceeded             LoopBudgetExceeded    `json:"budget_on_exceeded"`
+	TokensUsed                   int64                 `json:"tokens_used"`
+	ParentLoopRunID              string                `json:"parent_loop_run_id,omitempty"`
+	PauseRequested               bool                  `json:"pause_requested"`
+	Inputs                       map[string]any        `json:"inputs,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec   `json:"resolved_network_participation"`
 }
 
 // LoopRunsResponse lists workspace-scoped loop runs.
@@ -319,14 +324,15 @@ type ApproveLoopRunRequest struct {
 
 // LoopDefinitionDocument is the public agh.loop/v1 authoring document.
 type LoopDefinitionDocument struct {
-	APIVersion  string               `json:"apiVersion"`
-	Kind        string               `json:"kind"`
-	Meta        LoopDefinitionMeta   `json:"meta"`
-	Concurrency string               `json:"concurrency,omitempty"`
-	Inputs      map[string]LoopInput `json:"inputs,omitempty"`
-	Contract    LoopContract         `json:"contract"`
-	Graph       LoopGraph            `json:"graph"`
-	Start       []LoopStartBinding   `json:"start,omitempty"`
+	APIVersion           string                 `json:"apiVersion"`
+	Kind                 string                 `json:"kind"`
+	Meta                 LoopDefinitionMeta     `json:"meta"`
+	Concurrency          string                 `json:"concurrency,omitempty"`
+	Inputs               map[string]LoopInput   `json:"inputs,omitempty"`
+	Contract             LoopContract           `json:"contract"`
+	Graph                LoopGraph              `json:"graph"`
+	Start                []LoopStartBinding     `json:"start,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 }
 
 // NewLoopDefinitionDocument converts any JSON-compatible loop document into the public DTO.

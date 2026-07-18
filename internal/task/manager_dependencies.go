@@ -19,6 +19,12 @@ func (m *Service) AddDependency(ctx context.Context, spec AddDependency, actor A
 	if err != nil {
 		return err
 	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, normalizedSpec.TaskID, actor); err != nil {
+		return err
+	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, normalizedSpec.DependsOnTaskID, actor); err != nil {
+		return err
+	}
 	if err := m.store.CreateDependency(ctx, Dependency{
 		TaskID:          normalizedSpec.TaskID,
 		DependsOnTaskID: normalizedSpec.DependsOnTaskID,
@@ -64,6 +70,12 @@ func (m *Service) RemoveDependency(
 	trimmedDependsOnID := strings.TrimSpace(dependsOnID)
 	if trimmedDependsOnID == "" {
 		return fmt.Errorf("%w: depends_on_task_id is required", ErrValidation)
+	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedTaskID, actor); err != nil {
+		return err
+	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedDependsOnID, actor); err != nil {
+		return err
 	}
 
 	if err := m.store.DeleteDependency(ctx, trimmedTaskID, trimmedDependsOnID); err != nil {

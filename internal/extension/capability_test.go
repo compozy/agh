@@ -270,6 +270,7 @@ func TestCapabilityCheckerNetworkMethodsShouldMapToExpectedCapabilities(t *testi
 		capability string
 	}{
 		{method: "network/status", capability: "network.read"},
+		{method: "network/usage", capability: "network.read"},
 		{method: "network/channels", capability: "network.read"},
 		{method: "network/peers", capability: "network.read"},
 		{method: "network/threads", capability: "network.read"},

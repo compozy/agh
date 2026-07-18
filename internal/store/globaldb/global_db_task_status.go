@@ -16,6 +16,7 @@ import (
 )
 
 type taskStatusChangedEventPayload struct {
+	hookspkg.TaskContext
 	FromStatus string `json:"from_status"`
 	ToStatus   string `json:"to_status"`
 }
@@ -59,9 +60,14 @@ func setTaskStatusWithExecutor(
 		return explainTaskStatusChokepointMiss(ctx, exec, trimmedTaskID, fromStatus, toStatus)
 	}
 
+	committedTask, err := taskRecordAfterStatusChange(ctx, exec, trimmedTaskID, toStatus)
+	if err != nil {
+		return err
+	}
 	payload, err := json.Marshal(taskStatusChangedEventPayload{
-		FromStatus: string(fromStatus),
-		ToStatus:   string(toStatus),
+		TaskContext: immutableTaskStatusContext(committedTask, actor),
+		FromStatus:  string(fromStatus),
+		ToStatus:    string(toStatus),
 	})
 	if err != nil {
 		return fmt.Errorf("store: marshal task %q status_changed event: %w", trimmedTaskID, err)
@@ -79,6 +85,41 @@ func setTaskStatusWithExecutor(
 	}
 
 	return nil
+}
+
+func taskRecordAfterStatusChange(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskID string,
+	status taskpkg.Status,
+) (taskpkg.Task, error) {
+	record, err := (&TaskRepo{}).getTaskWithExecutor(ctx, exec, taskID)
+	if err != nil {
+		return taskpkg.Task{}, err
+	}
+	record.Status = status
+	return record, nil
+}
+
+func immutableTaskStatusContext(
+	record taskpkg.Task,
+	actor taskpkg.ActorContext,
+) hookspkg.TaskContext {
+	agentName := ""
+	if actor.Actor.Kind.Normalize() == taskpkg.ActorKindAgentSession {
+		agentName = strings.TrimSpace(actor.Actor.Ref)
+	}
+	return hookspkg.TaskContext{
+		TaskID:       strings.TrimSpace(record.ID),
+		ParentTaskID: strings.TrimSpace(record.ParentTaskID),
+		WorkspaceID:  strings.TrimSpace(record.WorkspaceID),
+		AgentName:    agentName,
+		ActorKind:    string(actor.Actor.Kind.Normalize()),
+		ActorID:      strings.TrimSpace(actor.Actor.Ref),
+		OriginKind:   string(actor.Origin.Kind.Normalize()),
+		OriginRef:    strings.TrimSpace(actor.Origin.Ref),
+		TaskStatus:   string(record.Status.Normalize()),
+	}
 }
 
 func setTaskStatusIfChangedWithExecutor(

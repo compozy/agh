@@ -79,7 +79,6 @@ func sessionStructurallyMatches(work *RunSnapshot, candidate SessionSnapshot) bo
 		return false
 	}
 	return scopeMatches(work.Task, candidate) &&
-		coordinationChannelMatches(work, candidate) &&
 		ownerMatches(work.Task, candidate)
 }
 
@@ -101,17 +100,6 @@ func ownerMatches(task taskpkg.Task, candidate SessionSnapshot) bool {
 	default:
 		return false
 	}
-}
-
-func coordinationChannelMatches(work *RunSnapshot, candidate SessionSnapshot) bool {
-	if work == nil {
-		return false
-	}
-	runChannel := strings.TrimSpace(work.Run.CoordinationChannelID)
-	if runChannel == "" {
-		return true
-	}
-	return strings.TrimSpace(candidate.Channel) == runChannel
 }
 
 func scopeMatches(task taskpkg.Task, candidate SessionSnapshot) bool {

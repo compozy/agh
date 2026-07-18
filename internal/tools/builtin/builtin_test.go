@@ -1,12 +1,16 @@
 package builtin
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/network/participation"
 	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func TestBuiltinNativeDescriptors(t *testing.T) {
@@ -32,6 +36,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDSkillSearch,
 			toolspkg.ToolIDSkillView,
 			toolspkg.ToolIDNetworkStatus,
+			toolspkg.ToolIDNetworkUsage,
 			toolspkg.ToolIDNetworkChannels,
 			toolspkg.ToolIDNetworkInbox,
 			toolspkg.ToolIDNetworkPeers,
@@ -41,7 +46,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDNetworkSubscriptions,
 			toolspkg.ToolIDNetworkSubscribe,
 			toolspkg.ToolIDNetworkMute,
-			toolspkg.ToolIDNetworkDigestMode,
 			toolspkg.ToolIDNetworkUnmute,
 			toolspkg.ToolIDNetworkThreads,
 			toolspkg.ToolIDNetworkThreadMessages,
@@ -271,6 +275,68 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose typed participation on execution management tools", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDTaskCreate,
+			toolspkg.ToolIDTaskChildCreate,
+			toolspkg.ToolIDTaskUpdate,
+			toolspkg.ToolIDTaskFanOutRuns,
+			toolspkg.ToolIDLoopRun,
+		} {
+			var schema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			}
+			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
+				t.Fatalf("%s input schema unmarshal error = %v", id, err)
+			}
+			participationSchema, ok := schema.Properties["network_participation"]
+			if !ok {
+				t.Fatalf("%s input schema omits network_participation", id)
+			}
+			assertTypedNetworkParticipationSchema(t, id.String(), participationSchema)
+			for _, legacy := range []string{"channel", "network_channel", "coordination_channel_id"} {
+				if _, ok := schema.Properties[legacy]; ok {
+					t.Fatalf("%s input schema exposes removed %s", id, legacy)
+				}
+			}
+		}
+
+		var profileInput nativeObjectSchema
+		profileDescriptor := descriptors[toolspkg.ToolIDTaskExecutionProfileSet]
+		if err := json.Unmarshal(profileDescriptor.InputSchema, &profileInput); err != nil {
+			t.Fatalf("%s input schema unmarshal error = %v", profileDescriptor.ID, err)
+		}
+		var profile nativeObjectSchema
+		if err := json.Unmarshal(profileInput.Properties["profile"], &profile); err != nil {
+			t.Fatalf("%s profile schema unmarshal error = %v", profileDescriptor.ID, err)
+		}
+		participationSchema, ok := profile.Properties["network_participation"]
+		if !ok {
+			t.Fatalf("%s profile schema omits network_participation", profileDescriptor.ID)
+		}
+		assertTypedNetworkParticipationSchema(t, profileDescriptor.ID.String(), participationSchema)
+
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDTaskList, toolspkg.ToolIDTaskRunList} {
+			var schema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			}
+			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
+				t.Fatalf("%s input schema unmarshal error = %v", id, err)
+			}
+			if _, ok := schema.Properties["participation_channel"]; !ok {
+				t.Fatalf("%s input schema omits participation_channel", id)
+			}
+			for _, legacy := range []string{"network_channel", "coordination_channel_id"} {
+				if _, ok := schema.Properties[legacy]; ok {
+					t.Fatalf("%s input schema exposes removed %s", id, legacy)
+				}
+			}
+		}
+	})
+
 	t.Run("Should describe the first public thread send contract", func(t *testing.T) {
 		t.Parallel()
 
@@ -353,6 +419,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDToolList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSkillView], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkStatus], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkUsage], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkChannels], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkInbox], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkPeers], toolspkg.RiskRead, true, false, false)
@@ -410,14 +477,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDNetworkMute],
-			toolspkg.RiskMutating,
-			false,
-			false,
-			false,
-		)
-		requireDescriptorRisk(
-			t,
-			descriptors[toolspkg.ToolIDNetworkDigestMode],
 			toolspkg.RiskMutating,
 			false,
 			false,
@@ -829,6 +888,15 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			false,
 			false,
 		)
+		if !strings.Contains(
+			string(descriptors[toolspkg.ToolIDBundlesActivate].InputSchema),
+			`"confirm_network_requirement":{"type":"boolean"}`,
+		) {
+			t.Fatalf(
+				"bundles_activate schema = %s, want operator confirmation input",
+				descriptors[toolspkg.ToolIDBundlesActivate].InputSchema,
+			)
+		}
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDBundlesDeactivate],
@@ -967,6 +1035,170 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	})
 }
 
+type nativeObjectSchema struct {
+	Type                 string                     `json:"type"`
+	Properties           map[string]json.RawMessage `json:"properties"`
+	Enum                 []string                   `json:"enum"`
+	OneOf                []json.RawMessage          `json:"oneOf"`
+	Pattern              string                     `json:"pattern"`
+	Minimum              *float64                   `json:"minimum"`
+	MinLength            int                        `json:"minLength"`
+	AdditionalProperties *bool                      `json:"additionalProperties"`
+}
+
+func assertTypedNetworkParticipationSchema(t *testing.T, owner string, raw json.RawMessage) {
+	t.Helper()
+	var schema nativeObjectSchema
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("%s network_participation schema unmarshal error = %v", owner, err)
+	}
+	assertClosedObjectSchema(t, owner+" network_participation", schema, []string{
+		"bounds", "channel_id", "channel_strategy", "mode",
+	})
+	if got, want := len(schema.OneOf), 4; got != want {
+		t.Fatalf("%s network_participation oneOf branches = %d, want %d", owner, got, want)
+	}
+	assertStringEnumSchema(
+		t,
+		owner+" network_participation.mode",
+		schema.Properties["mode"],
+		[]string{"local", "live"},
+	)
+	assertStringEnumSchema(
+		t,
+		owner+" network_participation.channel_strategy",
+		schema.Properties["channel_strategy"],
+		[]string{"named", "run", "loop_run"},
+	)
+	var channel nativeObjectSchema
+	if err := json.Unmarshal(schema.Properties["channel_id"], &channel); err != nil ||
+		channel.Type != "string" || channel.Pattern != networkParticipationChannelPattern {
+		t.Fatalf(
+			"%s network_participation.channel_id = %#v, error=%v, want patterned string",
+			owner,
+			channel,
+			err,
+		)
+	}
+	var bounds nativeObjectSchema
+	if err := json.Unmarshal(schema.Properties["bounds"], &bounds); err != nil {
+		t.Fatalf("%s network_participation.bounds unmarshal error = %v", owner, err)
+	}
+	assertClosedObjectSchema(t, owner+" network_participation.bounds", bounds, []string{
+		"coalesce_window",
+		"max_input_tokens",
+		"max_output_tokens",
+		"max_total_wall_time",
+		"max_wake_depth",
+		"max_wake_wall_time",
+		"max_wakes",
+	})
+	for key, wantType := range map[string]string{
+		"coalesce_window":     "string",
+		"max_input_tokens":    "integer",
+		"max_output_tokens":   "integer",
+		"max_total_wall_time": "string",
+		"max_wake_depth":      "integer",
+		"max_wake_wall_time":  "string",
+		"max_wakes":           "integer",
+	} {
+		var property nativeObjectSchema
+		if err := json.Unmarshal(bounds.Properties[key], &property); err != nil || property.Type != wantType {
+			t.Fatalf("%s network_participation.bounds.%s = %#v, error=%v, want %s", owner, key, property, err, wantType)
+		}
+		if wantType == "integer" && (property.Minimum == nil || *property.Minimum != 1) {
+			t.Fatalf("%s network_participation.bounds.%s minimum = %#v, want 1", owner, key, property.Minimum)
+		}
+		if wantType == "string" && property.MinLength != 1 {
+			t.Fatalf("%s network_participation.bounds.%s minLength = %d, want 1", owner, key, property.MinLength)
+		}
+	}
+	assertNetworkParticipationSchemaMatchesRuntime(t, owner, raw)
+}
+
+func assertNetworkParticipationSchemaMatchesRuntime(t *testing.T, owner string, raw json.RawMessage) {
+	t.Helper()
+	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("%s network_participation schema parse error = %v", owner, err)
+	}
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("network_participation.json", schemaValue); err != nil {
+		t.Fatalf("%s network_participation schema add error = %v", owner, err)
+	}
+	compiled, err := compiler.Compile("network_participation.json")
+	if err != nil {
+		t.Fatalf("%s network_participation schema compile error = %v", owner, err)
+	}
+
+	for _, payload := range []string{
+		`{}`,
+		`{"mode":"local"}`,
+		`{"mode":"local","bounds":{"max_wakes":1}}`,
+		`{"mode":"live"}`,
+		`{"mode":"live","channel_strategy":"named"}`,
+		`{"mode":"live","channel_strategy":"named","channel_id":"builders"}`,
+		`{"mode":"live","channel_strategy":"named","channel_id":"Invalid channel"}`,
+		`{"mode":"live","channel_strategy":"run"}`,
+		`{"mode":"live","channel_strategy":"run","channel_id":"builders"}`,
+		`{"mode":"live","channel_strategy":"loop_run","bounds":{"max_wakes":2}}`,
+		`{"mode":"live","channel_strategy":"loop_run","bounds":{"max_wakes":0}}`,
+	} {
+		var request participation.Request
+		if err := json.Unmarshal([]byte(payload), &request); err != nil {
+			t.Fatalf("%s runtime participation unmarshal error = %v", owner, err)
+		}
+		_, runtimeErr := participation.NormalizeIntent(request)
+		instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
+		if err != nil {
+			t.Fatalf("%s schema instance parse error = %v", owner, err)
+		}
+		schemaErr := compiled.Validate(instance)
+		if (runtimeErr == nil) != (schemaErr == nil) {
+			t.Fatalf(
+				"%s payload %s runtime error=%v schema error=%v, want matching validity",
+				owner,
+				payload,
+				runtimeErr,
+				schemaErr,
+			)
+		}
+	}
+	unknown, err := jsonschema.UnmarshalJSON(strings.NewReader(`{"mode":"local","legacy":true}`))
+	if err != nil {
+		t.Fatalf("%s unknown-field instance parse error = %v", owner, err)
+	}
+	if err := compiled.Validate(unknown); err == nil {
+		t.Fatalf("%s network_participation schema accepted an unknown field", owner)
+	}
+}
+
+func assertClosedObjectSchema(t *testing.T, owner string, schema nativeObjectSchema, wantKeys []string) {
+	t.Helper()
+	if schema.Type != "object" || schema.AdditionalProperties == nil || *schema.AdditionalProperties {
+		t.Fatalf("%s = %#v, want closed object", owner, schema)
+	}
+	gotKeys := make([]string, 0, len(schema.Properties))
+	for key := range schema.Properties {
+		gotKeys = append(gotKeys, key)
+	}
+	sort.Strings(gotKeys)
+	if !slices.Equal(gotKeys, wantKeys) {
+		t.Fatalf("%s properties = %#v, want %#v", owner, gotKeys, wantKeys)
+	}
+}
+
+func assertStringEnumSchema(t *testing.T, owner string, raw json.RawMessage, want []string) {
+	t.Helper()
+	var schema nativeObjectSchema
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("%s schema unmarshal error = %v", owner, err)
+	}
+	if schema.Type != "string" || !slices.Equal(schema.Enum, want) {
+		t.Fatalf("%s schema = %#v, want string enum %#v", owner, schema, want)
+	}
+}
+
 func TestBuiltinToolsetCatalog(t *testing.T) {
 	t.Parallel()
 
@@ -1043,7 +1275,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			toolspkg.ToolIDNetworkChannelCreate,
 			toolspkg.ToolIDNetworkChannelUpdate,
 			toolspkg.ToolIDNetworkChannels,
-			toolspkg.ToolIDNetworkDigestMode,
 			toolspkg.ToolIDNetworkDirectMessages,
 			toolspkg.ToolIDNetworkDirectResolve,
 			toolspkg.ToolIDNetworkDirects,
@@ -1057,6 +1288,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			toolspkg.ToolIDNetworkThreadMessages,
 			toolspkg.ToolIDNetworkThreads,
 			toolspkg.ToolIDNetworkUnmute,
+			toolspkg.ToolIDNetworkUsage,
 			toolspkg.ToolIDNetworkWork,
 		}; !slices.Equal(coordination, want) {
 			t.Fatalf("coordination expansion = %#v, want %#v", coordination, want)

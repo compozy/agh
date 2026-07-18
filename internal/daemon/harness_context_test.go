@@ -55,17 +55,49 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 				"harness.session_type":     "user",
 				"harness.session_class":    "interactive",
 				"harness.turn_origin":      "user",
-				"harness.channel_bound":    "false",
+				"harness.network_live":     "false",
 				"harness.diagnostic_label": "interactive.user",
 			},
 		},
 		{
-			name: "channel-bound user session plus network turn resolves network-aware policy",
+			name: "Should resolve local user session plus network provenance turn without live network section",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{
-					Type:    session.SessionTypeUser,
-					Channel: "builders",
+					Type: session.SessionTypeUser,
+				},
+				Turn: HarnessTurnRequest{
+					Source: session.TurnSourceNetwork,
+					PromptMeta: acp.PromptMeta{
+						Network: &acp.PromptNetworkMeta{
+							MessageID: "321",
+							Kind:      "message",
+							From:      "777",
+						},
+					},
+				},
+			},
+			wantSections:   []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
+			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
+			wantReentry:    ReentryModeNone,
+			wantDetached:   DetachedRunModeNone,
+			wantLabel:      "interactive.network",
+			wantTags: map[string]string{
+				"harness.surface":          "turn",
+				"harness.session_type":     "user",
+				"harness.session_class":    "interactive",
+				"harness.turn_origin":      "network",
+				"harness.network_live":     "false",
+				"harness.diagnostic_label": "interactive.network",
+			},
+		},
+		{
+			name: "Should resolve channel-bound user session plus network turn with network-aware policy",
+			input: HarnessResolutionInput{
+				Surface: ResolutionSurfaceTurn,
+				Session: HarnessSessionInput{
+					Type:                 session.SessionTypeUser,
+					NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 				},
 				Turn: HarnessTurnRequest{
 					Source: session.TurnSourceNetwork,
@@ -85,14 +117,14 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
 			wantReentry:    ReentryModeNone,
 			wantDetached:   DetachedRunModeNone,
-			wantLabel:      "interactive.channel.network",
+			wantLabel:      "interactive.network.network",
 			wantTags: map[string]string{
 				"harness.surface":          "turn",
 				"harness.session_type":     "user",
 				"harness.session_class":    "interactive",
 				"harness.turn_origin":      "network",
-				"harness.channel_bound":    "true",
-				"harness.diagnostic_label": "interactive.channel.network",
+				"harness.network_live":     "true",
+				"harness.diagnostic_label": "interactive.network.network",
 			},
 		},
 		{
@@ -100,8 +132,8 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceStartup,
 				Session: HarnessSessionInput{
-					Type:    session.SessionTypeCoordinator,
-					Channel: "coord-run-1",
+					Type:                 session.SessionTypeCoordinator,
+					NetworkParticipation: daemonTestLiveParticipation("ws-1", "coord-run-1"),
 				},
 				Turn: HarnessTurnRequest{
 					Source: session.TurnSourceUser,
@@ -115,14 +147,14 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			wantAugmenters: nil,
 			wantReentry:    ReentryModeNone,
 			wantDetached:   DetachedRunModeNone,
-			wantLabel:      "coordinator.channel.user",
+			wantLabel:      "coordinator.network.user",
 			wantTags: map[string]string{
 				"harness.surface":          "startup",
 				"harness.session_type":     "coordinator",
 				"harness.session_class":    "coordinator",
 				"harness.turn_origin":      "user",
-				"harness.channel_bound":    "true",
-				"harness.diagnostic_label": "coordinator.channel.user",
+				"harness.network_live":     "true",
+				"harness.diagnostic_label": "coordinator.network.user",
 			},
 		},
 		{
@@ -130,8 +162,8 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{
-					Type:    session.SessionTypeSpawned,
-					Channel: "builders",
+					Type:                 session.SessionTypeSpawned,
+					NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 				},
 				Turn: HarnessTurnRequest{
 					Source: session.TurnSourceNetwork,
@@ -151,18 +183,18 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
 			wantReentry:    ReentryModeNone,
 			wantDetached:   DetachedRunModeNone,
-			wantLabel:      "spawned.channel.network",
+			wantLabel:      "spawned.network.network",
 			wantTags: map[string]string{
 				"harness.surface":          "turn",
 				"harness.session_type":     "spawned",
 				"harness.session_class":    "spawned",
 				"harness.turn_origin":      "network",
-				"harness.channel_bound":    "true",
-				"harness.diagnostic_label": "spawned.channel.network",
+				"harness.network_live":     "true",
+				"harness.diagnostic_label": "spawned.network.network",
 			},
 		},
 		{
-			name: "system session plus synthetic turn requires metadata and resolves reentry policy",
+			name: "Should require metadata and resolve reentry policy for a system session plus synthetic turn",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{
@@ -189,7 +221,7 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 				"harness.session_type":      "system",
 				"harness.session_class":     "system",
 				"harness.turn_origin":       "synthetic",
-				"harness.channel_bound":     "false",
+				"harness.network_live":      "false",
 				"harness.diagnostic_label":  "system.synthetic.reentry",
 				"harness.synthetic_reason":  "task_complete",
 				"harness.synthetic_trigger": "task.run.completed",
@@ -244,8 +276,8 @@ func TestHarnessContextResolverIncludesToolsSectionWhenEnabled(t *testing.T) {
 		got, err := resolver.Resolve(HarnessResolutionInput{
 			Surface: ResolutionSurfaceStartup,
 			Session: HarnessSessionInput{
-				Type:    session.SessionTypeUser,
-				Channel: "builders",
+				Type:                 session.SessionTypeUser,
+				NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 			},
 			Turn: HarnessTurnRequest{
 				Source: session.TurnSourceUser,
@@ -356,7 +388,7 @@ func TestHarnessContextResolverValidation(t *testing.T) {
 			wantErr: "synthetic harness turns require runtime metadata",
 		},
 		{
-			name: "synthetic turn on non-system session fails validation",
+			name: "Should reject a synthetic turn on a non-system session",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,
 				Session: HarnessSessionInput{Type: session.SessionTypeUser},
@@ -402,8 +434,8 @@ func TestHarnessContextResolverDiagnosticLabelsAreStable(t *testing.T) {
 	input := HarnessResolutionInput{
 		Surface: ResolutionSurfaceTurn,
 		Session: HarnessSessionInput{
-			Type:    session.SessionTypeUser,
-			Channel: "builders",
+			Type:                 session.SessionTypeUser,
+			NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 		},
 		Turn: HarnessTurnRequest{
 			Source: session.TurnSourceNetwork,
@@ -448,8 +480,8 @@ func TestSectionSelectorSelectsEligibleStartupSectionsWithoutDuplicates(t *testi
 	descriptors = append(descriptors, descriptors[len(descriptors)-1])
 
 	selected, resolved, err := selector.Select(session.StartupPromptContext{
-		SessionType: session.SessionTypeUser,
-		Channel:     "builders",
+		SessionType:          session.SessionTypeUser,
+		NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 	}, descriptors)
 	if err != nil {
 		t.Fatalf("Select(channel-bound) error = %v", err)
@@ -509,8 +541,8 @@ func TestSectionSelectorAcceptsCoordinatorStartupSession(t *testing.T) {
 		)
 
 		selected, resolved, err := selector.Select(session.StartupPromptContext{
-			SessionType: session.SessionTypeCoordinator,
-			Channel:     "coord-run-1",
+			SessionType:          session.SessionTypeCoordinator,
+			NetworkParticipation: daemonTestLiveParticipation("ws-1", "coord-run-1"),
 		}, descriptors)
 		if err != nil {
 			t.Fatalf("Select(coordinator) error = %v", err)
@@ -544,8 +576,8 @@ func TestHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 	})
 
 	resolved, err := resolver.ResolvePrompt(&session.Info{
-		Type:    session.SessionTypeUser,
-		Channel: "builders",
+		Type:                 session.SessionTypeUser,
+		NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 	}, session.TurnSourceUser, acp.PromptMeta{})
 	if err != nil {
 		t.Fatalf("ResolvePrompt() error = %v", err)

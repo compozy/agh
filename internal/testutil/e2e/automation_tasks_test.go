@@ -11,9 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/agentidentity"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	coreapi "github.com/compozy/agh/internal/api/core"
 	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -89,6 +91,9 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 		Kind: taskpkg.OwnerKindAutomation,
 		Ref:  "job:triage-deploy",
 	}
+	liveMode := participation.ModeLive
+	namedStrategy := participation.StrategyNamed
+	channelID := "ops-automation"
 	seed := AutomationFixtureSeed{
 		Jobs: []aghcontract.CreateJobRequest{{
 			Scope:       automationpkg.AutomationScopeWorkspace,
@@ -100,10 +105,14 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 				Interval: "1h",
 			},
 			Task: &automationpkg.JobTaskConfig{
-				Title:          "Investigate deploy drift",
-				Description:    "Review the latest deployment discrepancy.",
-				NetworkChannel: "ops-automation",
-				Owner:          taskOwner,
+				Title:       "Investigate deploy drift",
+				Description: "Review the latest deployment discrepancy.",
+				Owner:       taskOwner,
+				NetworkParticipation: &participation.Request{
+					Mode:            &liveMode,
+					ChannelStrategy: &namedStrategy,
+					ChannelID:       &channelID,
+				},
 			},
 		}},
 		Triggers: []aghcontract.CreateTriggerRequest{{
@@ -152,8 +161,17 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 		t.Fatalf("seenTriggerRequest.Filter[data.branch] = %q, want %q", got, want)
 	}
 
-	if got, want := created.Jobs[0].Task.NetworkChannel, "ops-automation"; got != want {
-		t.Fatalf("created.Jobs[0].Task.NetworkChannel = %q, want %q", got, want)
+	createdParticipation := created.Jobs[0].Task.NetworkParticipation
+	if createdParticipation == nil ||
+		createdParticipation.Mode == nil || *createdParticipation.Mode != participation.ModeLive ||
+		createdParticipation.ChannelStrategy == nil ||
+		*createdParticipation.ChannelStrategy != participation.StrategyNamed ||
+		createdParticipation.ChannelID == nil || *createdParticipation.ChannelID != channelID {
+		t.Fatalf(
+			"created.Jobs[0].Task.NetworkParticipation = %#v, want live named channel %q",
+			createdParticipation,
+			channelID,
+		)
 	}
 	if got, want := created.Triggers[0].EndpointSlug, "deploy-review"; got != want {
 		t.Fatalf("created.Triggers[0].EndpointSlug = %q, want %q", got, want)
@@ -170,7 +188,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("SignWebhookPayload() error = %v", err)
 	}
 
-	var claimRequest aghcontract.ClaimTaskRunRequest
+	var claimRequest aghcontract.AgentTaskClaimNextRequest
 	var startRequest aghcontract.StartTaskRunRequest
 	var completeRequest aghcontract.CompleteTaskRunRequest
 
@@ -241,15 +259,36 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 					IdempotencyKey: "automation-run:run-1",
 				}},
 			})
-		case r.Method == http.MethodPost && r.URL.Path == "/api/task-runs/task-run-1/claim":
+		case r.Method == http.MethodPost && r.URL.Path == "/api/agent/tasks/claim-next":
 			if err := json.NewDecoder(r.Body).Decode(&claimRequest); err != nil {
 				t.Fatalf("Decode(claim request) error = %v", err)
 			}
-			writeJSON(w, aghcontract.TaskRunResponse{
-				Run: aghcontract.TaskRunPayload{
-					ID:     "task-run-1",
-					TaskID: "task-1",
-					Status: taskpkg.TaskRunStatusClaimed,
+			if got, want := r.Header.Get(agentidentity.HeaderSessionID), "sess-agent"; got != want {
+				t.Fatalf("claim session header = %q, want %q", got, want)
+			}
+			if got, want := r.Header.Get(agentidentity.HeaderAgent), "worker"; got != want {
+				t.Fatalf("claim agent header = %q, want %q", got, want)
+			}
+			writeJSON(w, aghcontract.AgentTaskClaimResponse{
+				Claim: aghcontract.AgentTaskClaimPayload{
+					Task: aghcontract.TaskReferencePayload{
+						ID:          "task-1",
+						Title:       "Deploy",
+						Status:      taskpkg.TaskStatusInProgress,
+						Scope:       taskpkg.ScopeWorkspace,
+						WorkspaceID: "ws-1",
+					},
+					Run: aghcontract.TaskRunPayload{
+						ID:     "task-run-1",
+						TaskID: "task-1",
+						Status: taskpkg.TaskRunStatusClaimed,
+					},
+					Lease: aghcontract.TaskRunLeaseSummaryPayload{
+						TaskID:    "task-1",
+						RunID:     "task-run-1",
+						Status:    taskpkg.TaskRunStatusClaimed,
+						SessionID: "sess-agent",
+					},
 				},
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/task-runs/task-run-1/start":
@@ -385,11 +424,13 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("len(taskRuns) = %d, want %d", got, want)
 	}
 
-	claimed, err := harness.ClaimTaskRun(context.Background(), "task-run-1", aghcontract.ClaimTaskRunRequest{
-		IdempotencyKey: "claim-1",
+	claimed, err := harness.ClaimExactTaskRunForSession(context.Background(), "task-run-1", aghcontract.SessionPayload{
+		ID:          "sess-agent",
+		AgentName:   "worker",
+		WorkspaceID: "ws-1",
 	})
 	if err != nil {
-		t.Fatalf("ClaimTaskRun() error = %v", err)
+		t.Fatalf("ClaimExactTaskRunForSession() error = %v", err)
 	}
 	if got, want := claimed.Status, taskpkg.TaskRunStatusClaimed; got != want {
 		t.Fatalf("claimed.Status = %q, want %q", got, want)
@@ -446,8 +487,8 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("workspaceDelivery.Runs[0].ID = %q, want %q", got, want)
 	}
 
-	if got, want := claimRequest.IdempotencyKey, "claim-1"; got != want {
-		t.Fatalf("claimRequest.IdempotencyKey = %q, want %q", got, want)
+	if claimRequest.RunID != "task-run-1" || claimRequest.WorkspaceID != "ws-1" {
+		t.Fatalf("claimRequest = %#v, want exact workspace claim", claimRequest)
 	}
 	if got, want := startRequest.IdempotencyKey, "start-1"; got != want {
 		t.Fatalf("startRequest.IdempotencyKey = %q, want %q", got, want)

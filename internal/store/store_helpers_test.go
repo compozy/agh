@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -424,12 +425,13 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "session meta valid",
 			validate: func() error {
 				return (SessionMeta{
-					ID:          "sess-meta",
-					AgentName:   "coder",
-					WorkspaceID: "ws-meta",
-					State:       "active",
-					CreatedAt:   now,
-					UpdatedAt:   now,
+					ID:                   "sess-meta",
+					AgentName:            "coder",
+					WorkspaceID:          "ws-meta",
+					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+					State:                "active",
+					CreatedAt:            now,
+					UpdatedAt:            now,
 				}).Validate()
 			},
 		},

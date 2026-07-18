@@ -418,6 +418,61 @@ func TestDriverRoutesConcurrentProcessesByStructuredJudgeMetadata(t *testing.T) 
 	}
 }
 
+func TestDriverReturnsScriptedPromptUsage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return scripted input output and total token usage", func(t *testing.T) {
+		t.Parallel()
+
+		driverPath, err := DefaultDriverPath()
+		if err != nil {
+			t.Fatalf("DefaultDriverPath() error = %v", err)
+		}
+		fixturePath := filepath.Join(t.TempDir(), "usage-fixture.json")
+		fixture := []byte(
+			`{"version":2,"agents":[{"name":"usage-agent","provider":"claude","turns":[{` +
+				`"match":{"turn_source":"user","user_text":"measure"},` +
+				`"usage":{"input_tokens":13,"output_tokens":5},` +
+				`"steps":[{"kind":"assistant","text":"measured"}]}]}]}`,
+		)
+		if err := os.WriteFile(fixturePath, fixture, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(usage fixture) error = %v", err)
+		}
+		diagnosticsPath := filepath.Join(t.TempDir(), "usage-diagnostics.jsonl")
+		driver := acp.New()
+		proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+			AgentName:   "usage-agent",
+			Command:     BuildCommand(driverPath, fixturePath, "usage-agent", diagnosticsPath),
+			Cwd:         t.TempDir(),
+			Permissions: aghconfig.PermissionModeApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("driver.Start() error = %v", err)
+		}
+		defer stopDriverProcess(t, driver, proc)
+		events, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+			TurnID: "turn-usage", Message: "measure",
+			Meta: acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		})
+		if err != nil {
+			t.Fatalf("driver.Prompt() error = %v", err)
+		}
+		collected := collectPromptEvents(t, events, nil)
+		for _, event := range collected {
+			if event.Type != acp.EventTypeDone {
+				continue
+			}
+			if event.Usage == nil || event.Usage.InputTokens == nil || event.Usage.OutputTokens == nil ||
+				event.Usage.TotalTokens == nil || *event.Usage.InputTokens != 13 ||
+				*event.Usage.OutputTokens != 5 || *event.Usage.TotalTokens != 18 {
+				t.Fatalf("done usage = %#v, want input=13 output=5 total=18", event.Usage)
+			}
+			return
+		}
+		t.Fatalf("prompt events = %#v, want terminal done usage", collected)
+	})
+}
+
 func TestDriverControlDisconnectSurfacesPromptFailure(t *testing.T) {
 	t.Parallel()
 

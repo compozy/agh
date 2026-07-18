@@ -402,7 +402,12 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 			},
 		)
 		if duplicate.Code != http.StatusCreated {
-			t.Fatalf("duplicate status = %d, want %d; body=%s", duplicate.Code, http.StatusCreated, duplicate.Body.String())
+			t.Fatalf(
+				"duplicate status = %d, want %d; body=%s",
+				duplicate.Code,
+				http.StatusCreated,
+				duplicate.Body.String(),
+			)
 		}
 		if _, err := catalog.GetAgent(ctx, "reviewer"); err != nil {
 			t.Fatalf("catalog.GetAgent(reviewer after duplicate) error = %v", err)

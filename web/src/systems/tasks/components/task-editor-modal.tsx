@@ -12,9 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
   Eyebrow,
-  Field,
-  FieldLabel,
-  Input,
   Spinner,
 } from "@agh/ui";
 
@@ -27,6 +24,11 @@ import {
   type TaskTemplateId,
 } from "../lib/task-templates";
 import type { TaskRecord } from "../types";
+import {
+  NetworkParticipationFields,
+  isNetworkParticipationDraftValid,
+  networkParticipationDraftFromValues,
+} from "@/systems/network";
 import { ContractSection } from "./task-form/contract-section";
 import { ExecutionCollapsible } from "./task-form/execution-collapsible";
 import { IngressIdentitySection } from "./task-form/ingress-identity-section";
@@ -112,6 +114,17 @@ export function TaskEditorModal({
 
   const advanced = isNewMode && formMode === "advanced";
   const submitLabel = resolveSubmitLabel(mode, draft.saveAsDraft);
+  const networkParticipation = networkParticipationDraftFromValues(
+    draft.networkParticipationMode,
+    draft.networkChannelId,
+    draft.networkChannelStrategy
+  );
+  const participationValid = isNetworkParticipationDraftValid(networkParticipation, [
+    "named",
+    "run",
+    "loop_run",
+  ]);
+  const submitAllowed = canSubmit && participationValid;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -140,7 +153,13 @@ export function TaskEditorModal({
         <form
           className="flex min-h-0 flex-col"
           data-testid="task-editor-modal-form"
-          onSubmit={form.submitForm}
+          onSubmit={event => {
+            if (!participationValid) {
+              event.preventDefault();
+              return;
+            }
+            form.submitForm(event);
+          }}
         >
           {isNewMode ? (
             <ModeToolbar
@@ -193,10 +212,30 @@ export function TaskEditorModal({
               <PrioritySection onPriority={form.updatePriority} priority={draft.priority} />
             </NumberedSection>
 
+            <NumberedSection
+              index={isNewMode ? "04" : "03"}
+              subtitle="Local by default. Live requires an explicit channel strategy."
+              title="Network participation"
+            >
+              <NetworkParticipationFields
+                allowedStrategies={["named", "run", "loop_run"]}
+                onChange={next =>
+                  onDraftChange(current => ({
+                    ...current,
+                    networkParticipationMode: next.mode,
+                    networkChannelId: next.channelId,
+                    networkChannelStrategy: next.channelStrategy,
+                  }))
+                }
+                testIdPrefix="task-editor-participation"
+                value={networkParticipation}
+              />
+            </NumberedSection>
+
             {advanced ? (
               <>
                 <NumberedSection
-                  index="04"
+                  index="05"
                   subtitle="Where it sits in the task hierarchy."
                   title="Placement"
                 >
@@ -206,7 +245,7 @@ export function TaskEditorModal({
                   />
                 </NumberedSection>
                 <NumberedSection
-                  index="05"
+                  index="06"
                   subtitle="Who runs it, and how retries behave."
                   title="Queue &amp; ownership"
                 >
@@ -222,15 +261,13 @@ export function TaskEditorModal({
                   />
                 </NumberedSection>
                 <NumberedSection
-                  index="06"
-                  subtitle="Optional — for peer ingress and stable references."
-                  title="Ingress &amp; identity"
+                  index="07"
+                  subtitle="Optional — stable identifier override."
+                  title="Identity"
                 >
                   <IngressIdentitySection
                     identifier={draft.identifier}
-                    networkChannel={draft.networkChannel}
                     onIdentifier={setField("identifier")}
-                    onNetworkChannel={setField("networkChannel")}
                   />
                 </NumberedSection>
                 <ExecutionCollapsible
@@ -243,37 +280,22 @@ export function TaskEditorModal({
             ) : null}
 
             {!isNewMode ? (
-              <>
-                <NumberedSection
-                  index="03"
-                  subtitle="Who runs it, and how retries behave."
-                  title="Queue &amp; ownership"
-                >
-                  <QueueOwnershipSection
-                    approvalPolicy={draft.approvalPolicy}
-                    maxAttempts={draft.maxAttempts}
-                    onApprovalPolicy={form.updateApprovalPolicy}
-                    onMaxAttempts={form.updateMaxAttempts}
-                    onOwnerKind={form.updateOwnerKind}
-                    onOwnerRef={setField("ownerRef")}
-                    ownerKind={draft.ownerKind}
-                    ownerRef={draft.ownerRef}
-                  />
-                </NumberedSection>
-                <NumberedSection index="04" subtitle="Peer ingress channel." title="Channel">
-                  <Field>
-                    <FieldLabel htmlFor="task-editor-network-input">Network channel</FieldLabel>
-                    <Input
-                      className="font-mono"
-                      data-testid="task-network-input"
-                      id="task-editor-network-input"
-                      onChange={event => setField("networkChannel")(event.target.value)}
-                      placeholder="ingress channel"
-                      value={draft.networkChannel}
-                    />
-                  </Field>
-                </NumberedSection>
-              </>
+              <NumberedSection
+                index="04"
+                subtitle="Who runs it, and how retries behave."
+                title="Queue &amp; ownership"
+              >
+                <QueueOwnershipSection
+                  approvalPolicy={draft.approvalPolicy}
+                  maxAttempts={draft.maxAttempts}
+                  onApprovalPolicy={form.updateApprovalPolicy}
+                  onMaxAttempts={form.updateMaxAttempts}
+                  onOwnerKind={form.updateOwnerKind}
+                  onOwnerRef={setField("ownerRef")}
+                  ownerKind={draft.ownerKind}
+                  ownerRef={draft.ownerRef}
+                />
+              </NumberedSection>
             ) : null}
           </div>
 
@@ -306,7 +328,7 @@ export function TaskEditorModal({
             <Button
               className="min-w-32"
               data-testid="task-editor-modal-submit"
-              disabled={!canSubmit || isSubmitting}
+              disabled={!submitAllowed || isSubmitting}
               type="submit"
             >
               {isSubmitting ? (

@@ -11,8 +11,8 @@ type NetworkRecentPayload struct {
 	LastMessagePreview string     `json:"last_message_preview,omitempty"`
 	Title              string     `json:"title,omitempty"`
 	ParticipantCount   int        `json:"participant_count,omitempty"`
-	PeerA              string     `json:"peer_a,omitempty"`
-	PeerB              string     `json:"peer_b,omitempty"`
+	SessionA           string     `json:"session_a,omitempty"`
+	SessionB           string     `json:"session_b,omitempty"`
 }
 
 // NetworkStatusResponse wraps the network runtime status payload.
@@ -81,9 +81,9 @@ type NetworkThreadsResponse struct {
 
 // NetworkThreadResponse wraps one public-thread summary.
 type NetworkThreadResponse struct {
-	Thread    NetworkThreadSummaryPayload      `json:"thread"`
-	PeerCosts []NetworkThreadPeerCostPayload   `json:"peer_costs,omitempty"`
-	TaskLinks []NetworkTaskThreadOriginPayload `json:"task_links,omitempty"`
+	Thread       NetworkThreadSummaryPayload       `json:"thread"`
+	SessionCosts []NetworkThreadSessionCostPayload `json:"session_costs,omitempty"`
+	TaskLinks    []NetworkTaskThreadOriginPayload  `json:"task_links,omitempty"`
 }
 
 // NetworkThreadMessagesResponse wraps one cursor page of public-thread messages.

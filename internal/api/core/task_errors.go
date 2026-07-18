@@ -75,7 +75,6 @@ func StatusForTaskError(err error) int {
 		errors.Is(err, taskpkg.ErrSessionAttachNotAllowed),
 		errors.Is(err, store.ErrSessionAttachLocked),
 		errors.Is(err, store.ErrSessionNotAttachable),
-		errors.Is(err, taskpkg.ErrStaleNetworkChannel),
 		errors.Is(err, taskpkg.ErrNoClaimableRun),
 		errors.Is(err, taskpkg.ErrInvalidClaimToken),
 		errors.Is(err, taskpkg.ErrLeaseExpired),

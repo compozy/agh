@@ -11,13 +11,25 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	looppkg "github.com/compozy/agh/internal/loop"
 	loopdsl "github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
+	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type automationLoopStarter struct {
-	service  looppkg.Service
+	service  automationLoopService
 	resolver looppkg.DefinitionResolver
+}
+
+type automationLoopService interface {
+	Start(
+		ctx context.Context,
+		ws looppkg.WorkspaceID,
+		name string,
+		inputs looppkg.Inputs,
+		actor taskpkg.ActorContext,
+	) (*looppkg.Run, error)
 }
 
 var _ automationpkg.LoopStarter = (*automationLoopStarter)(nil)
@@ -29,6 +41,7 @@ func newAutomationLoopStarter(
 	toolRegistry toolspkg.Registry,
 	homePaths aghconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
+	participationResolver participation.Resolver,
 ) (automationpkg.LoopStarter, error) {
 	if catalog == nil {
 		return nil, nil
@@ -41,11 +54,17 @@ func newAutomationLoopStarter(
 		catalog:         catalog,
 		compilerFactory: newLoopCompilerFactory(toolRegistry),
 	}
+	options := []looppkg.Option{
+		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, workspaceResolver)),
+	}
+	if participationResolver != nil {
+		options = append(options, looppkg.WithParticipationResolver(participationResolver))
+	}
 	service, err := looppkg.NewService(
 		loopStore,
 		resolver,
 		newGoalRunPolicyResolver(homePaths, workspaceResolver),
-		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, workspaceResolver)),
+		options...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create automation loop starter: %w", err)
@@ -120,8 +139,10 @@ func (s *automationLoopStarter) StartLoop(
 		return automationpkg.LoopStartResult{}, err
 	}
 	run, err := s.service.Start(ctx, workspaceID, loopName, looppkg.Inputs{
-		Values:        values,
-		StartMetadata: automationLoopStartMetadata(req),
+		Values:                     values,
+		StartMetadata:              automationLoopStartMetadata(req),
+		NetworkParticipation:       req.NetworkParticipation,
+		NetworkParticipationSource: participation.SourceAutomationJob,
 	}, req.Actor)
 	if err != nil {
 		if errors.Is(err, looppkg.ErrConcurrencyConflict) {

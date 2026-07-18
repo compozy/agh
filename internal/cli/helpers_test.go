@@ -19,32 +19,40 @@ import (
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
-	statusFn                    func(context.Context) (StatusRecord, error)
-	doctorFn                    func(context.Context, DoctorQuery) (DoctorRecord, error)
-	daemonStatusFn              func(context.Context) (DaemonStatus, error)
-	triggerSettingsRestartFn    func(context.Context) (SettingsRestartActionRecord, error)
-	getSettingsRestartStatusFn  func(context.Context, string) (SettingsRestartStatusRecord, error)
-	createSupportBundleFn       func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
-	getSupportBundleFn          func(context.Context, string) (SupportBundleOperationRecord, error)
-	downloadSupportBundleFn     func(context.Context, string, io.Writer) error
-	getSettingsUpdateFn         func(context.Context) (SettingsUpdateRecord, error)
-	updateSettingsSkillsFn      func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
-	reloadSettingsFn            func(context.Context) (SettingsMutationRecord, error)
-	listSettingsApplyRecordsFn  func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
-	getOnboardingStatusFn       func(context.Context) (contract.OnboardingStatusResponse, error)
-	completeOnboardingFn        func(context.Context) (contract.OnboardingStatusResponse, error)
-	resetOnboardingFn           func(context.Context) (contract.OnboardingStatusResponse, error)
-	listProvidersFn             func(context.Context) (contract.ProviderListResponse, error)
-	probeProviderAuthFn         func(context.Context, string) (contract.ProviderAuthProbeResponse, error)
-	listProviderModelsFn        func(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
-	refreshProviderModelsFn     func(context.Context, string, ProviderModelRefreshRequest) (ProviderModelRefreshRecord, error)
-	providerModelStatusFn       func(context.Context, string) (ProviderModelStatusRecord, error)
-	curateProviderModelFn       func(context.Context, string, ProviderModelCurationRequest) (ProviderModelCurationRecord, error)
-	listVaultSecretsFn          func(context.Context, VaultListQuery) ([]VaultRecord, error)
-	getVaultSecretFn            func(context.Context, string) (VaultRecord, error)
-	putVaultSecretFn            func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
-	deleteVaultSecretFn         func(context.Context, string) error
-	networkStatusFn             func(context.Context) (NetworkStatusRecord, error)
+	statusFn                           func(context.Context) (StatusRecord, error)
+	doctorFn                           func(context.Context, DoctorQuery) (DoctorRecord, error)
+	daemonStatusFn                     func(context.Context) (DaemonStatus, error)
+	triggerSettingsRestartFn           func(context.Context) (SettingsRestartActionRecord, error)
+	getSettingsRestartStatusFn         func(context.Context, string) (SettingsRestartStatusRecord, error)
+	createSupportBundleFn              func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
+	getSupportBundleFn                 func(context.Context, string) (SupportBundleOperationRecord, error)
+	downloadSupportBundleFn            func(context.Context, string, io.Writer) error
+	getSettingsUpdateFn                func(context.Context) (SettingsUpdateRecord, error)
+	updateSettingsSkillsFn             func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	reloadSettingsFn                   func(context.Context) (SettingsMutationRecord, error)
+	listSettingsApplyRecordsFn         func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
+	getOnboardingStatusFn              func(context.Context) (contract.OnboardingStatusResponse, error)
+	completeOnboardingFn               func(context.Context) (contract.OnboardingStatusResponse, error)
+	resetOnboardingFn                  func(context.Context) (contract.OnboardingStatusResponse, error)
+	listProvidersFn                    func(context.Context) (contract.ProviderListResponse, error)
+	probeProviderAuthFn                func(context.Context, string) (contract.ProviderAuthProbeResponse, error)
+	listProviderModelsFn               func(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
+	refreshProviderModelsFn            func(context.Context, string, ProviderModelRefreshRequest) (ProviderModelRefreshRecord, error)
+	providerModelStatusFn              func(context.Context, string) (ProviderModelStatusRecord, error)
+	curateProviderModelFn              func(context.Context, string, ProviderModelCurationRequest) (ProviderModelCurationRecord, error)
+	listVaultSecretsFn                 func(context.Context, VaultListQuery) ([]VaultRecord, error)
+	getVaultSecretFn                   func(context.Context, string) (VaultRecord, error)
+	putVaultSecretFn                   func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
+	deleteVaultSecretFn                func(context.Context, string) error
+	networkStatusFn                    func(context.Context) (NetworkStatusRecord, error)
+	getNetworkCoordinationFn           func(context.Context, string, NetworkCoordinationRef) (NetworkCoordinationRecord, error)
+	putNetworkCoordinationFn           func(context.Context, string, PutNetworkCoordinationRequest) (NetworkCoordinationRecord, error)
+	putNetworkCoordinationInvitationFn func(
+		context.Context,
+		string,
+		PutNetworkCoordinationInvitationRequest,
+	) (NetworkCoordinationRecord, error)
+	getNetworkUsageFn           func(context.Context, string, NetworkUsageQuery) (NetworkUsageRecord, error)
 	networkPeersFn              func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	networkChannelsFn           func(context.Context, string) ([]NetworkChannelRecord, error)
 	createNetworkChannelFn      func(context.Context, string, CreateNetworkChannelRequest) (NetworkChannelDetailRecord, error)
@@ -358,7 +366,6 @@ type stubClient struct {
 	fanOutTaskRunsFn       func(context.Context, string, FanOutTaskRunsRequest) (FanOutTaskRunsRecord, error)
 	listTaskRunsFn         func(context.Context, string, TaskRunListQuery) ([]TaskRunRecord, error)
 	getTaskRunFn           func(context.Context, string) (TaskRunDetailRecord, error)
-	claimTaskRunFn         func(context.Context, string, ClaimTaskRunRequest) (TaskRunRecord, error)
 	startTaskRunFn         func(context.Context, string, StartTaskRunRequest) (TaskRunRecord, error)
 	attachTaskRunSessionFn func(context.Context, string, AttachTaskRunSessionRequest) (TaskRunRecord, error)
 	completeTaskRunFn      func(context.Context, string, CompleteTaskRunRequest) (TaskRunRecord, error)
@@ -613,6 +620,50 @@ func (s *stubClient) NetworkStatus(ctx context.Context) (NetworkStatusRecord, er
 		return s.networkStatusFn(ctx)
 	}
 	return NetworkStatusRecord{}, errors.New("unexpected NetworkStatus call")
+}
+
+func (s *stubClient) GetNetworkCoordination(
+	ctx context.Context,
+	workspaceRef string,
+	ref NetworkCoordinationRef,
+) (NetworkCoordinationRecord, error) {
+	if s.getNetworkCoordinationFn != nil {
+		return s.getNetworkCoordinationFn(ctx, workspaceRef, ref)
+	}
+	return NetworkCoordinationRecord{}, errors.New("unexpected GetNetworkCoordination call")
+}
+
+func (s *stubClient) PutNetworkCoordination(
+	ctx context.Context,
+	workspaceRef string,
+	request PutNetworkCoordinationRequest,
+) (NetworkCoordinationRecord, error) {
+	if s.putNetworkCoordinationFn != nil {
+		return s.putNetworkCoordinationFn(ctx, workspaceRef, request)
+	}
+	return NetworkCoordinationRecord{}, errors.New("unexpected PutNetworkCoordination call")
+}
+
+func (s *stubClient) PutNetworkCoordinationInvitation(
+	ctx context.Context,
+	workspaceRef string,
+	request PutNetworkCoordinationInvitationRequest,
+) (NetworkCoordinationRecord, error) {
+	if s.putNetworkCoordinationInvitationFn != nil {
+		return s.putNetworkCoordinationInvitationFn(ctx, workspaceRef, request)
+	}
+	return NetworkCoordinationRecord{}, errors.New("unexpected PutNetworkCoordinationInvitation call")
+}
+
+func (s *stubClient) GetNetworkUsage(
+	ctx context.Context,
+	workspaceRef string,
+	query NetworkUsageQuery,
+) (NetworkUsageRecord, error) {
+	if s.getNetworkUsageFn != nil {
+		return s.getNetworkUsageFn(ctx, workspaceRef, query)
+	}
+	return NetworkUsageRecord{}, errors.New("unexpected GetNetworkUsage call")
 }
 
 func (s *stubClient) NetworkPeers(
@@ -2991,17 +3042,6 @@ func (s *stubClient) GetTaskRun(ctx context.Context, id string) (TaskRunDetailRe
 		return s.getTaskRunFn(ctx, id)
 	}
 	return TaskRunDetailRecord{}, errors.New("unexpected GetTaskRun call")
-}
-
-func (s *stubClient) ClaimTaskRun(
-	ctx context.Context,
-	id string,
-	request ClaimTaskRunRequest,
-) (TaskRunRecord, error) {
-	if s.claimTaskRunFn != nil {
-		return s.claimTaskRunFn(ctx, id, request)
-	}
-	return TaskRunRecord{}, errors.New("unexpected ClaimTaskRun call")
 }
 
 func (s *stubClient) StartTaskRun(

@@ -76,29 +76,10 @@ func TestProductionMigrationStreams(t *testing.T) {
 				t.Fatalf("version table %q shared by %s and %s", item.stream.VersionTable, owner, item.name)
 			}
 			seenTables[item.stream.VersionTable] = item.name
-			entries, err := fs.ReadDir(item.stream.FS, item.stream.Dir)
-			if err != nil {
-				t.Fatalf("read %s migration directory: %v", item.name, err)
-			}
-			versions := make([]int, 0)
+			versions := embeddedMigrationVersions(t, item.stream)
 			foundBaseline := false
-			for _, entry := range entries {
-				if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
-					continue
-				}
-				separator := strings.IndexByte(entry.Name(), '_')
-				if separator <= 0 {
-					t.Fatalf("%s migration filename %q has no version prefix", item.name, entry.Name())
-				}
-				version, err := strconv.Atoi(entry.Name()[:separator])
-				if err != nil {
-					t.Fatalf("parse %s migration version: %v", item.name, err)
-				}
-				versions = append(versions, version)
+			for _, version := range versions {
 				if version == 1 {
-					if entry.Name() != "00001_baseline.sql" {
-						t.Fatalf("%s first migration = %q, want 00001_baseline.sql", item.name, entry.Name())
-					}
 					foundBaseline = true
 				}
 			}
@@ -148,23 +129,20 @@ func TestProductionMigrationStreams(t *testing.T) {
 		if err := store.Apply(ctx, db, memoryStream); err != nil {
 			t.Fatalf("Apply(memory) error = %v", err)
 		}
-		wantStatus := map[string]store.StreamStatus{
-			globalStream.Name: {Version: 7, AppliedCount: 7},
-			memoryStream.Name: {Version: 1, AppliedCount: 1},
-		}
 		for _, stream := range []store.MigrationStream{globalStream, memoryStream} {
 			status, err := store.Status(ctx, db, stream)
 			if err != nil {
 				t.Fatalf("Status(%s) error = %v", stream.Name, err)
 			}
-			want := wantStatus[stream.Name]
-			if status.Version != want.Version || status.AppliedCount != want.AppliedCount {
+			versions := embeddedMigrationVersions(t, stream)
+			wantVersion := int64(versions[len(versions)-1])
+			if status.Version != wantVersion || status.AppliedCount != len(versions) {
 				t.Fatalf(
-					"Status(%s) = %#v, want version %d with %d applied",
+					"Status(%s) = %#v, want version %d with %d applied migrations",
 					stream.Name,
 					status,
-					want.Version,
-					want.AppliedCount,
+					wantVersion,
+					len(versions),
 				)
 			}
 		}
@@ -172,6 +150,38 @@ func TestProductionMigrationStreams(t *testing.T) {
 			t.Fatal("memory_events missing after shared-file baseline application")
 		}
 	})
+}
+
+func embeddedMigrationVersions(t *testing.T, stream store.MigrationStream) []int {
+	t.Helper()
+
+	entries, err := fs.ReadDir(stream.FS, stream.Dir)
+	if err != nil {
+		t.Fatalf("read %s migration directory: %v", stream.Name, err)
+	}
+	versions := make([]int, 0)
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		separator := strings.IndexByte(entry.Name(), '_')
+		if separator <= 0 {
+			t.Fatalf("%s migration filename %q has no version prefix", stream.Name, entry.Name())
+		}
+		version, err := strconv.Atoi(entry.Name()[:separator])
+		if err != nil {
+			t.Fatalf("parse %s migration version: %v", stream.Name, err)
+		}
+		if version == 1 && entry.Name() != "00001_baseline.sql" {
+			t.Fatalf("%s first migration = %q, want 00001_baseline.sql", stream.Name, entry.Name())
+		}
+		versions = append(versions, version)
+	}
+	if len(versions) == 0 {
+		t.Fatalf("%s migration directory contains no SQL migrations", stream.Name)
+	}
+	sort.Ints(versions)
+	return versions
 }
 
 func TestMigrationSchemaEquivalence(t *testing.T) {
@@ -183,6 +193,9 @@ func TestMigrationSchemaEquivalence(t *testing.T) {
 			migrationDB := openStreamTestDB(t, item.name+"-migration.db")
 			if err := store.Apply(ctx, migrationDB, item.stream); err != nil {
 				t.Fatalf("Apply(%s) error = %v", item.name, err)
+			}
+			if _, err := migrationDB.ExecContext(ctx, "DROP TABLE "+item.stream.VersionTable); err != nil {
+				t.Fatalf("drop %s migration version table: %v", item.name, err)
 			}
 			schemaDB := openStreamTestDB(t, item.name+"-schema.db")
 			executeDeclarativeSchema(t, schemaDB, item.schemaFS, item.declarativeSource)

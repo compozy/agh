@@ -4,6 +4,8 @@ import type {
   AutomationTrigger,
   CreateAutomationJobRequest,
   CreateAutomationTriggerRequest,
+  UpdateAutomationJobRequest,
+  UpdateAutomationTriggerRequest,
 } from "../types";
 
 const DEFAULT_RETRY_NONE = {
@@ -77,9 +79,14 @@ export function jobOutputMode(draft: CreateAutomationJobRequest): JobOutputMode 
   return draft.task ? "task" : "agent";
 }
 
-/** A blank task object for entering task mode. `network_channel` stays undefined. */
+/** A blank task object for entering task mode. */
 export function emptyJobTask(): NonNullable<CreateAutomationJobRequest["task"]> {
-  return { title: "", description: "", owner: null };
+  return {
+    title: "",
+    description: "",
+    owner: null,
+    network_participation: { mode: "local" },
+  };
 }
 
 /**
@@ -114,7 +121,7 @@ export function automationJobToDraft(job: AutomationJob): CreateAutomationJobReq
     target_kind: job.target_kind,
     loop_target: job.loop_target ?? undefined,
     workspace_id: job.workspace_id,
-    task: job.task ?? undefined,
+    task: job.task,
     enabled: job.enabled,
     retry: normalizeAutomationRetry(job.retry),
     fire_limit: {
@@ -122,6 +129,20 @@ export function automationJobToDraft(job: AutomationJob): CreateAutomationJobReq
       window: job.fire_limit.window,
     },
   };
+}
+
+/** Project an editable create-shaped draft onto the mutable job update contract. */
+export function automationJobUpdateFromDraft(
+  draft: CreateAutomationJobRequest
+): UpdateAutomationJobRequest {
+  const {
+    agent_name: _agentName,
+    scope: _scope,
+    target_kind: _targetKind,
+    workspace_id: _workspaceId,
+    ...request
+  } = draft;
+  return request;
 }
 
 export function createAutomationTriggerDraft(
@@ -160,7 +181,13 @@ export function automationTargetMode(
 
 /** A blank loop target bound to the automation's own workspace. */
 export function emptyLoopTarget(workspaceId?: string | null, loopName = ""): AutomationLoopTarget {
-  return { loop_name: loopName, workspace_id: workspaceId ?? "", inputs: {}, input_mapping: {} };
+  return {
+    loop_name: loopName,
+    workspace_id: workspaceId ?? "",
+    inputs: {},
+    input_mapping: {},
+    network_participation: { mode: "local" },
+  };
 }
 
 /** Resolves the concrete workspace that owns an Automation Loop target. */
@@ -298,4 +325,18 @@ export function automationTriggerToDraft(
     endpoint_slug: trigger.endpoint_slug,
     webhook_id: trigger.webhook_id,
   };
+}
+
+/** Project an editable create-shaped draft onto the mutable trigger update contract. */
+export function automationTriggerUpdateFromDraft(
+  draft: CreateAutomationTriggerRequest
+): UpdateAutomationTriggerRequest {
+  const {
+    agent_name: _agentName,
+    scope: _scope,
+    target_kind: _targetKind,
+    workspace_id: _workspaceId,
+    ...request
+  } = draft;
+  return request;
 }

@@ -41,7 +41,7 @@ export const tasksKeys = {
       normalizeText(normalized.owner_kind),
       normalizeText(normalized.owner_ref),
       normalizeText(normalized.parent_task_id),
-      normalizeText(normalized.network_channel),
+      normalizeText(normalized.participation_channel),
       normalizeText(normalized.query),
       normalizeText(normalized.sort),
       normalizeNumber(normalized.limit),
@@ -88,7 +88,7 @@ export const tasksKeys = {
       normalizeText(filters.workspace),
       normalizeText(filters.owner_kind),
       normalizeText(filters.owner_ref),
-      normalizeText(filters.network_channel),
+      normalizeText(filters.participation_channel),
       normalizeText(filters.origin_kind),
     ] as const,
 

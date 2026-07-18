@@ -36,14 +36,7 @@ const (
 	toolSurfaceMemoryDreamGatesMinScorePath                       = "memory.dream.gates.min_score"
 	toolSurfaceMemoryProviderTimeoutPath                          = "memory.provider.timeout"
 	toolSurfaceMemoryRecallWeightsBm25UnicodePath                 = "memory.recall.weights.bm25_unicode"
-	toolSurfaceNetworkGreetIntervalPath                           = "network.greet_interval"
-	toolSurfaceNetworkMaxPayloadPath                              = "network.max_payload"
 	toolSurfaceNetworkMaxReplayAgePath                            = "network.max_replay_age"
-	toolSurfaceNetworkActivationTopKPath                          = "network.activation_top_k"
-	toolSurfaceNetworkDigestFlushIntervalPath                     = "network.digest_flush_interval"
-	toolSurfaceNetworkDigestMaxEnvelopesPath                      = "network.digest_max_envelopes"
-	toolSurfaceNetworkResponseGuidanceMaxBytesPath                = "network.response_guidance_max_bytes"
-	toolSurfaceNetworkDeliveryStructuredBodyMaxBytesPath          = "network.delivery_structured_body_max_bytes"
 	toolSurfacePermissionsKey                                     = "permissions"
 	toolSurfaceTaskOrchestrationContextBodyMaxBytesPath           = "task.orchestration.context_body_max_bytes"
 	toolSurfaceTaskOrchestrationContextPriorAttemptsPath          = "task.orchestration.context_prior_attempts"
@@ -239,16 +232,22 @@ var (
 		"automation.timezone":                                         ConfigValueString,
 		"automation.max_concurrent_jobs":                              ConfigValueInt,
 		"network.enabled":                                             ConfigValueBool,
-		"network.default_channel":                                     ConfigValueString,
-		toolSurfaceNetworkMaxPayloadPath:                              ConfigValueInt,
-		toolSurfaceNetworkGreetIntervalPath:                           ConfigValueInt,
 		toolSurfaceNetworkMaxReplayAgePath:                            ConfigValueInt,
-		"network.max_queue_depth":                                     ConfigValueInt,
-		toolSurfaceNetworkActivationTopKPath:                          ConfigValueInt,
-		toolSurfaceNetworkDigestFlushIntervalPath:                     ConfigValueDuration,
-		toolSurfaceNetworkDigestMaxEnvelopesPath:                      ConfigValueInt,
-		toolSurfaceNetworkResponseGuidanceMaxBytesPath:                ConfigValueInt,
-		toolSurfaceNetworkDeliveryStructuredBodyMaxBytesPath:          ConfigValueInt,
+		"network.live.defaults.max_wakes":                             ConfigValueInt,
+		"network.live.defaults.max_wake_wall_time":                    ConfigValueString,
+		"network.live.defaults.max_total_wall_time":                   ConfigValueString,
+		"network.live.defaults.max_input_tokens":                      ConfigValueInt64,
+		"network.live.defaults.max_output_tokens":                     ConfigValueInt64,
+		"network.live.defaults.max_wake_depth":                        ConfigValueInt,
+		"network.live.defaults.coalesce_window":                       ConfigValueString,
+		networkLiveLimitsMaxWakesPath:                                 ConfigValueInt,
+		"network.live.limits.max_wake_wall_time":                      ConfigValueString,
+		"network.live.limits.max_total_wall_time":                     ConfigValueString,
+		"network.live.limits.max_input_tokens":                        ConfigValueInt64,
+		"network.live.limits.max_output_tokens":                       ConfigValueInt64,
+		"network.live.limits.max_wake_depth":                          ConfigValueInt,
+		networkLiveLimitsMinCoalesceWindowPath:                        ConfigValueString,
+		"network.live.limits.max_coalesce_window":                     ConfigValueString,
 		toolSurfaceTaskOrchestrationSummaryMaxBytesPath:               ConfigValueInt,
 		toolSurfaceTaskOrchestrationContextBodyMaxBytesPath:           ConfigValueInt,
 		toolSurfaceTaskOrchestrationContextPriorAttemptsPath:          ConfigValueInt,
@@ -380,6 +379,11 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 		return PathPolicy{}, err
 	}
 	policy := PathPolicy{Segments: clean, Kind: ConfigValueString}
+	joined := strings.Join(clean, ".")
+	if kind, ok := agentMutableConfigKinds[joined]; ok {
+		policy.Kind = kind
+		return policy, nil
+	}
 	if configPathIsSecret(clean) {
 		policy.Denial = ConfigPathSecretForbidden
 		return policy, nil
@@ -390,11 +394,6 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 	}
 	if configPathIsTrustRoot(clean) {
 		policy.Denial = ConfigPathTrustForbidden
-		return policy, nil
-	}
-	joined := strings.Join(clean, ".")
-	if kind, ok := agentMutableConfigKinds[joined]; ok {
-		policy.Kind = kind
 		return policy, nil
 	}
 	if len(clean) == 3 && clean[0] == providersConfigKey {
@@ -731,8 +730,6 @@ func configPathIsTrustRoot(path []string) bool {
 		return providerConfigPathIsTrustRoot(path)
 	case MemoryDirName:
 		return memoryConfigPathIsTrustRoot(path)
-	case "network":
-		return len(path) >= 2 && path[1] == "port"
 	case "tools":
 		return toolsConfigPathIsTrustRoot(path)
 	case SkillsDirName:

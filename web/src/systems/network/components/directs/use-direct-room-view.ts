@@ -11,8 +11,8 @@ export interface UseDirectRoomViewArgs {
   workspaceId: string;
   channel: string;
   directId: string;
-  /** Override the local peer id resolution (used for storybook + tests). */
-  selfPeerId?: string;
+  /** Override the local session id resolution (used for Storybook and tests). */
+  selfSessionId?: string;
 }
 
 export interface UseDirectRoomViewResult {
@@ -33,11 +33,11 @@ export function useDirectRoomView({
   workspaceId,
   channel,
   directId,
-  selfPeerId: providedSelfPeer,
+  selfSessionId: providedSelfSession,
 }: UseDirectRoomViewArgs): UseDirectRoomViewResult {
   const session = useActiveNetworkSession(channel, { workspaceId });
-  const selfPeerId = providedSelfPeer ?? session.session?.peerId;
-  const room = useDirectRoom({ workspaceId, channel, directId, selfPeerId });
+  const selfSessionId = providedSelfSession ?? session.session?.sessionId;
+  const room = useDirectRoom({ workspaceId, channel, directId, selfSessionId });
   const openWork = useOpenWork({
     workspaceId,
     channel,

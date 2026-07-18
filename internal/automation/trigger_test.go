@@ -379,6 +379,70 @@ func TestTriggerEngineHandleWebhookDispatchesValidRequest(t *testing.T) {
 	}
 }
 
+func TestTriggerEnginePersistentWebhookReservationCarriesDefinitionParticipation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create the durable reservation with canonical authored participation", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryRunStore()
+		starter := &recordingLoopStarter{runID: "looprun-webhook-participation"}
+		now := time.Date(2026, 4, 11, 5, 45, 0, 0, time.UTC)
+		dispatcher := newTestDispatcher(
+			t,
+			newRecordingSessionCreator(),
+			store,
+			WithDispatcherNow(func() time.Time { return now }),
+			WithDispatcherLoopStarter(starter),
+		)
+		engine := newTestTriggerEngine(
+			t,
+			dispatcher,
+			WithTriggerEngineNow(func() time.Time { return now }),
+			WithTriggerEngineWebhookDeliveryStore(store),
+		)
+
+		trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-participation", "")
+		trigger.TargetKind = TargetKindLoop
+		trigger.AgentName = ""
+		trigger.Prompt = ""
+		trigger.LoopTarget = &LoopTarget{
+			WorkspaceID:          "ws_alpha",
+			LoopName:             "release-loop",
+			NetworkParticipation: testNamedParticipation("webhook-loop"),
+		}
+		if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+
+		payload := []byte(`{"payload":"deploy"}`)
+		signature, err := SignWebhookPayload(testWebhookSecretValue(trigger.WebhookSecretRef), now, payload)
+		if err != nil {
+			t.Fatalf("SignWebhookPayload() error = %v", err)
+		}
+		result, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
+			Scope:      AutomationScopeGlobal,
+			Endpoint:   "deploy-review--" + trigger.WebhookID,
+			DeliveryID: "delivery-participation",
+			Timestamp:  now,
+			Signature:  signature,
+			Payload:    payload,
+			Data:       map[string]any{"payload": "deploy"},
+		})
+		if err != nil {
+			t.Fatalf("HandleWebhook() error = %v", err)
+		}
+		if got, want := len(result.Runs), 1; got != want {
+			t.Fatalf("len(result.Runs) = %d, want %d", got, want)
+		}
+		assertNamedParticipation(t, result.Runs[0].NetworkParticipation, "webhook-loop")
+		updates := store.updateSnapshot()
+		if len(updates) == 0 || updates[0].Status == RunScheduled {
+			t.Fatalf("run updates = %#v, want execution transitions without reservation backfill", updates)
+		}
+	})
+}
+
 func TestTriggerEngineRejectsReplayedWebhookDeliveriesWithinFreshnessWindow(t *testing.T) {
 	t.Parallel()
 

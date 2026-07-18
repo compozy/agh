@@ -28,8 +28,26 @@ func (m *Service) recordTaskEvent(
 	actor ActorContext,
 	payload any,
 ) error {
+	event, err := m.newTaskEvent(taskID, runID, eventType, actor, payload)
+	if err != nil {
+		return err
+	}
+	if err := m.store.CreateTaskEvent(ctx, event); err != nil {
+		return err
+	}
+	m.publishTaskEventsAfterCommand(ctx, []Event{event})
+	return nil
+}
+
+func (m *Service) newTaskEvent(
+	taskID string,
+	runID string,
+	eventType string,
+	actor ActorContext,
+	payload any,
+) (Event, error) {
 	if isTransactionalWatchTaskEvent(eventType) {
-		return fmt.Errorf(
+		return Event{}, fmt.Errorf(
 			"%w: task event %q must be appended inside its owning transaction",
 			ErrValidation,
 			strings.TrimSpace(eventType),
@@ -37,7 +55,7 @@ func (m *Service) recordTaskEvent(
 	}
 	rawPayload, err := marshalTaskEventPayload(payload)
 	if err != nil {
-		return err
+		return Event{}, err
 	}
 	event := Event{
 		ID:        m.newID("evt"),
@@ -49,24 +67,29 @@ func (m *Service) recordTaskEvent(
 		Payload:   rawPayload,
 		Timestamp: m.now().UTC(),
 	}
-	if err := m.store.CreateTaskEvent(ctx, event); err != nil {
-		return err
+	if err := event.Validate(); err != nil {
+		return Event{}, err
 	}
+	return event, nil
+}
+
+func (m *Service) publishTaskEventsAfterCommand(ctx context.Context, events []Event) {
 	if _, ok := m.store.(EventCommitObserverStore); ok {
-		return nil
+		return
 	}
 
 	postCommitCtx := context.Background()
 	if ctx != nil {
 		postCommitCtx = context.WithoutCancel(ctx)
 	}
-	record, err := m.store.GetTaskEventRecord(postCommitCtx, event.ID)
-	if err != nil {
-		m.emitTaskLiveEventBestEffort(postCommitCtx, event.ID)
-		return nil
+	for _, event := range events {
+		record, err := m.store.GetTaskEventRecord(postCommitCtx, event.ID)
+		if err != nil {
+			m.emitTaskLiveEventBestEffort(postCommitCtx, event.ID)
+			continue
+		}
+		m.publishCommittedTaskEvent(postCommitCtx, record)
 	}
-	m.publishCommittedTaskEvent(postCommitCtx, record)
-	return nil
 }
 
 // OnTaskEvent receives records from stores that own post-commit publication.
@@ -81,6 +104,36 @@ func (m *Service) OnTaskEvent(ctx context.Context, record EventRecord) {
 func (m *Service) publishCommittedTaskEvent(ctx context.Context, record EventRecord) {
 	m.notifyTaskObserverBestEffort(ctx, record)
 	m.emitTaskLiveRecordBestEffort(ctx, record)
+	m.dispatchCommittedTaskStatusChanged(ctx, record)
+}
+
+func (m *Service) dispatchCommittedTaskStatusChanged(ctx context.Context, record EventRecord) {
+	if strings.TrimSpace(record.Event.EventType) != taskWatchEventStatusChanged {
+		return
+	}
+	var payload hookspkg.TaskStatusChangedPayload
+	if err := json.Unmarshal(record.Event.Payload, &payload); err != nil {
+		slog.Error(
+			"task: decode committed task status event",
+			"error", err,
+			"event_id", record.Event.ID,
+			"task_id", record.Event.TaskID,
+		)
+		return
+	}
+	payload.PayloadBase = hookspkg.PayloadBase{
+		Event:     hookspkg.HookTaskStatusChanged,
+		Timestamp: record.Event.Timestamp,
+	}
+	_, err := m.taskHooks.DispatchTaskStatusChanged(taskRunObservationHookContext(ctx), payload)
+	if err != nil {
+		slog.Error(
+			"task: committed task status hook failed",
+			"error", err,
+			"event_id", record.Event.ID,
+			"task_id", record.Event.TaskID,
+		)
+	}
 }
 
 func isTransactionalWatchTaskEvent(eventType string) bool {

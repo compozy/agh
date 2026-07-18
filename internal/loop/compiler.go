@@ -86,6 +86,9 @@ func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 	if len(blockingErrors) > 0 {
 		return nil, &LintFailedError{Errors: blockingErrors}
 	}
+	if err := normalizeDefinitionParticipation(&def); err != nil {
+		return nil, fmt.Errorf("normalize Loop definition participation: %w", err)
+	}
 
 	ctx := newLintContext(def, &DefinitionLinter{tools: c.tools})
 	ctx.indexGraphTrusted()

@@ -110,6 +110,10 @@ const (
 	CodeContinuousHandleReused = "continuous_handle_reused"
 	// CodeRetryMaxUnsupported reports the retired retry.max key.
 	CodeRetryMaxUnsupported = "retry_max_unsupported"
+	// CodeNetworkParticipationInvalid reports malformed authored participation intent.
+	CodeNetworkParticipationInvalid = "network_participation_invalid"
+	// CodeLoopRequiresLive reports a Network-using graph without authored Live participation.
+	CodeLoopRequiresLive = "loop_requires_live"
 )
 
 // ToolSchemaSnapshot is the pure tool-schema view consumed by lint and compile.

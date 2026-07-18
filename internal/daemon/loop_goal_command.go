@@ -32,7 +32,7 @@ func (s *daemonLoopAPIService) Handle(
 	if err := caller.Validate(); err != nil {
 		return session.GoalDispatchDecision{}, err
 	}
-	actor, err := goalCommandActor(caller, sessionID)
+	actor, err := goalCommandActor(caller, workspaceID, sessionID)
 	if err != nil {
 		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalOriginInvalid), nil), nil
 	}
@@ -69,14 +69,18 @@ func (s *daemonLoopAPIService) Handle(
 	}
 }
 
-func goalCommandActor(caller session.PromptCaller, sessionID string) (taskpkg.ActorContext, error) {
+func goalCommandActor(
+	caller session.PromptCaller,
+	workspaceID string,
+	sessionID string,
+) (taskpkg.ActorContext, error) {
 	originKind := taskpkg.OriginKind(strings.TrimSpace(caller.Source)).Normalize()
 	originRef := fmt.Sprintf("goal.command:%s", strings.TrimSpace(sessionID))
 	switch taskpkg.ActorKind(strings.TrimSpace(caller.Kind)).Normalize() {
 	case taskpkg.ActorKindHuman:
-		return taskpkg.DeriveHumanActorContext(caller.ID, originKind, originRef)
+		return taskpkg.DeriveHumanActorContextForWorkspace(caller.ID, workspaceID, originKind, originRef)
 	case taskpkg.ActorKindAgentSession:
-		return taskpkg.DeriveAgentSessionActorContextForOrigin(caller.ID, originKind, originRef)
+		return taskpkg.DeriveAgentSessionActorContextForOrigin(caller.ID, workspaceID, originKind, originRef)
 	default:
 		return taskpkg.ActorContext{}, fmt.Errorf("%w: Goal caller kind is invalid", taskpkg.ErrValidation)
 	}

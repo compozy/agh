@@ -80,6 +80,7 @@ func appendNeedsAttentionWatchEventIfEscalated(
 		actor,
 		needsAttention.At,
 		taskAttentionWatchEventPayload{
+			Status:          taskpkg.TaskStatusNeedsAttention,
 			Reason:          strings.TrimSpace(needsAttention.Reason),
 			At:              needsAttention.At,
 			BlockID:         strings.TrimSpace(result.Block.ID),

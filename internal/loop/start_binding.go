@@ -48,7 +48,7 @@ func StartFromBinding(
 	resolver DefinitionResolver,
 	req StartBindingRequest,
 ) (*Run, error) {
-	actor, err := DeriveStartActor(req.Kind, req.ActorRef, req.OriginRef)
+	actor, err := DeriveStartActor(req.Kind, string(req.WorkspaceID), req.ActorRef, req.OriginRef)
 	if err != nil {
 		return nil, err
 	}
@@ -133,20 +133,25 @@ func ResolveStartTargetInputs(
 }
 
 // DeriveStartActor maps every start surface to its canonical task ActorContext derivation.
-func DeriveStartActor(kind dsl.StartKind, actorRef string, originRef string) (task.ActorContext, error) {
+func DeriveStartActor(
+	kind dsl.StartKind,
+	workspaceID string,
+	actorRef string,
+	originRef string,
+) (task.ActorContext, error) {
 	normalizedKind, err := normalizeStartKind(kind)
 	if err != nil {
 		return task.ActorContext{}, err
 	}
 	switch normalizedKind {
 	case dsl.StartManual:
-		return task.DeriveHumanActorContext(actorRef, task.OriginKindWeb, originRef)
+		return task.DeriveHumanActorContextForWorkspace(actorRef, workspaceID, task.OriginKindWeb, originRef)
 	case dsl.StartCLI:
-		return task.DeriveHumanActorContext(actorRef, task.OriginKindCLI, originRef)
+		return task.DeriveHumanActorContextForWorkspace(actorRef, workspaceID, task.OriginKindCLI, originRef)
 	case dsl.StartHTTP:
-		return task.DeriveHumanActorContext(actorRef, task.OriginKindHTTP, originRef)
+		return task.DeriveHumanActorContextForWorkspace(actorRef, workspaceID, task.OriginKindHTTP, originRef)
 	case dsl.StartUDS:
-		return task.DeriveHumanActorContext(actorRef, task.OriginKindUDS, originRef)
+		return task.DeriveHumanActorContextForWorkspace(actorRef, workspaceID, task.OriginKindUDS, originRef)
 	case dsl.StartTrigger, dsl.StartSchedule, dsl.StartWebhook:
 		return task.DeriveAutomationActorContext(actorRef, originRef)
 	case dsl.StartNetwork:
@@ -154,7 +159,12 @@ func DeriveStartActor(kind dsl.StartKind, actorRef string, originRef string) (ta
 	case dsl.StartExtension:
 		return task.DeriveExtensionActorContext(actorRef, originRef)
 	case dsl.StartNativeTool:
-		return task.DeriveAgentSessionActorContextForOrigin(actorRef, task.OriginKindAgentSession, originRef)
+		return task.DeriveAgentSessionActorContextForOrigin(
+			actorRef,
+			workspaceID,
+			task.OriginKindAgentSession,
+			originRef,
+		)
 	default:
 		return task.ActorContext{}, fmt.Errorf("%w: unsupported start kind %q", ErrValidation, kind)
 	}

@@ -115,18 +115,17 @@ func requeueExpiredLease(
 func (g *TaskRunRepo) coordinationChannelMetadata(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	taskRecord taskpkg.Task,
 	run taskpkg.Run,
 ) (*taskpkg.CoordinationChannelMetadata, error) {
-	channelID := strings.TrimSpace(run.CoordinationChannelID)
+	networkSpec := run.NetworkSpecSnapshot()
+	channelID := strings.TrimSpace(networkSpec.ChannelID)
 	if channelID == "" {
 		return nil, nil
 	}
 	metadata := &taskpkg.CoordinationChannelMetadata{
 		ID:          channelID,
-		Channel:     channelID,
 		DisplayName: channelID,
-		WorkspaceID: taskRecord.WorkspaceID,
+		WorkspaceID: run.WorkspaceID,
 		TaskID:      run.TaskID,
 		RunID:       run.ID,
 		WorkflowID:  taskRunMetadataString(run.Metadata, "workflow_id"),
@@ -141,44 +140,21 @@ func (g *TaskRunRepo) coordinationChannelMetadata(
 		},
 	}
 
-	entry, err := networkChannelEntry(ctx, exec, channelID)
+	entry, err := getNetworkChannel(ctx, exec, store.NetworkChannelRef{
+		WorkspaceID: run.WorkspaceID,
+		Channel:     channelID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return metadata, nil
 		}
 		return nil, err
 	}
-	metadata.Channel = entry.Channel
 	metadata.DisplayName = entry.Channel
 	metadata.Purpose = entry.Purpose
 	metadata.WorkspaceID = entry.WorkspaceID
 	metadata.LastActivityAt = entry.UpdatedAt
 	return metadata, nil
-}
-
-func networkChannelEntry(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	channelID string,
-) (store.NetworkChannelEntry, error) {
-	row, err := sqlcgen.New(exec).GetNetworkChannelForTask(ctx, channelID)
-	if err != nil {
-		return store.NetworkChannelEntry{}, err
-	}
-	createdAt, err := store.ParseTimestamp(row.CreatedAt)
-	if err != nil {
-		return store.NetworkChannelEntry{}, fmt.Errorf("store: parse network channel created_at: %w", err)
-	}
-	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
-	if err != nil {
-		return store.NetworkChannelEntry{}, fmt.Errorf("store: parse network channel updated_at: %w", err)
-	}
-	return store.NetworkChannelEntry{
-		Channel: row.Channel, WorkspaceID: row.WorkspaceID, Purpose: row.Purpose,
-		FanoutPolicy:      store.NormalizeNetworkFanoutPolicy(row.FanoutPolicy),
-		CoordinatorPeerID: row.CoordinatorPeerID, CreatedBy: row.CreatedBy,
-		CreatedAt: createdAt, UpdatedAt: updatedAt,
-	}, nil
 }
 
 func missingCapabilityPredicate(capabilities []string) string {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/soul"
 	"github.com/compozy/agh/internal/testutil"
 
@@ -28,16 +29,17 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		stopReason := store.StopUserCanceled
 
 		if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-			ID:          "sess-new",
-			Name:        "New",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: h.workspaceID,
-			State:       "stopped",
-			StopReason:  &stopReason,
-			StopDetail:  "requested by API",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:                   "sess-new",
+			Name:                 "New",
+			AgentName:            "coder",
+			Provider:             "claude",
+			WorkspaceID:          h.workspaceID,
+			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+			State:                "stopped",
+			StopReason:           &stopReason,
+			StopDetail:           "requested by API",
+			CreatedAt:            now,
+			UpdatedAt:            now,
 		}); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
@@ -101,7 +103,11 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 			Permissions: "approve-reads",
 		}
 		creationOptions := store.SessionCreationOptions{
-			SessionID: childID, Name: "Child", SessionType: "worker",
+			SessionID:            childID,
+			Name:                 "Child",
+			NetworkOwnerKey:      "session:" + childID,
+			NetworkParticipation: participation.LocalSpec(),
+			SessionType:          "worker",
 		}
 		creationProfileRef, err := creationProfile.Ref()
 		if err != nil {
@@ -137,14 +143,15 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if err := store.WriteSessionMeta(
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, rootID)),
 			store.SessionMeta{
-				ID:          rootID,
-				Name:        "Root",
-				AgentName:   "coder",
-				Provider:    "claude",
-				WorkspaceID: h.workspaceID,
-				State:       "stopped",
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				ID:                   rootID,
+				Name:                 "Root",
+				AgentName:            "coder",
+				Provider:             "claude",
+				WorkspaceID:          h.workspaceID,
+				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+				State:                "stopped",
+				CreatedAt:            now,
+				UpdatedAt:            now,
 			},
 		); err != nil {
 			t.Fatalf("WriteSessionMeta(root) error = %v", err)
@@ -152,12 +159,13 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if err := store.WriteSessionMeta(
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, parentID)),
 			store.SessionMeta{
-				ID:          parentID,
-				Name:        "Parent",
-				AgentName:   "coder",
-				Provider:    "claude",
-				WorkspaceID: h.workspaceID,
-				State:       "stopped",
+				ID:                   parentID,
+				Name:                 "Parent",
+				AgentName:            "coder",
+				Provider:             "claude",
+				WorkspaceID:          h.workspaceID,
+				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+				State:                "stopped",
 				Lineage: &store.SessionLineage{
 					ParentSessionID: rootID,
 					RootSessionID:   rootID,
@@ -172,16 +180,17 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if err := store.WriteSessionMeta(
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, childID)),
 			store.SessionMeta{
-				ID:           childID,
-				Name:         "Child",
-				AgentName:    "coder",
-				Provider:     "claude",
-				WorkspaceID:  h.workspaceID,
-				SessionType:  "worker",
-				State:        "stopped",
-				ACPSessionID: &acpSessionID,
-				StopReason:   &stopReason,
-				StopDetail:   "agent process exited",
+				ID:                   childID,
+				Name:                 "Child",
+				AgentName:            "coder",
+				Provider:             "claude",
+				WorkspaceID:          h.workspaceID,
+				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+				SessionType:          "worker",
+				State:                "stopped",
+				ACPSessionID:         &acpSessionID,
+				StopReason:           &stopReason,
+				StopDetail:           "agent process exited",
 				Failure: &store.SessionFailure{
 					Kind:            store.FailureProcess,
 					Summary:         "agent exited with status 1",
@@ -390,13 +399,14 @@ func TestReconciliationLegacyProviderRepair(t *testing.T) {
 				now := h.now.Add(40 * time.Minute)
 
 				if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-					ID:          "sess-repair",
-					Name:        "Repair",
-					AgentName:   "coder",
-					WorkspaceID: h.workspaceID,
-					State:       "stopped",
-					CreatedAt:   now,
-					UpdatedAt:   now,
+					ID:                   "sess-repair",
+					Name:                 "Repair",
+					AgentName:            "coder",
+					WorkspaceID:          h.workspaceID,
+					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+					State:                "stopped",
+					CreatedAt:            now,
+					UpdatedAt:            now,
 				}); err != nil {
 					t.Fatalf("WriteSessionMeta() error = %v", err)
 				}
@@ -442,25 +452,27 @@ func TestReconciliationLegacyProviderRepair(t *testing.T) {
 				now := h.now.Add(50 * time.Minute)
 
 				if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
-					ID:          "sess-valid-after-bad-repair",
-					Name:        "Valid",
-					AgentName:   "coder",
-					Provider:    "claude",
-					WorkspaceID: h.workspaceID,
-					State:       "active",
-					CreatedAt:   now,
-					UpdatedAt:   now,
+					ID:                   "sess-valid-after-bad-repair",
+					Name:                 "Valid",
+					AgentName:            "coder",
+					Provider:             "claude",
+					WorkspaceID:          h.workspaceID,
+					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+					State:                "active",
+					CreatedAt:            now,
+					UpdatedAt:            now,
 				}); err != nil {
 					t.Fatalf("WriteSessionMeta(valid) error = %v", err)
 				}
 				if err := store.WriteSessionMeta(badMetaPath, store.SessionMeta{
-					ID:          "sess-bad-repair",
-					Name:        "Bad Repair",
-					AgentName:   "missing-agent",
-					WorkspaceID: h.workspaceID,
-					State:       "stopped",
-					CreatedAt:   now,
-					UpdatedAt:   now,
+					ID:                   "sess-bad-repair",
+					Name:                 "Bad Repair",
+					AgentName:            "missing-agent",
+					WorkspaceID:          h.workspaceID,
+					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+					State:                "stopped",
+					CreatedAt:            now,
+					UpdatedAt:            now,
 				}); err != nil {
 					t.Fatalf("WriteSessionMeta(bad) error = %v", err)
 				}
@@ -530,14 +542,15 @@ func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 		validMetaPath := store.SessionMetaFile(validDir)
 		now := h.now.Add(45 * time.Minute)
 		if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
-			ID:          "sess-valid",
-			Name:        "Valid",
-			AgentName:   "coder",
-			Provider:    "claude",
-			WorkspaceID: h.workspaceID,
-			State:       "active",
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:                   "sess-valid",
+			Name:                 "Valid",
+			AgentName:            "coder",
+			Provider:             "claude",
+			WorkspaceID:          h.workspaceID,
+			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+			State:                "active",
+			CreatedAt:            now,
+			UpdatedAt:            now,
 		}); err != nil {
 			t.Fatalf("WriteSessionMeta(valid) error = %v", err)
 		}

@@ -46,8 +46,7 @@ export function createDefaultFetchers(workspaceId?: string | null): NavCountFetc
         throw new Error(`nav-counts network snapshot failed: ${response.status}`);
       }
       const network = data?.network;
-      const peers = (network?.local_peers ?? 0) + (network?.remote_peers ?? 0);
-      return { count: peers + (network?.channels ?? 0) };
+      return { count: (network?.local_peers ?? 0) + (network?.channels ?? 0) };
     },
     triggers: async signal => {
       const { data, error, response } = await apiClient.GET("/api/automation/triggers", {

@@ -24,7 +24,7 @@ func claimRunWithExecutor(
 	if err != nil {
 		return err
 	}
-	affected, err := sqlcgen.New(exec).ClaimTaskRun(ctx, sqlcgen.ClaimTaskRunParams{
+	affected, err := sqlcgen.New(exec).ClaimSelectedTaskRun(ctx, sqlcgen.ClaimSelectedTaskRunParams{
 		ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
 		ClaimedByKind:  nullableTaskActorKind(criteria.ClaimedBy),
 		ClaimedByRef:   nullableTaskActorRef(criteria.ClaimedBy),

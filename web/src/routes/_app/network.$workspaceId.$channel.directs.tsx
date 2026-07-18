@@ -104,7 +104,7 @@ function NetworkChannelDirectsRoute() {
           isLoadingMore={directsQuery.isLoadingMore}
           members={channelMembers.members}
           onLoadMore={directsQuery.loadMore}
-          selfPeerId={activeSession.session?.peerId}
+          selfSessionId={activeSession.session?.sessionId}
           total={directsQuery.total}
         />
       )}

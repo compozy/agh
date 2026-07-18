@@ -81,7 +81,7 @@ describe("ThreadOverlayHeader", () => {
         channel="ops"
         detail={detail}
         rootMessageId="msg_root"
-        selfPeerId="peer-self"
+        selfSessionId="session-self"
         threadId="thread_ops"
         workspaceId="ws_1"
       />

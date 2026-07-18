@@ -78,7 +78,7 @@ describe("BundleActivationDetail", () => {
     expect(screen.getByText("Bundle activation not found")).toBeInTheDocument();
   });
 
-  it("Should render daemon inventory and preserve binding in update controls", async () => {
+  it("Should render daemon inventory and explicitly confirm a Live requirement on update", async () => {
     const user = userEvent.setup();
     mocks.query.data = { ...bundleActivationFixtures[0]!, spec_drift: true };
     render(<BundleActivationDetail id="activation-ops-starter" />);
@@ -89,16 +89,36 @@ describe("BundleActivationDetail", () => {
     expect(screen.getAllByText("ops-slack").length).toBeGreaterThan(0);
     expect(screen.getByText("incidents")).toBeInTheDocument();
     expect(screen.getByText("update available")).toBeInTheDocument();
+    expect(screen.getByText("Live confirmed")).toBeInTheDocument();
+    expect(screen.queryByText("Bind primary channel as default")).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole("switch", { name: "Confirm Live network participation" }));
     await user.click(screen.getByRole("button", { name: "Update" }));
     expect(mocks.update.mutate).toHaveBeenCalledWith({
-      body: { bind_primary_channel_as_default: true },
+      body: { confirm_network_requirement: true, expected_version: 7 },
       id: "activation-ops-starter",
     });
+  });
 
-    await user.click(screen.getByRole("switch", { name: "Bind primary channel as default" }));
+  it("Should make a digest-only Network confirmation actionable", async () => {
+    const user = userEvent.setup();
+    mocks.query.data = {
+      ...bundleActivationFixtures[0]!,
+      network_requirement_confirmed_at: undefined,
+      network_requirement_confirmed_by: undefined,
+      spec_drift: false,
+    };
+
+    render(<BundleActivationDetail id="activation-ops-starter" />);
+
+    expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Confirm Live network participation" })
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("switch", { name: "Confirm Live network participation" }));
+    await user.click(screen.getByRole("button", { name: "Update" }));
     expect(mocks.update.mutate).toHaveBeenCalledWith({
-      body: { bind_primary_channel_as_default: false },
+      body: { confirm_network_requirement: true, expected_version: 7 },
       id: "activation-ops-starter",
     });
   });

@@ -11,23 +11,37 @@ import (
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-// WriteNetworkChannel upserts durable network channel metadata.
-func (g *NetworkRepo) WriteNetworkChannel(ctx context.Context, entry store.NetworkChannelEntry) error {
-	entry.Channel = strings.TrimSpace(entry.Channel)
-	entry.FanoutPolicy = store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy)
-	entry.CoordinatorPeerID = strings.TrimSpace(entry.CoordinatorPeerID)
-	entry.CreatedBy = strings.TrimSpace(entry.CreatedBy)
-	if err := g.checkReady(ctx, "write network channel"); err != nil {
+// CreateNetworkChannel inserts durable channel authority without replacing an existing row.
+func (g *NetworkRepo) CreateNetworkChannel(ctx context.Context, entry store.NetworkChannelEntry) error {
+	entry, err := g.prepareNetworkChannelEntry(ctx, "create network channel", entry)
+	if err != nil {
 		return err
 	}
-	if err := entry.Validate(); err != nil {
-		return fmt.Errorf("store: validate network channel entry: %w", err)
+
+	err = g.queries.CreateNetworkChannel(ctx, sqlcgen.CreateNetworkChannelParams{
+		Channel:           entry.Channel,
+		WorkspaceID:       entry.WorkspaceID,
+		Purpose:           entry.Purpose,
+		FanoutPolicy:      entry.FanoutPolicy,
+		CoordinatorPeerID: entry.CoordinatorPeerID,
+		CreatedBy:         entry.CreatedBy,
+		CreatedAt:         store.FormatTimestamp(entry.CreatedAt),
+		UpdatedAt:         store.FormatTimestamp(entry.UpdatedAt),
+	})
+	if isSQLiteUniqueConstraint(err) || isSQLitePrimaryKeyConstraint(err) {
+		return fmt.Errorf("%w: %s", store.ErrNetworkChannelExists, entry.Channel)
 	}
-	if entry.CreatedAt.IsZero() {
-		entry.CreatedAt = g.now()
+	if err != nil {
+		return fmt.Errorf("store: create network channel entry: %w", err)
 	}
-	if entry.UpdatedAt.IsZero() {
-		entry.UpdatedAt = entry.CreatedAt
+	return nil
+}
+
+// WriteNetworkChannel upserts durable network channel metadata.
+func (g *NetworkRepo) WriteNetworkChannel(ctx context.Context, entry store.NetworkChannelEntry) error {
+	entry, err := g.prepareNetworkChannelEntry(ctx, "write network channel", entry)
+	if err != nil {
+		return err
 	}
 
 	if err := g.queries.UpsertNetworkChannel(ctx, sqlcgen.UpsertNetworkChannelParams{
@@ -44,6 +58,31 @@ func (g *NetworkRepo) WriteNetworkChannel(ctx context.Context, entry store.Netwo
 	}
 
 	return nil
+}
+
+func (g *NetworkRepo) prepareNetworkChannelEntry(
+	ctx context.Context,
+	action string,
+	entry store.NetworkChannelEntry,
+) (store.NetworkChannelEntry, error) {
+	entry.Channel = strings.TrimSpace(entry.Channel)
+	entry.FanoutPolicy = store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy)
+	entry.CoordinatorPeerID = strings.TrimSpace(entry.CoordinatorPeerID)
+	entry.CreatedBy = strings.TrimSpace(entry.CreatedBy)
+	if err := g.checkReady(ctx, action); err != nil {
+		return store.NetworkChannelEntry{}, err
+	}
+	if err := entry.Validate(); err != nil {
+		return store.NetworkChannelEntry{}, fmt.Errorf("store: validate network channel entry: %w", err)
+	}
+	if entry.CreatedAt.IsZero() {
+		entry.CreatedAt = g.now()
+	}
+	if entry.UpdatedAt.IsZero() {
+		entry.UpdatedAt = entry.CreatedAt
+	}
+
+	return entry, nil
 }
 
 // GetNetworkChannel returns one persisted network channel metadata row.

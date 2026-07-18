@@ -162,8 +162,8 @@ export function AutomationJobForm({
       data-testid="automation-job-form"
       onSubmit={form.handleSubmit}
     >
-      <div className="grid min-h-0 flex-1 grid-cols-[1fr_var(--width-right-rail-default)] max-lg:grid-cols-1 max-lg:grid-rows-[minmax(0,1fr)_auto]">
-        <section className="min-h-0 overflow-y-auto px-6 py-5">
+      <div className="grid min-h-0 flex-1 grid-cols-[1fr_var(--width-right-rail-default)] max-lg:block max-lg:overflow-y-auto">
+        <section className="min-h-0 overflow-y-auto px-6 py-5 max-lg:overflow-visible">
           <Field className="mb-1">
             <FieldLabel htmlFor="job-name">Job name</FieldLabel>
             <Input
@@ -185,6 +185,7 @@ export function AutomationJobForm({
               title="A workspace, or the whole runtime"
             >
               <ScopeStep
+                disabled={mode === "edit"}
                 onScopeChange={form.onScopeChange}
                 onWorkspaceChange={form.onWorkspaceChange}
                 scope={draft.scope}
@@ -203,7 +204,8 @@ export function AutomationJobForm({
               <div className="space-y-4">
                 <PillGroup
                   aria-label="Target"
-                  items={JOB_TARGET_ITEMS}
+                  className="max-w-full flex-wrap"
+                  items={JOB_TARGET_ITEMS.map(item => ({ ...item, disabled: mode === "edit" }))}
                   onChange={form.onTargetChange}
                   size="sm"
                   value={form.targetMode}
@@ -211,16 +213,18 @@ export function AutomationJobForm({
                 {form.targetMode === "loop" ? (
                   <LoopTargetFields
                     catalog={form.loopCatalog}
+                    identityDisabled={mode === "edit"}
                     mode={mode}
                     value={form.loopTarget}
                     onChange={form.onLoopTargetChange}
                   />
                 ) : form.targetMode === "task" && draft.task ? (
                   <TaskRunStep
+                    disabled={isPending}
                     jobName={draft.name}
                     onOwnerKind={form.onOwnerKind}
                     onOwnerRef={form.onOwnerRef}
-                    onTaskChannel={form.onTaskChannel}
+                    onNetworkParticipationChange={form.onTaskNetworkParticipation}
                     onTaskDescription={form.onTaskDescription}
                     onTaskTitle={form.onTaskTitle}
                     task={draft.task}
@@ -228,6 +232,7 @@ export function AutomationJobForm({
                 ) : (
                   <AgentRunStep
                     agent={draft.agent_name}
+                    agentDisabled={mode === "edit"}
                     agents={form.agents}
                     onAgentChange={form.onAgentChange}
                     onPromptChange={form.onPromptChange}
@@ -248,6 +253,7 @@ export function AutomationJobForm({
               <div className="space-y-4">
                 <PillGroup
                   aria-label="Schedule mode"
+                  className="max-w-full flex-wrap"
                   items={SCHEDULE_MODE_ITEMS}
                   onChange={form.onScheduleMode}
                   value={form.scheduleMode}

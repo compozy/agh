@@ -6,7 +6,37 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
+
+func TestTaskRunContextNetworkSpecSnapshot(t *testing.T) {
+	t.Run("Should project an absent typed snapshot as Local without reading compatibility fields", func(t *testing.T) {
+		t.Parallel()
+
+		context := TaskRunContext{}
+		if got, want := context.NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
+			t.Fatalf("NetworkSpecSnapshot() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should return the immutable typed snapshot by value", func(t *testing.T) {
+		t.Parallel()
+
+		want := participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     "ws-hooks",
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "operations",
+			Source:          participation.SourceExplicitRequest,
+		}
+		context := TaskRunContext{ResolvedNetworkParticipation: participation.CloneSpec(want)}
+		if got := context.NetworkSpecSnapshot(); got != want {
+			t.Fatalf("NetworkSpecSnapshot() = %#v, want %#v", got, want)
+		}
+	})
+}
 
 func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	t.Parallel()
@@ -656,21 +686,25 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	assertJSONRoundTrip(t, "PermissionDeniedPatch", PermissionDeniedPatch{})
 
 	sampleTaskContext := TaskContext{
-		TaskID:                "task-1",
-		ParentTaskID:          "task-parent",
-		WorkspaceID:           "ws-1",
-		WorkflowID:            "wf-1",
-		CoordinationChannelID: "coord-1",
-		NetworkChannel:        "builders",
-		AgentName:             "codex",
-		ActorKind:             "agent_session",
-		ActorID:               "sess-1",
-		OriginKind:            "agent_session",
-		OriginRef:             "sess-1",
-		TaskStatus:            "blocked",
-		RunID:                 "run-1",
-		ReleaseReason:         "blocked",
-		ClaimTokenHash:        "sha256:abc123",
+		TaskID:       "task-1",
+		ParentTaskID: "task-parent",
+		WorkspaceID:  "ws-1",
+		WorkflowID:   "wf-1",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			Version:   participation.SpecVersion,
+			Mode:      participation.ModeLive,
+			ChannelID: "builders",
+			Source:    participation.SourceExplicitRequest,
+		}),
+		AgentName:      "codex",
+		ActorKind:      "agent_session",
+		ActorID:        "sess-1",
+		OriginKind:     "agent_session",
+		OriginRef:      "sess-1",
+		TaskStatus:     "blocked",
+		RunID:          "run-1",
+		ReleaseReason:  "blocked",
+		ClaimTokenHash: "sha256:abc123",
 	}
 	assertJSONRoundTrip(t, "TaskBlockedPayload", TaskBlockedPayload{
 		PayloadBase: samplePayloadBase(HookTaskBlocked),

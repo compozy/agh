@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -31,6 +32,10 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 		) {
 			t.Fatalf("GetExecutionProfile(missing) error = %v, want profile not found", err)
 		}
+		liveMode := participation.ModeLive
+		runStrategy := participation.StrategyRun
+		maxWakes := 3
+		coalesceWindow := "750ms"
 
 		created, err := globalDB.UpsertExecutionProfile(ctx, &taskpkg.ExecutionProfile{
 			TaskID: "task-profile-1",
@@ -71,6 +76,14 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 			},
 			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "workspace"},
 			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+			NetworkParticipation: &participation.Request{
+				Mode:            &liveMode,
+				ChannelStrategy: &runStrategy,
+				Bounds: &participation.BoundsRequest{
+					MaxWakes:       &maxWakes,
+					CoalesceWindow: &coalesceWindow,
+				},
+			},
 		})
 		if err != nil {
 			t.Fatalf("UpsertExecutionProfile(create) error = %v", err)
@@ -107,6 +120,9 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 		}
 		if got, want := updated.Runtime.Mode, taskpkg.RuntimeModeDefault; got != want {
 			t.Fatalf("updated.Runtime.Mode = %q, want %q", got, want)
+		}
+		if updated.NetworkParticipation != nil {
+			t.Fatalf("updated.NetworkParticipation = %#v, want nil after replacement", updated.NetworkParticipation)
 		}
 		assertStringSliceGlobal(t, updated.Worker.AllowedAgentNames, []string{"runner"})
 		assertStringSliceGlobal(t, updated.Review.AllowedAgentNames, nil)
@@ -180,6 +196,15 @@ func assertStoredProfileShape(t *testing.T, profile *taskpkg.ExecutionProfile) {
 	}
 	if got, want := profile.Runtime.Mode, taskpkg.RuntimeModeEvidence; got != want {
 		t.Fatalf("Runtime.Mode = %q, want %q", got, want)
+	}
+	if profile.NetworkParticipation == nil || profile.NetworkParticipation.Mode == nil ||
+		*profile.NetworkParticipation.Mode != participation.ModeLive ||
+		profile.NetworkParticipation.ChannelStrategy == nil ||
+		*profile.NetworkParticipation.ChannelStrategy != participation.StrategyRun ||
+		profile.NetworkParticipation.Bounds == nil ||
+		profile.NetworkParticipation.Bounds.MaxWakes == nil ||
+		*profile.NetworkParticipation.Bounds.MaxWakes != 3 {
+		t.Fatalf("NetworkParticipation = %#v, want live run strategy with max_wakes 3", profile.NetworkParticipation)
 	}
 	assertStringSliceGlobal(t, profile.Participants.AllowedAgentNames, []string{"coder", "reviewer"})
 	assertStringSliceGlobal(t, profile.Review.AllowedChannelIDs, []string{"review-channel"})

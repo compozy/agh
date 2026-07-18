@@ -78,7 +78,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                   |
 | `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                            | agents may force release, force fail, and retry                                                  |
 | `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                   | empty list                                                                                       |
-| `[network]`                          | Experimental AGH network runtime.                                               | enabled, channel `default`                                                                       |
+| `[network]`                          | Network availability, protocol safety, and bounded Live defaults/limits.        | enabled; Local remains the execution default                                                     |
 
 ## Load And Merge Order
 
@@ -616,12 +616,26 @@ agent_name = "general"
 
 [network]
 enabled = true
-default_channel = "default"
-port = -1
-max_payload = 1048576
-greet_interval = 30
 max_replay_age = 300
-max_queue_depth = 100
+
+[network.live.defaults]
+max_wakes = 8
+max_wake_wall_time = "5m"
+max_total_wall_time = "30m"
+max_input_tokens = 200000
+max_output_tokens = 50000
+max_wake_depth = 3
+coalesce_window = "500ms"
+
+[network.live.limits]
+max_wakes = 64
+max_wake_wall_time = "15m"
+max_total_wall_time = "2h"
+max_input_tokens = 1000000
+max_output_tokens = 200000
+max_wake_depth = 5
+min_coalesce_window = "100ms"
+max_coalesce_window = "5s"
 ```
 
 ## `[daemon]`
@@ -1333,26 +1347,26 @@ side-load reports `extension_unverified_policy_blocked` and points to `/settings
 
 Jobs are appended by overlays; they do not replace earlier jobs with the same name.
 
-| Field                  | Type    | Default                                                            | Valid values                                              | Description                                                                       |
-| ---------------------- | ------- | ------------------------------------------------------------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `scope`                | string  | required                                                           | `global` or `workspace`                                   | Binding scope.                                                                    |
-| `name`                 | string  | required                                                           | Non-empty.                                                | Job name.                                                                         |
-| `agent`                | string  | required unless `task` is configured                               | Non-empty.                                                | Agent that handles the scheduled prompt.                                          |
-| `workspace`            | string  | required when `scope = "workspace"`, empty when `scope = "global"` | Workspace ID or root accepted by the automation resolver. | Workspace binding.                                                                |
-| `prompt`               | string  | required unless `task` is configured                               | Non-empty.                                                | Prompt submitted when the job fires.                                              |
-| `schedule.mode`        | string  | required                                                           | `cron`, `every`, `at`                                     | Schedule mode.                                                                    |
-| `schedule.expr`        | string  | empty                                                              | Required only for `cron`; standard five-field cron.       | Cron expression.                                                                  |
-| `schedule.interval`    | string  | empty                                                              | Required only for `every`; positive Go duration.          | Repeating interval.                                                               |
-| `schedule.time`        | string  | empty                                                              | Required only for `at`; RFC3339 timestamp.                | One-shot fire time.                                                               |
-| `task.title`           | string  | empty                                                              | Any string.                                               | Task title when the job materializes a task instead of starting an agent session. |
-| `task.description`     | string  | empty                                                              | Any string.                                               | Task description.                                                                 |
-| `task.owner`           | object  | empty                                                              | Task ownership object.                                    | Owner metadata validated by the task package.                                     |
-| `task.network_channel` | string  | empty                                                              | Valid network channel.                                    | Network channel attached to generated tasks.                                      |
-| `enabled`              | boolean | `true`                                                             | `true` or `false`                                         | Enables this job.                                                                 |
-| `retry.strategy`       | string  | `none`                                                             | `none` or `backoff`                                       | Retry behavior. Must be `none` when `task` is configured.                         |
-| `retry.max_retries`    | integer | `0`                                                                | `0` for `none`; positive for `backoff`.                   | Maximum retry count.                                                              |
-| `retry.base_delay`     | string  | empty                                                              | Empty for `none`; positive Go duration for `backoff`.     | Base backoff delay.                                                               |
-| `fire_limit`           | object  | `[automation].default_fire_limit`                                  | `max` positive, `window` positive Go duration.            | Per-job fire limit.                                                               |
+| Field                        | Type    | Default                                                            | Valid values                                              | Description                                                                       |
+| ---------------------------- | ------- | ------------------------------------------------------------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `scope`                      | string  | required                                                           | `global` or `workspace`                                   | Binding scope.                                                                    |
+| `name`                       | string  | required                                                           | Non-empty.                                                | Job name.                                                                         |
+| `agent`                      | string  | required unless `task` is configured                               | Non-empty.                                                | Agent that handles the scheduled prompt.                                          |
+| `workspace`                  | string  | required when `scope = "workspace"`, empty when `scope = "global"` | Workspace ID or root accepted by the automation resolver. | Workspace binding.                                                                |
+| `prompt`                     | string  | required unless `task` is configured                               | Non-empty.                                                | Prompt submitted when the job fires.                                              |
+| `schedule.mode`              | string  | required                                                           | `cron`, `every`, `at`                                     | Schedule mode.                                                                    |
+| `schedule.expr`              | string  | empty                                                              | Required only for `cron`; standard five-field cron.       | Cron expression.                                                                  |
+| `schedule.interval`          | string  | empty                                                              | Required only for `every`; positive Go duration.          | Repeating interval.                                                               |
+| `schedule.time`              | string  | empty                                                              | Required only for `at`; RFC3339 timestamp.                | One-shot fire time.                                                               |
+| `task.title`                 | string  | empty                                                              | Any string.                                               | Task title when the job materializes a task instead of starting an agent session. |
+| `task.description`           | string  | empty                                                              | Any string.                                               | Task description.                                                                 |
+| `task.owner`                 | object  | empty                                                              | Task ownership object.                                    | Owner metadata validated by the task package.                                     |
+| `task.network_participation` | object  | empty                                                              | Local/Live participation request.                         | Optional participation request resolved once when the generated task run starts.  |
+| `enabled`                    | boolean | `true`                                                             | `true` or `false`                                         | Enables this job.                                                                 |
+| `retry.strategy`             | string  | `none`                                                             | `none` or `backoff`                                       | Retry behavior. Must be `none` when `task` is configured.                         |
+| `retry.max_retries`          | integer | `0`                                                                | `0` for `none`; positive for `backoff`.                   | Maximum retry count.                                                              |
+| `retry.base_delay`           | string  | empty                                                              | Empty for `none`; positive Go duration for `backoff`.     | Base backoff delay.                                                               |
+| `fire_limit`                 | object  | `[automation].default_fire_limit`                                  | `max` positive, `window` positive Go duration.            | Per-job fire limit.                                                               |
 
 ## `[[automation.triggers]]`
 
@@ -1464,11 +1478,8 @@ scheduler subtables. The default below is loaded from `internal/config/autonomy.
 
 Coordinator config controls whether AGH may start a workspace coordinator when executable task-run
 work is enqueued. Task creation is not executable work. Creating or saving a task does not enqueue a
-run, create a coordination channel, or spawn a coordinator. Publish, start, approval, and equivalent
-run-enqueue APIs are the execution boundary.
-
-Coordinator launch only applies to workspace-scoped coordinated runs with a stable
-`coordination_channel_id`. Global runs and intent-only tasks do not start coordinators in the MVP.
+run or spawn a coordinator. Coordinator bootstrap is independent from Network participation: a
+Local run can use the coordinator, and a Live channel is not a bootstrap precondition.
 
 | Field                               | Type     | Default       | Valid values                              | Description                                                                                                                                                |
 | ----------------------------------- | -------- | ------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1650,15 +1661,51 @@ context.post_compact
 
 ## `[network]`
 
-| Field             | Type            | Default   | Valid values                                   | Description                                          |
-| ----------------- | --------------- | --------- | ---------------------------------------------- | ---------------------------------------------------- |
-| `enabled`         | boolean         | `true`    | `true` or `false`                              | Enables the embedded AGH network runtime.            |
-| `default_channel` | string          | `default` | Regex `^[a-z0-9][a-z0-9_-]{0,63}$`             | Default network channel for sessions.                |
-| `port`            | integer         | `-1`      | `-1` or `1` through `65535`                    | Network listener port. `-1` lets the runtime choose. |
-| `max_payload`     | integer bytes   | `1048576` | Positive integer no greater than `2147483647`. | Maximum network payload size.                        |
-| `greet_interval`  | integer seconds | `30`      | Positive integer seconds.                      | Peer greeting interval.                              |
-| `max_replay_age`  | integer seconds | `300`     | Positive integer seconds.                      | Maximum replay window for network messages.          |
-| `max_queue_depth` | integer         | `100`     | Positive integer.                              | Maximum queued network messages.                     |
+Network config controls administrative availability, protocol-safety windows, and the defaults and
+ceilings used only after an execution explicitly selects Live. It never selects participation.
+
+| Field            | Type            | Default | Valid values              | Description                                                   |
+| ---------------- | --------------- | ------- | ------------------------- | ------------------------------------------------------------- |
+| `enabled`        | boolean         | `true`  | `true` or `false`         | Live availability kill switch. Does not opt any execution in. |
+| `max_replay_age` | integer seconds | `300`   | Positive integer seconds. | Replay/freshness window for accepted envelopes.               |
+
+### `[network.live.defaults]`
+
+Defaults fill omitted bounds only after Live is selected. They never convert Local into Live.
+
+| Field                 | Type     | Default  | Validation                                  |
+| --------------------- | -------- | -------- | ------------------------------------------- |
+| `max_wakes`           | integer  | `8`      | Positive and at or below its limit.         |
+| `max_wake_wall_time`  | duration | `5m`     | Positive and at or below its limit.         |
+| `max_total_wall_time` | duration | `30m`    | Positive and at or below its limit.         |
+| `max_input_tokens`    | integer  | `200000` | Positive and at or below its limit.         |
+| `max_output_tokens`   | integer  | `50000`  | Positive and at or below its limit.         |
+| `max_wake_depth`      | integer  | `3`      | Positive and at or below its limit.         |
+| `coalesce_window`     | duration | `500ms`  | Between the configured minimum and maximum. |
+
+### `[network.live.limits]`
+
+Limits are inclusive administrative ceilings. A default outside its limit fails strict config
+validation.
+
+| Field                 | Type     | Default   | Meaning                                   |
+| --------------------- | -------- | --------- | ----------------------------------------- |
+| `max_wakes`           | integer  | `64`      | Maximum requested wake count.             |
+| `max_wake_wall_time`  | duration | `15m`     | Maximum deadline for one wake.            |
+| `max_total_wall_time` | duration | `2h`      | Maximum aggregate wake wall time.         |
+| `max_input_tokens`    | integer  | `1000000` | Maximum aggregate reported input tokens.  |
+| `max_output_tokens`   | integer  | `200000`  | Maximum aggregate reported output tokens. |
+| `max_wake_depth`      | integer  | `5`       | Maximum causal wake depth.                |
+| `min_coalesce_window` | duration | `100ms`   | Minimum requested coalescing window.      |
+| `max_coalesce_window` | duration | `5s`      | Maximum requested coalescing window.      |
+
+Removed keys are rejected as unknown: `network.default_channel`, `network.port`,
+`network.max_payload`, `network.activation_top_k`, `network.digest_flush_interval`,
+`network.digest_max_envelopes`, `network.response_guidance_max_bytes`, and
+`network.delivery_structured_body_max_bytes`.
+
+Workspace coordination is not a TOML key. Manage its future-run default with
+`agh network coordination status|enable|disable` or the equivalent HTTP/UDS surface.
 
 ## Related Pages
 

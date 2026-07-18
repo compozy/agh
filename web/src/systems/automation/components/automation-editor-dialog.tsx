@@ -81,7 +81,7 @@ function triggerHeaderCopy(mode: "create" | "edit"): EditorHeaderCopy {
 }
 
 const WIDE_CONTENT_CLASS =
-  "text-fg grid-rows-[auto_minmax(0,1fr)] w-(--width-modal-xl) sm:max-w-(--width-modal-xl) h-(--height-modal-xl) max-h-[92vh]";
+  "text-fg grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] w-(--width-modal-xl) max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)] h-(--height-modal-xl) max-h-[calc(100vh-2rem)]";
 
 export function AutomationEditorDialog({
   activeWorkspaceId,

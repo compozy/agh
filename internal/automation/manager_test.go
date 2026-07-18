@@ -620,7 +620,11 @@ func TestManagerSessionTaskActorLifecycle(t *testing.T) {
 			DefaultFireLimit:  DefaultFireLimitConfig(),
 		})
 
-		actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext("sess-actor-1", "run:run-1")
+		actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext(
+			"sess-actor-1",
+			"ws-1",
+			"run:run-1",
+		)
 		if err != nil {
 			t.Fatalf("DeriveAutomationLinkedAgentSessionActorContext() error = %v", err)
 		}
@@ -1013,10 +1017,19 @@ func TestManagerDynamicLoopTargetCRUDValidatesLoopStarter(t *testing.T) {
 	updatedJob := createdJob
 	updatedJob.LoopTarget = &LoopTarget{
 		WorkspaceID: h.workspace.ID,
-		LoopName:    "triage-v2",
+		LoopName:    "triage",
+		Inputs: map[string]any{
+			"tasks": "updated-task-ref",
+		},
 	}
 	if _, err := manager.UpdateJob(h.ctx, updatedJob); err != nil {
 		t.Fatalf("manager.UpdateJob(loop target) error = %v", err)
+	}
+	changedJobTarget := updatedJob
+	changedJobTarget.LoopTarget = cloneLoopTarget(updatedJob.LoopTarget)
+	changedJobTarget.LoopTarget.LoopName = "triage-v2"
+	if _, err := manager.UpdateJob(h.ctx, changedJobTarget); !errors.Is(err, ErrTargetIdentityImmutable) {
+		t.Fatalf("manager.UpdateJob(changed target) error = %v, want ErrTargetIdentityImmutable", err)
 	}
 
 	trigger := testTrigger(AutomationScopeWorkspace, "crud-loop-trigger", h.workspace.ID)
@@ -1031,8 +1044,15 @@ func TestManagerDynamicLoopTargetCRUDValidatesLoopStarter(t *testing.T) {
 			"title": "{{ .trigger.payload.title }}",
 		},
 	}
-	if _, err := manager.CreateTrigger(h.ctx, trigger, webhookSecretWrite("secret-v1")); err != nil {
+	createdTrigger, err := manager.CreateTrigger(h.ctx, trigger, webhookSecretWrite("secret-v1"))
+	if err != nil {
 		t.Fatalf("manager.CreateTrigger(loop target) error = %v", err)
+	}
+	changedTriggerTarget := createdTrigger
+	changedTriggerTarget.LoopTarget = cloneLoopTarget(createdTrigger.LoopTarget)
+	changedTriggerTarget.LoopTarget.WorkspaceID = "ws-other"
+	if _, err := manager.UpdateTrigger(h.ctx, changedTriggerTarget, nil); !errors.Is(err, ErrTargetIdentityImmutable) {
+		t.Fatalf("manager.UpdateTrigger(changed target) error = %v, want ErrTargetIdentityImmutable", err)
 	}
 
 	validateCalls := starter.validateCallSnapshot()
@@ -1042,7 +1062,7 @@ func TestManagerDynamicLoopTargetCRUDValidatesLoopStarter(t *testing.T) {
 	if got, want := validateCalls[0].Kind, LoopStartKindSchedule; got != want {
 		t.Fatalf("ValidateLoopTarget(job create).Kind = %q, want %q", got, want)
 	}
-	if got, want := validateCalls[1].LoopName, "triage-v2"; got != want {
+	if got, want := validateCalls[1].LoopName, "triage"; got != want {
 		t.Fatalf("ValidateLoopTarget(job update).LoopName = %q, want %q", got, want)
 	}
 	if got, want := validateCalls[2].Kind, LoopStartKindWebhook; got != want {

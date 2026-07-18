@@ -16,6 +16,12 @@ export type NetworkKindFilter =
 export type NetworkStatusResponse = OperationResponse<"getNetworkStatus", 200>;
 export type NetworkStatus = NetworkStatusResponse["network"];
 
+type TaskRunDetailNetwork = OperationResponse<"getTaskRun", 200>["run"]["network"];
+export type TaskRunNetworkProjection = NonNullable<TaskRunDetailNetwork>;
+export type TaskRunNetworkUsage = TaskRunNetworkProjection["usage"];
+export type NetworkUsageQuery = OperationQuery<"getNetworkUsage">;
+export type NetworkUsageFilters = Omit<NetworkUsageQuery, "cursor">;
+
 export type NetworkChannelsResponse = OperationResponse<"listNetworkChannels", 200>;
 export type NetworkChannelSummary = NetworkChannelsResponse["channels"][number];
 export type NetworkChannelsQuery = OperationQuery<"listNetworkChannels">;
@@ -59,7 +65,7 @@ export type NetworkSubscriptionsResponse = OperationResponse<"listNetworkSubscri
 export type NetworkSubscription = NetworkSubscriptionsResponse["subscriptions"][number];
 export type NetworkSubscriptionRequest = OperationRequestBody<"upsertNetworkSubscription">;
 export type NetworkSubscriptionResponse = OperationResponse<"upsertNetworkSubscription", 200>;
-export type NetworkSubscriptionMode = "mute" | "digest" | "full";
+export type NetworkSubscriptionMode = "mute" | "full";
 
 export type PromoteNetworkThreadTaskRequest = OperationRequestBody<"promoteNetworkThreadTask">;
 export type PromoteNetworkThreadTaskResponse = OperationResponse<"promoteNetworkThreadTask", 201>;
@@ -81,11 +87,10 @@ export type NetworkCapabilityBrief = NetworkPeerCard["capabilities"][number];
 export type NetworkCapabilityCatalog = NonNullable<NetworkPeerDetail["capability_catalog"]>;
 export type NetworkCapability = NetworkCapabilityCatalog["capabilities"][number];
 
-export type NetworkPresenceState = "local" | "active" | "inactive" | "expired" | "unknown";
+export type NetworkPresenceState = "local";
 
 export interface NetworkPresence {
   state: NetworkPresenceState;
-  lastSeenAgeSeconds: number | null;
 }
 
 export type CreateNetworkChannelRequest = OperationRequestBody<"createNetworkChannel">;

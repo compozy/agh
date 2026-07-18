@@ -399,8 +399,6 @@ const automationJobProperties = `{
 const automationJobPatchProperties = `{
 	"job_id":{"type":"string"},
 	"name":{"type":"string"},
-	"agent_name":{"type":"string"},
-	"workspace_id":{"type":"string"},
 	"prompt":{"type":"string"},
 	"schedule":{"type":"object"},
 	"task":{"type":"object"},
@@ -428,8 +426,6 @@ const automationTriggerProperties = `{
 const automationTriggerPatchProperties = `{
 	"trigger_id":{"type":"string"},
 	"name":{"type":"string"},
-	"agent_name":{"type":"string"},
-	"workspace_id":{"type":"string"},
 	"prompt":{"type":"string"},
 	"event":{"type":"string"},
 	"filter":{"type":"object"},

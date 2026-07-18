@@ -45,6 +45,10 @@ type loopRunScanValues struct {
 	originProfileRef  sql.NullString
 	originPolicy      sql.NullString
 	originCreation    sql.NullString
+	networkSpecJSON   string
+	networkMode       string
+	networkChannel    sql.NullString
+	networkSource     string
 }
 
 func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
@@ -97,6 +101,10 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.originProfileRef,
 		&v.originPolicy,
 		&v.originCreation,
+		&v.networkSpecJSON,
+		&v.networkMode,
+		&v.networkChannel,
+		&v.networkSource,
 	)
 }
 
@@ -122,19 +130,8 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		run.ParentLoopRunID = looppkg.RunID(v.parentID.String)
 	}
 	run.PauseRequested = v.pauseRequested != 0
-	if v.controlActorKind.Valid || v.controlActorID.Valid || v.controlRequested.Valid {
-		if !v.controlActorKind.Valid || !v.controlActorID.Valid || !v.controlRequested.Valid {
-			return looppkg.Run{}, fmt.Errorf("%w: loop control actor identity is incomplete", looppkg.ErrValidation)
-		}
-		run.ControlActor = taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKind(strings.TrimSpace(v.controlActorKind.String)),
-			Ref:  strings.TrimSpace(v.controlActorID.String),
-		}
-		requestedAt, err := parseLoopRunTimestamp(v.controlRequested.String)
-		if err != nil {
-			return looppkg.Run{}, fmt.Errorf("store: parse loop control requested_at: %w", err)
-		}
-		run.ControlRequestedAt = requestedAt
+	if err := applyLoopRunControlScan(&run, v); err != nil {
+		return looppkg.Run{}, err
 	}
 	run.StartedBy = taskpkg.ActorIdentity{
 		Kind: taskpkg.ActorKind(strings.TrimSpace(v.startedByKind)),
@@ -174,6 +171,17 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 	if run.StartMetadata == nil {
 		run.StartMetadata = map[string]any{}
 	}
+	networkSpec, err := decodeParticipationSnapshot(
+		string(run.WorkspaceID),
+		v.networkSpecJSON,
+		v.networkMode,
+		v.networkChannel,
+		v.networkSource,
+	)
+	if err != nil {
+		return looppkg.Run{}, err
+	}
+	run.SetNetworkSpec(networkSpec)
 	return run, nil
 }
 

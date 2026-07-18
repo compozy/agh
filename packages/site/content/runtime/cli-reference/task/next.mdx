@@ -20,6 +20,9 @@ agh task next [flags]
   # Wait until matching work is claimable and request a five-minute lease
   agh task next --wait --lease-seconds 300 -o json
 
+  # Claim one exact queued run through the canonical lease path
+  agh task next --run-id run-123 -o json
+
   # Filter by required caller capability
   agh task next --capability go.test --priority-min 10
 ```
@@ -32,6 +35,7 @@ agh task next [flags]
       --idempotency-key string   Optional idempotency key
       --lease-seconds int        Lease duration in seconds
       --priority-min int         Minimum task priority
+      --run-id string            Claim exactly this queued run
       --wait                     Wait until work is claimable
       --workspace-id string      Workspace ID override; defaults to caller workspace
 ```

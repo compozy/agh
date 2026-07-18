@@ -2,17 +2,17 @@ package task
 
 import (
 	"encoding/json"
-
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 type createdTaskPayload struct {
-	Scope          Scope      `json:"scope"`
-	WorkspaceID    string     `json:"workspace_id,omitempty"`
-	ParentTaskID   string     `json:"parent_task_id,omitempty"`
-	Status         Status     `json:"status"`
-	NetworkChannel string     `json:"network_channel,omitempty"`
-	Owner          *Ownership `json:"owner,omitempty"`
+	Scope        Scope      `json:"scope"`
+	WorkspaceID  string     `json:"workspace_id,omitempty"`
+	ParentTaskID string     `json:"parent_task_id,omitempty"`
+	Status       Status     `json:"status"`
+	Owner        *Ownership `json:"owner,omitempty"`
 }
 
 type updatedTaskPayload struct {
@@ -53,12 +53,10 @@ type cancelledTaskPayload struct {
 }
 
 type runEnqueuedPayload struct {
-	Attempt               int       `json:"attempt"`
-	Status                RunStatus `json:"status"`
-	TaskStatus            Status    `json:"task_status"`
-	NetworkChannel        string    `json:"network_channel,omitempty"`
-	CoordinationChannelID string    `json:"coordination_channel_id,omitempty"`
-	IdempotencyKey        string    `json:"idempotency_key,omitempty"`
+	Attempt        int       `json:"attempt"`
+	Status         RunStatus `json:"status"`
+	TaskStatus     Status    `json:"task_status"`
+	IdempotencyKey string    `json:"idempotency_key,omitempty"`
 }
 
 type runClaimedPayload struct {
@@ -120,12 +118,6 @@ type forceStoppedRunPayload struct {
 	PropagatedFromTaskID string `json:"propagated_from_task_id,omitempty"`
 }
 
-type rejectedRunPayload struct {
-	Operation      string `json:"operation"`
-	Reason         string `json:"reason"`
-	NetworkChannel string `json:"network_channel,omitempty"`
-}
-
 type recoveredRunPayload struct {
 	Action         RunBootRecoveryAction `json:"action"`
 	PreviousStatus RunStatus             `json:"previous_status"`
@@ -163,12 +155,12 @@ type releasedRunPayload struct {
 }
 
 type expiredLeasePayload struct {
-	PreviousStatus      RunStatus `json:"previous_status"`
-	Status              RunStatus `json:"status"`
-	TaskStatus          Status    `json:"task_status"`
-	Reason              string    `json:"reason,omitempty"`
-	SessionID           string    `json:"session_id,omitempty"`
-	LeaseUntil          time.Time `json:"lease_until"`
-	PreviousTokenHash   string    `json:"previous_claim_token_hash,omitempty"`
-	CoordinationChannel string    `json:"coordination_channel_id,omitempty"`
+	PreviousStatus               RunStatus           `json:"previous_status"`
+	Status                       RunStatus           `json:"status"`
+	TaskStatus                   Status              `json:"task_status"`
+	Reason                       string              `json:"reason,omitempty"`
+	SessionID                    string              `json:"session_id,omitempty"`
+	LeaseUntil                   time.Time           `json:"lease_until"`
+	PreviousTokenHash            string              `json:"previous_claim_token_hash,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
 }

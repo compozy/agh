@@ -615,23 +615,6 @@ func (h *HostAPIHandler) submitBridgePrompt(
 	return promptSubmissionFromStoredEvents(events)
 }
 
-func (h *HostAPIHandler) promptBridgeSession(
-	ctx context.Context,
-	sessionID string,
-	message string,
-	meta acp.PromptNetworkMeta,
-) (<-chan acp.AgentEvent, error) {
-	if networkSessions, ok := h.sessions.(hostAPINetworkPromptSessionManager); ok {
-		return h.retryBusyBridgePrompt(ctx, sessionID, func() (<-chan acp.AgentEvent, error) {
-			return networkSessions.PromptNetwork(ctx, sessionID, message, meta)
-		})
-	}
-
-	return h.retryBusyBridgePrompt(ctx, sessionID, func() (<-chan acp.AgentEvent, error) {
-		return h.sessions.Prompt(ctx, sessionID, message)
-	})
-}
-
 func (h *HostAPIHandler) retryBusyBridgePrompt(
 	ctx context.Context,
 	sessionID string,

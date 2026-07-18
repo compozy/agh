@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/task"
 )
 
@@ -150,19 +151,19 @@ func deniedCoordinatorTerminal(status Status, reason string) *task.CoordinatorTe
 }
 
 func coordinatorLoopContext(taskRun task.Run, run Run, generation int) hookspkg.LoopContext {
+	networkSpec := taskRun.NetworkSpecSnapshot()
 	return hookspkg.LoopContext{
-		LoopRunID:             string(run.ID),
-		ParentLoopRunID:       string(run.ParentLoopRunID),
-		WorkspaceID:           string(run.WorkspaceID),
-		LoopName:              strings.TrimSpace(run.LoopName),
-		Generation:            generation,
-		TaskID:                strings.TrimSpace(taskRun.TaskID),
-		RunID:                 strings.TrimSpace(taskRun.ID),
-		RunKind:               taskRun.RunKind.Normalize().String(),
-		CoordinationChannelID: strings.TrimSpace(taskRun.CoordinationChannelID),
-		NetworkChannel:        strings.TrimSpace(taskRun.NetworkChannel),
-		SessionID:             strings.TrimSpace(taskRun.SessionID),
-		OriginKind:            string(taskRun.Origin.Kind.Normalize()),
-		OriginRef:             strings.TrimSpace(taskRun.Origin.Ref),
+		LoopRunID:                    string(run.ID),
+		ParentLoopRunID:              string(run.ParentLoopRunID),
+		WorkspaceID:                  string(run.WorkspaceID),
+		LoopName:                     strings.TrimSpace(run.LoopName),
+		Generation:                   generation,
+		TaskID:                       strings.TrimSpace(taskRun.TaskID),
+		RunID:                        strings.TrimSpace(taskRun.ID),
+		RunKind:                      taskRun.RunKind.Normalize().String(),
+		ResolvedNetworkParticipation: participation.CloneSpec(networkSpec),
+		SessionID:                    strings.TrimSpace(taskRun.SessionID),
+		OriginKind:                   string(taskRun.Origin.Kind.Normalize()),
+		OriginRef:                    strings.TrimSpace(taskRun.Origin.Ref),
 	}
 }

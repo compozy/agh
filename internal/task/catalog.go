@@ -55,20 +55,20 @@ func (s CatalogSort) Normalize() CatalogSort {
 
 // CatalogQuery captures one bounded task catalog request.
 type CatalogQuery struct {
-	Scope          CatalogScope
-	WorkspaceID    string
-	Status         Status
-	Priority       Priority
-	IncludeDrafts  bool
-	ApprovalState  ApprovalState
-	OwnerKind      OwnerKind
-	OwnerRef       string
-	ParentTaskID   string
-	NetworkChannel string
-	Search         string
-	Sort           CatalogSort
-	Cursor         string
-	Limit          int
+	Scope                CatalogScope
+	WorkspaceID          string
+	Status               Status
+	Priority             Priority
+	IncludeDrafts        bool
+	ApprovalState        ApprovalState
+	OwnerKind            OwnerKind
+	OwnerRef             string
+	ParentTaskID         string
+	ParticipationChannel string
+	Search               string
+	Sort                 CatalogSort
+	Cursor               string
+	Limit                int
 }
 
 // CatalogStatusFacet is one exact status count before the page cut.
@@ -102,18 +102,18 @@ type CatalogCursor struct {
 }
 
 type catalogFingerprint struct {
-	Scope          CatalogScope  `json:"scope"`
-	WorkspaceID    string        `json:"workspace_id"`
-	Status         Status        `json:"status"`
-	Priority       Priority      `json:"priority"`
-	IncludeDrafts  bool          `json:"include_drafts"`
-	ApprovalState  ApprovalState `json:"approval_state"`
-	OwnerKind      OwnerKind     `json:"owner_kind"`
-	OwnerRef       string        `json:"owner_ref"`
-	ParentTaskID   string        `json:"parent_task_id"`
-	NetworkChannel string        `json:"network_channel"`
-	Search         string        `json:"q"`
-	Sort           CatalogSort   `json:"sort"`
+	Scope                CatalogScope  `json:"scope"`
+	WorkspaceID          string        `json:"workspace_id"`
+	Status               Status        `json:"status"`
+	Priority             Priority      `json:"priority"`
+	IncludeDrafts        bool          `json:"include_drafts"`
+	ApprovalState        ApprovalState `json:"approval_state"`
+	OwnerKind            OwnerKind     `json:"owner_kind"`
+	OwnerRef             string        `json:"owner_ref"`
+	ParentTaskID         string        `json:"parent_task_id"`
+	ParticipationChannel string        `json:"participation_channel"`
+	Search               string        `json:"q"`
+	Sort                 CatalogSort   `json:"sort"`
 }
 
 // CatalogReader is the batched persistence capability used by public task catalogs.
@@ -139,7 +139,7 @@ func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	query.OwnerKind = query.OwnerKind.Normalize()
 	query.OwnerRef = strings.TrimSpace(query.OwnerRef)
 	query.ParentTaskID = strings.TrimSpace(query.ParentTaskID)
-	query.NetworkChannel = strings.TrimSpace(query.NetworkChannel)
+	query.ParticipationChannel = strings.TrimSpace(query.ParticipationChannel)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Sort = query.Sort.Normalize()
 	query.Cursor = strings.TrimSpace(query.Cursor)
@@ -265,18 +265,18 @@ func CatalogQueryWithoutCursor(query CatalogQuery) CatalogQuery {
 
 func taskCatalogFingerprint(query CatalogQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(catalogFingerprint{
-		Scope:          query.Scope,
-		WorkspaceID:    query.WorkspaceID,
-		Status:         query.Status,
-		Priority:       query.Priority,
-		IncludeDrafts:  query.IncludeDrafts,
-		ApprovalState:  query.ApprovalState,
-		OwnerKind:      query.OwnerKind,
-		OwnerRef:       query.OwnerRef,
-		ParentTaskID:   query.ParentTaskID,
-		NetworkChannel: query.NetworkChannel,
-		Search:         query.Search,
-		Sort:           query.Sort,
+		Scope:                query.Scope,
+		WorkspaceID:          query.WorkspaceID,
+		Status:               query.Status,
+		Priority:             query.Priority,
+		IncludeDrafts:        query.IncludeDrafts,
+		ApprovalState:        query.ApprovalState,
+		OwnerKind:            query.OwnerKind,
+		OwnerRef:             query.OwnerRef,
+		ParentTaskID:         query.ParentTaskID,
+		ParticipationChannel: query.ParticipationChannel,
+		Search:               query.Search,
+		Sort:                 query.Sort,
 	})
 	if err != nil {
 		return "", fmt.Errorf("task: fingerprint catalog query: %w", err)

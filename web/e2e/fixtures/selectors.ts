@@ -142,17 +142,16 @@ export const bridgeOperatorTestIds = {
   bridgeCreateDialog: "bridge-create-dialog",
   bridgeDetailPanel: "bridge-detail-panel",
   bridgeEditDialog: "bridge-edit-dialog",
+  bridgeListFiltersAdd: "bridge-list-filters-add",
   bridgeListPanel: "bridge-list-panel",
   bridgeManifestHandoff: "bridge-manifest-handoff",
   bridgeManifestJson: "bridge-manifest-json",
   bridgeManifestOpenBridge: "bridge-manifest-open-bridge",
+  bridgeMetricActiveRoutes: "bridge-metric-active-routes",
   bridgeRestartRequired: "bridge-restart-required",
   bridgeSendTestDialog: "bridge-send-test-dialog",
   bridgeSendTestResult: "bridge-send-test-result",
   bridgeSetupChecklist: "bridge-setup-checklist",
-  bridgeScopeAll: "bridge-scope-all",
-  bridgeScopeGlobal: "bridge-scope-global",
-  bridgeScopeWorkspace: "bridge-scope-workspace",
   bridgeSearchInput: "bridge-search-input",
   bridgeTestDeliveryDialog: "bridge-test-delivery-dialog",
   bridgeTestDeliveryResult: "bridge-test-delivery-result",
@@ -408,7 +407,9 @@ export interface AutomationOperatorSelectors {
 }
 
 export interface BridgeOperatorSelectors {
+  activeRoutesMetric: Locator;
   appSidebar: Locator;
+  backToList: Locator;
   createBridgeButton: Locator;
   createDialog: Locator;
   createDeliveryModeSelect: Locator;
@@ -430,6 +431,7 @@ export interface BridgeOperatorSelectors {
   editProviderConfigInput: Locator;
   enableBridgeButton: Locator;
   item(id: string): Locator;
+  addListFilter: Locator;
   listPanel: Locator;
   manifestHandoff: Locator;
   manifestJson: Locator;
@@ -442,9 +444,6 @@ export interface BridgeOperatorSelectors {
   restartRequired: Locator;
   route(sessionId: string): Locator;
   saveSecret(bindingName: string): Locator;
-  scopeAll: Locator;
-  scopeGlobal: Locator;
-  scopeWorkspace: Locator;
   searchInput: Locator;
   secretBinding(bindingName: string): Locator;
   secretCheck(bindingName: string, check: string): Locator;
@@ -1251,9 +1250,13 @@ export function automationOperatorSelectors(
   };
 }
 
-export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): BridgeOperatorSelectors {
+export function bridgeOperatorSelectors(
+  page: Pick<Page, "getByRole" | "getByTestId">
+): BridgeOperatorSelectors {
   return {
+    activeRoutesMetric: page.getByTestId(bridgeOperatorTestIds.bridgeMetricActiveRoutes),
     appSidebar: page.getByTestId(bridgeOperatorTestIds.appSidebar),
+    backToList: page.getByRole("button", { name: "Back to bridges" }),
     createBridgeButton: page.getByTestId(bridgeOperatorTestIds.createBridgeButton),
     createDialog: page.getByTestId(bridgeOperatorTestIds.bridgeCreateDialog),
     createDeliveryModeSelect: page.getByTestId(
@@ -1287,6 +1290,7 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     editProviderConfigInput: page.getByTestId("bridge-edit-provider-config-input"),
     enableBridgeButton: page.getByTestId(bridgeOperatorTestIds.enableBridgeButton),
     item: (id: string) => page.getByTestId(`bridge-item-${id}`),
+    addListFilter: page.getByTestId(bridgeOperatorTestIds.bridgeListFiltersAdd),
     listPanel: page.getByTestId(bridgeOperatorTestIds.bridgeListPanel),
     manifestHandoff: page.getByTestId(bridgeOperatorTestIds.bridgeManifestHandoff),
     manifestJson: page.getByTestId(bridgeOperatorTestIds.bridgeManifestJson),
@@ -1299,9 +1303,6 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     restartRequired: page.getByTestId(bridgeOperatorTestIds.bridgeRestartRequired),
     route: (sessionId: string) => page.getByTestId(`bridge-route-${sessionId}`),
     saveSecret: (bindingName: string) => page.getByTestId(`save-bridge-secret-${bindingName}`),
-    scopeAll: page.getByTestId(bridgeOperatorTestIds.bridgeScopeAll),
-    scopeGlobal: page.getByTestId(bridgeOperatorTestIds.bridgeScopeGlobal),
-    scopeWorkspace: page.getByTestId(bridgeOperatorTestIds.bridgeScopeWorkspace),
     searchInput: page.getByTestId(bridgeOperatorTestIds.bridgeSearchInput),
     secretBinding: (bindingName: string) =>
       page.getByTestId(`bridge-secret-binding-${bindingName}`),

@@ -12,9 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	"github.com/compozy/agh/internal/transcript"
@@ -114,8 +117,9 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 
 		waitForRuntimeCondition(t, "builders say delivery", 10*time.Second, func() bool {
 			return channelHasMessageID(ctx, harness, "builders", "msg_say_01") &&
-				sessionTranscriptHasNeedle(ctx, harness, patchSession.ID, attributeNeedle("id", "msg_say_01"))
+				sessionTranscriptHasNeedle(ctx, harness, patchSession.ID, "msg_say_01")
 		})
+		waitForSettledNetworkWakeCount(t, ctx, harness, "builders", 1)
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
 			"--session",
@@ -145,15 +149,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		})
 
 		waitForRuntimeCondition(t, "direct delivery", 10*time.Second, func() bool {
-			audit, err := harness.NetworkAuditSnapshot()
-			if err != nil {
-				return false
-			}
-			return validateNetworkAuditEntry(audit, networkAuditExpectation{
-				MessageID: "msg_direct_01",
-				Direction: "delivered",
-				Kind:      "say",
-			}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_direct_01"))
+			return sessionInboxHasMessageID(ctx, harness, opsSession.ID, "msg_direct_01") &&
+				sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, "msg_direct_01")
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
@@ -184,15 +181,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		})
 
 		waitForRuntimeCondition(t, "receipt delivery", 10*time.Second, func() bool {
-			audit, err := harness.NetworkAuditSnapshot()
-			if err != nil {
-				return false
-			}
-			return validateNetworkAuditEntry(audit, networkAuditExpectation{
-				MessageID: "msg_receipt_01",
-				Direction: "delivered",
-				Kind:      "receipt",
-			}) == nil && sessionTranscriptHasNeedle(ctx, harness, patchSession.ID, attributeNeedle("id", "msg_receipt_01"))
+			return sessionInboxHasMessageID(ctx, harness, patchSession.ID, "msg_receipt_01")
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
@@ -223,15 +212,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		})
 
 		waitForRuntimeCondition(t, "trace delivery", 10*time.Second, func() bool {
-			audit, err := harness.NetworkAuditSnapshot()
-			if err != nil {
-				return false
-			}
-			return validateNetworkAuditEntry(audit, networkAuditExpectation{
-				MessageID: "msg_trace_02",
-				Direction: "delivered",
-				Kind:      "trace",
-			}) == nil && sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_trace_02"))
+			return sessionInboxHasMessageID(ctx, harness, opsSession.ID, "msg_trace_02")
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
@@ -257,22 +238,9 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 			`{"text":"Summary: patch prepared and migration assertions now pass locally.","intent":"summarize-back","artifacts":[]}`,
 		})
 
-		summarySurface := "thread"
-		summaryThreadID := buildersThreadID
 		waitForRuntimeCondition(t, "summary back to public thread", 10*time.Second, func() bool {
-			audit, err := harness.NetworkAuditSnapshot()
-			if err != nil {
-				return false
-			}
-			return validateNetworkAuditEntry(audit, networkAuditExpectation{
-				MessageID: "msg_summary_01",
-				Direction: "delivered",
-				Kind:      "say",
-				Surface:   &summarySurface,
-				ThreadID:  &summaryThreadID,
-			}) == nil &&
-				channelHasMessageID(ctx, harness, "builders", "msg_summary_01") &&
-				sessionTranscriptHasNeedle(ctx, harness, opsSession.ID, attributeNeedle("id", "msg_summary_01"))
+			return channelHasMessageID(ctx, harness, "builders", "msg_summary_01") &&
+				sessionInboxHasMessageID(ctx, harness, opsSession.ID, "msg_summary_01")
 		})
 
 		postTerminalDirectArgs := []string{
@@ -316,8 +284,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}
 
 		status := mustHTTPNetworkStatus(t, ctx, harness)
-		if !status.Enabled || status.Status != "running" {
-			t.Fatalf("HTTP network status = %#v, want enabled running", status)
+		if !status.Enabled || status.Status != "active" {
+			t.Fatalf("HTTP network status = %#v, want enabled active", status)
 		}
 		if status.LocalPeers != 2 {
 			t.Fatalf("HTTP network local_peers = %d, want %d", status.LocalPeers, 2)
@@ -372,8 +340,24 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 			t.Fatalf("HTTP builders thread = %#v, want summary with >= 2 messages", thread)
 		}
 		threadMessages := mustHTTPNetworkThreadMessages(t, ctx, harness, "builders", buildersThreadID)
-		requireConversationMessage(t, threadMessages, "msg_say_01", "thread", buildersThreadID, "")
-		requireConversationMessage(t, threadMessages, "msg_summary_01", "thread", buildersThreadID, "")
+		sayMessage := requireConversationMessage(t, threadMessages, "msg_say_01", "thread", buildersThreadID, "")
+		requireConversationMessageCorrelation(t, sayMessage, networkConversationMessageExpectation{
+			WorkspaceID: harness.WorkspaceID, Channel: "builders", Kind: "say", Direction: "sent",
+			PeerFrom: opsSession.ID, TraceID: "trace_ops_patch_42",
+		})
+		summaryMessage := requireConversationMessage(
+			t,
+			threadMessages,
+			"msg_summary_01",
+			"thread",
+			buildersThreadID,
+			"",
+		)
+		requireConversationMessageCorrelation(t, summaryMessage, networkConversationMessageExpectation{
+			WorkspaceID: harness.WorkspaceID, Channel: "builders", Kind: "say", Direction: "sent",
+			PeerFrom: patchSession.ID, ReplyTo: "msg_trace_02", TraceID: "trace_ops_patch_42",
+			CausationID: "msg_trace_02",
+		})
 
 		directs := mustHTTPNetworkDirectRooms(t, ctx, harness, "builders")
 		requireDirectRoomSummary(t, directs, patchDirectID)
@@ -382,8 +366,31 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 			t.Fatalf("HTTP builders direct = %#v, want direct room with >= 3 messages", direct)
 		}
 		directMessages := mustHTTPNetworkDirectRoomMessages(t, ctx, harness, "builders", patchDirectID)
-		requireConversationMessage(t, directMessages, "msg_direct_01", "direct", "", patchDirectID)
-		requireConversationMessage(t, directMessages, "msg_trace_02", "direct", "", patchDirectID)
+		directMessage := requireConversationMessage(t, directMessages, "msg_direct_01", "direct", "", patchDirectID)
+		requireConversationMessageCorrelation(t, directMessage, networkConversationMessageExpectation{
+			WorkspaceID: harness.WorkspaceID, Channel: "builders", Kind: "say", Direction: "sent",
+			PeerFrom: patchSession.ID, PeerTo: opsSession.ID, WorkID: patchWorkID, ReplyTo: "msg_say_01",
+			TraceID: "trace_ops_patch_42", CausationID: "msg_say_01",
+		})
+		receiptMessage := requireConversationMessage(
+			t,
+			directMessages,
+			"msg_receipt_01",
+			"direct",
+			"",
+			patchDirectID,
+		)
+		requireConversationMessageCorrelation(t, receiptMessage, networkConversationMessageExpectation{
+			WorkspaceID: harness.WorkspaceID, Channel: "builders", Kind: "receipt", Direction: "sent",
+			PeerFrom: opsSession.ID, PeerTo: patchSession.ID, WorkID: patchWorkID, ReplyTo: "msg_direct_01",
+			TraceID: "trace_ops_patch_42", CausationID: "msg_direct_01",
+		})
+		traceMessage := requireConversationMessage(t, directMessages, "msg_trace_02", "direct", "", patchDirectID)
+		requireConversationMessageCorrelation(t, traceMessage, networkConversationMessageExpectation{
+			WorkspaceID: harness.WorkspaceID, Channel: "builders", Kind: "trace", Direction: "sent",
+			PeerFrom: patchSession.ID, PeerTo: opsSession.ID, WorkID: patchWorkID, ReplyTo: "msg_receipt_01",
+			TraceID: "trace_ops_patch_42", CausationID: "msg_receipt_01",
+		})
 
 		work := mustHTTPNetworkWork(t, ctx, harness, patchWorkID)
 		if work.WorkID != patchWorkID || work.Surface != "direct" || work.DirectID != patchDirectID {
@@ -391,65 +398,87 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}
 
 		opsTranscript := mustSessionTranscript(t, ctx, harness, opsSession.ID)
-		patchTranscript := mustSessionTranscript(t, ctx, harness, patchSession.ID)
 		opsMessages := sessionTranscriptMessages(opsTranscript)
-		patchMessages := sessionTranscriptMessages(patchTranscript)
 		audit := mustNetworkAuditSnapshot(t, harness)
-
 		if err := validateNetworkCorrelationSurfaces(opsMessages, audit, networkCorrelationExpectation{
-			MessageID:       "msg_direct_01",
-			Kind:            "say",
-			Surface:         "direct",
-			DirectID:        patchDirectID,
-			WorkID:          patchWorkID,
-			ReplyTo:         "msg_say_01",
-			TraceID:         "trace_ops_patch_42",
-			CausationID:     "msg_say_01",
-			Trust:           "untrusted",
+			MessageID: "msg_direct_01", Kind: "say", Surface: "direct",
+			DirectID: patchDirectID, WorkID: patchWorkID, ReplyTo: "msg_say_01",
+			TraceID: "trace_ops_patch_42", CausationID: "msg_say_01", Trust: "untrusted",
+			TranscriptFrom: patchSession.ID,
+			PeerFrom:       auditFieldValue(patchPeerID), PeerTo: auditFieldValue(opsPeerID),
 			AuditDirections: []string{"delivered"},
 		}); err != nil {
 			t.Fatalf("validateNetworkCorrelationSurfaces(direct) error = %v", err)
 		}
-		if err := validateNetworkCorrelationSurfaces(patchMessages, audit, networkCorrelationExpectation{
-			MessageID:       "msg_receipt_01",
-			Kind:            "receipt",
-			Surface:         "direct",
-			DirectID:        patchDirectID,
-			WorkID:          patchWorkID,
-			ReplyTo:         "msg_direct_01",
-			TraceID:         "trace_ops_patch_42",
-			CausationID:     "msg_direct_01",
-			Trust:           "untrusted",
-			AuditDirections: []string{"delivered"},
-		}); err != nil {
-			t.Fatalf("validateNetworkCorrelationSurfaces(receipt) error = %v", err)
+		requireNetworkPromptCorrelation(t, regOps.DiagnosticsPath, networkPromptCorrelationExpectation{
+			MessageID: "msg_direct_01", Kind: "say", Channel: "builders", Surface: "direct",
+			DirectID: patchDirectID, From: patchSession.ID, To: opsSession.ID, WorkID: patchWorkID,
+			ReplyTo: "msg_say_01", TraceID: "trace_ops_patch_42", CausationID: "msg_say_01",
+			Trust: "untrusted", DeliveryMode: "direct",
+		})
+
+		auditCases := []struct {
+			name        string
+			expectation networkAuditExpectation
+		}{
+			{
+				name: "receipt",
+				expectation: networkAuditExpectation{
+					MessageID: "msg_receipt_01", Direction: "delivered", Kind: "receipt",
+					Surface: auditFieldValue("direct"), DirectID: auditFieldValue(patchDirectID),
+					WorkID:   auditFieldValue(patchWorkID),
+					PeerFrom: auditFieldValue(opsPeerID), PeerTo: auditFieldValue(patchPeerID),
+				},
+			},
+			{
+				name: "trace",
+				expectation: networkAuditExpectation{
+					MessageID: "msg_trace_02", Direction: "delivered", Kind: "trace",
+					Surface: auditFieldValue("direct"), DirectID: auditFieldValue(patchDirectID),
+					WorkID:   auditFieldValue(patchWorkID),
+					PeerFrom: auditFieldValue(patchPeerID), PeerTo: auditFieldValue(opsPeerID),
+				},
+			},
+			{
+				name: "summary",
+				expectation: networkAuditExpectation{
+					MessageID: "msg_summary_01", Direction: "delivered", Kind: "say",
+					Surface: auditFieldValue("thread"), ThreadID: auditFieldValue(buildersThreadID),
+					DirectID: emptyAuditField(), WorkID: emptyAuditField(),
+					PeerFrom: auditFieldValue(patchPeerID), PeerTo: emptyAuditField(),
+				},
+			},
 		}
-		if err := validateNetworkCorrelationSurfaces(opsMessages, audit, networkCorrelationExpectation{
-			MessageID:       "msg_trace_02",
-			Kind:            "trace",
-			Surface:         "direct",
-			DirectID:        patchDirectID,
-			WorkID:          patchWorkID,
-			ReplyTo:         "msg_receipt_01",
-			TraceID:         "trace_ops_patch_42",
-			CausationID:     "msg_receipt_01",
-			Trust:           "untrusted",
-			AuditDirections: []string{"delivered"},
-		}); err != nil {
-			t.Fatalf("validateNetworkCorrelationSurfaces(trace) error = %v", err)
+		for _, test := range auditCases {
+			if err := validateNetworkAuditEntry(audit, test.expectation); err != nil {
+				t.Fatalf("validateNetworkAuditEntry(%s) error = %v", test.name, err)
+			}
 		}
-		if err := validateNetworkCorrelationSurfaces(opsMessages, audit, networkCorrelationExpectation{
-			MessageID:       "msg_summary_01",
-			Kind:            "say",
-			Surface:         "thread",
-			ThreadID:        buildersThreadID,
-			ReplyTo:         "msg_trace_02",
-			TraceID:         "trace_ops_patch_42",
-			CausationID:     "msg_trace_02",
-			Trust:           "untrusted",
-			AuditDirections: []string{"delivered"},
-		}); err != nil {
-			t.Fatalf("validateNetworkCorrelationSurfaces(summary) error = %v", err)
+
+		usageDB, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(network usage) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := usageDB.Close(context.Background()); closeErr != nil {
+				t.Errorf("Close(network usage DB cleanup) error = %v", closeErr)
+			}
+		})
+		var usage store.NetworkUsageReport
+		waitForRuntimeCondition(t, "settled collaboration wake usage", 10*time.Second, func() bool {
+			var queryErr error
+			usage, queryErr = usageDB.GetNetworkUsage(ctx, store.NetworkUsageQuery{
+				WorkspaceID: harness.WorkspaceID,
+				Channel:     "builders",
+			})
+			return queryErr == nil && len(usage.Details) == 2 && usage.Total.ActualWakeCount == 2
+		})
+		if usage.Total.InputTokens != 32 || usage.Total.OutputTokens != 10 ||
+			usage.Total.ReservedWakeCount != 0 || usage.Total.UnavailableWakeCount != 0 {
+			t.Fatalf("collaboration wake usage = %#v, want two actual wakes with 32/10 tokens", usage)
+		}
+		if err := usageDB.Close(context.Background()); err != nil {
+			t.Fatalf("Close(network usage DB) error = %v", err)
 		}
 		assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
 	})
@@ -563,13 +592,9 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 
 		waitForRuntimeCondition(t, "capability say delivery", 10*time.Second, func() bool {
 			return channelHasMessageID(ctx, harness, "capabilities", "msg_capability_say_01") &&
-				sessionTranscriptHasNeedle(
-					ctx,
-					harness,
-					curatorSession.ID,
-					attributeNeedle("id", "msg_capability_say_01"),
-				)
+				sessionTranscriptHasNeedle(ctx, harness, curatorSession.ID, "msg_capability_say_01")
 		})
+		waitForSettledNetworkWakeCount(t, ctx, harness, "capabilities", 1)
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
 			"--session", releaseSession.ID,
@@ -580,16 +605,8 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 			"--body", `{"type":"request","query":"capability-curator"}`,
 		})
 
-		waitForRuntimeCondition(t, "whois response delivery", 10*time.Second, func() bool {
-			audit, err := harness.NetworkAuditSnapshot()
-			if err != nil {
-				return false
-			}
-			return validateNetworkAuditEntry(audit, networkAuditExpectation{
-				MessageID: "msg_whois_01",
-				Direction: "sent",
-				Kind:      "whois",
-			}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("reply-to", "msg_whois_01"))
+		waitForRuntimeCondition(t, "whois durable delivery", 10*time.Second, func() bool {
+			return sessionInboxHasMessageID(ctx, harness, curatorSession.ID, "msg_whois_01")
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
@@ -606,15 +623,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		})
 
 		waitForRuntimeCondition(t, "capability delivery", 10*time.Second, func() bool {
-			audit, err := harness.NetworkAuditSnapshot()
-			if err != nil {
-				return false
-			}
-			return validateNetworkAuditEntry(audit, networkAuditExpectation{
-				MessageID: "msg_capability_01",
-				Direction: "delivered",
-				Kind:      "capability",
-			}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_capability_01"))
+			return sessionInboxHasMessageID(ctx, harness, releaseSession.ID, "msg_capability_01")
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
@@ -645,15 +654,8 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		})
 
 		waitForRuntimeCondition(t, "capability direct delivery", 10*time.Second, func() bool {
-			audit, err := harness.NetworkAuditSnapshot()
-			if err != nil {
-				return false
-			}
-			return validateNetworkAuditEntry(audit, networkAuditExpectation{
-				MessageID: "msg_direct_20",
-				Direction: "delivered",
-				Kind:      "say",
-			}) == nil && sessionTranscriptHasNeedle(ctx, harness, curatorSession.ID, attributeNeedle("id", "msg_direct_20"))
+			return sessionInboxHasMessageID(ctx, harness, curatorSession.ID, "msg_direct_20") &&
+				sessionTranscriptHasNeedle(ctx, harness, curatorSession.ID, "msg_direct_20")
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
@@ -684,20 +686,12 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		})
 
 		waitForRuntimeCondition(t, "capability trace delivery", 10*time.Second, func() bool {
-			audit, err := harness.NetworkAuditSnapshot()
-			if err != nil {
-				return false
-			}
-			return validateNetworkAuditEntry(audit, networkAuditExpectation{
-				MessageID: "msg_trace_21",
-				Direction: "delivered",
-				Kind:      "trace",
-			}) == nil && sessionTranscriptHasNeedle(ctx, harness, releaseSession.ID, attributeNeedle("id", "msg_trace_21"))
+			return sessionInboxHasMessageID(ctx, harness, releaseSession.ID, "msg_trace_21")
 		})
 
 		status := mustHTTPNetworkStatus(t, ctx, harness)
-		if !status.Enabled || status.Status != "running" {
-			t.Fatalf("HTTP network status = %#v, want enabled running", status)
+		if !status.Enabled || status.Status != "active" {
+			t.Fatalf("HTTP network status = %#v, want enabled active", status)
 		}
 		if status.LocalPeers != 2 {
 			t.Fatalf("HTTP network local_peers = %d, want %d", status.LocalPeers, 2)
@@ -738,56 +732,188 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 			"msg_capability_say_01",
 			"Does anyone have a reusable migration test repair capability?",
 		)
+		threadMessages := mustHTTPNetworkThreadMessages(t, ctx, harness, "capabilities", capabilitiesThreadID)
+		requireConversationMessage(t, threadMessages, "msg_capability_say_01", "thread", capabilitiesThreadID, "")
+		requireConversationMessage(t, threadMessages, "msg_capability_01", "thread", capabilitiesThreadID, "")
+		directMessages := mustHTTPNetworkDirectRoomMessages(t, ctx, harness, "capabilities", capabilityDirectID)
+		requireConversationMessage(t, directMessages, "msg_direct_20", "direct", "", capabilityDirectID)
+		requireConversationMessage(t, directMessages, "msg_trace_21", "direct", "", capabilityDirectID)
 
 		releaseTranscript := mustSessionTranscript(t, ctx, harness, releaseSession.ID)
 		curatorTranscript := mustSessionTranscript(t, ctx, harness, curatorSession.ID)
 		releaseMessages := sessionTranscriptMessages(releaseTranscript)
 		curatorMessages := sessionTranscriptMessages(curatorTranscript)
-		audit := mustNetworkAuditSnapshot(t, harness)
 
 		releaseContent := joinTranscriptContent(releaseMessages)
 		for _, needle := range []string{
-			attributeNeedle("kind", "whois"),
-			attributeNeedle("reply-to", "msg_whois_01"),
-			attributeNeedle("id", "msg_capability_01"),
-			attributeNeedle("kind", "capability"),
-			attributeNeedle("id", "msg_trace_21"),
-			attributeNeedle("trace-id", "trace_capability_apply_7"),
+			"msg_whois_01",
+			"msg_capability_01",
+			"msg_trace_21",
 		} {
-			if !strings.Contains(releaseContent, needle) {
-				t.Fatalf("release transcript missing %q in %s", needle, releaseContent)
+			if strings.Contains(releaseContent, needle) {
+				t.Fatalf("release transcript unexpectedly contains control message %q in %s", needle, releaseContent)
 			}
 		}
-		if err := validateNetworkCorrelationSurfaces(curatorMessages, audit, networkCorrelationExpectation{
-			MessageID:       "msg_direct_20",
-			Kind:            "say",
-			Surface:         "direct",
-			DirectID:        capabilityDirectID,
-			WorkID:          capabilityDirectWorkID,
-			ReplyTo:         "msg_capability_01",
-			TraceID:         "trace_capability_apply_7",
-			CausationID:     "msg_capability_01",
-			Trust:           "untrusted",
-			AuditDirections: []string{"delivered"},
-		}); err != nil {
-			t.Fatalf("validateNetworkCorrelationSurfaces(capability direct) error = %v", err)
-		}
-		if err := validateNetworkCorrelationSurfaces(releaseMessages, audit, networkCorrelationExpectation{
-			MessageID:       "msg_trace_21",
-			Kind:            "trace",
-			Surface:         "direct",
-			DirectID:        capabilityDirectID,
-			WorkID:          capabilityDirectWorkID,
-			ReplyTo:         "msg_direct_20",
-			TraceID:         "trace_capability_apply_7",
-			CausationID:     "msg_direct_20",
-			Trust:           "untrusted",
-			AuditDirections: []string{"delivered"},
-		}); err != nil {
-			t.Fatalf("validateNetworkCorrelationSurfaces(capability trace) error = %v", err)
+		curatorContent := joinTranscriptContent(curatorMessages)
+		for _, messageID := range []string{"msg_capability_say_01", "msg_direct_20"} {
+			if !strings.Contains(curatorContent, messageID) {
+				t.Fatalf("curator transcript missing eligible say %q in %s", messageID, curatorContent)
+			}
 		}
 
 		assertCLINetworkParity(t, ctx, harness, status, peers, channel, channelDetail)
+	})
+}
+
+func TestDaemonE2ENetworkWakeCancellationWithMockAgent(t *testing.T) {
+	t.Run("Should propagate cancellation and never readmit the replayed envelope", func(t *testing.T) {
+		acpmock.RequireDriver(t)
+
+		fixturePath := mockFixturePath(t, "network_cancel_fixture.json")
+		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+			EnableNetwork: true,
+			MockAgents: []e2etest.MockAgentSpec{
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "cancel-sender",
+					AgentName:    "mock-cancel-sender",
+				},
+				{
+					FixturePath:  fixturePath,
+					FixtureAgent: "cancel-worker",
+					AgentName:    "mock-cancel-worker",
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		channelDetail := mustCreateNetworkChannel(
+			t,
+			ctx,
+			harness,
+			"cancel-wakes",
+			"mock-cancel-sender",
+			"mock-cancel-worker",
+		)
+		senderSession := requireChannelSession(t, channelDetail, "mock-cancel-sender")
+		workerSession := requireChannelSession(t, channelDetail, "mock-cancel-worker")
+		workerRegistration, ok := harness.MockAgentRegistration("mock-cancel-worker")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-cancel-worker) = missing, want present")
+		}
+
+		peers := waitForChannelPeerCount(t, ctx, harness, "cancel-wakes", 2)
+		workerPeerID := requirePeerIDForSession(t, peers, workerSession.ID)
+		directID := mustHTTPResolveNetworkDirectRoom(
+			t,
+			ctx,
+			harness,
+			"cancel-wakes",
+			senderSession.ID,
+			workerPeerID,
+		)
+		sendArgs := []string{
+			"--session",
+			senderSession.ID,
+			"--channel",
+			"cancel-wakes",
+			"--kind",
+			"say",
+			"--surface",
+			"direct",
+			"--direct",
+			directID,
+			"--to",
+			workerPeerID,
+			"--id",
+			"msg_cancel_wake_01",
+			"--body",
+			`{"text":"Block until Network availability cancels this wake.","intent":"cancel-test","artifacts":[]}`,
+		}
+		mustSendNetworkCLI(t, ctx, harness, sendArgs)
+
+		waitForRuntimeCondition(t, "cancelable provider prompt", 10*time.Second, func() bool {
+			return sessionTranscriptHasNeedle(ctx, harness, workerSession.ID, "cancel ready")
+		})
+		mustSetNetworkEnabled(t, ctx, harness, false)
+
+		usageDB, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(canceled network wake) error = %v", err)
+		}
+		defer func() {
+			if closeErr := usageDB.Close(context.Background()); closeErr != nil {
+				t.Errorf("Close(canceled network wake DB) error = %v", closeErr)
+			}
+		}()
+		var usage store.NetworkUsageReport
+		waitForRuntimeCondition(t, "canceled network wake settlement", 10*time.Second, func() bool {
+			var queryErr error
+			usage, queryErr = usageDB.GetNetworkUsage(ctx, store.NetworkUsageQuery{
+				WorkspaceID: harness.WorkspaceID,
+				Channel:     "cancel-wakes",
+				Owner: &participation.OwnerRef{
+					WorkspaceID: harness.WorkspaceID,
+					Kind:        participation.OwnerKindSession,
+					ID:          workerSession.ID,
+				},
+			})
+			return queryErr == nil && len(usage.Details) == 1 &&
+				usage.Details[0].State == store.NetworkWakeStateCanceled &&
+				usage.Total.ReservedWakeCount == 0
+		})
+		if usage.Details[0].UsageState != store.NetworkWakeUsageUnavailable ||
+			usage.Details[0].ChargedWallTime <= 0 {
+			t.Fatalf("canceled wake usage = %#v, want charged usage_unavailable", usage.Details[0])
+		}
+
+		waitForRuntimeCondition(t, "acpmock cancellation diagnostic", 10*time.Second, func() bool {
+			records, readErr := acpmock.ReadDiagnostics(workerRegistration.DiagnosticsPath)
+			if readErr != nil {
+				return false
+			}
+			for _, record := range acpmock.PromptDiagnostics(records) {
+				if record.TurnName != "block-network-wake-until-cancel" {
+					continue
+				}
+				for _, step := range record.Steps {
+					if strings.Contains(step.Error, context.Canceled.Error()) {
+						return true
+					}
+				}
+			}
+			return false
+		})
+
+		mustSetNetworkEnabled(t, ctx, harness, true)
+		replayed := mustSendNetworkCLI(t, ctx, harness, sendArgs)
+		if replayed.ID != "msg_cancel_wake_01" {
+			t.Fatalf("replayed message_id = %q, want msg_cancel_wake_01", replayed.ID)
+		}
+		replayedUsage, err := usageDB.GetNetworkUsage(ctx, store.NetworkUsageQuery{
+			WorkspaceID: harness.WorkspaceID,
+			Channel:     "cancel-wakes",
+			Owner: &participation.OwnerRef{
+				WorkspaceID: harness.WorkspaceID,
+				Kind:        participation.OwnerKindSession,
+				ID:          workerSession.ID,
+			},
+		})
+		if err != nil {
+			t.Fatalf("GetNetworkUsage(replayed canceled wake) error = %v", err)
+		}
+		if replayedUsage.Total.WakeCount != 1 || replayedUsage.Total.ReservedWakeCount != 0 {
+			t.Fatalf("replayed canceled wake usage = %#v, want exactly one terminal wake", replayedUsage)
+		}
+		transcript := mustSessionTranscript(t, ctx, harness, workerSession.ID)
+		if got := strings.Count(
+			joinTranscriptContent(sessionTranscriptMessages(transcript)),
+			"msg_cancel_wake_01",
+		); got != 1 {
+			t.Fatalf("canceled wake transcript message count = %d, want 1", got)
+		}
 	})
 }
 
@@ -942,7 +1068,7 @@ func requireConversationMessage(
 	surface string,
 	threadID string,
 	directID string,
-) {
+) aghcontract.NetworkConversationMessagePayload {
 	t.Helper()
 
 	for _, message := range messages {
@@ -958,9 +1084,124 @@ func requireConversationMessage(
 		if strings.TrimSpace(directID) != "" && strings.TrimSpace(message.DirectID) != strings.TrimSpace(directID) {
 			t.Fatalf("message = %#v, want direct_id %q", message, directID)
 		}
-		return
+		return message
 	}
 	t.Fatalf("conversation messages = %#v, want message_id %q", messages, messageID)
+	return aghcontract.NetworkConversationMessagePayload{}
+}
+
+type networkConversationMessageExpectation struct {
+	WorkspaceID string
+	Channel     string
+	Kind        string
+	Direction   string
+	PeerFrom    string
+	PeerTo      string
+	WorkID      string
+	ReplyTo     string
+	TraceID     string
+	CausationID string
+}
+
+type networkPromptCorrelationExpectation struct {
+	MessageID    string
+	Kind         string
+	Channel      string
+	Surface      string
+	ThreadID     string
+	DirectID     string
+	From         string
+	To           string
+	WorkID       string
+	ReplyTo      string
+	TraceID      string
+	CausationID  string
+	Trust        string
+	DeliveryMode string
+}
+
+func requireConversationMessageCorrelation(
+	t testing.TB,
+	message aghcontract.NetworkConversationMessagePayload,
+	expectation networkConversationMessageExpectation,
+) {
+	t.Helper()
+
+	fields := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{name: "workspace_id", got: message.WorkspaceID, want: expectation.WorkspaceID},
+		{name: "channel", got: message.Channel, want: expectation.Channel},
+		{name: "kind", got: message.Kind, want: expectation.Kind},
+		{name: "direction", got: message.Direction, want: expectation.Direction},
+		{name: "peer_from", got: message.PeerFrom, want: expectation.PeerFrom},
+		{name: "peer_to", got: message.PeerTo, want: expectation.PeerTo},
+		{name: "work_id", got: message.WorkID, want: expectation.WorkID},
+		{name: "reply_to", got: message.ReplyTo, want: expectation.ReplyTo},
+		{name: "trace_id", got: message.TraceID, want: expectation.TraceID},
+		{name: "causation_id", got: message.CausationID, want: expectation.CausationID},
+	}
+	for _, field := range fields {
+		if strings.TrimSpace(field.got) != strings.TrimSpace(field.want) {
+			t.Fatalf("message %q %s = %q, want %q", message.MessageID, field.name, field.got, field.want)
+		}
+	}
+}
+
+func requireNetworkPromptCorrelation(
+	t testing.TB,
+	diagnosticsPath string,
+	expectation networkPromptCorrelationExpectation,
+) {
+	t.Helper()
+
+	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(%q) error = %v", diagnosticsPath, err)
+	}
+	for _, record := range acpmock.PromptDiagnostics(records) {
+		meta := record.PromptMeta.Normalize()
+		if meta.Network == nil || strings.TrimSpace(meta.Network.MessageID) != strings.TrimSpace(expectation.MessageID) {
+			continue
+		}
+		if meta.TurnSource != acp.PromptTurnSourceNetwork {
+			t.Fatalf("network prompt %q turn_source = %q, want %q", expectation.MessageID, meta.TurnSource, acp.PromptTurnSourceNetwork)
+		}
+		fields := []struct {
+			name string
+			got  string
+			want string
+		}{
+			{name: "kind", got: meta.Network.Kind, want: expectation.Kind},
+			{name: "channel", got: meta.Network.Channel, want: expectation.Channel},
+			{name: "surface", got: meta.Network.Surface, want: expectation.Surface},
+			{name: "thread_id", got: meta.Network.ThreadID, want: expectation.ThreadID},
+			{name: "direct_id", got: meta.Network.DirectID, want: expectation.DirectID},
+			{name: "from", got: meta.Network.From, want: expectation.From},
+			{name: "to", got: meta.Network.To, want: expectation.To},
+			{name: "work_id", got: meta.Network.WorkID, want: expectation.WorkID},
+			{name: "reply_to", got: meta.Network.ReplyTo, want: expectation.ReplyTo},
+			{name: "trace_id", got: meta.Network.TraceID, want: expectation.TraceID},
+			{name: "causation_id", got: meta.Network.CausationID, want: expectation.CausationID},
+			{name: "trust", got: meta.Network.Trust, want: expectation.Trust},
+			{name: "delivery_mode", got: meta.Network.DeliveryMode, want: expectation.DeliveryMode},
+		}
+		for _, field := range fields {
+			if strings.TrimSpace(field.got) != strings.TrimSpace(field.want) {
+				t.Fatalf(
+					"network prompt %q %s = %q, want %q",
+					expectation.MessageID,
+					field.name,
+					field.got,
+					field.want,
+				)
+			}
+		}
+		return
+	}
+	t.Fatalf("mock diagnostics missing network prompt for message_id %q", expectation.MessageID)
 }
 
 func mustSendNetworkCLI(
@@ -980,6 +1221,23 @@ func mustSendNetworkCLI(
 		t.Fatalf("CLI %v error = %v", fullArgs, err)
 	}
 	return payload
+}
+
+func mustSetNetworkEnabled(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	enabled bool,
+) {
+	t.Helper()
+	value := "false"
+	if enabled {
+		value = "true"
+	}
+	var result map[string]any
+	if err := harness.CLI.RunJSON(ctx, &result, "config", "set", "network.enabled", value, "-o", "json"); err != nil {
+		t.Fatalf("CLI config set network.enabled=%s error = %v", value, err)
+	}
 }
 
 func mustCapabilityBodyString(t testing.TB, def aghconfig.CapabilityDef) string {
@@ -1161,9 +1419,6 @@ func networkPeerShouldSortBefore(
 }
 
 func networkPeerEffectiveRecency(peer aghcontract.NetworkPeerPayload) *time.Time {
-	if peer.LastSeen != nil {
-		return peer.LastSeen
-	}
 	return peer.JoinedAt
 }
 
@@ -1581,6 +1836,51 @@ func sessionTranscriptHasNeedle(
 		return false
 	}
 	return strings.Contains(joinTranscriptContent(sessionTranscriptMessages(response)), needle)
+}
+
+func sessionInboxHasMessageID(
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	messageID string,
+) bool {
+	messages, err := harness.NetworkInbox(ctx, sessionID)
+	if err != nil {
+		return false
+	}
+	target := strings.TrimSpace(messageID)
+	for _, message := range messages {
+		if strings.TrimSpace(message.ID) == target {
+			return true
+		}
+	}
+	return false
+}
+
+func waitForSettledNetworkWakeCount(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	channel string,
+	want int,
+) {
+	t.Helper()
+	usageDB, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(network wake settlement) error = %v", err)
+	}
+	defer func() {
+		if closeErr := usageDB.Close(context.Background()); closeErr != nil {
+			t.Errorf("Close(network wake settlement DB) error = %v", closeErr)
+		}
+	}()
+	waitForRuntimeCondition(t, "settled network wake count", 10*time.Second, func() bool {
+		usage, queryErr := usageDB.GetNetworkUsage(ctx, store.NetworkUsageQuery{
+			WorkspaceID: harness.WorkspaceID,
+			Channel:     channel,
+		})
+		return queryErr == nil && usage.Total.WakeCount == want && usage.Total.ReservedWakeCount == 0
+	})
 }
 
 func mustNetworkAuditSnapshot(

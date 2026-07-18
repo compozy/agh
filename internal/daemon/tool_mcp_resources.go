@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
-	"sync"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
@@ -25,6 +24,7 @@ const (
 
 type toolMCPPublisher interface {
 	Sync(context.Context) error
+	SyncConfig(context.Context, *aghconfig.Config) error
 }
 
 type toolMCPPublisherFunc func(context.Context) error
@@ -36,166 +36,8 @@ func (f toolMCPPublisherFunc) Sync(ctx context.Context) error {
 	return f(ctx)
 }
 
-type resourceCatalog[T any] struct {
-	mu        sync.RWMutex
-	revision  int64
-	records   []resources.Record[T]
-	cloneSpec func(T) T
-}
-
-func newResourceCatalog[T any](cloneSpec func(T) T) *resourceCatalog[T] {
-	return &resourceCatalog[T]{cloneSpec: cloneSpec}
-}
-
-func (c *resourceCatalog[T]) Replace(revision int64, records []resources.Record[T]) {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.revision = revision
-	c.records = cloneResourceRecords(records, c.cloneSpec)
-}
-
-func (c *resourceCatalog[T]) Update(update func([]resources.Record[T]) []resources.Record[T]) {
-	if c == nil || update == nil {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	records := cloneResourceRecords(c.records, c.cloneSpec)
-	c.records = cloneResourceRecords(update(records), c.cloneSpec)
-	c.revision++
-}
-
-func (c *resourceCatalog[T]) Snapshot() []resources.Record[T] {
-	if c == nil {
-		return nil
-	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return cloneResourceRecords(c.records, c.cloneSpec)
-}
-
-func (c *resourceCatalog[T]) cloneRecord(record resources.Record[T]) resources.Record[T] {
-	return cloneResourceRecord(record, c.cloneSpec)
-}
-
-func (c *resourceCatalog[T]) Revision() int64 {
-	if c == nil {
-		return 0
-	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.revision
-}
-
-type resourceCatalogProjectionPlan[T any] struct {
-	kind       resources.ResourceKind
-	revision   int64
-	operations int
-	records    []resources.Record[T]
-}
-
-func (p *resourceCatalogProjectionPlan[T]) Kind() resources.ResourceKind {
-	if p == nil {
-		return ""
-	}
-	return p.kind
-}
-
-func (p *resourceCatalogProjectionPlan[T]) Revision() int64 {
-	if p == nil {
-		return 0
-	}
-	return p.revision
-}
-
-func (p *resourceCatalogProjectionPlan[T]) OperationCount() int {
-	if p == nil {
-		return 0
-	}
-	return p.operations
-}
-
-type resourceCatalogProjector[T any] struct {
-	kind      resources.ResourceKind
-	catalog   *resourceCatalog[T]
-	cloneSpec func(T) T
-}
-
-func newToolProjector(catalog *resourceCatalog[toolspkg.Tool]) resources.TypedProjector[toolspkg.Tool] {
-	if catalog == nil {
-		return nil
-	}
-	return &resourceCatalogProjector[toolspkg.Tool]{
-		kind:      toolspkg.ToolResourceKind,
-		catalog:   catalog,
-		cloneSpec: cloneToolSpec,
-	}
-}
-
-func newMCPServerProjector(
-	catalog *resourceCatalog[aghconfig.MCPServer],
-) resources.TypedProjector[aghconfig.MCPServer] {
-	if catalog == nil {
-		return nil
-	}
-	return &resourceCatalogProjector[aghconfig.MCPServer]{
-		kind:      aghconfig.MCPServerResourceKind,
-		catalog:   catalog,
-		cloneSpec: cloneDaemonMCPServer,
-	}
-}
-
-func (p *resourceCatalogProjector[T]) Kind() resources.ResourceKind {
-	if p == nil {
-		return ""
-	}
-	return p.kind
-}
-
-func (p *resourceCatalogProjector[T]) DependsOn() []resources.ResourceKind {
-	return nil
-}
-
-func (p *resourceCatalogProjector[T]) Build(
-	_ context.Context,
-	records []resources.Record[T],
-) (resources.ProjectionPlan, error) {
-	if p == nil || p.catalog == nil {
-		return nil, errors.New("daemon: resource catalog projector is required")
-	}
-
-	var revision int64
-	for _, record := range records {
-		if record.Version > revision {
-			revision = record.Version
-		}
-	}
-
-	return &resourceCatalogProjectionPlan[T]{
-		kind:       p.kind,
-		revision:   revision,
-		operations: len(records),
-		records:    cloneResourceRecords(records, p.cloneSpec),
-	}, nil
-}
-
-func (p *resourceCatalogProjector[T]) Apply(ctx context.Context, plan resources.ProjectionPlan) error {
-	if p == nil || p.catalog == nil {
-		return errors.New("daemon: resource catalog projector is required")
-	}
-	if ctx == nil {
-		return errors.New("daemon: resource catalog projector apply context is required")
-	}
-
-	typed, ok := plan.(*resourceCatalogProjectionPlan[T])
-	if !ok {
-		return fmt.Errorf("daemon: resource catalog projector plan has type %T", plan)
-	}
-	p.catalog.Replace(typed.revision, typed.records)
-	return nil
+func (f toolMCPPublisherFunc) SyncConfig(ctx context.Context, _ *aghconfig.Config) error {
+	return f.Sync(ctx)
 }
 
 type toolPublicationInput struct {
@@ -217,6 +59,8 @@ type toolMCPDesiredResources struct {
 
 type toolMCPDeclarationProvider func(context.Context) (toolMCPDesiredResources, error)
 
+type toolMCPConfigDeclarationProvider func(context.Context, *aghconfig.Config) (toolMCPDesiredResources, error)
+
 type toolMCPSourceSyncer struct {
 	raw       resources.RawStore
 	toolStore resources.Store[toolspkg.Tool]
@@ -226,6 +70,7 @@ type toolMCPSourceSyncer struct {
 	actor     resources.MutationActor
 	logger    *slog.Logger
 	trigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	config    toolMCPConfigDeclarationProvider
 	providers []toolMCPDeclarationProvider
 }
 
@@ -238,6 +83,32 @@ func newToolMCPSourceSyncer(
 	actor resources.MutationActor,
 	logger *slog.Logger,
 	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
+	providers ...toolMCPDeclarationProvider,
+) toolMCPPublisher {
+	return newToolMCPSourceSyncerWithConfigProvider(
+		raw,
+		toolStore,
+		toolCodec,
+		mcpStore,
+		mcpCodec,
+		actor,
+		logger,
+		trigger,
+		nil,
+		providers...,
+	)
+}
+
+func newToolMCPSourceSyncerWithConfigProvider(
+	raw resources.RawStore,
+	toolStore resources.Store[toolspkg.Tool],
+	toolCodec resources.KindCodec[toolspkg.Tool],
+	mcpStore resources.Store[aghconfig.MCPServer],
+	mcpCodec resources.KindCodec[aghconfig.MCPServer],
+	actor resources.MutationActor,
+	logger *slog.Logger,
+	trigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error,
+	configProvider toolMCPConfigDeclarationProvider,
 	providers ...toolMCPDeclarationProvider,
 ) toolMCPPublisher {
 	if raw == nil || toolStore == nil || toolCodec == nil || mcpStore == nil || mcpCodec == nil {
@@ -255,6 +126,7 @@ func newToolMCPSourceSyncer(
 		actor:     actor,
 		logger:    logger,
 		trigger:   trigger,
+		config:    configProvider,
 		providers: append([]toolMCPDeclarationProvider(nil), providers...),
 	}
 }
@@ -272,6 +144,14 @@ func toolMCPSyncActor() resources.MutationActor {
 }
 
 func (s *toolMCPSourceSyncer) Sync(ctx context.Context) error {
+	return s.syncConfig(ctx, nil)
+}
+
+func (s *toolMCPSourceSyncer) SyncConfig(ctx context.Context, cfg *aghconfig.Config) error {
+	return s.syncConfig(ctx, cfg)
+}
+
+func (s *toolMCPSourceSyncer) syncConfig(ctx context.Context, cfg *aghconfig.Config) error {
 	if s == nil {
 		return nil
 	}
@@ -279,7 +159,7 @@ func (s *toolMCPSourceSyncer) Sync(ctx context.Context) error {
 		return errors.New("daemon: tool/mcp sync context is required")
 	}
 
-	desired, err := s.desiredResources(ctx)
+	desired, err := s.desiredResources(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -321,7 +201,7 @@ type desiredMCPServerResource struct {
 	encoded []byte
 }
 
-func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context) (struct {
+func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context, cfg *aghconfig.Config) (struct {
 	tools      map[string]*desiredToolResource
 	mcpServers map[string]desiredMCPServerResource
 }, error) {
@@ -333,6 +213,14 @@ func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context) (struct {
 		mcpServers: make(map[string]desiredMCPServerResource),
 	}
 
+	providers := make([]toolMCPDesiredResources, 0, len(s.providers)+1)
+	if s.config != nil {
+		items, err := s.config(ctx, cfg)
+		if err != nil {
+			return desired, err
+		}
+		providers = append(providers, items)
+	}
 	for _, provider := range s.providers {
 		if provider == nil {
 			continue
@@ -341,7 +229,10 @@ func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context) (struct {
 		if err != nil {
 			return desired, err
 		}
+		providers = append(providers, items)
+	}
 
+	for _, items := range providers {
 		for i := range items.tools {
 			item := &items.tools[i]
 			spec, encoded, err := validateAndEncodeTool(ctx, s.toolCodec, item.scope, item.spec)
@@ -508,7 +399,7 @@ func (d *Daemon) newToolMCPPublisher(
 		return nil, fmt.Errorf("daemon: create mcp server store: %w", err)
 	}
 
-	return newToolMCPSourceSyncer(
+	return newToolMCPSourceSyncerWithConfigProvider(
 		state.resourceKernel,
 		toolStore,
 		toolCodec,
@@ -532,14 +423,18 @@ func daemonConfigMCPDeclarationProvider(
 	registry Registry,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
-) toolMCPDeclarationProvider {
-	return func(ctx context.Context) (toolMCPDesiredResources, error) {
+) toolMCPConfigDeclarationProvider {
+	return func(ctx context.Context, override *aghconfig.Config) (toolMCPDesiredResources, error) {
 		desired := toolMCPDesiredResources{}
-		if cfg == nil {
+		active := cfg
+		if override != nil {
+			active = override
+		}
+		if active == nil {
 			return desired, nil
 		}
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
-		for _, server := range cfg.MCPServers {
+		for _, server := range active.MCPServers {
 			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
 				sourceKey: "config/global/" + strings.TrimSpace(server.Name),
 				scope:     globalScope,

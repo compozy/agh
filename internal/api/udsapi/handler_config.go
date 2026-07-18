@@ -8,6 +8,8 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/store"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type handlerConfig struct {
@@ -16,6 +18,8 @@ type handlerConfig struct {
 	tasks              core.TaskService
 	network            core.NetworkService
 	networkStore       core.NetworkStore
+	networkUsage       store.NetworkUsageStore
+	coordination       workspacepkg.CoordinationCommands
 	observer           core.Observer
 	schemaStreams      core.SchemaStreamStatusReader
 	resources          core.ResourceService

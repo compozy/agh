@@ -136,10 +136,8 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 		Port:      2123,
 		StartedAt: now,
 		Network: &NetworkInfo{
-			Enabled:      true,
-			Status:       network.StatusRunning,
-			ListenerHost: "127.0.0.1",
-			ListenerPort: 4222,
+			Enabled: true,
+			Status:  network.StatusActive,
 		},
 	}
 
@@ -167,12 +165,20 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	cfg.Network.Enabled = false
+	registry := &recordingRegistry{path: homePaths.DatabaseFile}
+	ownerSawDisabledAvailability := false
 
 	d := newTestDaemon(t, homePaths, &cfg)
 	d.openRegistry = func(context.Context, string) (Registry, error) {
-		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+		return registry, nil
 	}
 	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		availability, err := registry.GetNetworkAvailability(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("GetNetworkAvailability() before session owner construction error = %v", err)
+		}
+		ownerSawDisabledAvailability = !availability.Enabled &&
+			availability.UpdatedBy == "config.reload.boot"
 		return &fakeSessionManager{}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -194,8 +200,11 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 		}
 	})
 
-	if d.network != nil {
-		t.Fatal("boot() network runtime = non-nil, want nil when disabled")
+	if d.network == nil {
+		t.Fatal("boot() network runtime = nil, want paused manager when disabled")
+	}
+	if d.networkWakeRunner == nil {
+		t.Fatal("boot() network wake runner = nil, want paused runner when disabled")
 	}
 	if d.info.Network == nil {
 		t.Fatal("boot() daemon info network = nil, want disabled diagnostics")
@@ -205,6 +214,12 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	}
 	if got, want := d.info.Network.Status, network.StatusDisabled; got != want {
 		t.Fatalf("boot() daemon info network status = %q, want %q", got, want)
+	}
+	if !ownerSawDisabledAvailability {
+		t.Fatal("session owner constructed before disabled network availability was persisted")
+	}
+	if got, want := registry.networkAvailabilityWrites, []bool{false}; !slices.Equal(got, want) {
+		t.Fatalf("network availability boot writes = %#v, want %#v", got, want)
 	}
 }
 
@@ -601,11 +616,8 @@ func TestBootEnabledNetworkLateBindsSessionCallbacksAndPersistsSafeDiagnostics(t
 	if !info.Network.Enabled {
 		t.Fatal("daemon info network enabled = false, want true")
 	}
-	if got, want := info.Network.Status, network.StatusRunning; got != want {
+	if got, want := info.Network.Status, network.StatusReady; got != want {
 		t.Fatalf("daemon info network status = %q, want %q", got, want)
-	}
-	if info.Network.ListenerPort <= 0 {
-		t.Fatalf("daemon info network listener port = %d, want positive", info.Network.ListenerPort)
 	}
 
 	rawInfo, err := os.ReadFile(homePaths.DaemonInfo)
@@ -1054,6 +1066,31 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 		if got := len(source.promptCalls); got != 0 {
 			t.Fatalf("Prompt() fallback calls = %d, want 0", got)
 		}
+
+		promptOpts, ok := adapter.(hostAPIPromptOptsSessionManager)
+		if !ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want PromptWithOpts", adapter)
+		}
+		optsEvents, err := promptOpts.PromptWithOpts(
+			testutil.Context(t),
+			"sess-bridge",
+			session.PromptOpts{
+				Message:    "bridge opts message",
+				TurnSource: session.TurnSourceNetwork,
+				PromptMeta: acp.PromptMeta{
+					Network: &acp.PromptNetworkMeta{MessageID: "msg-2", Kind: "message", From: "peer-1"},
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("PromptWithOpts() error = %v", err)
+		}
+		for event := range optsEvents {
+			t.Fatalf("PromptWithOpts() emitted unexpected event %#v", event)
+		}
+		if got, want := source.promptWithOptsCalls, 1; got != want {
+			t.Fatalf("PromptWithOpts() calls = %d, want %d", got, want)
+		}
 	})
 }
 
@@ -1256,6 +1293,7 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 	observer := &hookAwareTestObserver{}
 	reconcile := &fakeResourceReconcileDriver{}
 	d := newTestDaemon(t, homePaths, &cfg)
+	participationResolver := &hookAwareParticipationResolver{}
 	state := &bootState{
 		cfg:    cfg,
 		logger: discardLogger(),
@@ -1263,11 +1301,12 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 			discardLogger(),
 			func() time.Time { return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC) },
 		),
-		observer:          observer,
-		skillsRegistry:    skills.NewRegistry(skills.RegistryConfig{}),
-		resourceKernel:    kernel,
-		resourceCodecs:    codecs,
-		resourceReconcile: reconcile,
+		observer:              observer,
+		skillsRegistry:        skills.NewRegistry(skills.RegistryConfig{}),
+		resourceKernel:        kernel,
+		resourceCodecs:        codecs,
+		resourceReconcile:     reconcile,
+		participationResolver: participationResolver,
 	}
 	cleanup := &bootCleanup{}
 
@@ -1287,6 +1326,9 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 	}
 	if state.hooks == nil || state.hookDispatcher == nil || state.hookBindings == nil {
 		t.Fatalf("hook state = %#v, want populated runtime, dispatcher, and bindings", state)
+	}
+	if participationResolver.hooks.Load() != state.hooks {
+		t.Fatal("participation resolver hooks were not attached during hook boot")
 	}
 	if len(cleanup.fns) < 2 {
 		t.Fatalf("cleanup fns = %d, want hook close plus skills watcher stop", len(cleanup.fns))
@@ -4111,16 +4153,28 @@ func TestInfoValidationAndReadFailures(t *testing.T) {
 }
 
 func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
+	t.Parallel()
+
 	ctx := testutil.Context(t)
 
 	if err := (NetworkInfo{}).Validate(); err == nil {
 		t.Fatal("NetworkInfo.Validate() error = nil, want non-nil")
 	}
-	if err := (NetworkInfo{Status: network.StatusRunning, ListenerPort: 65536}).Validate(); err == nil {
-		t.Fatal("NetworkInfo.Validate(invalid port) error = nil, want non-nil")
-	}
-	if err := (NetworkInfo{Status: network.StatusRunning, ListenerPort: 4222}).Validate(); err != nil {
+	if err := (NetworkInfo{Enabled: true, Status: network.StatusActive}).Validate(); err != nil {
 		t.Fatalf("NetworkInfo.Validate(valid) error = %v", err)
+	}
+	for _, invalid := range []NetworkInfo{
+		{Status: network.StatusActive},
+		{Status: network.StatusReady},
+		{Enabled: true, Status: network.StatusDisabled},
+		{Enabled: true, Status: "degraded"},
+	} {
+		t.Run("Should reject inconsistent or unsupported network status "+invalid.Status, func(t *testing.T) {
+			t.Parallel()
+			if err := invalid.Validate(); err == nil {
+				t.Fatalf("NetworkInfo.Validate(%#v) error = nil, want non-nil", invalid)
+			}
+		})
 	}
 
 	disabledInfo, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{}, nil)
@@ -4140,10 +4194,8 @@ func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
 
 	info, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{
 		status: &network.Status{
-			Enabled:      true,
-			Status:       " running ",
-			ListenerHost: " 127.0.0.1 ",
-			ListenerPort: 4222,
+			Enabled: true,
+			Status:  " active ",
 		},
 	})
 	if err != nil {
@@ -4153,9 +4205,8 @@ func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
 		t.Fatal("daemonNetworkInfo(runtime status) = nil, want populated diagnostics")
 		return
 	}
-	if !info.Enabled || info.Status != network.StatusRunning || info.ListenerHost != "127.0.0.1" ||
-		info.ListenerPort != 4222 {
-		t.Fatalf("daemonNetworkInfo(runtime status) = %#v, want trimmed listener diagnostics", info)
+	if !info.Enabled || info.Status != network.StatusActive {
+		t.Fatalf("daemonNetworkInfo(runtime status) = %#v, want trimmed active diagnostics", info)
 	}
 }
 
@@ -4504,20 +4555,20 @@ func testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *t
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:          "sess-owner",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-owner",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-wake",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-wake",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 	}
 
@@ -4527,7 +4578,6 @@ func testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *t
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Processed detached work",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
 		},
@@ -4604,21 +4654,29 @@ func testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *t
 		DetachedTaskRuntimeEnabled: true,
 	})
 	db := openDaemonTestGlobalDB(t)
+	if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID: "ws-1", RootDir: t.TempDir(), Name: "detached-recovery",
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(detached recovery) error = %v", err)
+	}
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
-				ID:        "sess-owner",
-				AgentName: "coder",
-				Type:      session.SessionTypeSystem,
-				State:     session.StateActive,
-				Channel:   "builders",
+				ID:                   "sess-owner",
+				AgentName:            "coder",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				WorkspaceID:          "ws-1",
+				NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 			},
 			{
-				ID:        "sess-wake",
-				AgentName: "coder",
-				Type:      session.SessionTypeSystem,
-				State:     session.StateActive,
-				Channel:   "builders",
+				ID:                   "sess-wake",
+				AgentName:            "coder",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				WorkspaceID:          "ws-1",
+				NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 			},
 		},
 	}
@@ -4724,6 +4782,12 @@ func testHarnessReentryBridgeShutdownCancelsBlockedStatusLookup(t *testing.T) {
 		DetachedTaskRuntimeEnabled: true,
 	})
 	db := openDaemonTestGlobalDB(t)
+	if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID: "ws-1", RootDir: t.TempDir(), Name: "detached-blocked-status",
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(detached blocked status) error = %v", err)
+	}
 	actor, err := detachedHarnessActorContext("sess-owner")
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
@@ -5020,7 +5084,6 @@ func seedDetachedHarnessRecoveryRunForTest(
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
-			Channel:     "builders",
 		},
 	})
 	if err != nil {
@@ -5035,7 +5098,6 @@ func seedDetachedHarnessRecoveryRunForTest(
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
-			Channel:     "builders",
 		},
 	})
 	if err != nil {
@@ -5056,19 +5118,19 @@ func seedDetachedHarnessRecoveryRunForTest(
 		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
 	}
 	if err := db.CreateTaskRun(testutil.Context(t), taskpkg.Run{
-		ID:             runID,
-		TaskID:         taskID,
-		Status:         taskpkg.TaskRunStatusCompleted,
-		Attempt:        1,
-		Origin:         actor.Origin,
-		IdempotencyKey: "idem-" + runID,
-		NetworkChannel: "builders",
-		Metadata:       runMetadata,
-		QueuedAt:       completedAt.Add(-2 * time.Minute),
-		ClaimedAt:      completedAt.Add(-90 * time.Second),
-		StartedAt:      completedAt.Add(-time.Minute),
-		EndedAt:        completedAt,
-		Result:         json.RawMessage(`{"ok":true}`),
+		ID:              runID,
+		TaskID:          taskID,
+		Status:          taskpkg.TaskRunStatusCompleted,
+		Attempt:         1,
+		Origin:          actor.Origin,
+		IdempotencyKey:  "idem-" + runID,
+		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("ws-1", "builders")},
+		Metadata:        runMetadata,
+		QueuedAt:        completedAt.Add(-2 * time.Minute),
+		ClaimedAt:       completedAt.Add(-90 * time.Second),
+		StartedAt:       completedAt.Add(-time.Minute),
+		EndedAt:         completedAt,
+		Result:          json.RawMessage(`{"ok":true}`),
 	}); err != nil {
 		t.Fatalf("CreateTaskRun(%q) error = %v", runID, err)
 	}
@@ -5210,14 +5272,14 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 
 func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error) {
 	child, err := f.Create(ctx, session.CreateOpts{
-		AgentName:     opts.AgentName,
-		Provider:      opts.Provider,
-		Name:          opts.Name,
-		Workspace:     opts.Workspace,
-		WorkspacePath: opts.WorkspacePath,
-		Channel:       opts.Channel,
-		PromptOverlay: opts.PromptOverlay,
-		Type:          session.SessionTypeSpawned,
+		AgentName:            opts.AgentName,
+		Provider:             opts.Provider,
+		Name:                 opts.Name,
+		Workspace:            opts.Workspace,
+		WorkspacePath:        opts.WorkspacePath,
+		NetworkParticipation: opts.NetworkParticipation,
+		PromptOverlay:        opts.PromptOverlay,
+		Type:                 session.SessionTypeSpawned,
 		Lineage: &store.SessionLineage{
 			ParentSessionID:  opts.ParentSessionID,
 			SpawnRole:        opts.SpawnRole,
@@ -5498,16 +5560,16 @@ func (f *fakeSessionManager) ClearConversation(
 	}
 
 	return &session.Session{
-		ID:          info.ID,
-		Name:        info.Name,
-		AgentName:   info.AgentName,
-		WorkspaceID: info.WorkspaceID,
-		Workspace:   info.Workspace,
-		Channel:     info.Channel,
-		Type:        info.Type,
-		State:       session.StateActive,
-		CreatedAt:   info.CreatedAt,
-		UpdatedAt:   info.UpdatedAt,
+		ID:                   info.ID,
+		Name:                 info.Name,
+		AgentName:            info.AgentName,
+		WorkspaceID:          info.WorkspaceID,
+		Workspace:            info.Workspace,
+		NetworkParticipation: info.NetworkParticipation,
+		Type:                 info.Type,
+		State:                session.StateActive,
+		CreatedAt:            info.CreatedAt,
+		UpdatedAt:            info.UpdatedAt,
 	}, nil
 }
 
@@ -5794,10 +5856,11 @@ func (f *fakeSessionManager) createCall(index int) session.CreateOpts {
 
 type fakeNetworkBindableSessionManager struct {
 	*fakeSessionManager
-	networkPeers    session.NetworkPeerLifecycle
-	turnEndNotifier session.TurnEndNotifier
-	promptNetworkFn func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	prompting       map[string]bool
+	networkPeers        session.NetworkPeerLifecycle
+	turnEndNotifier     session.TurnEndNotifier
+	promptNetworkFn     func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	promptWithOptsCalls int
+	prompting           map[string]bool
 }
 
 func newFakeNetworkBindableSessionManager() *fakeNetworkBindableSessionManager {
@@ -5805,6 +5868,19 @@ func newFakeNetworkBindableSessionManager() *fakeNetworkBindableSessionManager {
 		fakeSessionManager: &fakeSessionManager{},
 		prompting:          make(map[string]bool),
 	}
+}
+
+func (f *fakeNetworkBindableSessionManager) PromptWithOpts(
+	_ context.Context,
+	_ string,
+	_ session.PromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	f.mu.Lock()
+	f.promptWithOptsCalls++
+	f.mu.Unlock()
+	ch := make(chan acp.AgentEvent)
+	close(ch)
+	return ch, nil
 }
 
 func (f *fakeNetworkBindableSessionManager) SetNetworkPeerLifecycle(lifecycle session.NetworkPeerLifecycle) {
@@ -6254,11 +6330,14 @@ func (f *fakeResourceReconcileDriver) Close(context.Context) error {
 }
 
 type recordingRegistry struct {
-	path                   string
-	onClose                func()
-	onListTaskRunsByStatus func([]taskpkg.RunStatus)
-	mu                     sync.Mutex
-	workspaces             map[string]workspacepkg.Workspace
+	path                      string
+	onClose                   func()
+	onListTaskRunsByStatus    func([]taskpkg.RunStatus)
+	mu                        sync.Mutex
+	workspaces                map[string]workspacepkg.Workspace
+	networkAvailability       store.NetworkAvailability
+	networkAvailabilityWrites []bool
+	coordinationSettings      map[string]workspacepkg.CoordinationSetting
 }
 
 var (
@@ -6457,7 +6536,160 @@ func (r *recordingRegistry) ListNetworkAudit(
 	return nil, nil
 }
 
+func (r *recordingRegistry) GetNetworkAvailability(context.Context) (store.NetworkAvailability, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.networkAvailability, nil
+}
+
+func (r *recordingRegistry) SetNetworkAvailability(
+	_ context.Context,
+	enabled bool,
+	updatedBy string,
+) (store.NetworkAvailability, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.networkAvailability.Enabled != enabled {
+		r.networkAvailability.Epoch++
+	}
+	r.networkAvailability.Enabled = enabled
+	r.networkAvailability.UpdatedAt = time.Now().UTC()
+	r.networkAvailability.UpdatedBy = strings.TrimSpace(updatedBy)
+	r.networkAvailabilityWrites = append(r.networkAvailabilityWrites, enabled)
+	return r.networkAvailability, nil
+}
+
+func (*recordingRegistry) AcceptNetworkMessage(
+	context.Context,
+	store.AcceptNetworkMessageRequest,
+) (store.AcceptNetworkMessageResult, error) {
+	return store.AcceptNetworkMessageResult{}, nil
+}
+
+func (*recordingRegistry) SettleNetworkWake(
+	context.Context,
+	taskpkg.NetworkWakeSettlement,
+) (taskpkg.NetworkWakeSettlementResult, error) {
+	return taskpkg.NetworkWakeSettlementResult{}, nil
+}
+
+func (*recordingRegistry) ListQueuedNetworkWakes(
+	context.Context,
+	int,
+) ([]store.CommittedNetworkNotification, error) {
+	return nil, nil
+}
+
+func (*recordingRegistry) LoadNetworkWake(
+	context.Context,
+	string,
+	string,
+) (store.WakeReservation, []store.NetworkMessageEntry, error) {
+	return store.WakeReservation{}, nil, nil
+}
+
+func (r *recordingRegistry) Get(
+	_ context.Context,
+	workspaceID string,
+) (workspacepkg.CoordinationSetting, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	id := strings.TrimSpace(workspaceID)
+	return r.coordinationSettings[id], nil
+}
+
+func (r *recordingRegistry) Set(
+	_ context.Context,
+	workspaceID string,
+	enabled bool,
+	actor string,
+) (workspacepkg.CoordinationSetting, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.coordinationSettings == nil {
+		r.coordinationSettings = make(map[string]workspacepkg.CoordinationSetting)
+	}
+	id := strings.TrimSpace(workspaceID)
+	setting := r.coordinationSettings[id]
+	setting.WorkspaceID = id
+	setting.Enabled = enabled
+	setting.Revision++
+	setting.UpdatedAt = time.Now().UTC()
+	setting.UpdatedBy = strings.TrimSpace(actor)
+	r.coordinationSettings[id] = setting
+	return setting, nil
+}
+
+func (*recordingRegistry) GetInvitation(
+	_ context.Context,
+	workspaceID string,
+	scopeKind string,
+	scopeID string,
+) (workspacepkg.CoordinationInvitation, error) {
+	return workspacepkg.CoordinationInvitation{
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		ScopeKind:   strings.TrimSpace(scopeKind),
+		ScopeID:     strings.TrimSpace(scopeID),
+	}, nil
+}
+
+func (*recordingRegistry) DismissInvitation(
+	_ context.Context,
+	workspaceID string,
+	scopeKind string,
+	scopeID string,
+	actor string,
+) (workspacepkg.CoordinationInvitation, error) {
+	now := time.Now().UTC()
+	return workspacepkg.CoordinationInvitation{
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		ScopeKind:   strings.TrimSpace(scopeKind),
+		ScopeID:     strings.TrimSpace(scopeID),
+		Dismissed:   true,
+		DismissedAt: now,
+		DismissedBy: strings.TrimSpace(actor),
+	}, nil
+}
+
+func (*recordingRegistry) ResetInvitation(context.Context, string, string, string) error {
+	return nil
+}
+
+func (*recordingRegistry) GetCoordination(
+	context.Context,
+	workspacepkg.CoordinationRef,
+) (workspacepkg.CoordinationView, error) {
+	return workspacepkg.CoordinationView{}, nil
+}
+
+func (*recordingRegistry) SetCoordination(
+	context.Context,
+	workspacepkg.SetCoordination,
+	taskpkg.ActorContext,
+) (workspacepkg.CoordinationView, error) {
+	return workspacepkg.CoordinationView{}, nil
+}
+
+func (*recordingRegistry) SetCoordinationInvitation(
+	context.Context,
+	workspacepkg.SetInvitation,
+	taskpkg.ActorContext,
+) (workspacepkg.CoordinationView, error) {
+	return workspacepkg.CoordinationView{}, nil
+}
+
+func (*recordingRegistry) GetNetworkUsage(
+	context.Context,
+	store.NetworkUsageQuery,
+) (store.NetworkUsageReport, error) {
+	return store.NetworkUsageReport{}, nil
+}
+
 func (r *recordingRegistry) WriteNetworkChannel(context.Context, store.NetworkChannelEntry) error {
+	return nil
+}
+
+func (r *recordingRegistry) CreateNetworkChannel(context.Context, store.NetworkChannelEntry) error {
 	return nil
 }
 
@@ -6584,6 +6816,14 @@ func (r *recordingRegistry) PutNetworkSubscription(context.Context, store.Networ
 	return nil
 }
 
+func (r *recordingRegistry) PutNetworkSubscriptionWithChannel(
+	context.Context,
+	store.NetworkChannelEntry,
+	store.NetworkSubscriptionEntry,
+) error {
+	return nil
+}
+
 func (r *recordingRegistry) ListNetworkSubscriptions(
 	context.Context,
 	store.NetworkSubscriptionQuery,
@@ -6592,20 +6832,6 @@ func (r *recordingRegistry) ListNetworkSubscriptions(
 }
 
 func (r *recordingRegistry) DeleteNetworkSubscription(context.Context, store.NetworkSubscriptionRef) error {
-	return nil
-}
-
-func (r *recordingRegistry) GetNetworkDeliveryGuidanceState(
-	context.Context,
-	string,
-) (store.NetworkDeliveryGuidanceState, error) {
-	return store.NetworkDeliveryGuidanceState{}, sql.ErrNoRows
-}
-
-func (r *recordingRegistry) PutNetworkDeliveryGuidanceState(
-	context.Context,
-	store.NetworkDeliveryGuidanceState,
-) error {
 	return nil
 }
 
@@ -6632,6 +6858,34 @@ func (r *recordingRegistry) ListTaskDesignationRollups(
 }
 
 func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
+	return nil
+}
+
+func (r *recordingRegistry) CreateTaskDefinition(
+	context.Context,
+	taskpkg.CreateTaskDefinitionMutation,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) UpdateTaskDefinition(
+	context.Context,
+	*taskpkg.UpdateTaskDefinitionMutation,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
+
+func (r *recordingRegistry) SetTaskExecutionProfile(
+	context.Context,
+	*taskpkg.ExecutionProfileMutation,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
+
+func (r *recordingRegistry) DeleteTaskExecutionProfile(
+	context.Context,
+	taskpkg.ExecutionProfileDeleteMutation,
+) error {
 	return nil
 }
 

@@ -61,6 +61,7 @@ type DaemonClient interface {
 	ListProviders(ctx context.Context) (contract.ProviderListResponse, error)
 	ProbeProviderAuth(ctx context.Context, providerID string) (contract.ProviderAuthProbeResponse, error)
 	ProviderModelClient
+	NetworkCoordinationClient
 	ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error)
 	GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error)
 	PutVaultSecret(ctx context.Context, request PutVaultSecretRequest) (VaultRecord, error)
@@ -93,7 +94,7 @@ type DaemonClient interface {
 		ctx context.Context,
 		workspaceRef string,
 		channel string,
-		peerID string,
+		sessionID string,
 		threadID string,
 	) error
 	NetworkThreads(ctx context.Context, query NetworkThreadsQuery) (contract.NetworkThreadsResponse, error)
@@ -454,7 +455,6 @@ type DaemonClient interface {
 	FanOutTaskRuns(ctx context.Context, id string, request FanOutTaskRunsRequest) (FanOutTaskRunsRecord, error)
 	ListTaskRuns(ctx context.Context, id string, query TaskRunListQuery) ([]TaskRunRecord, error)
 	GetTaskRun(ctx context.Context, id string) (TaskRunDetailRecord, error)
-	ClaimTaskRun(ctx context.Context, id string, request ClaimTaskRunRequest) (TaskRunRecord, error)
 	StartTaskRun(ctx context.Context, id string, request StartTaskRunRequest) (TaskRunRecord, error)
 	AttachTaskRunSession(ctx context.Context, id string, request AttachTaskRunSessionRequest) (TaskRunRecord, error)
 	CompleteTaskRun(ctx context.Context, id string, request CompleteTaskRunRequest) (TaskRunRecord, error)
@@ -1161,9 +1161,6 @@ type FanOutTaskRunsRequest = contract.FanOutTaskRunsRequest
 
 // FanOutTaskRunsRecord captures designated sibling run enqueue results.
 type FanOutTaskRunsRecord = contract.FanOutTaskRunsResponse
-
-// ClaimTaskRunRequest captures the shared run-claim payload.
-type ClaimTaskRunRequest = contract.ClaimTaskRunRequest
 
 // StartTaskRunRequest captures the shared run-start payload.
 type StartTaskRunRequest = contract.StartTaskRunRequest
@@ -1874,14 +1871,14 @@ func (c *unixSocketClient) DeleteNetworkSubscription(
 	ctx context.Context,
 	workspaceRef string,
 	channel string,
-	peerID string,
+	sessionID string,
 	threadID string,
 ) error {
 	channel, err := requireNetworkPathValue("channel", channel)
 	if err != nil {
 		return err
 	}
-	peerID, err = requireNetworkPathValue("peer_id", peerID)
+	sessionID, err = requireNetworkPathValue("session_id", sessionID)
 	if err != nil {
 		return err
 	}
@@ -1893,7 +1890,7 @@ func (c *unixSocketClient) DeleteNetworkSubscription(
 	if trimmed := strings.TrimSpace(threadID); trimmed != "" {
 		values.Set("thread_id", trimmed)
 	}
-	path += "/subscriptions/" + url.PathEscape(peerID)
+	path += "/subscriptions/" + url.PathEscape(sessionID)
 	return c.doJSON(ctx, http.MethodDelete, path, values, nil, nil)
 }
 
@@ -4549,14 +4546,6 @@ func (c *unixSocketClient) GetTaskRun(ctx context.Context, id string) (TaskRunDe
 	return response.Run, nil
 }
 
-func (c *unixSocketClient) ClaimTaskRun(
-	ctx context.Context,
-	id string,
-	request ClaimTaskRunRequest,
-) (TaskRunRecord, error) {
-	return c.taskRunAction(ctx, strings.TrimSpace(id), "claim", request)
-}
-
 func (c *unixSocketClient) StartTaskRun(
 	ctx context.Context,
 	id string,
@@ -5384,8 +5373,8 @@ func networkSubscriptionsValues(query NetworkSubscriptionsQuery) url.Values {
 	if trimmed := strings.TrimSpace(query.ThreadID); trimmed != "" {
 		values.Set("thread_id", trimmed)
 	}
-	if trimmed := strings.TrimSpace(query.PeerID); trimmed != "" {
-		values.Set("peer_id", trimmed)
+	if trimmed := strings.TrimSpace(query.SessionID); trimmed != "" {
+		values.Set("session_id", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
@@ -5716,8 +5705,8 @@ func taskValues(query TaskListQuery) url.Values {
 	if trimmed := strings.TrimSpace(query.ParentTaskID); trimmed != "" {
 		values.Set("parent_task_id", trimmed)
 	}
-	if trimmed := strings.TrimSpace(query.NetworkChannel); trimmed != "" {
-		values.Set("network_channel", trimmed)
+	if trimmed := strings.TrimSpace(query.ParticipationChannel); trimmed != "" {
+		values.Set("participation_channel", trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.Query); trimmed != "" {
 		values.Set("query", trimmed)
@@ -5741,6 +5730,9 @@ func taskRunValues(query TaskRunListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.SessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ParticipationChannel); trimmed != "" {
+		values.Set("participation_channel", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
