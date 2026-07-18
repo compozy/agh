@@ -168,20 +168,19 @@ function AgentFleetList({
           ))}
         </div>
       ) : (
-        <ul
+        <div
           className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
           data-slot="agent-fleet-rows"
         >
           {rows.map(row => (
-            <li key={row.agent.name} className="contents">
-              <AgentFleetRow
-                newSessionDisabled={newSessionStatus === "disabled"}
-                onNewSession={onNewSession}
-                row={row}
-              />
-            </li>
+            <AgentFleetRow
+              key={row.agent.name}
+              newSessionDisabled={newSessionStatus === "disabled"}
+              onNewSession={onNewSession}
+              row={row}
+            />
           ))}
-        </ul>
+        </div>
       )}
       {paginationStatus ? (
         <div className="flex justify-center py-4">

@@ -10,14 +10,11 @@ import {
   ListChecks,
   Network,
   Plus,
-  Puzzle,
   Repeat2,
-  Server,
   Settings,
   Store,
   Users2,
   Waypoints,
-  Wrench,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -269,10 +266,7 @@ const OPERATE_NAV_ITEMS: NavItemProps[] = [
 
 const CATALOG_NAV_ITEMS: NavItemProps[] = [
   { to: "/marketplace", icon: Store, label: "Marketplace", fuzzy: true },
-  { to: "/extensions", icon: Puzzle, label: "Extensions", fuzzy: true },
   { to: "/bridges", icon: Waypoints, label: "Bridges" },
-  { to: "/skills", icon: Wrench, label: "Skills" },
-  { to: "/mcp", icon: Server, label: "MCP" },
   { to: "/knowledge", icon: Book, label: "Knowledge" },
 ];
 

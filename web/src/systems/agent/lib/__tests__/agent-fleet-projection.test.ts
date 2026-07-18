@@ -106,7 +106,7 @@ describe("agent fleet projection", () => {
     expect(rows[0]?.hasDiagnostics).toBe(true);
   });
 
-  it("Should render meta with origin and middle-truncate deep categories", () => {
+  it("Should render meta with category provider model and middle-truncate deep categories", () => {
     expect(
       formatAgentFleetMeta(
         agent({
@@ -117,7 +117,7 @@ describe("agent fleet projection", () => {
           origin: "workspace",
         })
       )
-    ).toBe("Engineering / Release · anthropic · claude-sonnet-4-5 · Workspace");
+    ).toBe("Engineering / Release · anthropic · claude-sonnet-4-5");
 
     expect(
       formatAgentFleetCardCategory(

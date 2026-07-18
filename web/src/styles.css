@@ -15,3 +15,17 @@
 #app {
   min-height: 100%;
 }
+
+/* Marketplace install flash — domain animation (prototype .card-flash); not a design token. */
+@keyframes marketplace-card-flash {
+  0% {
+    background-color: var(--color-accent-tint);
+  }
+  100% {
+    background-color: var(--color-canvas-soft);
+  }
+}
+
+.marketplace-card-flash {
+  animation: marketplace-card-flash 1.4s var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}

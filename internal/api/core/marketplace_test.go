@@ -210,11 +210,11 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 				t.Fatalf("kinds[%d].total = %v, want omitted bounded-source total", index, payload.Kinds[index].Total)
 			}
 		}
-		if got := payload.Kinds[2].Items[0].ManagePath; got != "/skills/skill" {
-			t.Fatalf("skill manage path = %q, want %q", got, "/skills/skill")
+		if got := payload.Kinds[2].Items[0].ManagePath; got != "/marketplace/skills?tab=installed" {
+			t.Fatalf("skill manage path = %q, want %q", got, "/marketplace/skills?tab=installed")
 		}
-		if got := payload.Kinds[0].Items[0].ManagePath; got != "/mcp?scope=global&server=github" {
-			t.Fatalf("mcp manage path = %q, want %q", got, "/mcp?scope=global&server=github")
+		if got := payload.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps?tab=installed" {
+			t.Fatalf("mcp manage path = %q, want %q", got, "/marketplace/mcps?tab=installed")
 		}
 		for _, want := range []string{
 			`"installed_name":"github"`,
@@ -283,7 +283,7 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 		if err != nil {
 			t.Fatalf("MarketplaceSearch(workspace) error = %v", err)
 		}
-		if got := response.Kinds[0].Items[0].ManagePath; got != "/mcp?scope=workspace&server=github&workspace_id=ws-a" {
+		if got := response.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps?tab=installed" {
 			t.Fatalf("workspace MCP manage path = %q", got)
 		}
 	})
@@ -553,11 +553,11 @@ func TestMarketplaceWorkspaceScopeDoesNotLeakBundleOrMCPInstallations(t *testing
 				payloadB.Kinds[0].Items[0].Installed,
 			)
 		}
-		if got := payloadA.Kinds[0].Items[0].ManagePath; got != "/mcp?scope=workspace&server=github&workspace_id=ws-a" {
+		if got := payloadA.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps?tab=installed" {
 			t.Fatalf(
 				"workspace mcp manage path = %q, want %q",
 				got,
-				"/mcp?scope=workspace&server=github&workspace_id=ws-a",
+				"/marketplace/mcps?tab=installed",
 			)
 		}
 		if !payloadA.Kinds[3].Items[0].Installed || payloadB.Kinds[3].Items[0].Installed {
@@ -650,9 +650,9 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 		if !kind.Items[0].Installed || !kind.Items[0].UpdateAvailable {
 			t.Fatalf("bundle browse row = %#v, want installed drift projection", kind.Items[0])
 		}
-		wantManagePath := "/extensions/bundles/workspace%2Factivation%3F1"
-		if kind.Items[0].ManagePath != wantManagePath {
-			t.Fatalf("bundle browse manage path = %q, want %q", kind.Items[0].ManagePath, wantManagePath)
+		wantBrowseManagePath := "/marketplace/bundles/activations/workspace%2Factivation%3F1"
+		if kind.Items[0].ManagePath != wantBrowseManagePath {
+			t.Fatalf("bundle browse manage path = %q, want %q", kind.Items[0].ManagePath, wantBrowseManagePath)
 		}
 		detail := performRequest(
 			t,
@@ -671,8 +671,9 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 		if !entry.Entry.Installed || !entry.Entry.UpdateAvailable {
 			t.Fatalf("bundle detail row = %#v, want installed drift projection", entry.Entry)
 		}
-		if entry.Entry.ManagePath != wantManagePath {
-			t.Fatalf("bundle detail manage path = %q, want %q", entry.Entry.ManagePath, wantManagePath)
+		wantDetailManagePath := "/marketplace/bundles/activations/workspace%2Factivation%3F1"
+		if entry.Entry.ManagePath != wantDetailManagePath {
+			t.Fatalf("bundle detail manage path = %q, want %q", entry.Entry.ManagePath, wantDetailManagePath)
 		}
 		missing := performRequest(t, engine, http.MethodGet, "/marketplace/mcp/missing", nil)
 		if missing.Code != http.StatusNotFound {
@@ -728,6 +729,91 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			payload.Kinds[0].EntryCount != 1 || !payload.Kinds[0].Stale ||
 			payload.Kinds[0].ErrorClass != "network" {
 			t.Fatalf("refresh payload = %#v, want stale failure report", payload)
+		}
+	})
+
+	t.Run("Should resolve installed-only items through unified detail routes", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			MarketplaceCatalog: marketplaceCatalogStub{detailFn: func(
+				context.Context,
+				marketplacepkg.Kind,
+				string,
+			) (*marketplacepkg.Entry, error) {
+				return nil, marketplacepkg.ErrEntryNotFound
+			}},
+			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+				return []contract.ExtensionPayload{{
+					Name: "local-extension", Version: "1.4.0", Source: "local", Enabled: true,
+				}}, nil
+			}},
+			Settings: &stubSettingsService{ListCollectionFn: func(
+				context.Context,
+				settingspkg.CollectionRequest,
+			) (settingspkg.CollectionEnvelope, error) {
+				return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{{
+					Name: "local-mcp", Transport: "http", URL: "https://mcp.example.test",
+				}}}, nil
+			}},
+			SkillsRegistry: testutil.StubSkillsRegistry{ListFn: func() []*skills.Skill {
+				return []*skills.Skill{{
+					Meta: skills.SkillMeta{
+						Name: "local-skill", Description: "Local skill", Version: "2.0.0",
+					},
+					Source: skills.SourceUser,
+				}}
+			}},
+			Logger: testutil.DiscardLogger(),
+		})
+		engine := gin.New()
+		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
+
+		tests := []struct {
+			name       string
+			path       string
+			kind       string
+			entryName  string
+			managePath string
+		}{
+			{
+				name: "skill", path: "/marketplace/skill/local-skill",
+				kind: contract.MarketplaceKindSkill, entryName: "local-skill",
+				managePath: "/marketplace/skills?tab=installed",
+			},
+			{
+				name: "extension", path: "/marketplace/extension/local-extension",
+				kind: contract.MarketplaceKindExtension, entryName: "local-extension",
+				managePath: "/marketplace/extensions?tab=installed",
+			},
+			{
+				name: "mcp", path: "/marketplace/mcp/local-mcp",
+				kind: contract.MarketplaceKindMCP, entryName: "local-mcp",
+				managePath: "/marketplace/mcps?tab=installed",
+			},
+		}
+		for _, test := range tests {
+			t.Run("Should resolve installed "+test.name, func(t *testing.T) {
+				t.Parallel()
+
+				response := performRequest(t, engine, http.MethodGet, test.path, nil)
+				if response.Code != http.StatusOK {
+					t.Fatalf(
+						"status = %d, want %d; body=%s",
+						response.Code,
+						http.StatusOK,
+						response.Body.String(),
+					)
+				}
+				var payload contract.MarketplaceEntryResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if payload.Entry.Kind != test.kind || payload.Entry.Name != test.entryName ||
+					!payload.Entry.Installed || payload.Entry.ManagePath != test.managePath {
+					t.Fatalf("installed detail = %#v, want kind/name/installed/manage path", payload.Entry)
+				}
+			})
 		}
 	})
 

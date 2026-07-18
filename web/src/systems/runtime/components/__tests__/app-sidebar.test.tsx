@@ -499,10 +499,7 @@ describe("AppSidebar", () => {
         "nav-jobs",
         "nav-triggers",
         "nav-marketplace",
-        "nav-extensions",
         "nav-bridges",
-        "nav-skills",
-        "nav-mcp",
         "nav-knowledge",
         "nav-sandbox",
         "nav-vault",
@@ -519,13 +516,10 @@ describe("AppSidebar", () => {
       ["jobs", "/jobs"],
       ["triggers", "/triggers"],
       ["marketplace", "/marketplace"],
-      ["extensions", "/extensions"],
       ["knowledge", "/knowledge"],
-      ["skills", "/skills"],
       ["bridges", "/bridges"],
       ["sandbox", "/sandbox"],
       ["vault", "/vault"],
-      ["mcp", "/mcp"],
       ["settings", "/settings"],
     ])("Should render the %s nav item linking to %s", (testKey, href) => {
       renderSidebar(makeProps());
@@ -547,11 +541,9 @@ describe("AppSidebar", () => {
       ["triggers", "/triggers"],
       ["marketplace", "/marketplace"],
       ["knowledge", "/knowledge"],
-      ["skills", "/skills"],
       ["bridges", "/bridges"],
       ["sandbox", "/sandbox"],
       ["vault", "/vault"],
-      ["mcp", "/mcp"],
     ])("Should render the 2px accent bar on active %s nav", (testKey, path) => {
       matchedRoute[path] = true;
       renderSidebar(makeProps());

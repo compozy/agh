@@ -377,7 +377,7 @@ export const settingsSkillsSectionFixture: SettingsSkillsSection = {
     allowed_marketplace_mcp: ["merchant-docs"],
     allowed_marketplace_hooks: [],
   },
-  links: [{ label: "skills", path: "/skills" }],
+  links: [{ label: "skills", path: "/marketplace/skills?tab=installed" }],
 };
 
 export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSection = {

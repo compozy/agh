@@ -10,6 +10,7 @@ import {
   storyWorkspacePaths,
 } from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
+import type { AgentPayload } from "@/systems/agent/types";
 import { sessionFixtures } from "@/systems/session/mocks";
 import type { SessionPayload } from "@/systems/session/types";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -70,7 +71,7 @@ const missingAgentRoute = "/agents/ghost-risk-agent";
 const fraudAgentBase = agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!;
 
 /** Reference-density payload for OpenDesign tab parity captures. */
-const denseFraudAgent = {
+const denseFraudAgent: AgentPayload = {
   ...fraudAgentBase,
   prompt: `# Role
 
@@ -92,18 +93,18 @@ Produce concrete next steps: files to touch, the hold id, and the exact \`agh\` 
   mcp_servers: [
     {
       name: "github",
-      transport: "stdio" as const,
+      transport: "stdio",
       command: "npx -y @modelcontextprotocol/server-github",
       env: { GITHUB_TOKEN: "redacted" },
     },
     {
       name: "linear",
-      transport: "sse" as const,
+      transport: "sse",
       url: "https://mcp.linear.app/sse",
       env: { LINEAR_API_KEY: "redacted" },
     },
   ],
-  skills: { disabled: [] as string[] },
+  skills: { disabled: [] },
 };
 
 function denseFraudAgentHandlers() {

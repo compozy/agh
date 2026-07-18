@@ -277,45 +277,47 @@ func TestSchedulerSingletonPreventsOverlap(t *testing.T) {
 }
 
 func TestSchedulerAdvancesDurableCursorBeforeDispatch(t *testing.T) {
-	t.Parallel()
+	t.Run("Should advance the durable cursor before dispatch", func(t *testing.T) {
+		t.Parallel()
 
-	baseTime := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	fakeClock := clockwork.NewFakeClockAt(baseTime)
-	store := newMemorySchedulerStore()
-	dispatcher := newStubScheduleDispatcher()
-	dispatcher.onDispatch = func(req DispatchRequest) {
-		if req.ReservedRun == nil {
-			t.Fatal("Dispatch() ReservedRun = nil, want durable run reservation")
+		baseTime := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+		fakeClock := clockwork.NewFakeClockAt(baseTime)
+		store := newMemorySchedulerStore()
+		dispatcher := newStubScheduleDispatcher()
+		dispatcher.onDispatch = func(req DispatchRequest) {
+			if req.ReservedRun == nil {
+				t.Fatal("Dispatch() ReservedRun = nil, want durable run reservation")
+			}
+			state, err := store.GetSchedulerState(context.Background(), req.Job.ID)
+			if err != nil {
+				t.Fatalf("GetSchedulerState() error = %v", err)
+			}
+			if state.NextRunAt == nil || !state.NextRunAt.After(*req.ReservedRun.ScheduledAt) {
+				t.Fatalf("durable cursor was not advanced before dispatch: state=%#v run=%#v", state, req.ReservedRun)
+			}
+			assertNamedParticipation(t, req.ReservedRun.NetworkParticipation, "scheduled-task")
 		}
-		state, err := store.GetSchedulerState(context.Background(), req.Job.ID)
-		if err != nil {
-			t.Fatalf("GetSchedulerState() error = %v", err)
-		}
-		if state.NextRunAt == nil || !state.NextRunAt.After(*req.ReservedRun.ScheduledAt) {
-			t.Fatalf("durable cursor was not advanced before dispatch: state=%#v run=%#v", state, req.ReservedRun)
-		}
-		assertNamedParticipation(t, req.ReservedRun.NetworkParticipation, "scheduled-task")
-	}
-	scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(fakeClock), WithSchedulerStore(store))
+		scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(fakeClock), WithSchedulerStore(store))
 
-	job := testJob(AutomationScopeGlobal, "pre-dispatch-advance", "")
-	job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1m"}
-	job.AgentName = ""
-	job.Prompt = ""
-	job.Task = &JobTaskConfig{
-		Title:                "Run scheduled task",
-		NetworkParticipation: testNamedParticipation("scheduled-task"),
-	}
-	if _, err := scheduler.Register(context.Background(), job); err != nil {
-		t.Fatalf("Register() error = %v", err)
-	}
-	if err := scheduler.Start(testutil.Context(t)); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
+		job := testJob(AutomationScopeWorkspace, "pre-dispatch-advance", "ws-scheduled-task")
+		job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1m"}
+		job.AgentName = ""
+		job.Prompt = ""
+		job.Task = &JobTaskConfig{
+			Title:                "Run scheduled task",
+			NetworkParticipation: testNamedParticipation("scheduled-task"),
+		}
+		if _, err := scheduler.Register(context.Background(), job); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		if err := scheduler.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
 
-	waitForTimers(t, fakeClock, 1)
-	fakeClock.Advance(time.Minute)
-	dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+		waitForTimers(t, fakeClock, 1)
+		fakeClock.Advance(time.Minute)
+		dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+	})
 }
 
 func TestSchedulerDefersNextRunAfterFireLimit(t *testing.T) {

@@ -166,6 +166,12 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if got, want := envelope.Skills.DisabledCount, 2; got != want {
 					t.Fatalf("Skills disabled count = %d, want %d", got, want)
 				}
+				if got, want := envelope.Skills.Links, []OperationalLink{{
+					Label: "skills",
+					Path:  "/marketplace/skills?tab=installed",
+				}}; !reflect.DeepEqual(got, want) {
+					t.Fatalf("Skills links = %#v, want %#v", got, want)
+				}
 			},
 		},
 		{

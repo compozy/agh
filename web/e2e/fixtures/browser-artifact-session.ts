@@ -305,12 +305,12 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       document
         .querySelector<HTMLElement>('[data-testid^="memory-item-"][data-state="selected"]')
         ?.textContent?.trim() || undefined;
-    const skillsDetailRouteItem = readPathContainerId(/\/skills\/([^/?#]+)/);
-    const skillsSelectedItem =
-      [...document.querySelectorAll<HTMLElement>('[data-testid^="skill-item-"]')]
-        .find(element => element.dataset.state === "selected")
-        ?.dataset.testid?.replace(/^skill-item-/, "") || skillsDetailRouteItem;
-    const skillsEnabledText = readText("skill-enabled-toggle")?.toLowerCase();
+    const skillsDetailRouteItem = readPathContainerId(/\/marketplace\/skill\/([^/?#]+)/);
+    const skillsSelectedItem = skillsDetailRouteItem;
+    const skillsEnabledText = document
+      .querySelector<HTMLElement>("#marketplace-skill-enabled-label")
+      ?.textContent?.trim()
+      .toLowerCase();
     const skillsEnabledState = skillsEnabledText?.includes("disabled")
       ? "disabled"
       : skillsEnabledText?.includes("enabled")
@@ -411,16 +411,19 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       knowledge_selected_item: knowledgeSelectedItem,
       knowledge_view_visible: document.querySelector('[data-testid="knowledge-shell"]') !== null,
       skills_content_visible: document.querySelector('[data-testid="content-body"]') !== null,
-      skills_detail_visible: document.querySelector('[data-testid="skill-detail-panel"]') !== null,
+      skills_detail_visible:
+        skillsDetailRouteItem !== undefined &&
+        document.querySelector('[data-testid="marketplace-detail"]') !== null,
       skills_enabled_state: skillsEnabledState,
-      skills_item_count: countByPrefix("skill-item-"),
+      skills_item_count: countByPrefix("marketplace-installed-card-"),
       skills_search_active:
-        (document.querySelector<HTMLInputElement>('[data-testid="skill-search-input"]')?.value ??
-          "") !== "",
+        (document.querySelector<HTMLInputElement>('[data-testid="marketplace-kind-search-skill"]')
+          ?.value ?? "") !== "",
       skills_selected_item: skillsSelectedItem,
       skills_view_visible:
-        document.querySelector('[data-testid="skills-shell"]') !== null ||
-        document.querySelector('[data-testid="skill-detail-panel"]') !== null,
+        document.querySelector('[data-testid="marketplace-kind-skill"]') !== null ||
+        (skillsDetailRouteItem !== undefined &&
+          document.querySelector('[data-testid="marketplace-detail"]') !== null),
       sandbox_action_result_visible:
         document.querySelector('[data-testid="sandbox-page-action-result"]') !== null,
       sandbox_delete_dialog_open:

@@ -47,6 +47,7 @@ export function BundleActivationDetail({ id }: { id: string }) {
   useTopbarSlot(
     activation
       ? {
+          crumb: activation.bundle_name,
           actions: (
             <>
               {updateActionRequired ? (
@@ -60,9 +61,7 @@ export function BundleActivationDetail({ id }: { id: string }) {
                 </Button>
               ) : null}
               <Button
-                render={
-                  <Link search={{ kind: "bundles", q: activation.bundle_name }} to="/marketplace" />
-                }
+                render={<Link search={{ q: activation.bundle_name }} to="/marketplace/bundles" />}
                 nativeButton={false}
                 size="sm"
                 variant="ghost"
@@ -350,9 +349,9 @@ function ResourceSection({
     <Section count={rows.length} label={kind}>
       <div className="overflow-hidden rounded-lg border border-line">
         {rows.length ? (
-          rows.map((item, index) => {
-            const name = "name" in item ? item.name : `${kind}-${index + 1}`;
-            const rowId = "id" in item ? item.id : name;
+          rows.map(item => {
+            const name = item.name;
+            const rowId = "id" in item ? item.id : `${kind}:${name}`;
             return (
               <ListingRow interactive={false} key={rowId}>
                 <ListingRow.Icon>

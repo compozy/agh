@@ -22,7 +22,7 @@ Canonical stack — match `marketplace.html` and `systems/design-system.html` (`
 
 ```
 Topbar (48px)
-  leading:  Breadcrumb  Home › Marketplace
+  leading:  Breadcrumb  Home › Marketplace › {Kind}
   center:   RouteNav    Skills · MCPs · Extensions · Bundles
   trailing: ghost Refresh
 
@@ -41,7 +41,7 @@ Body
 
 | Zone | Owns | Must not |
 | --- | --- | --- |
-| Topbar breadcrumb | Where you are (`Home › Marketplace`) | Kind icon / H1 / count |
+| Topbar breadcrumb | Where you are (`Home › Marketplace › Kind`); Marketplace links to `/marketplace` | Kind icon / H1 / count |
 | Topbar RouteNav | Which **kind** subroute | Installed vs Marketplace scope |
 | PageHead | Kind identity (icon · H1 · count · meta) | Search, scope toggle, install CTA |
 | Listing toolbar | Search + **scope** (Installed\|Marketplace PillGroup) | Underline tabs; Rows\|Cards view toggle; Filters chip bar |
@@ -64,7 +64,7 @@ URL state: `?tab=installed` selects Installed scope (`tab` omitted = Marketplace
 
 ### Behaviors (prototype contract — `marketplace.html`)
 
-1. Topbar: breadcrumb `Home › Marketplace`; center `RouteNav` with the four kind links; trailing ghost `Refresh` (`POST /api/marketplace/refresh?kind=`). Route identity (icon/H1) does **not** live in the topbar.
+1. Topbar: breadcrumb `Home › Marketplace › Kind`, with Marketplace linked to `/marketplace`; center `RouteNav` with the four kind links; trailing ghost `Refresh` (`POST /api/marketplace/refresh?kind=`). Route identity (icon/H1) does **not** live in the topbar.
 2. PageHead (PH1): kind icon well + kind H1 + mono count + meta `N in the marketplace · N installed · N updates available`.
 3. Listing toolbar: SearchInput leading; trailing PillGroup **`Installed | Marketplace`** with Lucide-style icons (package / store bag). Installed segment carries a mono count chip. Default scope is Marketplace (`tab` omitted). **No** page-body underline tab strip for scope.
 4. **Marketplace scope**: full catalog for the kind; installed entries are marked (`installed`/`active` pill, ghost `Manage` → Installed scope); updatable entries show `vX available` + `Update`; others show `Install`/`Activate`. MCP cards open the guided install dialog (stdio env fields / remote OAuth info + scope); bundle cards open the activation dialog (profile, scope, bind switch, "What changes" preview); unverified extensions confirm before install.

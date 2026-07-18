@@ -1,7 +1,7 @@
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export const MARKETPLACE_KINDS = ["mcp", "extension", "skill", "bundle"] as const;
-export const MARKETPLACE_ROUTE_KINDS = ["mcp", "extensions", "skills", "bundles"] as const;
+export const MARKETPLACE_ROUTE_KINDS = ["skills", "mcps", "extensions", "bundles"] as const;
 
 export type MarketplaceKind = (typeof MARKETPLACE_KINDS)[number];
 export type MarketplaceRouteKind = (typeof MARKETPLACE_ROUTE_KINDS)[number];
@@ -9,14 +9,14 @@ export type MarketplaceRouteKind = (typeof MARKETPLACE_ROUTE_KINDS)[number];
 const ROUTE_TO_API_KIND: Record<MarketplaceRouteKind, MarketplaceKind> = {
   bundles: "bundle",
   extensions: "extension",
-  mcp: "mcp",
+  mcps: "mcp",
   skills: "skill",
 };
 
 const API_TO_ROUTE_KIND: Record<MarketplaceKind, MarketplaceRouteKind> = {
   bundle: "bundles",
   extension: "extensions",
-  mcp: "mcp",
+  mcp: "mcps",
   skill: "skills",
 };
 

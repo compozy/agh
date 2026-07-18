@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 
 	"github.com/compozy/agh/internal/api/contract"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
@@ -20,9 +19,9 @@ func (h *BaseHandlers) marketplaceEntry(
 ) (contract.MarketplaceEntryResponse, error) {
 	switch kind {
 	case contract.MarketplaceKindMCP:
-		return h.curatedMarketplaceEntry(ctx, marketplacepkg.KindMCP, entryID, scope)
+		return h.marketplaceCuratedOrInstalledEntry(ctx, marketplacepkg.KindMCP, entryID, scope)
 	case contract.MarketplaceKindExtension:
-		return h.curatedMarketplaceEntry(ctx, marketplacepkg.KindExtension, entryID, scope)
+		return h.marketplaceCuratedOrInstalledEntry(ctx, marketplacepkg.KindExtension, entryID, scope)
 	case contract.MarketplaceKindSkill:
 		return h.skillMarketplaceEntry(ctx, entryID, scope)
 	case contract.MarketplaceKindBundle:
@@ -89,6 +88,13 @@ func (h *BaseHandlers) skillMarketplaceEntry(
 
 	response, err := h.curatedMarketplaceEntry(ctx, marketplacepkg.KindSkill, entryID, scope)
 	if err != nil {
+		installed, installedErr := h.installedSkillMarketplaceEntry(ctx, entryID, scope)
+		if installedErr == nil {
+			return installed, nil
+		}
+		if !errors.Is(installedErr, ErrMarketplaceNotFound) {
+			return contract.MarketplaceEntryResponse{}, installedErr
+		}
 		return contract.MarketplaceEntryResponse{}, err
 	}
 	if response.Skill != nil {
@@ -193,7 +199,7 @@ func (h *BaseHandlers) bundleMarketplaceEntry(
 		Installed: installed, UpdateAvailable: installed && activation.SpecDrift,
 	}
 	if installed {
-		listing.ManagePath = "/extensions/bundles/" + url.PathEscape(activation.Activation.ID)
+		listing.ManagePath = marketplaceBundleActivationPath(activation.Activation.ID)
 	}
 	profiles := make([]contract.MarketplaceBundleProfilePayload, 0, len(found.Bundle.Profiles))
 	for _, profile := range found.Bundle.Profiles {

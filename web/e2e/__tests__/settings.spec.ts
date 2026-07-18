@@ -167,7 +167,8 @@ test("operator can distinguish skills actions that apply now from policy changes
     await expect(settingsUI.skills.restartBanner).not.toBeVisible();
 
     await settingsUI.skills.operationalLink.click();
-    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/skills");
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
+    await expect.poll(() => new URL(appPage.url()).search).toBe("?tab=installed");
     await appPage.goBack({ waitUntil: "domcontentloaded" });
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/skills");
 

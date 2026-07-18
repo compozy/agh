@@ -16,8 +16,9 @@ from; it does not prove that the item is safe for every environment.
 
 ## Browse And Inspect
 
-Open `/marketplace` to browse installed and available items. The landing page groups MCP servers,
-extensions, skills, and bundles; `/marketplace/<kind>/<entry-id>` opens one catalog record.
+Open `/marketplace` to enter the Skills catalog, or go directly to `/marketplace/skills`,
+`/marketplace/mcps`, `/marketplace/extensions`, or `/marketplace/bundles`. Each kind page switches
+between Marketplace and Installed scopes; `/marketplace/<kind>/<entry-id>` opens one catalog record.
 
 The CLI returns the same daemon-owned projection:
 
@@ -202,8 +203,8 @@ than assuming an IPv4 address.
 
 ## Manage And Repair MCP Servers
 
-Open `/mcp?scope=global&server=<name>` or select Workspace scope with an active workspace. The MCP
-table keeps four signals independent:
+Open `/marketplace/mcps?tab=installed`. The page combines global definitions with definitions from
+the active workspace and keeps four signals independent:
 
 | Signal  | Runtime source                         | What to verify                                                    |
 | ------- | -------------------------------------- | ----------------------------------------------------------------- |

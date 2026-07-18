@@ -294,7 +294,8 @@ function OperationalLinksSection() {
     <Section divided label="Operational" note="manage runtime state outside of settings">
       <div className="flex flex-wrap gap-2" data-testid="settings-page-skills-operational-links">
         <Link
-          to="/skills"
+          search={{ tab: "installed" }}
+          to="/marketplace/skills"
           className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
           data-testid="settings-page-skills-link-skills"
         >

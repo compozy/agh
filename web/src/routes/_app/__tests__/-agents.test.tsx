@@ -363,7 +363,12 @@ describe("Agents fleet route", () => {
     const newSession = within(row).getByTestId("agent-fleet-new-session-code-reviewer");
     expect(newSession).toBeInTheDocument();
     expect(link).not.toContainElement(newSession);
-    expect(link).not.toContainElement(screen.getByTestId("agent-fleet-sessions-code-reviewer"));
+    expect(within(row).getByTestId("agent-fleet-origin-code-reviewer")).toHaveTextContent("Global");
+    expect(within(row).getByTestId("agent-fleet-meta-code-reviewer")).toHaveTextContent(
+      "Engineering"
+    );
+    expect(within(row).getByTestId("agent-fleet-meta-code-reviewer")).toHaveTextContent("openai");
+    expect(screen.queryByTestId("agent-fleet-sessions-code-reviewer")).not.toBeInTheDocument();
     await user.click(newSession);
     expect(mockOpenNewSession).toHaveBeenCalledWith("code-reviewer");
     expect(link).toHaveAttribute("href", "/agents/code-reviewer");
@@ -382,8 +387,11 @@ describe("Agents fleet route", () => {
 
     expect(await screen.findByTestId("agent-fleet-card-grid")).toBeInTheDocument();
     const card = screen.getByTestId("agent-fleet-card-triage-bot");
-    expect(within(card).getByTestId("agent-fleet-card-meta-triage-bot")).toHaveTextContent(
+    expect(within(card).getByTestId("agent-fleet-origin-triage-bot")).toHaveTextContent(
       "Workspace"
+    );
+    expect(within(card).getByTestId("agent-fleet-card-meta-triage-bot")).toHaveTextContent(
+      "openai"
     );
     const cardLink = within(card).getByTestId("agent-fleet-card-link-triage-bot");
     expect(cardLink).toHaveAttribute("aria-label", "triage-bot, Idle, 0 of 0 sessions active");
@@ -449,8 +457,9 @@ describe("Agents fleet route", () => {
     expect(screen.getByTestId("agent-fleet-sessions-notice")).toHaveTextContent(
       "Session status unavailable"
     );
-    expect(screen.getByTestId("agent-fleet-sessions-release-captain")).toHaveTextContent("--");
+    expect(screen.queryByTestId("agent-fleet-sessions-release-captain")).not.toBeInTheDocument();
     expect(screen.queryByTestId("agent-fleet-status-release-captain")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-fleet-origin-release-captain")).toHaveTextContent("Global");
     expect(screen.getByTestId("agent-fleet-row-link-release-captain")).toHaveAttribute(
       "aria-label",
       "release-captain, session status unavailable"

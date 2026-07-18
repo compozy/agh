@@ -212,7 +212,11 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, result, []byte(`"installed":true`))
 		requireNativeStructuredContains(t, result, []byte(`"update_available":true`))
-		requireNativeStructuredContains(t, result, []byte(`/extensions/bundles/act-workspace-a`))
+		requireNativeStructuredContains(
+			t,
+			result,
+			[]byte(`/marketplace/bundles/activations/act-workspace-a`),
+		)
 		requireNativeStructuredExcludes(t, result, []byte(`act-workspace-b`))
 	})
 

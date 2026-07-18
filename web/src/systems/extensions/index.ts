@@ -20,13 +20,12 @@ export {
   useUpdateBundleActivation,
   useUpdateExtension,
 } from "./hooks/use-extension-actions";
+export { useExtensionDetailState } from "./hooks/use-extension-detail-state";
 export {
   DeactivateBundleDialog,
   ExtensionProvenanceDialog,
   RemoveExtensionDialog,
   VerifiedMark,
 } from "./components/extension-dialogs";
-export { ExtensionsInventory } from "./components/extensions-inventory";
-export { ExtensionDetail } from "./components/extension-detail";
 export { BundleActivationDetail } from "./components/bundle-activation-detail";
 export { extensionKeys } from "./lib/query-keys";

@@ -222,21 +222,6 @@ export const knowledgeOperatorTestIds = {
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
 
-export const skillsOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
-  contentBody: "content-body",
-  detailPanel: "skill-detail-panel",
-  enabledSwitch: "skill-enabled-switch",
-  enabledToggle: "skill-enabled-toggle",
-  listPanel: "skill-list-panel",
-  navSkills: "nav-skills",
-  searchInput: "skill-search-input",
-  shell: "skills-shell",
-  viewFullContent: "view-full-content-btn",
-  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
-  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
-} as const;
-
 export const marketplaceOperatorTestIds = {
   bundleActivateConfirm: "bundle-activate-confirm",
   bundleActivationDialog: "bundle-activation-dialog",
@@ -247,23 +232,10 @@ export const marketplaceOperatorTestIds = {
   extensionTrustDialog: "extension-trust-dialog",
   grid: "marketplace-grid",
   kindNavigation: "marketplace-kind-navigation",
-  landing: "marketplace-landing",
   mcpInstallConfirm: "mcp-install-confirm",
   mcpInstallDialog: "mcp-install-dialog",
   mcpInstallError: "mcp-install-error",
   refresh: "marketplace-refresh",
-  resultAnnouncement: "marketplace-result-announcement",
-} as const;
-
-export const extensionsOperatorTestIds = {
-  bundleDetail: "bundle-activation-detail",
-  bundleList: "bundle-activation-list",
-  bundlePage: "bundle-activations-page",
-  deactivateDialog: "deactivate-bundle-dialog",
-  detail: "extension-detail",
-  list: "extension-list",
-  page: "extensions-page",
-  removeDialog: "remove-extension-dialog",
 } as const;
 
 export const sandboxOperatorTestIds = {
@@ -504,22 +476,6 @@ export interface KnowledgeOperatorSelectors {
   workspaceUseGlobal: Locator;
 }
 
-export interface SkillsOperatorSelectors {
-  appSidebar: Locator;
-  contentBody: Locator;
-  detailPanel: Locator;
-  enabledSwitch: Locator;
-  enabledToggle: Locator;
-  item(name: string): Locator;
-  listPanel: Locator;
-  navSkills: Locator;
-  searchInput: Locator;
-  shell: Locator;
-  viewFullContent: Locator;
-  workspaceOnboarding: Locator;
-  workspaceUseGlobal: Locator;
-}
-
 export interface MarketplaceOperatorSelectors {
   action(entryId: string): Locator;
   bundleActivateConfirm: Locator;
@@ -533,28 +489,12 @@ export interface MarketplaceOperatorSelectors {
   grid: Locator;
   kind(kind: string): Locator;
   kindNavigation: Locator;
-  landing: Locator;
   mcpCreateSecret(envName: string): Locator;
   mcpInstallConfirm: Locator;
   mcpInstallDialog: Locator;
   mcpInstallError: Locator;
   mcpVaultSelector(envName: string): Locator;
   refresh: Locator;
-  resultAnnouncement: Locator;
-  section(kind: string): Locator;
-}
-
-export interface ExtensionsOperatorSelectors {
-  bundleDetail: Locator;
-  bundleList: Locator;
-  bundlePage: Locator;
-  bundleRow(id: string): Locator;
-  deactivateDialog: Locator;
-  detail: Locator;
-  list: Locator;
-  page: Locator;
-  removeDialog: Locator;
-  row(name: string): Locator;
 }
 
 export interface SandboxOperatorSelectors {
@@ -1075,24 +1015,6 @@ export function knowledgeOperatorSelectors(
   };
 }
 
-export function skillsOperatorSelectors(page: Pick<Page, "getByTestId">): SkillsOperatorSelectors {
-  return {
-    appSidebar: page.getByTestId(skillsOperatorTestIds.appSidebar),
-    contentBody: page.getByTestId(skillsOperatorTestIds.contentBody),
-    detailPanel: page.getByTestId(skillsOperatorTestIds.detailPanel),
-    enabledSwitch: page.getByTestId(skillsOperatorTestIds.enabledSwitch),
-    enabledToggle: page.getByTestId(skillsOperatorTestIds.enabledToggle),
-    item: (name: string) => page.getByTestId(`skill-item-${name}`),
-    listPanel: page.getByTestId(skillsOperatorTestIds.listPanel),
-    navSkills: page.getByTestId(skillsOperatorTestIds.navSkills),
-    searchInput: page.getByTestId(skillsOperatorTestIds.searchInput),
-    shell: page.getByTestId(skillsOperatorTestIds.shell),
-    viewFullContent: page.getByTestId(skillsOperatorTestIds.viewFullContent),
-    workspaceOnboarding: page.getByTestId(skillsOperatorTestIds.workspaceOnboarding),
-    workspaceUseGlobal: page.getByTestId(skillsOperatorTestIds.workspaceUseGlobal),
-  };
-}
-
 export function marketplaceOperatorSelectors(
   page: Pick<Page, "getByTestId">
 ): MarketplaceOperatorSelectors {
@@ -1109,32 +1031,12 @@ export function marketplaceOperatorSelectors(
     grid: page.getByTestId(marketplaceOperatorTestIds.grid),
     kind: (kind: string) => page.getByTestId(`marketplace-kind-${kind}`),
     kindNavigation: page.getByTestId(marketplaceOperatorTestIds.kindNavigation),
-    landing: page.getByTestId(marketplaceOperatorTestIds.landing),
     mcpCreateSecret: (envName: string) => page.getByTestId(`mcp-create-secret-${envName}`),
     mcpInstallConfirm: page.getByTestId(marketplaceOperatorTestIds.mcpInstallConfirm),
     mcpInstallDialog: page.getByTestId(marketplaceOperatorTestIds.mcpInstallDialog),
     mcpInstallError: page.getByTestId(marketplaceOperatorTestIds.mcpInstallError),
     mcpVaultSelector: (envName: string) => page.getByTestId(`mcp-vault-selector-${envName}`),
     refresh: page.getByTestId(marketplaceOperatorTestIds.refresh),
-    resultAnnouncement: page.getByTestId(marketplaceOperatorTestIds.resultAnnouncement),
-    section: (kind: string) => page.getByTestId(`marketplace-section-${kind}`),
-  };
-}
-
-export function extensionsOperatorSelectors(
-  page: Pick<Page, "getByTestId">
-): ExtensionsOperatorSelectors {
-  return {
-    bundleDetail: page.getByTestId(extensionsOperatorTestIds.bundleDetail),
-    bundleList: page.getByTestId(extensionsOperatorTestIds.bundleList),
-    bundlePage: page.getByTestId(extensionsOperatorTestIds.bundlePage),
-    bundleRow: (id: string) => page.getByTestId(`bundle-row-${id}`),
-    deactivateDialog: page.getByTestId(extensionsOperatorTestIds.deactivateDialog),
-    detail: page.getByTestId(extensionsOperatorTestIds.detail),
-    list: page.getByTestId(extensionsOperatorTestIds.list),
-    page: page.getByTestId(extensionsOperatorTestIds.page),
-    removeDialog: page.getByTestId(extensionsOperatorTestIds.removeDialog),
-    row: (name: string) => page.getByTestId(`extension-row-${name}`),
   };
 }
 

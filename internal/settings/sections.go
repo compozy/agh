@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -172,7 +171,6 @@ func (s *service) populateSectionEnvelope(
 			cfg,
 			resolved,
 			envelope.Scope,
-			envelope.WorkspaceID,
 			envelope.AgentName,
 		)
 		if err != nil {
@@ -650,13 +648,12 @@ func (s *service) buildSkillsSection(
 	cfg *aghconfig.Config,
 	resolved *workspacepkg.ResolvedWorkspace,
 	scope ScopeKind,
-	workspaceID string,
 	agentName string,
 ) (SkillsSection, error) {
 	section := SkillsSection{
 		Config: cfg.Skills,
 	}
-	section.Links = buildSkillsOperationalLinks(scope, workspaceID, agentName)
+	section.Links = buildSkillsOperationalLinks()
 
 	if scope == ScopeAgent {
 		agent, _, err := s.resolveEffectiveAgent(resolved, agentName)
@@ -1493,20 +1490,11 @@ func (s *service) applyAgentSkillsDisabledChanges(
 	return nil
 }
 
-func buildSkillsOperationalLinks(scope ScopeKind, workspaceID string, agentName string) []OperationalLink {
-	values := url.Values{}
-	if trimmed := strings.TrimSpace(workspaceID); trimmed != "" {
-		values.Set("workspace", trimmed)
-	}
-	if scope == ScopeAgent && strings.TrimSpace(agentName) != "" {
-		values.Set("for_agent", agentName)
-	}
-
-	path := "/skills"
-	if encoded := values.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
-	return []OperationalLink{{Label: string(SectionSkills), Path: path}}
+func buildSkillsOperationalLinks() []OperationalLink {
+	return []OperationalLink{{
+		Label: string(SectionSkills),
+		Path:  "/marketplace/skills?tab=installed",
+	}}
 }
 
 func (s *service) resolveEffectiveAgent(

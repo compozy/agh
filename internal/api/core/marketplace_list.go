@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 
@@ -192,7 +191,7 @@ func (h *BaseHandlers) bundleMarketplaceKind(
 		activation, installed := activationIndex[key]
 		managePath := ""
 		if installed {
-			managePath = "/extensions/bundles/" + url.PathEscape(activation.Activation.ID)
+			managePath = marketplaceBundleActivationPath(activation.Activation.ID)
 		}
 		items = append(items, contract.MarketplaceListingPayload{
 			Kind: contract.MarketplaceKindBundle, EntryID: encodeBundleEntryID(entry.ExtensionName, entry.Bundle.Name),
@@ -265,17 +264,9 @@ func (h *BaseHandlers) mcpInstallIndex(
 		if entryID == "" {
 			continue
 		}
-		params := url.Values{
-			"scope":  {string(scope.scope)},
-			"server": {strings.TrimSpace(item.Name)},
-		}
-		if scope.scope == settingspkg.ScopeWorkspace {
-			params.Set("workspace_id", scope.workspaceID)
-		}
-		managePath := "/mcp?" + params.Encode()
 		index.byEntryID[entryID] = marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
-			managePath: managePath,
+			managePath: "/marketplace/mcps?tab=installed",
 		}
 	}
 	return index, nil
@@ -300,7 +291,7 @@ func (h *BaseHandlers) extensionInstallIndex(ctx context.Context) (marketplaceIn
 		installation := marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Version),
-			managePath: "/extensions/" + url.PathEscape(strings.TrimSpace(item.Name)),
+			managePath: marketplaceExtensionsInstalledPath,
 		}
 		if entryID := strings.TrimSpace(item.Provenance.CatalogEntryID); entryID != "" {
 			index.byEntryID[entryID] = installation
@@ -338,7 +329,7 @@ func (h *BaseHandlers) skillInstallIndex(ctx context.Context) (marketplaceInstal
 		index.bySlug[slug] = marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Provenance.Version),
-			managePath: "/skills/" + url.PathEscape(strings.TrimSpace(item.Name)),
+			managePath: "/marketplace/skills?tab=installed",
 		}
 	}
 	return index, nil

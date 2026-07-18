@@ -17,16 +17,16 @@ export function marketplaceKindIcon(kind: MarketplaceKind): LucideIcon {
 
 export const MARKETPLACE_KIND_ORDER: readonly MarketplaceKind[] = [
   "skill",
+  "mcp",
   "extension",
   "bundle",
-  "mcp",
 ];
 
 export const MARKETPLACE_KIND_LABEL: Record<MarketplaceKind, string> = {
   skill: "Skills",
   extension: "Extensions",
   bundle: "Bundles",
-  mcp: "MCP servers",
+  mcp: "MCPs",
 };
 
 export const MARKETPLACE_KIND_SINGULAR: Record<MarketplaceKind, string> = {

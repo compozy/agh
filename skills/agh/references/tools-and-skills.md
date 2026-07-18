@@ -66,7 +66,7 @@ bundles are derived and cannot be refreshed directly. Inspect each discovery kin
 failed feed refreshes preserve the last successful rows and return their per-kind stale outcome.
 On installed HTTP/UDS and structured CLI rows, use `installed_name` for lifecycle mutations;
 `name` is feed-owned display text, and `manage_path` is presentation-only. Treat `manage_path` as
-opaque: workspace-scoped MCP links include the exact `workspace_id` that owns the installation.
+opaque and follow it instead of reconstructing a Web route from runtime identity fields.
 
 Extension rows carry the daemon's pre-install `trust` report. Use its `decision`, `registry_tier`,
 `allow_unverified`, and `warnings` directly; `checksum_verified` remains false until download verification.

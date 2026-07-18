@@ -12,7 +12,10 @@ import {
 import type { ReactNode } from "react";
 
 import type { MarketplaceEntryResponse, MarketplaceListing } from "../types";
+import { MarketplaceDetailExtensionManage } from "./marketplace-detail-extension-manage";
 import { MarketplaceDetailHero } from "./marketplace-detail-hero";
+import { MarketplaceDetailMCPManage } from "./marketplace-detail-mcp-manage";
+import { MarketplaceDetailSkillManage } from "./marketplace-detail-skill-manage";
 import { formatMarketplaceCount } from "./marketplace-ui";
 
 interface MarketplaceDetailProps {
@@ -35,6 +38,7 @@ function MarketplaceDetail({ data, pending = false, onAction }: MarketplaceDetai
           </main>
           <aside className="flex min-w-0 flex-col gap-6">
             {entry.installed ? <MarketplaceInstalledRail entry={entry} /> : null}
+            {entry.installed ? <MarketplaceDetailManage entry={entry} /> : null}
             <MarketplaceDetailsRail data={data} />
             {entry.trust ? <MarketplaceTrustRail trust={entry.trust} /> : null}
           </aside>
@@ -240,6 +244,14 @@ function MarketplaceInstalledRail({ entry }: { entry: MarketplaceEntryResponse["
       </MarketplaceKvRail>
     </section>
   );
+}
+
+function MarketplaceDetailManage({ entry }: { entry: MarketplaceEntryResponse["entry"] }) {
+  const name = entry.installed_name?.trim() || entry.name;
+  if (entry.kind === "skill") return <MarketplaceDetailSkillManage name={name} />;
+  if (entry.kind === "extension") return <MarketplaceDetailExtensionManage name={name} />;
+  if (entry.kind === "mcp") return <MarketplaceDetailMCPManage entry={entry} />;
+  return null;
 }
 
 function MarketplaceDetailsRail({ data }: { data: MarketplaceEntryResponse }) {

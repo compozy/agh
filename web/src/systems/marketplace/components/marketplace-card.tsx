@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { createElement } from "react";
 
 import { CatalogCard } from "@agh/ui";
 
@@ -9,15 +10,23 @@ import { formatMarketplaceCount, marketplaceKindIcon } from "./marketplace-ui";
 interface MarketplaceCardProps {
   entry: MarketplaceListing;
   pending?: boolean;
+  flashing?: boolean;
   onAction: (entry: MarketplaceListing) => void;
 }
 
-function MarketplaceCard({ entry, pending = false, onAction }: MarketplaceCardProps) {
+function MarketplaceCard({
+  entry,
+  pending = false,
+  flashing = false,
+  onAction,
+}: MarketplaceCardProps) {
   const kind = entry.kind as MarketplaceKind;
-  const KindGlyph = marketplaceKindIcon(kind);
-
   return (
-    <CatalogCard data-testid={`marketplace-card-${entry.entry_id}`} actionable={!pending}>
+    <CatalogCard
+      actionable={!pending}
+      className={flashing ? "marketplace-card-flash" : pending ? "opacity-55" : undefined}
+      data-testid={`marketplace-card-${entry.entry_id}`}
+    >
       <Link
         aria-disabled={pending || undefined}
         aria-label={`View ${entry.name} details`}
@@ -31,7 +40,10 @@ function MarketplaceCard({ entry, pending = false, onAction }: MarketplaceCardPr
       >
         <div className="flex min-w-0 items-start gap-3">
           <CatalogCard.Logo tone={kind === "extension" ? "neutral" : "accent"}>
-            <KindGlyph aria-hidden="true" className="size-3.5" />
+            {createElement(marketplaceKindIcon(kind), {
+              "aria-hidden": true,
+              className: "size-3.5",
+            })}
           </CatalogCard.Logo>
           <div className="min-w-0 flex-1">
             <CatalogCard.Title>{entry.name}</CatalogCard.Title>

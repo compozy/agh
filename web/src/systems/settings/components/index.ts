@@ -1,6 +1,5 @@
 export { SettingsEditorDialog } from "./settings-editor-dialog";
 export type { EditorMode } from "./settings-editor-dialog";
-export { MCPActionResultBanner } from "./mcp-action-result-banner";
 export { MCPAuthorizeDialog } from "./mcp-authorize-dialog";
 export type { MCPAuthorizeDialogProps } from "./mcp-authorize-dialog";
 export { MCPSelectionStrip } from "./mcp-selection-strip";

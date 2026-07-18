@@ -87,6 +87,7 @@ export {
 export {
   authorizeLabel,
   composeMCPRowStatus,
+  deriveMCPAuthFilter,
   formatStatusLabel,
   isOAuthCapable,
   isOAuthRepairable,
@@ -205,7 +206,6 @@ export { SettingsPageHead, type SettingsPageHeadProps } from "./components/setti
 
 // Components
 export {
-  MCPActionResultBanner,
   MCPAuthorizeDialog,
   MCPSelectionStrip,
   MCPServerDeleteDialog,

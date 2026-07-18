@@ -48,13 +48,13 @@ export function formatCategoryMetaSegment(path: string[] | null | undefined): st
   return `${first}${sep}${last}`;
 }
 
+/** Row meta facts: category · provider · model (origin is a Name pill, not meta). */
 export function formatAgentFleetMeta(agent: AgentPayload): string {
   const segments: string[] = [];
   const category = formatCategoryMetaSegment(agent.category_path);
   if (category) segments.push(category);
   if (agent.provider) segments.push(agent.provider);
   if (agent.model) segments.push(agent.model);
-  segments.push(formatAgentOriginLabel(agent.origin));
   return segments.join(META_SEPARATOR);
 }
 

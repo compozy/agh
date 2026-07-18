@@ -43,7 +43,7 @@ const skillsEnvelope: SettingsSkillsSection = {
     allowed_marketplace_mcp: [],
     allowed_marketplace_hooks: [],
   },
-  links: [{ label: "skills", path: "/skills" }],
+  links: [{ label: "skills", path: "/marketplace/skills?tab=installed" }],
 };
 
 function createWrapper() {

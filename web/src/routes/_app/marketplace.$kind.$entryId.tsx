@@ -22,8 +22,7 @@ export const Route = createFileRoute("/_app/marketplace/$kind/$entryId")({
       parentCrumb: isMarketplaceKind(params.kind)
         ? {
             label: MARKETPLACE_KIND_LABEL[params.kind],
-            search: { kind: marketplaceRouteKindFor(params.kind) },
-            to: "/marketplace",
+            to: `/marketplace/${marketplaceRouteKindFor(params.kind)}`,
           }
         : undefined,
       crumb: { label: params.entryId },
@@ -37,7 +36,7 @@ function MarketplaceDetailRoute() {
   const navigate = useNavigate();
   if (!isMarketplaceKind(kind)) {
     return (
-      <MarketplaceDetailNotFound onBack={() => void navigate({ search: {}, to: "/marketplace" })} />
+      <MarketplaceDetailNotFound onBack={() => void navigate({ to: "/marketplace/skills" })} />
     );
   }
   return <MarketplaceDetailRouteBody entryId={entryId} kind={kind} />;
@@ -58,9 +57,7 @@ function MarketplaceDetailRouteBody({ entryId, kind }: { entryId: string; kind: 
   if (query.error instanceof MarketplaceApiError && query.error.status === 404) {
     return (
       <MarketplaceDetailNotFound
-        onBack={() =>
-          void navigate({ search: { kind: marketplaceRouteKindFor(kind) }, to: "/marketplace" })
-        }
+        onBack={() => void navigate({ to: `/marketplace/${marketplaceRouteKindFor(kind)}` })}
       />
     );
   }

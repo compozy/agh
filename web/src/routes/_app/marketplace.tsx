@@ -1,79 +1,71 @@
-import { Link, Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  useChildMatches,
+  useRouterState,
+} from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 
 import { Button, RouteNav, Spinner, useTopbarSlot } from "@agh/ui";
-import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
 import {
   MARKETPLACE_KIND_LABEL,
   MARKETPLACE_KIND_ORDER,
-  MarketplaceKindRouteBody,
-  MarketplaceLandingRouteBody,
-  isMarketplaceRouteKind,
-  isMarketplaceViewSort,
   marketplaceApiKindFor,
   marketplaceRouteKindFor,
   useRefreshMarketplaceCatalog,
-  type MarketplaceRouteSearch,
+  type MarketplaceKind,
 } from "@/systems/marketplace";
 import type { TopbarRouteContext } from "@/types/topbar";
 
-export type { MarketplaceRouteSearch };
-
-function validateMarketplaceSearch(search: Record<string, unknown>): MarketplaceRouteSearch {
-  return {
-    kind: isMarketplaceRouteKind(search.kind) ? search.kind : undefined,
-    q: normalizeListingSearchValue(search.q),
-    sort: isMarketplaceViewSort(search.sort) ? search.sort : undefined,
-    view: parseListingView(search.view),
-  };
-}
+/**
+ * Stable module-level topbar context. `collectCrumbs` folds inherited match
+ * contexts by reference identity — a fresh object per `beforeLoad` call makes
+ * every marketplace match level contribute a duplicate "Marketplace" crumb
+ * (and leaves a stale crumb after navigating to sibling routes).
+ */
+const MARKETPLACE_TOPBAR_CONTEXT: { topbar: TopbarRouteContext } = {
+  topbar: { crumb: { label: "Marketplace", to: "/marketplace" } },
+};
 
 export const Route = createFileRoute("/_app/marketplace")({
-  beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { crumb: { label: "Marketplace", to: "/marketplace" } },
-  }),
-  validateSearch: validateMarketplaceSearch,
+  beforeLoad: (): { topbar: TopbarRouteContext } => MARKETPLACE_TOPBAR_CONTEXT,
   component: MarketplaceRoute,
 });
 
-const MARKETPLACE_NAV_ITEMS = [
-  { value: "overview" as const, label: "Overview" },
-  ...MARKETPLACE_KIND_ORDER.map(kind => ({
-    value: marketplaceRouteKindFor(kind),
-    label: kind === "mcp" ? "MCP" : MARKETPLACE_KIND_LABEL[kind],
-  })),
-];
+const MARKETPLACE_NAV_ITEMS = MARKETPLACE_KIND_ORDER.map(kind => ({
+  kind,
+  routeKind: marketplaceRouteKindFor(kind),
+  label: MARKETPLACE_KIND_LABEL[kind],
+  to: `/marketplace/${marketplaceRouteKindFor(kind)}` as const,
+}));
 
 function MarketplaceRoute() {
-  const search = Route.useSearch();
-  const hasChildMatch = useChildMatches().length > 0;
+  const childMatches = useChildMatches();
+  const pathname = useRouterState({ select: state => state.location.pathname });
   const refresh = useRefreshMarketplaceCatalog();
-  const selectedApiKind = search.kind ? marketplaceApiKindFor(search.kind) : undefined;
-  const refreshKind = selectedApiKind === "bundle" ? undefined : selectedApiKind;
+
+  // Detail (`/$kind/$entryId`) and future activation children own the topbar.
+  // Kind pages are direct children and keep RouteNav + Refresh.
+  const isDeepChild = childMatches.some(match => {
+    const id = match.routeId;
+    return id.includes("$") || id.includes("activations");
+  });
+
+  const activeApiKind = resolveActiveApiKind(pathname);
+  const refreshKind = activeApiKind === "bundle" ? undefined : activeApiKind;
 
   useTopbarSlot(
-    hasChildMatch
+    isDeepChild
       ? null
       : {
           routeNav: (
             <RouteNav aria-label="Marketplace sections" data-testid="marketplace-kind-navigation">
               {MARKETPLACE_NAV_ITEMS.map(item => (
                 <RouteNav.Link
-                  key={item.value}
+                  key={item.routeKind}
                   render={
-                    <Link
-                      activeOptions={{ exact: true, includeSearch: true }}
-                      search={current => {
-                        const { q, view } = current as MarketplaceRouteSearch;
-                        return {
-                          kind: item.value === "overview" ? undefined : item.value,
-                          q,
-                          sort: undefined,
-                          view,
-                        };
-                      }}
-                      to="/marketplace"
-                    />
+                    <Link activeOptions={{ exact: true, includeSearch: false }} to={item.to} />
                   }
                 >
                   {item.label}
@@ -101,10 +93,18 @@ function MarketplaceRoute() {
         }
   );
 
-  if (hasChildMatch) return <Outlet />;
-  return search.kind ? (
-    <MarketplaceKindRouteBody kind={marketplaceApiKindFor(search.kind)} search={search} />
-  ) : (
-    <MarketplaceLandingRouteBody search={search} />
-  );
+  return <Outlet />;
+}
+
+function resolveActiveApiKind(pathname: string): MarketplaceKind | undefined {
+  const segment = pathname.split("/").filter(Boolean)[1];
+  if (
+    segment === "skills" ||
+    segment === "mcps" ||
+    segment === "extensions" ||
+    segment === "bundles"
+  ) {
+    return marketplaceApiKindFor(segment);
+  }
+  return undefined;
 }

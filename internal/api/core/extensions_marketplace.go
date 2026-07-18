@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -52,7 +51,7 @@ func (h *BaseHandlers) joinInstalledExtensionMarketplace(
 		installation := marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Version),
-			managePath: "/extensions/" + url.PathEscape(strings.TrimSpace(item.Name)),
+			managePath: marketplaceExtensionsInstalledPath,
 		}
 		installed.byEntryID[strings.TrimSpace(entry.EntryID)] = installation
 		if slug := strings.TrimSpace(entry.InstallSlug); slug != "" {

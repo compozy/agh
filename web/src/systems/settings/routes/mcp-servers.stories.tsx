@@ -65,20 +65,20 @@ async function openAuthorizeWaiting(canvas: ReturnType<typeof within>) {
 
 /** matrix-desktop / matrix-mobile */
 export const Matrix: Story = {
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 /** selected-needs-login-desktop */
 export const SelectedNeedsLogin: Story = {
-  parameters: managementParams("/mcp?scope=workspace&server=linear"),
+  parameters: managementParams("/marketplace/mcps?tab=installed&server=linear"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 /** authorize-waiting-desktop / authorize-mobile */
 export const AuthorizeWaiting: Story = {
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -90,7 +90,7 @@ export const AuthorizeWaiting: Story = {
 /** authorize-manual-desktop */
 export const AuthorizeManual: Story = {
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -104,7 +104,7 @@ export const AuthorizeManual: Story = {
 export const AuthFailure: Story = {
   tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/mcp?scope=workspace"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", () =>
@@ -142,7 +142,7 @@ export const AuthFailure: Story = {
 export const AuthBeginFailure: Story = {
   tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/mcp?scope=workspace"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", () =>
@@ -169,7 +169,7 @@ export const AuthBeginFailure: Story = {
 /** authenticated-token-desktop */
 export const Authenticated: Story = {
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -187,7 +187,7 @@ export const Authenticated: Story = {
 /** editor-stdio-desktop */
 export const EditorStdio: Story = {
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -238,7 +238,7 @@ export const EditorStdioIncompleteSecret: Story = {
 /** editor-http-desktop / remote-editor-mobile */
 export const EditorHttp: Story = {
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -250,7 +250,7 @@ export const EditorHttp: Story = {
 /** editor-sse-desktop */
 export const EditorSse: Story = {
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -266,7 +266,7 @@ export const EditorSse: Story = {
  */
 export const Loading: Story = {
   parameters: {
-    ...appRouteParameters("/mcp?scope=global"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", async ({ request }) => {
@@ -282,7 +282,7 @@ export const Loading: Story = {
 /** empty-desktop */
 export const Empty: Story = {
   parameters: {
-    ...appRouteParameters("/mcp?scope=global"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", () =>
@@ -300,7 +300,7 @@ export const Empty: Story = {
  */
 export const Error: Story = {
   parameters: {
-    ...appRouteParameters("/mcp?scope=global"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", ({ request }) => {

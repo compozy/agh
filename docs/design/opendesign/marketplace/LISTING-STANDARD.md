@@ -57,7 +57,7 @@ Marketplace kind pages (exception — no Filters, no view mode):
 Marketplace kind pages follow the product shell in `systems/design-system.html`, not the inventory title-in-topbar shell:
 
 ```
-Topbar:     Breadcrumb (Home › Marketplace) · RouteNav (Skills · MCPs · Extensions · Bundles) · Refresh
+Topbar:     Breadcrumb (Home › Marketplace › Kind) · RouteNav (Skills · MCPs · Extensions · Bundles) · Refresh
 PageHead:   kind icon well · H1 · count · meta
 Toolbar:    Search leading · Installed | Marketplace PillGroup trailing
 Body:       card grid

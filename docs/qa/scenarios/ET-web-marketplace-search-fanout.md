@@ -1,11 +1,11 @@
 ---
 id: ET-web-marketplace-search-fanout
 area: ET
-title: Search marketplace kinds with partial failure isolation
+title: Search the active marketplace kind
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: One search updates all kind sections; a failed kind owns its error strip while siblings remain usable, zero sections collapse, and an all-zero query offers one clear-search recovery state.
-entry_points: /marketplace?q=<query>; Marketplace search field
+expected: Search filters only the active kind and scope, a failed kind owns its recoverable error state, and an all-zero query offers one clear-search action without changing kind or scope.
+entry_points: /marketplace/<kind>?q=<query>; Marketplace kind search field
 qa_status: untested
 bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: BUG-20260714-keyboard-focus-invisible fixed
@@ -20,3 +20,7 @@ Added by marketplace Task 06. Exercise VC04 and VC05 with a deterministic per-ki
 
 QA impact 2026-07-17: default listing view is now rows with optional cards; reset to confirm
 partial-failure isolation still holds in both views.
+
+QA impact 2026-07-18: web search fan-out ended with the grouped landing. The scenario is rescoped to
+the active kind route and its selected Marketplace or Installed scope; daemon grouped discovery
+remains covered by the API/CLI scenarios.

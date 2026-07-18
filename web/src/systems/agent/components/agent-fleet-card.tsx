@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { CatalogCard, KindIcon, Pill, providerKindIconRegistry } from "@agh/ui";
 
-import type { AgentFleetRowModel } from "../lib/agent-fleet-projection";
+import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
 
 export interface AgentFleetCardProps {
@@ -12,10 +12,9 @@ export interface AgentFleetCardProps {
 }
 
 function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: AgentFleetCardProps) {
-  const { agent, signals, ariaLabel, hasDiagnostics, sessionsAvailable } = row;
-  const category = row.cardCategory;
+  const { agent, signals, ariaLabel, hasDiagnostics, sessionsAvailable, cardOrigin } = row;
+  const category = formatCategoryMetaSegment(agent.category_path);
   const model = agent.model?.trim() || null;
-  const origin = row.cardOrigin;
 
   return (
     <CatalogCard actionable data-agent={agent.name} data-testid={`agent-fleet-card-${agent.name}`}>
@@ -37,27 +36,16 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
             />
           </CatalogCard.Logo>
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <CatalogCard.Title>{agent.name}</CatalogCard.Title>
+            <div className="flex min-w-0 items-center gap-2">
+              <CatalogCard.Title className="min-w-0 flex-1">{agent.name}</CatalogCard.Title>
+              <Pill size="xs" tone="neutral" data-testid={`agent-fleet-origin-${agent.name}`}>
+                {cardOrigin}
+              </Pill>
+            </div>
             <CatalogCard.Meta data-testid={`agent-fleet-card-meta-${agent.name}`}>
-              <span className="flex min-w-0 items-center gap-1.5 truncate text-form-label text-subtle">
-                {category ? <span className="truncate">{category}</span> : null}
-                {category && model ? (
-                  <span aria-hidden="true" className="text-faint">
-                    ·
-                  </span>
-                ) : null}
-                {model ? (
-                  <span className="truncate font-mono text-badge tracking-mono text-faint">
-                    {model}
-                  </span>
-                ) : null}
-                {(category || model) && origin ? (
-                  <span aria-hidden="true" className="text-faint">
-                    ·
-                  </span>
-                ) : null}
-                {origin ? <span className="truncate text-faint">{origin}</span> : null}
-              </span>
+              {category ? <span>{category}</span> : null}
+              {!category && agent.provider ? <span>{agent.provider}</span> : null}
+              {model ? <span className="font-mono">{model}</span> : null}
             </CatalogCard.Meta>
           </div>
         </div>

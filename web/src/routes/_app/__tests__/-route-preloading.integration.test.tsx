@@ -34,7 +34,6 @@ import {
   useSettingsApplyRecords,
   useSettingsGeneral,
   useSettingsHooksExtensions,
-  useSettingsMCPServers,
   useSettingsMemory,
   useSettingsObservability,
   useSettingsProviders,
@@ -42,7 +41,6 @@ import {
   useSettingsSkills,
   useSettingsUpdate,
 } from "@/systems/settings";
-import { useSkill, useSkillContent, useSkillShadows, useSkills } from "@/systems/skill";
 import { useVaultSecrets, vaultSecretsListOptions } from "@/systems/vault";
 import { useActiveWorkspaceStore, useWorkspace, useWorkspaces } from "@/systems/workspace";
 import { routeLoader } from "@/test/route-options";
@@ -204,10 +202,7 @@ import { Route as LoopEditorRoute } from "../loops.$name.editor";
 import { Route as LoopRunFormRoute } from "../loops.$name.run";
 import { Route as LoopDetailRoute } from "../loops.$name";
 import { Route as LoopsRoute } from "../loops";
-import { Route as McpRoute } from "../mcp";
 import { Route as SandboxRoute } from "../sandbox";
-import { Route as SkillDetailRoute } from "../skills.$name";
-import { Route as SkillsRoute } from "../skills";
 import { Route as TriggersRoute } from "../triggers";
 import { Route as TasksRoute } from "../tasks";
 import { Route as VaultRoute } from "../vault";
@@ -421,16 +416,6 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.listSettingsSandboxes],
   },
   {
-    name: "MCP → workspacesListOptions + settingsMCPServersListOptions",
-    load: queryClient => invokeLoader(McpRoute, context(queryClient)),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useWorkspaces();
-        useSettingsMCPServers({ scope: "workspace", workspace_id: workspace.id });
-      }),
-    requests: [adapterMocks.fetchWorkspaces, adapterMocks.listSettingsMCPServers],
-  },
-  {
     name: "vault → vaultSecretsListOptions",
     load: queryClient => invokeLoader(VaultRoute, context(queryClient)),
     mountConsumer: queryClient =>
@@ -438,40 +423,6 @@ const cases: PreloadCase[] = [
         useVaultSecrets({});
       }),
     requests: [adapterMocks.listVaultSecrets],
-  },
-  {
-    name: "skills → workspacesListOptions + skillsListOptions",
-    load: queryClient => invokeLoader(SkillsRoute, context(queryClient)),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useWorkspaces();
-        useSkills(workspace.id);
-      }),
-    requests: [adapterMocks.fetchWorkspaces, adapterMocks.listSkills],
-  },
-  {
-    name: "skill detail → list/detail/shadows/content options",
-    load: queryClient =>
-      invokeLoader(SkillDetailRoute, {
-        ...context(queryClient),
-        deps: { content: "memory" },
-        params: { name: "memory" },
-      }),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useWorkspaces();
-        useSkills(workspace.id);
-        useSkill("memory", workspace.id);
-        useSkillShadows("memory", workspace.id);
-        useSkillContent("memory", workspace.id, true);
-      }),
-    requests: [
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.listSkills,
-      adapterMocks.getSkill,
-      adapterMocks.getSkillShadows,
-      adapterMocks.getSkillContent,
-    ],
   },
   {
     name: "jobs → exact filtered infinite catalog options",

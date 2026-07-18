@@ -4,10 +4,6 @@ import { useState } from "react";
 import { useDeactivateBundle, useUpdateBundleActivation } from "./use-extension-actions";
 import { useBundleActivation } from "./use-extensions";
 
-/**
- * View-model for the bundle activation detail route: query + mutations +
- * deactivate dialog state. Keeps the route component under the hook-budget.
- */
 export function useBundleActivationDetail(id: string) {
   const query = useBundleActivation(id);
   const update = useUpdateBundleActivation();
@@ -31,7 +27,7 @@ export function useBundleActivationDetail(id: string) {
   const confirmDeactivate = async () => {
     await deactivate.mutateAsync(id);
     setDialogOpen(false);
-    void navigate({ search: { tab: "bundles" }, to: "/extensions" });
+    void navigate({ search: { tab: "installed" }, to: "/marketplace/bundles" });
   };
 
   return {

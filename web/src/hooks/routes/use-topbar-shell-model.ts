@@ -10,8 +10,12 @@ interface MaybeTopbarMatchContext {
  * Collects the breadcrumb trail from the active match chain (root → leaf).
  * Matches without their own `topbar` context inherit the parent's merged
  * object, so consecutive duplicates are folded by reference identity.
+ *
+ * Route `beforeLoad` must return a stable module-level `{ topbar }` object
+ * when the crumb does not depend on params — a fresh object per invocation
+ * makes every nested match contribute a duplicate crumb.
  */
-function collectCrumbs(matches: ReadonlyArray<unknown>): ReadonlyArray<TopbarCrumbContext> {
+export function collectCrumbs(matches: ReadonlyArray<unknown>): ReadonlyArray<TopbarCrumbContext> {
   const crumbs: TopbarCrumbContext[] = [];
   let previous: TopbarRouteContext | undefined;
   for (const match of matches) {

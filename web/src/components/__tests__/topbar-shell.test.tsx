@@ -72,6 +72,61 @@ describe("TopbarShell", () => {
     expect(screen.getByTestId("topbar-breadcrumb-page")).toHaveTextContent("release-captain");
   });
 
+  it("Should render exactly Marketplace and the kind crumb after redirect-mediated entry", () => {
+    const marketplaceTopbar = { crumb: { label: "Marketplace", to: "/marketplace" } };
+    const skillsTopbar = { crumb: { label: "Skills" } };
+    matchesMock.mockReturnValue([
+      { context: {} },
+      { context: { topbar: marketplaceTopbar } },
+      { context: { topbar: marketplaceTopbar } },
+      { context: { topbar: skillsTopbar } },
+    ]);
+    pathnameMock.mockReturnValue("/marketplace/skills");
+    render(
+      <TopbarShell>
+        <main id="app-content" />
+      </TopbarShell>
+    );
+
+    expect(screen.getByRole("link", { name: "Marketplace" })).toHaveAttribute(
+      "href",
+      "/marketplace"
+    );
+    expect(screen.getAllByText("Marketplace")).toHaveLength(1);
+    expect(screen.getByTestId("topbar-breadcrumb-page")).toHaveTextContent("Skills");
+  });
+
+  it("Should show zero Marketplace crumbs on a sibling route after leaving marketplace", () => {
+    const marketplaceTopbar = { crumb: { label: "Marketplace", to: "/marketplace" } };
+    matchesMock.mockReturnValue([
+      { context: {} },
+      { context: { topbar: marketplaceTopbar } },
+      { context: { topbar: marketplaceTopbar } },
+      { context: { topbar: { crumb: { label: "Skills" } } } },
+    ]);
+    pathnameMock.mockReturnValue("/marketplace/skills");
+    const { rerender } = render(
+      <TopbarShell>
+        <main id="app-content" />
+      </TopbarShell>
+    );
+    expect(screen.getByText("Marketplace")).toBeInTheDocument();
+
+    pathnameMock.mockReturnValue("/triggers");
+    matchesMock.mockReturnValue([
+      { context: {} },
+      { context: { topbar: { crumb: { label: "Triggers", to: "/triggers" } } } },
+    ]);
+    rerender(
+      <TopbarShell>
+        <main id="app-content" />
+      </TopbarShell>
+    );
+
+    expect(screen.queryByText("Marketplace")).not.toBeInTheDocument();
+    expect(screen.getByTestId("topbar-breadcrumb-page")).toHaveTextContent("Triggers");
+  });
+
   it("Should still render the home breadcrumb when no match exposes a topbar crumb", () => {
     matchesMock.mockReturnValue([{ context: {} }, { context: {} }]);
     render(

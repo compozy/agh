@@ -1,8 +1,9 @@
+import { Fragment } from "react";
 import { Link } from "@tanstack/react-router";
 
 import { KindIcon, ListingRow, Pill, providerKindIconRegistry } from "@agh/ui";
 
-import type { AgentFleetRowModel } from "../lib/agent-fleet-projection";
+import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
 
 export interface AgentFleetRowProps {
@@ -11,11 +12,20 @@ export interface AgentFleetRowProps {
   onNewSession: (agentName: string) => void;
 }
 
+function agentFleetMetaSegments(
+  agent: AgentFleetRowModel["agent"]
+): Array<{ key: "category" | "provider" | "model"; value: string }> {
+  const segments: Array<{ key: "category" | "provider" | "model"; value: string }> = [];
+  const category = formatCategoryMetaSegment(agent.category_path);
+  if (category) segments.push({ key: "category", value: category });
+  if (agent.provider?.trim()) segments.push({ key: "provider", value: agent.provider.trim() });
+  if (agent.model?.trim()) segments.push({ key: "model", value: agent.model.trim() });
+  return segments;
+}
+
 function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentFleetRowProps) {
-  const { agent, signals, ariaLabel, hasDiagnostics, sessionsAvailable, cardCategory, cardOrigin } =
-    row;
-  const model = agent.model?.trim() || null;
-  const category = cardCategory && cardCategory !== agent.provider ? cardCategory : null;
+  const { agent, signals, ariaLabel, hasDiagnostics, sessionsAvailable, cardOrigin } = row;
+  const metaSegments = agentFleetMetaSegments(agent);
 
   return (
     <ListingRow data-agent={agent.name} data-testid={`agent-fleet-row-${agent.name}`}>
@@ -41,27 +51,23 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
         <ListingRow.Main>
           <ListingRow.Name>
             <ListingRow.Title>{agent.name}</ListingRow.Title>
-            {agent.provider ? (
-              <Pill size="xs" tone="neutral">
-                {agent.provider}
-              </Pill>
-            ) : null}
-            {model ? <ListingRow.Slug>{model}</ListingRow.Slug> : null}
+            <Pill size="xs" tone="neutral" data-testid={`agent-fleet-origin-${agent.name}`}>
+              {cardOrigin}
+            </Pill>
           </ListingRow.Name>
-          <ListingRow.Meta>
-            {category ? <span>{category}</span> : null}
-            {category ? <ListingRow.MetaDot /> : null}
-            <span>{cardOrigin}</span>
-          </ListingRow.Meta>
+          {metaSegments.length > 0 ? (
+            <ListingRow.Meta data-testid={`agent-fleet-meta-${agent.name}`}>
+              {metaSegments.map((segment, index) => (
+                <Fragment key={segment.key}>
+                  {index > 0 ? <ListingRow.MetaDot /> : null}
+                  <span className="font-mono text-badge text-subtle">{segment.value}</span>
+                </Fragment>
+              ))}
+            </ListingRow.Meta>
+          ) : null}
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail className="gap-3">
-        <ListingRow.Stat className="w-16" data-testid={`agent-fleet-sessions-${agent.name}`}>
-          <ListingRow.Stat.Value>
-            {sessionsAvailable && signals ? `${signals.active}/${signals.total}` : "--"}
-          </ListingRow.Stat.Value>
-          <ListingRow.Stat.Label>sessions</ListingRow.Stat.Label>
-        </ListingRow.Stat>
         {sessionsAvailable && signals ? (
           <Pill
             size="sm"

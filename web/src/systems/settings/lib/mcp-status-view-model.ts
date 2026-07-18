@@ -1,6 +1,6 @@
 import type { PillTone } from "@agh/ui";
 
-import type { SettingsMCPServerEntry } from "../types";
+import type { SettingsMCPAuthFilter, SettingsMCPServerEntry } from "../types";
 
 /**
  * Pure composition of the four INDEPENDENT MCP status signals
@@ -122,6 +122,19 @@ export function isOAuthRepairable(server: SettingsMCPServerEntry): boolean {
 export function authorizeLabel(server: SettingsMCPServerEntry): MCPAuthorizeLabel | null {
   if (!isOAuthRepairable(server)) return null;
   return server.auth_status?.status === "needs_login" ? "Authorize" : "Reauthorize";
+}
+
+/**
+ * The auth filter targets the server's own scope: a workspace-scoped server
+ * needs its workspace id present, else authorization has no valid target.
+ */
+export function deriveMCPAuthFilter(server: SettingsMCPServerEntry): SettingsMCPAuthFilter | null {
+  if (server.scope === "workspace") {
+    const workspaceId = server.workspace_id?.trim();
+    if (!workspaceId) return null;
+    return { scope: "workspace", workspace_id: workspaceId };
+  }
+  return { scope: "global" };
 }
 
 /**

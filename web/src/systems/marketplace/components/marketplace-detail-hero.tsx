@@ -1,9 +1,10 @@
 import { Box, Plug, Puzzle, Wrench } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, Pill, Spinner, buttonVariants } from "@agh/ui";
+import { Button, Pill, Spinner } from "@agh/ui";
 
 import type { MarketplaceEntryResponse, MarketplaceKind, MarketplaceListing } from "../types";
+import { marketplaceRouteKindFor } from "../types";
 import { formatMarketplaceCount } from "./marketplace-ui";
 
 interface MarketplaceDetailHeroProps {
@@ -49,13 +50,20 @@ function MarketplaceDetailHero({ entry, pending, onAction }: MarketplaceDetailHe
       <div className="flex w-full flex-col items-start gap-1.5 md:w-auto md:items-end">
         <div className="flex flex-wrap items-center gap-2">
           {entry.installed && entry.manage_path ? (
-            <a
+            <Button
               aria-label={`Manage ${entry.name}`}
-              className={buttonVariants({ size: "sm", variant: "ghost" })}
-              href={entry.manage_path}
+              render={
+                <Link
+                  search={{ tab: "installed" }}
+                  to={`/marketplace/${marketplaceRouteKindFor(kind)}`}
+                />
+              }
+              nativeButton={false}
+              size="sm"
+              variant="ghost"
             >
               Manage →
-            </a>
+            </Button>
           ) : null}
           {shouldShowDetailAction(entry) ? (
             <Button

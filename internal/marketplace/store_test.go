@@ -1,6 +1,7 @@
 package marketplace
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -442,7 +443,9 @@ func openMarketplaceTestStore(t *testing.T) *SQLiteStore {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := db.Close(ctx); err != nil {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		if err := db.Close(closeCtx); err != nil {
 			t.Errorf("Close() error = %v", err)
 		}
 	})

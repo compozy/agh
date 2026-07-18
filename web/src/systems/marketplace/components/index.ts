@@ -13,14 +13,10 @@ export {
 export type { MarketplaceDetailProps } from "./marketplace-detail";
 export { MarketplaceGrid, MarketplaceGridSkeleton } from "./marketplace-grid";
 export type { MarketplaceGridProps } from "./marketplace-grid";
-export { MarketplaceKindView } from "./marketplace-kind-view";
-export type { MarketplaceKindViewProps } from "./marketplace-kind-view";
-export { MarketplaceLanding } from "./marketplace-landing";
-export type { MarketplaceLandingProps } from "./marketplace-landing";
-export { MarketplaceKindRouteBody, MarketplaceLandingRouteBody } from "./marketplace-route-bodies";
-export type { MarketplaceRouteSearch } from "./marketplace-route-bodies";
-export { MarketplaceRow } from "./marketplace-row";
-export type { MarketplaceRowProps } from "./marketplace-row";
+export { MarketplaceInstalledCard } from "./marketplace-installed-card";
+export type { MarketplaceInstalledCardProps } from "./marketplace-installed-card";
+export { MarketplaceKindPage } from "./marketplace-kind-page";
+export type { MarketplaceKindPageProps } from "./marketplace-kind-page";
 export { MCPInstallDialog } from "./mcp-install-dialog";
 export type { MCPInstallDialogProps } from "./mcp-install-dialog";
 export {
@@ -45,4 +41,7 @@ export {
 } from "./marketplace-ui";
 export type { MarketplaceViewSort } from "./marketplace-ui";
 export { useMarketplaceActionController } from "./use-marketplace-action-controller";
-export type { MarketplaceActionController } from "./use-marketplace-action-controller";
+export type {
+  MarketplaceActionController,
+  MarketplaceActionControllerOptions,
+} from "./use-marketplace-action-controller";

@@ -27,21 +27,13 @@ import type {
   SkillUpdateRequest,
 } from "../types";
 
+const MCP_INSTALLED_PATH = "/marketplace/mcps?tab=installed";
+
 function invalidateMarketplace(queryClient: ReturnType<typeof useQueryClient>) {
   return queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
 }
 
-// Deep-link the post-install toast to the exact installed scope + server so the
-// operator lands on /mcp with the row preselected, matching the marketplace
-// Manage path producer (internal/api/core/marketplace_list.go).
-function mcpManagePath(scope: string, server: string, workspaceId: string): string {
-  const params = new URLSearchParams({ scope });
-  if (server) params.set("server", server);
-  if (scope === "workspace" && workspaceId) params.set("workspace_id", workspaceId);
-  return `/mcp?${params.toString()}`;
-}
-
-function mcpToastAction(label: "Authorize →" | "Manage →", path: string) {
+function mcpToastAction(label: "Authorize →" | "View installed →", path: string) {
   return {
     action: {
       label,
@@ -64,18 +56,17 @@ export function useInstallMarketplaceMCP() {
   return useMutation({
     mutationFn: (body: MCPInstallRequest) => installMarketplaceMCP(body),
     onSuccess: (result, variables) => {
-      const server = result.mcp_server?.name ?? variables.name ?? "";
-      const scope = result.mcp_server?.scope ?? variables.scope;
-      const workspaceId = result.mcp_server?.workspace_id ?? variables.workspace_id ?? "";
-      const path = mcpManagePath(scope, server, workspaceId);
       if (result.next_step === "authorize") {
         toast.success(
-          "MCP server installed. Authorization is required.",
-          mcpToastAction("Authorize →", path)
+          `${result.mcp_server?.name ?? variables.name ?? "MCP server"} installed · authorization pending`,
+          mcpToastAction("Authorize →", MCP_INSTALLED_PATH)
         );
         return;
       }
-      toast.success("MCP server installed.", mcpToastAction("Manage →", path));
+      toast.success(
+        `${result.mcp_server?.name ?? variables.name ?? "MCP server"} installed`,
+        mcpToastAction("View installed →", MCP_INSTALLED_PATH)
+      );
     },
     onSettled: () =>
       Promise.all([

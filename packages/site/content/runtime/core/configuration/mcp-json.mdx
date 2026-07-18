@@ -239,8 +239,9 @@ cleanup is required.
 
 ## Inspect Runtime Status
 
-The `/mcp` web page and `GET /api/settings/mcp-servers` keep configuration, authorization, runtime,
-and probe state separate. A configured server is not automatically ready.
+The MCP Installed scope at `/marketplace/mcps?tab=installed` and
+`GET /api/settings/mcp-servers` keep configuration, authorization, runtime, and probe state
+separate. A configured server is not automatically ready.
 
 | Signal  | Payload fields                                      | Interpretation                                                                            |
 | ------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -265,8 +266,8 @@ both `authenticated` and `token_present=true`; runtime and probe state remain in
 
 ## Edit A Configured Server
 
-Open `/mcp?scope=global&server=<name>` to select a global definition. Workspace scope uses the
-active workspace and `/mcp?scope=workspace&server=<name>`. The editor supports:
+Open `/marketplace/mcps?tab=installed` to inspect global definitions together with definitions from
+the active workspace, then open the matching Marketplace detail. MCP configuration supports:
 
 - stdio `command`, `args`, literal `env`, and bound `secret_env` refs;
 - remote `http` or `sse` transport and absolute `url`;

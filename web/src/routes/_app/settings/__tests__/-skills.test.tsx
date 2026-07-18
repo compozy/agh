@@ -31,7 +31,7 @@ const envelope: Envelope = {
     allowed_marketplace_mcp: ["mcp-one"],
     allowed_marketplace_hooks: [],
   },
-  links: [{ label: "skills", path: "/skills" }],
+  links: [{ label: "skills", path: "/marketplace/skills?tab=installed" }],
 };
 
 const agentFixture: AgentPayload = {
@@ -131,13 +131,18 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({
     children,
     to,
+    search,
     ...rest
   }: {
     children: ReactNode;
     to: string;
+    search?: Record<string, unknown>;
     [key: string]: unknown;
   }) => (
-    <a href={to} {...(rest as Record<string, unknown>)}>
+    <a
+      href={`${to}${search?.tab ? `?tab=${String(search.tab)}` : ""}`}
+      {...(rest as Record<string, unknown>)}
+    >
       {children}
     </a>
   ),
@@ -341,7 +346,7 @@ describe("SkillsSettingsPage", () => {
       </UIProvider>
     );
     const link = screen.getByTestId("settings-page-skills-link-skills");
-    expect(link).toHaveAttribute("href", "/skills");
+    expect(link).toHaveAttribute("href", "/marketplace/skills?tab=installed");
   });
 
   it("renders agent scope controls and hides policy writes when scoped to one agent", () => {

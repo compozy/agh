@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+
 import {
   Button,
   Pill,
@@ -9,6 +11,7 @@ import {
 } from "@agh/ui";
 
 import type { MarketplaceListing } from "../types";
+import { marketplaceRouteKindFor, type MarketplaceKind } from "../types";
 
 function MarketplaceEntryStatus({ entry }: { entry: MarketplaceListing }) {
   if (entry.update_available) {
@@ -21,7 +24,7 @@ function MarketplaceEntryStatus({ entry }: { entry: MarketplaceListing }) {
   if (entry.installed) {
     return (
       <Pill mono tone="success">
-        installed
+        {entry.kind === "bundle" ? "active" : "installed"}
       </Pill>
     );
   }
@@ -62,16 +65,18 @@ function MarketplaceEntryAction({
 }) {
   const blocked = entry.kind === "extension" && entry.trust?.decision === "blocked";
   const action = marketplaceEntryActionLabel(entry);
+  const routeKind = marketplaceRouteKindFor(entry.kind as MarketplaceKind);
 
-  if (entry.installed && !entry.update_available && entry.manage_path) {
+  if (entry.installed && !entry.update_available) {
     return (
-      <a
+      <Link
         aria-label={`Manage ${entry.name}`}
         className={buttonVariants({ size: "sm", variant: "ghost" })}
-        href={entry.manage_path}
+        search={{ tab: "installed" }}
+        to={`/marketplace/${routeKind}`}
       >
         Manage
-      </a>
+      </Link>
     );
   }
 
