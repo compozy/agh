@@ -300,32 +300,45 @@
 <div class="scroll"><div class="page">
   <div class="head">
     <div class="head__main">
-      <div class="head__titlerow"><h1 class="head__title">Marketplace &amp; Catalog</h1></div>
-      <div class="head__meta"><span>Design artifacts from the marketplace spec</span><span class="dotsep"></span><span>responsive web</span></div>
+      <div class="head__titlerow"><h1 class="head__title">Marketplace</h1></div>
+      <div class="head__meta"><span>Design artifacts — one marketplace surface</span><span class="dotsep"></span><span>responsive web</span><span class="dotsep"></span><span>spec: UNIFIED-CATALOG-SPEC.md</span></div>
     </div>
   </div>
-  <div class="toc-banner" data-od-id="mkt-toc-banner"><div><b>Reviewer TOC — not product UI.</b> Launcher for marketplace design artifacts. Open a card to preview the real surface.</div></div>
+  <div class="toc-banner" data-od-id="mkt-toc-banner"><div><b>Reviewer TOC — not product UI.</b> The marketplace is one surface: a single <b>Marketplace</b> sidebar entry, topbar tabs <b>Skills · MCPs · Extensions · Bundles</b> (Skills default), and per kind the underline tabs <b>Marketplace | Installed</b> — cards only, no rows. <b>marketplace.html</b> is canonical; <b>UNIFIED-CATALOG-SPEC.md</b> carries the full <code>web/</code> refactor.</div></div>
   <div class="nav-strip" data-od-id="mkt-nav-strip">
-    <a class="is-active" href="marketplace.html">Landing</a>
-    <a href="marketplace-kind.html?kind=mcp">Kind view</a>
-    <a href="marketplace-detail.html?kind=mcp&name=github">Detail</a>
-    <a href="extensions.html">Extensions</a>
-    <a href="extension-detail.html?name=cost-guard">Ext detail</a>
+    <a class="is-active" href="marketplace.html">Skills</a>
+    <a href="marketplace.html?kind=mcps">MCPs</a>
+    <a href="marketplace.html?kind=extensions">Extensions</a>
+    <a href="marketplace.html?kind=bundles">Bundles</a>
+    <a href="marketplace-detail.html?kind=skills&name=git-flow">Detail</a>
     <a href="bundle-activation-detail.html?id=ops-starter">Bundle detail</a>
   </div>
-  <div class="launcher-grid" data-od-id="mkt-launcher">
-    <a class="launcher-card" href="marketplace.html" data-od-id="launch-landing"><b>marketplace.html</b><p>Overview landing with topbar nav (Overview · Skills · Extensions · Bundles · MCP), fan-out search, kind sections, installed/update card states.</p><span>/marketplace</span></a>
-    <a class="launcher-card" href="marketplace-kind.html?kind=mcp" data-od-id="launch-kind"><b>marketplace-kind.html</b><p>Kind view with the same topbar nav (Overview first), MCP guided install modal, bundle activation preview.</p><span>/marketplace?kind=</span></a>
-    <a class="launcher-card" href="marketplace-detail.html?kind=mcp&name=github" data-od-id="launch-detail"><b>marketplace-detail.html</b><p>Detail route with accent CTA, README, config template / contents, trust rail.</p><span>/marketplace/$kind/$name</span></a>
-    <a class="launcher-card" href="extensions.html" data-od-id="launch-ext"><b>extensions.html</b><p>Installed inventory: topbar PillGroup Extensions | Bundles, listing-standard rows, remove / deactivate modals.</p><span>/extensions</span></a>
-    <a class="launcher-card" href="extension-detail.html?name=cost-guard" data-od-id="launch-ext-detail"><b>extension-detail.html</b><p>Management detail for one installed extension: enable switch, capabilities, env, diagnostics, provenance rail.</p><span>/extensions/$name</span></a>
-    <a class="launcher-card" href="bundle-activation-detail.html?id=ops-starter" data-od-id="launch-bun-detail"><b>bundle-activation-detail.html</b><p>Management detail for one bundle activation: profile contents, inventory, bind switch, deactivate modal.</p><span>/extensions/bundles/$id</span></a>
+  <div class="section" style="margin-top:0">
+    <div class="section__label">Canonical surfaces</div>
+    <div class="launcher-grid" data-od-id="mkt-launcher">
+      <a class="launcher-card" href="marketplace.html" data-od-id="launch-marketplace"><div class="pill" data-tone="success">canonical</div><b>marketplace.html</b><p>The one marketplace surface. Topbar tabs switch the four kinds; each kind has page head + search, underline tabs Marketplace | Installed, and a card grid. Install, update, remove, enable, authorize, and bundle activation run inline.</p><span>/marketplace/skills · /mcps · /extensions · /bundles</span></a>
+      <a class="launcher-card" href="marketplace-detail.html?kind=skills&name=git-flow" data-od-id="launch-detail"><div class="pill">keep · adaptive</div><b>marketplace-detail.html</b><p>Per-item detail for every kind: README, config template, trust rail; Manage links land on the kind's Installed tab.</p><span>/marketplace/$kind/$name</span></a>
+      <a class="launcher-card" href="bundle-activation-detail.html?id=ops-starter" data-od-id="launch-bun-detail"><div class="pill">keep</div><b>bundle-activation-detail.html</b><p>Deep management view for one bundle activation: profile contents, inventory, bind switch, deactivate.</p><span>/marketplace/bundles/activations/$id</span></a>
+      <a class="launcher-card" href="UNIFIED-CATALOG-SPEC.md" data-od-id="launch-spec"><div class="pill" data-tone="info">spec</div><b>UNIFIED-CATALOG-SPEC.md</b><p>Complete web/ refactor: routes to delete, components to merge, hooks/data-layer changes, sidebar, tests, and QA impact.</p><span>docs/design/opendesign/marketplace</span></a>
+    </div>
+  </div>
+  <div class="section" style="margin-top:36px">
+    <div class="section__label">Removed artifacts (superseded by marketplace.html)</div>
+    <div class="panelbox" style="padding:16px 18px;font-size:12.5px;line-height:1.8;color:var(--muted)" data-od-id="mkt-removed">
+      <span style="font-family:var(--font-mono);font-size:11.5px">marketplace-kind.html</span> · <span style="font-family:var(--font-mono);font-size:11.5px">extensions.html</span> · <span style="font-family:var(--font-mono);font-size:11.5px">extension-detail.html</span> · <span style="font-family:var(--font-mono);font-size:11.5px">mcp-management.html</span> · <span style="font-family:var(--font-mono);font-size:11.5px">skills.html</span>
+      <div style="margin-top:6px">Kind browse, installed-only inventories, and the split installed-extension detail all fold into the single marketplace surface and its Installed tabs.</div>
+    </div>
   </div>
   <div class="section" style="margin-top:36px">
     <div class="section__label">Catalog IA (sidebar)</div>
     <div class="panelbox" style="padding:16px 18px;font-size:13px;line-height:1.7;color:var(--muted)">
       <div><span style="color:var(--subtle);font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase">Catalog</span></div>
-      Marketplace · Extensions · Bridges · Skills · MCP · Knowledge
+      Marketplace · Bridges · Knowledge
+      <div style="margin-top:8px;font-size:12.5px;line-height:1.65">
+        One entry. <b style="color:var(--fg);font-weight:500">Marketplace</b> owns the four kinds as subroutes — <span style="font-family:var(--font-mono);font-size:11.5px">/marketplace/skills</span> (default) · <span style="font-family:var(--font-mono);font-size:11.5px">/mcps</span> · <span style="font-family:var(--font-mono);font-size:11.5px">/extensions</span> · <span style="font-family:var(--font-mono);font-size:11.5px">/bundles</span> — each with Marketplace | Installed tabs. Installed management (enable, update, authorize, remove, deactivate) lives in the Installed tab.
+      </div>
+      <div style="margin-top:12px"><span style="color:var(--subtle);font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase">Deleted routes</span></div>
+      <span style="font-family:var(--font-mono);font-size:11.5px">/skills</span> · <span style="font-family:var(--font-mono);font-size:11.5px">/skills/$name</span> · <span style="font-family:var(--font-mono);font-size:11.5px">/mcp</span> · <span style="font-family:var(--font-mono);font-size:11.5px">/extensions</span> · <span style="font-family:var(--font-mono);font-size:11.5px">/extensions/$name</span> · <span style="font-family:var(--font-mono);font-size:11.5px">/extensions/bundles/$id</span> · <span style="font-family:var(--font-mono);font-size:11.5px">?kind=</span> search-param views
       <div style="margin-top:12px"><span style="color:var(--subtle);font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase">System</span></div>
       Sandbox · Vault · Settings
     </div>

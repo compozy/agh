@@ -129,9 +129,9 @@ describe("automation operator selectors", () => {
     expect(selectors.navTriggers).toBe(`locator:${automationOperatorTestIds.navTriggers}`);
     expect(selectors.jobsShell).toBe(`locator:${automationOperatorTestIds.jobsShell}`);
     expect(selectors.triggersShell).toBe(`locator:${automationOperatorTestIds.triggersShell}`);
-    expect(selectors.jobsScopeAll).toBe(`locator:${automationOperatorTestIds.jobsScopeAll}`);
-    expect(selectors.triggersScopeAll).toBe(
-      `locator:${automationOperatorTestIds.triggersScopeAll}`
+    expect(selectors.jobsListRows).toBe(`locator:${automationOperatorTestIds.jobsListRows}`);
+    expect(selectors.triggersListRows).toBe(
+      `locator:${automationOperatorTestIds.triggersListRows}`
     );
     expect(selectors.createJobButton).toBe(`locator:${automationOperatorTestIds.createJobButton}`);
     expect(selectors.createTriggerButton).toBe(

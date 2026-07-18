@@ -73,7 +73,7 @@ export function TasksMultiAgentPanel({
   return (
     <section
       aria-label="Agents"
-      className="flex min-h-0 w-full flex-1 flex-col gap-5 px-6 py-5"
+      className="flex min-h-0 w-full flex-1 flex-col gap-5 py-5"
       data-testid="tasks-multi-agent-panel"
     >
       <header className="flex flex-col gap-1.5" data-testid="tasks-multi-agent-header">

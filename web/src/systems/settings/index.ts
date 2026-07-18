@@ -201,6 +201,7 @@ export {
   RESTART_TERMINAL_STATUSES,
 } from "./lib/restart-status";
 export { restartBannerPropsFor } from "./lib/restart-banner-mapper";
+export { SettingsPageHead, type SettingsPageHeadProps } from "./components/settings-page-head";
 
 // Components
 export {

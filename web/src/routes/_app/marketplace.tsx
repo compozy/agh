@@ -1,8 +1,8 @@
-import { Outlet, createFileRoute, useChildMatches, useNavigate } from "@tanstack/react-router";
-import { RefreshCw, Store } from "lucide-react";
+import { Link, Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
+import { RefreshCw } from "lucide-react";
 
-import { Button, PillGroup, Spinner, useTopbarSlot } from "@agh/ui";
-import { normalizeListingSearchValue } from "@/lib/listing-search";
+import { Button, RouteNav, Spinner, useTopbarSlot } from "@agh/ui";
+import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
 import {
   MARKETPLACE_KIND_LABEL,
   MARKETPLACE_KIND_ORDER,
@@ -24,12 +24,13 @@ function validateMarketplaceSearch(search: Record<string, unknown>): Marketplace
     kind: isMarketplaceRouteKind(search.kind) ? search.kind : undefined,
     q: normalizeListingSearchValue(search.q),
     sort: isMarketplaceViewSort(search.sort) ? search.sort : undefined,
+    view: parseListingView(search.view),
   };
 }
 
 export const Route = createFileRoute("/_app/marketplace")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Marketplace", icon: Store },
+    topbar: { crumb: { label: "Marketplace", to: "/marketplace" } },
   }),
   validateSearch: validateMarketplaceSearch,
   component: MarketplaceRoute,
@@ -45,10 +46,8 @@ const MARKETPLACE_NAV_ITEMS = [
 
 function MarketplaceRoute() {
   const search = Route.useSearch();
-  const navigate = useNavigate({ from: "/marketplace" });
   const hasChildMatch = useChildMatches().length > 0;
   const refresh = useRefreshMarketplaceCatalog();
-  const activeNav = search.kind ?? "overview";
   const selectedApiKind = search.kind ? marketplaceApiKindFor(search.kind) : undefined;
   const refreshKind = selectedApiKind === "bundle" ? undefined : selectedApiKind;
 
@@ -56,24 +55,31 @@ function MarketplaceRoute() {
     hasChildMatch
       ? null
       : {
-          tabs: (
-            <PillGroup
-              aria-label="Marketplace section"
-              data-testid="marketplace-kind-navigation"
-              items={MARKETPLACE_NAV_ITEMS}
-              onChange={next => {
-                void navigate({
-                  search: current => ({
-                    ...(current as MarketplaceRouteSearch),
-                    kind: next === "overview" ? undefined : next,
-                    sort: undefined,
-                  }),
-                  to: "/marketplace",
-                });
-              }}
-              size="md"
-              value={activeNav}
-            />
+          routeNav: (
+            <RouteNav aria-label="Marketplace sections" data-testid="marketplace-kind-navigation">
+              {MARKETPLACE_NAV_ITEMS.map(item => (
+                <RouteNav.Link
+                  key={item.value}
+                  render={
+                    <Link
+                      activeOptions={{ exact: true, includeSearch: true }}
+                      search={current => {
+                        const { q, view } = current as MarketplaceRouteSearch;
+                        return {
+                          kind: item.value === "overview" ? undefined : item.value,
+                          q,
+                          sort: undefined,
+                          view,
+                        };
+                      }}
+                      to="/marketplace"
+                    />
+                  }
+                >
+                  {item.label}
+                </RouteNav.Link>
+              ))}
+            </RouteNav>
           ),
           actions: (
             <Button

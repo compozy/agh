@@ -1,5 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 
+import type { ListingViewMode } from "@agh/ui";
+
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useMarketplaceKind, useMarketplaceSearch } from "../hooks/use-marketplace";
@@ -13,6 +15,7 @@ export interface MarketplaceRouteSearch {
   kind?: MarketplaceRouteKind;
   q?: string;
   sort?: MarketplaceViewSort;
+  view?: ListingViewMode;
 }
 
 export function MarketplaceLandingRouteBody({ search }: { search: MarketplaceRouteSearch }) {
@@ -24,12 +27,13 @@ export function MarketplaceLandingRouteBody({ search }: { search: MarketplaceRou
     q: search.q,
     workspaceId: activeWorkspaceId,
   });
-  const setSearch = (q: string) => {
+  const updateSearch = (next: Partial<MarketplaceRouteSearch>) => {
     void navigate({
-      search: current => ({ ...(current as MarketplaceRouteSearch), q: q || undefined }),
+      search: current => ({ ...(current as MarketplaceRouteSearch), ...next }),
       to: "/marketplace",
     });
   };
+  const view: ListingViewMode = search.view ?? "rows";
   return (
     <>
       <MarketplaceLanding
@@ -39,10 +43,14 @@ export function MarketplaceLandingRouteBody({ search }: { search: MarketplaceRou
         isEntryPending={actions.isEntryPending}
         isLoading={query.isLoading}
         onAction={actions.handleAction}
-        onClearSearch={() => setSearch("")}
+        onClearSearch={() => updateSearch({ q: undefined })}
         onRetry={() => void query.refetch()}
-        onSearchChange={setSearch}
+        onSearchChange={q => updateSearch({ q: q || undefined })}
+        onViewChange={nextView =>
+          updateSearch({ view: nextView === "rows" ? undefined : nextView })
+        }
         query={search.q ?? ""}
+        view={view}
       />
       {actions.dialogs}
     </>
@@ -71,6 +79,7 @@ export function MarketplaceKindRouteBody({
       to: "/marketplace",
     });
   };
+  const view: ListingViewMode = search.view ?? "rows";
   return (
     <>
       <MarketplaceKindView
@@ -84,8 +93,12 @@ export function MarketplaceKindRouteBody({
         onRetry={() => void query.refetch()}
         onSearchChange={q => updateSearch({ q: q || undefined })}
         onSortChange={sort => updateSearch({ sort: sort === "relevance" ? undefined : sort })}
+        onViewChange={nextView =>
+          updateSearch({ view: nextView === "rows" ? undefined : nextView })
+        }
         query={search.q ?? ""}
         sort={search.sort ?? "relevance"}
+        view={view}
       />
       {actions.dialogs}
     </>

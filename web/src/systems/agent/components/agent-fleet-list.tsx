@@ -76,7 +76,7 @@ function AgentFleetList({
       <div
         aria-busy="true"
         aria-label="Loading agents"
-        className="min-h-0 flex-1 overflow-hidden rounded-lg border border-line-soft bg-canvas-soft"
+        className="min-h-0 flex-1 overflow-hidden rounded-lg border border-line bg-canvas-soft"
         data-testid="agent-fleet-loading"
       >
         <SkeletonRows count={8} className="gap-0" rowClassName="px-4 py-3">
@@ -169,7 +169,7 @@ function AgentFleetList({
         </div>
       ) : (
         <ul
-          className="overflow-hidden rounded-lg border border-line-soft bg-canvas-soft"
+          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
           data-slot="agent-fleet-rows"
         >
           {rows.map(row => (

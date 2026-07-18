@@ -210,6 +210,7 @@
   .breadcrumb__page{color:var(--fg-strong)}
   .breadcrumb__separator{display:inline-flex;color:var(--faint);flex:none}
   .breadcrumb__separator svg{width:12px;height:12px}
+  .breadcrumb__home svg{width:14px;height:14px;flex:none}
   .breadcrumb__ellipsis{display:grid;place-items:center;width:20px;height:20px;color:var(--muted)}
   .breadcrumb__ellipsis svg{width:14px;height:14px}
   .route-nav{
@@ -563,6 +564,8 @@
             <div class="topbar__context">
               <nav class="breadcrumb" aria-label="Breadcrumb" data-od-id="topbar-full-breadcrumb">
                 <ol class="breadcrumb__list">
+                  <li class="breadcrumb__item"><a class="breadcrumb__link breadcrumb__home" href="#overview" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a></li>
+                  <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
                   <li class="breadcrumb__item"><a class="breadcrumb__link" href="#route-composition">Operate</a></li>
                   <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
                   <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Tasks</span></li>
@@ -588,6 +591,8 @@
               <div class="topbar__context">
                 <nav class="breadcrumb" aria-label="Breadcrumb">
                   <ol class="breadcrumb__list">
+                    <li class="breadcrumb__item"><a class="breadcrumb__link breadcrumb__home" href="#overview" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a></li>
+                    <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
                     <li class="breadcrumb__item"><a class="breadcrumb__link" href="#page-head">Loops</a></li>
                     <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
                     <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">software-delivery</span></li>
@@ -607,6 +612,8 @@
               <div class="topbar__context">
                 <nav class="breadcrumb" aria-label="Breadcrumb">
                   <ol class="breadcrumb__list">
+                    <li class="breadcrumb__item"><a class="breadcrumb__link breadcrumb__home" href="#overview" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a></li>
+                    <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
                     <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Runs</span></li>
                   </ol>
                 </nav>
@@ -618,6 +625,7 @@
           <div class="do-dont__col do-dont__col--do">
             <div class="do-dont__tag">Do</div>
             <ul>
+              <li>Lead every breadcrumb with a fixed Home icon that links to Dashboard (<code>/</code>)</li>
               <li>Keep context, route navigation, and actions in independent grid zones</li>
               <li>Allow breadcrumb truncation before displacing centered navigation</li>
               <li>Collapse secondary actions into overflow at narrow widths</li>
@@ -626,7 +634,7 @@
           <div class="do-dont__col do-dont__col--dont">
             <div class="do-dont__tag">Don’t</div>
             <ul>
-              <li>Render route icon, H1, count, status, or badges in the topbar</li>
+              <li>Render route-identity icons, H1, count, status, or badges in the topbar (Home root is the exception)</li>
               <li>Use <code>slot.title</code> for Breadcrumb; the current API nests it in an H1</li>
               <li>Put search, scope selectors, or content status in the topbar</li>
             </ul>
@@ -640,12 +648,14 @@
           <h2>Breadcrumb</h2>
           <span class="ds-sec__id">05</span>
         </div>
-        <p class="ds-sec__lead">Use the exported <code>Breadcrumb</code> primitive: semantic navigation landmark, ordered list, real links, chevron separators, and <code>aria-current="page"</code> on the current location.</p>
+        <p class="ds-sec__lead">Use the exported <code>Breadcrumb</code> primitive: semantic navigation landmark, ordered list, real links, chevron separators, and <code>aria-current="page"</code> on the current location. Every trail leads with a fixed Home icon linking to Dashboard (<code>/</code>); on the dashboard itself the icon is the current page.</p>
         <div class="preview" data-od-id="breadcrumb-preview">
-          <div class="preview__bar"><span>Default + truncated</span><span>13 / 18 · gap 6 · chevron 12</span></div>
+          <div class="preview__bar"><span>Default + truncated</span><span>13 / 18 · gap 6 · chevron 12 · home 14</span></div>
           <div class="preview__pad ds-grid-2">
             <nav class="breadcrumb" aria-label="Breadcrumb" data-od-id="breadcrumb-default">
               <ol class="breadcrumb__list">
+                <li class="breadcrumb__item"><a class="breadcrumb__link breadcrumb__home" href="#overview" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a></li>
+                <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
                 <li class="breadcrumb__item"><a class="breadcrumb__link" href="#overview">Workspaces</a></li>
                 <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
                 <li class="breadcrumb__item"><a class="breadcrumb__link" href="#overview">launch-hq</a></li>
@@ -655,6 +665,8 @@
             </nav>
             <nav class="breadcrumb" aria-label="Breadcrumb" data-od-id="breadcrumb-truncated">
               <ol class="breadcrumb__list">
+                <li class="breadcrumb__item"><a class="breadcrumb__link breadcrumb__home" href="#overview" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a></li>
+                <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
                 <li class="breadcrumb__item"><a class="breadcrumb__link" href="#overview">Workspaces</a></li>
                 <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
                 <li class="breadcrumb__item"><span class="breadcrumb__ellipsis" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span></li>

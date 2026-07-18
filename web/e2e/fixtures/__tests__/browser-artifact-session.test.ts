@@ -136,17 +136,14 @@ describe("captureRouteState", () => {
     window.history.replaceState({}, "", "/jobs");
     document.title = "AGH";
     document.body.innerHTML = `
-      <div data-testid="jobs-shell">
-        <button data-testid="jobs-scope-all" aria-pressed="true"></button>
-        <button data-testid="jobs-scope-global" aria-pressed="false"></button>
-        <button data-testid="jobs-scope-workspace" aria-pressed="false"></button>
+      <div data-testid="jobs-shell"></div>
+      <div data-testid="jobs-list-rows">
+        <div data-testid="automation-item-job_daily_review"><a href="/jobs/job_daily_review"></a></div>
+        <div data-testid="automation-item-job_weekly_triage"><a href="/jobs/job_weekly_triage"></a></div>
       </div>
-      <aside data-testid="automation-list-panel">
-        <button data-testid="automation-item-job_daily_review"></button>
-        <button data-testid="automation-item-job_weekly_triage"></button>
-      </aside>
       <section data-testid="automation-detail-panel">
         <h1>deploy-review</h1>
+        <button data-testid="automation-detail-overflow"></button>
         <button data-testid="toggle-automation-btn"></button>
         <button data-testid="trigger-job-btn"></button>
         <button data-testid="delete-automation-btn"></button>
@@ -169,6 +166,7 @@ describe("captureRouteState", () => {
       automation_view_visible: true,
       automation_active_tab: "jobs",
       automation_delete_visible: true,
+      automation_detail_overflow_visible: true,
       automation_enabled_toggle_visible: true,
       automation_editor_kind: "job",
       automation_editor_open: false,
@@ -224,10 +222,10 @@ describe("captureRouteState", () => {
     document.title = "AGH";
     document.body.innerHTML = `
       <div data-testid="tasks-dashboard-view">
-        <button data-testid="tasks-mode-dashboard" aria-pressed="false"></button>
-        <button data-testid="tasks-mode-inbox" aria-pressed="false"></button>
-        <button data-testid="tasks-mode-kanban" aria-pressed="false"></button>
-        <button data-testid="tasks-mode-list" aria-pressed="true"></button>
+        <a data-testid="tasks-mode-dashboard" href="/tasks?mode=dashboard"></a>
+        <a data-testid="tasks-mode-inbox" href="/tasks?mode=inbox"></a>
+        <a data-testid="tasks-mode-kanban" href="/tasks?mode=kanban"></a>
+        <a data-testid="tasks-mode-list" aria-current="page" href="/tasks"></a>
         <article data-testid="task-card-task_launch"></article>
         <article data-testid="task-card-task_review"></article>
       </div>

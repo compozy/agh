@@ -9,6 +9,7 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
+  PageHead,
   Spinner,
   useTopbarSlot,
 } from "@agh/ui";
@@ -35,7 +36,7 @@ function validateSkillsSearch(search: Record<string, unknown>): SkillsRouteSearc
 
 export const Route = createFileRoute("/_app/skills")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Skills", icon: Wrench },
+    topbar: { crumb: { label: "Skills", to: "/skills" } },
   }),
   validateSearch: validateSkillsSearch,
   loader: ({ context }) => preloadSkillsRoute(context.queryClient),
@@ -46,32 +47,38 @@ function SkillsPage() {
   const page = useSkillsPage(Route.useSearch());
   const { activeWorkspace } = useActiveWorkspace();
 
-  useTopbarSlot({
-    count: page.hasChildMatch ? undefined : page.skillCount,
-    actions: page.hasChildMatch ? undefined : (
-      <div className="flex items-center gap-2" data-testid="skills-topbar-actions">
-        <Button
-          data-testid="skills-browse-marketplace"
-          render={<Link search={{ kind: "skills" }} to="/marketplace" />}
-          nativeButton={false}
-          size="sm"
-          variant="ghost"
-        >
-          Browse marketplace
-        </Button>
-        <Button
-          data-testid="skills-refresh"
-          onClick={page.handleRefresh}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <RefreshCw aria-hidden="true" className="size-3" />
-          Refresh
-        </Button>
-      </div>
-    ),
-  });
+  // Publish null while a child route is mounted: a non-null slot from this
+  // parent would steal the detail route's publish (layout effects run child
+  // first, parent last in the same commit).
+  useTopbarSlot(
+    page.hasChildMatch
+      ? null
+      : {
+          actions: (
+            <div className="flex items-center gap-2" data-testid="skills-topbar-actions">
+              <Button
+                data-testid="skills-browse-marketplace"
+                render={<Link search={{ kind: "skills" }} to="/marketplace" />}
+                nativeButton={false}
+                size="sm"
+                variant="ghost"
+              >
+                Browse marketplace
+              </Button>
+              <Button
+                data-testid="skills-refresh"
+                onClick={page.handleRefresh}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <RefreshCw aria-hidden="true" className="size-3" />
+                Refresh
+              </Button>
+            </div>
+          ),
+        }
+  );
 
   if (page.hasChildMatch) {
     return <Outlet />;
@@ -88,7 +95,7 @@ function SkillsPage() {
   if (page.error) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="skills-error"
       >
         <Empty
@@ -121,14 +128,15 @@ function SkillsPage() {
       }
       data-testid="skills-shell"
     >
-      <ListingPage.Head
+      <PageHead
         count={page.skillCount}
         countTestId="skills-page-count"
         data-testid="skills-page-head"
+        icon={Wrench}
         meta={
           <>
             <span>Installed skills available to agents in this workspace.</span>
-            <ListingPage.MetaDot />
+            <PageHead.MetaDot />
             <span>{workspaceLabel}</span>
           </>
         }

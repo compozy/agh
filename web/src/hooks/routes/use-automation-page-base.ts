@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
+import { useChildMatches, useNavigate } from "@tanstack/react-router";
 
+import type { ListingViewMode } from "@agh/ui";
 import { AutomationApiError } from "@/systems/automation";
 import type {
   AutomationScopeFilter,
@@ -34,52 +35,7 @@ export interface AutomationRouteSearch {
   q?: string;
   scope?: AutomationScopeFilter;
   source?: AutomationSource;
-}
-
-export function buildEmptyState({
-  hasQuery,
-  kind,
-  onCreate,
-}: {
-  hasQuery: boolean;
-  kind: "jobs" | "triggers";
-  onCreate: () => void;
-}) {
-  if (hasQuery) {
-    return {
-      description: "Try a different search term or adjust the current scope filter.",
-      icon: "search" as const,
-      title: kind === "jobs" ? "No jobs found" : "No triggers found",
-    };
-  }
-
-  if (kind === "jobs") {
-    return {
-      actionLabel: "Create Job",
-      description:
-        "Scheduled jobs run an agent, materialize a task, or start a Loop on a time-based cadence. Create your first job to start automating.",
-      icon: "jobs" as const,
-      onAction: onCreate,
-      title: "No jobs configured",
-    };
-  }
-
-  return {
-    actionLabel: "Create Trigger",
-    description:
-      "Event-driven triggers react to daemon events, webhooks, and extension signals, then run their configured target. Create your first trigger to enable reactive automation.",
-    icon: "triggers" as const,
-    onAction: onCreate,
-    title: "No triggers configured",
-  };
-}
-
-export function resolveSelectedId<T extends { id: string }>(selectedId: string | null, items: T[]) {
-  if (selectedId && items.some(item => item.id === selectedId)) {
-    return selectedId;
-  }
-
-  return items[0]?.id ?? null;
+  view?: ListingViewMode;
 }
 
 export function automationUnavailableMessage(
@@ -100,16 +56,69 @@ export function automationUnavailableMessage(
   return null;
 }
 
+/** List-level error: runtime-unavailable wins, then the query error — only when no rows loaded. */
+export function automationListError(
+  runtimeUnavailableMessage: string | null,
+  queryError: Error | null,
+  itemCount: number
+): Error | null {
+  if (itemCount > 0) return null;
+  if (runtimeUnavailableMessage) return new Error(runtimeUnavailableMessage);
+  return queryError;
+}
+
+/**
+ * Consumes the one-shot `?create=loop&loop=` deep-link shared by the Jobs and
+ * Triggers routes. Waits for the active workspace before opening the create
+ * editor (the loop-target draft binds workspace scope), then strips the
+ * consumed params so a cancel or reload does not re-open the dialog and the
+ * list is not silently filtered by `loop`.
+ */
+export function useAutomationCreateSeed(
+  kind: "jobs" | "triggers",
+  seed: AutomationCreateSeed,
+  activeWorkspaceId: string | null | undefined,
+  openLoopCreate: (loop: string) => void
+): void {
+  const navigate = useNavigate();
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !seed.loop || !activeWorkspaceId) return;
+    seededRef.current = true;
+    openLoopCreate(seed.loop);
+    void navigate({
+      replace: true,
+      search: current => ({
+        ...(current as AutomationRouteSearch),
+        create: undefined,
+        loop: undefined,
+      }),
+      to: kind === "jobs" ? "/jobs" : "/triggers",
+    });
+  }, [activeWorkspaceId, kind, navigate, openLoopCreate, seed.loop]);
+}
+
+/**
+ * Shared catalog base for the Jobs and Triggers list routes. Owns URL-driven
+ * search/filter state, the active workspace context, and the runtime health
+ * gate. Detail selection lives in the `$jobId`/`$triggerId` child routes.
+ */
 export function useAutomationPageBase(
   kind: "jobs" | "triggers",
   search: AutomationRouteSearch = {}
 ) {
   const navigate = useNavigate();
+  const childMatches = useChildMatches();
+  const hasChildMatch = childMatches.length > 0;
   const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
   const settingsQuery = useSettingsAutomation();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+
   const scopeFilter = search.scope ?? "all";
   const searchQuery = search.q ?? "";
+  const view: ListingViewMode = search.view ?? "rows";
+  const sourceFilter = search.source ?? null;
+  const enabledFilter = search.enabled ?? null;
+  const eventFilter = search.event ?? null;
 
   const scopedWorkspaceId =
     scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
@@ -131,21 +140,53 @@ export function useAutomationPageBase(
     });
   };
 
-  const setScopeFilter = (scope: AutomationScopeFilter) =>
-    updateSearch({ scope: scope === "all" ? undefined : scope });
   const setSearchQuery = (q: string) => updateSearch({ q: q.trim() === "" ? undefined : q });
+  const setScopeFilter = (scope: AutomationScopeFilter | null) =>
+    updateSearch({ scope: scope && scope !== "all" ? scope : undefined });
+  const setSourceFilter = (source: AutomationSource | null) =>
+    updateSearch({ source: source ?? undefined });
+  const setEnabledFilter = (enabled: boolean | null) =>
+    updateSearch({ enabled: enabled ?? undefined });
+  const setEventFilter = (event: string | null) =>
+    updateSearch({ event: event && event.trim() !== "" ? event.trim() : undefined });
+  const setView = (nextView: ListingViewMode) =>
+    updateSearch({ view: nextView === "rows" ? undefined : nextView });
+  const clearFilters = () =>
+    updateSearch({
+      enabled: undefined,
+      event: undefined,
+      q: undefined,
+      scope: undefined,
+      source: undefined,
+    });
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    scopeFilter !== "all" ||
+    sourceFilter !== null ||
+    enabledFilter !== null ||
+    eventFilter !== null;
 
   return {
     activeWorkspace,
     activeWorkspaceId,
     automationRuntime: settingsQuery.data?.runtime ?? null,
+    clearFilters,
+    enabledFilter,
+    eventFilter,
+    hasActiveFilters,
+    hasChildMatch,
     listFilters,
     scopeFilter,
     searchQuery,
-    selectedId,
+    setEnabledFilter,
+    setEventFilter,
     setScopeFilter,
     setSearchQuery,
-    setSelectedId,
+    setSourceFilter,
+    setView,
+    sourceFilter,
+    view,
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   };
 }

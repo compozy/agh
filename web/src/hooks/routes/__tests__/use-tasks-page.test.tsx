@@ -145,7 +145,7 @@ import {
 import type { TaskListFilter, TaskListPage } from "@/systems/tasks";
 import { tasksKeys } from "@/systems/tasks";
 
-import { useTasksPage } from "../use-tasks-page";
+import { useTasksPage, type UseTasksPageOptions } from "../use-tasks-page";
 
 function createQueryClient() {
   return new QueryClient({
@@ -332,7 +332,7 @@ describe("useTasksPage", () => {
   });
 
   it("keeps full catalogs mode-scoped while retaining the minimal inbox badge read", async () => {
-    const { result } = renderHook(() => useTasksPage({ initialMode: "dashboard" }), {
+    const { result } = renderHook(() => useTasksPage({ mode: "dashboard" }), {
       wrapper: createWrapper(),
     });
 
@@ -357,11 +357,12 @@ describe("useTasksPage", () => {
   });
 
   it("swaps to inbox reads when the inbox tab is active", async () => {
-    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+    const { result, rerender } = renderHook(
+      (options?: UseTasksPageOptions) => useTasksPage(options),
+      { wrapper: createWrapper() }
+    );
 
-    act(() => {
-      result.current.handleModeChange("inbox");
-    });
+    rerender({ mode: "inbox" });
 
     await waitFor(() => {
       expect(getTaskInbox).toHaveBeenCalled();
@@ -374,7 +375,7 @@ describe("useTasksPage", () => {
   });
 
   it("maps inbox lane, status, priority, unread, and search into the backend query", async () => {
-    const { result } = renderHook(() => useTasksPage({ initialMode: "inbox" }), {
+    const { result } = renderHook(() => useTasksPage({ mode: "inbox" }), {
       wrapper: createWrapper(),
     });
 
@@ -405,7 +406,7 @@ describe("useTasksPage", () => {
   });
 
   it("maps the active workspace scope into the dashboard query", async () => {
-    const { result } = renderHook(() => useTasksPage({ initialMode: "dashboard" }), {
+    const { result } = renderHook(() => useTasksPage({ mode: "dashboard" }), {
       wrapper: createWrapper(),
     });
 
@@ -422,7 +423,7 @@ describe("useTasksPage", () => {
 
   it("maps the home workspace into global dashboard and backlog queries", async () => {
     workspaceMockState.selectedWorkspaceId = "ws_home";
-    renderHook(() => useTasksPage({ initialMode: "dashboard" }), {
+    renderHook(() => useTasksPage({ mode: "dashboard" }), {
       wrapper: createWrapper(),
     });
 

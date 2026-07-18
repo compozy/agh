@@ -27,7 +27,7 @@ import { Route } from "../index";
 const HomePage = (Route as unknown as { component: () => React.ReactNode }).component;
 
 function renderHome() {
-  return renderWithTopbar(<HomePage />, { title: "Home" });
+  return renderWithTopbar(<HomePage />);
 }
 
 function makeHome(overrides: Partial<HomePageView> = {}): HomePageView {

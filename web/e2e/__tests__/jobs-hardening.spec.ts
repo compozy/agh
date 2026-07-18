@@ -175,9 +175,10 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
 
   await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
   await expect(ui.jobsShell).toBeVisible();
-  await expect(ui.jobsScopeAll).toHaveAttribute("aria-pressed", "true");
+  await expect(ui.jobsListRows).toBeVisible();
   await expect(ui.item(workspaceJob.id)).toBeVisible();
-  await ui.item(workspaceJob.id).click();
+  await ui.itemLink(workspaceJob.id).click();
+  await expect(appPage).toHaveURL(new RegExp(`/jobs/${workspaceJob.id}$`));
   await expect(ui.detailPanel).toContainText("Scope: WORKSPACE");
 
   await ui.createJobButton.click();
@@ -204,7 +205,8 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   expect((await createResponse).ok()).toBe(true);
   await expect(ui.editorDialog).toBeHidden();
   const created = await waitForJobByName(runtime, initialName);
-  await expect(ui.item(created.id)).toBeVisible();
+  // Saving from the editor navigates straight to the new job's detail route.
+  await expect(appPage).toHaveURL(new RegExp(`/jobs/${created.id}$`));
   await expect(ui.detailPanel).toContainText(initialName);
   await expect(ui.detailPanel).toContainText("REGISTERED");
 
@@ -262,11 +264,9 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   const routeState = await readRouteState(runtime);
   expect(routeState).toMatchObject({
     automation_active_tab: "jobs",
-    automation_delete_visible: true,
-    automation_enabled_toggle_visible: true,
+    automation_detail_overflow_visible: true,
     automation_run_history_visible: true,
     automation_scheduler_visible: true,
-    automation_scope_filter: "all",
     automation_selected_item: editedName,
     automation_session_link_count: expect.any(Number),
     automation_trigger_visible: true,
@@ -277,8 +277,10 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   await expect(sessionUI.chatHeader).toBeVisible();
   await expect(sessionUI.chatView).toContainText(browserAutomationOperatorFlowScenario.job.prompt);
   await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-  await ui.item(created.id).click();
+  await ui.itemLink(created.id).click();
+  await expect(appPage).toHaveURL(new RegExp(`/jobs/${created.id}$`));
 
+  await ui.detailOverflow.click();
   await ui.deleteAutomationButton.click();
   await expect(ui.automationDeleteDialog).toBeVisible();
   await ui.automationDeleteConfirmTyping.fill(editedName);
@@ -330,10 +332,10 @@ test("scheduled job survives daemon restart and does not duplicate fire ids", as
   );
   await useGlobalWorkspaceIfPrompted(ui);
   await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
-  await ui.jobsScopeAll.click();
-  await expect(ui.jobsScopeAll).toHaveAttribute("aria-pressed", "true");
+  await expect(ui.jobsListRows).toBeVisible();
   await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(job.id).click();
+  await ui.itemLink(job.id).click();
+  await expect(appPage).toHaveURL(new RegExp(`/jobs/${job.id}$`));
   await expect(ui.detailPanel).toContainText("REGISTERED");
 
   const beforeRestart = await waitForScheduledRuns(runtime, job.id, 1);
@@ -358,7 +360,7 @@ test("scheduled job survives daemon restart and does not duplicate fire ids", as
   await reloadDaemonServedPage(appPage, runtime, "/jobs", { readyTestId: "jobs-shell" });
   await expect(ui.jobsShell).toBeVisible();
   await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(job.id).click();
+  await ui.itemLink(job.id).click();
 
   const afterRestart = await waitForScheduledRuns(runtime, job.id, 2);
   const fireIDs = uniqueFireIDs(afterRestart);
@@ -396,7 +398,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
   await useGlobalWorkspaceIfPrompted(ui);
   await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
   await expect(ui.item(job.id)).toBeVisible();
-  await ui.item(job.id).click();
+  await ui.itemLink(job.id).click();
 
   const trigger = await fetch(
     runtime.url(`/api/automation/jobs/${encodeURIComponent(job.id)}/trigger`),
@@ -408,7 +410,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
   const failedRun = await waitForLatestRun(runtime, job.id, "failed");
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(job.id).click();
+  await ui.itemLink(job.id).click();
   await expect(ui.run(failedRun.id)).toBeVisible();
   await expect(ui.run(failedRun.id)).toContainText("FAILED");
   await expect(ui.run(failedRun.id)).toContainText(/disconnect|prompt|session|failed/i);
@@ -695,7 +697,7 @@ async function assertJobsLifecycleViewportMatrix(
     await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
     await expect(ui.jobsShell).toBeVisible();
     await expect(ui.item(jobID)).toBeVisible();
-    await ui.item(jobID).click();
+    await ui.itemLink(jobID).click();
     await expect(ui.runHistory).toBeVisible();
     await browserArtifacts.captureScreenshot(`jobs-lifecycle-history-viewport-${width}`, appPage);
     await ui.editAutomationButton.click();
@@ -721,7 +723,7 @@ async function assertJobsViewportMatrix(
     await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
     await expect(ui.jobsShell).toBeVisible();
     await expect(ui.item(jobID)).toBeVisible();
-    await ui.item(jobID).click();
+    await ui.itemLink(jobID).click();
     await expect(ui.detailPanel).toBeVisible();
     await expect(ui.runHistory).toBeVisible();
     await browserArtifacts.captureScreenshot(`jobs-failure-viewport-${width}`, appPage);

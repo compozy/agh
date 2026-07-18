@@ -5,13 +5,47 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let childMatches: Array<{ id: string; params?: { id?: string } }> = [];
 const navigateMock = vi.fn();
 
-let searchParams: Record<string, unknown> = {};
+// Task mode navigation is a real `<Link search={{ mode }} to="/tasks">` (route
+// chrome contract), not a local-state pill toggle. The mock keeps a listener
+// registry so clicking a mode link updates the search TanStack Router would
+// own, and every `useSearch()` reader re-renders off the same source.
+const routerState = vi.hoisted(() => ({
+  searchParams: {} as Record<string, unknown>,
+  searchListeners: new Set<(search: Record<string, unknown>) => void>(),
+  validateSearch: undefined as
+    | ((search: Record<string, unknown>) => Record<string, unknown>)
+    | undefined,
+}));
+
+function getValidatedSearch() {
+  return routerState.validateSearch
+    ? routerState.validateSearch(routerState.searchParams)
+    : routerState.searchParams;
+}
+
+function setSearchParams(next: Record<string, unknown>) {
+  routerState.searchParams = next;
+  const validated = getValidatedSearch();
+  for (const listener of routerState.searchListeners) listener(validated);
+}
+
+function useMockedSearch() {
+  const [search, setSearch] = useState(getValidatedSearch());
+  useEffect(() => {
+    routerState.searchListeners.add(setSearch);
+    return () => {
+      routerState.searchListeners.delete(setSearch);
+    };
+  }, []);
+  return search;
+}
 
 const daemonStatusMockState = vi.hoisted(
   (): {
@@ -31,10 +65,66 @@ vi.mock("@/systems/status", () => ({
   useDaemonStatus: () => daemonStatusMockState,
 }));
 
+function normalizeSearch(value: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry !== undefined) out[key] = entry;
+  }
+  return out;
+}
+
+function searchMatchesExactly(
+  current: Record<string, unknown>,
+  next: Record<string, unknown>
+): boolean {
+  const currentNorm = normalizeSearch(current);
+  const nextNorm = normalizeSearch(next);
+  const nextKeys = Object.keys(nextNorm);
+  return (
+    Object.keys(currentNorm).length === nextKeys.length &&
+    nextKeys.every(key => currentNorm[key] === nextNorm[key])
+  );
+}
+
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => {
+  Link: ({
+    activeOptions,
+    children,
+    search,
+    ...rest
+  }: {
+    activeOptions?: { exact?: boolean; includeSearch?: boolean };
+    children: ReactNode;
+    search?: unknown;
+  } & Record<string, unknown>) => {
     const { params: _params, to: _to, ...domRest } = rest as Record<string, unknown>;
-    return <a {...domRest}>{children}</a>;
+    const currentSearch = getValidatedSearch();
+    const nextSearch =
+      typeof search === "function"
+        ? (search as (current: Record<string, unknown>) => Record<string, unknown>)(currentSearch)
+        : ((search ?? {}) as Record<string, unknown>);
+    const includeSearch = activeOptions?.includeSearch ?? true;
+    const exact = activeOptions?.exact ?? false;
+    const isActive =
+      includeSearch && exact
+        ? searchMatchesExactly(currentSearch, nextSearch)
+        : includeSearch
+          ? Object.keys(normalizeSearch(nextSearch)).every(
+              key => normalizeSearch(currentSearch)[key] === normalizeSearch(nextSearch)[key]
+            )
+          : true;
+    return (
+      <a
+        {...domRest}
+        aria-current={isActive ? "page" : undefined}
+        onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+          event.preventDefault();
+          setSearchParams(nextSearch);
+        }}
+      >
+        {children}
+      </a>
+    );
   },
   Outlet: () => <div data-testid="tasks-outlet" />,
   createFileRoute:
@@ -42,12 +132,16 @@ vi.mock("@tanstack/react-router", () => ({
     (opts: {
       component: () => ReactNode;
       validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
-    }) => ({
-      component: opts.component,
-      useSearch: () => (opts.validateSearch ? opts.validateSearch(searchParams) : searchParams),
-    }),
+    }) => {
+      routerState.validateSearch = opts.validateSearch;
+      return {
+        component: opts.component,
+        useSearch: () => useMockedSearch(),
+      };
+    },
   useChildMatches: () => childMatches,
   useNavigate: () => navigateMock,
+  useSearch: () => useMockedSearch(),
 }));
 
 const listTasksMock = vi.fn();
@@ -171,7 +265,7 @@ function renderTasksRoute() {
 describe("TasksRoute", () => {
   beforeEach(() => {
     childMatches = [];
-    searchParams = {};
+    routerState.searchParams = {};
     daemonStatusMockState.data = { user_home_dir: "/Users/operator" };
     daemonStatusMockState.error = null;
     daemonStatusMockState.isLoading = false;
@@ -270,14 +364,32 @@ describe("TasksRoute", () => {
 
   it("renders mode pills, the create button, and the empty state when no tasks exist", async () => {
     renderTasksRoute();
-    expect(screen.getByTestId("tasks-mode-pills")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-mode-nav")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-mode-list")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-mode-kanban")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-mode-dashboard")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-mode-inbox")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-mode-list")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("tasks-mode-kanban")).not.toHaveAttribute("aria-current");
     expect(screen.getByTestId("tasks-open-create")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("tasks-empty-state")).toBeInTheDocument());
     expect(screen.getByTestId("tasks-empty-template-one_shot")).toBeInTheDocument();
+  });
+
+  it("Should mark only the selected tasks mode with aria-current", async () => {
+    renderTasksRoute();
+
+    expect(screen.getByTestId("tasks-mode-list")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("tasks-mode-kanban")).not.toHaveAttribute("aria-current");
+
+    fireEvent.click(screen.getByTestId("tasks-mode-kanban"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("tasks-mode-kanban")).toHaveAttribute("aria-current", "page");
+    });
+    expect(screen.getByTestId("tasks-mode-list")).not.toHaveAttribute("aria-current");
+    expect(screen.getByTestId("tasks-mode-dashboard")).not.toHaveAttribute("aria-current");
+    expect(screen.getByTestId("tasks-mode-inbox")).not.toHaveAttribute("aria-current");
   });
 
   it("keeps the task count unknown until the catalog returns an authoritative total", async () => {
@@ -287,7 +399,7 @@ describe("TasksRoute", () => {
     renderTasksRoute();
 
     expect(await screen.findByTestId("tasks-list-surface-loading")).toBeInTheDocument();
-    expect(screen.queryByTestId("topbar-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-page-count")).not.toBeInTheDocument();
 
     await act(async () => {
       resolveCatalog?.({
@@ -298,8 +410,10 @@ describe("TasksRoute", () => {
       await Promise.resolve();
     });
 
+    // A resolved-empty catalog swaps in the definitive TasksEmptyState (no list
+    // surface, no page-head count chip) rather than showing a "0" count.
     expect(await screen.findByTestId("tasks-empty-state")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByTestId("topbar-count")).toHaveTextContent("0"));
+    expect(screen.queryByTestId("tasks-list-page-count")).not.toBeInTheDocument();
   });
 
   it("renders the catalog error instead of the empty state when the initial list fails", async () => {
@@ -310,7 +424,7 @@ describe("TasksRoute", () => {
     expect(await screen.findByTestId("tasks-list-surface-error")).toHaveTextContent(
       "task catalog unavailable"
     );
-    expect(screen.queryByTestId("topbar-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-page-count")).not.toBeInTheDocument();
     expect(screen.queryByTestId("tasks-empty-state")).not.toBeInTheDocument();
   });
 
@@ -323,7 +437,7 @@ describe("TasksRoute", () => {
     expect(await screen.findByTestId("tasks-scope-error")).toHaveTextContent(
       "daemon status unavailable"
     );
-    expect(screen.queryByTestId("topbar-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-page-count")).not.toBeInTheDocument();
     expect(screen.queryByTestId("tasks-empty-state")).not.toBeInTheDocument();
     expect(listTasksMock).not.toHaveBeenCalled();
     expect(getTaskInboxMock).not.toHaveBeenCalled();
@@ -334,7 +448,11 @@ describe("TasksRoute", () => {
     childMatches = [{ id: "/_app/tasks/$id", params: { id: "task_abc" } }];
     renderTasksRoute();
     expect(screen.getByTestId("tasks-outlet")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-mode-pills")).toBeInTheDocument();
+    // The parent cedes the topbar slot to the child route (route chrome T2:
+    // detail = breadcrumb + detail actions); publishing the mode nav here
+    // would steal the child's slot in the single-publisher store.
+    expect(screen.queryByTestId("tasks-mode-nav")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-open-create")).not.toBeInTheDocument();
     // The detail child route takes over the full canvas; the list panel
     // is no longer rendered side-by-side with the detail (no SplitPane).
     expect(screen.queryByTestId("tasks-list-surface")).not.toBeInTheDocument();
@@ -345,7 +463,7 @@ describe("TasksRoute", () => {
 
     await waitFor(() => {
       const inboxTab = screen.getByTestId("tasks-mode-inbox");
-      expect(inboxTab.querySelector('[data-slot="pill-group-badge"]')).toHaveTextContent("1");
+      expect(inboxTab.querySelector('[data-slot="route-nav-count"]')).toHaveTextContent("1");
     });
     expect(getTaskInboxMock).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 1, scope: "workspace", workspace: "ws_alpha" }),
@@ -381,7 +499,7 @@ describe("TasksRoute", () => {
     expect(screen.getByTestId("tasks-open-create")).toBeInTheDocument();
     await waitFor(() => {
       const inboxTab = screen.getByTestId("tasks-mode-inbox");
-      expect(inboxTab.querySelector('[data-slot="pill-group-badge"]')).toHaveTextContent("1");
+      expect(inboxTab.querySelector('[data-slot="route-nav-count"]')).toHaveTextContent("1");
     });
     // Approval items now live under the `Needs review` UI group
     expect(screen.getByTestId("tasks-inbox-group-needs_review")).toBeInTheDocument();

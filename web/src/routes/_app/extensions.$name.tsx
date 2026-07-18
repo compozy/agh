@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Puzzle } from "lucide-react";
 
 import { ExtensionDetail } from "@/systems/extensions";
 import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/extensions/$name")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: params.name, icon: Puzzle },
+    topbar: { crumb: { label: params.name } },
   }),
   component: ExtensionDetailRoute,
 });

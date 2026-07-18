@@ -71,7 +71,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await tasksUI.navTasks.click();
 
   await expect(appPage).toHaveURL(/\/tasks$/);
-  await expect(tasksUI.modeList).toHaveAttribute("aria-pressed", "true");
+  await expect(tasksUI.modeList).toHaveAttribute("aria-current", "page");
   await expect(tasksUI.taskCard(seeded.referenceTask.id)).toBeVisible();
   await expect(tasksUI.taskCard(seeded.approvalTask.id)).toBeVisible();
   await expect(tasksUI.taskCard(seeded.runningTask.id)).toBeVisible();
@@ -267,6 +267,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   }
 
   await expect(tasksUI.detailContent).toContainText(deleteDraftTitle);
+  await tasksUI.detailOverflow.click();
   await tasksUI.detailDelete.click();
   await expect(tasksUI.detailDeleteDialog).toBeVisible();
   await expect(tasksUI.detailDeleteDialog).toContainText(deleteDraftTitle);

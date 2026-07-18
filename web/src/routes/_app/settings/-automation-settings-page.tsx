@@ -9,6 +9,7 @@ import {
   SettingsNumberInput,
   SettingsSaveBar,
   type SettingsAutomationSection,
+  SettingsPageHead,
 } from "@/systems/settings";
 import {
   Button,
@@ -20,9 +21,8 @@ import {
   RestartBanner,
   Section,
   Spinner,
-  StatusLineTopbarSlot,
+  StatusLine,
   Switch,
-  useTopbarSlot,
 } from "@agh/ui";
 
 type AutomationConfig = SettingsAutomationSection["config"];
@@ -38,26 +38,24 @@ export function AutomationSettingsPage() {
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const runtime = page.envelope?.runtime;
-  useTopbarSlot({
-    tabs: runtime ? (
-      <StatusLineTopbarSlot
-        data-testid="settings-page-automation-status-line"
-        status={runtime.available ? "connected" : "error"}
-        items={[
-          {
-            key: "jobs",
-            value: `${runtime.job_enabled}/${runtime.job_total} jobs active`,
-            tone: "neutral",
-          },
-          {
-            key: "triggers",
-            value: `${runtime.trigger_enabled}/${runtime.trigger_total} triggers active`,
-            tone: "neutral",
-          },
-        ]}
-      />
-    ) : undefined,
-  });
+  const statusLine = runtime ? (
+    <StatusLine
+      data-testid="settings-page-automation-status-line"
+      status={runtime.available ? "connected" : "error"}
+      items={[
+        {
+          key: "jobs",
+          value: `${runtime.job_enabled}/${runtime.job_total} jobs active`,
+          tone: "neutral",
+        },
+        {
+          key: "triggers",
+          value: `${runtime.trigger_enabled}/${runtime.trigger_total} triggers active`,
+          tone: "neutral",
+        },
+      ]}
+    />
+  ) : null;
 
   if (page.isLoading) {
     return (
@@ -100,6 +98,7 @@ export function AutomationSettingsPage() {
     <PageShell
       slug="automation"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
+      head={<SettingsPageHead slug="automation" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="automation"

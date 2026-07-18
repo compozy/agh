@@ -1,46 +1,28 @@
-import { useChildMatches, useNavigate } from "@tanstack/react-router";
+import { useChildMatches, useNavigate, useSearch } from "@tanstack/react-router";
 
 import { useTasksPage } from "@/hooks/routes/use-tasks-page";
+import type { TasksSurfaceMode } from "@/routes/_app/tasks";
 
-type SurfaceMode = "list" | "kanban" | "dashboard" | "inbox";
+type SurfaceMode = TasksSurfaceMode;
 
 export interface TasksRouteView {
   page: ReturnType<typeof useTasksPage>;
   hasChildMatch: boolean;
   routedTaskId: string | null;
-  isCreateRoute: boolean;
   surfaceMode: SurfaceMode;
-  shellCount: number | undefined;
-  handleModeSelect: (next: SurfaceMode) => void;
   openCreateRoute: () => void;
 }
 
 export function useTasksRoute(): TasksRouteView {
   const navigate = useNavigate({ from: "/tasks" });
+  const search = useSearch({ from: "/_app/tasks" });
   const childMatches = useChildMatches();
   const hasChildMatch = childMatches.length > 0;
-  const page = useTasksPage({ forceListData: hasChildMatch });
-  const currentChildRouteId = String(childMatches.at(-1)?.id ?? "");
+  const routedMode: SurfaceMode = search.mode ?? "list";
+  const page = useTasksPage({ forceListData: hasChildMatch, mode: routedMode });
   const routedTaskId = extractRoutedTaskId(childMatches);
-  const isCreateRoute = currentChildRouteId.includes("/tasks/new");
 
-  const surfaceMode: SurfaceMode = hasChildMatch ? "list" : page.mode;
-
-  const shellCount =
-    page.scopeLoading || page.scopeError || !page.hasActiveTaskScope
-      ? undefined
-      : surfaceMode === "inbox"
-        ? page.inbox?.page.total
-        : surfaceMode === "dashboard"
-          ? page.dashboard?.totals.tasks_total
-          : page.tasksCount;
-
-  const handleModeSelect = (next: SurfaceMode) => {
-    page.handleModeChange(next);
-    if (hasChildMatch) {
-      void navigate({ to: "/tasks" });
-    }
-  };
+  const surfaceMode: SurfaceMode = hasChildMatch ? "list" : routedMode;
 
   const openCreateRoute = () => {
     void navigate({ search: () => ({ template: undefined }), to: "/tasks/new" });
@@ -50,10 +32,7 @@ export function useTasksRoute(): TasksRouteView {
     page,
     hasChildMatch,
     routedTaskId,
-    isCreateRoute,
     surfaceMode,
-    shellCount,
-    handleModeSelect,
     openCreateRoute,
   };
 }

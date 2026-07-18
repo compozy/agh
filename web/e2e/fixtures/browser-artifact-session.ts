@@ -253,19 +253,13 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       : document.querySelector('[data-testid="triggers-shell"]')
         ? "triggers"
         : undefined;
-    const automationScopeFilter = document.querySelector(
-      '[data-testid="jobs-scope-all"][aria-pressed="true"], [data-testid="triggers-scope-all"][aria-pressed="true"]'
-    )
-      ? "all"
-      : document.querySelector(
-            '[data-testid="jobs-scope-global"][aria-pressed="true"], [data-testid="triggers-scope-global"][aria-pressed="true"]'
-          )
-        ? "global"
-        : document.querySelector(
-              '[data-testid="jobs-scope-workspace"][aria-pressed="true"], [data-testid="triggers-scope-workspace"][aria-pressed="true"]'
-            )
-          ? "workspace"
-          : undefined;
+    // Catalog scope now lives in the list route URL (`?scope=`); absent means "all".
+    const automationScopeParam = new URLSearchParams(window.location.search).get("scope");
+    const automationScopeFilter = /^\/(jobs|triggers)$/.test(window.location.pathname)
+      ? automationScopeParam === "global" || automationScopeParam === "workspace"
+        ? automationScopeParam
+        : ("all" as const)
+      : undefined;
     const automationSelectedItem =
       document
         .querySelector<HTMLElement>('[data-testid="automation-detail-panel"] h1')
@@ -287,7 +281,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         ?.textContent?.trim() || undefined;
     const tasksActiveMode = (["dashboard", "inbox", "kanban", "list"] as const).find(
       mode =>
-        document.querySelector(`[data-testid="tasks-mode-${mode}"][aria-pressed="true"]`) !== null
+        document.querySelector(`[data-testid="tasks-mode-${mode}"][aria-current="page"]`) !== null
     );
     const tasksSelectedTask = readPathContainerId(/\/tasks\/([^/?#]+)/);
     const tasksSelectedRun = readPathContainerId(/\/tasks\/[^/]+\/runs\/([^/?#]+)/);
@@ -337,6 +331,8 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       automation_active_tab: automationActiveTab,
       automation_delete_visible:
         document.querySelector('[data-testid="delete-automation-btn"]') !== null,
+      automation_detail_overflow_visible:
+        document.querySelector('[data-testid="automation-detail-overflow"]') !== null,
       automation_enabled_toggle_visible:
         document.querySelector('[data-testid="toggle-automation-btn"]') !== null,
       automation_editor_kind: automationEditorKind,
@@ -383,6 +379,8 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       composer_clear_button_visible:
         document.querySelector('[data-testid="composer-clear-button"]') !== null,
       delete_button_visible: document.querySelector('[data-testid="delete-button"]') !== null,
+      session_topbar_overflow_visible:
+        document.querySelector('[data-testid="session-topbar-overflow"]') !== null,
       home_active_sessions_value: readMetricValue("home-metric-active-sessions"),
       home_agents_value: readMetricValue("home-metric-agents"),
       home_connection_status: document.querySelector<HTMLElement>(

@@ -1,38 +1,40 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { Button, MonoId, Pill, Section, Skeleton, Spinner } from "@agh/ui";
+import { Button, cn, MonoId, PAGE_CONTENT_GUTTER, Pill, Section, Skeleton, Spinner } from "@agh/ui";
 
 function ExtensionDetailSkeleton() {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto" role="status">
-      <div className="flex flex-col gap-2 border-b border-line px-6 py-5">
-        <Skeleton className="h-3 w-40" />
-        <div className="flex items-start gap-3.5">
-          <Skeleton className="size-(--size-provider-logo-well) rounded-lg" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-3 w-64" />
+      <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col")}>
+        <div className="flex flex-col gap-2 border-b border-line py-5">
+          <Skeleton className="h-3 w-40" />
+          <div className="flex items-start gap-3.5">
+            <Skeleton className="size-(--size-provider-logo-well) rounded-lg" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-3 w-64" />
+            </div>
           </div>
         </div>
-      </div>
-      <div className="mx-auto grid w-full max-w-[1320px] gap-8 px-9 py-7 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="space-y-7">
-          {[0, 1, 2].map(index => (
-            <div className="space-y-2.5" key={index}>
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-20 w-full rounded-lg" />
-            </div>
-          ))}
+        <div className="grid gap-8 py-7 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="space-y-7">
+            {[0, 1, 2].map(index => (
+              <div className="space-y-2.5" key={index}>
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-20 w-full rounded-lg" />
+              </div>
+            ))}
+          </div>
+          <aside className="space-y-7">
+            {[0, 1].map(index => (
+              <div className="space-y-2.5" key={index}>
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-28 w-full rounded-lg" />
+              </div>
+            ))}
+          </aside>
         </div>
-        <aside className="space-y-7">
-          {[0, 1].map(index => (
-            <div className="space-y-2.5" key={index}>
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-28 w-full rounded-lg" />
-            </div>
-          ))}
-        </aside>
       </div>
       <span className="sr-only">Loading extension</span>
     </div>

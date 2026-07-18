@@ -1,4 +1,4 @@
-import { AlertCircle, SearchX } from "lucide-react";
+import { AlertCircle, SearchX, Store } from "lucide-react";
 
 import {
   Button,
@@ -7,7 +7,9 @@ import {
   ListingToolbar,
   NativeSelect,
   NativeSelectOption,
+  PageHead,
   RouteState,
+  type ListingViewMode,
 } from "@agh/ui";
 
 import type { MarketplaceKind, MarketplaceKindResponse, MarketplaceListing } from "../types";
@@ -27,11 +29,13 @@ interface MarketplaceKindViewProps {
   kind: MarketplaceKind;
   query: string;
   sort: MarketplaceViewSort;
+  view?: ListingViewMode;
   onAction: (entry: MarketplaceListing) => void;
   onClearSearch: () => void;
   onRetry: () => void;
   onSearchChange: (query: string) => void;
   onSortChange: (sort: MarketplaceViewSort) => void;
+  onViewChange?: (view: ListingViewMode) => void;
 }
 
 function MarketplaceKindView({
@@ -42,11 +46,13 @@ function MarketplaceKindView({
   kind,
   query,
   sort,
+  view = "rows",
   onAction,
   onClearSearch,
   onRetry,
   onSearchChange,
   onSortChange,
+  onViewChange,
 }: MarketplaceKindViewProps) {
   const label = MARKETPLACE_KIND_LABEL[kind];
   const supportsDownloads = (data?.items ?? []).some(entry => entry.downloads != null);
@@ -59,8 +65,9 @@ function MarketplaceKindView({
 
   return (
     <ListingPage data-testid={`marketplace-kind-${kind}`}>
-      <ListingPage.Head
+      <PageHead
         count={data ? count : "–"}
+        icon={Store}
         meta={<span>{label} · browse and install</span>}
         title="Marketplace"
       />
@@ -87,6 +94,7 @@ function MarketplaceKindView({
             ) : null}
             <NativeSelectOption value="name">Sort: Name A–Z</NativeSelectOption>
           </NativeSelect>
+          {onViewChange ? <ListingToolbar.ViewToggle onChange={onViewChange} value={view} /> : null}
         </ListingToolbar.Trailing>
       </ListingToolbar>
 
@@ -101,7 +109,7 @@ function MarketplaceKindView({
           title={`Unable to load ${label.toLowerCase()}`}
         />
       ) : null}
-      {!error && isLoading && !data ? <MarketplaceGridSkeleton count={6} /> : null}
+      {!error && isLoading && !data ? <MarketplaceGridSkeleton count={6} view={view} /> : null}
       {isDegraded ? (
         <MarketplaceDegradedNotice
           hasItems={hasItems}
@@ -119,19 +127,22 @@ function MarketplaceKindView({
               </Button>
             ) : undefined
           }
-          className="min-h-80"
           description={
             query
               ? `Nothing in ${label.toLowerCase()} matches “${query}”.`
               : `No ${label.toLowerCase()} are available from the configured catalog.`
           }
-          fill={false}
           icon={SearchX}
           title={query ? `No ${label.toLowerCase()} match this query` : `No ${label.toLowerCase()}`}
         />
       ) : null}
       {hasItems ? (
-        <MarketplaceGrid entries={entries} isEntryPending={isEntryPending} onAction={onAction} />
+        <MarketplaceGrid
+          entries={entries}
+          isEntryPending={isEntryPending}
+          onAction={onAction}
+          view={view}
+        />
       ) : null}
       {data?.total !== undefined &&
       data.total !== null &&

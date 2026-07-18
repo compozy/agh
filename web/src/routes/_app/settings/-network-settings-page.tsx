@@ -5,16 +5,10 @@ import { useSettingsNetworkPage } from "@/hooks/routes/use-settings-network-page
 import {
   NetworkSettingsSections,
   restartBannerPropsFor,
+  SettingsPageHead,
   SettingsSaveBar,
 } from "@/systems/settings";
-import {
-  Button,
-  PageShell,
-  RestartBanner,
-  Spinner,
-  StatusLineTopbarSlot,
-  useTopbarSlot,
-} from "@agh/ui";
+import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
 
 export function NetworkSettingsPage() {
   const page = useSettingsNetworkPage();
@@ -26,26 +20,24 @@ export function NetworkSettingsPage() {
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const runtime = page.envelope?.runtime;
-  useTopbarSlot({
-    tabs: runtime ? (
-      <StatusLineTopbarSlot
-        data-testid="settings-page-network-status-line"
-        status={runtime.available ? "connected" : "error"}
-        items={[
-          {
-            key: "status",
-            value: runtime.status ?? (runtime.enabled ? "ready" : "disabled"),
-            tone: "neutral",
-          },
-          {
-            key: "participants",
-            value: `${runtime.local_peers} Live participants`,
-            tone: "neutral",
-          },
-        ]}
-      />
-    ) : undefined,
-  });
+  const statusLine = runtime ? (
+    <StatusLine
+      data-testid="settings-page-network-status-line"
+      status={runtime.available ? "connected" : "error"}
+      items={[
+        {
+          key: "status",
+          value: runtime.status ?? (runtime.enabled ? "ready" : "disabled"),
+          tone: "neutral",
+        },
+        {
+          key: "participants",
+          value: `${runtime.local_peers} Live participants`,
+          tone: "neutral",
+        },
+      ]}
+    />
+  ) : null;
 
   if (page.isLoading) {
     return (
@@ -89,6 +81,7 @@ export function NetworkSettingsPage() {
     <PageShell
       slug="network"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
+      head={<SettingsPageHead slug="network" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="network"

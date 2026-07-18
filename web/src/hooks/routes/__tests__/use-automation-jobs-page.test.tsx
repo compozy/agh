@@ -1,4 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const pageState = vi.hoisted(() => ({
@@ -6,16 +8,18 @@ const pageState = vi.hoisted(() => ({
     activeWorkspace: null,
     activeWorkspaceId: null as string | null,
     automationRuntime: null,
-    deferredSearchQuery: "",
+    hasChildMatch: false,
     listFilters: { limit: 50 },
     scopeFilter: "all" as const,
     searchQuery: "",
-    selectedId: null,
     setScopeFilter: vi.fn(),
     setSearchQuery: vi.fn(),
-    setSelectedId: vi.fn(),
     workspaces: [],
   },
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock("../use-automation-page-base", async importOriginal => {
@@ -50,27 +54,35 @@ vi.mock("@/systems/automation", async importOriginal => {
 
 const { useAutomationJobsPage } = await import("../use-automation-jobs-page");
 
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+  });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+}
+
 describe("useAutomationJobsPage", () => {
   beforeEach(() => {
     pageState.current = {
       activeWorkspace: null,
       activeWorkspaceId: null,
       automationRuntime: null,
-      deferredSearchQuery: "",
+      hasChildMatch: false,
       listFilters: { limit: 50 },
       scopeFilter: "all",
       searchQuery: "",
-      selectedId: null,
       setScopeFilter: vi.fn(),
       setSearchQuery: vi.fn(),
-      setSelectedId: vi.fn(),
       workspaces: [],
     };
   });
 
   it("Should wait for an active workspace before consuming a loop-target job seed", async () => {
-    const { result, rerender } = renderHook(() =>
-      useAutomationJobsPage({ loop: "software-delivery" })
+    const { result, rerender } = renderHook(
+      () => useAutomationJobsPage({ loop: "software-delivery" }),
+      { wrapper: createWrapper() }
     );
 
     await act(async () => {});

@@ -364,6 +364,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
     .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
     .toContain("ready");
 
+  await bridgeUI.detailOverflow.click();
   await bridgeUI.disableBridgeButton.click();
   await waitForBridgeStatus(runtime, createdBridge.id, "disabled");
   await expect
@@ -372,6 +373,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
 
   await bridgeUI.enableBridgeButton.click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
+  await bridgeUI.detailOverflow.click();
   await bridgeUI.restartBridgeButton.click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
   await expect
@@ -396,6 +398,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await expect(confirmDeleteSecret).toBeHidden();
   await expect(bridgeUI.restartRequired).toBeVisible();
 
+  await bridgeUI.detailOverflow.click();
   await bridgeUI.restartBridgeButton.click();
   const authRequired = await waitForBridgeStatus(runtime, createdBridge.id, "auth_required");
   expect(authRequired.health.status).toBe("auth_required");
@@ -411,6 +414,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await expect(
     bridgeUI.secretBinding(browserBridgeOperatorFlowScenario.secretBinding.name)
   ).toContainText("BOUND");
+  await bridgeUI.detailOverflow.click();
   await bridgeUI.restartBridgeButton.click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
   await expect
@@ -639,8 +643,7 @@ async function assertBridgeDetailResponsive(
     await appPage.setViewportSize({ height: viewport.height, width: viewport.width });
     await expect(bridgeUI.detailPanel).toBeVisible();
     await expect(appPage).toHaveURL(new RegExp(`/bridges/${encodeURIComponent(bridgeId)}$`));
-    await expect(bridgeUI.backToList).toBeVisible();
-    await expect(bridgeUI.restartBridgeButton).toBeVisible();
+    await expect(bridgeUI.detailOverflow).toBeVisible();
     await expect(bridgeUI.openTestDeliveryButton).toBeVisible();
   }
 }

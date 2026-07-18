@@ -13,6 +13,7 @@ import {
   SettingsFieldRow,
   type SettingsScope,
   type SettingsSkillsSection,
+  SettingsPageHead,
 } from "@/systems/settings";
 import type { WorkspacePayload } from "@/systems/workspace";
 import {
@@ -25,10 +26,9 @@ import {
   RestartBanner,
   Section,
   Spinner,
-  StatusLineTopbarSlot,
+  StatusLine,
   Switch,
-  useTopbarSlot,
-  type StatusLineTopbarSlotItem,
+  type StatusLineItem,
 } from "@agh/ui";
 import { AllowListField, SaveControls } from "./-skills-controls";
 
@@ -36,7 +36,7 @@ type SkillsConfig = SettingsSkillsSection["config"];
 export function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
   const envelopeForSlot = page.envelope;
-  const statusItems: StatusLineTopbarSlotItem[] = envelopeForSlot
+  const statusItems: StatusLineItem[] = envelopeForSlot
     ? [
         {
           key: "discovered",
@@ -73,15 +73,13 @@ export function SkillsSettingsPage() {
       tone: "neutral",
     });
   }
-  useTopbarSlot({
-    tabs: envelopeForSlot ? (
-      <StatusLineTopbarSlot
-        data-testid="settings-page-skills-status-line"
-        status={envelopeForSlot.runtime_available ? "connected" : "error"}
-        items={statusItems}
-      />
-    ) : undefined,
-  });
+  const statusLine = envelopeForSlot ? (
+    <StatusLine
+      data-testid="settings-page-skills-status-line"
+      status={envelopeForSlot.runtime_available ? "connected" : "error"}
+      items={statusItems}
+    />
+  ) : null;
 
   if (page.isLoading) {
     return (
@@ -117,7 +115,11 @@ export function SkillsSettingsPage() {
   const bannerProps = restartBannerPropsFor("skills", restart);
 
   return (
-    <PageShell slug="skills" banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}>
+    <PageShell
+      slug="skills"
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
+      head={<SettingsPageHead slug="skills" statusLine={statusLine} />}
+    >
       <ScopeSelector
         selection={page.selection}
         availableScopes={page.availableScopes}

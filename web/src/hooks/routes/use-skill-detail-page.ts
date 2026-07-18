@@ -69,14 +69,9 @@ function useSkillDetailPage(name: string, search: SkillDetailRouteSearch = {}) {
     void refetchSkillContent();
   };
 
-  const handleBack = () => {
-    void navigate({ to: "/skills" });
-  };
-
   return {
     contentError: requestedContent ? contentError : null,
     detailError,
-    handleBack,
     handleDisable,
     handleEnable,
     handleRetryContent,

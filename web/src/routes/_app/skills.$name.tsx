@@ -1,4 +1,4 @@
-import { AlertCircle, Wrench } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Empty, Spinner } from "@agh/ui";
@@ -19,7 +19,7 @@ function validateSkillDetailSearch(search: Record<string, unknown>): SkillDetail
 
 export const Route = createFileRoute("/_app/skills/$name")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: params.name, icon: Wrench },
+    topbar: { crumb: { label: params.name } },
   }),
   validateSearch: validateSkillDetailSearch,
   loaderDeps: ({ search }) => ({ content: search.content }),
@@ -35,7 +35,7 @@ function SkillDetailRoute() {
   if (page.workspaceId === "") {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="skill-detail-no-workspace"
       >
         <Empty
@@ -74,7 +74,6 @@ function SkillDetailRoute() {
             : "ready"
       }
       shadowsStatus={page.isLoadingShadows ? "loading" : page.shadowsError ? "error" : "ready"}
-      onBack={page.handleBack}
       onDisable={() => page.handleDisable()}
       onEnable={() => page.handleEnable()}
       onRetryContent={page.handleRetryContent}

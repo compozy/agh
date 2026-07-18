@@ -126,8 +126,8 @@ describe("Marketplace landing and kind views", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Extensions marketplace is unreachable");
     expect(alert).toHaveAttribute("data-variant", "danger");
-    expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
-    expect(screen.getByTestId("marketplace-card-dep-kit")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-git-flow")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-dep-kit")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View all skills results" })).toHaveAttribute(
       "href",
       "/marketplace?kind=skills&q=run"
@@ -162,7 +162,7 @@ describe("Marketplace landing and kind views", () => {
       />
     );
 
-    expect(screen.getByTestId("marketplace-card-otel-bridge")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-otel-bridge")).toBeInTheDocument();
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Extensions results may be out of date");
     expect(alert).toHaveAttribute("data-variant", "warning");
@@ -190,8 +190,8 @@ describe("Marketplace landing and kind views", () => {
     const alert = alerts[0]!;
     expect(alert).toHaveTextContent("Marketplace results may be out of date");
     expect(alert).toHaveAttribute("data-variant", "warning");
-    expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
-    expect(screen.getByTestId("marketplace-card-otel-bridge")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-git-flow")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-otel-bridge")).toBeInTheDocument();
     await user.click(within(alert).getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
@@ -370,7 +370,7 @@ describe("Marketplace landing and kind views", () => {
       />
     );
 
-    expect(screen.getByTestId("marketplace-card-otel-bridge")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-otel-bridge")).toBeInTheDocument();
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Extensions results may be out of date");
     expect(alert).toHaveAttribute("data-variant", "warning");
@@ -402,7 +402,7 @@ describe("Marketplace landing and kind views", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Extensions marketplace is unreachable");
     expect(alert).toHaveAttribute("data-variant", "danger");
-    expect(screen.queryByTestId("marketplace-card-otel-bridge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-row-otel-bridge")).not.toBeInTheDocument();
     expect(screen.queryByText("No extensions")).not.toBeInTheDocument();
   });
 
@@ -429,7 +429,7 @@ describe("Marketplace landing and kind views", () => {
       />
     );
 
-    expect(screen.getByTestId("marketplace-card-otel-bridge")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-otel-bridge")).toBeInTheDocument();
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Extensions results may be out of date");
     await user.click(within(alert).getByRole("button", { name: "Retry" }));

@@ -1,4 +1,4 @@
-import { useChildMatches, useNavigate, useRouter } from "@tanstack/react-router";
+import { useChildMatches, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import {
@@ -24,7 +24,6 @@ export function useLoopDetail(name: string) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
   const navigate = useNavigate();
-  const router = useRouter();
   const active = workspaceId !== "" && !hasChildMatch;
 
   const loopQuery = useLoop(workspaceId, name, active);
@@ -38,13 +37,6 @@ export function useLoopDetail(name: string) {
   const catalogEntry = catalogQuery.loops.find(entry => entry.name === name) ?? null;
 
   const handlers = {
-    onBack: () => {
-      if (router.history.canGoBack()) {
-        router.history.back();
-        return;
-      }
-      void navigate({ to: "/loops" });
-    },
     onRun: () => void navigate({ to: "/loops/$name/run", params: { name } }),
     onConfigure: () => void navigate({ to: "/loops/$name/configure", params: { name } }),
     onOpenEditor: async () => {

@@ -1,7 +1,7 @@
 import { AlertCircle, Plus, RefreshCw, Users2 } from "lucide-react";
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 
-import { Button, Empty, ListingPage, useTopbarSlot } from "@agh/ui";
+import { Button, Empty, ListingPage, PageHead, useTopbarSlot } from "@agh/ui";
 
 import { useAgentsFleetPage } from "@/hooks/routes/use-agents-fleet-page";
 import { AgentFleetList, AgentFleetToolbar, validateAgentsFleetSearch } from "@/systems/agent";
@@ -10,7 +10,7 @@ import { preloadAgentsRoute } from "./-agents-preload";
 
 export const Route = createFileRoute("/_app/agents")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Agents", icon: Users2 },
+    topbar: { crumb: { label: "Agents", to: "/agents" } },
   }),
   validateSearch: validateAgentsFleetSearch,
   loaderDeps: ({ search }) => ({
@@ -33,7 +33,6 @@ function AgentsFleetRoute() {
     page.hasChildMatch
       ? null
       : {
-          count: page.isFirstRunEmpty ? undefined : page.fleetTotal,
           actions: page.isFirstRunEmpty ? undefined : (
             <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
               <Button
@@ -57,7 +56,7 @@ function AgentsFleetRoute() {
   if (page.workspaceId === "") {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="agents-no-workspace"
       >
         <Empty
@@ -75,14 +74,15 @@ function AgentsFleetRoute() {
 
   return (
     <ListingPage data-testid="agent-fleet-page">
-      <ListingPage.Head
+      <PageHead
         count={headCount}
         countTestId="agents-page-count"
         data-testid="agents-page-head"
+        icon={Users2}
         meta={
           <>
             <span>Provider, model, and instructions a session runs with.</span>
-            <ListingPage.MetaDot />
+            <PageHead.MetaDot />
             <span>Operate</span>
           </>
         }
@@ -98,12 +98,13 @@ function AgentsFleetRoute() {
         search={page.search}
         searchInputRef={page.searchInputRef}
         showFacets={page.showFacets}
+        showViewToggle={page.showViewToggle}
         view={page.view}
       />
 
       {agentsErrorEmpty ? (
         <div
-          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          className="flex min-h-0 flex-1 items-center justify-center py-10"
           data-testid="agent-fleet-error"
         >
           <Empty

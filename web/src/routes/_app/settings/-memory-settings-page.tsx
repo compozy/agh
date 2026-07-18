@@ -2,15 +2,8 @@ import { AlertCircle } from "lucide-react";
 import { useState } from "react";
 
 import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
-import { restartBannerPropsFor, SettingsSaveBar } from "@/systems/settings";
-import {
-  Button,
-  PageShell,
-  RestartBanner,
-  Spinner,
-  StatusLineTopbarSlot,
-  useTopbarSlot,
-} from "@agh/ui";
+import { restartBannerPropsFor, SettingsPageHead, SettingsSaveBar } from "@/systems/settings";
+import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
 import { ControllerLLMSection, ControllerSection } from "./-memory-controller-sections";
 import { DreamSection } from "./-memory-dream-section";
 import {
@@ -38,37 +31,35 @@ export function MemorySettingsPage() {
   };
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const healthForSlot = page.envelope?.health;
-  useTopbarSlot({
-    tabs: healthForSlot ? (
-      <StatusLineTopbarSlot
-        data-testid={`${TEST_PREFIX}-status-line`}
-        status={healthForSlot.available ? "connected" : "error"}
-        items={[
-          {
-            key: "files",
-            value: `${healthForSlot.file_count} memory files`,
-            tone: "neutral",
-          },
-          {
-            key: "last",
-            value: (
-              <span data-testid={`${TEST_PREFIX}-last-consolidated`}>
-                {healthForSlot.last_consolidated_at
-                  ? `last dream ${formatHealthTimestamp(healthForSlot.last_consolidated_at)}`
-                  : "no dream runs yet"}
-              </span>
-            ),
-            tone: "neutral",
-          },
-          {
-            key: "dream-state",
-            value: healthForSlot.dream_enabled ? "dreaming enabled" : "dreaming disabled",
-            tone: "neutral",
-          },
-        ]}
-      />
-    ) : undefined,
-  });
+  const statusLine = healthForSlot ? (
+    <StatusLine
+      data-testid={`${TEST_PREFIX}-status-line`}
+      status={healthForSlot.available ? "connected" : "error"}
+      items={[
+        {
+          key: "files",
+          value: `${healthForSlot.file_count} memory files`,
+          tone: "neutral",
+        },
+        {
+          key: "last",
+          value: (
+            <span data-testid={`${TEST_PREFIX}-last-consolidated`}>
+              {healthForSlot.last_consolidated_at
+                ? `last dream ${formatHealthTimestamp(healthForSlot.last_consolidated_at)}`
+                : "no dream runs yet"}
+            </span>
+          ),
+          tone: "neutral",
+        },
+        {
+          key: "dream-state",
+          value: healthForSlot.dream_enabled ? "dreaming enabled" : "dreaming disabled",
+          tone: "neutral",
+        },
+      ]}
+    />
+  ) : null;
 
   if (page.isLoading) {
     return (
@@ -107,6 +98,7 @@ export function MemorySettingsPage() {
     <PageShell
       slug="memory"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
+      head={<SettingsPageHead slug="memory" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="memory"

@@ -1,4 +1,3 @@
-import { PenLine } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import type { TopbarRouteContext } from "@/types/topbar";
@@ -7,8 +6,8 @@ import { useActiveWorkspace } from "@/systems/workspace";
 import { preloadLoopEditorRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loops/$name/editor")({
-  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: `Edit ${params.name}`, icon: PenLine },
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { crumb: { label: "Editor" } },
   }),
   loader: ({ context, params }) => preloadLoopEditorRoute(context.queryClient, params.name),
   component: LoopEditorRoute,

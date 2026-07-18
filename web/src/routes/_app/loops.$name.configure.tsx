@@ -1,4 +1,4 @@
-import { AlertCircle, Repeat2, SlidersHorizontal } from "lucide-react";
+import { AlertCircle, Repeat2 } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { Empty, Spinner } from "@agh/ui";
@@ -8,8 +8,8 @@ import { useActiveWorkspace } from "@/systems/workspace";
 import { preloadLoopConfigureRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loops/$name/configure")({
-  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: `Configure ${params.name}`, icon: SlidersHorizontal },
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { crumb: { label: "Configure" } },
   }),
   loader: ({ context, params }) => preloadLoopConfigureRoute(context.queryClient, params.name),
   component: LoopConfigureRoute,

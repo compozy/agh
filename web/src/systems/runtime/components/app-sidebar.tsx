@@ -1,4 +1,4 @@
-import { Link, useMatchRoute } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   Book,
   Boxes,
@@ -223,27 +223,31 @@ interface NavItemProps {
 }
 
 function NavItem({ to, icon: Icon, label, fuzzy, badge }: NavItemProps) {
-  const matchRoute = useMatchRoute();
-  const isActive = Boolean(matchRoute({ to, fuzzy }));
   const testKey = label.toLowerCase();
 
   return (
     <Link
       to={to}
+      activeOptions={{ exact: !fuzzy, includeSearch: false }}
+      activeProps={{ className: ACTIVE_NAV_ROW_CLASS, "data-active": "true" }}
       data-testid={`nav-${testKey}`}
-      data-active={isActive}
-      className={cn(NAV_ROW_CLASS, isActive && ACTIVE_NAV_ROW_CLASS)}
+      inactiveProps={{ "data-active": "false" }}
+      className={NAV_ROW_CLASS}
     >
-      {isActive && (
-        <span
-          aria-hidden="true"
-          data-testid={`nav-active-${testKey}`}
-          className={ACTIVE_NAV_INDICATOR_CLASS}
-        />
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <span
+              aria-hidden="true"
+              data-testid={`nav-active-${testKey}`}
+              className={ACTIVE_NAV_INDICATOR_CLASS}
+            />
+          )}
+          <Icon aria-hidden="true" className="size-3 shrink-0" />
+          <span className="truncate">{label}</span>
+          {badge ? <span className="ml-auto shrink-0">{badge}</span> : null}
+        </>
       )}
-      <Icon aria-hidden="true" className="size-3 shrink-0" />
-      <span className="truncate">{label}</span>
-      {badge ? <span className="ml-auto shrink-0">{badge}</span> : null}
     </Link>
   );
 }
@@ -259,8 +263,8 @@ const OPERATE_NAV_ITEMS: NavItemProps[] = [
   { to: "/network", icon: Network, label: "Network" },
   { to: "/tasks", icon: ListChecks, label: "Tasks", fuzzy: true },
   { to: "/loops", icon: Repeat2, label: "Loops", fuzzy: true },
-  { to: "/jobs", icon: Clock3, label: "Jobs" },
-  { to: "/triggers", icon: Zap, label: "Triggers" },
+  { to: "/jobs", icon: Clock3, label: "Jobs", fuzzy: true },
+  { to: "/triggers", icon: Zap, label: "Triggers", fuzzy: true },
 ];
 
 const CATALOG_NAV_ITEMS: NavItemProps[] = [

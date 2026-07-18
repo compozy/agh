@@ -43,10 +43,7 @@ const SETTINGS_MODAL_CLASS =
 
 export const Route = createFileRoute("/_app/agents/$name/settings")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: {
-      title: "Settings",
-      icon: Settings2,
-    },
+    topbar: { crumb: { label: "Settings" } },
   }),
   validateSearch: validateAgentSettingsSearch,
   loader: ({ context, params }) => preloadAgentSettingsRoute(context.queryClient, params.name),

@@ -4,7 +4,12 @@ import { fn } from "storybook/test";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { primaryAgentFixture } from "@/systems/agent/mocks";
 
-import { AgentPageActions, AgentPageMeta, AgentPageStatusPill } from "../agent-page-header";
+import {
+  AgentPageActions,
+  AgentPageMeta,
+  AgentPageOverflow,
+  AgentPageStatusPill,
+} from "../agent-page-header";
 
 const meta: Meta<typeof AgentPageActions> = {
   title: "systems/agent/components/AgentPageHeader",
@@ -27,15 +32,14 @@ export const Actions: Story = {
   args: {
     onEditSettings: fn(),
     onNewSession: fn(),
-    onDuplicate: fn(),
-    onDelete: fn(),
     isCreatingSession: false,
     newSessionDisabled: false,
   },
   render: args => (
     <CenteredSurface>
-      <div className="flex w-full max-w-3xl items-center justify-end">
+      <div className="flex w-full max-w-3xl items-center justify-end gap-2">
         <AgentPageActions {...args} />
+        <AgentPageOverflow onDelete={fn()} onDuplicate={fn()} />
       </div>
     </CenteredSurface>
   ),
@@ -45,15 +49,14 @@ export const CreatingSession: Story = {
   args: {
     onEditSettings: fn(),
     onNewSession: fn(),
-    onDuplicate: fn(),
-    onDelete: fn(),
     isCreatingSession: true,
     newSessionDisabled: true,
   },
   render: args => (
     <CenteredSurface>
-      <div className="flex w-full max-w-3xl items-center justify-end">
+      <div className="flex w-full max-w-3xl items-center justify-end gap-2">
         <AgentPageActions {...args} />
+        <AgentPageOverflow onDelete={fn()} onDuplicate={fn()} />
       </div>
     </CenteredSurface>
   ),

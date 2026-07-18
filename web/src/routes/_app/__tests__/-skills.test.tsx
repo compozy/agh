@@ -7,7 +7,7 @@ import type { SkillPayload } from "@/systems/skill/types";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
 function render(ui: React.ReactElement) {
-  return renderWithTopbar(ui, { title: "Skills" });
+  return renderWithTopbar(ui);
 }
 
 let mockSkills: SkillPayload[] = [];

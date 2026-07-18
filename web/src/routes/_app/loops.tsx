@@ -6,6 +6,7 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
+  PageHead,
   Spinner,
   buttonVariants,
   useTopbarSlot,
@@ -34,7 +35,7 @@ function validateLoopsSearch(search: Record<string, unknown>): LoopsRouteSearch 
 
 export const Route = createFileRoute("/_app/loops")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Loops", icon: Repeat2 },
+    topbar: { crumb: { label: "Loops", to: "/loops" } },
   }),
   validateSearch: validateLoopsSearch,
   loaderDeps: ({ search }) => ({
@@ -63,32 +64,38 @@ function LoopsRoute() {
   const loopCount = page.loopsQuery.total;
   const workspaceLabel = page.activeWorkspace?.name ?? page.activeWorkspace?.id ?? "workspace";
 
-  useTopbarSlot({
-    count: page.hasChildMatch || page.workspaceId === "" ? undefined : loopCount,
-    actions:
-      page.hasChildMatch || page.workspaceId === "" ? undefined : (
-        <div className="flex items-center gap-2" data-testid="loops-topbar-actions">
-          <Link
-            className={buttonVariants({ size: "sm", variant: "ghost" })}
-            data-testid="loops-runs-link"
-            to="/loop-runs"
-          >
-            <Activity aria-hidden="true" className="size-3" />
-            Runs
-          </Link>
-          <Button
-            data-testid="loops-refresh"
-            onClick={page.handleRefresh}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <RefreshCw aria-hidden="true" className="size-3" />
-            Refresh
-          </Button>
-        </div>
-      ),
-  });
+  // Publish null while a child route is mounted: a non-null slot from this
+  // parent would steal the detail route's publish (layout effects run child
+  // first, parent last in the same commit).
+  useTopbarSlot(
+    page.hasChildMatch
+      ? null
+      : {
+          actions:
+            page.workspaceId === "" ? undefined : (
+              <div className="flex items-center gap-2" data-testid="loops-topbar-actions">
+                <Link
+                  className={buttonVariants({ size: "sm", variant: "ghost" })}
+                  data-testid="loops-runs-link"
+                  to="/loop-runs"
+                >
+                  <Activity aria-hidden="true" className="size-3" />
+                  Runs
+                </Link>
+                <Button
+                  data-testid="loops-refresh"
+                  onClick={page.handleRefresh}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <RefreshCw aria-hidden="true" className="size-3" />
+                  Refresh
+                </Button>
+              </div>
+            ),
+        }
+  );
 
   if (page.hasChildMatch) {
     return <Outlet />;
@@ -132,14 +139,15 @@ function LoopsRoute() {
 
   return (
     <ListingPage data-testid="loops-catalog">
-      <ListingPage.Head
+      <PageHead
         count={loopCount}
         countTestId="loops-page-count"
         data-testid="loops-page-head"
+        icon={Repeat2}
         meta={
           <>
             <span>Reusable, guardrailed cycles that pursue a goal until it is verified.</span>
-            <ListingPage.MetaDot />
+            <PageHead.MetaDot />
             <span>{workspaceLabel}</span>
           </>
         }
@@ -197,10 +205,7 @@ interface CatalogStateProps {
 
 function CatalogState({ title, description, testId, icon = Repeat2 }: CatalogStateProps) {
   return (
-    <div
-      className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-      data-testid={testId}
-    >
+    <div className="flex min-h-0 flex-1 items-center justify-center py-10" data-testid={testId}>
       <Empty className="max-w-md" description={description} icon={icon} title={title} />
     </div>
   );

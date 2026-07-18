@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,7 @@ vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({ history: { back: () => undefined } }),
 }));
 
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import { TasksDetailHeader } from "../tasks-detail-header";
 import { buildTaskRunRecordFixture } from "../../mocks/fixtures";
 import type { TaskDetailView } from "../../types";
@@ -55,15 +56,12 @@ function buildDetail(
 
 describe("TasksDetailHeader", () => {
   it("Should render the body header with title, MonoBadge id, status pill, and action slot in DOM order", () => {
-    const { container } = render(<TasksDetailHeader detail={buildDetail()} />);
+    const { container } = renderWithTopbar(<TasksDetailHeader detail={buildDetail()} />);
 
     expect(screen.getByTestId("tasks-detail-title")).toHaveTextContent("Summarize review feedback");
     expect(screen.getByTestId("tasks-detail-id")).toHaveTextContent("task-42");
     expect(screen.getByTestId("tasks-detail-status")).toHaveTextContent("Ready");
     expect(screen.getByTestId("tasks-detail-actions")).toBeInTheDocument();
-
-    // Breadcrumb surfaces the short identifier
-    expect(screen.getByTestId("tasks-detail-breadcrumb")).toHaveTextContent("TASK-42");
 
     // Priority is a pill, while the meta row keeps provenance and timestamps.
     expect(screen.getByTestId("tasks-detail-priority")).toHaveTextContent("High");
@@ -78,7 +76,7 @@ describe("TasksDetailHeader", () => {
     const onCancel = vi.fn();
     const onEnqueueRun = vi.fn();
 
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({ status: "in_progress" })}
         onCancel={onCancel}
@@ -86,8 +84,9 @@ describe("TasksDetailHeader", () => {
       />
     );
 
-    fireEvent.click(screen.getByTestId("tasks-detail-cancel"));
     fireEvent.click(screen.getByTestId("tasks-detail-enqueue"));
+    fireEvent.click(screen.getByTestId("tasks-detail-overflow"));
+    fireEvent.click(screen.getByTestId("tasks-detail-cancel"));
 
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onEnqueueRun).toHaveBeenCalledTimes(1);
@@ -96,8 +95,9 @@ describe("TasksDetailHeader", () => {
   it("Should open a confirmation dialog before deleting the task", () => {
     const onDelete = vi.fn();
 
-    render(<TasksDetailHeader detail={buildDetail()} onDelete={onDelete} />);
+    renderWithTopbar(<TasksDetailHeader detail={buildDetail()} onDelete={onDelete} />);
 
+    fireEvent.click(screen.getByTestId("tasks-detail-overflow"));
     fireEvent.click(screen.getByTestId("tasks-detail-delete"));
     expect(screen.getByTestId("tasks-detail-delete-dialog")).toBeInTheDocument();
 
@@ -107,7 +107,9 @@ describe("TasksDetailHeader", () => {
 
   it("Should surface the publish button for draft tasks", () => {
     const onPublish = vi.fn();
-    render(<TasksDetailHeader detail={buildDetail({ status: "draft" })} onPublish={onPublish} />);
+    renderWithTopbar(
+      <TasksDetailHeader detail={buildDetail({ status: "draft" })} onPublish={onPublish} />
+    );
 
     fireEvent.click(screen.getByTestId("tasks-detail-publish"));
     expect(onPublish).toHaveBeenCalledTimes(1);
@@ -115,7 +117,7 @@ describe("TasksDetailHeader", () => {
   });
 
   it("Should disable destructive actions while mutations are pending", () => {
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({ status: "in_progress" })}
         pending={{ cancel: true, delete: true, enqueue: true }}
@@ -125,16 +127,20 @@ describe("TasksDetailHeader", () => {
       />
     );
 
-    expect(screen.getByTestId("tasks-detail-delete")).toBeDisabled();
-    expect(screen.getByTestId("tasks-detail-cancel")).toBeDisabled();
     expect(screen.getByTestId("tasks-detail-enqueue")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("tasks-detail-overflow"));
+    expect(screen.getByTestId("tasks-detail-delete")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("tasks-detail-cancel")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("Should require a reason before pausing a task", async () => {
     const onPause = vi.fn().mockResolvedValue(undefined);
 
-    render(<TasksDetailHeader detail={buildDetail({ status: "ready" })} onPause={onPause} />);
+    renderWithTopbar(
+      <TasksDetailHeader detail={buildDetail({ status: "ready" })} onPause={onPause} />
+    );
 
+    fireEvent.click(screen.getByTestId("tasks-detail-overflow"));
     fireEvent.click(screen.getByTestId("tasks-detail-pause"));
     expect(screen.getByTestId("tasks-detail-pause-dialog")).toBeInTheDocument();
 
@@ -155,7 +161,7 @@ describe("TasksDetailHeader", () => {
 
   it("Should surface resume for directly paused tasks and block start-run copy", () => {
     const onResume = vi.fn();
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail(
           {
@@ -172,12 +178,13 @@ describe("TasksDetailHeader", () => {
 
     expect(screen.getByTestId("tasks-detail-pause-state")).toHaveTextContent("Paused");
     expect(screen.getByTestId("tasks-detail-enqueue")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("tasks-detail-overflow"));
     fireEvent.click(screen.getByTestId("tasks-detail-resume"));
     expect(onResume).toHaveBeenCalledTimes(1);
   });
 
   it("Should render the saved-intent lifecycle pill and hint for draft tasks without implying autonomy", () => {
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({ status: "draft", draft: true })}
         onPublish={() => {}}
@@ -199,7 +206,9 @@ describe("TasksDetailHeader", () => {
   });
 
   it("Should label the start-run button as the coordinator handoff boundary", () => {
-    render(<TasksDetailHeader detail={buildDetail({ status: "ready" })} onEnqueueRun={() => {}} />);
+    renderWithTopbar(
+      <TasksDetailHeader detail={buildDetail({ status: "ready" })} onEnqueueRun={() => {}} />
+    );
 
     const button = screen.getByTestId("tasks-detail-enqueue");
     expect(button).toHaveTextContent("Start run");
@@ -223,7 +232,7 @@ describe("TasksDetailHeader", () => {
       });
       const detail = buildDetail({ status: "ready" }, { active_run: activeRun });
 
-      render(<TasksDetailHeader detail={detail} onEnqueueRun={() => {}} />);
+      renderWithTopbar(<TasksDetailHeader detail={detail} onEnqueueRun={() => {}} />);
 
       expect(screen.queryByTestId("tasks-detail-enqueue")).not.toBeInTheDocument();
     }
@@ -239,7 +248,7 @@ describe("TasksDetailHeader", () => {
       queued_at: "2026-04-11T09:30:00Z",
     });
 
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({ status: "ready", max_attempts: 2 }, { active_run: activeRun })}
         onEnqueueRun={() => {}}
@@ -262,7 +271,7 @@ describe("TasksDetailHeader", () => {
       queued_at: "2026-04-11T09:30:00Z",
     });
 
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({ status: "ready", max_attempts: 1 }, { active_run: activeRun })}
         onEnqueueRun={() => {}}
@@ -277,7 +286,7 @@ describe("TasksDetailHeader", () => {
 
   it("Should render the needs_attention badge with its reason and fire recover", () => {
     const onRecover = vi.fn();
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({
           status: "needs_attention",
@@ -306,7 +315,7 @@ describe("TasksDetailHeader", () => {
   });
 
   it("Should hide the recover action and badge when the task is not escalated", () => {
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({ status: "ready", needs_attention: false })}
         onRecover={() => {}}
@@ -318,7 +327,7 @@ describe("TasksDetailHeader", () => {
   });
 
   it("Should hide the badge and recover action on a terminal task even if needs_attention lingered", () => {
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({ status: "canceled", needs_attention: true })}
         onRecover={() => {}}
@@ -330,7 +339,7 @@ describe("TasksDetailHeader", () => {
   });
 
   it("Should disable the recover action while the mutation is pending", () => {
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({ status: "needs_attention", needs_attention: true })}
         pending={{ recover: true }}
@@ -342,7 +351,7 @@ describe("TasksDetailHeader", () => {
   });
 
   it("Should show the wake indicator on for agent-created tasks and off on opt-out", () => {
-    const { rerender } = render(
+    const { rerender } = renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({
           created_by: { kind: "agent_session", ref: "session_a" },
@@ -366,7 +375,7 @@ describe("TasksDetailHeader", () => {
   });
 
   it("Should suppress the wake indicator for tasks not created by an agent session", () => {
-    render(
+    renderWithTopbar(
       <TasksDetailHeader
         detail={buildDetail({ created_by: { kind: "human", ref: "operator" }, wake_creator: true })}
       />
@@ -384,7 +393,7 @@ describe("TasksDetailHeader", () => {
     });
     const detail = buildDetail({ status: "in_progress" }, { active_run: activeRun });
 
-    render(<TasksDetailHeader detail={detail} onEnqueueRun={() => {}} />);
+    renderWithTopbar(<TasksDetailHeader detail={detail} onEnqueueRun={() => {}} />);
 
     expect(screen.getByTestId("tasks-detail-coordination")).toHaveTextContent(
       "Channel: TASK-1 coordination"

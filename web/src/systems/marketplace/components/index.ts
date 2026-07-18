@@ -19,6 +19,8 @@ export { MarketplaceLanding } from "./marketplace-landing";
 export type { MarketplaceLandingProps } from "./marketplace-landing";
 export { MarketplaceKindRouteBody, MarketplaceLandingRouteBody } from "./marketplace-route-bodies";
 export type { MarketplaceRouteSearch } from "./marketplace-route-bodies";
+export { MarketplaceRow } from "./marketplace-row";
+export type { MarketplaceRowProps } from "./marketplace-row";
 export { MCPInstallDialog } from "./mcp-install-dialog";
 export type { MCPInstallDialogProps } from "./mcp-install-dialog";
 export {
@@ -38,6 +40,7 @@ export {
   isMarketplaceViewSort,
   marketplaceEntrySlug,
   marketplaceErrorMessage,
+  marketplaceKindIcon,
   sortMarketplaceEntries,
 } from "./marketplace-ui";
 export type { MarketplaceViewSort } from "./marketplace-ui";

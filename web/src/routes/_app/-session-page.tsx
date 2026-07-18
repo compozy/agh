@@ -11,6 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  PageHead,
   Spinner,
 } from "@agh/ui";
 
@@ -21,6 +22,8 @@ import {
   SessionChatRuntimeProvider,
   SessionInspector,
   SessionResumeFailure,
+  SessionStatusLine,
+  getSessionDisplayTitle,
   useSessionById,
   type SessionPayload,
 } from "@/systems/session";
@@ -39,6 +42,18 @@ function SessionPageContent({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-4 py-2.5"
+          data-testid="session-head-band"
+        >
+          <PageHead
+            className="min-w-0"
+            data-testid="session-page-head"
+            title={getSessionDisplayTitle(session)}
+            variant="compact"
+          />
+          <SessionStatusLine session={session} />
+        </div>
         {controls.resumeFailure ? (
           <SessionResumeFailure
             agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}

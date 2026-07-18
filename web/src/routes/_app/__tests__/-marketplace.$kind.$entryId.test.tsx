@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useTopbarSlotValue, type TopbarSlotValue } from "@agh/ui";
 import { renderWithTopbar } from "@/test/render-with-topbar";
-import { routeComponent } from "@/test/route-options";
+import { routeBeforeLoad, routeComponent } from "@/test/route-options";
 import { marketplaceDetails } from "@/systems/marketplace/mocks";
 
 const router = vi.hoisted(() => ({
@@ -35,9 +36,11 @@ vi.mock("@tanstack/react-router", () => ({
   createFileRoute:
     () =>
     (options: {
+      beforeLoad?: (args: unknown) => unknown;
       component: () => ReactNode;
       validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
     }) => ({
+      beforeLoad: options.beforeLoad,
       component: options.component,
       useParams: () => router.params,
       useSearch: () => options.validateSearch?.(router.search) ?? router.search,
@@ -80,11 +83,24 @@ import { Route as MarketplaceDetailRoute } from "../marketplace.$kind.$entryId";
 const MarketplacePage = routeComponent(MarketplaceRoute);
 const MarketplaceDetailPage = routeComponent(MarketplaceDetailRoute);
 
-function renderRoute(ui: ReactNode, title: string) {
+function TopbarSlotProbe({ onSlot }: { onSlot: (slot: TopbarSlotValue | null) => void }) {
+  const slot = useTopbarSlotValue();
+  useEffect(() => {
+    onSlot(slot);
+  }, [onSlot, slot]);
+  return null;
+}
+
+function renderRoute(ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return renderWithTopbar(<QueryClientProvider client={client}>{ui}</QueryClientProvider>, {
-    title,
-  });
+  let slotValue: TopbarSlotValue | null = null;
+  const utils = renderWithTopbar(
+    <QueryClientProvider client={client}>
+      {ui}
+      <TopbarSlotProbe onSlot={slot => (slotValue = slot)} />
+    </QueryClientProvider>
+  );
+  return { ...utils, getSlot: () => slotValue };
 }
 
 beforeEach(() => {
@@ -94,23 +110,39 @@ beforeEach(() => {
 });
 
 describe("Marketplace detail topbar ownership", () => {
+  it("Should register the Marketplace topbar crumb contract", () => {
+    expect(routeBeforeLoad(MarketplaceRoute)()).toMatchObject({
+      topbar: { crumb: { label: "Marketplace", to: "/marketplace" } },
+    });
+  });
+
+  it("Should register the Marketplace kind entry parent-crumb and leaf-crumb contract", () => {
+    expect(
+      routeBeforeLoad<{ params: { kind: string; entryId: string } }>(MarketplaceDetailRoute)({
+        params: { kind: "skill", entryId: "git-flow" },
+      })
+    ).toMatchObject({
+      topbar: {
+        parentCrumb: { label: "Skills", search: { kind: "skills" }, to: "/marketplace" },
+        crumb: { label: "git-flow" },
+      },
+    });
+  });
+
   it("Should clear the parent topbar slot when a detail child match is active", () => {
     router.childMatches = [{ id: "marketplace-detail" }];
-    renderRoute(<MarketplacePage />, "Marketplace");
+    const { getSlot } = renderRoute(<MarketplacePage />);
 
     expect(screen.queryByTestId("marketplace-kind-navigation")).not.toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-refresh")).not.toBeInTheDocument();
     expect(screen.getByTestId("marketplace-outlet")).toBeInTheDocument();
-    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("Marketplace");
+    expect(getSlot()).toBeNull();
   });
 
-  it("Should publish the Marketplace kind entry breadcrumb from the detail route", () => {
-    renderRoute(<MarketplaceDetailPage />, "git-flow");
+  it("Should publish the entry display name as the leaf breadcrumb override from the detail route", () => {
+    const { getSlot } = renderRoute(<MarketplaceDetailPage />);
 
-    expect(screen.getByLabelText("Marketplace, Skills, git-flow")).toBeInTheDocument();
-    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("Marketplace");
-    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("Skills");
-    expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("git-flow");
+    expect(getSlot()?.crumb).toBe("git-flow");
     expect(screen.getByTestId("marketplace-detail")).toBeInTheDocument();
   });
 });

@@ -1,15 +1,17 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, CircleMinus } from "lucide-react";
+import { AlertCircle, CircleMinus, Store } from "lucide-react";
 
 import {
   Button,
   Empty,
   ListingPage,
   ListingToolbar,
+  PageHead,
   RouteState,
   Section,
   Spinner,
   buttonVariants,
+  type ListingViewMode,
 } from "@agh/ui";
 
 import {
@@ -30,10 +32,12 @@ interface MarketplaceLandingProps {
   isEntryPending?: (entry: MarketplaceListing) => boolean;
   isLoading?: boolean;
   query: string;
+  view?: ListingViewMode;
   onAction: (entry: MarketplaceListing) => void;
   onClearSearch: () => void;
   onRetry: () => void;
   onSearchChange: (query: string) => void;
+  onViewChange?: (view: ListingViewMode) => void;
 }
 
 function MarketplaceLanding({
@@ -43,10 +47,12 @@ function MarketplaceLanding({
   isEntryPending,
   isLoading = false,
   query,
+  view = "rows",
   onAction,
   onClearSearch,
   onRetry,
   onSearchChange,
+  onViewChange,
 }: MarketplaceLandingProps) {
   const results = marketplaceResultsByKind(data);
   const successfulItems = MARKETPLACE_KIND_ORDER.flatMap(kind => results.get(kind)?.items ?? []);
@@ -54,7 +60,11 @@ function MarketplaceLanding({
 
   return (
     <ListingPage data-testid="marketplace-landing">
-      <ListingPage.Head meta={<MarketplaceLandingMeta results={results} />} title="Marketplace" />
+      <PageHead
+        icon={Store}
+        meta={<MarketplaceLandingMeta results={results} />}
+        title="Marketplace"
+      />
       <ListingToolbar>
         <ListingToolbar.Leading>
           <ListingToolbar.Search
@@ -65,6 +75,11 @@ function MarketplaceLanding({
             value={query}
           />
         </ListingToolbar.Leading>
+        {onViewChange ? (
+          <ListingToolbar.Trailing>
+            <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
+          </ListingToolbar.Trailing>
+        ) : null}
       </ListingToolbar>
 
       <p aria-live="polite" className="sr-only" data-testid="marketplace-result-announcement">
@@ -89,9 +104,7 @@ function MarketplaceLanding({
               Clear search
             </Button>
           }
-          className="min-h-80"
           description={`Nothing matches “${query}” across skills, extensions, bundles, or MCP servers.`}
-          fill={false}
           icon={CircleMinus}
           title="No matches in the marketplace"
         />
@@ -110,6 +123,7 @@ function MarketplaceLanding({
                 onRetry={onRetry}
                 query={query}
                 result={result}
+                view={view}
               />
             );
           })}
@@ -126,6 +140,7 @@ interface MarketplaceLandingSectionProps {
   kind: MarketplaceKind;
   query: string;
   result?: MarketplaceKindResult;
+  view: ListingViewMode;
   onAction: (entry: MarketplaceListing) => void;
   onRetry: () => void;
 }
@@ -137,6 +152,7 @@ function MarketplaceLandingSection({
   kind,
   query,
   result,
+  view,
   onAction,
   onRetry,
 }: MarketplaceLandingSectionProps) {
@@ -166,7 +182,7 @@ function MarketplaceLandingSection({
       }
       rightClassName="w-auto shrink-0"
     >
-      {isLoading ? <MarketplaceGridSkeleton count={3} /> : null}
+      {isLoading ? <MarketplaceGridSkeleton count={3} view={view} /> : null}
       {!isLoading && isDegraded ? (
         <MarketplaceDegradedNotice
           hasItems={hasItems}
@@ -177,7 +193,12 @@ function MarketplaceLandingSection({
       ) : null}
       {!isLoading && hasItems ? (
         <div className={isFetching ? "opacity-60" : undefined}>
-          <MarketplaceGrid entries={entries} isEntryPending={isEntryPending} onAction={onAction} />
+          <MarketplaceGrid
+            entries={entries}
+            isEntryPending={isEntryPending}
+            onAction={onAction}
+            view={view}
+          />
         </div>
       ) : null}
       {!isLoading && !isDegraded && !hasItems ? (
@@ -214,7 +235,7 @@ function MarketplaceLandingMeta({
   if (totals.length === 0) return <span>Browse and install runtime capabilities.</span>;
   return totals.map((item, index) => (
     <span className="contents" key={item.kind}>
-      {index > 0 ? <ListingPage.MetaDot /> : null}
+      {index > 0 ? <PageHead.MetaDot /> : null}
       <span>
         {item.total} {item.label}
       </span>

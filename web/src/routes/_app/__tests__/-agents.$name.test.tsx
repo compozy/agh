@@ -243,9 +243,10 @@ describe("Agent detail route", () => {
     expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-total", "205");
     expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-active", "7");
     expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-failed", "1");
+    // Route identity (back-to-Agents breadcrumb) now comes from the match
+    // chain's `beforeLoad` crumb, not a topbar slot field; the detail route
+    // only publishes trailing actions.
     const slot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
-    expect(slot?.tabs).toBeUndefined();
-    expect(slot?.backLabel).toBe("Agents");
     expect(slot?.actions).toBeTruthy();
   });
 
@@ -310,7 +311,7 @@ describe("Agent detail route", () => {
     );
   });
 
-  it("Should place diagnostics above the body DetailHeader and outside tab content", () => {
+  it("Should place diagnostics above the body PageHead and outside tab content", () => {
     mockUseAgentDetailPage.mockReturnValue(
       makePage({
         agent: {

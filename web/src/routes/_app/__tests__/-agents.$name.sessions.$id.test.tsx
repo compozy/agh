@@ -298,10 +298,10 @@ function TopbarSlotProbe({ onSlot }: { onSlot: (slot: TopbarSlotValue | null) =>
   return (
     <div data-testid="topbar-probe">
       <span data-testid="topbar-probe-title">
-        {typeof slot?.title === "string" ? slot.title : ""}
+        {typeof slot?.crumb === "string" ? slot.crumb : ""}
       </span>
-      <div data-testid="topbar-probe-meta">{slot?.meta ?? null}</div>
       <div data-testid="topbar-probe-actions">{slot?.actions ?? null}</div>
+      <div data-testid="topbar-probe-overflow">{slot?.overflow ?? null}</div>
     </div>
   );
 }
@@ -400,9 +400,9 @@ describe("Nested agent session route — Topbar slot migration", () => {
     expect(screen.queryByTestId("chat-breadcrumb")).not.toBeInTheDocument();
   });
 
-  it("Should push the persisted session name into the Topbar title slot", () => {
+  it("Should push the persisted session name into the Topbar crumb slot", () => {
     const { getSlot } = renderSessionPage();
-    expect(getSlot()?.title).toBe("Old runtime");
+    expect(getSlot()?.crumb).toBe("Old runtime");
   });
 
   it("Should keep the agent name and provider as Topbar metadata", () => {
@@ -430,17 +430,18 @@ describe("Nested agent session route — Topbar slot migration", () => {
     });
 
     const { getSlot } = renderSessionPage();
-    expect(getSlot()?.title).toBe("New session");
-    expect(getSlot()?.title).not.toBe("claude-agent");
-    expect(getSlot()?.title).not.toBe("sess_123");
+    expect(getSlot()?.crumb).toBe("New session");
+    expect(getSlot()?.crumb).not.toBe("claude-agent");
+    expect(getSlot()?.crumb).not.toBe("sess_123");
   });
 
   it("Should expose delete without attach controls for stopped sessions", () => {
     renderSessionPage();
     expect(screen.getByTestId("session-topbar-actions")).toBeInTheDocument();
-    expect(screen.getByTestId("delete-button")).toBeInTheDocument();
     expect(screen.queryByTestId("resume-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("session-topbar-overflow"));
+    expect(screen.getByTestId("delete-button")).toBeInTheDocument();
   });
 
   it("Should expose stop and attach controls for attachable active sessions", () => {
@@ -991,6 +992,7 @@ describe("Nested agent session route — attach failure UX", () => {
 
     renderSessionPage();
 
+    fireEvent.click(screen.getByTestId("session-topbar-overflow"));
     fireEvent.click(screen.getByTestId("delete-button"));
     fireEvent.click(screen.getByTestId("delete-dialog-confirm"));
 

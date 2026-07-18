@@ -99,8 +99,10 @@ beforeEach(() => {
 describe("ExtensionsInventory", () => {
   it("Should render Update only for a feed-joined signal and expose the lifecycle overflow", async () => {
     const user = userEvent.setup();
-    render(<ExtensionsInventory tab="extensions" />);
+    const onViewChange = vi.fn();
+    render(<ExtensionsInventory onViewChange={onViewChange} tab="extensions" view="rows" />);
 
+    expect(screen.getByTestId("listing-view-toggle")).toBeInTheDocument();
     const updates = screen.getAllByRole("button", { name: "Update" });
     expect(updates).toHaveLength(1);
     await user.click(updates[0]!);
@@ -112,6 +114,9 @@ describe("ExtensionsInventory", () => {
 
     await user.click(screen.getByRole("switch", { name: "Disable otel-bridge" }));
     expect(mocks.toggle).toHaveBeenCalledWith({ enabled: false, name: "otel-bridge" });
+
+    await user.click(screen.getByTestId("listing-view-cards"));
+    expect(onViewChange).toHaveBeenCalledWith("cards");
   });
 
   it("Should show bundle Update only for spec drift and send a plain reapply PATCH", async () => {

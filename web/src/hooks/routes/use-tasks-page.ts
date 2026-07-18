@@ -27,7 +27,8 @@ import { taskScopeForActiveWorkspace } from "./workspace-scope-filter";
 type InboxLaneFilter = InboxLaneFilterId;
 
 interface UseTasksPageOptions {
-  initialMode?: TaskViewMode;
+  /** Surface mode, controlled by the route's `mode` search param. */
+  mode?: TaskViewMode;
   forceListData?: boolean;
 }
 
@@ -48,7 +49,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const daemonStatus = useDaemonStatus();
   const { activeWorkspace } = workspace;
   const userHomeDir = daemonStatus.data?.user_home_dir;
-  const [mode, setMode] = useState<TaskViewMode>(options.initialMode ?? "list");
+  const mode: TaskViewMode = options.mode ?? "list";
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<TaskFilterOwnerOption | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
@@ -153,10 +154,6 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     void inboxQuery.refetch();
   };
 
-  const handleModeChange = (next: TaskViewMode) => {
-    setMode(next);
-    setSearchQuery("");
-  };
   const hasListFilters = Boolean(
     statusFilter || ownerFilter || priorityFilter || deferredSearchQuery.trim()
   );
@@ -180,7 +177,6 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     handleInboxPriorityChange: setInboxPriorityFilter,
     handleInboxStatusChange: setInboxStatusFilter,
     handleInboxUnreadToggle: setInboxUnreadOnly,
-    handleModeChange,
     handleOwnerChange: setOwnerFilter,
     handlePriorityChange: setPriorityFilter,
     handleSortChange: setSortBy,

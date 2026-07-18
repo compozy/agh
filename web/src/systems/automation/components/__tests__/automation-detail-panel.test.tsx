@@ -2,10 +2,12 @@
 // Invariant: Persisted automation reads render the stored execution target without agent-only loss.
 // Boundary IN: Job/Trigger API read models and the detail/run-history presentation.
 // Boundary OUT: persistence and dispatch, owned by daemon/store suites.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+import { renderWithTopbar } from "@/test/render-with-topbar";
 
 interface MockLinkParams {
   id?: string;
@@ -104,9 +106,8 @@ function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>
   const onToggleEnabled = vi.fn();
   const onTriggerNow = vi.fn();
 
-  render(
+  renderWithTopbar(
     <AutomationDetailPanel
-      emptyState={null}
       error={null}
       state={{
         isDeleting: false,
@@ -150,19 +151,10 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByTestId("automation-detail-error")).toBeInTheDocument();
   });
 
-  it("renders route-level empty state", () => {
-    renderPanel({
-      emptyState: {
-        actionLabel: "Create Job",
-        description: "Create the first job.",
-        icon: "jobs",
-        onAction: vi.fn(),
-        title: "No jobs configured",
-      },
-      item: undefined,
-    });
+  it("renders the unavailable state when the routed item resolves to nothing", () => {
+    renderPanel({ item: undefined });
     expect(screen.getByTestId("automation-detail-empty")).toBeInTheDocument();
-    expect(screen.getByText("No jobs configured")).toBeInTheDocument();
+    expect(screen.getByText("Job unavailable")).toBeInTheDocument();
   });
 
   it("renders dynamic job details and dispatches non-destructive action callbacks", () => {
@@ -181,9 +173,10 @@ describe("AutomationDetailPanel", () => {
       "/session/sess_001"
     );
 
-    fireEvent.click(screen.getByTestId("toggle-automation-btn"));
     fireEvent.click(screen.getByTestId("edit-automation-btn"));
     fireEvent.click(screen.getByTestId("trigger-job-btn"));
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    fireEvent.click(screen.getByTestId("toggle-automation-btn"));
 
     expect(onToggleEnabled).toHaveBeenCalledWith(false);
     expect(onEdit).toHaveBeenCalledOnce();
@@ -202,7 +195,8 @@ describe("AutomationDetailPanel", () => {
     const user = userEvent.setup();
     const { onDelete } = renderPanel({ item: case_.item, kind: case_.kind, runs: [] });
 
-    await user.click(screen.getByTestId("delete-automation-btn"));
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    fireEvent.click(screen.getByTestId("delete-automation-btn"));
     expect(onDelete).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: `Delete ${case_.noun}?` })).toBeInTheDocument();
 
@@ -210,7 +204,8 @@ describe("AutomationDetailPanel", () => {
     expect(onDelete).not.toHaveBeenCalled();
     expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("delete-automation-btn"));
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    fireEvent.click(screen.getByTestId("delete-automation-btn"));
     const confirmButton = screen.getByTestId("confirm-delete-automation-btn");
     await user.type(screen.getByLabelText("Type to confirm"), `${case_.item.name}-wrong`);
     expect(confirmButton).toBeDisabled();
@@ -288,11 +283,12 @@ describe("AutomationDetailPanel", () => {
     expect(screen.queryByText(/Dispatches to/)).not.toBeInTheDocument();
   });
 
-  it("Should render the 24 px DetailHeader anatomy with the job name as H1", () => {
+  it("Should render the PageHead detail anatomy with the job name as H1", () => {
     renderPanel();
 
     const header = screen.getByTestId("automation-detail-header");
-    expect(header).toHaveAttribute("data-slot", "detail-header");
+    expect(header).toHaveAttribute("data-slot", "page-head");
+    expect(header).toHaveAttribute("data-variant", "detail");
     screen.getByRole("heading", { level: 1, name: "daily-review" });
   });
 
@@ -388,6 +384,7 @@ describe("AutomationDetailPanel", () => {
       expect(writeText).toHaveBeenCalledWith("/api/webhooks/global/push-review--wbh_push_review")
     );
     expect(screen.getByTestId("edit-automation-btn")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     expect(screen.getByTestId("delete-automation-btn")).toBeInTheDocument();
   });
 });

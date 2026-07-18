@@ -159,7 +159,7 @@ export function TasksTimelinePanel({
   return (
     <Section
       aria-label="Task events"
-      className="w-full gap-6 px-6 py-5"
+      className="w-full gap-6 py-5"
       count={items.length}
       data-testid="tasks-timeline-panel"
       icon={Activity}

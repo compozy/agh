@@ -19,50 +19,24 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  PageHead,
   PageShell,
   Pill,
   RestartBanner,
   Section,
   Spinner,
-  StatusLineTopbarSlot,
+  StatusLine,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  useTopbarSlot,
 } from "@agh/ui";
 import { SandboxDeleteDialog, SandboxLastActionAlert } from "./-sandbox-dialogs";
 
 export function SandboxPage() {
   const page = useSandboxPage();
-
-  useTopbarSlot({
-    count: page.envelope ? page.counts.total : undefined,
-    tabs: page.envelope ? (
-      <StatusLineTopbarSlot
-        data-testid="sandbox-page-status-line"
-        status="connected"
-        items={[
-          {
-            key: "total",
-            value: <span data-testid="sandbox-page-total">{page.counts.total} profiles</span>,
-            tone: "neutral",
-          },
-          {
-            key: "workspaces",
-            value: (
-              <span data-testid="sandbox-page-workspaces">
-                {page.counts.totalWorkspaces} workspace references
-              </span>
-            ),
-            tone: "neutral",
-          },
-        ]}
-      />
-    ) : undefined,
-  });
 
   if (page.isLoading) {
     return (
@@ -84,15 +58,45 @@ export function SandboxPage() {
   }
 
   const bannerProps = restartBannerPropsFor("sandbox", page.restart);
+  const statusLine = (
+    <StatusLine
+      data-testid="sandbox-page-status-line"
+      status="connected"
+      items={[
+        {
+          key: "total",
+          value: <span data-testid="sandbox-page-total">{page.counts.total} profiles</span>,
+          tone: "neutral",
+        },
+        {
+          key: "workspaces",
+          value: (
+            <span data-testid="sandbox-page-workspaces">
+              {page.counts.totalWorkspaces} workspace references
+            </span>
+          ),
+          tone: "neutral",
+        },
+      ]}
+    />
+  );
 
   return (
     <PageShell
       density="route"
       data-testid="sandbox-shell"
-      banner={
-        bannerProps ? (
-          <RestartBanner {...bannerProps} className="px-6 md:px-8 xl:px-10" />
-        ) : undefined
+      banner={bannerProps ? <RestartBanner {...bannerProps} className="px-9" /> : undefined}
+      head={
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <PageHead
+            count={page.counts.total}
+            data-testid="sandbox-page-head"
+            icon={Boxes}
+            title="Sandbox"
+            variant="compact"
+          />
+          {statusLine}
+        </div>
       }
     >
       {page.lastAction ? (

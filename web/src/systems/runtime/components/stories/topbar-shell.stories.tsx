@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { NetworkIcon } from "lucide-react";
 import { useEffect } from "react";
 
-import { Button, Pill, useTopbarSlot } from "@agh/ui";
+import { Button, PageHead, Pill, RouteNav, useTopbarSlot } from "@agh/ui";
 
 import { TopbarShell } from "@/components/topbar-shell";
 
@@ -14,13 +13,13 @@ const meta: Meta<typeof TopbarShell> = {
     docs: {
       description: {
         component:
-          "Shell-level topbar host. Mounts a single `<Topbar>` for the entire `_app` outlet, hosts a `<TopbarSlotProvider>` so any descendant route can push tabs/search/actions via `useTopbarSlot`, subscribes to router `onResolved` to clear the slot on navigation and move focus to the topbar h1 for keyboard handoff. The Storybook stories simulate the route-context + slot-push pattern outside a real router.",
+          "Shell-level topbar host. Mounts a single `<Topbar>` for the entire `_app` outlet, hosts a `<TopbarSlotProvider>` so any descendant route can push crumb/routeNav/actions/overflow via `useTopbarSlot`, and moves focus to the content PageHead H1 on navigation. Storybook has no router match chain — stories exercise slot push only.",
       },
     },
   },
   decorators: [
     Story => (
-      <div className="w-full bg-background border border-line">
+      <div className="w-full border border-line bg-background">
         <Story />
       </div>
     ),
@@ -31,16 +30,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Shell with placeholder route content. The router-derived topbar will fall back
- * to "Untitled" because Storybook does not provide a TanStack Router context.
+ * Shell with placeholder route content. Without a TanStack Router match chain,
+ * the breadcrumb falls back to an empty trail.
  */
 export const Default: Story = {
   args: {},
   render: () => (
     <TopbarShell>
       <main className="px-6 py-5 text-[13px] text-muted">
-        Outlet content. The topbar overhead reads `topbar` route context via TanStack Router; in
-        Storybook the route falls back to "Untitled".
+        Outlet content. Route crumbs come from per-route `beforeLoad` context; Storybook has no
+        match chain.
       </main>
     </TopbarShell>
   ),
@@ -48,59 +47,58 @@ export const Default: Story = {
 
 function SlotPusher() {
   useTopbarSlot({
-    title: "Tasks",
-    count: 12,
+    crumb: "Tasks",
+    routeNav: (
+      <RouteNav aria-label="Tasks views">
+        <RouteNav.Link aria-current="page" href="#list">
+          List
+        </RouteNav.Link>
+        <RouteNav.Link href="#kanban">Kanban</RouteNav.Link>
+      </RouteNav>
+    ),
     actions: <Button size="sm">New task</Button>,
   });
-  // Re-push every render so the slot reflects the latest pill/button — see
-  // useTopbarSlot bail-out in `packages/ui/src/components/custom/topbar.tsx`.
   useEffect(() => undefined, []);
   return null;
 }
 
 /**
- * Slot push: the descendant calls `useTopbarSlot` with title/count/actions,
- * exercising the shell's slot-bail-out on re-render.
+ * Slot push: descendant pushes crumb/routeNav/actions (route chrome contract).
  */
 export const WithSlotPush: Story = {
   args: {},
   render: () => (
     <TopbarShell>
       <SlotPusher />
-      <main className="px-6 py-5 flex items-center gap-3 text-[13px] text-muted">
-        <Pill tone="accent">Live</Pill>
-        Outlet content with topbar slot push.
+      <main className="px-6 py-5 flex flex-col gap-3 text-[13px] text-muted">
+        <PageHead count={12} title="Tasks" variant="index" />
+        <div className="flex items-center gap-3">
+          <Pill tone="accent">Live</Pill>
+          Outlet content with topbar slot push.
+        </div>
       </main>
     </TopbarShell>
   ),
 };
 
-function ChannelSlotPusher() {
+function ActionsSlotPusher() {
   useTopbarSlot({
-    title: "Network",
-    count: 5,
-    search: (
-      <input
-        type="search"
-        placeholder="Search channels..."
-        className="h-7 w-48 rounded border border-line bg-canvas-soft px-2 text-[13px] text-fg outline-none placeholder:text-subtle focus:border-line-strong"
-      />
-    ),
+    crumb: "Network",
     actions: <Button size="sm">New channel</Button>,
   });
   return null;
 }
 
 /**
- * Slot with search + actions trailing slot — mimics network/tasks routes.
+ * Trailing actions only — identity lives in the content PageHead.
  */
-export const WithSearchAndActions: Story = {
+export const WithActions: Story = {
   args: {},
   render: () => (
     <TopbarShell>
-      <ChannelSlotPusher />
-      <main className="px-6 py-5 flex items-center gap-3 text-[13px] text-muted">
-        <NetworkIcon className="size-4 text-subtle" />
+      <ActionsSlotPusher />
+      <main className="px-6 py-5 flex flex-col gap-3 text-[13px] text-muted">
+        <PageHead count={5} title="Network" variant="index" />
         Channel list outlet
       </main>
     </TopbarShell>

@@ -1,7 +1,7 @@
 import { render as rtlRender, type RenderResult } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 
-import { Topbar, TopbarSlotProvider, type TopbarRouteContext } from "@agh/ui";
+import { Topbar, TopbarSlotProvider } from "@agh/ui";
 
 interface RenderWithTopbarResult extends RenderResult {
   rerender: (ui: ReactNode) => void;
@@ -10,18 +10,15 @@ interface RenderWithTopbarResult extends RenderResult {
 /**
  * Test helper that mounts a route component under a TopbarSlotProvider plus a
  * stub `<Topbar>`, so any `useTopbarSlot` calls actually render their slot
- * content (search/tabs/actions) into the test DOM.
+ * content (routeNav/actions/overflow) into the test DOM.
  *
  * The returned `rerender` re-applies the wrapper so callers that mutate state
  * between renders still get the slot context.
  */
-export function renderWithTopbar(
-  ui: ReactElement,
-  routeContext: TopbarRouteContext = { title: "Test" }
-): RenderWithTopbarResult {
+export function renderWithTopbar(ui: ReactElement): RenderWithTopbarResult {
   const wrap = (child: ReactNode) => (
     <TopbarSlotProvider>
-      <Topbar route={routeContext} />
+      <Topbar breadcrumb={<span data-testid="test-breadcrumb">Test</span>} />
       {child}
     </TopbarSlotProvider>
   );

@@ -25,3 +25,10 @@ browser QA cycle.
 QA impact 2026-07-16: a fresh default catalog now exposes Context7, Repository Orientation, and
 Documentation Writer without a search query; verify their cards and exact detail routes before any
 install state exists.
+
+QA impact 2026-07-17: Marketplace landing and kind browse now ship Rows/Cards ViewToggle with URL
+`view` persistence (default rows) and ListingRow parity; verify both views and install/manage
+actions in each.
+
+QA impact 2026-07-17: Marketplace kind navigation is now RouteNav links (not PillGroup buttons) under
+the route-chrome topbar; identity/count live in PageHead. Flag only — next QA cycle.

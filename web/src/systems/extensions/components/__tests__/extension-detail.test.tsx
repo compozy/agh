@@ -1,7 +1,9 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderWithTopbar } from "@/test/render-with-topbar";
 
 import {
   bundleActivationFixtures,
@@ -90,7 +92,7 @@ beforeEach(() => {
 
 describe("ExtensionDetail", () => {
   it("Should render missing environment, danger error, and active bundle navigation", () => {
-    render(<ExtensionDetail name="slack-notify" />);
+    renderWithTopbar(<ExtensionDetail name="slack-notify" />);
 
     expect(screen.getAllByText("SLACK_BOT_TOKEN").length).toBeGreaterThan(0);
     expect(screen.getByText("missing")).toBeInTheDocument();
@@ -106,7 +108,7 @@ describe("ExtensionDetail", () => {
   it("Should replace stale extension content with loading, failure, and not-found states", () => {
     mocks.detail.data = null;
     mocks.detail.isLoading = true;
-    const { rerender } = render(<ExtensionDetail name="missing" />);
+    const { rerender } = renderWithTopbar(<ExtensionDetail name="missing" />);
     expect(screen.queryByTestId("extension-detail")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Loading extension");
 
@@ -131,7 +133,7 @@ describe("ExtensionDetail", () => {
       listing: marketplaceListings.extension[0]!,
       updateAvailable: false,
     };
-    const { rerender } = render(<ExtensionDetail name="otel-bridge" />);
+    const { rerender } = renderWithTopbar(<ExtensionDetail name="otel-bridge" />);
 
     expect(screen.getByRole("status", { name: "Checking active bundles" })).toBeInTheDocument();
     expect(screen.queryByText("inactive")).not.toBeInTheDocument();
@@ -158,7 +160,7 @@ describe("ExtensionDetail", () => {
       updateAvailable: true,
     };
     mocks.provenance.data = extensionProvenanceFixtures["otel-bridge"]!;
-    render(<ExtensionDetail name="otel-bridge" />);
+    renderWithTopbar(<ExtensionDetail name="otel-bridge" />);
 
     await user.click(screen.getByRole("switch", { name: "Disable otel-bridge" }));
     expect(mocks.toggle).toHaveBeenCalledWith({ enabled: false, name: "otel-bridge" });
@@ -205,9 +207,9 @@ describe("ExtensionDetail", () => {
       listing: null,
       updateAvailable: false,
     };
-    const { container } = render(<ExtensionDetail name="otel-bridge" />);
+    const { container } = renderWithTopbar(<ExtensionDetail name="otel-bridge" />);
 
-    const meta = container.querySelector<HTMLElement>('[data-slot="detail-header-meta"]');
+    const meta = container.querySelector<HTMLElement>('[data-slot="page-head-meta"]');
     expect(meta).not.toBeNull();
     expect(within(meta!).getAllByText("marketplace")).toHaveLength(1);
     expect(screen.getByText("Uptime").parentElement).toHaveTextContent("0s");
@@ -229,7 +231,7 @@ describe("ExtensionDetail", () => {
       updateAvailable: false,
     };
     mocks.provenance.data = extensionProvenanceFixtures["otel-bridge"]!;
-    render(<ExtensionDetail name="otel-bridge" />);
+    renderWithTopbar(<ExtensionDetail name="otel-bridge" />);
 
     const runtime = screen.getByText("Runtime").closest("section");
     expect(runtime).not.toBeNull();
@@ -248,7 +250,7 @@ describe("ExtensionDetail", () => {
   });
 
   it("Should surface last-error content and error-severity diagnostics", () => {
-    render(<ExtensionDetail name="slack-notify" />);
+    renderWithTopbar(<ExtensionDetail name="slack-notify" />);
 
     const lastError = screen.getByTestId("extension-last-error");
     expect(within(lastError).getByText("error")).toBeInTheDocument();

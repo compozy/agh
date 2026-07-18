@@ -8,8 +8,8 @@ import { useActiveWorkspace } from "@/systems/workspace";
 import { preloadLoopRunFormRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loops/$name/run")({
-  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: `Run ${params.name}`, icon: Repeat2 },
+  beforeLoad: (): { topbar: TopbarRouteContext } => ({
+    topbar: { crumb: { label: "Run" } },
   }),
   loader: ({ context, params }) => preloadLoopRunFormRoute(context.queryClient, params.name),
   component: LoopRunFormRoute,

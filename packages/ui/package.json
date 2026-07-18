@@ -30,7 +30,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
-        "lucide-react": "^1.24.0",
+        "lucide-react": "^1.25.0",
         "react-resizable-panels": "^4.12.2",
         "recharts": "^3.9.2",
         "shiki": "^4.3.1",
@@ -41,11 +41,11 @@
     },
     "devDependencies": {
         "@headless-tree/react": "1.7.0",
-        "@storybook/addon-a11y": "^10.5.0",
-        "@storybook/addon-docs": "^10.5.0",
-        "@storybook/addon-themes": "^10.5.0",
-        "@storybook/react-vite": "^10.5.0",
-        "@tailwindcss/vite": "^4.3.2",
+        "@storybook/addon-a11y": "^10.5.2",
+        "@storybook/addon-docs": "^10.5.2",
+        "@storybook/addon-themes": "^10.5.2",
+        "@storybook/react-vite": "^10.5.2",
+        "@tailwindcss/vite": "^4.3.3",
         "@testing-library/jest-dom": "^6.9.1",
         "@testing-library/react": "^16.3.2",
         "@testing-library/user-event": "^14.6.1",
@@ -53,14 +53,14 @@
         "@types/react-dom": "^19.2.0",
         "@vitejs/plugin-react": "^6.0.3",
         "jsdom": "^29.1.1",
-        "storybook": "^10.5.0",
-        "vite": "^8.1.4",
+        "storybook": "^10.5.2",
+        "vite": "^8.1.5",
         "vitest": "^4.1.10"
     },
     "peerDependencies": {
         "motion": "^12.42.2",
         "react": "^19.2.7",
         "react-dom": "^19.2.7",
-        "tailwindcss": "^4.3.2"
+        "tailwindcss": "^4.3.3"
     }
 }

@@ -3,11 +3,13 @@ import { type Dispatch, type SetStateAction, useState } from "react";
 
 import {
   Button,
+  cn,
   CodeBlock,
   ContextBox,
   type ContextBoxEntry,
-  DetailHeader,
   Empty,
+  PAGE_CONTENT_GUTTER,
+  PageHead,
   Pill,
   Section,
   Spinner,
@@ -259,7 +261,7 @@ function KnowledgeDetailPanel({
   if (error) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="knowledge-detail-error"
       >
         <Empty
@@ -275,7 +277,7 @@ function KnowledgeDetailPanel({
   if (!memory) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="knowledge-detail-empty"
       >
         <Empty className="max-w-md" icon={BookOpen} title="Select a memory to view details" />
@@ -308,35 +310,38 @@ function KnowledgeDetailPanel({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-y-auto")}
       data-testid="knowledge-detail-panel"
     >
-      <DetailHeader
-        data-testid="knowledge-detail-header"
-        preTitle={
-          <span className="font-mono lowercase" data-testid="knowledge-detail-filename">
-            {memory.filename}
-          </span>
-        }
-        title={<span data-testid="knowledge-detail-title">{memory.name}</span>}
-        pills={
-          <>
-            <Pill mono data-testid="detail-scope-badge" tone={scopeTone}>
-              <StatusDot
-                aria-hidden="true"
-                className="-ml-0.5"
-                tone={statusDotToneFromScope(resolvedScope)}
-              />
-              {knowledgeScopeLabel(resolvedScope)}
-            </Pill>
-            <Pill mono data-testid="detail-age-badge" tone="neutral">
-              <Time iso={memory.mod_time} />
-            </Pill>
-          </>
-        }
-      />
+      <div className="pt-5">
+        <PageHead
+          data-testid="knowledge-detail-header"
+          pretitle={
+            <span className="lowercase" data-testid="knowledge-detail-filename">
+              {memory.filename}
+            </span>
+          }
+          title={<span data-testid="knowledge-detail-title">{memory.name}</span>}
+          variant="compact"
+          pills={
+            <>
+              <Pill mono data-testid="detail-scope-badge" tone={scopeTone}>
+                <StatusDot
+                  aria-hidden="true"
+                  className="-ml-0.5"
+                  tone={statusDotToneFromScope(resolvedScope)}
+                />
+                {knowledgeScopeLabel(resolvedScope)}
+              </Pill>
+              <Pill mono data-testid="detail-age-badge" tone="neutral">
+                <Time iso={memory.mod_time} />
+              </Pill>
+            </>
+          }
+        />
+      </div>
 
-      <div className="flex flex-col gap-6 px-6 py-5">
+      <div className="flex flex-col gap-6 py-5">
         <ContextBox
           data-testid="knowledge-detail-context"
           entries={contextEntries}
@@ -365,7 +370,7 @@ function KnowledgeDetailPanel({
         />
       </div>
 
-      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-line px-6 py-4">
+      <footer className="mt-auto flex flex-wrap items-center gap-2 border-t border-line py-4">
         {onEdit ? (
           <Button
             data-testid="edit-memory-btn"

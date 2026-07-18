@@ -1,7 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import {
+  automationJobDetailOptions,
+  automationJobRunsOptions,
   automationJobsListOptions,
+  automationTriggerDetailOptions,
+  automationTriggerRunsOptions,
   automationTriggersListOptions,
   type AutomationJobStableFilter,
   type AutomationTriggerStableFilter,
@@ -55,5 +59,27 @@ export async function preloadAutomationTriggersRoute(
   if (scope.scope === "workspace" && !scope.workspace_id) return;
   await settleRouteQueries([
     queryClient.ensureInfiniteQueryData(automationTriggersListOptions(filters)),
+  ]);
+}
+
+export async function preloadAutomationJobDetailRoute(
+  queryClient: QueryClient,
+  jobId: string
+): Promise<void> {
+  if (!jobId) return;
+  await settleRouteQueries([
+    queryClient.ensureQueryData(automationJobDetailOptions(jobId)),
+    queryClient.ensureQueryData(automationJobRunsOptions(jobId, { limit: 10 })),
+  ]);
+}
+
+export async function preloadAutomationTriggerDetailRoute(
+  queryClient: QueryClient,
+  triggerId: string
+): Promise<void> {
+  if (!triggerId) return;
+  await settleRouteQueries([
+    queryClient.ensureQueryData(automationTriggerDetailOptions(triggerId)),
+    queryClient.ensureQueryData(automationTriggerRunsOptions(triggerId, { limit: 10 })),
   ]);
 }

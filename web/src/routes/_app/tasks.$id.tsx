@@ -1,7 +1,7 @@
-import { AlertCircle, ListChecks } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 
-import { Spinner } from "@agh/ui";
+import { cn, PAGE_CONTENT_GUTTER, Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskDetailRoute } from "@/hooks/routes/use-task-detail-route";
 import {
@@ -19,7 +19,7 @@ import type { TasksDetailTabItem } from "@/systems/tasks/components/tasks-detail
 
 export const Route = createFileRoute("/_app/tasks/$id")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: `Task ${params.id}`, icon: ListChecks },
+    topbar: { crumb: { label: `Task ${params.id}`, params: { id: params.id }, to: "/tasks/$id" } },
   }),
   component: TaskDetailRoute,
 });
@@ -47,7 +47,10 @@ function TaskDetailRoute() {
   if (page.notFound || (!page.detail && page.fatalError)) {
     return (
       <div
-        className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+        className={cn(
+          PAGE_CONTENT_GUTTER,
+          "flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center"
+        )}
         data-testid="tasks-detail-not-found"
       >
         <AlertCircle className="size-6 text-danger" />
@@ -89,7 +92,10 @@ function TaskDetailRoute() {
   const hasActiveRun = Boolean(detail.summary?.active_run);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-detail-content">
+    <div
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col")}
+      data-testid="tasks-detail-content"
+    >
       <TasksDetailHeader
         detail={detail}
         pending={{

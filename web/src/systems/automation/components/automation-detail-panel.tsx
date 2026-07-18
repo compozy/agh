@@ -1,13 +1,22 @@
-import { AlertCircle, Clock3, Lock, Pencil, Play, Search, Zap } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, Lock, Pencil, Play, Search } from "lucide-react";
 import {
   Button,
-  DetailHeader,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Empty,
   Eyebrow,
   Metric,
+  PAGE_CONTENT_GUTTER,
+  PageHead,
   Pill,
   Section,
   Spinner,
+  TopbarOverflowIcon,
+  useTopbarSlot,
   type MetricTone,
 } from "@agh/ui";
 
@@ -36,16 +45,7 @@ import {
   TriggerHookSection,
 } from "./automation-detail-sections";
 
-export interface AutomationDetailEmptyState {
-  actionLabel?: string;
-  description: string;
-  icon: "jobs" | "search" | "triggers";
-  onAction?: () => void;
-  title: string;
-}
-
 interface AutomationDetailPanelProps {
-  emptyState?: AutomationDetailEmptyState | null;
   error: Error | null;
   state: {
     isDeleting: boolean;
@@ -109,31 +109,6 @@ function computeJobMetrics(runs: AutomationRun[], job: AutomationJob): JobMetric
     nextRunValue,
     nextRunSubtext,
   };
-}
-
-function EmptyDetailState({ emptyState }: { emptyState: AutomationDetailEmptyState }) {
-  const Icon = emptyState.icon === "jobs" ? Clock3 : emptyState.icon === "triggers" ? Zap : Search;
-
-  return (
-    <div
-      className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-      data-testid="automation-detail-empty"
-    >
-      <Empty
-        action={
-          emptyState.actionLabel && emptyState.onAction ? (
-            <Button onClick={emptyState.onAction} type="button" variant="outline">
-              {emptyState.actionLabel}
-            </Button>
-          ) : undefined
-        }
-        className="max-w-md"
-        description={emptyState.description}
-        icon={Icon}
-        title={emptyState.title}
-      />
-    </div>
-  );
 }
 
 function JobScheduleSection({ job }: { job: AutomationJob }) {
@@ -257,7 +232,6 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
 }
 
 export function AutomationDetailPanel({
-  emptyState,
   error,
   state,
   item,
@@ -285,7 +259,7 @@ export function AutomationDetailPanel({
   if (error) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center p-6"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="automation-detail-error"
       >
         <Empty
@@ -299,20 +273,16 @@ export function AutomationDetailPanel({
   }
 
   if (!item) {
-    if (emptyState) {
-      return <EmptyDetailState emptyState={emptyState} />;
-    }
-
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center p-6"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="automation-detail-empty"
       >
         <Empty
           className="max-w-md"
-          description="Select an automation item to inspect its configuration and run history."
+          description={`This ${kind === "jobs" ? "job" : "trigger"} is no longer available.`}
           icon={Search}
-          title="Select an automation"
+          title={kind === "jobs" ? "Job unavailable" : "Trigger unavailable"}
         />
       </div>
     );
@@ -371,19 +341,26 @@ function AutomationDetailLoadedPanel({
   const trigger = !isJob ? (item as AutomationTrigger) : null;
   const target = projectAutomationTarget(item);
   const enabledTone = automationStatusTone(item.enabled ? "enabled" : "disabled");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const showRunNow = isJob && Boolean(onTriggerNow);
+  // When Edit/Run claim the action row, Enable/Disable (+ Delete) move to overflow.
+  const showOverflow = isDynamic || showRunNow;
+  // Route chrome §07: secondary → primary → overflow (Delete / Enable|Disable).
   const detailActions = (
-    <>
-      <Button
-        data-testid="toggle-automation-btn"
-        disabled={isTogglePending}
-        onClick={() => onToggleEnabled(!item.enabled)}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
-      </Button>
-      {isJob && onTriggerNow ? (
+    <div className="flex items-center gap-2" data-testid="automation-detail-actions">
+      {isDynamic ? (
+        <Button
+          data-testid="edit-automation-btn"
+          onClick={onEdit}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          <Pencil className="size-3" />
+          Edit
+        </Button>
+      ) : null}
+      {showRunNow ? (
         <Button
           data-testid="trigger-job-btn"
           disabled={isTriggerPending}
@@ -395,28 +372,49 @@ function AutomationDetailLoadedPanel({
           {isTriggerPending ? "Queuing..." : "Run now"}
         </Button>
       ) : null}
-      {isDynamic ? (
+      {!showOverflow ? (
         <Button
-          data-testid="edit-automation-btn"
-          onClick={onEdit}
+          data-testid="toggle-automation-btn"
+          disabled={isTogglePending}
+          onClick={() => onToggleEnabled(!item.enabled)}
           size="sm"
           type="button"
-          variant="outline"
+          variant={item.enabled ? "neutral" : "default"}
         >
-          <Pencil className="size-3" />
-          Edit
+          {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
         </Button>
       ) : null}
-      {isDynamic ? (
-        <AutomationDeleteAction
-          isPending={isDeleting}
-          kind={kind}
-          name={item.name}
-          onConfirm={onDelete}
-        />
-      ) : null}
-    </>
+    </div>
   );
+  const detailOverflow = showOverflow ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="More actions"
+        data-testid="automation-detail-overflow"
+        render={<Button type="button" variant="ghost" size="icon-sm" />}
+      >
+        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" data-testid="automation-detail-overflow-menu">
+        <DropdownMenuItem
+          data-testid="toggle-automation-btn"
+          disabled={isTogglePending}
+          onClick={() => onToggleEnabled(!item.enabled)}
+        >
+          {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
+        </DropdownMenuItem>
+        {isDynamic ? (
+          <DropdownMenuItem
+            data-testid="delete-automation-btn"
+            onClick={() => setDeleteOpen(true)}
+            variant="destructive"
+          >
+            Delete {isJob ? "job" : "trigger"}
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : undefined;
   const detailMeta = (
     <span data-testid="automation-detail-meta">
       {`${automationTargetLabel(target)} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
@@ -437,20 +435,40 @@ function AutomationDetailLoadedPanel({
     </>
   );
 
+  // Single publisher: crumb + actions/overflow must share one slot push (store is last-writer).
+  useTopbarSlot({
+    actions: detailActions,
+    crumb: item.name,
+    overflow: detailOverflow,
+  });
+
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden")}
       data-testid="automation-detail-panel"
     >
-      <DetailHeader
-        actions={detailActions}
-        data-testid="automation-detail-header"
-        meta={detailMeta}
-        pills={detailPills}
-        title={item.name}
-      />
+      {isDynamic ? (
+        <AutomationDeleteAction
+          hideTrigger
+          isPending={isDeleting}
+          kind={kind}
+          name={item.name}
+          onConfirm={onDelete}
+          onOpenChange={setDeleteOpen}
+          open={deleteOpen}
+        />
+      ) : null}
+      <div className="pt-5">
+        <PageHead
+          data-testid="automation-detail-header"
+          title={item.name}
+          variant="detail"
+          meta={detailMeta}
+          pills={detailPills}
+        />
+      </div>
 
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-5">
         {!isDynamic ? (
           <div className="flex items-start gap-2 rounded-md border border-dashed border-line px-4 py-3 text-xs text-muted">
             <Lock aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-subtle" />

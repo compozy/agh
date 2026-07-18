@@ -11,8 +11,7 @@ import {
   RestartBanner,
   Section,
   Spinner,
-  StatusLineTopbarSlot,
-  useTopbarSlot,
+  StatusLine,
 } from "@agh/ui";
 
 import { useCreateProviderFocusRestore } from "@/hooks/routes/use-create-provider-focus-restore";
@@ -26,6 +25,7 @@ import {
   ProvidersListFilters,
   restartBannerPropsFor,
   type SettingsProviderEntry,
+  SettingsPageHead,
 } from "@/systems/settings";
 export function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
@@ -33,50 +33,48 @@ export function ProvidersSettingsPage() {
   const inspectorOpen = page.inspector.mode !== "closed";
   const createProviderButtonRef = useCreateProviderFocusRestore(page.inspector.mode);
 
-  useTopbarSlot({
-    tabs: envelopeForSlot ? (
-      <StatusLineTopbarSlot
-        data-testid="settings-page-providers-status-line"
-        status="connected"
-        items={[
-          {
-            key: "total",
-            value: (
-              <span data-testid="settings-page-providers-total">{page.counts.total} providers</span>
-            ),
-            tone: "neutral",
-          },
-          {
-            key: "installed",
-            value: (
-              <span data-testid="settings-page-providers-installed">
-                {page.counts.installed} installed
-              </span>
-            ),
-            tone: "neutral",
-          },
-          {
-            key: "missing",
-            value: (
-              <span data-testid="settings-page-providers-missing">
-                {page.counts.binaryMissing} binary missing
-              </span>
-            ),
-            tone: "neutral",
-          },
-          {
-            key: "unconfigured",
-            value: (
-              <span data-testid="settings-page-providers-unconfigured">
-                {page.counts.unconfigured} unconfigured
-              </span>
-            ),
-            tone: "neutral",
-          },
-        ]}
-      />
-    ) : undefined,
-  });
+  const statusLine = envelopeForSlot ? (
+    <StatusLine
+      data-testid="settings-page-providers-status-line"
+      status="connected"
+      items={[
+        {
+          key: "total",
+          value: (
+            <span data-testid="settings-page-providers-total">{page.counts.total} providers</span>
+          ),
+          tone: "neutral",
+        },
+        {
+          key: "installed",
+          value: (
+            <span data-testid="settings-page-providers-installed">
+              {page.counts.installed} installed
+            </span>
+          ),
+          tone: "neutral",
+        },
+        {
+          key: "missing",
+          value: (
+            <span data-testid="settings-page-providers-missing">
+              {page.counts.binaryMissing} binary missing
+            </span>
+          ),
+          tone: "neutral",
+        },
+        {
+          key: "unconfigured",
+          value: (
+            <span data-testid="settings-page-providers-unconfigured">
+              {page.counts.unconfigured} unconfigured
+            </span>
+          ),
+          tone: "neutral",
+        },
+      ]}
+    />
+  ) : null;
 
   if (page.isLoading) {
     return (
@@ -115,7 +113,11 @@ export function ProvidersSettingsPage() {
   const existingNames = page.providers.map(provider => provider.name);
 
   return (
-    <PageShell slug="providers" banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}>
+    <PageShell
+      slug="providers"
+      banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
+      head={<SettingsPageHead slug="providers" statusLine={statusLine} />}
+    >
       {page.lastAction ? (
         <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}

@@ -156,6 +156,20 @@ export const routeStoryRegistry = [
     storyName: "Default",
   },
   {
+    system: "automation",
+    routePath: "/jobs/$jobId",
+    storybookPath: "/jobs/job_launch_command_digest",
+    title: "systems/automation/routes/Jobs",
+    storyName: "JobDetail",
+  },
+  {
+    system: "automation",
+    routePath: "/triggers/$triggerId",
+    storybookPath: "/triggers/trg_support_sla_breach",
+    title: "systems/automation/routes/Triggers",
+    storyName: "TriggerDetail",
+  },
+  {
     system: "bridges",
     routePath: "/bridges",
     storybookPath: "/bridges",

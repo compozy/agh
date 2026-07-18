@@ -1,6 +1,19 @@
+import { Box, Plug, Puzzle, Wrench, type LucideIcon } from "lucide-react";
+
 import type { MarketplaceKind, MarketplaceListing } from "../types";
 
 export type MarketplaceViewSort = "relevance" | "downloads" | "name";
+
+const MARKETPLACE_KIND_ICON: Record<MarketplaceKind, LucideIcon> = {
+  skill: Wrench,
+  extension: Puzzle,
+  bundle: Box,
+  mcp: Plug,
+};
+
+export function marketplaceKindIcon(kind: MarketplaceKind): LucideIcon {
+  return MARKETPLACE_KIND_ICON[kind] ?? Box;
+}
 
 export const MARKETPLACE_KIND_ORDER: readonly MarketplaceKind[] = [
   "skill",

@@ -33,19 +33,16 @@ export const Default: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-export const ScopeWorkspace: Story = {
+export const Cards: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: appRouteParameters("/jobs"),
+  parameters: appRouteParameters("/jobs?view=cards"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByTestId("jobs-scope-workspace")).toBeVisible(), {
+    await waitFor(() => expect(canvas.getByTestId("jobs-list-card-grid")).toBeVisible(), {
       timeout: 5000,
     });
-    const workspaceScope = canvas.getByTestId("jobs-scope-workspace");
-    await userEvent.click(workspaceScope);
-    await expect(workspaceScope).toHaveAttribute("aria-selected", "true");
   },
 };
 
@@ -111,4 +108,17 @@ export const Loading: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+};
+
+export const JobDetail: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: appRouteParameters("/jobs/job_launch_command_digest"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByTestId("automation-detail-panel")).toBeVisible(), {
+      timeout: 5000,
+    });
+  },
 };

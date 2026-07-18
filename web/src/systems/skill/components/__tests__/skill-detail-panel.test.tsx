@@ -1,4 +1,4 @@
-import { UIProvider } from "@agh/ui";
+import { Topbar, TopbarSlotProvider, UIProvider } from "@agh/ui";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -38,7 +38,10 @@ function renderPanel(props: Partial<React.ComponentProps<typeof SkillDetailPanel
   };
   return render(
     <UIProvider reducedMotion="always">
-      <SkillDetailPanel {...merged} />
+      <TopbarSlotProvider>
+        <Topbar breadcrumb={<span>Test</span>} />
+        <SkillDetailPanel {...merged} />
+      </TopbarSlotProvider>
     </UIProvider>
   );
 }
@@ -59,7 +62,7 @@ describe("SkillDetailPanel", () => {
     expect(screen.getByTestId("skill-detail-empty")).toBeInTheDocument();
   });
 
-  it("Should render title + meta pills inside the new DetailHeader anatomy", () => {
+  it("Should render title + meta pills inside the PageHead detail anatomy", () => {
     renderPanel({
       skill: makeSkill({
         name: "alpha-skill",
@@ -76,7 +79,8 @@ describe("SkillDetailPanel", () => {
     });
 
     const header = screen.getByTestId("skill-detail-header");
-    expect(header).toHaveAttribute("data-slot", "detail-header");
+    expect(header).toHaveAttribute("data-slot", "page-head");
+    expect(header).toHaveAttribute("data-variant", "detail");
     expect(within(header).getByTestId("skill-detail-title")).toHaveTextContent("alpha-skill");
     expect(within(header).getByTestId("detail-version-badge")).toHaveTextContent("v3.1.0");
     expect(within(header).getByTestId("detail-author-badge")).toHaveTextContent("@author");
@@ -132,10 +136,9 @@ describe("SkillDetailPanel", () => {
     );
   });
 
-  it("Should render the enable/disable Switch inside the DetailHeader actions slot", () => {
+  it("Should publish the enable/disable Switch into the topbar actions slot", () => {
     renderPanel();
-    const header = screen.getByTestId("skill-detail-header");
-    const actions = header.querySelector('[data-slot="detail-header-actions"]');
+    const actions = document.querySelector('[data-slot="topbar-actions"]');
     expect(actions).not.toBeNull();
     expect(actions?.querySelector('[data-testid="skill-enabled-switch"]')).not.toBeNull();
     expect(actions?.querySelector('[data-testid="skill-enabled-toggle"]')).not.toBeNull();

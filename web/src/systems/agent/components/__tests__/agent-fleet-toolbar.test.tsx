@@ -79,7 +79,7 @@ describe("AgentFleetToolbar", () => {
     expect(onFiltersChange).toHaveBeenLastCalledWith({ category: undefined, status: "active" });
   });
 
-  it("Should expose the view toggle when facets are shown and hide it otherwise", async () => {
+  it("Should expose the view toggle independently of facets", async () => {
     const user = userEvent.setup();
     const onViewChange = vi.fn();
     const { rerender } = render(
@@ -92,6 +92,7 @@ describe("AgentFleetToolbar", () => {
         search={{}}
         searchInputRef={createRef<HTMLInputElement>()}
         showFacets
+        showViewToggle
         view="rows"
       />
     );
@@ -110,10 +111,27 @@ describe("AgentFleetToolbar", () => {
         search={{}}
         searchInputRef={createRef<HTMLInputElement>()}
         showFacets={false}
+        showViewToggle
+        view="rows"
+      />
+    );
+    expect(screen.getByTestId("listing-view-toggle")).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-fleet-filters")).not.toBeInTheDocument();
+
+    rerender(
+      <AgentFleetToolbar
+        categoryOptions={["Ops"]}
+        draftQuery=""
+        onDraftQueryChange={vi.fn()}
+        onFiltersChange={vi.fn()}
+        onViewChange={onViewChange}
+        search={{}}
+        searchInputRef={createRef<HTMLInputElement>()}
+        showFacets={false}
+        showViewToggle={false}
         view="rows"
       />
     );
     expect(screen.queryByTestId("listing-view-toggle")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("agent-fleet-filters")).not.toBeInTheDocument();
   });
 });

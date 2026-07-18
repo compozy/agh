@@ -1,19 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { Box, Plug, Puzzle, Wrench } from "lucide-react";
 
-import {
-  Button,
-  CatalogCard,
-  Pill,
-  Spinner,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  buttonVariants,
-} from "@agh/ui";
+import { CatalogCard } from "@agh/ui";
 
 import type { MarketplaceKind, MarketplaceListing } from "../types";
-import { formatMarketplaceCount } from "./marketplace-ui";
+import { MarketplaceEntryAction, MarketplaceEntryStatus } from "./marketplace-entry-actions";
+import { formatMarketplaceCount, marketplaceKindIcon } from "./marketplace-ui";
 
 interface MarketplaceCardProps {
   entry: MarketplaceListing;
@@ -21,18 +12,9 @@ interface MarketplaceCardProps {
   onAction: (entry: MarketplaceListing) => void;
 }
 
-const KIND_ICON: Record<MarketplaceKind, typeof Wrench> = {
-  skill: Wrench,
-  extension: Puzzle,
-  bundle: Box,
-  mcp: Plug,
-};
-
 function MarketplaceCard({ entry, pending = false, onAction }: MarketplaceCardProps) {
   const kind = entry.kind as MarketplaceKind;
-  const Icon = KIND_ICON[kind] ?? Box;
-  const blocked = kind === "extension" && entry.trust?.decision === "blocked";
-  const action = marketplaceCardAction(entry);
+  const KindGlyph = marketplaceKindIcon(kind);
 
   return (
     <CatalogCard data-testid={`marketplace-card-${entry.entry_id}`} actionable={!pending}>
@@ -49,7 +31,7 @@ function MarketplaceCard({ entry, pending = false, onAction }: MarketplaceCardPr
       >
         <div className="flex min-w-0 items-start gap-3">
           <CatalogCard.Logo tone={kind === "extension" ? "neutral" : "accent"}>
-            <Icon aria-hidden="true" className="size-3.5" />
+            <KindGlyph aria-hidden="true" className="size-3.5" />
           </CatalogCard.Logo>
           <div className="min-w-0 flex-1">
             <CatalogCard.Title>{entry.name}</CatalogCard.Title>
@@ -76,106 +58,13 @@ function MarketplaceCard({ entry, pending = false, onAction }: MarketplaceCardPr
       </Link>
 
       <CatalogCard.Actions>
-        <MarketplaceCardStatus entry={entry} />
+        <MarketplaceEntryStatus entry={entry} />
         <div className="ml-auto">
-          {entry.installed && !entry.update_available && entry.manage_path ? (
-            <a
-              aria-label={`Manage ${entry.name}`}
-              className={buttonVariants({ size: "sm", variant: "ghost" })}
-              href={entry.manage_path}
-            >
-              Manage
-            </a>
-          ) : blocked ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    aria-disabled="true"
-                    aria-label={`Install ${entry.name}, blocked by extensions policy`}
-                    data-testid={`marketplace-action-${entry.entry_id}`}
-                    onClick={event => event.preventDefault()}
-                    size="sm"
-                    type="button"
-                    variant="neutral"
-                  />
-                }
-              >
-                Install
-              </TooltipTrigger>
-              <TooltipContent>Blocked by extensions policy</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button
-              aria-label={`${action} ${entry.name}`}
-              data-testid={`marketplace-action-${entry.entry_id}`}
-              disabled={pending}
-              onClick={() => onAction(entry)}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              {pending ? marketplacePendingLabel(entry) : action}
-            </Button>
-          )}
+          <MarketplaceEntryAction entry={entry} onAction={onAction} pending={pending} />
         </div>
       </CatalogCard.Actions>
     </CatalogCard>
   );
-}
-
-function MarketplaceCardStatus({ entry }: { entry: MarketplaceListing }) {
-  if (entry.update_available) {
-    return (
-      <Pill mono tone="warning">
-        {entry.version ? `v${entry.version} available` : "update available"}
-      </Pill>
-    );
-  }
-  if (entry.installed) {
-    return (
-      <Pill mono tone="success">
-        installed
-      </Pill>
-    );
-  }
-  if (entry.kind === "extension" && entry.trust) {
-    const warningCount = entry.trust.warnings?.length ?? 0;
-    if (entry.trust.decision === "verified") {
-      return (
-        <Pill mono tone="success">
-          verified
-        </Pill>
-      );
-    }
-    return (
-      <Pill mono tone={entry.trust.decision === "blocked" ? "danger" : "warning"}>
-        {entry.trust.decision === "blocked" ? "blocked" : "unverified"}
-        {warningCount > 0 ? ` · ${warningCount}` : ""}
-      </Pill>
-    );
-  }
-  if (entry.kind === "mcp") {
-    return (
-      <Pill mono tone="info">
-        curated
-      </Pill>
-    );
-  }
-  return null;
-}
-
-function marketplaceCardAction(entry: MarketplaceListing): string {
-  if (entry.update_available) return "Update";
-  if (entry.kind === "bundle") return "Activate";
-  return "Install";
-}
-
-function marketplacePendingLabel(entry: MarketplaceListing): string {
-  if (entry.update_available) return "Updating…";
-  if (entry.kind === "bundle") return "Activating…";
-  return "Installing…";
 }
 
 export { MarketplaceCard };

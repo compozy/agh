@@ -37,6 +37,7 @@ import {
 } from "@/systems/workspace/hooks/use-user-home-dir-store";
 import { createMswFetch, createStatefulMswStore } from "@/test/msw-fetch";
 import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import { routeComponent } from "@/test/route-options";
 
 const { navigateMock, toast } = vi.hoisted(() => ({
@@ -149,7 +150,7 @@ function renderTaskDetailPage(taskId: string) {
   routeParams = { id: taskId };
   childMatches = [];
   const queryClient = createQueryClient();
-  return render(
+  return renderWithTopbar(
     <QueryClientProvider client={queryClient}>
       <TaskDetailPage />
     </QueryClientProvider>
@@ -872,6 +873,7 @@ describe("TaskCreateRoute create modal", () => {
     expect(await screen.findByTestId("tasks-detail-title")).toHaveTextContent(
       "Continuity task edited"
     );
+    fireEvent.click(screen.getByTestId("tasks-detail-overflow"));
     fireEvent.click(screen.getByTestId("tasks-detail-delete"));
     fireEvent.click(await screen.findByTestId("tasks-detail-delete-confirm"));
 

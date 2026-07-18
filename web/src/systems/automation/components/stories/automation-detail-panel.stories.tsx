@@ -3,7 +3,7 @@ import { HttpResponse } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
+import { useAutomationJobDetailPage } from "@/hooks/routes/use-automation-page";
 import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 import {
@@ -26,11 +26,28 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function AutomationDetailPanelFromPage() {
-  const page = useAutomationJobsPage();
+  const page = useAutomationJobDetailPage(primaryAutomationJobFixture.id);
 
   return (
     <PanelSurface>
-      <AutomationDetailPanel {...page.detailPanelProps} />
+      <AutomationDetailPanel
+        error={page.error}
+        item={page.job}
+        kind="jobs"
+        onDelete={page.handleDelete}
+        onEdit={page.handleEdit}
+        onToggleEnabled={page.handleToggleEnabled}
+        onTriggerNow={page.handleTriggerNow}
+        runs={page.runs}
+        runsError={page.runsError}
+        runsLoading={page.runsLoading}
+        state={{
+          isDeleting: page.isDeleting,
+          isLoading: page.isLoading,
+          isTogglePending: page.isTogglePending,
+          isTriggerPending: page.isTriggerPending,
+        }}
+      />
     </PanelSurface>
   );
 }
@@ -62,7 +79,6 @@ export const TriggerDefault: Story = {
   render: () => (
     <PanelSurface>
       <AutomationDetailPanel
-        emptyState={null}
         error={null}
         state={{
           isDeleting: false,
@@ -102,7 +118,6 @@ export const Loading: Story = {
   render: () => (
     <PanelSurface>
       <AutomationDetailPanel
-        emptyState={null}
         error={null}
         state={{
           isDeleting: false,
@@ -129,7 +144,6 @@ export const LoopJob: Story = {
   render: () => (
     <PanelSurface>
       <AutomationDetailPanel
-        emptyState={null}
         error={null}
         state={{
           isDeleting: false,

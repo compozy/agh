@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
-import { ListingPageHead, ListingPageMetaDot } from "./listing-page-parts";
+import { PageContent } from "./page-content";
 
 type ListingPageProps = React.ComponentProps<"div"> & {
   /** Optional banner rendered above the scroll area (e.g. cached-data Alert). */
@@ -21,25 +21,13 @@ function ListingPage({ banner, bodyClassName, className, children, ...props }: L
     >
       {banner ? <div data-slot="listing-page-banner">{banner}</div> : null}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <div
-          data-slot="listing-page-container"
-          className={cn(
-            "mx-auto flex w-full max-w-[1320px] flex-col gap-5 px-9 pt-7 pb-20",
-            bodyClassName
-          )}
-        >
+        <PageContent density="listing" className={bodyClassName}>
           {children}
-        </div>
+        </PageContent>
       </div>
     </div>
   );
 }
 
-const ListingPageCompound = Object.assign(ListingPage, {
-  Head: ListingPageHead,
-  MetaDot: ListingPageMetaDot,
-});
-
-export { ListingPageCompound as ListingPage };
-export type { ListingPageHeadProps } from "./listing-page-parts";
+export { ListingPage };
 export type { ListingPageProps };

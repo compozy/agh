@@ -14,7 +14,15 @@ import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-map
 import type { TopbarRouteContext } from "@/types/topbar";
 import { MCPContextHeader, MCPMatrixSkeleton } from "./-mcp-context";
 import { preloadMcpRoute } from "./-settings-preload";
-import { Button, Empty, PageShell, PillGroup, RestartBanner, useTopbarSlot } from "@agh/ui";
+import {
+  Button,
+  Empty,
+  PageHead,
+  PageShell,
+  PillGroup,
+  RestartBanner,
+  useTopbarSlot,
+} from "@agh/ui";
 
 interface MCPRouteSearch {
   scope: "workspace" | "global";
@@ -39,7 +47,7 @@ function validateMcpSearch(search: Record<string, unknown>): MCPRouteSearch {
 export const Route = createFileRoute("/_app/mcp")({
   validateSearch: validateMcpSearch,
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "MCP servers", icon: Server },
+    topbar: { crumb: { label: "MCP servers", to: "/mcp" } },
   }),
   loader: ({ context }) => preloadMcpRoute(context.queryClient),
   component: MCPPage,
@@ -73,19 +81,6 @@ function MCPPage() {
   const editor = page.editor;
 
   useTopbarSlot({
-    count: page.envelope ? page.counts.total : undefined,
-    tabs: (
-      <PillGroup<"workspace" | "global">
-        aria-label="MCP scope"
-        data-testid="mcp-scope-pills"
-        items={[
-          { value: "workspace", label: "Workspace", testId: "mcp-scope-workspace" },
-          { value: "global", label: "Global", testId: "mcp-scope-global" },
-        ]}
-        onChange={page.selectScope}
-        value={page.activeScope}
-      />
-    ),
     actions: scopeReady ? (
       <Button
         type="button"
@@ -99,13 +94,34 @@ function MCPPage() {
     ) : null,
   });
 
-  const banner = bannerProps ? (
-    <RestartBanner {...bannerProps} className="px-6 md:px-8 xl:px-10" />
-  ) : undefined;
+  const banner = bannerProps ? <RestartBanner {...bannerProps} className="px-9" /> : undefined;
+
+  const head = (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <PageHead
+        count={page.envelope ? page.counts.total : undefined}
+        data-testid="mcp-page-head"
+        icon={Server}
+        meta="Scoped MCP server definitions the daemon exposes to sessions."
+        title="MCP servers"
+      />
+      <PillGroup<"workspace" | "global">
+        aria-label="MCP scope"
+        data-testid="mcp-scope-pills"
+        items={[
+          { value: "workspace", label: "Workspace", testId: "mcp-scope-workspace" },
+          { value: "global", label: "Global", testId: "mcp-scope-global" },
+        ]}
+        onChange={page.selectScope}
+        value={page.activeScope}
+      />
+    </div>
+  );
 
   if (!scopeReady) {
     return (
       <PageShell density="route" data-testid="settings-page-mcp-servers" banner={banner}>
+        {head}
         <Empty
           icon={Server}
           title="Select a workspace"
@@ -118,6 +134,7 @@ function MCPPage() {
 
   return (
     <PageShell density="route" data-testid="settings-page-mcp-servers" banner={banner}>
+      {head}
       {page.lastAction ? (
         <MCPActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}

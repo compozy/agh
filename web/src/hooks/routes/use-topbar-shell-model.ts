@@ -1,54 +1,40 @@
 import { useMatches } from "@tanstack/react-router";
 
-import type { TopbarRouteContext } from "@agh/ui";
-
-import { type NavCountKey, useNavCounts } from "@/systems/runtime";
+import type { TopbarCrumbContext, TopbarRouteContext } from "@/types/topbar";
 
 interface MaybeTopbarMatchContext {
   topbar?: TopbarRouteContext;
 }
 
-function pickDeepestTopbarContext(
-  matches: ReadonlyArray<unknown> | undefined
-): TopbarRouteContext | null {
-  if (!matches) return null;
-  for (let index = matches.length - 1; index >= 0; index -= 1) {
-    const candidate = (matches[index] as { context?: MaybeTopbarMatchContext } | undefined)?.context
-      ?.topbar;
-    if (candidate && candidate.title) {
-      return candidate;
-    }
+/**
+ * Collects the breadcrumb trail from the active match chain (root → leaf).
+ * Matches without their own `topbar` context inherit the parent's merged
+ * object, so consecutive duplicates are folded by reference identity.
+ */
+function collectCrumbs(matches: ReadonlyArray<unknown>): ReadonlyArray<TopbarCrumbContext> {
+  const crumbs: TopbarCrumbContext[] = [];
+  let previous: TopbarRouteContext | undefined;
+  for (const match of matches) {
+    const context = (match as { context?: MaybeTopbarMatchContext } | undefined)?.context?.topbar;
+    if (!context || context === previous) continue;
+    if (context.parentCrumb) crumbs.push(context.parentCrumb);
+    crumbs.push(context.crumb);
+    previous = context;
   }
-  return null;
-}
-
-function resolveNavCount(
-  result: ReturnType<typeof useNavCounts>,
-  key: string | undefined
-): number | string | undefined {
-  if (!key) return undefined;
-  const entry = result.counts[key as NavCountKey];
-  if (!entry) return undefined;
-  if (entry.stale && entry.count === 0) return undefined;
-  return entry.count;
+  return crumbs;
 }
 
 export interface TopbarShellViewModel {
-  route: TopbarRouteContext | null;
-  navCount: number | string | undefined;
+  crumbs: ReadonlyArray<TopbarCrumbContext>;
 }
 
 /**
- * Resolves the deepest topbar route context and threads the nav count from
- * `useNavCounts()` so `<TopbarShellInner>` stays within the project's
- * max-component-complexity ceiling (5 hook calls).
+ * Resolves the breadcrumb trail for `<TopbarShellInner>` from every route
+ * level's `topbar.crumb` declaration.
  */
 export function useTopbarShellModel(): TopbarShellViewModel {
-  // useMatches exposes the active match chain ordered root → leaf so we can
-  // scan from the deepest match upward for the topbar context augmentation.
+  // useMatches exposes the active match chain ordered root → leaf so the trail
+  // reads parent › child › page without extra sorting.
   const matches = useMatches() as unknown as ReadonlyArray<unknown>;
-  const route = pickDeepestTopbarContext(matches);
-  const navCounts = useNavCounts();
-  const navCount = resolveNavCount(navCounts, route?.navCountKey);
-  return { route, navCount };
+  return { crumbs: collectCrumbs(matches) };
 }

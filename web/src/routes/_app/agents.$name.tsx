@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { User2 } from "lucide-react";
 
 import { validateAgentDetailSearch } from "@/systems/agent";
 import type { TopbarRouteContext } from "@/types/topbar";
@@ -8,7 +7,7 @@ import { preloadAgentDetailRoute } from "./-app-preload";
 
 export const Route = createFileRoute("/_app/agents/$name")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: params.name, icon: User2 },
+    topbar: { crumb: { label: params.name, params: { name: params.name }, to: "/agents/$name" } },
   }),
   validateSearch: validateAgentDetailSearch,
   loader: ({ context, params }) => preloadAgentDetailRoute(context.queryClient, params.name),

@@ -111,7 +111,8 @@ describe("KnowledgeDetailPanel", () => {
   it("Should render only scope + age pills in the detail header (no type/tier/staleness)", () => {
     renderDetail();
     const header = screen.getByTestId("knowledge-detail-header");
-    expect(header).toHaveAttribute("data-slot", "detail-header");
+    expect(header).toHaveAttribute("data-slot", "page-head");
+    expect(header).toHaveAttribute("data-variant", "compact");
     expect(within(header).getByTestId("detail-scope-badge")).toHaveTextContent("Global");
     expect(within(header).getByTestId("detail-age-badge")).toBeInTheDocument();
     // The header must NOT carry type/tier/staleness pills.
@@ -120,7 +121,7 @@ describe("KnowledgeDetailPanel", () => {
     expect(within(header).queryByTestId("detail-staleness-badge")).toBeNull();
   });
 
-  it("Should surface filename via the DetailHeader preTitle slot", () => {
+  it("Should surface filename via the PageHead pretitle slot", () => {
     renderDetail();
     expect(screen.getByTestId("knowledge-detail-filename")).toHaveTextContent("user-role.md");
   });

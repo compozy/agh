@@ -1,12 +1,14 @@
 import { AlertCircle, Wrench } from "lucide-react";
 
 import {
+  cn,
+  PAGE_CONTENT_GUTTER,
   Button,
   Card,
   CodeBlock,
-  DetailHeader,
   Empty,
   Eyebrow,
+  PageHead,
   Pill,
   Section,
   Spinner,
@@ -19,6 +21,7 @@ import {
   TableHeader,
   TableRow,
   Time,
+  useTopbarSlot,
 } from "@agh/ui";
 
 import {
@@ -45,7 +48,6 @@ interface SkillDetailPanelProps {
   shadows: SkillShadowsResponse | undefined;
   shadowsStatus: "loading" | "error" | "ready";
   shadowsError: Error | null;
-  onBack?: () => void;
 }
 
 interface SkillContentSectionProps {
@@ -333,8 +335,35 @@ function SkillDetailPanel({
   shadows,
   shadowsStatus,
   shadowsError,
-  onBack,
 }: SkillDetailPanelProps) {
+  useTopbarSlot(
+    skill
+      ? {
+          actions: (
+            <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
+              <Eyebrow className="text-muted" id="skill-enabled-label">
+                {skill.enabled ? "Enabled" : "Disabled"}
+              </Eyebrow>
+              <Switch
+                aria-labelledby="skill-enabled-label"
+                checked={skill.enabled}
+                data-testid="skill-enabled-switch"
+                disabled={actionStatus === "pending"}
+                onCheckedChange={next => {
+                  if (actionStatus === "pending") return;
+                  if (next) {
+                    onEnable(skill.name);
+                  } else {
+                    onDisable(skill.name);
+                  }
+                }}
+              />
+            </div>
+          ),
+        }
+      : null
+  );
+
   if (detailStatus === "loading") {
     return (
       <div
@@ -349,7 +378,7 @@ function SkillDetailPanel({
   if (detailStatus === "error" && error) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="skill-detail-error"
       >
         <Empty
@@ -365,7 +394,7 @@ function SkillDetailPanel({
   if (!skill) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="skill-detail-empty"
       >
         <Empty
@@ -378,53 +407,33 @@ function SkillDetailPanel({
     );
   }
 
-  const handleToggle = (next: boolean) => {
-    if (actionStatus === "pending") return;
-    if (next) {
-      onEnable(skill.name);
-    } else {
-      onDisable(skill.name);
-    }
-  };
-
   const author = deriveSkillAuthor(skill);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="skill-detail-panel">
-      <DetailHeader
-        back={onBack}
-        backLabel="Back to skills"
-        crumbs={onBack ? [{ id: "skills", label: "Skills", onSelect: onBack }] : undefined}
-        data-testid="skill-detail-header"
-        title={<span data-testid="skill-detail-title">{skill.name}</span>}
-        pills={
-          <>
-            {skill.version ? (
-              <Pill mono data-testid="detail-version-badge">{`v${skill.version}`}</Pill>
-            ) : null}
-            {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
-            <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
-              {deriveSkillDisplaySource(skill)}
-            </Pill>
-          </>
-        }
-        actions={
-          <div className="flex items-center gap-2" data-testid="skill-enabled-toggle">
-            <Eyebrow className="text-muted" id="skill-enabled-label">
-              {skill.enabled ? "Enabled" : "Disabled"}
-            </Eyebrow>
-            <Switch
-              aria-labelledby="skill-enabled-label"
-              checked={skill.enabled}
-              data-testid="skill-enabled-switch"
-              disabled={actionStatus === "pending"}
-              onCheckedChange={handleToggle}
-            />
-          </div>
-        }
-      />
+    <div
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-y-auto")}
+      data-testid="skill-detail-panel"
+    >
+      <div className="pt-5">
+        <PageHead
+          data-testid="skill-detail-header"
+          title={<span data-testid="skill-detail-title">{skill.name}</span>}
+          variant="detail"
+          pills={
+            <>
+              {skill.version ? (
+                <Pill mono data-testid="detail-version-badge">{`v${skill.version}`}</Pill>
+              ) : null}
+              {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
+              <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
+                {deriveSkillDisplaySource(skill)}
+              </Pill>
+            </>
+          }
+        />
+      </div>
 
-      <div className="flex flex-col gap-6 px-6 py-5">
+      <div className="flex flex-col gap-6 py-5">
         <Section label="Overview">
           <div className="flex flex-col gap-3">
             <p className="text-small-body leading-relaxed text-muted">{skill.description}</p>

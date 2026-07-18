@@ -12,6 +12,11 @@ describe("PageShell", () => {
     );
     const shell = screen.getByTestId("shell");
     expect(shell).toHaveAttribute("data-density", "comfortable");
+    const content = shell.querySelector('[data-slot="page-content"]');
+    expect(content).not.toBeNull();
+    expect(content).toHaveAttribute("data-density", "comfortable");
+    expect(content?.className).toContain("px-9");
+    expect(content?.className).toContain("max-w-content-max");
   });
 
   it("Should emit data-density=compact when density=compact is set", () => {

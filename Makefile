@@ -1,5 +1,6 @@
 MAGE_VERSION ?= v1.17.2
 MAGE ?=
+AIR_VERSION ?= v1.65.3
 
 ifeq ($(strip $(MAGE)),)
 MAGE_RUN = bash scripts/run-mage.sh $(MAGE_VERSION)
@@ -135,9 +136,16 @@ qa-reap:
 # `start` rebuilds both the daemon and web bundle so their public contracts
 # cannot drift, then launches the daemon with the AGH_WEB_DIST_DIR override so
 # it serves the freshly-built web/dist from disk instead of the embedded bundle.
-# For live HMR while iterating on web/, prefer two terminals: `./bin/agh daemon
-# start` + `make web-dev`, then open http://localhost:3000.
-.PHONY: start stop restart
+# `dev` runs the real daemon under Air and the web UI under Vite. The first
+# successful Air build gracefully stops any daemon using the active AGH_HOME;
+# daemon web routes redirect to Vite, and Air owns every later rebuild/restart.
+.PHONY: start stop restart dev dev-daemon
+
+dev: codegen
+	@AIR_VERSION="$(AIR_VERSION)" bash scripts/dev.sh
+
+dev-daemon:
+	@bash scripts/run-air.sh "$(AIR_VERSION)" -c .air.toml
 
 start: build web-build
 	@test -x ./bin/agh || { echo "bin/agh not found — run 'make build' first"; exit 1; }

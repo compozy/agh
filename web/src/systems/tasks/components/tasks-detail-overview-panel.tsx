@@ -55,7 +55,7 @@ export function TasksDetailOverviewPanel({
   });
 
   return (
-    <section className="flex w-full flex-col gap-6 px-9 py-7" data-testid="tasks-detail-overview">
+    <section className="flex w-full flex-col gap-6 py-7" data-testid="tasks-detail-overview">
       <div
         className="grid grid-cols-1 gap-3 [@media(min-width:1100px)]:grid-cols-3"
         data-testid="tasks-detail-overview-counts"

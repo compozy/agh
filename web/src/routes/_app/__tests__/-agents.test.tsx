@@ -19,9 +19,7 @@ function render(ui: React.ReactElement) {
       mutations: { retry: false },
     },
   });
-  return renderWithTopbar(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>, {
-    title: "Agents",
-  });
+  return renderWithTopbar(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
 function agent(overrides: Partial<AgentPayload> & Pick<AgentPayload, "name">): AgentPayload {
@@ -331,7 +329,9 @@ describe("Agents fleet route", () => {
   });
 
   it("Should register the Agents topbar contract", () => {
-    expect(routeBeforeLoad(Route)()).toMatchObject({ topbar: { title: "Agents" } });
+    expect(routeBeforeLoad(Route)()).toMatchObject({
+      topbar: { crumb: { label: "Agents", to: "/agents" } },
+    });
   });
 
   it("Should ask for a workspace before querying the fleet", async () => {
@@ -351,7 +351,7 @@ describe("Agents fleet route", () => {
     render(<AgentsPage />);
     expect(screen.getByTestId("agent-fleet-loading")).toBeInTheDocument();
     expect(screen.getByTestId("agent-fleet-toolbar")).toBeInTheDocument();
-    expect(screen.queryByTestId("listing-view-toggle")).not.toBeInTheDocument();
+    expect(screen.getByTestId("listing-view-toggle")).toBeInTheDocument();
 
     const list = await screen.findByTestId("agent-fleet-list");
     expect(screen.getByTestId("agents-page-head")).toHaveTextContent("Operate");
@@ -415,7 +415,7 @@ describe("Agents fleet route", () => {
     const user = userEvent.setup();
     render(<AgentsPage />);
     await screen.findByTestId("agent-fleet-list");
-    expect(screen.getByTestId("topbar-count")).toHaveTextContent("3");
+    expect(screen.getByTestId("agents-page-count")).toHaveTextContent("3");
 
     await user.type(screen.getByTestId("agent-fleet-search"), "release");
     await waitFor(() => {
@@ -424,7 +424,7 @@ describe("Agents fleet route", () => {
     await waitFor(() => {
       expect(getValidatedSearch()).toMatchObject({ q: "release" });
     });
-    await waitFor(() => expect(screen.getByTestId("topbar-count")).toHaveTextContent("1"));
+    await waitFor(() => expect(screen.getByTestId("agents-page-count")).toHaveTextContent("1"));
 
     routerState.searchParams = { q: "release", category: "Engineering / Release", status: "idle" };
     act(() => {
@@ -437,7 +437,7 @@ describe("Agents fleet route", () => {
       expect(screen.queryByTestId("agent-fleet-row-release-captain")).not.toBeInTheDocument();
       expect(screen.getByTestId("agent-fleet-filtered-empty")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("topbar-count")).toHaveTextContent("0");
+    expect(screen.getByTestId("agents-page-count")).toHaveTextContent("0");
   });
 
   it("Should keep rows and omit status when sessions fail, including with a status URL filter", async () => {
@@ -489,7 +489,7 @@ describe("Agents fleet route", () => {
     const { unmount } = render(<AgentsPage />);
     expect(await screen.findByTestId("agent-fleet-empty")).toBeInTheDocument();
     expect(screen.getByText("No agents yet")).toBeInTheDocument();
-    expect(screen.queryByTestId("topbar-count")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agents-page-count")).toHaveTextContent("0");
     expect(screen.queryByTestId("agents-topbar-create")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("agent-fleet-empty-create"));
     expect(mockOpenCreate).toHaveBeenCalledOnce();

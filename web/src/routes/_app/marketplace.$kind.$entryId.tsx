@@ -1,5 +1,4 @@
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { Button, RouteState, useTopbarSlot } from "@agh/ui";
 import {
@@ -19,7 +18,16 @@ import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/marketplace/$kind/$entryId")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: params.entryId },
+    topbar: {
+      parentCrumb: isMarketplaceKind(params.kind)
+        ? {
+            label: MARKETPLACE_KIND_LABEL[params.kind],
+            search: { kind: marketplaceRouteKindFor(params.kind) },
+            to: "/marketplace",
+          }
+        : undefined,
+      crumb: { label: params.entryId },
+    },
   }),
   component: MarketplaceDetailRoute,
 });
@@ -43,26 +51,7 @@ function MarketplaceDetailRouteBody({ entryId, kind }: { entryId: string; kind: 
   const entryName = query.data?.entry.name ?? entryId;
 
   useTopbarSlot({
-    title: (
-      <span
-        aria-label={`Marketplace, ${MARKETPLACE_KIND_LABEL[kind]}, ${entryName}`}
-        className="flex min-w-0 items-center gap-1.5 text-small-body font-normal text-muted"
-      >
-        <Link className="shrink-0 hover:text-fg" search={{}} to="/marketplace">
-          Marketplace
-        </Link>
-        <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-faint" />
-        <Link
-          className="shrink-0 hover:text-fg"
-          search={{ kind: marketplaceRouteKindFor(kind) }}
-          to="/marketplace"
-        >
-          {MARKETPLACE_KIND_LABEL[kind]}
-        </Link>
-        <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-faint" />
-        <span className="truncate font-medium text-fg-strong">{entryName}</span>
-      </span>
-    ),
+    crumb: entryName,
   });
 
   if (query.isLoading) return <MarketplaceDetailSkeleton />;

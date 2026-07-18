@@ -21,7 +21,7 @@ import { preloadLoopRunDetailRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loop-runs/$runId")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: `Run ${params.runId}`, icon: Activity },
+    topbar: { crumb: { label: params.runId } },
   }),
   loader: ({ context, params }) => preloadLoopRunDetailRoute(context.queryClient, params.runId),
   component: LoopRunDetailRoute,

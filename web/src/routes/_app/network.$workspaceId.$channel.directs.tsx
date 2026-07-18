@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
-import { Network as NetworkIcon, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
 import { Button, Eyebrow } from "@agh/ui";
@@ -20,7 +20,13 @@ interface DirectDetailParams {
 
 export const Route = createFileRoute("/_app/network/$workspaceId/$channel/directs")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: `#${params.channel} · Directs`, icon: NetworkIcon },
+    topbar: {
+      crumb: {
+        label: `#${params.channel} · Directs`,
+        params: { channel: params.channel, workspaceId: params.workspaceId },
+        to: "/network/$workspaceId/$channel/directs",
+      },
+    },
   }),
   component: NetworkChannelDirectsRoute,
   loader: ({ context, params }) =>

@@ -25,7 +25,7 @@ export function TasksDetailTabs({ items, active, onChange }: TasksDetailTabsProp
   }));
 
   return (
-    <div className="border-b border-line px-9" data-testid="tasks-detail-tabs">
+    <div className="border-b border-line" data-testid="tasks-detail-tabs">
       <LaneTabs<TaskDetailPanel>
         ariaLabel="Task detail panels"
         className="border-b-0"

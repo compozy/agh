@@ -33,10 +33,7 @@ export function TasksDetailOrchestrationPanel({
   stream,
 }: TasksDetailOrchestrationPanelProps) {
   return (
-    <div
-      className="flex w-full flex-col gap-6 px-6 py-5"
-      data-testid="tasks-detail-orchestration-panel"
-    >
+    <div className="flex w-full flex-col gap-6 py-5" data-testid="tasks-detail-orchestration-panel">
       <TasksFanOutRunsCard {...fanOut} />
       <TasksExecutionProfileCard {...profile} />
       <TasksReviewsCard {...reviews} />

@@ -37,7 +37,7 @@ export const Comfortable: Story = {
   render: () => (
     <PageShell
       banner={
-        <div className="px-6 pt-5">
+        <div className="px-9 pt-5">
           <ActionResultBanner
             tone="warning"
             title="Provider quota nearing limit"

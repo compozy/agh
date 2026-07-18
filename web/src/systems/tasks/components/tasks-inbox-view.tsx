@@ -6,6 +6,7 @@ import {
   Empty,
   Eyebrow,
   Filters,
+  ListingPage,
   SearchInput,
   Spinner,
   StatusDot,
@@ -130,147 +131,143 @@ export function TasksInboxView({
   };
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-canvas"
-      data-testid="tasks-inbox-view"
-    >
-      <div className="mx-auto w-full max-w-[1320px] px-9 pt-7 pb-20">
-        <TasksInboxPageHead
-          archivedCount={inbox ? archivedTotal : undefined}
-          inboxUpdatedAt={inboxUpdatedAt}
-          totalCount={inbox ? totalCount : undefined}
-          unreadCount={inbox ? unreadTotal : undefined}
-          visibleCount={inbox ? visibleCount : undefined}
-          workspaceName={workspaceName}
+    <ListingPage className="bg-canvas" data-testid="tasks-inbox-view">
+      <TasksInboxPageHead
+        archivedCount={inbox ? archivedTotal : undefined}
+        inboxUpdatedAt={inboxUpdatedAt}
+        totalCount={inbox ? totalCount : undefined}
+        unreadCount={inbox ? unreadTotal : undefined}
+        visibleCount={inbox ? visibleCount : undefined}
+        workspaceName={workspaceName}
+      />
+
+      <div
+        className="flex flex-wrap items-center gap-2 border-b border-line-soft pb-3"
+        data-testid="tasks-inbox-toolbar"
+      >
+        <SearchInput
+          className="h-8 w-64 max-w-full"
+          data-testid="tasks-inbox-search"
+          onChange={next => onSearchChange(next)}
+          placeholder="Search inbox..."
+          value={searchQuery}
         />
-
-        <div
-          className="flex flex-wrap items-center gap-2 border-b border-line-soft pb-3"
-          data-testid="tasks-inbox-toolbar"
-        >
-          <SearchInput
-            className="h-8 w-64 max-w-full"
-            data-testid="tasks-inbox-search"
-            onChange={next => onSearchChange(next)}
-            placeholder="Search inbox..."
-            value={searchQuery}
-          />
-          <Filters<string>
-            allowMultiple={false}
-            fields={filterFields}
-            filters={filterChips}
-            onChange={handleFiltersChange}
-            size="sm"
-            trigger={
-              <Button
-                aria-label="Filter inbox"
-                data-testid="tasks-inbox-filter-trigger"
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                <ListFilter aria-hidden="true" className="size-3" />
-                Filter
-              </Button>
-            }
-          />
-          <label
-            className="ml-auto inline-flex items-center gap-2"
-            data-testid="tasks-inbox-unread-toggle"
-            htmlFor="tasks-inbox-unread-only"
-          >
-            <Switch
-              checked={unreadOnly}
-              id="tasks-inbox-unread-only"
-              onCheckedChange={onToggleUnread}
-            />
-            <Eyebrow className="text-muted">Unread only</Eyebrow>
-          </label>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-6" data-testid="tasks-inbox-body">
-          {isLoading && !inbox ? (
-            <BlockLoading
-              label="Loading inbox"
-              size="md"
-              surface="bare"
-              data-testid="tasks-inbox-loading"
-            />
-          ) : errorMessage && !inbox ? (
-            <div className="flex flex-col items-center gap-3">
-              <Empty
-                data-testid="tasks-inbox-error"
-                description={errorMessage}
-                icon={AlertCircle}
-                title="Unable to load inbox"
-              />
-              {onRetryQuery ? (
-                <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
-                  Retry loading inbox
-                </Button>
-              ) : null}
-            </div>
-          ) : !hasItems ? (
-            <Empty
-              className="mx-auto max-w-xl"
-              data-testid="tasks-inbox-empty"
-              description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
-              icon={Search}
-              title="Nothing is waiting in the inbox"
-            />
-          ) : (
-            <div className="flex flex-col gap-6" data-testid="tasks-inbox-groups">
-              {INBOX_GROUPS.map(group => {
-                const bucket = groups.get(group.id) ?? [];
-                if (bucket.length === 0) {
-                  return null;
-                }
-                return (
-                  <GroupSection
-                    group={group}
-                    items={bucket}
-                    itemActionProps={itemActionProps}
-                    key={group.id}
-                    totalCount={groupTotals[group.id]}
-                  />
-                );
-              })}
-            </div>
-          )}
-          {errorMessage && inbox ? (
-            <div
-              className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-caption text-danger"
-              data-testid="tasks-inbox-pagination-error"
-              role="alert"
+        <Filters<string>
+          allowMultiple={false}
+          fields={filterFields}
+          filters={filterChips}
+          onChange={handleFiltersChange}
+          size="sm"
+          trigger={
+            <Button
+              aria-label="Filter inbox"
+              data-testid="tasks-inbox-filter-trigger"
+              size="sm"
+              type="button"
+              variant="ghost"
             >
-              <span>{errorMessage}</span>
-              {onRetryQuery ? (
-                <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
-                  Retry loading inbox
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-          {hasMore && onLoadMore && !errorMessage ? (
-            <div className="flex items-center justify-center border-t border-line-soft pt-3">
-              <Button
-                aria-busy={isLoadingMore}
-                aria-label={isLoadingMore ? "Loading more inbox tasks" : "Load more inbox tasks"}
-                data-testid="tasks-inbox-load-more"
-                disabled={isLoadingMore}
-                onClick={onLoadMore}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
-                {isLoadingMore ? "Loading more" : "Load more"}
-              </Button>
-            </div>
-          ) : null}
-        </div>
+              <ListFilter aria-hidden="true" className="size-3" />
+              Filter
+            </Button>
+          }
+        />
+        <label
+          className="ml-auto inline-flex items-center gap-2"
+          data-testid="tasks-inbox-unread-toggle"
+          htmlFor="tasks-inbox-unread-only"
+        >
+          <Switch
+            checked={unreadOnly}
+            id="tasks-inbox-unread-only"
+            onCheckedChange={onToggleUnread}
+          />
+          <Eyebrow className="text-muted">Unread only</Eyebrow>
+        </label>
       </div>
-    </div>
+
+      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-6" data-testid="tasks-inbox-body">
+        {isLoading && !inbox ? (
+          <BlockLoading
+            className="flex-1"
+            label="Loading inbox"
+            size="md"
+            surface="bare"
+            data-testid="tasks-inbox-loading"
+          />
+        ) : errorMessage && !inbox ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
+            <Empty
+              data-testid="tasks-inbox-error"
+              description={errorMessage}
+              icon={AlertCircle}
+              title="Unable to load inbox"
+            />
+            {onRetryQuery ? (
+              <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
+                Retry loading inbox
+              </Button>
+            ) : null}
+          </div>
+        ) : !hasItems ? (
+          <Empty
+            className="mx-auto max-w-xl"
+            data-testid="tasks-inbox-empty"
+            description="Approval requests, failed runs, blockers, and archived items will appear here as work progresses."
+            icon={Search}
+            title="Nothing is waiting in the inbox"
+          />
+        ) : (
+          <div className="flex flex-col gap-6" data-testid="tasks-inbox-groups">
+            {INBOX_GROUPS.map(group => {
+              const bucket = groups.get(group.id) ?? [];
+              if (bucket.length === 0) {
+                return null;
+              }
+              return (
+                <GroupSection
+                  group={group}
+                  items={bucket}
+                  itemActionProps={itemActionProps}
+                  key={group.id}
+                  totalCount={groupTotals[group.id]}
+                />
+              );
+            })}
+          </div>
+        )}
+        {errorMessage && inbox ? (
+          <div
+            className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-caption text-danger"
+            data-testid="tasks-inbox-pagination-error"
+            role="alert"
+          >
+            <span>{errorMessage}</span>
+            {onRetryQuery ? (
+              <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
+                Retry loading inbox
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {hasMore && onLoadMore && !errorMessage ? (
+          <div className="flex items-center justify-center border-t border-line-soft pt-3">
+            <Button
+              aria-busy={isLoadingMore}
+              aria-label={isLoadingMore ? "Loading more inbox tasks" : "Load more inbox tasks"}
+              data-testid="tasks-inbox-load-more"
+              disabled={isLoadingMore}
+              onClick={onLoadMore}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {isLoadingMore ? "Loading more" : "Load more"}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    </ListingPage>
   );
 }
 

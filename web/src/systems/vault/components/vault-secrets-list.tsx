@@ -26,6 +26,7 @@ export function VaultSecretsList({
 }: VaultSecretsListProps) {
   return (
     <DataSurface
+      className="flex min-h-0 flex-1 flex-col"
       state={isLoading ? "loading" : error ? "error" : secrets.length === 0 ? "empty" : "ready"}
     >
       <DataSurface.Loading data-testid={`${testId}-loading`} label="Loading vault metadata" />

@@ -239,8 +239,7 @@ function renderPage() {
   return renderWithTopbar(
     <QueryClientProvider client={queryClient}>
       <BridgesPage />
-    </QueryClientProvider>,
-    { title: "Bridges" }
+    </QueryClientProvider>
   );
 }
 

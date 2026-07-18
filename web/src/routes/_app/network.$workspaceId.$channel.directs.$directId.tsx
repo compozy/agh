@@ -1,4 +1,3 @@
-import { Network as NetworkIcon } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import type { TopbarRouteContext } from "@/types/topbar";
@@ -7,7 +6,7 @@ import { preloadNetworkDirectDetailRoute } from "./-network-preload";
 
 export const Route = createFileRoute("/_app/network/$workspaceId/$channel/directs/$directId")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: `#${params.channel} · Direct`, icon: NetworkIcon },
+    topbar: { crumb: { label: `#${params.channel} · Direct` } },
   }),
   component: NetworkChannelDirectDetailRoute,
   loader: ({ context, params }) =>

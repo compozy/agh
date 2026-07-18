@@ -33,10 +33,24 @@ export function useMergedSessionRuntimeTranscript({
 
   const transcriptMessagesChanged = runtimeTailState.transcriptMessages !== transcript.messages;
   const runtimeMessagesChanged = runtimeTailState.runtimeMessages !== runtimeMessages;
+  const previousRuntimeCount = runtimeTailState.runtimeMessages?.length ?? 0;
+  // Local/fast SSE can finish in the same turn it starts, so we never observe
+  // isRunning/isOptimistic mid-flight. Latch the tail when the runtime grows past
+  // the durable transcript; a later transcript update clears the latch.
+  const runtimeGrewWithUnreconciledMessages =
+    runtimeMessagesChanged &&
+    runtimeMessages.length > previousRuntimeCount &&
+    runtimeMessages.some(
+      message => !transcript.messages.some(transcriptMessage => transcriptMessage.id === message.id)
+    );
   let hasLocalRuntimeTail = runtimeTailState.hasLocalRuntimeTail;
   if (transcriptMessagesChanged) {
     hasLocalRuntimeTail = runtimeIsRunning;
-  } else if (runtimeIsRunning || (runtimeMessagesChanged && hasOptimisticRuntimeMessage)) {
+  } else if (
+    runtimeIsRunning ||
+    (runtimeMessagesChanged && hasOptimisticRuntimeMessage) ||
+    runtimeGrewWithUnreconciledMessages
+  ) {
     hasLocalRuntimeTail = true;
   }
   if (runtimeMessages.length === 0) {

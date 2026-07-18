@@ -23,6 +23,7 @@ export interface AgentFleetToolbarProps {
   categoryOptions: readonly string[];
   searchInputRef: RefObject<HTMLInputElement | null>;
   showFacets: boolean;
+  showViewToggle?: boolean;
   view: ListingViewMode;
   onDraftQueryChange: (next: string) => void;
   onFiltersChange: (next: Pick<AgentsFleetSearch, "category" | "status">) => void;
@@ -35,6 +36,7 @@ function AgentFleetToolbar({
   categoryOptions,
   searchInputRef,
   showFacets,
+  showViewToggle = true,
   view,
   onDraftQueryChange,
   onFiltersChange,
@@ -84,7 +86,7 @@ function AgentFleetToolbar({
           </ListingToolbar.Filters>
         ) : null}
       </ListingToolbar.Leading>
-      {showFacets ? (
+      {showViewToggle ? (
         <ListingToolbar.Trailing>
           <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
         </ListingToolbar.Trailing>

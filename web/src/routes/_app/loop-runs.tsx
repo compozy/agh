@@ -7,6 +7,7 @@ import {
   ListingToolbar,
   NativeSelect,
   NativeSelectOption,
+  PageHead,
   Spinner,
 } from "@agh/ui";
 import { useLoopRunsRoute, type LoopRunsRouteSearch } from "@/hooks/routes/use-loop-runs-route";
@@ -24,7 +25,7 @@ function validateLoopRunsSearch(search: Record<string, unknown>): LoopRunsRouteS
 
 export const Route = createFileRoute("/_app/loop-runs")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Runs", icon: Activity },
+    topbar: { crumb: { label: "Runs", to: "/loop-runs" } },
   }),
   loaderDeps: ({ search }) => ({
     origin: search.origin,
@@ -101,13 +102,14 @@ function LoopRunsRoute() {
 
   return (
     <ListingPage data-testid="loop-runs">
-      <ListingPage.Head
+      <PageHead
         count={runs.length}
         countTestId="loop-runs-page-count"
+        icon={Activity}
         meta={
           <>
             <span>Every execution of a Loop, across the full outcome spectrum.</span>
-            <ListingPage.MetaDot />
+            <PageHead.MetaDot />
             <span>{workspaceLabel}</span>
           </>
         }
@@ -145,7 +147,7 @@ function LoopRunsRoute() {
       </ListingToolbar>
       {runs.length === 0 ? (
         <Empty
-          className="mx-auto my-16 max-w-md"
+          className="mx-auto max-w-md"
           description="Adjust the origin filters to include more runs."
           icon={Activity}
           title="No matching runs"
@@ -166,10 +168,7 @@ interface RunsStateProps {
 
 function RunsState({ title, description, testId, icon = Activity }: RunsStateProps) {
   return (
-    <div
-      className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-      data-testid={testId}
-    >
+    <div className="flex min-h-0 flex-1 items-center justify-center py-10" data-testid={testId}>
       <Empty className="max-w-md" description={description} icon={icon} title={title} />
     </div>
   );

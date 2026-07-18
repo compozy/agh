@@ -8,6 +8,11 @@ interface AutomationDeleteActionProps {
   kind: "jobs" | "triggers";
   name: string;
   onConfirm: () => void | Promise<void>;
+  /** Controlled open — use with `hideTrigger` when opened from a menu item. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Omit the built-in DialogTrigger (caller owns the open control). */
+  hideTrigger?: boolean;
 }
 
 export function AutomationDeleteAction({
@@ -15,13 +20,25 @@ export function AutomationDeleteAction({
   kind,
   name,
   onConfirm,
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
 }: AutomationDeleteActionProps) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submissionRef = useRef(false);
   const noun = kind === "jobs" ? "job" : "trigger";
   const pending = isPending || isSubmitting;
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : uncontrolledOpen;
+
+  const setOpen = (next: boolean) => {
+    if (pending && next === false) return;
+    if (!controlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+    if (!next) setError(null);
+  };
 
   const handleConfirm = async () => {
     if (submissionRef.current) return;
@@ -64,28 +81,28 @@ export function AutomationDeleteAction({
       isPending={pending}
       onConfirm={handleConfirm}
       onOpenChange={next => {
-        if (pending) return;
         setOpen(next);
-        setError(null);
       }}
       open={open}
       title={`Delete ${noun}?`}
       tone="danger"
     >
-      <DialogTrigger
-        render={
-          <Button
-            data-testid="delete-automation-btn"
-            disabled={pending}
-            size="sm"
-            type="button"
-            variant="destructive"
-          />
-        }
-      >
-        <Trash2 className="size-3" />
-        Delete {noun}
-      </DialogTrigger>
+      {hideTrigger ? null : (
+        <DialogTrigger
+          render={
+            <Button
+              data-testid="delete-automation-btn"
+              disabled={pending}
+              size="sm"
+              type="button"
+              variant="destructive"
+            />
+          }
+        >
+          <Trash2 className="size-3" />
+          Delete {noun}
+        </DialogTrigger>
+      )}
     </ConfirmDialog>
   );
 }

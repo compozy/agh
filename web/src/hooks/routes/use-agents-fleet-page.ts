@@ -121,6 +121,9 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     !isLoading && !catalogQuery.isError && catalogQuery.total === 0 && filtersActive;
   const showFacets =
     !isLoading && !isFirstRunEmpty && !(catalogQuery.isError && agents.length === 0);
+  // View toggle is independent of facets: available while loading/ready, hidden only when
+  // there is no list surface (first-run empty or fatal empty error).
+  const showViewToggle = !isFirstRunEmpty && !(catalogQuery.isError && agents.length === 0);
 
   return {
     hasChildMatch,
@@ -151,6 +154,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
       void catalogQuery.fetchNextPage();
     },
     showFacets,
+    showViewToggle,
     agentsError: catalogQuery.error,
     retryAgents: () => {
       void catalogQuery.refetch();

@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
+import { Topbar, TopbarSlotProvider } from "@agh/ui";
+
 import { PanelSurface } from "@/storybook/story-layout";
 import {
   primarySkillFixture,
@@ -30,29 +32,31 @@ const disabledSkillFixture: SkillPayload = {
 
 function DetailHarness(props: Partial<React.ComponentProps<typeof SkillDetailPanel>> = {}) {
   return (
-    <PanelSurface>
-      <SkillDetailPanel
-        content={props.content}
-        contentError={props.contentError ?? null}
-        contentStatus={props.contentStatus ?? "ready"}
-        detailStatus={props.detailStatus ?? "ready"}
-        error={props.error ?? null}
-        actionStatus={props.actionStatus ?? "idle"}
-        shadowsStatus={props.shadowsStatus ?? "ready"}
-        onBack={props.onBack ?? (() => undefined)}
-        onDisable={props.onDisable ?? (() => undefined)}
-        onEnable={props.onEnable ?? (() => undefined)}
-        onRetryContent={props.onRetryContent ?? (() => undefined)}
-        onViewContent={props.onViewContent ?? (() => undefined)}
-        shadows={props.shadows ?? skillShadowsFixtures[primarySkillFixture.name]}
-        shadowsError={props.shadowsError ?? null}
-        skill={
-          props.skill === undefined && (props.detailStatus === "loading" || props.error)
-            ? undefined
-            : (props.skill ?? primarySkillFixture)
-        }
-      />
-    </PanelSurface>
+    <TopbarSlotProvider>
+      <Topbar breadcrumb={<span>Skills</span>} />
+      <PanelSurface>
+        <SkillDetailPanel
+          content={props.content}
+          contentError={props.contentError ?? null}
+          contentStatus={props.contentStatus ?? "ready"}
+          detailStatus={props.detailStatus ?? "ready"}
+          error={props.error ?? null}
+          actionStatus={props.actionStatus ?? "idle"}
+          shadowsStatus={props.shadowsStatus ?? "ready"}
+          onDisable={props.onDisable ?? (() => undefined)}
+          onEnable={props.onEnable ?? (() => undefined)}
+          onRetryContent={props.onRetryContent ?? (() => undefined)}
+          onViewContent={props.onViewContent ?? (() => undefined)}
+          shadows={props.shadows ?? skillShadowsFixtures[primarySkillFixture.name]}
+          shadowsError={props.shadowsError ?? null}
+          skill={
+            props.skill === undefined && (props.detailStatus === "loading" || props.error)
+              ? undefined
+              : (props.skill ?? primarySkillFixture)
+          }
+        />
+      </PanelSurface>
+    </TopbarSlotProvider>
   );
 }
 

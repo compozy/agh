@@ -167,7 +167,6 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
 
   await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
   await expect(ui.triggersShell).toBeVisible();
-  await expect(ui.triggersScopeAll).toHaveAttribute("aria-pressed", "true");
 
   const initialName = uniqueName("triggers-lifecycle");
   const editedName = `${initialName}-edited`;
@@ -203,8 +202,8 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
 
   const created = await waitForTriggerByName(runtime, initialName);
   expect(created.webhook_secret_present).toBe(true);
-  await expect(ui.item(created.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(created.id).click();
+  // Saving from the editor navigates straight to the new trigger's detail route.
+  await expect(appPage).toHaveURL(new RegExp(`/triggers/${created.id}$`), { timeout: 20_000 });
   await expect(ui.detailPanel).toContainText(initialName);
   await expect(ui.detailPanel).toContainText(webhookID);
   await expect(ui.detailPanel).not.toContainText(webhookSecret);
@@ -279,7 +278,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(updated.id).click();
+  await ui.itemLink(updated.id).click();
   await expect(ui.run(firstRun.id)).toBeVisible();
   await expect(ui.runSessionLink(firstRun.id)).toBeVisible();
 
@@ -319,7 +318,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(updated.id).click();
+  await ui.itemLink(updated.id).click();
   await expect(ui.run(reenabledRun.id)).toBeVisible();
   await expect(ui.runSessionLink(reenabledRun.id)).toBeVisible();
 
@@ -354,8 +353,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   const routeState = await readRouteState(runtime);
   expect(routeState).toMatchObject({
     automation_active_tab: "triggers",
-    automation_delete_visible: true,
-    automation_enabled_toggle_visible: true,
+    automation_detail_overflow_visible: true,
     automation_run_count: expect.any(Number),
     automation_run_history_visible: true,
     automation_scope_filter: "all",
@@ -374,7 +372,8 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
 
   await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
   await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(updated.id).click();
+  await ui.itemLink(updated.id).click();
+  await ui.detailOverflow.click();
   await ui.deleteAutomationButton.click();
   await expect(ui.automationDeleteDialog).toBeVisible();
   await ui.automationDeleteConfirmTyping.fill(editedName);
@@ -433,7 +432,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
   await expect(ui.triggersShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(trigger.id).click();
+  await ui.itemLink(trigger.id).click();
   await expect(ui.detailPanel).toContainText("1 retries from 100ms");
 
   const delivery = await deliverWebhook(runtime, {
@@ -456,7 +455,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(trigger.id).click();
+  await ui.itemLink(trigger.id).click();
   await expect(ui.run(failedRun.id)).toBeVisible();
   await expect(ui.run(failedRun.id)).toContainText("FAILED");
   await expect(ui.run(failedRun.id)).toContainText(
@@ -515,7 +514,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
   await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
   await expect(ui.triggersShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(trigger.id).click();
+  await ui.itemLink(trigger.id).click();
   await expect(ui.detailPanel).toContainText("1 fires / 1h");
 
   const accepted = await deliverWebhook(runtime, {
@@ -546,7 +545,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
-  await ui.item(trigger.id).click();
+  await ui.itemLink(trigger.id).click();
   await expect(ui.run(acceptedRun.id)).toBeVisible();
   const limitedRun = (await listTriggerRuns(runtime, trigger.id)).find(
     run => run.id !== acceptedRun.id
@@ -922,7 +921,7 @@ async function assertTriggersViewportMatrix(
     await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
     await expect(ui.triggersShell).toBeVisible();
     await expect(ui.item(triggerID)).toBeVisible({ timeout: 20_000 });
-    await ui.item(triggerID).click();
+    await ui.itemLink(triggerID).click();
     await expect(ui.runHistory).toBeVisible();
     await browserArtifacts.captureScreenshot(
       `triggers-lifecycle-history-viewport-${width}`,
@@ -955,7 +954,7 @@ async function assertTriggerRunViewportMatrix(
     await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
     await expect(ui.triggersShell).toBeVisible();
     await expect(ui.item(triggerID)).toBeVisible({ timeout: 20_000 });
-    await ui.item(triggerID).click();
+    await ui.itemLink(triggerID).click();
     await expect(ui.runHistory).toBeVisible();
     await expect(ui.run(runID)).toBeVisible();
     await browserArtifacts.captureScreenshot(`${prefix}-viewport-${width}`, appPage);

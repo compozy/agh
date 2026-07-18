@@ -39,7 +39,7 @@ export function LoopCatalog({
   if (isEmpty) {
     return (
       <div
-        className="flex min-h-60 items-center justify-center p-4"
+        className="flex min-h-0 flex-1 items-center justify-center p-4"
         data-testid="loop-catalog-empty"
       >
         <Empty

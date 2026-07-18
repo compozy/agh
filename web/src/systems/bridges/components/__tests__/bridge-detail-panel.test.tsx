@@ -1,8 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import { BridgeDetailPanel } from "@/systems/bridges/components/bridge-detail-panel";
 import type { BridgeSetupProjection } from "@/systems/bridges/lib/bridge-setup";
 import type {
@@ -166,13 +167,13 @@ function defaultProps(): ComponentProps<typeof BridgeDetailPanel> {
 }
 
 function renderPanel(overrides: Partial<ComponentProps<typeof BridgeDetailPanel>> = {}) {
-  return render(<BridgeDetailPanel {...defaultProps()} {...overrides} />);
+  return renderWithTopbar(<BridgeDetailPanel {...defaultProps()} {...overrides} />);
 }
 
 describe("BridgeDetailPanel", () => {
   it("Should render loading, error, and empty states", () => {
     const props = defaultProps();
-    const { rerender } = render(
+    const { rerender } = renderWithTopbar(
       <BridgeDetailPanel
         {...props}
         bridge={undefined}
@@ -203,7 +204,8 @@ describe("BridgeDetailPanel", () => {
     });
 
     const header = screen.getByTestId("bridge-detail-header");
-    expect(header).toHaveAttribute("data-slot", "detail-header");
+    expect(header).toHaveAttribute("data-slot", "page-head");
+    expect(header).toHaveAttribute("data-variant", "detail");
     expect(within(header).getByRole("heading", { level: 1 })).toHaveTextContent("Support");
     expect(document.querySelectorAll('[data-slot="metric"]')).toHaveLength(6);
     expect(screen.getByTestId("bridge-metric-delivery-backlog")).toHaveTextContent("4");
@@ -229,7 +231,7 @@ describe("BridgeDetailPanel", () => {
 
   it("Should withhold secret cards until provider and binding availability is known", () => {
     const props = { ...defaultProps(), provider: makeProvider(), secretBindings: [] };
-    const { rerender } = render(
+    const { rerender } = renderWithTopbar(
       <BridgeDetailPanel
         {...props}
         state={{
@@ -463,7 +465,8 @@ describe("BridgeDetailPanel", () => {
     expect(screen.getByTestId("enable-bridge-btn")).toBeDisabled();
     expect(screen.getByTestId("setup-enable-bridge-btn")).toBeDisabled();
     expect(screen.getByTestId("edit-bridge-btn")).toBeDisabled();
-    expect(screen.getByTestId("restart-bridge-btn")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("bridge-detail-overflow"));
+    expect(screen.getByTestId("restart-bridge-btn")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("Should attach only mapped verification checks to a secret slot", () => {
@@ -522,7 +525,8 @@ describe("BridgeDetailPanel", () => {
     expect(screen.getByTestId("bridge-restart-required")).toBeInTheDocument();
     expect(screen.getByTestId("bridge-secret-binding-bot_token")).toHaveTextContent("BOUND");
     await user.click(screen.getByTestId("edit-bridge-btn"));
-    await user.click(screen.getByTestId("restart-bridge-btn"));
+    fireEvent.click(screen.getByTestId("bridge-detail-overflow"));
+    fireEvent.click(screen.getByTestId("restart-bridge-btn"));
     await user.type(screen.getByTestId("bridge-secret-env-input-bot_token"), "X");
     await user.click(screen.getByTestId("save-bridge-secret-bot_token"));
     await user.click(screen.getByTestId("delete-bridge-secret-bot_token"));

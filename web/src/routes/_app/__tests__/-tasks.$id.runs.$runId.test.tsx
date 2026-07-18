@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -63,6 +63,7 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
 
 import { getTask, getTaskRun } from "@/systems/tasks/adapters/tasks-api";
 
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import { routeComponent } from "@/test/route-options";
 import { Route } from "../tasks.$id.runs.$runId";
 
@@ -70,7 +71,7 @@ const TaskRunDetailRoute = routeComponent(Route);
 
 function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  return renderWithTopbar(
     <QueryClientProvider client={client}>
       <TaskRunDetailRoute />
     </QueryClientProvider>
@@ -255,10 +256,7 @@ describe("TaskRunDetailRoute", () => {
     renderRoute();
 
     await waitFor(() => expect(screen.getByTestId("tasks-run-detail-content")).toBeInTheDocument());
-    expect(screen.getByTestId("task-run-detail-breadcrumb-taskless")).toHaveTextContent(
-      "Network wake"
-    );
-    expect(screen.queryByTestId("task-run-detail-breadcrumb-task")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-run-detail-context")).toHaveTextContent("Network wake");
     expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("run_wake");
     expect(getTask).not.toHaveBeenCalled();
   });

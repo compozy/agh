@@ -1,50 +1,62 @@
-import { Link } from "@tanstack/react-router";
-import { Box, MoreHorizontal, PackageOpen, Puzzle, SearchX } from "lucide-react";
+import { Box, Puzzle, SearchX } from "lucide-react";
 import { useState } from "react";
 
 import {
   Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   Empty,
   ListingPage,
-  ListingRow,
   ListingToolbar,
-  Pill,
-  Skeleton,
-  Spinner,
-  Switch,
-  Time,
+  PageHead,
+  type ListingViewMode,
 } from "@agh/ui";
 
+import { BundleInventoryCard } from "./bundle-inventory-card";
+import { BundleInventoryRow } from "./bundle-inventory-row";
 import {
   DeactivateBundleDialog,
   ExtensionProvenanceDialog,
   RemoveExtensionDialog,
 } from "./extension-dialogs";
+import { ExtensionInventoryCard } from "./extension-inventory-card";
+import { ExtensionInventoryRow } from "./extension-inventory-row";
+import { InventoryEmpty } from "./inventory-empty";
+import { InventorySkeleton } from "./inventory-skeleton";
 import { useExtensionInventoryState } from "../hooks/use-extension-inventory-state";
 import { useBundleActivations } from "../hooks/use-extensions";
-import {
-  useDeactivateBundle,
-  useToggleExtension,
-  useUpdateBundleActivation,
-  useUpdateExtension,
-} from "../hooks/use-extension-actions";
-import type { BundleActivation, InstalledExtensionView } from "../types";
+import { useDeactivateBundle, useUpdateBundleActivation } from "../hooks/use-extension-actions";
+import type { BundleActivation } from "../types";
 
-export function ExtensionsInventory({ tab }: { tab: "extensions" | "bundles" }) {
-  return tab === "bundles" ? <BundleInventory /> : <ExtensionInventory />;
+export interface ExtensionsInventoryProps {
+  tab: "extensions" | "bundles";
+  view?: ListingViewMode;
+  onViewChange?: (view: ListingViewMode) => void;
 }
 
-function ExtensionInventory() {
+export function ExtensionsInventory({
+  tab,
+  view = "rows",
+  onViewChange,
+}: ExtensionsInventoryProps) {
+  return tab === "bundles" ? (
+    <BundleInventory onViewChange={onViewChange} view={view} />
+  ) : (
+    <ExtensionInventory onViewChange={onViewChange} view={view} />
+  );
+}
+
+function ExtensionInventory({
+  view,
+  onViewChange,
+}: {
+  view: ListingViewMode;
+  onViewChange?: (view: ListingViewMode) => void;
+}) {
   const state = useExtensionInventoryState();
   return (
     <ListingPage data-testid="extensions-page">
-      <ListingPage.Head
+      <PageHead
         count={state.inventory.data.length}
+        icon={Puzzle}
         meta="Installed extensions and their runtime state"
         title="Extensions"
       />
@@ -59,9 +71,14 @@ function ExtensionInventory() {
             value={state.query}
           />
         </ListingToolbar.Leading>
+        {onViewChange ? (
+          <ListingToolbar.Trailing>
+            <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
+          </ListingToolbar.Trailing>
+        ) : null}
       </ListingToolbar>
       {state.inventory.isLoading ? (
-        <InventorySkeleton />
+        <InventorySkeleton view={view} />
       ) : state.inventory.error ? (
         <Empty
           description={state.inventory.error.message}
@@ -81,10 +98,29 @@ function ExtensionInventory() {
           icon={SearchX}
           title="No matching extensions"
         />
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-line" data-testid="extension-list">
+      ) : view === "cards" ? (
+        <div
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+          data-testid="extension-list"
+          data-view="cards"
+        >
           {state.visible.map(item => (
-            <ExtensionRow
+            <ExtensionInventoryCard
+              item={item}
+              key={item.extension.name}
+              onProvenance={() => state.setProvenance(item.extension)}
+              onRemove={() => state.setRemoving(item.extension)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div
+          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          data-testid="extension-list"
+          data-view="rows"
+        >
+          {state.visible.map(item => (
+            <ExtensionInventoryRow
               item={item}
               key={item.extension.name}
               onProvenance={() => state.setProvenance(item.extension)}
@@ -111,104 +147,13 @@ function ExtensionInventory() {
   );
 }
 
-function ExtensionRow({
-  item,
-  onProvenance,
-  onRemove,
+function BundleInventory({
+  view,
+  onViewChange,
 }: {
-  item: InstalledExtensionView;
-  onProvenance: () => void;
-  onRemove: () => void;
+  view: ListingViewMode;
+  onViewChange?: (view: ListingViewMode) => void;
 }) {
-  const toggle = useToggleExtension();
-  const update = useUpdateExtension();
-  const acting =
-    (toggle.isPending && toggle.variables?.name === item.extension.name) ||
-    (update.isPending && update.variables === item.extension.name);
-  const description = item.listing?.description;
-  return (
-    <ListingRow data-testid={`extension-row-${item.extension.name}`}>
-      <ListingRow.Link
-        render={
-          <Link
-            aria-label={`Open ${item.extension.name}`}
-            params={{ name: item.extension.name }}
-            to="/extensions/$name"
-          />
-        }
-      >
-        <ListingRow.Icon>
-          <Puzzle className="size-4" />
-        </ListingRow.Icon>
-        <ListingRow.Main>
-          <ListingRow.Name mono>
-            <ListingRow.Title>{item.extension.name}</ListingRow.Title>
-            <Pill mono size="xs">
-              {item.extension.type}
-            </Pill>
-            <ListingRow.Slug>v{item.extension.version}</ListingRow.Slug>
-          </ListingRow.Name>
-          {description ? <ListingRow.Description>{description}</ListingRow.Description> : null}
-          <ListingRow.Meta>
-            <span>{item.extension.source}</span>
-            {item.extension.provenance?.installed_at ? (
-              <>
-                <ListingRow.MetaDot />
-                <span>
-                  installed <Time iso={item.extension.provenance.installed_at} />
-                </span>
-              </>
-            ) : null}
-          </ListingRow.Meta>
-        </ListingRow.Main>
-      </ListingRow.Link>
-      <ListingRow.Trail>
-        {acting ? (
-          <Spinner className="size-3.5" />
-        ) : (
-          <Switch
-            aria-label={`${item.extension.enabled ? "Disable" : "Enable"} ${item.extension.name}`}
-            checked={item.extension.enabled}
-            onCheckedChange={enabled => toggle.mutate({ name: item.extension.name, enabled })}
-            size="sm"
-          />
-        )}
-        {item.updateAvailable ? (
-          <Button
-            disabled={acting}
-            onClick={() => update.mutate(item.extension.name)}
-            size="sm"
-            variant="outline"
-          >
-            Update
-          </Button>
-        ) : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                aria-label={`Actions for ${item.extension.name}`}
-                size="icon-sm"
-                variant="ghost"
-              />
-            }
-          >
-            <MoreHorizontal className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onProvenance}>Provenance</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-danger" onClick={onRemove}>
-              Remove…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </ListingRow.Trail>
-    </ListingRow>
-  );
-}
-
-function BundleInventory() {
   const bundles = useBundleActivations();
   const update = useUpdateBundleActivation();
   const deactivate = useDeactivateBundle();
@@ -219,8 +164,9 @@ function BundleInventory() {
   );
   return (
     <ListingPage data-testid="bundle-activations-page">
-      <ListingPage.Head
+      <PageHead
         count={bundles.data?.length ?? 0}
+        icon={Box}
         meta="Active bundle activations on this daemon"
         title="Bundles"
       />
@@ -235,9 +181,14 @@ function BundleInventory() {
             value={query}
           />
         </ListingToolbar.Leading>
+        {onViewChange ? (
+          <ListingToolbar.Trailing>
+            <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
+          </ListingToolbar.Trailing>
+        ) : null}
       </ListingToolbar>
       {bundles.isLoading ? (
-        <InventorySkeleton />
+        <InventorySkeleton view={view} />
       ) : bundles.error ? (
         <Empty
           description={bundles.error.message}
@@ -256,13 +207,35 @@ function BundleInventory() {
           icon={SearchX}
           title="No matching bundles"
         />
-      ) : (
+      ) : view === "cards" ? (
         <div
-          className="overflow-hidden rounded-lg border border-line"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
           data-testid="bundle-activation-list"
+          data-view="cards"
         >
           {visible.map(activation => (
-            <BundleRow
+            <BundleInventoryCard
+              activation={activation}
+              key={activation.id}
+              onDeactivate={() => setSelected(activation)}
+              onUpdate={() =>
+                update.mutate({
+                  id: activation.id,
+                  body: { expected_version: activation.version },
+                })
+              }
+              pending={update.isPending && update.variables?.id === activation.id}
+            />
+          ))}
+        </div>
+      ) : (
+        <div
+          className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+          data-testid="bundle-activation-list"
+          data-view="rows"
+        >
+          {visible.map(activation => (
+            <BundleInventoryRow
               activation={activation}
               key={activation.id}
               onDeactivate={() => setSelected(activation)}
@@ -290,126 +263,5 @@ function BundleInventory() {
         pending={deactivate.isPending}
       />
     </ListingPage>
-  );
-}
-
-function BundleRow({
-  activation,
-  pending,
-  onUpdate,
-  onDeactivate,
-}: {
-  activation: BundleActivation;
-  pending: boolean;
-  onUpdate: () => void;
-  onDeactivate: () => void;
-}) {
-  const contentCount = (activation.inventory ?? []).length;
-  return (
-    <ListingRow data-testid={`bundle-row-${activation.id}`}>
-      <ListingRow.Link
-        render={
-          <Link
-            aria-label={`Open ${activation.bundle_name}`}
-            params={{ id: activation.id }}
-            to="/extensions/bundles/$id"
-          />
-        }
-      >
-        <ListingRow.Icon>
-          <Box className="size-4" />
-        </ListingRow.Icon>
-        <ListingRow.Main>
-          <ListingRow.Name mono>
-            <ListingRow.Title>{activation.bundle_name}</ListingRow.Title>
-            <Pill mono size="xs">
-              {activation.profile_name}
-            </Pill>
-          </ListingRow.Name>
-          <ListingRow.Meta>
-            <span>{contentCount} capabilities</span>
-            <ListingRow.MetaDot />
-            <span>
-              {activation.scope}
-              {activation.workspace_id ? ` · ${activation.workspace_id}` : ""}
-            </span>
-            <ListingRow.MetaDot />
-            <span>
-              activated <Time iso={activation.created_at} />
-            </span>
-          </ListingRow.Meta>
-        </ListingRow.Main>
-      </ListingRow.Link>
-      <ListingRow.Trail>
-        <Pill tone="success">active</Pill>
-        {activation.spec_drift ? (
-          <Button disabled={pending} onClick={onUpdate} size="sm" variant="outline">
-            {pending ? <Spinner className="size-3" /> : null}Update
-          </Button>
-        ) : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                aria-label={`Actions for ${activation.bundle_name}`}
-                size="icon-sm"
-                variant="ghost"
-              />
-            }
-          >
-            <MoreHorizontal className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="text-danger" onClick={onDeactivate}>
-              Deactivate…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </ListingRow.Trail>
-    </ListingRow>
-  );
-}
-
-function InventorySkeleton() {
-  return (
-    <div className="overflow-hidden rounded-lg border border-line" data-testid="extensions-loading">
-      {[0, 1, 2].map(index => (
-        <div
-          className="grid grid-cols-[34px_minmax(0,1fr)_auto] gap-3.5 border-b border-line-soft px-4 py-3 last:border-0"
-          key={index}
-        >
-          <Skeleton className="size-[34px]" />
-          <div className="space-y-2">
-            <Skeleton className="h-3 w-40" />
-            <Skeleton className="h-3 w-72" />
-          </div>
-          <Skeleton className="h-5 w-20" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function InventoryEmpty({ kind }: { kind: "extensions" | "bundles" }) {
-  const bundles = kind === "bundles";
-  return (
-    <Empty
-      action={
-        <Button
-          render={<Link search={{ kind: bundles ? "bundles" : "extensions" }} to="/marketplace" />}
-          nativeButton={false}
-          size="sm"
-        >
-          Browse marketplace
-        </Button>
-      }
-      description={
-        bundles
-          ? "A bundle activates a curated set of capabilities in one step."
-          : "Install one from the marketplace or run agh extension install."
-      }
-      icon={PackageOpen}
-      title={bundles ? "No bundles activated" : "No extensions installed"}
-    />
   );
 }

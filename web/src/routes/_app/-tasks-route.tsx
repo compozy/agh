@@ -1,7 +1,8 @@
-import { Outlet, useNavigate } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, Plus } from "lucide-react";
 
 import { useTasksRoute } from "@/hooks/routes/use-tasks-route";
+import type { TasksSurfaceMode } from "@/routes/_app/tasks";
 import {
   TasksDashboardView,
   TasksEmptyState,
@@ -9,60 +10,70 @@ import {
   TasksKanbanBoard,
   TasksListSurface,
 } from "@/systems/tasks";
-import { BlockLoading, Button, Empty, PillGroup, useTopbarSlot } from "@agh/ui";
+import { BlockLoading, Button, Empty, RouteNav, useTopbarSlot } from "@agh/ui";
+
+const TASK_MODE_ITEMS: ReadonlyArray<{ value: TasksSurfaceMode; label: string; testId: string }> = [
+  { value: "list", label: "List", testId: "tasks-mode-list" },
+  { value: "kanban", label: "Kanban", testId: "tasks-mode-kanban" },
+  { value: "dashboard", label: "Dashboard", testId: "tasks-mode-dashboard" },
+  { value: "inbox", label: "Inbox", testId: "tasks-mode-inbox" },
+];
 
 export function TasksRoute() {
   const view = useTasksRoute();
   const navigate = useNavigate({ from: "/tasks" });
-  const {
-    page,
-    hasChildMatch,
-    routedTaskId,
-    isCreateRoute,
-    surfaceMode,
-    shellCount,
-    handleModeSelect,
-    openCreateRoute,
-  } = view;
+  const { page, hasChildMatch, routedTaskId, surfaceMode, openCreateRoute } = view;
 
   const handleSelectTask = (taskId: string) => {
     void navigate({ params: { id: taskId }, to: "/tasks/$id" });
   };
 
-  useTopbarSlot({
-    count: shellCount,
-    tabs: (
-      <PillGroup
-        data-testid="tasks-mode-pills"
-        value={surfaceMode}
-        onChange={handleModeSelect}
-        items={[
-          { value: "list", label: "List", testId: "tasks-mode-list" },
-          { value: "kanban", label: "Kanban", testId: "tasks-mode-kanban" },
-          { value: "dashboard", label: "Dashboard", testId: "tasks-mode-dashboard" },
-          {
-            value: "inbox",
-            label: "Inbox",
-            badge: page.inboxUnreadCount,
-            testId: "tasks-mode-inbox",
-          },
-        ]}
-      />
-    ),
-    actions: (
-      <Button
-        data-testid="tasks-open-create"
-        disabled={isCreateRoute || !page.hasActiveTaskScope}
-        onClick={openCreateRoute}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        <Plus className="size-3" />
-        Task
-      </Button>
-    ),
-  });
+  // Publish null while a child route is mounted (detail/create/run): a
+  // non-null slot from this parent would steal the child's publish (layout
+  // effects run child first, parent last in the same commit).
+  useTopbarSlot(
+    hasChildMatch
+      ? null
+      : {
+          routeNav: (
+            <RouteNav aria-label="Tasks views" data-testid="tasks-mode-nav">
+              {TASK_MODE_ITEMS.map(item => (
+                <RouteNav.Link
+                  data-testid={item.testId}
+                  key={item.value}
+                  render={
+                    <Link
+                      activeOptions={{ exact: true, includeSearch: true }}
+                      search={item.value === "list" ? {} : { mode: item.value }}
+                      to="/tasks"
+                    />
+                  }
+                >
+                  {item.label}
+                  {item.value === "inbox" && page.inboxUnreadCount ? (
+                    <RouteNav.Count data-testid="tasks-mode-inbox-count">
+                      {page.inboxUnreadCount}
+                    </RouteNav.Count>
+                  ) : null}
+                </RouteNav.Link>
+              ))}
+            </RouteNav>
+          ),
+          actions: (
+            <Button
+              data-testid="tasks-open-create"
+              disabled={!page.hasActiveTaskScope}
+              onClick={openCreateRoute}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Plus className="size-3" />
+              Task
+            </Button>
+          ),
+        }
+  );
 
   return (
     <div

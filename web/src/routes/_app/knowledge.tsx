@@ -10,12 +10,23 @@ import {
   type KnowledgeScope,
 } from "@/systems/knowledge";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { Button, Empty, Input, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
+import {
+  Button,
+  cn,
+  Empty,
+  Input,
+  PAGE_CONTENT_GUTTER,
+  PageHead,
+  PillGroup,
+  Spinner,
+  SplitPane,
+  useTopbarSlot,
+} from "@agh/ui";
 import { preloadKnowledgeRoute } from "./-knowledge-preload";
 
 export const Route = createFileRoute("/_app/knowledge")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Knowledge", icon: BookOpen },
+    topbar: { crumb: { label: "Knowledge", to: "/knowledge" } },
   }),
   loader: ({ context }) => preloadKnowledgeRoute(context.queryClient),
   component: KnowledgePage,
@@ -77,17 +88,35 @@ function KnowledgePage() {
   );
 
   useTopbarSlot({
-    count: page.guardMessage || page.isLoading || page.error ? undefined : page.memoryCount,
-    tabs: scopePills,
-    search: agentControls,
     actions: createBtn,
   });
+
+  const headBand = (
+    <div className="border-b border-line-soft">
+      <div
+        className={cn(PAGE_CONTENT_GUTTER, "flex flex-wrap items-start justify-between gap-3 py-4")}
+      >
+        <PageHead
+          count={page.guardMessage || page.isLoading || page.error ? undefined : page.memoryCount}
+          data-testid="knowledge-page-head"
+          icon={BookOpen}
+          title="Knowledge"
+          variant="compact"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          {scopePills}
+          {agentControls}
+        </div>
+      </div>
+    </div>
+  );
 
   if (page.guardMessage) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
+        {headBand}
         <div
-          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          className="flex min-h-0 flex-1 items-center justify-center py-10"
           data-testid="knowledge-guard"
         >
           <Empty
@@ -104,6 +133,7 @@ function KnowledgePage() {
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
+        {headBand}
         <div
           className="flex min-h-0 flex-1 items-center justify-center"
           data-testid="knowledge-loading"
@@ -117,8 +147,9 @@ function KnowledgePage() {
   if (page.error) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
+        {headBand}
         <div
-          className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 py-10"
+          className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-10"
           data-testid="knowledge-error"
         >
           <Empty
@@ -137,6 +168,7 @@ function KnowledgePage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
+      {headBand}
       <SplitPane
         data-testid="knowledge-split-pane"
         detail={

@@ -32,14 +32,22 @@ function routeMatchKey(to: string, params?: MatchRouteParams): string {
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
+    activeOptions,
+    activeProps,
     children,
+    className,
+    inactiveProps,
     to,
     params,
     onClick,
     state,
     ...props
   }: {
-    children: ReactNode;
+    activeOptions?: { exact?: boolean; includeSearch?: boolean };
+    activeProps?: Record<string, string>;
+    children: ReactNode | ((state: { isActive: boolean; isTransitioning: boolean }) => ReactNode);
+    className?: string;
+    inactiveProps?: Record<string, string>;
     to: string;
     params?: MatchRouteParams;
     onClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
@@ -50,6 +58,15 @@ vi.mock("@tanstack/react-router", () => ({
       ? Object.entries(params).reduce((acc, [key, value]) => acc.replace(`$${key}`, value), to)
       : to;
     linkStates[href] = state;
+    const fuzzy = !(activeOptions?.exact ?? false);
+    const matchKey = routeMatchKey(to, params);
+    const isActive = fuzzy
+      ? (matchedRouteFuzzy[matchKey] ?? matchedRoute[matchKey] ?? false)
+      : (matchedRoute[matchKey] ?? false);
+    const { className: stateClassName, ...stateProps } =
+      (isActive ? activeProps : inactiveProps) ?? {};
+    const resolvedChildren =
+      typeof children === "function" ? children({ isActive, isTransitioning: false }) : children;
     return (
       <a
         href={href}
@@ -58,17 +75,13 @@ vi.mock("@tanstack/react-router", () => ({
           onClick?.(event);
         }}
         {...props}
+        {...stateProps}
+        aria-current={isActive ? "page" : undefined}
+        className={[className, stateClassName].filter(Boolean).join(" ") || undefined}
       >
-        {children}
+        {resolvedChildren}
       </a>
     );
-  },
-  useMatchRoute: () => (opts: { to: string; params?: MatchRouteParams; fuzzy?: boolean }) => {
-    const matchKey = routeMatchKey(opts.to, opts.params);
-    if (opts.fuzzy) {
-      return matchedRouteFuzzy[matchKey] ?? matchedRoute[matchKey] ?? false;
-    }
-    return matchedRoute[matchKey] ?? false;
   },
 }));
 
@@ -561,6 +574,18 @@ describe("AppSidebar", () => {
       matchedRouteFuzzy["/loops"] = true;
       renderSidebar(makeProps());
       expect(screen.getByTestId("nav-active-loops")).toBeInTheDocument();
+    });
+
+    it("Should keep Jobs active for job detail deep links (fuzzy)", () => {
+      matchedRouteFuzzy["/jobs"] = true;
+      renderSidebar(makeProps());
+      expect(screen.getByTestId("nav-active-jobs")).toBeInTheDocument();
+    });
+
+    it("Should keep Triggers active for trigger detail deep links (fuzzy)", () => {
+      matchedRouteFuzzy["/triggers"] = true;
+      renderSidebar(makeProps());
+      expect(screen.getByTestId("nav-active-triggers")).toBeInTheDocument();
     });
 
     it("Should mark Settings active when the settings route matches (fuzzy)", () => {

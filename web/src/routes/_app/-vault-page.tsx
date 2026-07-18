@@ -11,6 +11,7 @@ import {
   Input,
   ListingPage,
   ListingToolbar,
+  PageHead,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -26,7 +27,6 @@ export function VaultPage() {
   const page = useVaultPage();
 
   useTopbarSlot({
-    count: page.isLoading ? undefined : page.counts.total,
     actions: (
       <div className="flex items-center gap-2" data-testid="vault-topbar-actions">
         <Button
@@ -63,16 +63,17 @@ export function VaultPage() {
       }
       data-testid="vault-shell"
     >
-      <ListingPage.Head
+      <PageHead
         count={page.counts.total}
         countTestId="vault-page-count"
         data-testid="vault-page-head"
+        icon={KeyRound}
         meta={
           <>
             <span>Write-only secrets; the daemon returns redacted metadata only.</span>
-            <ListingPage.MetaDot />
+            <PageHead.MetaDot />
             <span data-testid="vault-page-sessions">{page.counts.sessions} session-scoped</span>
-            <ListingPage.MetaDot />
+            <PageHead.MetaDot />
             <span data-testid="vault-page-providers">{page.counts.providers} provider-scoped</span>
           </>
         }

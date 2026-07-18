@@ -1,4 +1,3 @@
-import { Plus } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import type { TopbarRouteContext } from "@/types/topbar";
@@ -7,7 +6,7 @@ import { TaskCreateRoute } from "./-tasks-new-route";
 
 export const Route = createFileRoute("/_app/tasks/new")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Tasks", icon: Plus },
+    topbar: { crumb: { label: "New task" } },
   }),
   validateSearch: search => ({
     template:

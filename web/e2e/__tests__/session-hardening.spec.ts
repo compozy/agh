@@ -191,7 +191,7 @@ test("operator rejects a permission request, records tool output, and keeps sess
   expect((await approvalResponsePromise).ok()).toBe(true);
 
   await expect(ui.permissionPrompt).toBeHidden();
-  await expect(appPage.getByTestId("composer-clear-button")).toBeEnabled();
+  await expect(ui.topbarOverflow).toBeVisible();
 
   const snapshot = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(snapshot.events)).toContain("tool-hardening-read-1");
@@ -215,8 +215,7 @@ test("operator rejects a permission request, records tool output, and keeps sess
   ) as Record<string, unknown>;
   expect(routeState).toMatchObject({
     chat_view_visible: true,
-    composer_clear_button_enabled: true,
-    delete_button_visible: true,
+    session_topbar_overflow_visible: true,
     message_count: expect.any(Number),
     permission_prompt_visible: false,
   });
@@ -254,11 +253,12 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   await ui.stopButton.click();
   expect((await stopActionResponsePromise).ok()).toBe(true);
 
-  await expect(appPage.getByTestId("composer-clear-button")).toBeEnabled({ timeout: 60_000 });
+  await expect(ui.topbarOverflow).toBeVisible({ timeout: 60_000 });
   const beforeClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(beforeClear.history)).toContain("block until canceled");
 
-  await appPage.getByTestId("composer-clear-button").click();
+  await ui.topbarOverflow.click();
+  await ui.composerClearButton.click();
   await expect(appPage.getByTestId("composer-clear-dialog")).toBeVisible();
   const clearResponsePromise = appPage.waitForResponse(
     response =>
@@ -280,7 +280,8 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
     waitUntil: "domcontentloaded",
   });
   await expect(ui.chatHeader).toBeVisible();
-  await appPage.getByTestId("delete-button").click();
+  await ui.topbarOverflow.click();
+  await ui.deleteButton.click();
   await expect(appPage.getByTestId("delete-dialog")).toBeVisible();
   const deleteResponsePromise = appPage.waitForResponse(
     response =>

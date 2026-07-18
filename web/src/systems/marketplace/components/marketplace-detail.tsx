@@ -1,8 +1,10 @@
 import {
   Button,
+  cn,
   DescriptionCard,
   Eyebrow,
   MetadataList,
+  PAGE_CONTENT_GUTTER,
   Pill,
   RouteState,
   Skeleton,
@@ -24,7 +26,7 @@ function MarketplaceDetail({ data, pending = false, onAction }: MarketplaceDetai
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="marketplace-detail">
-      <div className="mx-auto flex w-full max-w-[1320px] flex-col px-4 pb-20 sm:px-9">
+      <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pb-20")}>
         <MarketplaceDetailHero entry={entry} onAction={onAction} pending={pending} />
 
         <div className="grid grid-cols-1 gap-8 pt-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -307,10 +309,7 @@ function MarketplaceKvRow({ term, children }: { term: string; children: ReactNod
 
 function MarketplaceDetailSkeleton() {
   return (
-    <div
-      className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 pb-20 sm:px-9"
-      role="status"
-    >
+    <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col gap-6 pb-20")} role="status">
       <div className="flex items-start gap-3.5 border-b border-line py-5">
         <Skeleton className="size-(--size-provider-logo-well) shrink-0 rounded-lg" />
         <div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -344,7 +343,7 @@ function MarketplaceDetailSkeleton() {
 
 function MarketplaceDetailNotFound({ onBack }: { onBack: () => void }) {
   return (
-    <div className="mx-auto flex w-full max-w-[1320px] flex-col px-4 pb-20 sm:px-9">
+    <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pb-20")}>
       <RouteState
         className="border-0 bg-transparent py-14"
         action={

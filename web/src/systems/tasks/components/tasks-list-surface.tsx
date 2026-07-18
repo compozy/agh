@@ -1,6 +1,6 @@
 import { AlertCircle, ListChecks, Search } from "lucide-react";
 
-import { Button, Empty, ListingPage, ListingToolbar, Skeleton, Spinner } from "@agh/ui";
+import { Button, Empty, ListingPage, ListingToolbar, PageHead, Skeleton, Spinner } from "@agh/ui";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
 import { formatRelativeTime } from "../lib/task-formatters";
@@ -93,17 +93,18 @@ export function TasksListSurface({
 
   return (
     <ListingPage data-testid="tasks-list-surface">
-      <ListingPage.Head
+      <PageHead
         count={countLabel}
         countTestId="tasks-list-page-count"
         data-testid="tasks-list-page-head"
+        icon={ListChecks}
         meta={
           workspaceName || syncedText ? (
             <>
               {workspaceName ? (
                 <span data-testid="tasks-list-page-workspace">workspace {workspaceName}</span>
               ) : null}
-              {workspaceName && syncedText ? <ListingPage.MetaDot /> : null}
+              {workspaceName && syncedText ? <PageHead.MetaDot /> : null}
               {syncedText ? <span data-testid="tasks-list-page-synced">{syncedText}</span> : null}
             </>
           ) : undefined
@@ -157,7 +158,7 @@ export function TasksListSurface({
             ))}
           </div>
         ) : errorMessage && visibleCount === 0 ? (
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
             <Empty
               data-testid="tasks-list-surface-error"
               description={errorMessage}

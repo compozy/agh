@@ -9,7 +9,7 @@ import { routeComponent } from "@/test/route-options";
 import type { BridgeProvider, BridgesListResponse, CreateBridgeResponse } from "@/systems/bridges";
 
 function render(ui: React.ReactElement) {
-  return renderWithTopbar(ui, { title: "Bridges" });
+  return renderWithTopbar(ui);
 }
 
 const { toast } = vi.hoisted(() => ({

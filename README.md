@@ -83,7 +83,15 @@ See the [Quick Start](https://agh.network/runtime/core/getting-started/quick-sta
 
 ## Development
 
-AGH is a Go and Bun monorepo. Install the toolchains declared by the repo and run the full verification gate before sending changes:
+AGH is a Go and Bun monorepo. Start the daemon with automatic Go rebuilds and the web UI with Vite HMR:
+
+```bash
+make dev
+```
+
+The first successful build stops any daemon using the active `AGH_HOME` and takes over its lifecycle. Vite uses the first available port starting at `3000`, and the daemon's web routes redirect to that live UI while API traffic stays on the daemon. Set `AGH_WEB_PORT` to require a specific web port. Press `Ctrl-C` to stop both development processes, or use `make dev-daemon` when you only need the backend.
+
+Run the full verification gate before sending changes:
 
 ```bash
 make verify

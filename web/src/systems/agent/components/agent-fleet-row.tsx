@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { KindIcon, ListingRow, Pill, cn, providerKindIconRegistry } from "@agh/ui";
+import { KindIcon, ListingRow, Pill, providerKindIconRegistry } from "@agh/ui";
 
 import type { AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
@@ -12,16 +12,13 @@ export interface AgentFleetRowProps {
 }
 
 function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentFleetRowProps) {
-  const { agent, signals, meta, ariaLabel, hasDiagnostics, sessionsAvailable } = row;
-  const sessionsTone =
-    sessionsAvailable && signals && signals.active > 0 ? "text-success" : "text-muted";
+  const { agent, signals, ariaLabel, hasDiagnostics, sessionsAvailable, cardCategory, cardOrigin } =
+    row;
+  const model = agent.model?.trim() || null;
+  const category = cardCategory && cardCategory !== agent.provider ? cardCategory : null;
 
   return (
-    <ListingRow
-      className="max-[920px]:grid-cols-[34px_minmax(0,1fr)] max-[920px]:gap-x-3 max-[920px]:gap-y-2"
-      data-agent={agent.name}
-      data-testid={`agent-fleet-row-${agent.name}`}
-    >
+    <ListingRow data-agent={agent.name} data-testid={`agent-fleet-row-${agent.name}`}>
       <ListingRow.Link
         render={
           <Link
@@ -32,9 +29,9 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
           />
         }
       >
-        <ListingRow.Icon className="bg-elevated p-0 text-fg">
+        <ListingRow.Icon>
           <KindIcon
-            className="size-[18px]"
+            className="size-4"
             kind={agent.provider}
             registry={providerKindIconRegistry}
             size="sm"
@@ -43,19 +40,28 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
         </ListingRow.Icon>
         <ListingRow.Main>
           <ListingRow.Name>
-            <ListingRow.Title className="text-item-title">{agent.name}</ListingRow.Title>
+            <ListingRow.Title>{agent.name}</ListingRow.Title>
+            {agent.provider ? (
+              <Pill size="xs" tone="neutral">
+                {agent.provider}
+              </Pill>
+            ) : null}
+            {model ? <ListingRow.Slug>{model}</ListingRow.Slug> : null}
           </ListingRow.Name>
-          <ListingRow.Meta className="font-mono text-badge text-muted">{meta}</ListingRow.Meta>
+          <ListingRow.Meta>
+            {category ? <span>{category}</span> : null}
+            {category ? <ListingRow.MetaDot /> : null}
+            <span>{cardOrigin}</span>
+          </ListingRow.Meta>
         </ListingRow.Main>
       </ListingRow.Link>
-      <ListingRow.Trail className="gap-2.5 max-[920px]:col-span-2 max-[920px]:col-start-2 max-[920px]:justify-self-start">
-        <span
-          aria-hidden="true"
-          className={cn("font-mono text-badge tabular-nums", sessionsTone)}
-          data-testid={`agent-fleet-sessions-${agent.name}`}
-        >
-          {sessionsAvailable && signals ? `● ${signals.active} / ${signals.total}` : "--"}
-        </span>
+      <ListingRow.Trail className="gap-3">
+        <ListingRow.Stat className="w-16" data-testid={`agent-fleet-sessions-${agent.name}`}>
+          <ListingRow.Stat.Value>
+            {sessionsAvailable && signals ? `${signals.active}/${signals.total}` : "--"}
+          </ListingRow.Stat.Value>
+          <ListingRow.Stat.Label>sessions</ListingRow.Stat.Label>
+        </ListingRow.Stat>
         {sessionsAvailable && signals ? (
           <Pill
             size="sm"

@@ -27,3 +27,9 @@ discovery so action labels and update badges reconcile together.
 QA impact 2026-07-16: removal now fails closed while bundle dependency activity is loading or
 failed, exposes Retry, and proceeds only after a successful dependency response; malformed 2xx
 extension envelopes surface as request errors instead of incomplete inventory data.
+
+QA impact 2026-07-17: Extensions and Bundles inventory now share Rows/Cards ViewToggle with URL
+`view` persistence and CatalogCard wrappers; verify enable/update/overflow actions in both views.
+
+QA impact 2026-07-17: Extensions|Bundles tabs are RouteNav links in the topbar; detail heroes use
+PageHead with actions in the topbar slot. Flag only — next QA cycle.
