@@ -801,6 +801,40 @@ export const settingsSandboxFixtures: SettingsSandboxEntry[] = [
       sync_mode: "none",
       persistence: "transient",
       runtime_root: "~",
+      network: {
+        allow_outbound: true,
+        allow_public_ingress: false,
+        allow_list: [],
+        deny_list: [],
+      },
+    },
+    source_metadata: {
+      available_targets: ["global-config"],
+      effective_source: { kind: "global-config", scope: "global" },
+    },
+  },
+  {
+    name: "daytona-eu",
+    workspace_usage_count: 2,
+    profile: {
+      backend: "daytona",
+      sync_mode: "session-bidir",
+      persistence: "reuse",
+      runtime_root: "/workspace",
+      daytona: {
+        image: "agh/daytona:latest",
+        target: "eu-central",
+        auto_stop: "30",
+        auto_archive: "120",
+      },
+      network: {
+        allow_outbound: true,
+        allow_public_ingress: false,
+        allow_list: ["api.github.com", "registry.npmjs.org"],
+        deny_list: [],
+      },
+      env: { NODE_ENV: "production" },
+      secret_env: { DAYTONA_API_KEY: "vault:providers/daytona/api-key" },
     },
     source_metadata: {
       available_targets: ["global-config"],

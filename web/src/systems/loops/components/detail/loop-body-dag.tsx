@@ -47,17 +47,25 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
 
 function DagNode({ node }: { node: LoopGraphNode }) {
   const summary = fanOutSummary(node);
+  const kindLabel = summary ?? node.kind;
   return (
     <div
-      className="flex min-w-[124px] shrink-0 flex-col gap-1 rounded-md border border-line bg-canvas-tint px-3 py-2.5"
+      className="flex min-w-[124px] shrink-0 flex-col gap-1 overflow-hidden rounded-md border border-line bg-canvas-tint px-3 py-2.5"
       data-testid="loop-dag-node"
       data-node-id={node.id}
     >
       <MonoTag className={`tracking-wider ${node.isGate ? "text-warning" : "text-faint"}`}>
         {nodeClassLabel(node)}
       </MonoTag>
-      <span className="text-[12.5px] font-medium text-fg-strong">{node.id}</span>
-      <span className="font-mono text-[10px] text-subtle">{summary ?? node.kind}</span>
+      <span className="min-w-0 truncate text-[12.5px] font-medium text-fg-strong" title={node.id}>
+        {node.id}
+      </span>
+      <span
+        className="min-w-0 truncate font-mono text-[10px] text-subtle"
+        title={kindLabel || undefined}
+      >
+        {kindLabel}
+      </span>
     </div>
   );
 }

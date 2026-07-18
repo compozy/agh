@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { VaultSecret } from "../../types";
+import { VaultSecretSheet } from "../vault-secret-sheet";
 import { VaultSecretsList } from "../vault-secrets-list";
 
 const secrets: VaultSecret[] = [
@@ -74,5 +75,90 @@ describe("VaultSecretsList", () => {
 
     fireEvent.click(screen.getByTestId("vault-secrets-delete-vault:providers/codex/api_key"));
     expect(onDelete).toHaveBeenCalledWith(secrets[1]);
+  });
+
+  it("Should call onSelect when an interactive row is activated", () => {
+    const onSelect = vi.fn();
+    render(<VaultSecretsList onSelect={onSelect} secrets={secrets} />);
+
+    fireEvent.click(screen.getByTestId(`vault-secrets-select-${secrets[0].ref}`));
+    expect(onSelect).toHaveBeenCalledWith(secrets[0]);
+  });
+
+  it("Should render the cards grid when view is cards", () => {
+    const onSelect = vi.fn();
+    render(<VaultSecretsList onSelect={onSelect} secrets={secrets} view="cards" />);
+
+    expect(screen.getByTestId("vault-secrets-list-card-grid")).toBeInTheDocument();
+    expect(screen.getAllByTestId("vault-secrets-card")).toHaveLength(2);
+    fireEvent.click(screen.getByTestId(`vault-secrets-select-${secrets[1].ref}`));
+    expect(onSelect).toHaveBeenCalledWith(secrets[1]);
+  });
+
+  it("Should mark the selected row", () => {
+    render(<VaultSecretsList onSelect={vi.fn()} secrets={secrets} selectedRef={secrets[0].ref} />);
+
+    expect(screen.getAllByTestId("vault-secrets-row")[0]).toHaveAttribute("data-selected", "true");
+  });
+});
+
+describe("VaultSecretSheet", () => {
+  const secret = secrets[0];
+
+  it("Should render redacted metadata tiles without plaintext values", () => {
+    const { container } = render(
+      <VaultSecretSheet
+        onOpenChange={vi.fn()}
+        onReplace={vi.fn()}
+        onReplaceValueChange={vi.fn()}
+        onRequestDelete={vi.fn()}
+        open
+        replaceError={null}
+        replaceIsPending={false}
+        replaceIsValid={false}
+        replaceValue=""
+        secret={secret}
+      />
+    );
+
+    expect(screen.getByTestId("vault-secret-sheet-title")).toHaveTextContent("api_key");
+    expect(screen.getByTestId("vault-secret-sheet-ref")).toHaveTextContent(secret.ref);
+    expect(screen.getByTestId("vault-secret-sheet-value")).toHaveTextContent("write-only");
+    expect(screen.getByTestId("vault-secret-sheet-foot")).toHaveTextContent(
+      `agh vault put ${secret.ref} --value-stdin`
+    );
+    expect(container.textContent).not.toContain("plaintext-secret");
+  });
+
+  it("Should forward replace and delete actions", () => {
+    const onReplace = vi.fn();
+    const onReplaceValueChange = vi.fn();
+    const onRequestDelete = vi.fn();
+
+    render(
+      <VaultSecretSheet
+        onOpenChange={vi.fn()}
+        onReplace={onReplace}
+        onReplaceValueChange={onReplaceValueChange}
+        onRequestDelete={onRequestDelete}
+        open
+        replaceError={null}
+        replaceIsPending={false}
+        replaceIsValid
+        replaceValue="rotated"
+        secret={secret}
+      />
+    );
+
+    fireEvent.change(screen.getByTestId("vault-secret-sheet-replace-input"), {
+      target: { value: "next-value" },
+    });
+    expect(onReplaceValueChange).toHaveBeenCalledWith("next-value");
+
+    fireEvent.click(screen.getByTestId("vault-secret-sheet-replace-save"));
+    expect(onReplace).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("vault-secret-sheet-delete"));
+    expect(onRequestDelete).toHaveBeenCalledWith(secret);
   });
 });

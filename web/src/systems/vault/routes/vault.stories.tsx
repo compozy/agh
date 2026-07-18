@@ -32,6 +32,12 @@ export const Default: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+export const Cards: Story = {
+  args: {},
+  parameters: appRouteParameters("/vault?view=cards"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 export const Empty: Story = {
   args: {},
   parameters: {

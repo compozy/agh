@@ -2,10 +2,10 @@ import { AlertCircle } from "lucide-react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 
-import { Empty, Spinner } from "@agh/ui";
+import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
 
-import { useLoopEditor } from "../../hooks/use-loop-editor";
-import type { LoopDetail } from "../../types";
+import { useLoopEditor, type UseLoopEditorResult } from "../../hooks/use-loop-editor";
+import type { LoopDefinition, LoopDetail } from "../../types";
 import { LoopEditorCanvas } from "./loop-editor-canvas";
 import { LoopEditorContract } from "./loop-editor-contract";
 import { LoopEditorDslView } from "./loop-editor-dsl-view";
@@ -13,6 +13,7 @@ import { LoopEditorInspector } from "./loop-editor-inspector";
 import { LoopEditorPalette } from "./loop-editor-palette";
 import { LoopEditorStartSummary } from "./loop-editor-start-summary";
 import { LoopEditorToolbar } from "./loop-editor-toolbar";
+import { LoopEditorTopbarActions } from "./loop-editor-topbar-actions";
 import { LoopLinterDock } from "./loop-linter-dock";
 
 interface LoopEditorProps {
@@ -21,6 +22,11 @@ interface LoopEditorProps {
   /** Called after a successful publish with the updated loop (route → toast / navigate to run). */
   onPublished?: (loop: LoopDetail) => void;
 }
+
+type ReadyEditor = UseLoopEditorResult & {
+  loop: LoopDetail;
+  definition: LoopDefinition;
+};
 
 /**
  * The fork-and-edit visual editor (task 22): the `@xyflow/react` DAG canvas + node
@@ -60,7 +66,23 @@ export function LoopEditor({ workspaceId, name, onPublished }: LoopEditorProps) 
     );
   }
 
+  const readyEditor: ReadyEditor = {
+    ...editor,
+    loop: editor.loop,
+    definition: editor.definition,
+  };
+  return <LoopEditorReady editor={readyEditor} onPublished={onPublished} />;
+}
+
+function LoopEditorReady({
+  editor,
+  onPublished,
+}: {
+  editor: ReadyEditor;
+  onPublished?: (loop: LoopDetail) => void;
+}) {
   const definition = editor.definition;
+
   const handlePublish = async () => {
     const updated = await editor.publish();
     if (updated) {
@@ -69,24 +91,30 @@ export function LoopEditor({ workspaceId, name, onPublished }: LoopEditorProps) 
     }
   };
 
+  useTopbarSlot({
+    actions: (
+      <LoopEditorTopbarActions
+        version={editor.version}
+        isDirty={editor.isDirty}
+        positionsDirty={editor.positionsDirty}
+        busy={editor.busy}
+        publishDisabled={editor.publishDisabled}
+        onValidate={() => void editor.validate()}
+        onSaveDraft={() => void editor.savePositions()}
+        onPublish={() => void handlePublish()}
+      />
+    ),
+  });
+
   return (
     <ReactFlowProvider>
       <div className="flex min-h-0 flex-1 flex-col" data-testid="loop-editor">
         <LoopEditorToolbar
-          loopName={editor.loop.name}
-          version={editor.version}
           source={editor.loop.source}
-          isDirty={editor.isDirty}
-          positionsDirty={editor.positionsDirty}
           view={editor.view}
           onViewChange={editor.setView}
           lint={editor.lint}
-          busy={editor.busy}
-          publishDisabled={editor.publishDisabled}
           onAutoLayout={editor.autoLayout}
-          onValidate={() => void editor.validate()}
-          onSaveDraft={() => void editor.savePositions()}
-          onPublish={() => void handlePublish()}
         />
 
         <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)_344px]">

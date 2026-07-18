@@ -69,10 +69,21 @@ const meta: Meta<typeof VaultSecretsList> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Read-only rows shown on the vault page. */
+/** Interactive rows shown on the vault page. */
 export const Default: Story = {
   args: {
     secrets,
+    onSelect: fn(),
+    onDelete: fn(),
+  },
+};
+
+/** Cards view mirrors the OpenDesign listing toggle. */
+export const Cards: Story = {
+  args: {
+    secrets,
+    view: "cards",
+    onSelect: fn(),
   },
 };
 
@@ -80,6 +91,7 @@ export const Default: Story = {
 export const WithDeleteActions: Story = {
   args: {
     secrets,
+    onSelect: fn(),
     onDelete: fn(),
   },
 };

@@ -1,10 +1,19 @@
-import { Button, DescriptionCard, Eyebrow, PillGroup, Skeleton, type PillGroupItem } from "@agh/ui";
+import {
+  Button,
+  DescriptionCard,
+  Eyebrow,
+  Pill,
+  PillGroup,
+  Skeleton,
+  type PillGroupItem,
+} from "@agh/ui";
 
 import type { AgentInstructionsTabViewModel } from "../hooks/use-agent-instructions-tab";
 import type { AgentInstructionFile } from "../lib/agent-detail-search";
 import type { AgentPayload } from "../types";
 import { AgentAuthoredFileEditor } from "./agent-authored-file-editor";
 import { AgentHeartbeatOps } from "./agent-heartbeat-ops";
+import { AgentPanelBox } from "./agent-panel-box";
 
 export type { AgentInstructionsTabViewModel };
 
@@ -33,9 +42,9 @@ export function AgentInstructionsTab({
         <span className="inline-flex items-center gap-1.5">
           <Eyebrow>SOUL.md</Eyebrow>
           {page.soulMissing ? (
-            <span className="text-warning" data-testid="agent-file-soul-missing-badge">
+            <Pill size="sm" tone="warning" data-testid="agent-file-soul-missing-badge">
               missing
-            </span>
+            </Pill>
           ) : null}
         </span>
       ),
@@ -47,9 +56,9 @@ export function AgentInstructionsTab({
         <span className="inline-flex items-center gap-1.5">
           <Eyebrow>HEARTBEAT.md</Eyebrow>
           {page.heartbeatMissing ? (
-            <span className="text-warning" data-testid="agent-file-heartbeat-missing-badge">
+            <Pill size="sm" tone="warning" data-testid="agent-file-heartbeat-missing-badge">
               missing
-            </span>
+            </Pill>
           ) : null}
         </span>
       ),
@@ -58,34 +67,46 @@ export function AgentInstructionsTab({
   ];
 
   return (
-    <div className="flex flex-col gap-4" data-testid="agent-instructions-tab">
-      <PillGroup
-        aria-label="Authored files"
-        data-testid="agent-instructions-files"
-        items={fileItems}
-        onChange={onFileChange}
-        size="md"
-        value={file}
-      />
+    <div className="flex flex-col gap-3.5" data-testid="agent-instructions-tab">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <PillGroup
+          aria-label="Authored files"
+          data-testid="agent-instructions-files"
+          items={fileItems}
+          onChange={onFileChange}
+          size="md"
+          value={file}
+        />
+        <span className="min-w-0 flex-1" />
+        {file === "agent" ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={onEditAgentPrompt}
+            data-testid="agent-file-edit-prompt"
+          >
+            Edit ›
+          </Button>
+        ) : null}
+      </div>
 
       {file === "agent" ? (
-        <div className="flex flex-col gap-3" data-testid="agent-file-agent">
-          <div className="flex items-center justify-between gap-3">
-            <p className="font-mono text-badge tracking-mono text-muted">{page.promptWordCount}</p>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={onEditAgentPrompt}
-              data-testid="agent-file-edit-prompt"
-            >
-              Edit ›
-            </Button>
+        <AgentPanelBox data-testid="agent-file-agent">
+          <div
+            className="flex items-center gap-2.5 border-b border-line-soft px-4 py-2.5 text-small-body text-muted"
+            data-testid="agent-file-meta"
+          >
+            <span className="font-mono text-badge tracking-mono">{page.promptWordCount}</span>
+            <span aria-hidden="true" className="text-subtle">
+              ·
+            </span>
+            <span>Read-only here</span>
           </div>
-          <DescriptionCard data-testid="agent-file-prompt">
+          <DescriptionCard bare className="px-5 py-4" data-testid="agent-file-prompt">
             {agent.prompt || "No prompt."}
           </DescriptionCard>
-        </div>
+        </AgentPanelBox>
       ) : null}
 
       {file === "soul" ? (

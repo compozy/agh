@@ -1,18 +1,6 @@
 import { Plug } from "lucide-react";
 
-import {
-  Empty,
-  Eyebrow,
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-  Pill,
-  Section,
-  cn,
-} from "@agh/ui";
+import { Empty, Pill, Section, cn } from "@agh/ui";
 
 import type { AgentMCPServer, AgentPayload } from "../types";
 
@@ -46,28 +34,29 @@ export function AgentMcpServersPanel({
         description="This agent does not declare any MCP servers."
         data-testid="agent-mcp-empty"
         fill={false}
+        className="px-4 py-8"
       />
     ) : (
-      <ItemGroup className="gap-2" data-testid="agent-mcp-list">
+      <ul data-testid="agent-mcp-list">
         {mcpServers.map(server => {
           const transport = server.transport ?? "stdio";
           const commandOrUrl = server.url ?? server.command;
           const envKeys = envKeyNames(server);
           const secretKeys = secretKeyNames(server);
           return (
-            <Item
+            <li
               key={server.name}
-              role="listitem"
-              variant="outline"
-              size="sm"
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-t border-line-soft px-4 py-3.5 first:border-t-0"
               data-testid={`agent-mcp-row-${server.name}`}
             >
-              <ItemContent>
-                <ItemTitle>{server.name}</ItemTitle>
+              <div className="min-w-0">
+                <p className="truncate font-mono text-small-body font-medium tracking-mono text-fg-strong">
+                  {server.name}
+                </p>
                 {commandOrUrl ? (
-                  <ItemDescription className="truncate font-mono text-badge tracking-mono text-muted">
+                  <p className="mt-1 truncate font-mono text-badge tracking-mono text-muted">
                     {commandOrUrl}
-                  </ItemDescription>
+                  </p>
                 ) : null}
                 {envKeys.length > 0 || secretKeys.length > 0 ? (
                   <div
@@ -86,16 +75,14 @@ export function AgentMcpServersPanel({
                     ))}
                   </div>
                 ) : null}
-              </ItemContent>
-              <ItemActions>
-                <Eyebrow data-testid={`agent-mcp-transport-${server.name}`} className="text-muted">
-                  {transport.toUpperCase()}
-                </Eyebrow>
-              </ItemActions>
-            </Item>
+              </div>
+              <Pill mono size="sm" tone="info" data-testid={`agent-mcp-transport-${server.name}`}>
+                {transport}
+              </Pill>
+            </li>
           );
         })}
-      </ItemGroup>
+      </ul>
     );
 
   if (bare) {

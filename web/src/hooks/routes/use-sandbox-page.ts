@@ -1,6 +1,16 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+
+import type { ListingViewMode } from "@agh/ui";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
+import {
+  parseSandboxBackendFilter,
+  parseSandboxPersistenceFilter,
+  type SandboxBackendFilter,
+  type SandboxPersistenceFilter,
+} from "@/systems/sandbox";
 import {
   SettingsApiError,
   useDeleteSettingsSandbox,
@@ -21,6 +31,13 @@ export type SandboxDraft = {
   runtime_root: string;
   preserved: Omit<Profile, "backend" | "sync_mode" | "persistence" | "runtime_root">;
 };
+
+export interface SandboxRouteSearch {
+  q?: string;
+  backend?: string;
+  persistence?: string;
+  view?: ListingViewMode;
+}
 
 function emptyDraft(): SandboxDraft {
   return {
@@ -59,6 +76,35 @@ function errorMessage(error: unknown): string | null {
   return null;
 }
 
+function matchesQuery(entry: SettingsSandboxEntry, query: string): boolean {
+  if (!query) return true;
+  const haystack = [
+    entry.name,
+    entry.profile.backend,
+    entry.profile.sync_mode ?? "",
+    entry.profile.persistence ?? "",
+    entry.profile.runtime_root ?? "",
+    entry.source_metadata.effective_source.kind,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query.toLowerCase());
+}
+
+function filterSandboxes(
+  sandboxes: SettingsSandboxEntry[],
+  query: string,
+  backend: SandboxBackendFilter,
+  persistence: SandboxPersistenceFilter
+): SettingsSandboxEntry[] {
+  return sandboxes.filter(entry => {
+    if (!matchesQuery(entry, query)) return false;
+    if (backend !== "all" && entry.profile.backend !== backend) return false;
+    if (persistence !== "all" && (entry.profile.persistence ?? "") !== persistence) return false;
+    return true;
+  });
+}
+
 export type SandboxEditorState =
   | { mode: "closed" }
   | { mode: "create"; draft: SandboxDraft }
@@ -80,9 +126,14 @@ export type SandboxLastAction =
       usageCount: number;
     };
 
-type LastAction = SandboxLastAction | null;
+export function useSandboxPage(search: SandboxRouteSearch = {}) {
+  const navigate = useNavigate({ from: "/sandbox" });
+  const queryText = search.q ?? "";
+  const backend: SandboxBackendFilter = parseSandboxBackendFilter(search.backend) ?? "all";
+  const persistence: SandboxPersistenceFilter =
+    parseSandboxPersistenceFilter(search.persistence) ?? "all";
+  const view: ListingViewMode = search.view ?? "rows";
 
-export function useSandboxPage() {
   const query = useSettingsSandboxes();
   const putMutation = usePutSettingsSandbox();
   const deleteMutation = useDeleteSettingsSandbox();
@@ -90,23 +141,80 @@ export function useSandboxPage() {
 
   const [editor, setEditor] = useState<SandboxEditorState>({ mode: "closed" });
   const [deleteTarget, setDeleteTarget] = useState<DeleteState>({ mode: "closed" });
-  const [lastAction, setLastAction] = useState<LastAction>(null);
+  const [lastAction, setLastAction] = useState<SandboxLastAction | null>(null);
+  const [selectedName, setSelectedName] = useState<string | null>(null);
 
   const envelope = query.data ?? null;
   const sandboxes = envelope?.sandboxes ?? [];
+  const filtered = filterSandboxes(sandboxes, queryText, backend, persistence);
+  const selectedEntry = selectedName
+    ? (sandboxes.find(entry => entry.name === selectedName) ?? null)
+    : null;
 
   const counts = {
     total: sandboxes.length,
     totalWorkspaces: sandboxes.reduce((acc, entry) => acc + entry.workspace_usage_count, 0),
   };
 
+  const hasActiveFilters =
+    queryText.trim().length > 0 || backend !== "all" || persistence !== "all";
+
+  const updateSearch = (updater: (current: SandboxRouteSearch) => SandboxRouteSearch) => {
+    void navigate({
+      search: current => updater((current as SandboxRouteSearch | undefined) ?? {}),
+      to: "/sandbox",
+    });
+  };
+
+  const setQuery = (next: string) => {
+    updateSearch(current => ({
+      ...current,
+      q: normalizeListingSearchValue(next),
+    }));
+  };
+
+  const setBackend = (next: SandboxBackendFilter) => {
+    updateSearch(current => ({
+      ...current,
+      backend: next === "all" ? undefined : next,
+    }));
+  };
+
+  const setPersistence = (next: SandboxPersistenceFilter) => {
+    updateSearch(current => ({
+      ...current,
+      persistence: next === "all" ? undefined : next,
+    }));
+  };
+
+  const setView = (nextView: ListingViewMode) => {
+    updateSearch(current => ({
+      ...current,
+      view: nextView === "rows" ? undefined : nextView,
+    }));
+  };
+
+  const clearFilters = () => {
+    updateSearch(() => ({}));
+  };
+
+  const openInspect = (entry: SettingsSandboxEntry) => {
+    setSelectedName(entry.name);
+  };
+
+  const closeInspect = () => {
+    setSelectedName(null);
+  };
+
   const openCreate = () => {
     putMutation.reset();
+    setSelectedName(null);
     setEditor({ mode: "create", draft: emptyDraft() });
   };
 
   const openEdit = (entry: SettingsSandboxEntry) => {
     putMutation.reset();
+    setSelectedName(null);
     setEditor({ mode: "edit", name: entry.name, draft: toDraft(entry), entry });
   };
 
@@ -148,6 +256,7 @@ export function useSandboxPage() {
 
   const openDelete = (entry: SettingsSandboxEntry) => {
     deleteMutation.reset();
+    setSelectedName(null);
     setDeleteTarget({ mode: "open", entry });
   };
 
@@ -174,12 +283,31 @@ export function useSandboxPage() {
 
   const dismissLastAction = () => setLastAction(null);
 
+  const refetch = () => query.refetch();
+
   return {
     isLoading: query.isLoading,
+    isRefetching: query.isFetching && !query.isLoading,
+    queryError: errorMessage(query.error),
     error: query.error,
     envelope,
     sandboxes,
+    filtered,
     counts,
+    query: queryText,
+    backend,
+    persistence,
+    view,
+    hasActiveFilters,
+    setQuery,
+    setBackend,
+    setPersistence,
+    setView,
+    clearFilters,
+    selectedEntry,
+    openInspect,
+    closeInspect,
+    refetch,
     restart: page.restart,
     editor,
     editorIsValid,
@@ -201,3 +329,5 @@ export function useSandboxPage() {
     dismissLastAction,
   };
 }
+
+export { parseSandboxBackendFilter, parseSandboxPersistenceFilter };

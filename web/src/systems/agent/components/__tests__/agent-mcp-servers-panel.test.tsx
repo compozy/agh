@@ -34,7 +34,7 @@ describe("AgentMcpServersPanel", () => {
     expect(screen.getByText("GITHUB_TOKEN")).toBeInTheDocument();
     expect(screen.queryByText("https://api.github.com")).not.toBeInTheDocument();
     expect(screen.queryByText("ghp_should_never_render")).not.toBeInTheDocument();
-    expect(screen.getByTestId("agent-mcp-transport-github")).toHaveTextContent("STDIO");
+    expect(screen.getByTestId("agent-mcp-transport-github")).toHaveTextContent("stdio");
   });
 
   it("Should render empty state when no MCP servers are declared", () => {

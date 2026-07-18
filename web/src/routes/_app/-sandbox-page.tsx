@@ -1,300 +1,202 @@
-import { AlertCircle, Boxes, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Boxes, Info, Plus, RefreshCw } from "lucide-react";
+
+import {
+  BlockLoading,
+  Button,
+  Empty,
+  Eyebrow,
+  Input,
+  ListingPage,
+  ListingToolbar,
+  NativeSelect,
+  NativeSelectOption,
+  PageHead,
+  RestartBanner,
+  useTopbarSlot,
+} from "@agh/ui";
 
 import {
   useSandboxPage,
   type SandboxDraft,
   type SandboxEditorState,
+  type SandboxRouteSearch,
 } from "@/hooks/routes/use-sandbox-page";
+import { SandboxListFilters, SandboxProfilesList, SandboxProfileSheet } from "@/systems/sandbox";
 import {
   restartBannerPropsFor,
   SettingsEditorDialog,
   SettingsFieldRow,
   SettingsSourceBadge,
-  type SettingsSandboxEntry,
 } from "@/systems/settings";
-import {
-  Button,
-  Empty,
-  Eyebrow,
-  Input,
-  NativeSelect,
-  NativeSelectOption,
-  PageHead,
-  PageShell,
-  Pill,
-  RestartBanner,
-  Section,
-  Spinner,
-  StatusLine,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@agh/ui";
 import { SandboxDeleteDialog, SandboxLastActionAlert } from "./-sandbox-dialogs";
 
-export function SandboxPage() {
-  const page = useSandboxPage();
+export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
+  const page = useSandboxPage(search);
+
+  useTopbarSlot({
+    actions: (
+      <div className="flex items-center gap-2" data-testid="sandbox-topbar-actions">
+        <Button
+          data-testid="sandbox-page-refresh"
+          disabled={page.isRefetching}
+          onClick={() => void page.refetch()}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
+          Refresh
+        </Button>
+        <Button data-testid="sandbox-page-create" onClick={page.openCreate} size="sm" type="button">
+          <Plus className="size-3" />
+          New sandbox profile
+        </Button>
+      </div>
+    ),
+  });
 
   if (page.isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center" data-testid="sandbox-page-loading">
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
-  }
-
-  if (page.error || !page.envelope) {
-    return (
-      <div className="flex flex-1 items-center justify-center" data-testid="sandbox-page-error">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <AlertCircle className="size-6 text-danger" />
-          <p className="text-sm text-subtle">{page.error?.message ?? "Failed to load sandboxes"}</p>
-        </div>
-      </div>
-    );
+    return <BlockLoading className="flex-1" data-testid="sandbox-page-loading" />;
   }
 
   const bannerProps = restartBannerPropsFor("sandbox", page.restart);
-  const statusLine = (
-    <StatusLine
-      data-testid="sandbox-page-status-line"
-      status="connected"
-      items={[
-        {
-          key: "total",
-          value: <span data-testid="sandbox-page-total">{page.counts.total} profiles</span>,
-          tone: "neutral",
-        },
-        {
-          key: "workspaces",
-          value: (
-            <span data-testid="sandbox-page-workspaces">
-              {page.counts.totalWorkspaces} workspace references
-            </span>
-          ),
-          tone: "neutral",
-        },
-      ]}
-    />
+  const banner = (
+    <>
+      {bannerProps ? <RestartBanner {...bannerProps} className="px-9" /> : null}
+      {page.lastAction ? (
+        <div className="px-9 pt-4">
+          <SandboxLastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
+        </div>
+      ) : null}
+    </>
   );
 
   return (
-    <PageShell
-      density="route"
-      data-testid="sandbox-shell"
-      banner={bannerProps ? <RestartBanner {...bannerProps} className="px-9" /> : undefined}
-      head={
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <PageHead
-            count={page.counts.total}
-            data-testid="sandbox-page-head"
-            icon={Boxes}
-            title="Sandbox"
-            variant="compact"
-          />
-          {statusLine}
-        </div>
-      }
-    >
-      {page.lastAction ? (
-        <SandboxLastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
-      ) : null}
-
-      <Section
-        data-testid="sandbox-page-header-row"
-        label="Profiles"
-        note={`${page.counts.total} defined · used across ${page.counts.totalWorkspaces} workspaces`}
-        right={
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={page.openCreate}
-            data-testid="sandbox-page-create"
-          >
-            <Plus className="size-3" />
-            New sandbox profile
-          </Button>
+    <ListingPage banner={banner} data-testid="sandbox-shell">
+      <PageHead
+        count={page.counts.total}
+        countTestId="sandbox-page-count"
+        data-testid="sandbox-page-head"
+        icon={Boxes}
+        meta={
+          <>
+            <span>Execution boundary profiles that workspaces and sessions select by name.</span>
+            <PageHead.MetaDot />
+            <span data-testid="sandbox-page-total">
+              {page.counts.total} {page.counts.total === 1 ? "profile" : "profiles"}
+            </span>
+            <PageHead.MetaDot />
+            <span data-testid="sandbox-page-workspaces">
+              {page.counts.totalWorkspaces} workspace references
+            </span>
+          </>
         }
+        title="Sandbox"
       />
 
-      {page.sandboxes.length === 0 ? (
+      <ListingToolbar>
+        <ListingToolbar.Leading>
+          <ListingToolbar.Search
+            aria-label="Search profiles"
+            data-testid="sandbox-page-search"
+            onChange={page.setQuery}
+            placeholder="Search profiles"
+            value={page.query}
+          />
+          <ListingToolbar.Filters>
+            <SandboxListFilters
+              backend={page.backend}
+              onBackendChange={page.setBackend}
+              onPersistenceChange={page.setPersistence}
+              persistence={page.persistence}
+            />
+          </ListingToolbar.Filters>
+        </ListingToolbar.Leading>
+        <ListingToolbar.Trailing>
+          <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
+        </ListingToolbar.Trailing>
+      </ListingToolbar>
+
+      <p
+        className="mb-3 flex items-center gap-2 text-xs text-subtle"
+        data-testid="sandbox-page-sec-note"
+      >
+        <Info aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
+        <span>
+          Profiles are global. When <span className="font-mono text-[11px]">defaults.sandbox</span>{" "}
+          is unset, sessions fall back to a synthetic local profile.
+        </span>
+      </p>
+
+      {page.queryError && page.sandboxes.length === 0 ? (
         <Empty
-          icon={Boxes}
-          title="No sandbox profiles defined"
-          description='Use "New sandbox profile" to create an overlay profile referenceable by workspaces.'
-          data-testid="sandbox-page-empty"
+          action={
+            <Button
+              data-testid="sandbox-page-error-retry"
+              disabled={page.isRefetching}
+              onClick={() => void page.refetch()}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
+              Retry
+            </Button>
+          }
+          data-testid="sandbox-page-error"
+          description={
+            page.queryError ?? "The daemon stopped responding before it returned the profile list."
+          }
+          icon={AlertCircle}
+          title="Failed to load sandboxes"
         />
       ) : (
-        <SandboxTable
-          sandboxes={page.sandboxes}
-          onEdit={page.openEdit}
+        <SandboxProfilesList
+          data-testid="sandbox-page-list"
+          error={page.queryError ? new Error(page.queryError) : null}
+          hasActiveFilters={page.hasActiveFilters}
+          onClearFilters={page.clearFilters}
+          onCreate={page.openCreate}
           onDelete={page.openDelete}
+          onEdit={page.openEdit}
+          onSelect={page.openInspect}
+          profiles={page.filtered}
+          selectedName={page.selectedEntry?.name ?? null}
+          view={page.view}
         />
       )}
 
+      <SandboxProfileSheet
+        entry={page.selectedEntry}
+        onOpenChange={open => {
+          if (!open) page.closeInspect();
+        }}
+        onRequestDelete={page.openDelete}
+        onRequestEdit={page.openEdit}
+        open={page.selectedEntry !== null}
+      />
+
       <SandboxEditor
         editor={page.editor}
-        isValid={page.editorIsValid}
-        isSaving={page.editorIsSaving}
         error={page.editorError}
-        warnings={page.editorWarnings}
         existingNames={page.sandboxes.map(entry => entry.name)}
+        isSaving={page.editorIsSaving}
+        isValid={page.editorIsValid}
         onChange={page.updateDraft}
         onClose={page.closeEditor}
         onSave={page.saveEditor}
+        warnings={page.editorWarnings}
       />
 
       <SandboxDeleteDialog
-        target={page.deleteTarget.mode === "open" ? page.deleteTarget.entry : null}
         error={page.deleteError}
         isDeleting={page.deleteIsPending}
         onClose={page.closeDelete}
         onConfirm={page.confirmDelete}
+        target={page.deleteTarget.mode === "open" ? page.deleteTarget.entry : null}
       />
-    </PageShell>
+    </ListingPage>
   );
-}
-
-function SandboxTable({
-  sandboxes,
-  onEdit,
-  onDelete,
-}: {
-  sandboxes: SettingsSandboxEntry[];
-  onEdit: (entry: SettingsSandboxEntry) => void;
-  onDelete: (entry: SettingsSandboxEntry) => void;
-}) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-line" data-testid="sandbox-page-list">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-elevated">
-            <TableHead className="eyebrow text-muted">Name</TableHead>
-            <TableHead className="eyebrow text-muted">Backend</TableHead>
-            <TableHead className="eyebrow text-muted">Profile</TableHead>
-            <TableHead className="eyebrow text-muted">Source</TableHead>
-            <TableHead className="eyebrow text-right text-muted">Usage</TableHead>
-            <TableHead className="eyebrow w-[1%] text-right text-muted">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sandboxes.map(entry => (
-            <SandboxRow key={entry.name} entry={entry} onEdit={onEdit} onDelete={onDelete} />
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-function SandboxRow({
-  entry,
-  onEdit,
-  onDelete,
-}: {
-  entry: SettingsSandboxEntry;
-  onEdit: (entry: SettingsSandboxEntry) => void;
-  onDelete: (entry: SettingsSandboxEntry) => void;
-}) {
-  const profile = entry.profile;
-  const source = entry.source_metadata.effective_source;
-  const shadowed = entry.source_metadata.shadowed_sources ?? [];
-  const deletable = source.kind !== "builtin-provider";
-
-  return (
-    <TableRow data-testid={`sandbox-page-card-${entry.name}`}>
-      <TableCell>
-        <span className="font-mono text-sm text-fg">{entry.name}</span>
-      </TableCell>
-      <TableCell>
-        <div className="flex flex-col gap-1">
-          <Pill mono tone={backendTone(profile.backend)}>
-            {profile.backend}
-          </Pill>
-          <span className="text-xs text-subtle">{backendLabel(profile.backend)}</span>
-        </div>
-      </TableCell>
-      <TableCell className="text-xs">
-        <div
-          className="flex flex-col gap-0.5"
-          data-testid={`sandbox-page-card-${entry.name}-profile`}
-        >
-          <ProfileLine label="sync_mode" value={profile.sync_mode ?? "--"} />
-          <ProfileLine label="persistence" value={profile.persistence ?? "--"} />
-          <ProfileLine label="runtime_root" value={profile.runtime_root ?? "--"} />
-        </div>
-      </TableCell>
-      <TableCell>
-        <SettingsSourceBadge
-          data-testid={`sandbox-page-card-${entry.name}-source`}
-          source={source}
-          shadowed={shadowed}
-        />
-      </TableCell>
-      <TableCell
-        className="text-right font-mono text-xs text-muted"
-        data-testid={`sandbox-page-card-${entry.name}-usage`}
-      >
-        {entry.workspace_usage_count}{" "}
-        {entry.workspace_usage_count === 1 ? "workspace" : "workspaces"}
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onEdit(entry)}
-            aria-label={`Edit ${entry.name}`}
-            data-testid={`sandbox-page-card-${entry.name}-edit`}
-          >
-            <Pencil className="size-3" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onDelete(entry)}
-            disabled={!deletable}
-            aria-label={`Delete ${entry.name}`}
-            title={
-              deletable
-                ? undefined
-                : "Builtin sandboxes cannot be deleted -- override them instead."
-            }
-            data-testid={`sandbox-page-card-${entry.name}-delete`}
-          >
-            <Trash2 className="size-3" />
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
-  );
-}
-function ProfileLine({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="flex items-center gap-2 whitespace-nowrap">
-      <Eyebrow className="text-muted">{label}</Eyebrow>
-      <span className="font-mono text-fg">{value}</span>
-    </span>
-  );
-}
-
-function backendLabel(backend: string): string {
-  const map: Record<string, string> = {
-    local: "host process · no sandbox",
-    daytona: "cloud workspace · Daytona",
-  };
-  return map[backend] ?? `custom backend · ${backend}`;
-}
-function backendTone(backend: string): "success" | "info" | "neutral" {
-  if (backend === "local") return "success";
-  if (backend === "daytona") return "info";
-  return "neutral";
 }
 
 interface SandboxEditorProps {
@@ -381,7 +283,7 @@ function SandboxEditor({
           description={
             isCreate
               ? "Lower-case identifier referenced by workspaces."
-              : "Name is immutable -- create a new sandbox to rename."
+              : "Name is immutable — create a new sandbox to rename."
           }
           hint={isCreate ? "REQUIRED" : "LOCKED"}
           control={
@@ -488,7 +390,7 @@ function PreservedFieldsNotice({ preserved }: { preserved: string[] }) {
     >
       <Eyebrow className="text-muted">preserved on save</Eyebrow>
       <span className="ml-2">
-        {preserved.join(", ")} -- edited outside this dialog and included as-is in the PUT replace.
+        {preserved.join(", ")} — edited outside this dialog and included as-is in the PUT replace.
       </span>
     </p>
   );

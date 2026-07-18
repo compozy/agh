@@ -48,10 +48,10 @@
   svg{display:block}
   .hide{display:none!important}
   code,kbd,pre,.mono,.count-chip,.pill[data-mono="true"],.listing-row__name b:not(.sans),.listing-row__meta .k,
-  .listing-row__stat-v,.kv__v code,.tile__v .mono,.sheet__ref{
+  .listing-row__stat-v,.listing-card__title b:not(.sans),.kv__v code,.tile__v .mono,.sheet__ref{
     font-family:var(--font-mono);-webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal;font-variant-numeric:tabular-nums}
   :is(.btn,.pill-group__item,.filter-menu__item,.filter-chip__x,.copybtn,
-    .sheet__close,.head-close,.breadcrumb__link,.listing-row,.radio-card):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+    .sheet__close,.head-close,.breadcrumb__link,.listing-row,.listing-card,.radio-card):focus-visible{outline:none;box-shadow:var(--focus-ring)}
 
   .shell{height:100vh}
   .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
@@ -105,8 +105,10 @@
   .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle);max-width:78ch}
   .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
 
+  /* listing toolbar (design-system.html §09) */
   .listing-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-soft)}
   .listing-toolbar__leading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1;min-width:0}
+  .listing-toolbar__trailing{display:flex;align-items:center;gap:10px;margin-left:auto;flex:none}
   .search{display:flex;align-items:center;gap:8px;height:26px;min-width:220px;width:220px;padding:0 8px;border:1px solid var(--line);
     border-radius:var(--radius);background:var(--canvas-soft);color:var(--fg);font-size:13px;flex:none}
   .search svg{width:12px;height:12px;flex:none;color:var(--subtle)}
@@ -134,9 +136,19 @@
   .filter-chip__x:hover{color:var(--fg-strong);background:var(--row-hover)}
   .filter-chip__x svg{width:12px;height:12px}
 
+  /* PillGroup — Rows | Cards (design-system.html §09) */
+  .pill-group{display:inline-flex;align-items:center;gap:1px;padding:2px;background:var(--canvas-soft);border-radius:var(--radius-md)}
+  .pill-group__item{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;color:var(--subtle);background:transparent;border:0;cursor:pointer;
+    transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .pill-group__item svg{width:12px;height:12px}
+  .pill-group__item:hover{color:var(--muted)}
+  .pill-group__item[aria-pressed="true"]{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+
   .sec-note{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;color:var(--subtle)}
   .sec-note svg{width:13px;height:13px;color:var(--faint);flex:none}
 
+  /* rows (design-system.html §10) */
   .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
   .listing-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:12px 16px;width:100%;
     border:0;border-bottom:1px solid var(--line-soft);background:transparent;text-align:left;cursor:pointer;
@@ -160,6 +172,25 @@
   .row-actions .btn{height:26px;width:26px;padding:0;justify-content:center;color:var(--muted)}
   .row-actions .btn:hover{color:var(--fg-strong);background:var(--btn-hover);border-color:transparent}
   .row-actions .btn[data-danger]:hover{color:var(--danger);background:var(--danger-tint)}
+
+  /* cards (design-system.html §11) */
+  .listing-card-grid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media (min-width:720px){.listing-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (min-width:1100px){.listing-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .listing-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:var(--radius-lg);border:0;text-align:left;
+    background:var(--canvas-soft);min-width:0;cursor:pointer;transition:background var(--dur) var(--ease);color:inherit;font-size:inherit;letter-spacing:inherit}
+  .listing-card:hover{background:var(--elevated)}
+  .listing-card__head{display:flex;align-items:flex-start;gap:10px;min-width:0;width:100%}
+  .listing-card__icon{width:24px;height:24px;border-radius:var(--radius);background:var(--surface-glaze);color:var(--muted);display:grid;place-items:center;flex:none}
+  .listing-card__icon svg{width:13px;height:13px}
+  .listing-card__title{min-width:0;flex:1}
+  .listing-card__title b{display:block;font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong);letter-spacing:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing-card__eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle);margin-top:4px}
+  .listing-card__eyebrow .mono-slug{font-family:var(--font-mono);font-size:10.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--faint)}
+  .listing-card__desc{font-size:13px;line-height:1.5;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .listing-card__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--line);margin-top:auto;width:100%}
+  .listing-card__foot-meta{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
 
   .pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:fit-content;flex:none;
     height:19px;padding:0 8px;border-radius:var(--radius-xs);white-space:nowrap;line-height:1;
@@ -358,6 +389,18 @@
             </label>
             <div class="filters" id="filters-root" data-od-id="sandbox-filters"></div>
           </div>
+          <div class="listing-toolbar__trailing">
+            <div class="pill-group" role="group" aria-label="View mode" data-od-id="sandbox-view-toggle" id="view-toggle">
+              <button type="button" class="pill-group__item" data-view="rows" aria-pressed="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Rows
+              </button>
+              <button type="button" class="pill-group__item" data-view="cards" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Cards
+              </button>
+            </div>
+          </div>
         </div>
 
         <p class="sec-note" data-od-id="sandbox-sec-note">
@@ -533,6 +576,7 @@
     filters: [],
     menuOpen: false,
     submenuField: null,
+    view: "rows",         /* rows | cards — design-system.html PillGroup */
     pageState: "ready",   /* ready | loading | empty | error */
     selected: null,
     editing: null
@@ -687,6 +731,28 @@
     '</button>';
   }
 
+  function cardMarkup(p) {
+    var defaultPill = p.name === DEFAULT_PROFILE
+      ? '<span class="pill">default</span>' : "";
+    return '<button type="button" class="listing-card" data-open="' + esc(p.name) + '" data-od-id="sandbox-card-' + esc(p.name) + '">' +
+      '<span class="listing-card__head">' +
+        '<span class="listing-card__icon" aria-hidden="true">' + BOX_ICON + '</span>' +
+        '<span class="listing-card__title"><b>' + esc(p.name) + '</b>' +
+        '<span class="listing-card__eyebrow">' + esc(p.backend) +
+          ' · <span class="mono-slug">' + esc(effPersistence(p)) + '</span>' +
+          ' · ' + esc(usageLabel(p)) + '</span></span>' +
+      '</span>' +
+      '<p class="listing-card__desc">' + esc(backendLabel(p)) + '</p>' +
+      '<span class="listing-card__foot">' +
+        '<span class="listing-card__foot-meta">' +
+          '<span class="pill" data-mono="true" data-tone="' + backendTone(p) + '">' + esc(p.backend) + '</span>' +
+          defaultPill +
+        '</span>' +
+        '<span class="btn btn--ghost btn--sm" data-edit="' + esc(p.name) + '" role="button" tabindex="0" aria-label="Edit ' + esc(p.name) + '">' + PENCIL_ICON + ' Edit</span>' +
+      '</span>' +
+    '</button>';
+  }
+
   function skeletonMarkup() {
     var rows = "";
     for (var i = 0; i < 4; i++) {
@@ -725,8 +791,18 @@
     if (state.pageState === "empty" || !PROFILES.length) { root.innerHTML = emptyMarkup("zero"); bindListEvents(root); return; }
     var items = filtered();
     if (!items.length) { root.innerHTML = emptyMarkup("nomatch"); bindListEvents(root); return; }
-    root.innerHTML = '<div class="list">' + items.map(rowMarkup).join("") + '</div>';
+    if (state.view === "cards") {
+      root.innerHTML = '<div class="listing-card-grid">' + items.map(cardMarkup).join("") + '</div>';
+    } else {
+      root.innerHTML = '<div class="list">' + items.map(rowMarkup).join("") + '</div>';
+    }
     bindListEvents(root);
+  }
+
+  function syncViewToggle() {
+    document.querySelectorAll("#view-toggle .pill-group__item").forEach(function (btn) {
+      btn.setAttribute("aria-pressed", btn.getAttribute("data-view") === state.view ? "true" : "false");
+    });
   }
 
   function bindAction(el, fn) {
@@ -767,7 +843,7 @@
     });
   }
 
-  function renderAll() { renderFilters(); renderList(); }
+  function renderAll() { syncViewToggle(); renderFilters(); renderList(); }
 
   /* ── sheet ── */
   var sheetScrim = document.getElementById("sheet-scrim");
@@ -1012,6 +1088,12 @@
   });
   document.addEventListener("click", function () {
     if (state.menuOpen) { state.menuOpen = false; state.submenuField = null; renderFilters(); }
+  });
+  document.querySelectorAll("#view-toggle .pill-group__item").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      state.view = btn.getAttribute("data-view");
+      renderAll();
+    });
   });
 
   parseParams();

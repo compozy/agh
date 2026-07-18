@@ -47,7 +47,7 @@
   ::selection{background:var(--accent-tint);color:var(--fg-strong)}
   svg{display:block}
   .hide{display:none!important}
-  code,kbd,pre,.mono,.count-chip,.catalog-card__meta .mono-slug,.pill[data-mono="true"],.tabs__n,.toast{
+  code,kbd,pre,.mono,.count-chip,.catalog-card__meta .mono-slug,.pill[data-mono="true"],.pill-group__n,.toast{
     -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
   :is(.btn,.pill-group__item,.route-nav__link,.breadcrumb__link,.head-close,.switch,.menu button):focus-visible{outline:none;box-shadow:var(--focus-ring)}
   a.catalog-card:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
@@ -260,16 +260,21 @@
 <div class="shell">
   <div class="main">
     <header class="topbar" data-od-id="mkt-topbar">
-      <div class="topbar__title">
-        <span class="topbar__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-1.5 11.5a2 2 0 0 1-2 1.5H6.5a2 2 0 0 1-2-1.5L3 9Z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg></span>
-        <h1 class="topbar__h1">Marketplace</h1>
+      <div class="topbar__context">
+        <nav class="breadcrumb" aria-label="Breadcrumb" data-od-id="mkt-breadcrumb">
+          <ol class="breadcrumb__list">
+            <li class="breadcrumb__item"><a class="breadcrumb__link breadcrumb__home" href="../dashboard/dashboard.html" aria-label="Dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a></li>
+            <li class="breadcrumb__separator" role="presentation" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></li>
+            <li class="breadcrumb__item"><span class="breadcrumb__page" aria-current="page">Marketplace</span></li>
+          </ol>
+        </nav>
       </div>
-      <div class="topbar__tabs" data-od-id="mkt-kind-nav">
-        <nav class="pill-group" aria-label="Marketplace kinds" id="kind-nav">
-          <button type="button" class="pill-group__item" data-kind="skills" aria-current="page">Skills</button>
-          <button type="button" class="pill-group__item" data-kind="mcps">MCPs</button>
-          <button type="button" class="pill-group__item" data-kind="extensions">Extensions</button>
-          <button type="button" class="pill-group__item" data-kind="bundles">Bundles</button>
+      <div class="topbar__route-nav" data-od-id="mkt-kind-nav">
+        <nav class="route-nav" aria-label="Marketplace kinds" id="kind-nav">
+          <button type="button" class="route-nav__link" data-kind="skills" aria-current="page">Skills</button>
+          <button type="button" class="route-nav__link" data-kind="mcps">MCPs</button>
+          <button type="button" class="route-nav__link" data-kind="extensions">Extensions</button>
+          <button type="button" class="route-nav__link" data-kind="bundles">Bundles</button>
         </nav>
       </div>
       <div class="topbar__trailing">
@@ -278,22 +283,33 @@
     </header>
     <div class="scroll">
       <div class="page">
-        <div class="head" data-od-id="mkt-head">
+        <header class="head" data-od-id="mkt-head">
+          <span class="head__icon" id="kind-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
           <div class="head__main">
-            <div class="head__titlerow"><h1 class="head__title" id="kind-title">Skills</h1><span class="count-chip" id="kind-count">0</span></div>
+            <div class="head__titlerow"><h1 class="head__title" id="kind-title" tabindex="-1">Skills</h1><span class="count-chip" id="kind-count">0</span></div>
             <div class="head__meta" id="head-meta"></div>
           </div>
-          <div class="head__trailing">
+        </header>
+        <div class="listing-toolbar" data-od-id="mkt-toolbar">
+          <div class="listing-toolbar__leading">
             <label class="search" data-od-id="mkt-search">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
               <input id="search-input" type="search" placeholder="Search skills" autocomplete="off" spellcheck="false" />
               <span class="kbd">/</span>
             </label>
           </div>
-        </div>
-        <div class="tabs" role="tablist" aria-label="Marketplace or installed" data-od-id="mkt-tabs">
-          <button type="button" class="tabs__item" role="tab" id="tab-market" aria-selected="true" data-tab="market">Marketplace</button>
-          <button type="button" class="tabs__item" role="tab" id="tab-installed" aria-selected="false" data-tab="installed">Installed <span class="tabs__n" id="installed-n">0</span></button>
+          <div class="listing-toolbar__trailing">
+            <div class="pill-group" role="group" aria-label="Catalog scope" id="scope-toggle" data-od-id="mkt-scope-toggle">
+              <button type="button" class="pill-group__item" id="tab-installed" data-tab="installed" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>
+                Installed <span class="pill-group__n" id="installed-n">0</span>
+              </button>
+              <button type="button" class="pill-group__item" id="tab-market" data-tab="market" aria-pressed="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9h18l-1.5 11.5a2 2 0 0 1-2 1.5H6.5a2 2 0 0 1-2-1.5L3 9Z"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/></svg>
+                Marketplace
+              </button>
+            </div>
+          </div>
         </div>
         <div id="route-error" class="hide" data-od-id="mkt-route-error"></div>
         <div id="grid-empty" class="hide" data-od-id="mkt-empty"></div>
@@ -581,11 +597,12 @@
     document.querySelectorAll("#kind-nav [data-kind]").forEach(function(b){
       if(b.getAttribute("data-kind")===kind) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
     });
+    document.getElementById("kind-icon").innerHTML=ICONS[kind];
     document.getElementById("kind-title").textContent=K.label;
     document.getElementById("kind-count").textContent=String(items().length);
     document.getElementById("installed-n").textContent=String(installed().length);
-    document.getElementById("tab-market").setAttribute("aria-selected", tab==="market"?"true":"false");
-    document.getElementById("tab-installed").setAttribute("aria-selected", tab==="installed"?"true":"false");
+    document.getElementById("tab-market").setAttribute("aria-pressed", tab==="market"?"true":"false");
+    document.getElementById("tab-installed").setAttribute("aria-pressed", tab==="installed"?"true":"false");
     input.placeholder=K.ph;
     var upd=updates().length;
     var meta='<span><span class="mono">'+items().length+'</span> in the marketplace</span><span class="dotsep"></span><span><span class="mono">'+installed().length+'</span> '+(kind==="bundles"?"active":"installed")+'</span>';
@@ -872,8 +889,11 @@
     q=""; input.value="";
     render();
   });
-  document.querySelectorAll(".tabs [data-tab]").forEach(function(b){
-    b.addEventListener("click", function(){ tab=b.getAttribute("data-tab"); render(); });
+  document.getElementById("scope-toggle").addEventListener("click", function(e){
+    var b=e.target.closest("[data-tab]");
+    if(!b) return;
+    tab=b.getAttribute("data-tab");
+    render();
   });
   document.addEventListener("click", function(e){
     if(menuEl && !menuEl.contains(e.target) && !e.target.closest('[data-act="more"]')) closeMenu();

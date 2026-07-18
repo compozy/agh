@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch } from "@/test/msw-fetch";
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import { LoopEditor } from "../editor/loop-editor";
 import type { LoopDetail } from "../../types";
 import { handlers } from "../../mocks";
@@ -24,9 +24,11 @@ function renderEditor(
   );
   const onPublished = vi.fn<(loop: LoopDetail) => void>();
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client: queryClient }, children);
-  render(<LoopEditor workspaceId={WS} name={name} onPublished={onPublished} />, { wrapper });
+  renderWithTopbar(
+    <QueryClientProvider client={queryClient}>
+      <LoopEditor workspaceId={WS} name={name} onPublished={onPublished} />
+    </QueryClientProvider>
+  );
   return { onPublished };
 }
 

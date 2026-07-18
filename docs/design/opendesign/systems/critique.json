@@ -5,23 +5,23 @@
   "axes": {
     "clarity": {
       "score": 4,
-      "notes": "Each page answers one operator question per zone: breadcrumb (where), PH1 head (what), toolbar (how). Independent MCP signals kept visible without the 6-column matrix; config signal is implicit since every listed server is configured."
+      "notes": "Each page answers one operator question per zone: breadcrumb (where), PH1 head (what), toolbar (how). Sandbox now exposes the canonical Rows|Cards PillGroup so scan vs browse density is explicit."
     },
     "hierarchy": {
-      "score": 4,
-      "notes": "Canonical route stack from design-system.html §03: topbar → page head → listing toolbar → rows. One accent CTA per viewport; status carried by tint pills, not borders."
+      "score": 5,
+      "notes": "Canonical route stack from design-system.html §03/§09: topbar → page head → listing toolbar (search · filters · Rows|Cards) → rows or card grid. One accent CTA per viewport; status on tint pills, never card borders."
     },
     "typography": {
       "score": 5,
-      "notes": "Inter UI + JetBrains Mono for refs/endpoints/enums, verbatim token block from packages/ui lineage. Mono row titles for machine names (refs, server names, profile names) per listing standard."
+      "notes": "Inter UI + JetBrains Mono for refs/endpoints/enums. Mono row/card titles for machine profile names; card Meta eyebrow stays uppercase sans with mono-slug for persistence."
     },
     "motion": {
       "score": 4,
-      "notes": "140ms token transitions, sheet slide, skeleton shimmer, phased authorize dialog (begin → URL → confirmed). Full prefers-reduced-motion guard on all three pages."
+      "notes": "140ms token transitions, sheet slide, skeleton shimmer. View toggle is instant re-render with aria-pressed sync. Full prefers-reduced-motion guard."
     },
     "brand": {
       "score": 4,
-      "notes": "All copy lifted from production strings (empty/error/dialog/banner text); enums and field shapes mirror internal contracts (VaultSecretPayload, SettingsMCPServerEntry, SettingsSandboxEntry). No invented metrics, controls, or reveal affordances the daemon does not support."
+      "notes": "PillGroup matches design-system.html demo (md 24px, borderless track, elevated active, never accent fill). Card anatomy follows CatalogCard: flat canvas-soft, elevated hover, foot meta + Edit action."
     }
   }
 }

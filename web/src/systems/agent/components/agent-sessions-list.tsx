@@ -31,6 +31,7 @@ export interface AgentSessionsListProps {
   onLoadMore?: () => void;
   emptyTitle?: ReactNode;
   emptyDescription?: ReactNode;
+  emptyAction?: ReactNode;
 }
 
 export function AgentSessionsList({
@@ -41,6 +42,7 @@ export function AgentSessionsList({
   onLoadMore,
   emptyTitle = "No sessions yet",
   emptyDescription,
+  emptyAction,
 }: AgentSessionsListProps) {
   const resolvedEmptyDescription =
     emptyDescription === undefined
@@ -71,6 +73,7 @@ export function AgentSessionsList({
           icon={MessageSquare}
           title={emptyTitle}
           description={resolvedEmptyDescription}
+          action={emptyAction}
           data-testid="agent-sessions-empty"
           fill={false}
         />

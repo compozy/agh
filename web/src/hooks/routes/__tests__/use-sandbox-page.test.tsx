@@ -3,8 +3,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const navigateMock = vi.fn();
+
 vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => () => false,
+  useNavigate: () => navigateMock,
 }));
 
 vi.mock("@/systems/settings/adapters/settings-api", () => ({
@@ -91,6 +94,7 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  navigateMock.mockReset();
   useSettingsRestartStore.setState({
     ...initialSettingsRestartState,
     startRestart: useSettingsRestartStore.getState().startRestart,
@@ -243,5 +247,39 @@ describe("useSandboxPage", () => {
 
     await waitFor(() => expect(result.current.deleteError).toBe("sandbox still referenced"));
     expect(result.current.deleteTarget.mode).toBe("open");
+  });
+
+  it("filters profiles client-side by search query and backend", async () => {
+    const { wrapper } = createWrapper();
+    const { result, rerender } = renderHook(
+      ({ search }: { search?: Parameters<typeof useSandboxPage>[0] }) => useSandboxPage(search),
+      { wrapper, initialProps: { search: {} } }
+    );
+
+    await waitFor(() => expect(result.current.sandboxes).toHaveLength(2));
+    expect(result.current.filtered).toHaveLength(2);
+
+    rerender({ search: { q: "daytona" } });
+    expect(result.current.filtered.map(entry => entry.name)).toEqual(["daytona-staging"]);
+
+    rerender({ search: { backend: "local" } });
+    expect(result.current.filtered.map(entry => entry.name)).toEqual(["local"]);
+  });
+
+  it("selects a profile for the detail sheet", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSandboxPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.sandboxes).toHaveLength(2));
+
+    act(() => {
+      result.current.openInspect(localEnv);
+    });
+    expect(result.current.selectedEntry?.name).toBe("local");
+
+    act(() => {
+      result.current.closeInspect();
+    });
+    expect(result.current.selectedEntry).toBeNull();
   });
 });
