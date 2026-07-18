@@ -11,6 +11,7 @@ import (
 	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -223,6 +224,196 @@ func TestGlobalDBCompleteRunLeaseShouldAppendRunCompletedWatchEvent(t *testing.T
 	if got, want := event.Event.RunID, leased.ID; got != want {
 		t.Fatalf("run_id = %q, want %q", got, want)
 	}
+}
+
+func TestGlobalDBTaskStatusProjectionShouldCommitWithTransition(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should freeze transition state and exact recipients in one transaction", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord, transitionAt := seedTaskStatusProjectionForTest(ctx, t, globalDB, "snapshot")
+
+		if _, err := globalDB.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
+			Origin: coordinatorActorContextForTest().Origin, TaskID: taskRecord.ID,
+			Reason:   "operator input required",
+			Actor:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
+			MarkedAt: transitionAt.Add(-time.Minute),
+		}); err != nil {
+			t.Fatalf("MarkTaskNeedsAttention() error = %v", err)
+		}
+		if _, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
+			TaskID: taskRecord.ID, Note: "operator reviewed escalation",
+			Actor: operatorActorContextForTest("operator"), ClearedAt: transitionAt,
+		}); err != nil {
+			t.Fatalf("ClearTaskNeedsAttention() error = %v", err)
+		}
+
+		projections, err := globalDB.ListNetworkTaskStatusProjections(ctx, store.NetworkTaskStatusProjectionQuery{
+			WorkspaceID: taskRecord.WorkspaceID, TaskID: taskRecord.ID, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListNetworkTaskStatusProjections() error = %v", err)
+		}
+		if got, want := len(projections), 1; got != want {
+			t.Fatalf("len(projections) = %d, want %d exact full recipient", got, want)
+		}
+		projection := projections[0]
+		if got, want := projection.RecipientSessionID, "sess-full-snapshot"; got != want {
+			t.Fatalf("recipient = %q, want %q", got, want)
+		}
+		if !projection.ProjectedAt.Equal(transitionAt) {
+			t.Fatalf("projected_at = %s, want transition time %s", projection.ProjectedAt, transitionAt)
+		}
+		var payload store.NetworkTaskStatusProjectionPayload
+		if err := json.Unmarshal(projection.ProjectionJSON, &payload); err != nil {
+			t.Fatalf("Unmarshal(projection) error = %v", err)
+		}
+		if got, want := payload.TaskStatus, string(taskpkg.TaskStatusReady); got != want {
+			t.Fatalf("projection task_status = %q, want %q", got, want)
+		}
+
+		for _, subscription := range []store.NetworkSubscriptionEntry{
+			{
+				WorkspaceID: taskRecord.WorkspaceID, Channel: "builders", ThreadID: "thread_snapshot",
+				SessionID: "sess-full-snapshot", Mode: store.NetworkSubscriptionModeMute,
+				CreatedAt: transitionAt, UpdatedAt: transitionAt.Add(time.Minute),
+			},
+			{
+				WorkspaceID: taskRecord.WorkspaceID, Channel: "builders", ThreadID: "thread_snapshot",
+				SessionID: "sess-muted-snapshot", Mode: store.NetworkSubscriptionModeFull,
+				CreatedAt: transitionAt, UpdatedAt: transitionAt.Add(time.Minute),
+			},
+		} {
+			if err := globalDB.PutNetworkSubscription(ctx, subscription); err != nil {
+				t.Fatalf("PutNetworkSubscription(%q) error = %v", subscription.SessionID, err)
+			}
+		}
+		projections, err = globalDB.ListNetworkTaskStatusProjections(ctx, store.NetworkTaskStatusProjectionQuery{
+			WorkspaceID: taskRecord.WorkspaceID, TaskID: taskRecord.ID, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("ListNetworkTaskStatusProjections(after subscription change) error = %v", err)
+		}
+		if got, want := projections[0].RecipientSessionID, "sess-full-snapshot"; got != want {
+			t.Fatalf("frozen recipient = %q, want original %q", got, want)
+		}
+	})
+
+	t.Run("Should roll back the transition when projection persistence fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord, transitionAt := seedTaskStatusProjectionForTest(ctx, t, globalDB, "rollback")
+		if _, err := globalDB.db.ExecContext(ctx, `CREATE TRIGGER fail_task_status_projection
+			BEFORE INSERT ON network_task_status_projections
+			BEGIN SELECT RAISE(FAIL, 'forced projection failure'); END`); err != nil {
+			t.Fatalf("install projection failure trigger error = %v", err)
+		}
+
+		if _, err := globalDB.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
+			Origin: coordinatorActorContextForTest().Origin, TaskID: taskRecord.ID,
+			Reason:   "must roll back",
+			Actor:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
+			MarkedAt: transitionAt.Add(-time.Minute),
+		}); err != nil {
+			t.Fatalf("MarkTaskNeedsAttention() error = %v", err)
+		}
+		_, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
+			TaskID: taskRecord.ID, Note: "must fail",
+			Actor: operatorActorContextForTest("operator"), ClearedAt: transitionAt,
+		})
+		if err == nil || !strings.Contains(err.Error(), "forced projection failure") {
+			t.Fatalf("ClearTaskNeedsAttention() error = %v, want forced projection failure", err)
+		}
+		stored, err := globalDB.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		if stored.NeedsAttention == nil || stored.Status != taskRecord.Status {
+			t.Fatalf("stored task = %#v, want uncleared attention state", stored)
+		}
+		events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{
+			TaskID: taskRecord.ID, EventType: string(hookspkg.HookTaskRecovered),
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents() error = %v", err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("needs-attention events = %#v, want rollback", events)
+		}
+	})
+}
+
+func seedTaskStatusProjectionForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	suffix string,
+) (taskpkg.Task, time.Time) {
+	t.Helper()
+	now := time.Date(2026, 7, 17, 16, 0, 0, 0, time.UTC)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "projection-"+suffix, t.TempDir())
+	for _, sessionID := range []string{"sess-origin-" + suffix, "sess-full-" + suffix, "sess-muted-" + suffix} {
+		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+			ID: sessionID, AgentName: "agent-" + sessionID, WorkspaceID: workspaceID,
+			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
+			SessionType:         "agent", State: "running", CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
+		}
+	}
+	if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
+		WorkspaceID: workspaceID, Channel: "builders", Purpose: "Task projection",
+		CreatedBy: "test", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel() error = %v", err)
+	}
+	threadID := "thread_" + suffix
+	messageID := "msg-origin-" + suffix
+	if _, err := globalDB.WriteConversationMessage(ctx, store.NetworkConversationMessage{
+		MessageID: messageID, SessionID: "sess-origin-" + suffix, WorkspaceID: workspaceID,
+		Channel: "builders", Surface: store.NetworkSurfaceThread, ThreadID: threadID,
+		Direction: "received", PeerFrom: "agent.origin", Kind: store.NetworkKindSay,
+		Text: "promote this thread", Body: json.RawMessage(`{"text":"promote this thread"}`),
+		SizeBytes: 20, Timestamp: now,
+	}); err != nil {
+		t.Fatalf("WriteConversationMessage() error = %v", err)
+	}
+	taskRecord := taskRecordForTest("task-projection-" + suffix)
+	taskRecord.Scope = taskpkg.ScopeWorkspace
+	taskRecord.WorkspaceID = workspaceID
+	taskRecord.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if err := globalDB.PutNetworkTaskThreadOrigin(ctx, store.NetworkTaskThreadOrigin{
+		TaskID: taskRecord.ID, WorkspaceID: workspaceID, Channel: "builders", ThreadID: threadID,
+		OriginMessageID: messageID, Digest: "sha256:projection-" + suffix,
+		SourceMessageIDs: []string{messageID}, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("PutNetworkTaskThreadOrigin() error = %v", err)
+	}
+	for _, subscription := range []store.NetworkSubscriptionEntry{
+		{
+			WorkspaceID: workspaceID, Channel: "builders", ThreadID: threadID,
+			SessionID: "sess-full-" + suffix, Mode: store.NetworkSubscriptionModeFull,
+			CreatedAt: now, UpdatedAt: now,
+		},
+		{
+			WorkspaceID: workspaceID, Channel: "builders", ThreadID: threadID,
+			SessionID: "sess-muted-" + suffix, Mode: store.NetworkSubscriptionModeMute,
+			CreatedAt: now, UpdatedAt: now,
+		},
+	} {
+		if err := globalDB.PutNetworkSubscription(ctx, subscription); err != nil {
+			t.Fatalf("PutNetworkSubscription(%q) error = %v", subscription.SessionID, err)
+		}
+	}
+	return taskRecord, now.Add(time.Minute)
 }
 
 func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {

@@ -72,8 +72,5 @@ func buildEnvelope(input envelopeInput, now time.Time, maxReplayAge time.Duratio
 		}
 		envelope.DirectID = new(directID)
 	}
-	if err := ValidateEnvelope(envelope, ValidateOptions{Now: now, MaxReplayAge: maxReplayAge}); err != nil {
-		return Envelope{}, err
-	}
-	return envelope, nil
+	return NormalizeEnvelope(envelope, ValidateOptions{Now: now, MaxReplayAge: maxReplayAge})
 }

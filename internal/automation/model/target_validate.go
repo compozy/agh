@@ -67,6 +67,14 @@ func (j Job) Validate(path string) error {
 		if err := j.Task.Validate(nestedPath(path, "task")); err != nil {
 			return err
 		}
+		if err := ValidateDirectTaskParticipationScope(
+			j.Scope,
+			j.Task.NetworkParticipation,
+			nestedPath(path, "task.network_participation"),
+			nestedPath(path, "scope"),
+		); err != nil {
+			return err
+		}
 		if j.Retry.Strategy != RetryStrategyNone {
 			return fmt.Errorf(
 				"%s.strategy must be %q when %s is configured",

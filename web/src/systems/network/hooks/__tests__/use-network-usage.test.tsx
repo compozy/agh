@@ -19,7 +19,11 @@ function usagePage(wakeId: string, nextCursor?: string) {
       {
         wake_id: wakeId,
         task_run_id: "run-1",
-        owner_key: "task_run:run-1",
+        participation_status: {
+          owner: { workspace_id: "ws-1", kind: "task_run", id: "run-1" },
+          available: true,
+          participating: true,
+        },
         workspace_id: "ws-1",
         channel: "builders",
         root_id: wakeId,

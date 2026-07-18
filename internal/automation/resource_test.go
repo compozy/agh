@@ -691,6 +691,11 @@ func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 		if jobRecord.Spec.Name != createdJob.Name {
 			t.Fatalf("job resource name = %q, want %q", jobRecord.Spec.Name, createdJob.Name)
 		}
+		changedTarget := createdJob
+		changedTarget.AgentName = "other-agent"
+		if _, err := manager.UpdateJob(h.ctx, changedTarget); !errors.Is(err, ErrTargetIdentityImmutable) {
+			t.Fatalf("UpdateJob(resource changed target) error = %v, want ErrTargetIdentityImmutable", err)
+		}
 
 		nextJob := createdJob
 		nextJob.Prompt = "Review the resource-backed scheduler"
@@ -1177,7 +1182,7 @@ func TestAutomationResourceSyncManagedDefinitionsSkipsUnchangedTaskBackedJob(t *
 	h := newManagerResourceHarness(t)
 	manager := h.newResourceManager(t)
 
-	job := testJob(AutomationScopeGlobal, "task-backed-resource-job", "")
+	job := testJob(AutomationScopeWorkspace, "task-backed-resource-job", "ws-1")
 	job.AgentName = ""
 	job.Prompt = ""
 	job.Retry = RetryConfig{Strategy: RetryStrategyNone}

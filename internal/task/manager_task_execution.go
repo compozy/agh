@@ -63,6 +63,9 @@ func (m *Service) executeTaskBoundary(
 	if trimmedID == "" {
 		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
 	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor); err != nil {
+		return nil, err
+	}
 	normalizedReq, err := normalizeTaskExecutionRequest(req)
 	if err != nil {
 		return nil, err

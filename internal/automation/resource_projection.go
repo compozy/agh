@@ -349,6 +349,9 @@ func (m *Manager) updateJobResource(ctx context.Context, job Job) (Job, error) {
 	next.Source = current.Spec.Source
 	next.CreatedAt = current.CreatedAt.UTC()
 	next.UpdatedAt = m.now().UTC()
+	if err := ValidateImmutableJobTarget(current.Spec, next); err != nil {
+		return Job{}, err
+	}
 	if err := next.Validate("job"); err != nil {
 		return Job{}, err
 	}
@@ -564,6 +567,9 @@ func (m *Manager) nextUpdatedTriggerSpec(
 	next.CreatedAt = current.CreatedAt.UTC()
 	next.UpdatedAt = m.now().UTC()
 	next = applyWebhookSecretRef(next, &current, webhookSecret)
+	if err := ValidateImmutableTriggerTarget(current, next); err != nil {
+		return Trigger{}, err
+	}
 	if strings.EqualFold(strings.TrimSpace(next.Event), "webhook") &&
 		strings.TrimSpace(next.WebhookID) == "" {
 		next.WebhookID = stableConfigID("wbh", next.ID)

@@ -22,7 +22,7 @@ func (r *NetworkSendRequest) UnmarshalJSON(data []byte) error {
 	}
 
 	var decoded networkSendRequestAlias
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictContractJSON(data, &decoded); err != nil {
 		return err
 	}
 	if strings.TrimSpace(decoded.Kind) == contractDirectKey {

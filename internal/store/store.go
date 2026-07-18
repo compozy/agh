@@ -189,6 +189,14 @@ type NetworkInboxStore interface {
 	) ([]NetworkMessageEntry, error)
 }
 
+// NetworkTaskStatusProjectionStore persists typed task transitions for subscribed recipients.
+type NetworkTaskStatusProjectionStore interface {
+	ListNetworkTaskStatusProjections(
+		ctx context.Context,
+		query NetworkTaskStatusProjectionQuery,
+	) ([]NetworkTaskStatusProjection, error)
+}
+
 // NetworkCausationStore resolves durable wake ancestry for bounded reply chains.
 type NetworkCausationStore interface {
 	ResolveNetworkCausation(

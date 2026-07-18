@@ -313,6 +313,16 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		Timestamp: h.now.Add(2 * time.Minute),
 		Payload:   mustJSON(t, map[string]any{"idempotency_key": "idem-1"}),
 	})
+	createObserveEvent(t, h, taskpkg.Event{
+		ID:        "evt-run-force-stopped",
+		TaskID:    "task-net",
+		RunID:     "run-net",
+		EventType: taskEventRunForceStopped,
+		Actor:     taskActor(taskpkg.ActorKindDaemon, "scheduler"),
+		Origin:    taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
+		Timestamp: h.now.Add(2 * time.Minute),
+		Payload:   mustJSON(t, map[string]any{"reason": "test"}),
+	})
 	createObserveNetworkChannel(t, h, "ops")
 	createObserveAudit(t, h, store.NetworkAuditEntry{
 		ID:          "naud-accepted-1",
@@ -384,6 +394,17 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 	}
 	if !containsQueueDepth(metrics.TaskQueueDepth, "ops", 1) {
 		t.Fatalf("metrics.TaskQueueDepth = %#v, want ops queue depth 1", metrics.TaskQueueDepth)
+	}
+
+	engMetrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
+		Since:                h.now,
+		ParticipationChannel: "eng",
+	})
+	if err != nil {
+		t.Fatalf("QueryTaskMetrics(eng filter) error = %v", err)
+	}
+	if got := engMetrics.TaskForcedStopsTotal; got != 0 {
+		t.Fatalf("engMetrics.TaskForcedStopsTotal = %d, want 0 from the ops run snapshot", got)
 	}
 
 	cliMetrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{

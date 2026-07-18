@@ -6,16 +6,21 @@ import (
 	"time"
 )
 
-const maxMillisecondCeilingDuration = time.Duration(1<<63-1) - (time.Millisecond - 1)
+const (
+	maxMillisecondCeilingDuration = time.Duration(1<<63-1) - (time.Millisecond - 1)
+	maxJavaScriptSafeInteger      = int64(9_007_199_254_740_991)
+	boundsMaxInputCountPath       = "bounds.max_input_tokens"
+	boundsMaxOutputCountPath      = "bounds.max_output_tokens"
+)
 
 type Bounds struct {
-	MaxWakes         int    `json:"max_wakes"           yaml:"max_wakes"`
-	MaxWakeWallTime  string `json:"max_wake_wall_time"  yaml:"max_wake_wall_time"`
-	MaxTotalWallTime string `json:"max_total_wall_time" yaml:"max_total_wall_time"`
-	MaxInputTokens   int64  `json:"max_input_tokens"    yaml:"max_input_tokens"`
-	MaxOutputTokens  int64  `json:"max_output_tokens"   yaml:"max_output_tokens"`
-	MaxWakeDepth     int    `json:"max_wake_depth"      yaml:"max_wake_depth"`
-	CoalesceWindow   string `json:"coalesce_window"     yaml:"coalesce_window"`
+	MaxWakes         int    `json:"max_wakes"           yaml:"max_wakes"           toml:"max_wakes"`
+	MaxWakeWallTime  string `json:"max_wake_wall_time"  yaml:"max_wake_wall_time"  toml:"max_wake_wall_time"`
+	MaxTotalWallTime string `json:"max_total_wall_time" yaml:"max_total_wall_time" toml:"max_total_wall_time"`
+	MaxInputTokens   int64  `json:"max_input_tokens"    yaml:"max_input_tokens"    toml:"max_input_tokens"`
+	MaxOutputTokens  int64  `json:"max_output_tokens"   yaml:"max_output_tokens"   toml:"max_output_tokens"`
+	MaxWakeDepth     int    `json:"max_wake_depth"      yaml:"max_wake_depth"      toml:"max_wake_depth"`
+	CoalesceWindow   string `json:"coalesce_window"     yaml:"coalesce_window"     toml:"coalesce_window"`
 }
 
 func (b Bounds) IsZero() bool {
@@ -23,13 +28,13 @@ func (b Bounds) IsZero() bool {
 }
 
 type BoundsRequest struct {
-	MaxWakes         *int    `json:"max_wakes,omitempty"           yaml:"max_wakes,omitempty"`
-	MaxWakeWallTime  *string `json:"max_wake_wall_time,omitempty"  yaml:"max_wake_wall_time,omitempty"`
-	MaxTotalWallTime *string `json:"max_total_wall_time,omitempty" yaml:"max_total_wall_time,omitempty"`
-	MaxInputTokens   *int64  `json:"max_input_tokens,omitempty"    yaml:"max_input_tokens,omitempty"`
-	MaxOutputTokens  *int64  `json:"max_output_tokens,omitempty"   yaml:"max_output_tokens,omitempty"`
-	MaxWakeDepth     *int    `json:"max_wake_depth,omitempty"      yaml:"max_wake_depth,omitempty"`
-	CoalesceWindow   *string `json:"coalesce_window,omitempty"     yaml:"coalesce_window,omitempty"`
+	MaxWakes         *int    `json:"max_wakes,omitempty"           yaml:"max_wakes,omitempty"           toml:"max_wakes,omitempty"`
+	MaxWakeWallTime  *string `json:"max_wake_wall_time,omitempty"  yaml:"max_wake_wall_time,omitempty"  toml:"max_wake_wall_time,omitempty"`
+	MaxTotalWallTime *string `json:"max_total_wall_time,omitempty" yaml:"max_total_wall_time,omitempty" toml:"max_total_wall_time,omitempty"`
+	MaxInputTokens   *int64  `json:"max_input_tokens,omitempty"    yaml:"max_input_tokens,omitempty"    toml:"max_input_tokens,omitempty"`
+	MaxOutputTokens  *int64  `json:"max_output_tokens,omitempty"   yaml:"max_output_tokens,omitempty"   toml:"max_output_tokens,omitempty"`
+	MaxWakeDepth     *int    `json:"max_wake_depth,omitempty"      yaml:"max_wake_depth,omitempty"      toml:"max_wake_depth,omitempty"`
+	CoalesceWindow   *string `json:"coalesce_window,omitempty"     yaml:"coalesce_window,omitempty"     toml:"coalesce_window,omitempty"`
 }
 
 type Limits struct {
@@ -95,14 +100,17 @@ func validateBounds(bounds Bounds) error {
 		value int64
 	}{
 		{field: "bounds.max_wakes", value: int64(bounds.MaxWakes)},
-		{field: "bounds.max_input_tokens", value: bounds.MaxInputTokens},
-		{field: "bounds.max_output_tokens", value: bounds.MaxOutputTokens},
+		{field: boundsMaxInputCountPath, value: bounds.MaxInputTokens},
+		{field: boundsMaxOutputCountPath, value: bounds.MaxOutputTokens},
 		{field: "bounds.max_wake_depth", value: int64(bounds.MaxWakeDepth)},
 	}
 	for _, candidate := range positiveInts {
 		if candidate.value <= 0 {
 			return newContractError(ErrBoundsExceedCeiling, candidate.field, "bounds_required: value must be positive")
 		}
+	}
+	if err := validateJavaScriptSafeTokenBounds(bounds.MaxInputTokens, bounds.MaxOutputTokens); err != nil {
+		return err
 	}
 	wakeWall, err := parsePositiveDuration("bounds.max_wake_wall_time", bounds.MaxWakeWallTime)
 	if err != nil {
@@ -133,7 +141,7 @@ func validateBoundsLimits(bounds Bounds, limits Limits) error {
 	}
 	if limits.MaxInputTokens > 0 && bounds.MaxInputTokens > limits.MaxInputTokens {
 		return exceedsLimit(
-			"bounds.max_input_tokens",
+			boundsMaxInputCountPath,
 			bounds.MaxInputTokens,
 			"network.live.limits.max_input_tokens",
 			limits.MaxInputTokens,
@@ -141,7 +149,7 @@ func validateBoundsLimits(bounds Bounds, limits Limits) error {
 	}
 	if limits.MaxOutputTokens > 0 && bounds.MaxOutputTokens > limits.MaxOutputTokens {
 		return exceedsLimit(
-			"bounds.max_output_tokens",
+			boundsMaxOutputCountPath,
 			bounds.MaxOutputTokens,
 			"network.live.limits.max_output_tokens",
 			limits.MaxOutputTokens,
@@ -259,9 +267,32 @@ func exceedsLimit(field string, value any, limitField string, limit any) error {
 	)
 }
 
+func validateJavaScriptSafeTokenBounds(inputTokens, outputTokens int64) error {
+	for _, candidate := range []struct {
+		field string
+		value int64
+	}{
+		{field: boundsMaxInputCountPath, value: inputTokens},
+		{field: boundsMaxOutputCountPath, value: outputTokens},
+	} {
+		if candidate.value > maxJavaScriptSafeInteger {
+			return exceedsLimit(
+				candidate.field,
+				candidate.value,
+				"JavaScript safe integer ceiling",
+				maxJavaScriptSafeInteger,
+			)
+		}
+	}
+	return nil
+}
+
 func (l Limits) Validate() error {
 	if l.MaxWakes <= 0 || l.MaxInputTokens <= 0 || l.MaxOutputTokens <= 0 || l.MaxWakeDepth <= 0 {
 		return fmt.Errorf("network participation limits must be positive: %+v", l)
+	}
+	if err := validateJavaScriptSafeTokenBounds(l.MaxInputTokens, l.MaxOutputTokens); err != nil {
+		return err
 	}
 	if _, err := parsePositiveDuration("network.live.limits.max_wake_wall_time", l.MaxWakeWallTime); err != nil {
 		return err

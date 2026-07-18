@@ -194,25 +194,19 @@ type CreateJobRequest struct {
 
 // UpdateJobRequest is the shared automation job patch payload.
 type UpdateJobRequest struct {
-	Name        *string                        `json:"name,omitempty"`
-	TargetKind  *automationpkg.TargetKind      `json:"target_kind,omitempty"`
-	AgentName   *string                        `json:"agent_name,omitempty"`
-	WorkspaceID *string                        `json:"workspace_id,omitempty"`
-	Prompt      *string                        `json:"prompt,omitempty"`
-	Schedule    *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
-	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
-	LoopTarget  *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
-	Enabled     *bool                          `json:"enabled,omitempty"`
-	Retry       *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	Name       *string                        `json:"name,omitempty"`
+	Prompt     *string                        `json:"prompt,omitempty"`
+	Schedule   *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
+	Task       *automationpkg.JobTaskConfig   `json:"task,omitempty"`
+	LoopTarget *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
+	Enabled    *bool                          `json:"enabled,omitempty"`
+	Retry      *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit  *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
 }
 
 // HasChanges reports whether the patch includes any mutable field.
 func (r UpdateJobRequest) HasChanges() bool {
 	return r.Name != nil ||
-		r.TargetKind != nil ||
-		r.AgentName != nil ||
-		r.WorkspaceID != nil ||
 		r.Prompt != nil ||
 		r.Schedule != nil ||
 		r.Task != nil ||
@@ -244,9 +238,6 @@ type CreateTriggerRequest struct {
 // UpdateTriggerRequest is the shared automation trigger patch payload.
 type UpdateTriggerRequest struct {
 	Name               *string                        `json:"name,omitempty"`
-	TargetKind         *automationpkg.TargetKind      `json:"target_kind,omitempty"`
-	AgentName          *string                        `json:"agent_name,omitempty"`
-	WorkspaceID        *string                        `json:"workspace_id,omitempty"`
 	Prompt             *string                        `json:"prompt,omitempty"`
 	Event              *string                        `json:"event,omitempty"`
 	Filter             map[string]string              `json:"filter,omitempty"`
@@ -262,9 +253,6 @@ type UpdateTriggerRequest struct {
 // HasChanges reports whether the patch includes any mutable field.
 func (r UpdateTriggerRequest) HasChanges() bool {
 	return r.Name != nil ||
-		r.TargetKind != nil ||
-		r.AgentName != nil ||
-		r.WorkspaceID != nil ||
 		r.Prompt != nil ||
 		r.Event != nil ||
 		r.Filter != nil ||
@@ -288,5 +276,6 @@ func cloneLoopTarget(source *automationpkg.LoopTarget) *automationpkg.LoopTarget
 	if len(source.InputMapping) > 0 {
 		cloned.InputMapping = maps.Clone(source.InputMapping)
 	}
+	cloned.NetworkParticipation = participation.CloneRequest(source.NetworkParticipation)
 	return &cloned
 }

@@ -29,12 +29,12 @@ const STEPS: Step[] = [
     hint: "A Live coder announces itself inside the current daemon.",
   },
   {
-    from: "NET",
+    from: "B",
     to: "A",
     kind: "greet",
     direction: "<-",
     payload: `{ peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["agh-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } }`,
-    hint: "The daemon relays a workspace-qualified peer card from local membership.",
+    hint: "A Live reviewer advertises its peer card; the daemon routes the committed greet to local members.",
   },
   {
     from: "A",
@@ -45,12 +45,12 @@ const STEPS: Step[] = [
     hint: "Coder asks for a local session that can review the release.",
   },
   {
-    from: "NET",
+    from: "B",
     to: "A",
     kind: "whois",
     direction: "<-",
     payload: `{ reply_to: "msg_whois_001", body: { type: "response", peer_card: { peer_id: "reviewer.session-b", profiles_supported: ["agh-network/v0"], capabilities: ["review"], artifacts_supported: [], trust_modes_supported: ["unverified"] } } }`,
-    hint: "The daemon resolves an eligible Live session in-process.",
+    hint: "The matched Live reviewer owns the response; the daemon commits and routes it in process.",
   },
   {
     from: "A",

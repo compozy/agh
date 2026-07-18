@@ -4950,6 +4950,139 @@ func TestManagerCreateChildTaskEnforcesParentRulesAndEmitsAudit(t *testing.T) {
 	)
 }
 
+func TestManagerGlobalTaskWorkspaceIsolation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	operator := validActorContext()
+	workspaceActor := agentSessionActorContextForWorkspace("sess-ws-a", "ws-a")
+
+	root, err := manager.CreateTask(ctx, CreateTask{Scope: ScopeGlobal, Title: "Global root"}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask(root) error = %v", err)
+	}
+	foreignChild, err := manager.CreateChildTask(ctx, root.ID, CreateTask{
+		Scope: ScopeWorkspace, WorkspaceID: "ws-b", Title: "Foreign child",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateChildTask(foreign child) error = %v", err)
+	}
+
+	detail, err := manager.GetTask(ctx, root.ID, workspaceActor)
+	if err != nil {
+		t.Fatalf("GetTask(root) error = %v", err)
+	}
+	if len(detail.Children) != 0 {
+		t.Fatalf("GetTask(root).Children = %#v, want foreign child hidden", detail.Children)
+	}
+	tree, err := manager.Tree(ctx, root.ID, workspaceActor)
+	if err != nil {
+		t.Fatalf("Tree(root) error = %v", err)
+	}
+	if len(tree.Descendants) != 0 || tree.Root.ChildCount != 0 {
+		t.Fatalf("Tree(root) = %#v, want foreign subtree hidden", tree)
+	}
+
+	afterSequence := store.nextEventSequence
+	stream, err := manager.Stream(ctx, root.ID, StreamQuery{AfterSequence: afterSequence}, workspaceActor)
+	if err != nil {
+		t.Fatalf("Stream(root) error = %v", err)
+	}
+	foreignTitle := "Foreign child updated"
+	if _, err := manager.UpdateTask(ctx, foreignChild.ID, Patch{Title: &foreignTitle}, operator); err != nil {
+		t.Fatalf("UpdateTask(foreign child) error = %v", err)
+	}
+	rootTitle := "Global root updated"
+	if _, err := manager.UpdateTask(ctx, root.ID, Patch{Title: &rootTitle}, operator); err != nil {
+		t.Fatalf("UpdateTask(root) error = %v", err)
+	}
+	streamEvent := awaitTaskStreamEvent(t, stream)
+	if got, want := streamEvent.Timeline.Task.ID, root.ID; got != want {
+		t.Fatalf("Stream() task id = %q, want visible root %q", got, want)
+	}
+
+	if _, err := manager.CancelTask(ctx, root.ID, CancelTask{Reason: "cancel tree"}, workspaceActor); !errors.Is(
+		err,
+		ErrPermissionDenied,
+	) {
+		t.Fatalf("CancelTask(root) error = %v, want %v", err, ErrPermissionDenied)
+	}
+	storedRoot, err := store.GetTask(ctx, root.ID)
+	if err != nil {
+		t.Fatalf("GetTask(stored root) error = %v", err)
+	}
+	storedChild, err := store.GetTask(ctx, foreignChild.ID)
+	if err != nil {
+		t.Fatalf("GetTask(stored child) error = %v", err)
+	}
+	if storedRoot.Status == TaskStatusCanceled || storedChild.Status == TaskStatusCanceled {
+		t.Fatalf(
+			"CancelTask() mutated tree before authorization: root=%q child=%q",
+			storedRoot.Status,
+			storedChild.Status,
+		)
+	}
+
+	beforeTasks := len(store.tasks)
+	if _, err := manager.CreateChildTask(ctx, root.ID, CreateTask{
+		Scope: ScopeWorkspace, WorkspaceID: "ws-b", Title: "Unauthorized child",
+	}, workspaceActor); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("CreateChildTask(foreign workspace) error = %v, want %v", err, ErrPermissionDenied)
+	}
+	if got := len(store.tasks); got != beforeTasks {
+		t.Fatalf("task count = %d, want unchanged %d", got, beforeTasks)
+	}
+
+	foreignRun := Run{
+		ID: "run-ws-b", TaskID: root.ID, WorkspaceID: "ws-b", Attempt: 1,
+		Status: TaskRunStatusQueued, Origin: Origin{Kind: OriginKindAutomation, Ref: "job:ws-b"},
+		QueuedAt: time.Date(2026, 7, 17, 17, 0, 0, 0, time.UTC),
+	}
+	foreignRun.SetNetworkState(participation.LocalSpec(), "", "", "")
+	if err := store.CreateTaskRun(ctx, foreignRun); err != nil {
+		t.Fatalf("CreateTaskRun(foreign run) error = %v", err)
+	}
+	runs, err := manager.ListTaskRuns(ctx, root.ID, RunQuery{}, workspaceActor)
+	if err != nil {
+		t.Fatalf("ListTaskRuns(root) error = %v", err)
+	}
+	if len(runs) != 0 {
+		t.Fatalf("ListTaskRuns(root) = %#v, want foreign run hidden", runs)
+	}
+	if _, err := manager.RunDetail(ctx, foreignRun.ID, workspaceActor); !errors.Is(err, ErrTaskRunNotFound) {
+		t.Fatalf("RunDetail(foreign run) error = %v, want %v", err, ErrTaskRunNotFound)
+	}
+	if _, err := manager.CancelRun(
+		ctx,
+		foreignRun.ID,
+		CancelRun{Reason: "unauthorized"},
+		workspaceActor,
+	); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("CancelRun(foreign run) error = %v, want %v", err, ErrPermissionDenied)
+	}
+
+	store.reviews["review-ws-b"] = RunReview{
+		ReviewID: "review-ws-b", TaskID: root.ID, RunID: foreignRun.ID,
+		Policy: ReviewPolicyAlways, ReviewRound: 1, Attempt: 1, Status: RunReviewStatusRequested,
+	}
+	if _, err := manager.GetRunReview(ctx, "review-ws-b", workspaceActor); !errors.Is(
+		err,
+		ErrPermissionDenied,
+	) {
+		t.Fatalf("GetRunReview(foreign run) error = %v, want %v", err, ErrPermissionDenied)
+	}
+	reviews, err := manager.ListRunReviews(ctx, RunReviewQuery{TaskID: root.ID}, workspaceActor)
+	if err != nil {
+		t.Fatalf("ListRunReviews(root) error = %v", err)
+	}
+	if len(reviews) != 0 {
+		t.Fatalf("ListRunReviews(root) = %#v, want foreign review hidden", reviews)
+	}
+}
+
 func TestManagerAddAndRemoveDependencyReconcileStatusAndEvents(t *testing.T) {
 	t.Parallel()
 
@@ -6529,6 +6662,76 @@ func TestManagerListTasksSupportsSearchAndOrdersByLatestActivity(t *testing.T) {
 	) {
 		t.Fatalf("ListTasks(all) order = %#v, want %#v", got, want)
 	}
+}
+
+func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose global and own-workspace tasks without leaking foreign tasks", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		operator := validActorContext()
+		globalTask, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Global task",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask(global) error = %v", err)
+		}
+		workspaceTask, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-a",
+			Title:       "Workspace A task",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask(workspace a) error = %v", err)
+		}
+		foreignTask, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-b",
+			Title:       "Workspace B task",
+			Owner: &Ownership{
+				Kind: OwnerKindAgentSession,
+				Ref:  "sess-a",
+			},
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask(workspace b) error = %v", err)
+		}
+
+		agent := agentSessionActorContextForWorkspace("sess-a", "ws-a")
+		summaries, err := manager.ListTasks(context.Background(), Query{}, agent)
+		if err != nil {
+			t.Fatalf("ListTasks(agent) error = %v", err)
+		}
+		gotIDs := make([]string, 0, len(summaries))
+		for _, summary := range summaries {
+			gotIDs = append(gotIDs, summary.ID)
+		}
+		slices.Sort(gotIDs)
+		wantIDs := []string{globalTask.ID, workspaceTask.ID}
+		slices.Sort(wantIDs)
+		if !slices.Equal(gotIDs, wantIDs) {
+			t.Fatalf("ListTasks(agent) ids = %#v, want %#v", gotIDs, wantIDs)
+		}
+		if _, err := manager.GetTask(context.Background(), foreignTask.ID, agent); !errors.Is(
+			err,
+			ErrPermissionDenied,
+		) {
+			t.Fatalf("GetTask(foreign) error = %v, want %v", err, ErrPermissionDenied)
+		}
+		newTitle := "Leaked mutation"
+		if _, err := manager.UpdateTask(context.Background(), foreignTask.ID, Patch{
+			Title: &newTitle,
+		}, agent); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("UpdateTask(foreign) error = %v, want %v", err, ErrPermissionDenied)
+		}
+		if got := store.tasks[foreignTask.ID].Title; got != foreignTask.Title {
+			t.Fatalf("foreign task title = %q, want unchanged %q", got, foreignTask.Title)
+		}
+	})
 }
 
 func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {

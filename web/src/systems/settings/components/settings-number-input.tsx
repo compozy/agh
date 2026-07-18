@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 
 import { Input } from "@agh/ui";
 
@@ -35,7 +35,7 @@ function validateIntegerInput(rawValue: string, min: number): string | null {
 }
 
 function SettingsNumberInput({ value, ...props }: SettingsNumberInputProps) {
-  return <SettingsNumberInputControl key={value} value={value} {...props} />;
+  return <SettingsNumberInputControl value={value} {...props} />;
 }
 
 function SettingsNumberInputControl({
@@ -46,6 +46,11 @@ function SettingsNumberInputControl({
   ...props
 }: SettingsNumberInputProps) {
   const [rawValue, setRawValue] = useState(() => String(value));
+
+  useEffect(() => {
+    const nextRawValue = String(value);
+    setRawValue(current => (current === nextRawValue ? current : nextRawValue));
+  }, [value]);
 
   const validationMessage = validateIntegerInput(rawValue, min);
 

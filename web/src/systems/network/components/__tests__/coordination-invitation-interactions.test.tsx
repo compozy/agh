@@ -36,7 +36,9 @@ describe("NetworkCoordinationInvitation interactions", () => {
       mutate: coordinationHooks.dismissMutate,
     });
 
-    render(<TaskRunCoordinationInvitationHost runId="run-1" taskId="task-1" />);
+    render(
+      <TaskRunCoordinationInvitationHost runId="run-1" taskId="task-1" workspaceId="ws-run-owner" />
+    );
     const accept = screen.getByTestId("network-coordination-invitation-accept");
     fireEvent.click(accept);
     fireEvent.click(accept);
@@ -45,7 +47,17 @@ describe("NetworkCoordinationInvitation interactions", () => {
     expect(coordinationHooks.acceptMutate).toHaveBeenCalledWith(7, {
       onSettled: expect.any(Function),
     });
-    expect(coordinationHooks.useCoordination).toHaveBeenCalledWith({
+    expect(coordinationHooks.useCoordination).toHaveBeenCalledWith("ws-run-owner", {
+      scope: "task",
+      taskId: "task-1",
+      runId: "run-1",
+    });
+    expect(coordinationHooks.useAccept).toHaveBeenCalledWith("ws-run-owner", {
+      scope: "task",
+      taskId: "task-1",
+      runId: "run-1",
+    });
+    expect(coordinationHooks.useDismiss).toHaveBeenCalledWith("ws-run-owner", {
       scope: "task",
       taskId: "task-1",
       runId: "run-1",

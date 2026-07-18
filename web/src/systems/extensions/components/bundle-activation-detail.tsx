@@ -39,12 +39,16 @@ export function BundleActivationDetail({ id }: { id: string }) {
   if (!query.data) return <Empty icon={Box} title="Bundle activation not found" />;
   const activation = query.data;
   const capabilityCount = (activation.inventory ?? []).length;
+  const networkConfirmationRequired = Boolean(
+    activation.network_requirement_digest && !activation.network_requirement_confirmed_by
+  );
+  const updateActionRequired = activation.spec_drift || networkConfirmationRequired;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto" data-testid="bundle-activation-detail">
       <DetailHeader
         actions={
           <>
-            {activation.spec_drift ? (
+            {updateActionRequired ? (
               <Button
                 disabled={lifecycle.update.isPending}
                 onClick={lifecycle.applyUpdate}
@@ -198,7 +202,7 @@ export function BundleActivationDetail({ id }: { id: string }) {
               ) : null}
             </InfoRail>
           ) : null}
-          {activation.spec_drift ? (
+          {updateActionRequired ? (
             <Section label="Update confirmation">
               <div className="flex items-start gap-3 rounded-lg bg-canvas-soft px-4 py-3">
                 <Switch

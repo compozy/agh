@@ -2386,6 +2386,15 @@ func TestDetachedHarnessWorkBridgeHelperValidation(t *testing.T) {
 	if _, err := decodeDetachedHarnessTaskMetadata(json.RawMessage(`{`)); !errors.Is(err, taskpkg.ErrValidation) {
 		t.Fatalf("decodeDetachedHarnessTaskMetadata(invalid json) error = %v, want %v", err, taskpkg.ErrValidation)
 	}
+	if _, err := decodeDetachedHarnessTaskMetadata(json.RawMessage(
+		`{"schema":"agh.harness.detached.v1","kind":"harness_detached_task","owner_channel":"legacy"}`,
+	)); !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf(
+			"decodeDetachedHarnessTaskMetadata(removed owner_channel) error = %v, want %v",
+			err,
+			taskpkg.ErrValidation,
+		)
+	}
 	if _, err := decodeDetachedHarnessRunMetadata(
 		json.RawMessage(`{"schema":"bad","kind":"other"}`),
 	); !errors.Is(
@@ -2396,6 +2405,15 @@ func TestDetachedHarnessWorkBridgeHelperValidation(t *testing.T) {
 	}
 	if _, err := decodeDetachedHarnessRunMetadata(json.RawMessage(`{`)); !errors.Is(err, taskpkg.ErrValidation) {
 		t.Fatalf("decodeDetachedHarnessRunMetadata(invalid json) error = %v, want %v", err, taskpkg.ErrValidation)
+	}
+	if _, err := decodeDetachedHarnessRunMetadata(json.RawMessage(
+		`{"schema":"agh.harness.detached.v1","kind":"harness_detached_run","wake_target":{"channel":"legacy"}}`,
+	)); !errors.Is(err, taskpkg.ErrValidation) {
+		t.Fatalf(
+			"decodeDetachedHarnessRunMetadata(removed wake_target.channel) error = %v, want %v",
+			err,
+			taskpkg.ErrValidation,
+		)
 	}
 
 	if got, want := detachedHarnessSummary("   "), defaultDetachedHarnessSummary; got != want {

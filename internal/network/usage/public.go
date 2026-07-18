@@ -83,10 +83,18 @@ func ResponseFromReport(
 	}
 	details := make([]contract.NetworkUsageDetailPayload, 0, len(report.Details))
 	for _, detail := range report.Details {
+		owner, err := participation.OwnerRefFromKey(detail.WorkspaceID, detail.OwnerKey)
+		if err != nil {
+			return contract.NetworkUsageResponse{}, fmt.Errorf("network usage: project detail owner: %w", err)
+		}
 		details = append(details, contract.NetworkUsageDetailPayload{
-			WakeID:          detail.WakeID,
-			TaskRunID:       detail.TaskRunID,
-			OwnerKey:        detail.OwnerKey,
+			WakeID:    detail.WakeID,
+			TaskRunID: detail.TaskRunID,
+			ParticipationStatus: participation.Status{
+				Owner:         owner,
+				Available:     true,
+				Participating: true,
+			},
 			WorkspaceID:     detail.WorkspaceID,
 			Channel:         detail.Channel,
 			RootID:          detail.RootID,
@@ -116,8 +124,16 @@ func ResponseFromReport(
 		NextCursor: report.NextCursor,
 	}
 	if report.Budget != nil {
+		owner, err := participation.OwnerRefFromKey(workspaceID, report.Budget.OwnerKey)
+		if err != nil {
+			return contract.NetworkUsageResponse{}, fmt.Errorf("network usage: project budget owner: %w", err)
+		}
 		response.Budget = &contract.NetworkBudgetUsagePayload{
-			OwnerKey:         report.Budget.OwnerKey,
+			ParticipationStatus: participation.Status{
+				Owner:         owner,
+				Available:     true,
+				Participating: true,
+			},
 			WakesUsed:        report.Budget.WakesUsed,
 			WallTimeUsed:     report.Budget.WallTimeUsed.String(),
 			InputTokensUsed:  report.Budget.InputTokensUsed,

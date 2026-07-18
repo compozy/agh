@@ -385,7 +385,7 @@ func TestGlobalDBClaimNextRunExactRunID(t *testing.T) {
 func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should target claim and complete a taskless wake without mutating task projections", func(t *testing.T) {
+	t.Run("Should target claim while hiding generic settlement authority", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
@@ -429,14 +429,8 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListAutonomyLeaseHandles(network wake) error = %v", err)
 		}
-		if len(handles) != 1 {
-			t.Fatalf("len(ListAutonomyLeaseHandles(network wake)) = %d, want 1", len(handles))
-		}
-		handle := handles[0]
-		if handle.RunKind != taskpkg.RunKindNetworkWake || handle.TaskID != "" ||
-			handle.WorkspaceID != "ws-wake" || handle.TargetSessionID != "sess-target" ||
-			handle.OwnerKey != "owner-1" {
-			t.Fatalf("network wake autonomy handle = %#v, want taskless wake correlation", handle)
+		if len(handles) != 0 {
+			t.Fatalf("ListAutonomyLeaseHandles(network wake) = %#v, want no generic handle", handles)
 		}
 		if _, err := globalDB.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
 			Actor: coordinatorActorContextForTest(),
@@ -445,16 +439,13 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("HeartbeatRunLease(network wake) error = %v", err)
 		}
-		completed, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		_, err = globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 			Actor: coordinatorActorContextForTest(), RunID: wake.ID, ClaimToken: claim.ClaimToken,
 			Result: taskpkg.RunResult{Value: json.RawMessage(`{"delivered":true}`)},
 			Now:    now.Add(2 * time.Second), TokensUsed: 23,
 		})
-		if err != nil {
-			t.Fatalf("CompleteRunLease(network wake) error = %v", err)
-		}
-		if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted || completed.TaskID != "" {
-			t.Fatalf("completed wake = %#v, want taskless completed run", completed)
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("CompleteRunLease(network wake) error = %v, want %v", err, taskpkg.ErrValidation)
 		}
 		storedAnchor, err := globalDB.GetTask(ctx, anchor.ID)
 		if err != nil {
@@ -514,13 +505,20 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 		}
 
 		failClaim := claimWake("run-wake-fail", "sess-fail", now)
-		failed, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+		_, err = globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
 			Actor: coordinatorActorContextForTest(), RunID: failClaim.Run.ID,
 			ClaimToken: failClaim.ClaimToken, Failure: taskpkg.RunFailure{Error: "provider failed"},
 			Now: now.Add(time.Second),
 		})
-		if err != nil || failed.Status.Normalize() != taskpkg.TaskRunStatusFailed {
-			t.Fatalf("FailRunLease(network wake) = %#v, %v, want failed", failed, err)
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("FailRunLease(network wake) error = %v, want %v", err, taskpkg.ErrValidation)
+		}
+		if _, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
+			Actor: coordinatorActorContextForTest(), RunID: failClaim.Run.ID,
+			ClaimToken: failClaim.ClaimToken, Reason: "settlement handoff",
+			Now: now.Add(2 * time.Second),
+		}); err != nil {
+			t.Fatalf("ReleaseRunLease(after generic failure rejection) error = %v", err)
 		}
 
 		expiringClaim := claimWake("run-wake-expire", "sess-expire", now)

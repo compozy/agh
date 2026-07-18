@@ -4,6 +4,7 @@ import {
   defaultApiErrorMessage,
   requireResponseData,
 } from "@/lib/api-client";
+import type { OperationRequestBody } from "@/lib/api-contract";
 
 import { NetworkApiError } from "./network-api-error";
 import type { NetworkUsageQuery } from "../types";
@@ -11,11 +12,13 @@ import type { NetworkUsageQuery } from "../types";
 export type NetworkCoordinationResponse = Awaited<ReturnType<typeof getNetworkCoordination>>;
 export type NetworkUsageResponse = Awaited<ReturnType<typeof getNetworkUsage>>;
 
-export interface NetworkCoordinationRef {
-  scope: "workspace" | "task";
-  taskId?: string;
-  runId?: string;
-}
+export type NetworkCoordinationRef =
+  | { scope: "workspace"; taskId?: never; runId?: string }
+  | { scope: "task"; taskId: string; runId?: string };
+
+export type PutNetworkCoordinationRequest = OperationRequestBody<"putNetworkCoordination">;
+export type PutNetworkCoordinationInvitationRequest =
+  OperationRequestBody<"putNetworkCoordinationInvitation">;
 
 export async function getNetworkCoordination(
   workspaceId: string,
@@ -47,13 +50,7 @@ export async function getNetworkCoordination(
 
 export async function putNetworkCoordination(
   workspaceId: string,
-  body: {
-    scope: "workspace" | "task";
-    task_id?: string;
-    run_id?: string;
-    enabled: boolean;
-    expected_revision: number;
-  },
+  body: PutNetworkCoordinationRequest,
   signal?: AbortSignal
 ) {
   const { data, error, response } = await apiClient.PUT(
@@ -77,13 +74,7 @@ export async function putNetworkCoordination(
 
 export async function putNetworkCoordinationInvitation(
   workspaceId: string,
-  body: {
-    scope: "workspace" | "task";
-    task_id?: string;
-    run_id?: string;
-    dismissed: boolean;
-    expected_revision: number;
-  },
+  body: PutNetworkCoordinationInvitationRequest,
   options: { signal?: AbortSignal } = {}
 ) {
   const { data, error, response } = await apiClient.PUT(

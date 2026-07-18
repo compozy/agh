@@ -29,6 +29,16 @@ func (g *TaskRunRepo) FailRunLease(
 
 	var updated taskpkg.Run
 	if err := g.tasks.withTaskImmediateTransaction(ctx, "fail task run lease", func(exec taskSQLExecutor) error {
+		current, loadErr := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+		if loadErr != nil {
+			return loadErr
+		}
+		if current.IsNetworkWake() {
+			return fmt.Errorf(
+				"%w: network_wake runs must be failed through network settlement",
+				taskpkg.ErrValidation,
+			)
+		}
 		var err error
 		updated, err = g.failRunLeaseWithExecutor(ctx, exec, normalized)
 		return err

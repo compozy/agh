@@ -374,6 +374,59 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject unknown lease mutation fields", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name string
+			path string
+			body string
+		}{
+			{
+				name: "heartbeat",
+				path: "/api/agent/tasks/run-1/heartbeat",
+				body: `{"lease_seconds":60,"legacy":true}`,
+			},
+			{
+				name: "complete",
+				path: "/api/agent/tasks/run-1/complete",
+				body: `{"result":{},"legacy":true}`,
+			},
+			{
+				name: "fail",
+				path: "/api/agent/tasks/run-1/fail",
+				body: `{"error":"failed","legacy":true}`,
+			},
+			{
+				name: "release",
+				path: "/api/agent/tasks/run-1/release",
+				body: `{"reason":"retry","legacy":true}`,
+			},
+		} {
+			t.Run("Should reject unknown fields on "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				recorder := performAgentKernelRequest(
+					t,
+					newTestRouter(t, newAgentTaskHandlers(t, &stubTaskManager{})),
+					http.MethodPost,
+					testCase.path,
+					[]byte(testCase.body),
+					agentKernelHeaders(),
+				)
+				if recorder.Code != http.StatusBadRequest ||
+					!strings.Contains(recorder.Body.String(), "unknown_field") {
+					t.Fatalf(
+						"status = %d, want %d unknown-field response; body=%s",
+						recorder.Code,
+						http.StatusBadRequest,
+						recorder.Body.String(),
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("Should stale token maps conflict and redacts token", func(t *testing.T) {
 		t.Parallel()
 

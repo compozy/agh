@@ -45,6 +45,16 @@ func (g *TaskRunRepo) CompleteRunLeaseSettlement(
 
 	var settlement taskpkg.CompletedRunSettlement
 	if err := g.tasks.withTaskImmediateTransaction(ctx, "complete task run lease", func(exec taskSQLExecutor) error {
+		current, loadErr := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+		if loadErr != nil {
+			return loadErr
+		}
+		if current.IsNetworkWake() {
+			return fmt.Errorf(
+				"%w: network_wake runs must be completed through network settlement",
+				taskpkg.ErrValidation,
+			)
+		}
 		updated, err := g.completeRunLeaseWithExecutor(ctx, exec, normalized)
 		if err != nil {
 			return err
@@ -85,12 +95,6 @@ func (g *TaskRunRepo) completeRunLeaseWithExecutor(
 	}
 	if err := requireLeaseTerminalTransition(current, taskpkg.TaskRunStatusCompleted); err != nil {
 		return taskpkg.Run{}, err
-	}
-	if current.IsNetworkWake() && len(normalized.CreatedTaskIDs) > 0 {
-		return taskpkg.Run{}, fmt.Errorf(
-			"%w: network_wake completion cannot claim created task ids",
-			taskpkg.ErrValidation,
-		)
 	}
 	if err := g.verifyCompletionCreatedTaskClaims(ctx, exec, current, normalized.CreatedTaskIDs); err != nil {
 		return taskpkg.Run{}, err

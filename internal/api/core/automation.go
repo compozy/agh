@@ -407,7 +407,11 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 		}
 		updated, err = manager.SetTriggerEnabled(c.Request.Context(), current.ID, *req.Enabled)
 	default:
-		next := applyTriggerPatch(current, req)
+		next, patchErr := applyTriggerPatch(current, req)
+		if patchErr != nil {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(patchErr))
+			return
+		}
 		webhookSecret := webhookSecretWriteFromUpdateRequest(req)
 		updated, err = manager.UpdateTrigger(c.Request.Context(), next, webhookSecret)
 	}
@@ -811,18 +815,6 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) (au
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
 	}
-	if req.TargetKind != nil {
-		next.TargetKind = *req.TargetKind
-		if next.TargetKind.Normalize() == automationpkg.TargetKindAgent && req.LoopTarget == nil {
-			next.LoopTarget = nil
-		}
-	}
-	if req.AgentName != nil {
-		next.AgentName = strings.TrimSpace(*req.AgentName)
-	}
-	if req.WorkspaceID != nil {
-		next.WorkspaceID = strings.TrimSpace(*req.WorkspaceID)
-	}
 	if req.Prompt != nil {
 		next.Prompt = strings.TrimSpace(*req.Prompt)
 	}
@@ -849,6 +841,9 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) (au
 	if req.FireLimit != nil {
 		next.FireLimit = *req.FireLimit
 	}
+	if err := automationpkg.ValidateImmutableJobTarget(current, next); err != nil {
+		return automationpkg.Job{}, err
+	}
 	return next, nil
 }
 
@@ -862,9 +857,6 @@ func validateConfigJobUpdate(req contract.UpdateJobRequest) error {
 	case req.Enabled == nil:
 		return errors.New("config-backed automation jobs only accept enabled updates")
 	case req.Name != nil ||
-		req.TargetKind != nil ||
-		req.AgentName != nil ||
-		req.WorkspaceID != nil ||
 		req.Prompt != nil ||
 		req.Schedule != nil ||
 		req.Task != nil ||
@@ -922,26 +914,17 @@ func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.T
 func ApplyAutomationTriggerPatch(
 	current automationpkg.Trigger,
 	req contract.UpdateTriggerRequest,
-) automationpkg.Trigger {
+) (automationpkg.Trigger, error) {
 	return applyTriggerPatch(current, req)
 }
 
-func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTriggerRequest) automationpkg.Trigger {
+func applyTriggerPatch(
+	current automationpkg.Trigger,
+	req contract.UpdateTriggerRequest,
+) (automationpkg.Trigger, error) {
 	next := current
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
-	}
-	if req.TargetKind != nil {
-		next.TargetKind = *req.TargetKind
-		if next.TargetKind.Normalize() == automationpkg.TargetKindAgent && req.LoopTarget == nil {
-			next.LoopTarget = nil
-		}
-	}
-	if req.AgentName != nil {
-		next.AgentName = strings.TrimSpace(*req.AgentName)
-	}
-	if req.WorkspaceID != nil {
-		next.WorkspaceID = strings.TrimSpace(*req.WorkspaceID)
 	}
 	if req.Prompt != nil {
 		next.Prompt = strings.TrimSpace(*req.Prompt)
@@ -964,6 +947,9 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 	if req.FireLimit != nil {
 		next.FireLimit = *req.FireLimit
 	}
+	if err := automationpkg.ValidateImmutableTriggerTarget(current, next); err != nil {
+		return automationpkg.Trigger{}, err
+	}
 
 	event := strings.TrimSpace(next.Event)
 	if req.WebhookID != nil {
@@ -980,7 +966,7 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 		next.WebhookSecretRef = ""
 	}
 
-	return next
+	return next, nil
 }
 
 func webhookSecretWriteFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.WebhookSecretWrite {
@@ -1012,9 +998,6 @@ func validateConfigTriggerUpdate(req contract.UpdateTriggerRequest) error {
 	case req.Enabled == nil:
 		return errors.New("config-backed automation triggers only accept enabled updates")
 	case req.Name != nil ||
-		req.TargetKind != nil ||
-		req.AgentName != nil ||
-		req.WorkspaceID != nil ||
 		req.Prompt != nil ||
 		req.Event != nil ||
 		req.Filter != nil ||

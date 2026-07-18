@@ -940,6 +940,19 @@ type NetworkSubscription struct {
 	UpdatedAt   string `json:"updated_at"`
 }
 
+type NetworkTaskStatusProjection struct {
+	EventID            string `json:"event_id"`
+	RecipientSessionID string `json:"recipient_session_id"`
+	WorkspaceID        string `json:"workspace_id"`
+	Channel            string `json:"channel"`
+	ThreadID           string `json:"thread_id"`
+	TaskID             string `json:"task_id"`
+	RunID              string `json:"run_id"`
+	EventType          string `json:"event_type"`
+	ProjectionJson     string `json:"projection_json"`
+	ProjectedAt        string `json:"projected_at"`
+}
+
 type NetworkTaskThreadOrigin struct {
 	TaskID               string `json:"task_id"`
 	WorkspaceID          string `json:"workspace_id"`

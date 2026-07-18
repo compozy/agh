@@ -110,6 +110,25 @@ CREATE TABLE network_task_thread_origins (
 				ON DELETE CASCADE
 		);
 
+CREATE TABLE network_task_status_projections (
+		event_id             TEXT NOT NULL REFERENCES task_events(id) ON DELETE CASCADE,
+		recipient_session_id TEXT NOT NULL,
+		workspace_id         TEXT NOT NULL,
+		channel              TEXT NOT NULL,
+		thread_id            TEXT NOT NULL,
+		task_id              TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+		run_id               TEXT NOT NULL DEFAULT '',
+		event_type           TEXT NOT NULL,
+		projection_json      TEXT NOT NULL CHECK (json_valid(projection_json)),
+		projected_at         TEXT NOT NULL,
+		PRIMARY KEY (event_id, recipient_session_id),
+		FOREIGN KEY (workspace_id, channel, thread_id)
+			REFERENCES network_threads(workspace_id, channel, thread_id)
+			ON DELETE CASCADE,
+		FOREIGN KEY (workspace_id, recipient_session_id)
+			REFERENCES sessions(workspace_id, id) ON DELETE CASCADE
+	);
+
 CREATE TABLE network_thread_participants (
 		workspace_id     TEXT NOT NULL,
 		channel          TEXT NOT NULL,
@@ -422,6 +441,12 @@ CREATE INDEX idx_network_subscriptions_session
 
 CREATE INDEX idx_network_task_thread_origins_thread
 			ON network_task_thread_origins(workspace_id, channel, thread_id, created_at DESC);
+
+CREATE INDEX idx_network_task_status_projections_recipient
+			ON network_task_status_projections(workspace_id, recipient_session_id, projected_at DESC, event_id);
+
+CREATE INDEX idx_network_task_status_projections_task
+			ON network_task_status_projections(workspace_id, task_id, projected_at DESC, event_id);
 
 CREATE INDEX idx_network_thread_participants_session
 		ON network_thread_participants(workspace_id, session_id, last_seen_at DESC);

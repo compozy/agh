@@ -30,7 +30,7 @@ func (m *Service) InspectTask(ctx context.Context, taskID string, actor ActorCon
 		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
 	}
 
-	record, err := m.store.GetTask(ctx, trimmedID)
+	record, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +45,9 @@ func (m *Service) InspectRun(ctx context.Context, runID string, actor ActorConte
 
 	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.authorizeTaskResource(ctx, actor, taskRecord); err != nil {
 		return nil, err
 	}
 	return m.inspectTaskRecord(ctx, taskRecord, InspectTargetRun, run.ID)

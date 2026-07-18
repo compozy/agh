@@ -122,6 +122,7 @@ export function TaskEditorModal({
   const participationValid = isNetworkParticipationDraftValid(networkParticipation, [
     "named",
     "run",
+    "loop_run",
   ]);
   const submitAllowed = canSubmit && participationValid;
 
@@ -217,7 +218,7 @@ export function TaskEditorModal({
               title="Network participation"
             >
               <NetworkParticipationFields
-                allowedStrategies={["named", "run"]}
+                allowedStrategies={["named", "run", "loop_run"]}
                 onChange={next =>
                   onDraftChange(current => ({
                     ...current,

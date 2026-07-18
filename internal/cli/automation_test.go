@@ -258,8 +258,6 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 			updateRequest = request
 			updated := sampleAutomationJobRecord()
 			updated.Name = *request.Name
-			updated.AgentName = *request.AgentName
-			updated.WorkspaceID = *request.WorkspaceID
 			updated.Prompt = *request.Prompt
 			updated.Schedule = request.Schedule
 			updated.Retry = *request.Retry
@@ -314,8 +312,6 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 		deps,
 		"automation", "jobs", "update", "job-1",
 		"--name", "nightly-digest",
-		"--agent", "reviewer",
-		"--workspace", "alpha",
 		"--prompt", "digest repo activity",
 		"--schedule", "at:2026-04-15T15:00",
 		"--retry", "none",
@@ -330,7 +326,7 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 	if err := json.Unmarshal([]byte(updatedJSON), &updated); err != nil {
 		t.Fatalf("json.Unmarshal(job update) error = %v", err)
 	}
-	if updated.Name != "nightly-digest" || updated.AgentName != "reviewer" || updated.WorkspaceID != "ws-alpha" ||
+	if updated.Name != "nightly-digest" || updated.AgentName != "coder" || updated.WorkspaceID != "ws-alpha" ||
 		updated.Schedule == nil ||
 		updated.Schedule.Mode != automationpkg.ScheduleModeAt {
 		t.Fatalf("updated job = %#v, want updated values", updated)

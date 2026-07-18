@@ -265,6 +265,10 @@ func (g *TaskRunRepo) createReviewContinuationRun(
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
+	normalized, err = bindTaskRunWorkspace(normalized, taskRecord)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
 	if err := insertQueuedTaskRun(ctx, exec, normalized); err != nil {
 		return taskpkg.Run{}, mapReviewContinuationInsertError(review.ReviewID, err)
 	}

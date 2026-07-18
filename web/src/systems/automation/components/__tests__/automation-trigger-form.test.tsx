@@ -214,6 +214,22 @@ describe("AutomationTriggerForm", () => {
     expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent('"scope"');
   });
 
+  it("Should keep webhook unavailable while editing a workspace-scoped Trigger", () => {
+    const { onChange } = renderTriggerForm({
+      draft: {
+        ...createAutomationTriggerDraft("ws_alpha"),
+        name: "review-completions",
+      },
+      mode: "edit",
+    });
+
+    const webhook = screen.getByTestId("trigger-event-webhook");
+    expect(webhook).toBeDisabled();
+    fireEvent.click(webhook);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("automation-request-payload")).not.toHaveTextContent("webhook");
+  });
+
   it("adds and edits structured filter conditions as an AND map", () => {
     const { onChange } = renderTriggerForm();
 
@@ -416,7 +432,7 @@ describe("AutomationTriggerForm", () => {
     const { onSubmit } = renderTriggerForm({
       mode: "edit",
       draft: {
-        ...createAutomationTriggerDraft("ws_alpha"),
+        ...createAutomationTriggerDraft(null),
         event: "session.stopped",
         name: "delivery-trigger",
         agent_name: "",
@@ -435,6 +451,9 @@ describe("AutomationTriggerForm", () => {
     fireEvent.click(screen.getByTestId("trigger-event-webhook"));
 
     expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("software-delivery");
+    expect(screen.getByRole("combobox", { name: "Loop" })).toBeDisabled();
+    expect(screen.getByTestId("target-mode-agent")).toBeDisabled();
+    expect(screen.getByTestId("target-mode-loop")).toBeDisabled();
     expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
       "software-delivery does not declare the webhook start kind"
     );
@@ -474,7 +493,7 @@ describe("AutomationTriggerForm", () => {
 
     const request = screen.getByTestId("automation-request-payload");
     expect(request).toHaveTextContent("PATCH /api/automation/triggers/{id}");
-    expect(request).toHaveTextContent('"target_kind": "loop"');
+    expect(request).not.toHaveTextContent('"target_kind"');
     expect(request).toHaveTextContent('"input_mapping"');
   });
 

@@ -49,7 +49,7 @@ export function TriggerTargetStep({
     <div className="space-y-4" data-testid="trigger-target-step">
       <PillGroup
         aria-label="Target"
-        items={MODE_ITEMS}
+        items={MODE_ITEMS.map(item => ({ ...item, disabled: editorMode === "edit" }))}
         value={mode}
         onChange={onModeChange}
         size="sm"
@@ -57,6 +57,7 @@ export function TriggerTargetStep({
       {mode === "loop" ? (
         <LoopTargetFields
           catalog={catalog}
+          identityDisabled={editorMode === "edit"}
           mode={editorMode}
           value={loopTarget}
           onChange={onLoopTargetChange}
@@ -65,6 +66,7 @@ export function TriggerTargetStep({
       ) : (
         <AgentPromptStep
           agent={agent}
+          agentDisabled={editorMode === "edit"}
           agents={agents}
           onAgentChange={onAgentChange}
           onPromptChange={onPromptChange}

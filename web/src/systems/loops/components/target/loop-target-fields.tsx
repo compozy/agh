@@ -33,6 +33,7 @@ interface LoopTargetFieldsProps {
   mode: "create" | "edit";
   value: LoopTargetDraft;
   onChange: (value: LoopTargetDraft) => void;
+  identityDisabled?: boolean;
   /** Show the event-payload mapping table (triggers/webhooks only). */
   showMapping?: boolean;
 }
@@ -48,6 +49,7 @@ export function LoopTargetFields({
   mode,
   value,
   onChange,
+  identityDisabled = false,
   showMapping = false,
 }: LoopTargetFieldsProps) {
   const selected = catalog.selected;
@@ -84,6 +86,7 @@ export function LoopTargetFields({
             aria-describedby={compatibilityMessage ? noticeId : undefined}
             id="loop-target-loop"
             data-testid="loop-target-select"
+            disabled={identityDisabled}
             value={value.loop_name}
             onChange={event => onChange(setLoopTargetLoop(value, event.target.value))}
           >

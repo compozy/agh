@@ -69,7 +69,7 @@ func (m *Service) mutateTaskTriage(
 		return TriageState{}, fmt.Errorf("%w: task id is required", ErrValidation)
 	}
 
-	record, err := m.store.GetTask(ctx, trimmedID)
+	record, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor)
 	if err != nil {
 		return TriageState{}, err
 	}
@@ -121,6 +121,28 @@ func (m *Service) loadCancellationTree(ctx context.Context, taskID string) ([]Ta
 		return nil, Task{}, ErrTaskNotFound
 	}
 	return tree, tree[0], nil
+}
+
+func (m *Service) authorizeTaskTreeMutation(
+	ctx context.Context,
+	actor ActorContext,
+	tree []Task,
+) error {
+	for _, record := range tree {
+		if err := m.authorizeTaskResource(ctx, actor, record); err != nil {
+			return err
+		}
+		runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
+		if err != nil {
+			return err
+		}
+		for _, run := range runs {
+			if err := m.authorizeRunResource(ctx, actor, run, record); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (m *Service) ensureTaskCancelable(ctx context.Context, root Task) error {

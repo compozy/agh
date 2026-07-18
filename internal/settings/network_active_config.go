@@ -5,7 +5,34 @@ import (
 	"errors"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/config/lifecycle"
 )
+
+func (s *service) recordNetworkSectionApply(ctx context.Context, result MutationResult) (ApplyResult, error) {
+	state, err := s.ensureActiveConfigState(ctx)
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	_, desired, err := s.currentDesiredConfigHash()
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	availabilityChanged := state.config.Network.Enabled != desired.Network.Enabled
+	if !availabilityChanged {
+		return s.recordMutationApply(ctx, result)
+	}
+	if mutationLifecycle(result) == lifecycle.Live {
+		return s.recordNetworkMutationApply(ctx, result)
+	}
+
+	liveResult := result
+	liveResult.Lifecycle = lifecycle.Live
+	liveResult.DiffClass = lifecycle.DiffClassLive
+	if _, err := s.recordNetworkMutationApply(ctx, liveResult); err != nil {
+		return ApplyResult{}, err
+	}
+	return s.recordMutationApply(ctx, result)
+}
 
 func (s *service) recordNetworkMutationApply(
 	ctx context.Context,

@@ -74,13 +74,11 @@ type automationTriggerCommandInput struct {
 }
 
 type automationJobUpdateInput struct {
-	Name         string
-	AgentName    string
-	WorkspaceRef string
-	Prompt       string
-	ScheduleRaw  string
-	RetryRaw     string
-	Enabled      bool
+	Name        string
+	Prompt      string
+	ScheduleRaw string
+	RetryRaw    string
+	Enabled     bool
 }
 
 func newAutomationCommand(deps commandDeps) *cobra.Command {
@@ -201,13 +199,11 @@ func newAutomationJobsGetCommand(deps commandDeps) *cobra.Command {
 
 func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 	var (
-		name         string
-		agentName    string
-		workspaceRef string
-		prompt       string
-		scheduleRaw  string
-		retryRaw     string
-		enabled      bool
+		name        string
+		prompt      string
+		scheduleRaw string
+		retryRaw    string
+		enabled     bool
 	)
 
 	cmd := &cobra.Command{
@@ -221,13 +217,11 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 			}
 
 			request, err := buildAutomationJobUpdateRequest(cmd, client, automationJobUpdateInput{
-				Name:         name,
-				AgentName:    agentName,
-				WorkspaceRef: workspaceRef,
-				Prompt:       prompt,
-				ScheduleRaw:  scheduleRaw,
-				RetryRaw:     retryRaw,
-				Enabled:      enabled,
+				Name:        name,
+				Prompt:      prompt,
+				ScheduleRaw: scheduleRaw,
+				RetryRaw:    retryRaw,
+				Enabled:     enabled,
 			})
 			if err != nil {
 				return err
@@ -244,8 +238,6 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&name, automationNameKey, "", "Update the job name")
-	cmd.Flags().StringVar(&agentName, "agent", "", "Update the agent definition")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Update the workspace path, name, or ID")
 	cmd.Flags().StringVar(&prompt, automationPromptKey, "", "Update the prompt body")
 	cmd.Flags().StringVar(&scheduleRaw, "schedule", "", "Update the schedule spec")
 	cmd.Flags().
@@ -256,22 +248,12 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 
 func buildAutomationJobUpdateRequest(
 	cmd *cobra.Command,
-	client DaemonClient,
+	_ DaemonClient,
 	input automationJobUpdateInput,
 ) (AutomationJobUpdateRequest, error) {
 	request := AutomationJobUpdateRequest{}
 	if cmd.Flags().Changed(automationNameKey) {
 		request.Name = new(strings.TrimSpace(input.Name))
-	}
-	if cmd.Flags().Changed("agent") {
-		request.AgentName = new(strings.TrimSpace(input.AgentName))
-	}
-	if cmd.Flags().Changed("workspace") {
-		workspaceID, err := resolveAutomationWorkspaceID(cmd.Context(), client, input.WorkspaceRef)
-		if err != nil {
-			return AutomationJobUpdateRequest{}, err
-		}
-		request.WorkspaceID = new(workspaceID)
 	}
 	if cmd.Flags().Changed(automationPromptKey) {
 		request.Prompt = new(strings.TrimSpace(input.Prompt))
@@ -516,8 +498,6 @@ func newAutomationTriggersGetCommand(deps commandDeps) *cobra.Command {
 func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 	var (
 		name               string
-		agentName          string
-		workspaceRef       string
 		prompt             string
 		eventRaw           string
 		filterFlags        []string
@@ -544,8 +524,6 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 				automationTriggerCommandInput{
 					Name:               name,
 					EventRaw:           eventRaw,
-					WorkspaceRef:       workspaceRef,
-					AgentName:          agentName,
 					Prompt:             prompt,
 					RetryRaw:           retryRaw,
 					FilterFlags:        filterFlags,
@@ -567,8 +545,6 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&name, automationNameKey, "", "Update the trigger name")
-	cmd.Flags().StringVar(&agentName, "agent", "", "Update the agent definition")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Update the workspace path, name, or ID")
 	cmd.Flags().StringVar(&prompt, automationPromptKey, "", "Update the prompt template body")
 	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", "Update the trigger event")
 	cmd.Flags().
@@ -1494,22 +1470,12 @@ func buildAutomationTriggerCreateRequest(
 
 func buildAutomationTriggerUpdateRequest(
 	cmd *cobra.Command,
-	client DaemonClient,
+	_ DaemonClient,
 	input automationTriggerCommandInput,
 ) (AutomationTriggerUpdateRequest, error) {
 	request := AutomationTriggerUpdateRequest{}
 	if cmd.Flags().Changed(automationNameKey) {
 		request.Name = new(strings.TrimSpace(input.Name))
-	}
-	if cmd.Flags().Changed("agent") {
-		request.AgentName = new(strings.TrimSpace(input.AgentName))
-	}
-	if cmd.Flags().Changed("workspace") {
-		workspaceID, err := resolveAutomationWorkspaceID(cmd.Context(), client, input.WorkspaceRef)
-		if err != nil {
-			return AutomationTriggerUpdateRequest{}, err
-		}
-		request.WorkspaceID = new(workspaceID)
 	}
 	if cmd.Flags().Changed(automationPromptKey) {
 		request.Prompt = new(strings.TrimSpace(input.Prompt))

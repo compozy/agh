@@ -54,7 +54,13 @@ describe("automation request normalization", () => {
     expect(projection.method).toBe("PATCH");
     expect(projection.path).toBe("/api/automation/jobs/{id}");
     expect(projection.payload).not.toHaveProperty("scope");
-    expect(projection.payload).toMatchObject({ name: "daily-loop", workspace_id: "ws_alpha" });
+    expect(projection.payload).not.toHaveProperty("workspace_id");
+    expect(projection.payload).not.toHaveProperty("target_kind");
+    expect(projection.payload).not.toHaveProperty("agent_name");
+    expect(projection.payload).toMatchObject({
+      loop_target: { workspace_id: "ws_alpha" },
+      name: "daily-loop",
+    });
   });
 
   it("Should project Trigger edits onto the exact mutable PATCH contract", () => {
@@ -69,9 +75,9 @@ describe("automation request normalization", () => {
     expect(projection.method).toBe("PATCH");
     expect(projection.path).toBe("/api/automation/triggers/{id}");
     expect(projection.payload).not.toHaveProperty("scope");
-    expect(projection.payload).toMatchObject({
-      name: "review-completions",
-      workspace_id: "ws_alpha",
-    });
+    expect(projection.payload).not.toHaveProperty("workspace_id");
+    expect(projection.payload).not.toHaveProperty("target_kind");
+    expect(projection.payload).not.toHaveProperty("agent_name");
+    expect(projection.payload).toMatchObject({ name: "review-completions" });
   });
 });

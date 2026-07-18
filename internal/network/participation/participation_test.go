@@ -307,6 +307,18 @@ func TestNormalizeIntentShouldValidatePartialPersistedIntent(t *testing.T) {
 		{name: "Should reject invalid wake wall time", bounds: participation.BoundsRequest{MaxWakeWallTime: new("bad")}},
 		{name: "Should reject invalid total wall time", bounds: participation.BoundsRequest{MaxTotalWallTime: new("0s")}},
 		{name: "Should reject invalid coalesce window", bounds: participation.BoundsRequest{CoalesceWindow: new("-1s")}},
+		{
+			name: "Should reject input tokens above the JavaScript safe integer ceiling",
+			bounds: participation.BoundsRequest{
+				MaxInputTokens: new(int64(9_007_199_254_740_992)),
+			},
+		},
+		{
+			name: "Should reject output tokens above the JavaScript safe integer ceiling",
+			bounds: participation.BoundsRequest{
+				MaxOutputTokens: new(int64(9_007_199_254_740_992)),
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -439,6 +451,28 @@ func TestValidateShouldKeepWakeWallWithinTotalWall(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should reject contradictory partial authored bounds", func(t *testing.T) {
+		t.Parallel()
+
+		wakeWall := "6m"
+		totalWall := "5m"
+		_, err := participation.NormalizeIntent(participation.Request{
+			Mode:            new(participation.ModeLive),
+			ChannelStrategy: new(participation.StrategyRun),
+			Bounds: &participation.BoundsRequest{
+				MaxWakeWallTime:  &wakeWall,
+				MaxTotalWallTime: &totalWall,
+			},
+		})
+		if !errors.Is(err, participation.ErrBoundsExceedCeiling) {
+			t.Fatalf("NormalizeIntent() error = %v, want ErrBoundsExceedCeiling", err)
+		}
+		if !strings.Contains(err.Error(), "max_wake_wall_time") ||
+			!strings.Contains(err.Error(), "max_total_wall_time") {
+			t.Fatalf("NormalizeIntent() error = %q, want both wall-time fields", err)
+		}
+	})
 }
 
 func TestResolverShouldResolveLocalWithoutChannelLookup(t *testing.T) {
@@ -487,6 +521,13 @@ func TestOwnerRefShouldRequireWorkspaceQualifiedIdentity(t *testing.T) {
 	if got := participation.OwnerKey(valid); got != "task_run:run-1" {
 		t.Fatalf("OwnerKey(valid) = %q, want task_run:run-1", got)
 	}
+	projected, err := participation.OwnerRefFromKey(valid.WorkspaceID, participation.OwnerKey(valid))
+	if err != nil {
+		t.Fatalf("OwnerRefFromKey(valid) error = %v", err)
+	}
+	if projected != valid {
+		t.Fatalf("OwnerRefFromKey(valid) = %#v, want %#v", projected, valid)
+	}
 
 	for _, testCase := range []struct {
 		name  string
@@ -507,6 +548,14 @@ func TestOwnerRefShouldRequireWorkspaceQualifiedIdentity(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should reject an owner key without a workspace", func(t *testing.T) {
+		t.Parallel()
+		if _, err := participation.OwnerRefFromKey("", "task_run:run-1"); err == nil ||
+			!strings.Contains(err.Error(), "workspace_id") {
+			t.Fatalf("OwnerRefFromKey(empty workspace) error = %v, want workspace_id", err)
+		}
+	})
 }
 
 func TestResolverShouldRejectOwnerFromAnotherWorkspace(t *testing.T) {
@@ -1014,6 +1063,21 @@ func TestResolveBoundsShouldTreatAdministrativeCeilingsAsInclusive(t *testing.T)
 	}
 	if !strings.Contains(err.Error(), "network.live.limits.max_wakes") {
 		t.Fatalf("ResolveBounds(above ceiling) error = %q, want ceiling key", err)
+	}
+
+	unsafeDefaults := completeBounds()
+	unsafeDefaults.MaxInputTokens = 9_007_199_254_740_992
+	if _, err := participation.ResolveBounds(nil, unsafeDefaults, participation.Limits{}); !errors.Is(
+		err,
+		participation.ErrBoundsExceedCeiling,
+	) {
+		t.Fatalf("ResolveBounds(unsafe token default) error = %v, want ErrBoundsExceedCeiling", err)
+	}
+
+	unsafeLimits := limits
+	unsafeLimits.MaxOutputTokens = 9_007_199_254_740_992
+	if err := unsafeLimits.Validate(); !errors.Is(err, participation.ErrBoundsExceedCeiling) {
+		t.Fatalf("Limits.Validate(unsafe token ceiling) error = %v, want ErrBoundsExceedCeiling", err)
 	}
 }
 

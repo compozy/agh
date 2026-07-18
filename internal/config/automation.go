@@ -158,6 +158,14 @@ func (j AutomationJob) Validate(path string) error {
 		if err := j.Task.Validate(path + ".task"); err != nil {
 			return err
 		}
+		if err := automationpkg.ValidateDirectTaskParticipationScope(
+			j.Scope,
+			j.Task.NetworkParticipation,
+			path+".task.network_participation",
+			path+".scope",
+		); err != nil {
+			return err
+		}
 		if j.Retry.Strategy != automationpkg.RetryStrategyNone {
 			return fmt.Errorf(
 				"%s.strategy must be %q when %s is configured",

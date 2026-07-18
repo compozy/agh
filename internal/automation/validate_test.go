@@ -501,6 +501,22 @@ func TestJobValidateRejectsMissingRequiredFields(t *testing.T) {
 			},
 		},
 		{
+			name:    "global direct task with live participation",
+			wantErr: "global direct task has no workspace binding",
+			job: Job{
+				Scope:    AutomationScopeGlobal,
+				Name:     "live-task",
+				Schedule: &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "15m"},
+				Task: &JobTaskConfig{
+					Title:                "Live task",
+					NetworkParticipation: testNamedParticipation("builders"),
+				},
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+		},
+		{
 			name:    "agent target with participation-only loop data",
 			wantErr: `job.loop_target must be empty when target_kind is "agent"`,
 			job: Job{

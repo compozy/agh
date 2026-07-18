@@ -75,7 +75,7 @@ func (m *Service) ForceReleaseRun(
 	if err != nil {
 		return nil, err
 	}
-	previous, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	previous, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (m *Service) ForceFailRun(
 	if err != nil {
 		return nil, err
 	}
-	previous, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	previous, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (m *Service) RetryRun(
 	if err != nil {
 		return nil, err
 	}
-	source, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	source, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +292,7 @@ func (m *Service) RecoverRun(
 	if err != nil {
 		return nil, err
 	}
-	source, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	source, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}

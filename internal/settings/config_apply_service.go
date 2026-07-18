@@ -42,8 +42,8 @@ func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (A
 	if err != nil {
 		return s.recordFailedApply(ctx, req.Section, req.Scope, "", configLifecycle, err)
 	}
-	if result.Section == SectionNetwork && mutationLifecycle(result) == lifecycle.Live {
-		return s.recordNetworkMutationApply(ctx, result)
+	if result.Section == SectionNetwork {
+		return s.recordNetworkSectionApply(ctx, result)
 	}
 	return s.recordMutationApply(ctx, result)
 }

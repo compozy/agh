@@ -4,8 +4,13 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TaskEditorModal, type TaskEditorModalMode } from "../task-editor-modal";
-import { createTaskEditorDraft, type TaskEditorDraft } from "../../lib/task-editor";
+import {
+  createTaskEditorDraft,
+  taskEditorDraftFromTask,
+  type TaskEditorDraft,
+} from "../../lib/task-editor";
 import { getTaskTemplate, type TaskTemplateId } from "../../lib/task-templates";
+import { buildTaskExecutionProfileFixture } from "../../mocks/fixtures";
 import type { TaskRecord } from "../../types";
 
 interface RenderModalOptions {
@@ -218,5 +223,40 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-title-input")).toHaveValue("Summarize review feedback");
     expect(screen.queryByTestId("task-network-input")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
+  });
+
+  it("Should submit persisted Live participation inherited from a Loop run", () => {
+    const loopTask = {
+      ...editTask,
+      execution_mode: "loop_run",
+    } as TaskRecord;
+    const draft = taskEditorDraftFromTask(
+      loopTask,
+      buildTaskExecutionProfileFixture({
+        task_id: loopTask.id,
+        network_participation: {
+          mode: "live",
+          channel_strategy: "loop_run",
+        },
+      })
+    );
+
+    const { onSubmit } = renderModal({ mode: "edit", draft, task: loopTask });
+
+    expect(screen.getByTestId("task-editor-participation-mode")).toHaveValue("live");
+    expect(screen.getByTestId("task-editor-participation-strategy")).toHaveValue("loop_run");
+    expect(screen.queryByTestId("task-editor-participation-channel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-editor-modal-submit")).toBeEnabled();
+
+    fireEvent.submit(screen.getByTestId("task-editor-modal-form"));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        networkParticipationMode: "live",
+        networkChannelId: "",
+        networkChannelStrategy: "loop_run",
+      }),
+      false
+    );
   });
 });

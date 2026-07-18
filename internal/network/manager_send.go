@@ -13,6 +13,8 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
+const networkSendCommitTimeout = 30 * time.Second
+
 type networkSubscriptionStore interface {
 	ListNetworkSubscriptions(
 		ctx context.Context,
@@ -28,6 +30,8 @@ func (m *Manager) Send(ctx context.Context, req SendRequest) (string, error) {
 	if m == nil || m.router == nil {
 		return "", errors.New("network: manager router is required")
 	}
+	ctx, cancel := m.detachedSendContext(ctx)
+	defer cancel()
 	prepared, err := m.router.PrepareSend(ctx, req)
 	if err != nil {
 		m.logPrePersistenceRejection(req.SessionID, req.Body, req.Ext, err)
@@ -44,6 +48,8 @@ func (m *Manager) SendFromRuntimePeer(ctx context.Context, req RuntimeSendReques
 	if m == nil || m.router == nil {
 		return "", errors.New("network: manager router is required")
 	}
+	ctx, cancel := m.detachedSendContext(ctx)
+	defer cancel()
 	prepared, err := m.router.PrepareRuntimeSend(ctx, req)
 	if err != nil {
 		m.logPrePersistenceRejection(runtimePeerSessionID, req.Body, req.Ext, err)
@@ -105,10 +111,53 @@ func (m *Manager) acceptPrepared(
 			m.wakeNotifier.NotifyNetworkWake(notification)
 		}
 	}
+	if result.Duplicate {
+		route = filterDuplicateWhoisResponders(route, result.Dispositions)
+	}
 	if err := m.acceptWhoisResponses(ctx, route); err != nil {
 		return "", err
 	}
 	return prepared.ID, nil
+}
+
+func (m *Manager) detachedSendContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	detached := context.WithoutCancel(ctx)
+	deadline := time.Now().Add(networkSendCommitTimeout)
+	if callerDeadline, ok := ctx.Deadline(); ok && callerDeadline.Before(deadline) {
+		deadline = callerDeadline
+	}
+	detached, cancel := context.WithDeadline(detached, deadline)
+	if m.lifecycleCtx == nil {
+		return detached, cancel
+	}
+	stopLifecycleCancel := context.AfterFunc(m.lifecycleCtx, cancel)
+	return detached, func() {
+		stopLifecycleCancel()
+		cancel()
+	}
+}
+
+func filterDuplicateWhoisResponders(
+	route RouteResult,
+	dispositions []store.NetworkMessageDisposition,
+) RouteResult {
+	if len(route.whoisPeers) == 0 {
+		return route
+	}
+	committedRecipients := make(map[string]struct{}, len(dispositions))
+	for _, disposition := range dispositions {
+		if disposition.Decision == store.NetworkDispositionDeliver {
+			committedRecipients[strings.TrimSpace(disposition.RecipientSessionID)] = struct{}{}
+		}
+	}
+	responders := make([]LocalPeer, 0, len(route.whoisPeers))
+	for _, responder := range route.whoisPeers {
+		if _, ok := committedRecipients[responder.SessionID]; ok {
+			responders = append(responders, responder)
+		}
+	}
+	route.whoisPeers = responders
+	return route
 }
 
 func (m *Manager) acceptWhoisResponses(ctx context.Context, route RouteResult) error {

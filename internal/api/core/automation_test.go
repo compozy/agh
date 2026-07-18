@@ -1074,8 +1074,6 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 
 	t.Run("Should clone patched job task configuration instead of aliasing the request", func(t *testing.T) {
 		jobName := " renamed "
-		jobAgent := " reviewer "
-		jobWorkspace := " ws-beta "
 		jobPrompt := " next prompt "
 		jobEnabled := false
 		jobSchedule := automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeCron, Expr: "0 * * * *"}
@@ -1106,20 +1104,20 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			Retry:       automationpkg.DefaultRetryConfig(),
 			FireLimit:   automationpkg.DefaultFireLimitConfig(),
 		}, contract.UpdateJobRequest{
-			Name:        &jobName,
-			AgentName:   &jobAgent,
-			WorkspaceID: &jobWorkspace,
-			Prompt:      &jobPrompt,
-			Schedule:    &jobSchedule,
-			Task:        &jobTask,
-			Enabled:     &jobEnabled,
-			Retry:       &jobRetry,
-			FireLimit:   &jobFireLimit,
+			Name:      &jobName,
+			Prompt:    &jobPrompt,
+			Schedule:  &jobSchedule,
+			Task:      &jobTask,
+			Enabled:   &jobEnabled,
+			Retry:     &jobRetry,
+			FireLimit: &jobFireLimit,
 		})
 		if err != nil {
 			t.Fatalf("applyJobPatch() error = %v", err)
 		}
-		if updatedJob.Name != "renamed" || updatedJob.AgentName != "reviewer" || updatedJob.WorkspaceID != "ws-beta" ||
+		if updatedJob.Name != "renamed" ||
+			updatedJob.AgentName != "old-agent" ||
+			updatedJob.WorkspaceID != "ws-alpha" ||
 			updatedJob.Prompt != "next prompt" ||
 			updatedJob.Enabled ||
 			updatedJob.Schedule == nil ||
@@ -1168,8 +1166,6 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		}
 
 		jobName := " renamed "
-		jobAgent := " reviewer "
-		jobWorkspace := " ws-beta "
 		jobPrompt := " next prompt "
 		triggerEvent := "session.stopped"
 		triggerFilter := map[string]string{"kind": "session"}
@@ -1180,7 +1176,7 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			BaseDelay:  "30s",
 		}
 		triggerFireLimit := automationpkg.FireLimitConfig{Max: 2, Window: "1h"}
-		updatedTrigger := applyTriggerPatch(automationpkg.Trigger{
+		updatedTrigger, err := applyTriggerPatch(automationpkg.Trigger{
 			ID:           "trigger-1",
 			Name:         "before",
 			AgentName:    "old-agent",
@@ -1195,18 +1191,19 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			Retry:        automationpkg.DefaultRetryConfig(),
 			FireLimit:    automationpkg.DefaultFireLimitConfig(),
 		}, contract.UpdateTriggerRequest{
-			Name:        &jobName,
-			AgentName:   &jobAgent,
-			WorkspaceID: &jobWorkspace,
-			Prompt:      &jobPrompt,
-			Event:       &triggerEvent,
-			Filter:      triggerFilter,
-			Enabled:     &triggerEnabled,
-			Retry:       &triggerRetry,
-			FireLimit:   &triggerFireLimit,
+			Name:      &jobName,
+			Prompt:    &jobPrompt,
+			Event:     &triggerEvent,
+			Filter:    triggerFilter,
+			Enabled:   &triggerEnabled,
+			Retry:     &triggerRetry,
+			FireLimit: &triggerFireLimit,
 		})
-		if updatedTrigger.Name != "renamed" || updatedTrigger.AgentName != "reviewer" ||
-			updatedTrigger.WorkspaceID != "ws-beta" ||
+		if err != nil {
+			t.Fatalf("applyTriggerPatch() error = %v", err)
+		}
+		if updatedTrigger.Name != "renamed" || updatedTrigger.AgentName != "old-agent" ||
+			updatedTrigger.WorkspaceID != "ws-alpha" ||
 			updatedTrigger.Prompt != "next prompt" ||
 			updatedTrigger.Event != "session.stopped" ||
 			updatedTrigger.WebhookID != "" ||
@@ -1222,6 +1219,25 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		}
 		if clone := cloneAutomationFilter(nil); clone != nil {
 			t.Fatalf("cloneAutomationFilter(nil) = %#v, want nil", clone)
+		}
+	})
+
+	t.Run("Should reject a Loop target identity change", func(t *testing.T) {
+		t.Parallel()
+
+		currentTarget := &automationpkg.LoopTarget{WorkspaceID: "ws-alpha", LoopName: "review"}
+		nextTarget := &automationpkg.LoopTarget{WorkspaceID: "ws-alpha", LoopName: "deploy"}
+		if _, err := applyJobPatch(automationpkg.Job{
+			TargetKind: automationpkg.TargetKindLoop,
+			LoopTarget: currentTarget,
+		}, contract.UpdateJobRequest{LoopTarget: nextTarget}); err == nil {
+			t.Fatal("applyJobPatch(target identity) error = nil, want non-nil")
+		}
+		if _, err := applyTriggerPatch(automationpkg.Trigger{
+			TargetKind: automationpkg.TargetKindLoop,
+			LoopTarget: currentTarget,
+		}, contract.UpdateTriggerRequest{LoopTarget: nextTarget}); err == nil {
+			t.Fatal("applyTriggerPatch(target identity) error = nil, want non-nil")
 		}
 	})
 

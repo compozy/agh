@@ -273,6 +273,19 @@ func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {
 		want string
 	}{
 		{
+			name: "Should reject unknown fields",
+			raw: `{
+				"session_id":"sess-a",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_launch_db",
+				"kind":"say",
+				"legacy":true,
+				"body":{"text":"hello"}
+			}`,
+			want: "unknown field",
+		},
+		{
 			name: "Should reject interaction id",
 			raw: `{
 				"session_id":"sess-a",
@@ -856,8 +869,6 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 	t.Parallel()
 
 	name := "updated"
-	agentName := "reviewer"
-	workspaceID := "ws-alpha"
 	prompt := "updated prompt"
 	schedule := automationpkg.ScheduleSpec{
 		Mode:     automationpkg.ScheduleModeEvery,
@@ -895,16 +906,6 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 			{
 				name: "Should return true when the job name is set",
 				req:  contract.UpdateJobRequest{Name: &name},
-				want: true,
-			},
-			{
-				name: "Should return true when the job agent name is set",
-				req:  contract.UpdateJobRequest{AgentName: &agentName},
-				want: true,
-			},
-			{
-				name: "Should return true when the job workspace id is set",
-				req:  contract.UpdateJobRequest{WorkspaceID: &workspaceID},
 				want: true,
 			},
 			{
@@ -961,16 +962,6 @@ func TestAutomationUpdateRequestsHasChanges(t *testing.T) {
 			{
 				name: "Should return true when the trigger name is set",
 				req:  contract.UpdateTriggerRequest{Name: &name},
-				want: true,
-			},
-			{
-				name: "Should return true when the trigger agent name is set",
-				req:  contract.UpdateTriggerRequest{AgentName: &agentName},
-				want: true,
-			},
-			{
-				name: "Should return true when the trigger workspace id is set",
-				req:  contract.UpdateTriggerRequest{WorkspaceID: &workspaceID},
 				want: true,
 			},
 			{

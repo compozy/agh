@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/testutil"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -112,9 +113,30 @@ func TestNetworkUsageHandlers(t *testing.T) {
 		if len(body.Details) != 1 || body.Details[0].WakeID != "wake-1" {
 			t.Fatalf("details = %#v, want wake-1", body.Details)
 		}
-		if body.Budget == nil || body.Budget.OwnerKey != "task_run:run-1" ||
+		if body.Details[0].ParticipationStatus != (participation.Status{
+			Owner: participation.OwnerRef{
+				WorkspaceID: "ws-alpha",
+				Kind:        participation.OwnerKindSession,
+				ID:          "sess-1",
+			},
+			Available:     true,
+			Participating: true,
+		}) {
+			t.Fatalf(
+				"details[0].participation_status = %#v, want typed session owner",
+				body.Details[0].ParticipationStatus,
+			)
+		}
+		if body.Budget == nil || body.Budget.ParticipationStatus.Owner != (participation.OwnerRef{
+			WorkspaceID: "ws-alpha",
+			Kind:        participation.OwnerKindTaskRun,
+			ID:          "run-1",
+		}) || !body.Budget.ParticipationStatus.Available || !body.Budget.ParticipationStatus.Participating ||
 			body.Budget.WallTimeUsed != "1s" {
 			t.Fatalf("budget = %#v, want run owner consumption", body.Budget)
+		}
+		if strings.Contains(resp.Body.String(), "owner_key") {
+			t.Fatalf("usage response exposed internal owner_key: %s", resp.Body.String())
 		}
 		if body.NextCursor != "cursor-next" {
 			t.Fatalf("next_cursor = %q, want cursor-next", body.NextCursor)

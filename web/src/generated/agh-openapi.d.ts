@@ -16791,7 +16791,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name?: string | null;
           enabled?: boolean | null;
           fire_limit?: {
             max: number;
@@ -16882,7 +16881,6 @@ export interface operations {
             mode: "cron" | "every" | "at";
             time?: string;
           } | null;
-          target_kind?: string | null;
           task?: {
             description?: string;
             network_participation?:
@@ -16958,7 +16956,6 @@ export interface operations {
             } | null;
             title?: string;
           } | null;
-          workspace_id?: string | null;
         };
       };
     };
@@ -19052,7 +19049,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name?: string | null;
           enabled?: boolean | null;
           endpoint_slug?: string | null;
           event?: string | null;
@@ -19141,10 +19137,8 @@ export interface operations {
             /** @enum {string} */
             strategy: "none" | "backoff";
           } | null;
-          target_kind?: string | null;
           webhook_id?: string | null;
           webhook_secret_value?: string | null;
-          workspace_id?: string | null;
         };
       };
     };
@@ -50976,7 +50970,17 @@ export interface operations {
                     input_tokens_used: number;
                     /** Format: int64 */
                     output_tokens_used: number;
-                    owner_key: string;
+                    participation_status: {
+                      available: boolean;
+                      owner: {
+                        id: string;
+                        /** @enum {string} */
+                        kind: "session" | "task_run" | "loop_run" | "automation_run";
+                        workspace_id: string;
+                      };
+                      participating: boolean;
+                      reason?: string;
+                    };
                     /** Format: date-time */
                     updated_at: string;
                     wakes_used: number;
@@ -50990,7 +50994,17 @@ export interface operations {
                     input_tokens: number;
                     /** Format: int64 */
                     output_tokens: number;
-                    owner_key: string;
+                    participation_status: {
+                      available: boolean;
+                      owner: {
+                        id: string;
+                        /** @enum {string} */
+                        kind: "session" | "task_run" | "loop_run" | "automation_run";
+                        workspace_id: string;
+                      };
+                      participating: boolean;
+                      reason?: string;
+                    };
                     reason?: string;
                     /** Format: date-time */
                     reserved_at: string;
@@ -52245,7 +52259,17 @@ export interface operations {
                 input_tokens_used: number;
                 /** Format: int64 */
                 output_tokens_used: number;
-                owner_key: string;
+                participation_status: {
+                  available: boolean;
+                  owner: {
+                    id: string;
+                    /** @enum {string} */
+                    kind: "session" | "task_run" | "loop_run" | "automation_run";
+                    workspace_id: string;
+                  };
+                  participating: boolean;
+                  reason?: string;
+                };
                 /** Format: date-time */
                 updated_at: string;
                 wakes_used: number;
@@ -52259,7 +52283,17 @@ export interface operations {
                 input_tokens: number;
                 /** Format: int64 */
                 output_tokens: number;
-                owner_key: string;
+                participation_status: {
+                  available: boolean;
+                  owner: {
+                    id: string;
+                    /** @enum {string} */
+                    kind: "session" | "task_run" | "loop_run" | "automation_run";
+                    workspace_id: string;
+                  };
+                  participating: boolean;
+                  reason?: string;
+                };
                 reason?: string;
                 /** Format: date-time */
                 reserved_at: string;
@@ -78177,6 +78211,31 @@ export interface operations {
           };
         };
       };
+      /** @description Network coordination is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
     };
   };
   putNetworkCoordination: {
@@ -78192,14 +78251,24 @@ export interface operations {
     /** @description JSON request body */
     requestBody: {
       content: {
-        "application/json": {
-          enabled: boolean | null;
-          /** Format: int64 */
-          expected_revision: number | null;
-          run_id?: string;
-          scope: string;
-          task_id?: string;
-        };
+        "application/json":
+          | {
+              enabled: boolean;
+              /** Format: int64 */
+              expected_revision: number;
+              run_id?: string;
+              /** @enum {string} */
+              scope: "workspace";
+            }
+          | {
+              enabled: boolean;
+              /** Format: int64 */
+              expected_revision: number;
+              run_id?: string;
+              /** @enum {string} */
+              scope: "task";
+              task_id: string;
+            };
       };
     };
     responses: {
@@ -78364,6 +78433,31 @@ export interface operations {
           };
         };
       };
+      /** @description Network coordination is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
     };
   };
   putNetworkCoordinationInvitation: {
@@ -78379,14 +78473,24 @@ export interface operations {
     /** @description JSON request body */
     requestBody: {
       content: {
-        "application/json": {
-          dismissed: boolean | null;
-          /** Format: int64 */
-          expected_revision: number | null;
-          run_id?: string;
-          scope: string;
-          task_id?: string;
-        };
+        "application/json":
+          | {
+              dismissed: boolean;
+              /** Format: int64 */
+              expected_revision: number;
+              run_id?: string;
+              /** @enum {string} */
+              scope: "workspace";
+            }
+          | {
+              dismissed: boolean;
+              /** Format: int64 */
+              expected_revision: number;
+              run_id?: string;
+              /** @enum {string} */
+              scope: "task";
+              task_id: string;
+            };
       };
     };
     responses: {
@@ -78528,6 +78632,31 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network coordination is unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -82241,7 +82370,17 @@ export interface operations {
               input_tokens_used: number;
               /** Format: int64 */
               output_tokens_used: number;
-              owner_key: string;
+              participation_status: {
+                available: boolean;
+                owner: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "session" | "task_run" | "loop_run" | "automation_run";
+                  workspace_id: string;
+                };
+                participating: boolean;
+                reason?: string;
+              };
               /** Format: date-time */
               updated_at: string;
               wakes_used: number;
@@ -82255,7 +82394,17 @@ export interface operations {
               input_tokens: number;
               /** Format: int64 */
               output_tokens: number;
-              owner_key: string;
+              participation_status: {
+                available: boolean;
+                owner: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "session" | "task_run" | "loop_run" | "automation_run";
+                  workspace_id: string;
+                };
+                participating: boolean;
+                reason?: string;
+              };
               reason?: string;
               /** Format: date-time */
               reserved_at: string;
@@ -82336,6 +82485,31 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network usage is unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };

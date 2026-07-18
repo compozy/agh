@@ -12,7 +12,6 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
-	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/notifications"
 	storepkg "github.com/compozy/agh/internal/store"
@@ -338,44 +337,9 @@ func (o *taskStatusProjectionObserver) designationRollup(
 }
 
 func taskStatusProjectionEvent(eventType string) bool {
-	return taskStatusProjectionEventType(eventType) != ""
+	return taskpkg.StatusProjectionEventType(eventType) != ""
 }
 
 func taskStatusProjectionEventType(eventType string) string {
-	switch strings.TrimSpace(eventType) {
-	case eventspkg.TaskCanceled,
-		eventspkg.TaskNeedsAttention,
-		eventspkg.TaskRecovered,
-		eventspkg.TaskPaused,
-		eventspkg.TaskResumed,
-		eventspkg.TaskRunEnqueued,
-		eventspkg.TaskRunClaimed,
-		eventspkg.TaskRunStarting,
-		eventspkg.TaskRunSessionBound,
-		eventspkg.TaskRunStarted,
-		eventspkg.TaskRunCompleted,
-		eventspkg.TaskRunFailed,
-		eventspkg.TaskRunCanceled,
-		eventspkg.TaskRunForceStopped,
-		eventspkg.TaskRunRecovered,
-		eventspkg.TaskRunRejected,
-		eventspkg.TaskRunLeaseExpired,
-		eventspkg.TaskRunReleased,
-		eventspkg.TaskRunOperatorForcedFail,
-		eventspkg.TaskRunOperatorRetry,
-		eventspkg.TaskRunRecoveredFromAttention,
-		eventspkg.TaskRunNeedsAttention,
-		eventspkg.TaskRunReviewRetryEnqueued:
-		return strings.TrimSpace(eventType)
-	case taskHookRunStarted:
-		return taskEventRunStarted
-	case taskHookRunCompleted:
-		return taskEventRunCompleted
-	case taskHookRunFailed:
-		return taskEventRunFailed
-	case taskHookRunCanceled:
-		return taskEventRunCanceled
-	default:
-		return ""
-	}
+	return taskpkg.StatusProjectionEventType(eventType)
 }

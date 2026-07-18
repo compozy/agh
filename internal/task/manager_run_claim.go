@@ -82,10 +82,16 @@ func (m *Service) enqueueRunWithStore(
 		return enqueueRunCommandResult{}, err
 	} else if ok {
 		taskRecord, taskErr := store.GetTask(ctx, existing.TaskID)
+		if taskErr == nil {
+			taskErr = m.authorizeTaskResource(ctx, actor, taskRecord)
+		}
 		return enqueueRunCommandResult{task: taskRecord, run: *existing, existing: true}, taskErr
 	}
 	taskRecord, err := store.GetTask(ctx, spec.TaskID)
 	if err != nil {
+		return enqueueRunCommandResult{}, err
+	}
+	if err := m.authorizeTaskResource(ctx, actor, taskRecord); err != nil {
 		return enqueueRunCommandResult{}, err
 	}
 	run, existing, err := m.reserveQueuedRunWithStore(ctx, store, taskRecord, spec, actor)
@@ -207,7 +213,7 @@ func (m *Service) StartRun(
 		return nil, err
 	}
 
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +282,7 @@ func (m *Service) AttachRunSession(
 		return nil, fmt.Errorf("%w: session id is required", ErrValidation)
 	}
 
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}

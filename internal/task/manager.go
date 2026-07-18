@@ -112,6 +112,7 @@ type Service struct {
 	generationFinalizer   GenerationStateFinalizer
 	wakeNotifier          WakeNotifier
 	participationResolver participation.Resolver
+	taskAuthorizer        ResourceAuthorizer
 	runReadAuthorizer     RunReadAuthorizer
 	coordinatorStatusOK   func(string) bool
 	coordinatorHookOK     func(string) bool

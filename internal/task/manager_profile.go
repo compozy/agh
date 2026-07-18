@@ -27,7 +27,7 @@ func (m *Service) GetExecutionProfile(
 	if trimmedID == "" {
 		return ExecutionProfile{}, fmt.Errorf("%w: task id is required", ErrValidation)
 	}
-	if _, err := m.store.GetTask(ctx, trimmedID); err != nil {
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor); err != nil {
 		return ExecutionProfile{}, err
 	}
 
@@ -67,7 +67,7 @@ func (m *Service) SetExecutionProfile(
 		)
 	}
 
-	record, err := m.store.GetTask(ctx, trimmedID)
+	record, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor)
 	if err != nil {
 		return ExecutionProfile{}, err
 	}
@@ -123,7 +123,7 @@ func (m *Service) DeleteExecutionProfile(
 	if trimmedID == "" {
 		return fmt.Errorf("%w: task id is required", ErrValidation)
 	}
-	record, err := m.store.GetTask(ctx, trimmedID)
+	record, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor)
 	if err != nil {
 		return err
 	}

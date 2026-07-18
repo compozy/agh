@@ -97,7 +97,7 @@ func (m *Service) PauseTask(
 		return nil, err
 	}
 	taskID := strings.TrimSpace(id)
-	previous, err := m.store.GetTask(ctx, taskID)
+	previous, err := m.loadAuthorizedTask(ctx, m.store, taskID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (m *Service) ResumeTask(
 		return nil, err
 	}
 	taskID := strings.TrimSpace(id)
-	previous, err := m.store.GetTask(ctx, taskID)
+	previous, err := m.loadAuthorizedTask(ctx, m.store, taskID, actor)
 	if err != nil {
 		return nil, err
 	}

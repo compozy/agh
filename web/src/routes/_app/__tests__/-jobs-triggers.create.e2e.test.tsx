@@ -1332,9 +1332,10 @@ describe("Triggers create modal", () => {
     expect(screen.getByTestId("trigger-endpoint-slug-input")).toHaveValue("edit-hook");
     expect(screen.getByTestId("trigger-webhook-id-input")).toHaveValue("wbh_edit");
     expect(screen.getByTestId("trigger-webhook-secret-value-input")).toHaveValue("");
+    expect(screen.getByTestId("trigger-agent-input")).toHaveValue("old-agent");
+    expect(screen.getByTestId("trigger-agent-input")).toBeDisabled();
     expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
 
-    fireEvent.change(screen.getByTestId("trigger-agent-input"), { target: { value: "release" } });
     fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
       target: { value: "Updated webhook prompt." },
     });
@@ -1345,13 +1346,16 @@ describe("Triggers create modal", () => {
     });
     expect(updateTriggerRequests[0]).toEqual(
       expect.objectContaining({
-        agent_name: "release",
         endpoint_slug: "edit-hook",
         event: "webhook",
         prompt: "Updated webhook prompt.",
         webhook_id: "wbh_edit",
       })
     );
+    expect(updateTriggerRequests[0]).not.toHaveProperty("agent_name");
+    expect(updateTriggerRequests[0]).not.toHaveProperty("scope");
+    expect(updateTriggerRequests[0]).not.toHaveProperty("target_kind");
+    expect(updateTriggerRequests[0]).not.toHaveProperty("workspace_id");
     expect(updateTriggerRequests[0]).not.toHaveProperty("webhook_secret_value");
     await waitFor(() => {
       expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();

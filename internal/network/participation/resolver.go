@@ -40,15 +40,39 @@ func NewResolver(options ResolverOptions) (Resolver, error) {
 }
 
 func (r *resolver) Resolve(ctx context.Context, in ResolveInput) (Spec, error) {
+	intent, err := r.SelectIntent(ctx, in)
+	if err != nil {
+		return Spec{}, err
+	}
+	return r.ResolveIntent(ctx, in, intent)
+}
+
+func (r *resolver) SelectIntent(ctx context.Context, in ResolveInput) (Intent, error) {
+	if err := validateResolveOwner(in); err != nil {
+		return Intent{}, err
+	}
+	request, source, err := r.selectRequest(ctx, in)
+	if err != nil {
+		return Intent{}, err
+	}
+	return Intent{Request: CloneRequest(request), Source: source}, nil
+}
+
+func (r *resolver) ResolveIntent(
+	ctx context.Context,
+	in ResolveInput,
+	intent Intent,
+) (Spec, error) {
 	if err := validateResolveOwner(in); err != nil {
 		return Spec{}, err
 	}
-	request, source, err := r.selectRequest(ctx, in)
+	request := CloneRequest(intent.Request)
+	source, err := normalizeIntentSource(intent.Source)
 	if err != nil {
 		return Spec{}, err
 	}
 	if request == nil {
-		return localSpec(SourceBuiltInLocal), nil
+		return localSpec(source), nil
 	}
 	normalized, err := ValidateWithBounds(*request, r.options.Defaults, r.options.Limits)
 	if err != nil {
@@ -100,6 +124,21 @@ func (r *resolver) Resolve(ctx context.Context, in ResolveInput) (Spec, error) {
 		}
 	}
 	return spec, nil
+}
+
+func normalizeIntentSource(source Source) (Source, error) {
+	normalized := Source(strings.TrimSpace(string(source)))
+	switch normalized {
+	case SourceExplicitRequest,
+		SourceTaskProfile,
+		SourceWorkspaceCoordination,
+		SourceLoopDefinition,
+		SourceAutomationJob,
+		SourceBuiltInLocal:
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("network participation source %q is not allowed", normalized)
+	}
 }
 
 func validateResolveOwner(in ResolveInput) error {

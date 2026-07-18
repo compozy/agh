@@ -2242,7 +2242,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			scope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskUpdate,
-				Input:  json.RawMessage(`{"task_id":"task-update","title":"Updated task","clear_owner":true}`),
+				Input: json.RawMessage(
+					`{"task_id":"task-update","title":"Updated task","clear_owner":true,` +
+						`"network_participation":{"mode":"local"}}`,
+				),
 			},
 		)
 		if err != nil {
@@ -2252,7 +2255,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			tasks.lastUpdateID != "task-update" ||
 			tasks.lastPatch.Title == nil ||
 			*tasks.lastPatch.Title != "Updated task" ||
-			!tasks.lastPatch.ClearOwner {
+			!tasks.lastPatch.ClearOwner ||
+			tasks.lastPatch.NetworkParticipation == nil ||
+			tasks.lastPatch.NetworkParticipation.Mode == nil ||
+			*tasks.lastPatch.NetworkParticipation.Mode != participation.ModeLocal {
 			t.Fatalf(
 				"UpdateTask calls/patch = %d/%q/%#v, want title patch",
 				tasks.updateCalls,
@@ -2332,15 +2338,15 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(task_create participation) error = %v", err)
 		}
-		if tasks.createCalls != 1 || tasks.profileGetCalls != 1 || tasks.profileSetCalls != 1 {
+		if tasks.createCalls != 1 || tasks.profileGetCalls != 0 || tasks.profileSetCalls != 0 {
 			t.Fatalf(
-				"task/profile calls = %d/%d/%d, want 1/1/1",
+				"task/profile calls = %d/%d/%d, want 1/0/0",
 				tasks.createCalls,
 				tasks.profileGetCalls,
 				tasks.profileSetCalls,
 			)
 		}
-		request := tasks.lastSetProfile.NetworkParticipation
+		request := tasks.lastCreateSpec.NetworkParticipation
 		if request == nil || request.Mode == nil || *request.Mode != participation.ModeLocal {
 			t.Fatalf("stored network participation = %#v, want local request", request)
 		}
@@ -3243,7 +3249,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskChildCreate,
 				Input: json.RawMessage(
-					`{"parent_task_id":"parent-1","scope":"workspace","title":"child"}`,
+					`{"parent_task_id":"parent-1","scope":"workspace","title":"child",` +
+						`"network_participation":{"mode":"local"}}`,
 				),
 			},
 		)
@@ -3261,6 +3268,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if tasks.childSpec.WorkspaceID != "ws-1" {
 			t.Fatalf("child workspace_id = %q, want caller workspace fallback", tasks.childSpec.WorkspaceID)
+		}
+		if tasks.childSpec.NetworkParticipation == nil ||
+			tasks.childSpec.NetworkParticipation.Mode == nil ||
+			*tasks.childSpec.NetworkParticipation.Mode != participation.ModeLocal {
+			t.Fatalf("child participation = %#v, want local request", tasks.childSpec.NetworkParticipation)
 		}
 	})
 

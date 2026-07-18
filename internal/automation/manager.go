@@ -635,6 +635,9 @@ func (m *Manager) UpdateJob(ctx context.Context, job Job) (Job, error) {
 	next.ID = currentStored.ID
 	next.Source = currentStored.Source
 	next.CreatedAt = currentStored.CreatedAt
+	if err := ValidateImmutableJobTarget(currentStored, next); err != nil {
+		return Job{}, err
+	}
 	if err := m.validateJobLoopTarget(ctx, next); err != nil {
 		return Job{}, err
 	}
@@ -860,6 +863,9 @@ func (m *Manager) UpdateTrigger(
 	next.Source = currentStored.Source
 	next.CreatedAt = currentStored.CreatedAt
 	next = applyWebhookSecretRef(next, &currentStored, webhookSecret)
+	if err := ValidateImmutableTriggerTarget(currentStored, next); err != nil {
+		return Trigger{}, err
+	}
 	if err := requireWebhookSecretRef(next); err != nil {
 		return Trigger{}, err
 	}

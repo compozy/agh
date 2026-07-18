@@ -1638,6 +1638,29 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject unknown network subscription fields", func(t *testing.T) {
+		t.Parallel()
+
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/workspaces/ws-workspace/network/channels/quiet/subscriptions",
+			[]byte(`{"session_id":"sess-reviewer","mode":"mute","legacy":true}`),
+		)
+		body := response.Body.String()
+		if response.Code != http.StatusBadRequest ||
+			!strings.Contains(body, "unknown_field") ||
+			!strings.Contains(body, "legacy") {
+			t.Fatalf(
+				"subscription status = %d, want %d unknown_field response naming legacy; body=%s",
+				response.Code,
+				http.StatusBadRequest,
+				body,
+			)
+		}
+	})
+
 	t.Run("Should send network messages", func(t *testing.T) {
 		sendResp := performRequest(
 			t,

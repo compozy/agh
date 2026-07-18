@@ -1,12 +1,14 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -512,7 +514,7 @@ func validateDetachedHarnessRunMatch(
 
 func decodeDetachedHarnessTaskMetadata(raw json.RawMessage) (detachedHarnessTaskMetadata, error) {
 	var metadata detachedHarnessTaskMetadata
-	if err := json.Unmarshal(raw, &metadata); err != nil {
+	if err := decodeDetachedHarnessMetadata(raw, &metadata); err != nil {
 		return detachedHarnessTaskMetadata{}, fmt.Errorf(
 			"%w: decode detached harness task metadata: %v",
 			taskpkg.ErrValidation,
@@ -532,7 +534,7 @@ func decodeDetachedHarnessTaskMetadata(raw json.RawMessage) (detachedHarnessTask
 
 func decodeDetachedHarnessRunMetadata(raw json.RawMessage) (detachedHarnessRunMetadata, error) {
 	var metadata detachedHarnessRunMetadata
-	if err := json.Unmarshal(raw, &metadata); err != nil {
+	if err := decodeDetachedHarnessMetadata(raw, &metadata); err != nil {
 		return detachedHarnessRunMetadata{}, fmt.Errorf(
 			"%w: decode detached harness run metadata: %v",
 			taskpkg.ErrValidation,
@@ -548,6 +550,23 @@ func decodeDetachedHarnessRunMetadata(raw json.RawMessage) (detachedHarnessRunMe
 		)
 	}
 	return metadata, nil
+}
+
+func decodeDetachedHarnessMetadata(raw json.RawMessage, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("multiple JSON values")
+		}
+		return err
+	}
+	return nil
 }
 
 func maybeDecodeDetachedHarnessRunMetadata(raw json.RawMessage) (detachedHarnessRunMetadata, bool, error) {

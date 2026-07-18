@@ -46,6 +46,10 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), resolvedWorkspace.ID); err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: validate resume participation for %q: %w", meta.ID, err)
 	}
+	cwd, err := resumeSessionCWD(meta, resolvedWorkspace.RootDir)
+	if err != nil {
+		return sessionStartSpec{}, fmt.Errorf("session: validate resume cwd for %q: %w", meta.ID, err)
+	}
 
 	return sessionStartSpec{
 		sessionID:               meta.ID,
@@ -61,7 +65,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		workspace:               resolvedWorkspace,
 		networkParticipation:    meta.NetworkSpecSnapshot(),
 		networkOwnerKey:         meta.NetworkOwnerKeySnapshot(),
-		cwd:                     resumeSessionCWD(meta, resolvedWorkspace.RootDir),
+		cwd:                     cwd,
 		sessionType:             normalizeSessionType(Type(meta.SessionType)),
 		lineage:                 store.NormalizeSessionLineage(meta.ID, meta.Lineage),
 		postEvent:               hookspkg.HookSessionPostResume,
@@ -85,11 +89,12 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	}, nil
 }
 
-func resumeSessionCWD(meta store.SessionMeta, workspaceRoot string) string {
+func resumeSessionCWD(meta store.SessionMeta, workspaceRoot string) (string, error) {
+	requested := workspaceRoot
 	if meta.CreationProfile != nil {
-		return strings.TrimSpace(meta.CreationProfile.CWD)
+		requested = strings.TrimSpace(meta.CreationProfile.CWD)
 	}
-	return workspaceRoot
+	return ResolveSessionCWD(workspaceRoot, requested)
 }
 
 func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *Session, err error) {

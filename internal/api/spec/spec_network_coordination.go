@@ -2,6 +2,8 @@ package spec
 
 import "github.com/compozy/agh/internal/api/contract"
 
+const networkCoordinationUnavailableDescription = "Network coordination is unavailable"
+
 func networkCoordinationOperations() []OperationSpec {
 	return append(networkCoordinationStateOperations(), networkUsageOperation())
 }
@@ -27,6 +29,7 @@ func networkCoordinationStateOperations() []OperationSpec {
 				{Status: 403, Description: "Coordination scope is not authorized", Body: contract.ErrorPayload{}},
 				{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+				{Status: 503, Description: networkCoordinationUnavailableDescription, Body: contract.ErrorPayload{}},
 			},
 		},
 		{
@@ -49,6 +52,7 @@ func networkCoordinationStateOperations() []OperationSpec {
 					Body:        contract.ErrorPayload{},
 				},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+				{Status: 503, Description: networkCoordinationUnavailableDescription, Body: contract.ErrorPayload{}},
 			},
 		},
 		{
@@ -69,6 +73,7 @@ func networkCoordinationStateOperations() []OperationSpec {
 				{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 				{Status: 409, Description: "Stale coordination revision", Body: contract.ErrorPayload{}},
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+				{Status: 503, Description: networkCoordinationUnavailableDescription, Body: contract.ErrorPayload{}},
 			},
 		},
 	}
@@ -100,6 +105,7 @@ func networkUsageOperation() OperationSpec {
 			{Status: 400, Description: "Invalid usage query or cursor", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Network usage is unavailable", Body: contract.ErrorPayload{}},
 		},
 	}
 }

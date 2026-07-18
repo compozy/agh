@@ -102,6 +102,8 @@ export function useAutomationTriggerForm({
   const selection = parseEventSelection(draft.event);
   const def = getEventDef(selection.catalogId);
   const isWebhook = selection.family === "webhook";
+  const disabledCatalogIds =
+    mode === "edit" && draft.scope === "workspace" ? new Set(["webhook"]) : undefined;
   const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
   const eventKind = formatEventKind(selection, draft.event);
 
@@ -164,6 +166,7 @@ export function useAutomationTriggerForm({
   };
 
   const handleSelectEvent = (catalogId: string) => {
+    if (disabledCatalogIds?.has(catalogId)) return;
     const nextDef = getEventDef(catalogId);
     if (!nextDef) return;
     const event = composeEventId({
@@ -216,6 +219,7 @@ export function useAutomationTriggerForm({
   };
 
   return {
+    disabledCatalogIds,
     selection,
     isWebhook,
     retry,

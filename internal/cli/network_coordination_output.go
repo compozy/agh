@@ -97,9 +97,26 @@ func networkUsageOutputBundle(payload NetworkUsageRecord) outputBundle {
 			}
 			if payload.Budget != nil {
 				rows = append(rows,
-					keyValue{Label: "Budget Owner", Value: stringOrDash(payload.Budget.OwnerKey)},
-					keyValue{Label: "Budget Exhausted", Value: formatBool(payload.Budget.ExhaustedReason != "")},
-					keyValue{Label: "Exhausted Reason", Value: stringOrDash(payload.Budget.ExhaustedReason)},
+					keyValue{
+						Label: "Budget Owner Workspace",
+						Value: stringOrDash(payload.Budget.ParticipationStatus.Owner.WorkspaceID),
+					},
+					keyValue{
+						Label: "Budget Owner Kind",
+						Value: stringOrDash(string(payload.Budget.ParticipationStatus.Owner.Kind)),
+					},
+					keyValue{
+						Label: "Budget Owner ID",
+						Value: stringOrDash(payload.Budget.ParticipationStatus.Owner.ID),
+					},
+					keyValue{
+						Label: "Budget Exhausted",
+						Value: formatBool(payload.Budget.ExhaustedReason != ""),
+					},
+					keyValue{
+						Label: "Exhausted Reason",
+						Value: stringOrDash(payload.Budget.ExhaustedReason),
+					},
 				)
 			}
 			if len(payload.Details) > 0 {
@@ -121,7 +138,8 @@ func networkUsageToon(payload NetworkUsageRecord) string {
 	fields := []string{
 		taskWorkspaceIDKey, "wake_count", "reserved_wake_count", "actual_wake_count",
 		"unavailable_wake_count", "charged_wall_time", "input_tokens", "output_tokens", "next_cursor",
-		"budget_owner", "budget_wakes_used", "budget_wall_time_used", "budget_input_tokens_used",
+		"budget_owner_workspace_id", "budget_owner_kind", "budget_owner_id", "budget_available",
+		"budget_participating", "budget_wakes_used", "budget_wall_time_used", "budget_input_tokens_used",
 		"budget_output_tokens_used", "budget_exhausted_reason", "budget_updated_at",
 	}
 	values := []string{
@@ -134,16 +152,20 @@ func networkUsageToon(payload NetworkUsageRecord) string {
 		strconv.FormatInt(payload.Total.InputTokens, 10),
 		strconv.FormatInt(payload.Total.OutputTokens, 10),
 		payload.NextCursor,
-		"", "", "", "", "", "", "",
+		"", "", "", "", "", "", "", "", "", "", "",
 	}
 	if payload.Budget != nil {
-		values[9] = payload.Budget.OwnerKey
-		values[10] = strconv.Itoa(payload.Budget.WakesUsed)
-		values[11] = payload.Budget.WallTimeUsed
-		values[12] = strconv.FormatInt(payload.Budget.InputTokensUsed, 10)
-		values[13] = strconv.FormatInt(payload.Budget.OutputTokensUsed, 10)
-		values[14] = payload.Budget.ExhaustedReason
-		values[15] = formatTime(payload.Budget.UpdatedAt)
+		values[9] = payload.Budget.ParticipationStatus.Owner.WorkspaceID
+		values[10] = string(payload.Budget.ParticipationStatus.Owner.Kind)
+		values[11] = payload.Budget.ParticipationStatus.Owner.ID
+		values[12] = strconv.FormatBool(payload.Budget.ParticipationStatus.Available)
+		values[13] = strconv.FormatBool(payload.Budget.ParticipationStatus.Participating)
+		values[14] = strconv.Itoa(payload.Budget.WakesUsed)
+		values[15] = payload.Budget.WallTimeUsed
+		values[16] = strconv.FormatInt(payload.Budget.InputTokensUsed, 10)
+		values[17] = strconv.FormatInt(payload.Budget.OutputTokensUsed, 10)
+		values[18] = payload.Budget.ExhaustedReason
+		values[19] = formatTime(payload.Budget.UpdatedAt)
 	}
 	blocks := []string{renderToonObject("network_usage", fields, values)}
 	if len(payload.Details) > 0 {
@@ -152,7 +174,10 @@ func networkUsageToon(payload NetworkUsageRecord) string {
 			[]string{
 				"wake_id",
 				"task_run_id",
-				"owner_key",
+				"owner_kind",
+				"owner_id",
+				"participation_available",
+				"participating",
 				taskWorkspaceIDKey,
 				"channel",
 				"root_id",
@@ -177,7 +202,10 @@ func networkUsageDetailToonRows(payload NetworkUsageRecord) [][]string {
 		rows = append(rows, []string{
 			detail.WakeID,
 			detail.TaskRunID,
-			detail.OwnerKey,
+			string(detail.ParticipationStatus.Owner.Kind),
+			detail.ParticipationStatus.Owner.ID,
+			strconv.FormatBool(detail.ParticipationStatus.Available),
+			strconv.FormatBool(detail.ParticipationStatus.Participating),
 			detail.WorkspaceID,
 			detail.Channel,
 			detail.RootID,

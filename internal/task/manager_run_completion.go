@@ -24,7 +24,7 @@ func (m *Service) CompleteRun(
 		return nil, err
 	}
 
-	run, _, err := m.loadRunWithTask(ctx, runID)
+	run, _, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (m *Service) FailRun(
 		return nil, err
 	}
 
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (m *Service) CancelRun(
 		return nil, err
 	}
 
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
 	}

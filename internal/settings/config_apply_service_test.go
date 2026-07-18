@@ -254,6 +254,64 @@ release_date = "2026-07-10"
 			}
 		},
 	)
+
+	t.Run("Should apply Network availability from a mixed restart-required update", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := WithMutationSource(context.Background(), "http")
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		applier := &fakeConfigRuntimeApplier{}
+		service := testService(t, homePaths, Dependencies{
+			RuntimeApplier: applier,
+			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		initial, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(initial) error = %v", err)
+		}
+		desired := initial.Network
+		desired.Enabled = !initial.Network.Enabled
+		desired.MaxReplayAge++
+
+		result, err := service.ApplySection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionNetwork},
+			Network:        &desired,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(mixed Network) error = %v", err)
+		}
+		if result.Applied || !result.RestartRequired || result.Record.Status != lifecycle.StatusBlocked {
+			t.Fatalf("ApplySection(mixed Network) = %#v, want remaining restart-required drift", result)
+		}
+		if got, want := applier.calls, 1; got != want {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+		}
+		active, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(after mixed update) error = %v", err)
+		}
+		if active.Network.Enabled != desired.Enabled {
+			t.Fatalf("active network.enabled = %t, want %t", active.Network.Enabled, desired.Enabled)
+		}
+		if active.Network.MaxReplayAge != initial.Network.MaxReplayAge {
+			t.Fatalf(
+				"active network.max_replay_age = %d, want prior active %d",
+				active.Network.MaxReplayAge,
+				initial.Network.MaxReplayAge,
+			)
+		}
+	})
 }
 
 func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *testing.T) {

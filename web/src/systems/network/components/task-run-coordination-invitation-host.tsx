@@ -10,17 +10,19 @@ import {
 export interface TaskRunCoordinationInvitationHostProps {
   taskId: string;
   runId: string;
+  workspaceId: string;
 }
 
 export function TaskRunCoordinationInvitationHost({
   taskId,
   runId,
+  workspaceId,
 }: TaskRunCoordinationInvitationHostProps) {
   const actionLocked = useRef(false);
   const ref = { scope: "task" as const, taskId, runId };
-  const coordination = useNetworkCoordination(ref);
-  const accept = useAcceptNetworkCoordinationInvitation(ref);
-  const dismiss = useDismissNetworkCoordinationInvitation(ref);
+  const coordination = useNetworkCoordination(workspaceId, ref);
+  const accept = useAcceptNetworkCoordinationInvitation(workspaceId, ref);
+  const dismiss = useDismissNetworkCoordinationInvitation(workspaceId, ref);
 
   const revision = coordination.data?.revision;
   const visible = Boolean(coordination.data?.eligibility.eligible);

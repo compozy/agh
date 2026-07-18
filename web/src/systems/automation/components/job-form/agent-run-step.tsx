@@ -2,6 +2,7 @@ import { Field, FieldLabel, Input, NativeSelect, NativeSelectOption, Textarea } 
 
 interface AgentRunStepProps {
   agent: string;
+  agentDisabled?: boolean;
   agents: string[];
   prompt: string;
   onAgentChange: (next: string) => void;
@@ -11,6 +12,7 @@ interface AgentRunStepProps {
 /** Agent output path: the agent to run and the plain prompt it receives verbatim. */
 export function AgentRunStep({
   agent,
+  agentDisabled = false,
   agents,
   prompt,
   onAgentChange,
@@ -33,6 +35,7 @@ export function AgentRunStep({
             <NativeSelect
               className="w-full [&>select]:pl-9"
               data-testid="job-agent-input"
+              disabled={agentDisabled}
               id="job-agent"
               onChange={event => onAgentChange(event.target.value)}
               value={agent}
@@ -50,6 +53,7 @@ export function AgentRunStep({
             <Input
               className="pl-9"
               data-testid="job-agent-input"
+              disabled={agentDisabled}
               id="job-agent"
               onChange={event => onAgentChange(event.target.value)}
               placeholder="reviewer"

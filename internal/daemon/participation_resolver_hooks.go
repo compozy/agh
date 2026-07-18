@@ -54,19 +54,35 @@ func (r *hookAwareParticipationResolver) Resolve(
 	if hooks == nil {
 		return r.inner.Resolve(ctx, in)
 	}
+	intentResolver, selectsIntent := r.inner.(participation.IntentResolver)
+	intent := participation.Intent{
+		Request: participation.CloneRequest(in.Request),
+		Source:  in.RequestSource,
+	}
+	if selectsIntent {
+		selected, err := intentResolver.SelectIntent(ctx, in)
+		if err != nil {
+			return participation.Spec{}, err
+		}
+		intent = selected
+	}
 	prePayload := hookspkg.NetworkParticipationPreResolvePayload{
 		WorkspaceID: strings.TrimSpace(in.WorkspaceID),
 		Owner:       in.Owner,
-		Request:     participation.CloneRequest(in.Request),
-		Source:      in.RequestSource,
+		Request:     participation.CloneRequest(intent.Request),
+		Source:      intent.Source,
 		OwnerKey:    participationOwnerKey(in.Owner),
 	}
 	patched, err := hooks.DispatchNetworkParticipationPreResolve(ctx, prePayload)
 	if err != nil {
 		return participation.Spec{}, err
 	}
-	if patched.Request != nil {
-		in.Request = patched.Request
+	intent.Request = participation.CloneRequest(patched.Request)
+	if selectsIntent {
+		return intentResolver.ResolveIntent(ctx, in, intent)
+	}
+	if intent.Request != nil {
+		in.Request = intent.Request
 	}
 	spec, err := r.inner.Resolve(ctx, in)
 	if err != nil {

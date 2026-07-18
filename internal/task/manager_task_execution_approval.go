@@ -74,6 +74,9 @@ func (m *Service) transitionTaskApproval(
 	if trimmedID == "" {
 		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
 	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor); err != nil {
+		return nil, err
+	}
 
 	var record Task
 	var event Event

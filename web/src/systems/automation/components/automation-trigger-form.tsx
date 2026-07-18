@@ -99,6 +99,7 @@ export function AutomationTriggerForm({
               title="An event happens"
             >
               <EventCatalog
+                disabledCatalogIds={form.disabledCatalogIds}
                 onSelectEvent={form.onSelectEvent}
                 onSubConfigChange={form.onSubConfigChange}
                 selection={form.selection}

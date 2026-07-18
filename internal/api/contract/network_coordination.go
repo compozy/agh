@@ -63,21 +63,21 @@ type PutNetworkCoordinationInvitationRequest struct {
 
 // NetworkUsageDetailPayload is one wake's charged usage truth.
 type NetworkUsageDetailPayload struct {
-	WakeID          string     `json:"wake_id"`
-	TaskRunID       string     `json:"task_run_id"`
-	OwnerKey        string     `json:"owner_key"`
-	WorkspaceID     string     `json:"workspace_id"`
-	Channel         string     `json:"channel"`
-	RootID          string     `json:"root_id"`
-	Depth           int        `json:"depth"`
-	State           string     `json:"state"`
-	UsageState      string     `json:"usage_state"`
-	ChargedWallTime string     `json:"charged_wall_time"`
-	InputTokens     int64      `json:"input_tokens"`
-	OutputTokens    int64      `json:"output_tokens"`
-	ReservedAt      time.Time  `json:"reserved_at"`
-	SettledAt       *time.Time `json:"settled_at,omitempty"`
-	Reason          string     `json:"reason,omitempty"`
+	WakeID              string               `json:"wake_id"`
+	TaskRunID           string               `json:"task_run_id"`
+	ParticipationStatus participation.Status `json:"participation_status"`
+	WorkspaceID         string               `json:"workspace_id"`
+	Channel             string               `json:"channel"`
+	RootID              string               `json:"root_id"`
+	Depth               int                  `json:"depth"`
+	State               string               `json:"state"`
+	UsageState          string               `json:"usage_state"`
+	ChargedWallTime     string               `json:"charged_wall_time"`
+	InputTokens         int64                `json:"input_tokens"`
+	OutputTokens        int64                `json:"output_tokens"`
+	ReservedAt          time.Time            `json:"reserved_at"`
+	SettledAt           *time.Time           `json:"settled_at,omitempty"`
+	Reason              string               `json:"reason,omitempty"`
 }
 
 // NetworkUsageSummaryPayload aggregates the complete filtered ledger scope.
@@ -93,13 +93,13 @@ type NetworkUsageSummaryPayload struct {
 
 // NetworkBudgetUsagePayload reports durable bound consumption for one execution owner.
 type NetworkBudgetUsagePayload struct {
-	OwnerKey         string    `json:"owner_key"`
-	WakesUsed        int       `json:"wakes_used"`
-	WallTimeUsed     string    `json:"wall_time_used"`
-	InputTokensUsed  int64     `json:"input_tokens_used"`
-	OutputTokensUsed int64     `json:"output_tokens_used"`
-	ExhaustedReason  string    `json:"exhausted_reason,omitempty"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ParticipationStatus participation.Status `json:"participation_status"`
+	WakesUsed           int                  `json:"wakes_used"`
+	WallTimeUsed        string               `json:"wall_time_used"`
+	InputTokensUsed     int64                `json:"input_tokens_used"`
+	OutputTokensUsed    int64                `json:"output_tokens_used"`
+	ExhaustedReason     string               `json:"exhausted_reason,omitempty"`
+	UpdatedAt           time.Time            `json:"updated_at"`
 }
 
 // NetworkUsageResponse is the workspace-scoped usage meter.
@@ -115,4 +115,5 @@ type NetworkUsageResponse struct {
 var (
 	_ = participation.Request{}
 	_ = participation.Spec{}
+	_ = participation.Status{}
 )

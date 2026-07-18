@@ -15,6 +15,7 @@ func TestCompilerShouldCanonicalizeDefinitionNetworkParticipation(t *testing.T) 
 	t.Parallel()
 
 	def := validDefinition()
+	def.Start = []dsl.StartBinding{}
 	def.Graph.Nodes[2].Kind = "agh__network_send"
 	mode := participation.ModeLive
 	strategy := participation.StrategyNamed
@@ -38,6 +39,9 @@ func TestCompilerShouldCanonicalizeDefinitionNetworkParticipation(t *testing.T) 
 	if def.NetworkParticipation == nil || def.NetworkParticipation.ChannelID == nil ||
 		*def.NetworkParticipation.ChannelID != " builders " {
 		t.Fatalf("Compile() mutated input NetworkParticipation = %#v", def.NetworkParticipation)
+	}
+	if resolved.Definition.Start == nil {
+		t.Fatal("resolved Start = nil, want compiler-normalized empty slice")
 	}
 }
 

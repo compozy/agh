@@ -38,7 +38,9 @@ func normalizeDefinitionParticipation(def *dsl.Definition) error {
 		return err
 	}
 	extension := *def.DefinitionExtensionState
-	extension.Start = append([]dsl.StartBinding(nil), extension.Start...)
+	if extension.Start != nil {
+		extension.Start = append(make([]dsl.StartBinding, 0, len(extension.Start)), extension.Start...)
+	}
 	extension.NetworkParticipation = normalized
 	def.DefinitionExtensionState = &extension
 	return nil

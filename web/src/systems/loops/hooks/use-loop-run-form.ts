@@ -52,6 +52,7 @@ export function useLoopRunForm({
   const [networkParticipation, setNetworkParticipation] = useState<NetworkParticipationDraft>(() =>
     networkParticipationDraftFromPayload(loop.definition.network_participation)
   );
+  const [networkParticipationOverridden, setNetworkParticipationOverridden] = useState(false);
   const [plan, setPlan] = useState<LoopDryRunPreview | null>(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
@@ -60,7 +61,8 @@ export function useLoopRunForm({
   const missing = new Set(missingRequiredInputs(schema, inputs));
   const valid =
     isRunFormValid(schema, inputs) &&
-    isNetworkParticipationDraftValid(networkParticipation, ["named", "loop_run"]);
+    (!networkParticipationOverridden ||
+      isNetworkParticipationDraftValid(networkParticipation, ["named", "loop_run"]));
   const busy = runMutation.isPending || dryMutation.isPending;
   const configOverrides = buildConfigOverrides(overrides, effectiveConfig);
 
@@ -68,7 +70,9 @@ export function useLoopRunForm({
     return {
       inputs: serializeRunInputs(schema, inputs),
       config_overrides: configOverrides,
-      network_participation: serializeNetworkParticipation(networkParticipation),
+      ...(networkParticipationOverridden
+        ? { network_participation: serializeNetworkParticipation(networkParticipation) }
+        : {}),
     };
   }
 
@@ -84,6 +88,7 @@ export function useLoopRunForm({
 
   function setNetworkParticipationDraft(next: NetworkParticipationDraft) {
     setPlan(null);
+    setNetworkParticipationOverridden(true);
     setNetworkParticipation(next);
   }
 

@@ -9,7 +9,7 @@ import (
 )
 
 func decodeHostAPIParams(raw json.RawMessage, target any) error {
-	return decodeHostAPIParamsWithUnknownFields(raw, target, false)
+	return decodeHostAPIParamsWithUnknownFields(raw, target, true)
 }
 
 func decodeHostAPIParamsStrict(raw json.RawMessage, target any) error {

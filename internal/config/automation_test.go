@@ -15,11 +15,13 @@ max_concurrent_jobs = 7
 default_fire_limit = { max = 9, window = "30m" }
 
 [[automation.jobs]]
-scope = "global"
+scope = "workspace"
 name = "health-check"
+workspace = "/repo"
 schedule = { mode = "every", interval = "30m" }
 agent = "monitor"
 prompt = "Check system health"
+task = { title = "Check health", network_participation = { mode = "live", channel_strategy = "named", channel_id = "ops", bounds = { max_wakes = 2, max_input_tokens = 4096, max_output_tokens = 2048 } } }
 
 [[automation.triggers]]
 scope = "workspace"
@@ -52,11 +54,11 @@ prompt = "Summarize {{ index .Data \"session_id\" }}"
 	}
 
 	job := cfg.Automation.Jobs[0]
-	if got, want := job.Scope, "global"; string(got) != want {
+	if got, want := job.Scope, "workspace"; string(got) != want {
 		t.Fatalf("job.Scope = %q, want %q", got, want)
 	}
-	if got := job.Workspace; got != "" {
-		t.Fatalf("job.Workspace = %q, want empty", got)
+	if got, want := job.Workspace, "/repo"; got != want {
+		t.Fatalf("job.Workspace = %q, want %q", got, want)
 	}
 	if got, want := string(job.Source), "config"; got != want {
 		t.Fatalf("job.Source = %q, want %q", got, want)
@@ -66,6 +68,18 @@ prompt = "Summarize {{ index .Data \"session_id\" }}"
 	}
 	if got, want := job.FireLimit.Window, "30m"; got != want {
 		t.Fatalf("job.FireLimit.Window = %q, want %q", got, want)
+	}
+	if job.Task == nil || job.Task.NetworkParticipation == nil {
+		t.Fatalf("job.Task.NetworkParticipation = %#v, want TOML-authored participation", job.Task)
+	}
+	request := job.Task.NetworkParticipation
+	if request.Mode == nil || *request.Mode != "live" ||
+		request.ChannelStrategy == nil || *request.ChannelStrategy != "named" ||
+		request.ChannelID == nil || *request.ChannelID != "ops" ||
+		request.Bounds == nil || request.Bounds.MaxWakes == nil || *request.Bounds.MaxWakes != 2 ||
+		request.Bounds.MaxInputTokens == nil || *request.Bounds.MaxInputTokens != 4096 ||
+		request.Bounds.MaxOutputTokens == nil || *request.Bounds.MaxOutputTokens != 2048 {
+		t.Fatalf("job participation = %#v, want complete TOML field mapping", request)
 	}
 
 	trigger := cfg.Automation.Triggers[0]
@@ -116,6 +130,19 @@ agent = "summarizer"
 prompt = "Summarize {{ .Kind }}"
 `,
 			wantErr: "automation.triggers[0].workspace",
+		},
+		{
+			name: "global direct task with live participation",
+			contents: `
+[[automation.jobs]]
+scope = "global"
+name = "network-health-check"
+schedule = { mode = "every", interval = "30m" }
+agent = "monitor"
+prompt = "Check network health"
+task = { title = "Check network health", network_participation = { mode = "live", channel_strategy = "named", channel_id = "ops" } }
+`,
+			wantErr: "automation.jobs[0].task.network_participation cannot be live",
 		},
 	}
 

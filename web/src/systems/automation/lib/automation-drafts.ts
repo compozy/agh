@@ -135,7 +135,13 @@ export function automationJobToDraft(job: AutomationJob): CreateAutomationJobReq
 export function automationJobUpdateFromDraft(
   draft: CreateAutomationJobRequest
 ): UpdateAutomationJobRequest {
-  const { scope: _scope, ...request } = draft;
+  const {
+    agent_name: _agentName,
+    scope: _scope,
+    target_kind: _targetKind,
+    workspace_id: _workspaceId,
+    ...request
+  } = draft;
   return request;
 }
 
@@ -325,6 +331,12 @@ export function automationTriggerToDraft(
 export function automationTriggerUpdateFromDraft(
   draft: CreateAutomationTriggerRequest
 ): UpdateAutomationTriggerRequest {
-  const { scope: _scope, ...request } = draft;
+  const {
+    agent_name: _agentName,
+    scope: _scope,
+    target_kind: _targetKind,
+    workspace_id: _workspaceId,
+    ...request
+  } = draft;
   return request;
 }

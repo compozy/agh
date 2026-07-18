@@ -484,7 +484,7 @@ func TestTaskRunConversationStreamSurface(t *testing.T) {
 			"event: network.message",
 			`"message_id":"msg-1"`,
 			"event: network.usage",
-			`"owner_key":"task_run:run-1"`,
+			`"participation_status":{"owner":{"workspace_id":"ws-alpha","kind":"task_run","id":"run-1"},"available":true,"participating":true}`,
 			`"actual_wake_count":1`,
 		} {
 			if !strings.Contains(body, want) {

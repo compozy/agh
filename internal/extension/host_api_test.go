@@ -87,13 +87,18 @@ func TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead(t *
 func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
+	env := newHostAPITestEnv(t, withHostAPITestLiveParticipation())
 	env.grant("ext-create", []string{"sessions/create"}, []string{"session.write"})
 
-	result, err := env.call(t, "ext-create", "sessions/create", map[string]string{
+	result, err := env.call(t, "ext-create", "sessions/create", map[string]any{
 		"agent":     "coder",
 		"provider":  "fake-alt",
 		"workspace": env.workspaceID,
+		"network_participation": map[string]any{
+			"mode":             "live",
+			"channel_strategy": "named",
+			"channel_id":       "builders",
+		},
 	})
 	if err != nil {
 		t.Fatalf("Handle(sessions/create) error = %v", err)
@@ -118,6 +123,32 @@ func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {
 	if info.Provider != "fake-alt" {
 		t.Fatalf("created session provider = %q, want %q", info.Provider, "fake-alt")
 	}
+	if info.NetworkParticipation.Mode != participation.ModeLive ||
+		info.NetworkParticipation.ChannelID != "builders" {
+		t.Fatalf(
+			"created session participation = %#v, want Live builders",
+			info.NetworkParticipation,
+		)
+	}
+
+	_, err = env.call(t, "ext-create", "sessions/create", map[string]any{
+		"agent":           "coder",
+		"workspace":       env.workspaceID,
+		"network_channel": "legacy",
+	})
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	assertErrorContains(t, err, "network_channel")
+}
+
+func TestDecodeHostAPIParamsRejectsUnknownFieldsByDefault(t *testing.T) {
+	t.Parallel()
+
+	var params struct {
+		WorkspaceID string `json:"workspace_id"`
+	}
+	err := decodeHostAPIParams(json.RawMessage(`{"workspace_id":"ws-1","legacy":true}`), &params)
+	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+	assertErrorContains(t, err, "legacy")
 }
 
 func TestHostAPIHandlerSessionsCreateReturnsCapabilityDeniedWithoutSessionWrite(t *testing.T) {
@@ -2732,9 +2763,8 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 	}
 
 	updateResult, err := env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
-		"id":           created.ID,
-		"workspace_id": env.workspace.RootDir,
-		"prompt":       "Updated host API job prompt",
+		"id":     created.ID,
+		"prompt": "Updated host API job prompt",
 		"schedule": map[string]any{
 			"mode":     "every",
 			"interval": "15m",
@@ -2784,6 +2814,83 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 
 	if _, err := env.call(t, "ext-automation", "automation/jobs/delete", map[string]any{"id": created.ID}); err != nil {
 		t.Fatalf("Handle(automation/jobs/delete) error = %v", err)
+	}
+}
+
+func TestHostAPIHandlerAutomationCreateTargetParity(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t, withHostAPITestLoopStarter(&hostAPITestLoopStarter{}))
+	env.grant(
+		"ext-automation-targets",
+		[]string{"automation/jobs/create", "automation/triggers/create"},
+		[]string{"automation.write"},
+	)
+
+	jobResult, err := env.call(t, "ext-automation-targets", "automation/jobs/create", map[string]any{
+		"name":         "host-api-task-job",
+		"scope":        "workspace",
+		"workspace_id": env.workspace.RootDir,
+		"target_kind":  "agent",
+		"schedule": map[string]any{
+			"mode":     "every",
+			"interval": "5m",
+		},
+		"task": map[string]any{
+			"title": "Scheduled task",
+			"network_participation": map[string]any{
+				"mode": "local",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Handle(automation/jobs/create task target) error = %v", err)
+	}
+	var job automationpkg.Job
+	decodeResult(t, jobResult, &job)
+	if job.TargetKind != automationpkg.TargetKindAgent || job.Task == nil || job.Task.Title != "Scheduled task" {
+		t.Fatalf("created task job = %#v, want preserved target kind and task config", job)
+	}
+
+	triggerResult, err := env.call(
+		t,
+		"ext-automation-targets",
+		"automation/triggers/create",
+		map[string]any{
+			"name":         "host-api-loop-trigger",
+			"scope":        "workspace",
+			"workspace_id": env.workspace.RootDir,
+			"target_kind":  "loop",
+			"event":        "ext.release.ready",
+			"loop_target": map[string]any{
+				"workspace_id": env.workspaceID,
+				"loop_name":    "release",
+				"inputs":       map[string]any{"environment": "staging"},
+				"input_mapping": map[string]string{
+					"commit": "data.sha",
+				},
+				"network_participation": map[string]any{"mode": "local"},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("Handle(automation/triggers/create loop target) error = %v", err)
+	}
+	var trigger apicontract.TriggerPayload
+	decodeResult(t, triggerResult, &trigger)
+	if trigger.TargetKind != automationpkg.TargetKindLoop || trigger.LoopTarget == nil {
+		t.Fatalf("created loop trigger = %#v, want preserved loop target", trigger)
+	}
+	if got, want := trigger.LoopTarget.LoopName, "release"; got != want {
+		t.Fatalf("created loop target name = %q, want %q", got, want)
+	}
+	if trigger.LoopTarget.NetworkParticipation == nil ||
+		trigger.LoopTarget.NetworkParticipation.Mode == nil ||
+		*trigger.LoopTarget.NetworkParticipation.Mode != participation.ModeLocal {
+		t.Fatalf(
+			"created loop target participation = %#v, want local",
+			trigger.LoopTarget.NetworkParticipation,
+		)
 	}
 }
 
@@ -2865,9 +2972,8 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		}
 
 		updateResult, err := env.call(t, "ext-automation", "automation/triggers/update", map[string]any{
-			"id":           created.ID,
-			"workspace_id": env.workspace.RootDir,
-			"prompt":       `Updated {{ index .Data "repo" }}`,
+			"id":     created.ID,
+			"prompt": `Updated {{ index .Data "repo" }}`,
 			"filter": map[string]string{
 				"data.repo": "acme/api",
 			},
@@ -4948,6 +5054,7 @@ type hostAPITestEnvConfig struct {
 	hooks             *hookspkg.Hooks
 	liveParticipation bool
 	networkUsage      store.NetworkUsageStore
+	loopStarter       automationpkg.LoopStarter
 }
 
 type hostAPITestEnvOption func(*hostAPITestEnvConfig)
@@ -4962,6 +5069,28 @@ func withHostAPITestNetworkUsageStore(usageStore store.NetworkUsageStore) hostAP
 	return func(cfg *hostAPITestEnvConfig) {
 		cfg.networkUsage = usageStore
 	}
+}
+
+func withHostAPITestLoopStarter(starter automationpkg.LoopStarter) hostAPITestEnvOption {
+	return func(cfg *hostAPITestEnvConfig) {
+		cfg.loopStarter = starter
+	}
+}
+
+type hostAPITestLoopStarter struct{}
+
+func (*hostAPITestLoopStarter) ValidateLoopTarget(
+	context.Context,
+	automationpkg.LoopTargetValidationRequest,
+) error {
+	return nil
+}
+
+func (*hostAPITestLoopStarter) StartLoop(
+	context.Context,
+	automationpkg.LoopStartRequest,
+) (automationpkg.LoopStartResult, error) {
+	return automationpkg.LoopStartResult{RunID: "looprun-host-api"}, nil
 }
 
 func newHostAPITestParticipationResolver(t testing.TB) participation.Resolver {
@@ -5303,7 +5432,7 @@ Review the workspace changes carefully.
 		}
 	})
 
-	sessions, err := session.NewManager(
+	sessionOptions := []session.Option{
 		session.WithHomePaths(homePaths),
 		session.WithDriver(driver),
 		session.WithNotifier(observer),
@@ -5314,7 +5443,14 @@ Review the workspace changes carefully.
 		session.WithNow(func() time.Time { return env.currentTime() }),
 		session.WithSessionIDGenerator(sequentialSessionIDGenerator("sess")),
 		session.WithTurnIDGenerator(sequentialSessionIDGenerator("turn")),
-	)
+	}
+	if cfg.liveParticipation {
+		sessionOptions = append(
+			sessionOptions,
+			session.WithParticipationResolver(newHostAPITestParticipationResolver(t)),
+		)
+	}
+	sessions, err := session.NewManager(sessionOptions...)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
@@ -5359,6 +5495,9 @@ Review the workspace changes carefully.
 	}
 	if cfg.hooks != nil {
 		automationOpts = append(automationOpts, automationpkg.WithHooks(cfg.hooks))
+	}
+	if cfg.loopStarter != nil {
+		automationOpts = append(automationOpts, automationpkg.WithLoopStarter(cfg.loopStarter))
 	}
 	automationManager, err := automationpkg.New(automationOpts...)
 	if err != nil {

@@ -100,9 +100,11 @@ describe("automation draft helpers", () => {
     const update = automationJobUpdateFromDraft(automationJobToDraft(jobFixture));
 
     expect(update).not.toHaveProperty("scope");
+    expect(update).not.toHaveProperty("target_kind");
+    expect(update).not.toHaveProperty("agent_name");
+    expect(update).not.toHaveProperty("workspace_id");
     expect(update).toMatchObject({
       name: "daily-review",
-      workspace_id: "ws_alpha",
     });
   });
 
@@ -146,9 +148,11 @@ describe("automation draft helpers", () => {
     const update = automationTriggerUpdateFromDraft(automationTriggerToDraft(triggerFixture));
 
     expect(update).not.toHaveProperty("scope");
+    expect(update).not.toHaveProperty("target_kind");
+    expect(update).not.toHaveProperty("agent_name");
+    expect(update).not.toHaveProperty("workspace_id");
     expect(update).toMatchObject({
       name: "push-review",
-      workspace_id: "ws_alpha",
     });
   });
 

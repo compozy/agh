@@ -262,6 +262,7 @@ FROM task_runs tr
 LEFT JOIN tasks t ON t.id = tr.task_id
 WHERE tr.session_id = ?1
   AND COALESCE(tr.claim_token_hash, '') <> ''
+  AND tr.run_kind <> 'network_wake'
 ORDER BY COALESCE(tr.lease_until, '') DESC, tr.id ASC
 `
 

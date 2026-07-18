@@ -151,7 +151,7 @@ func (h *BaseHandlers) AgentTaskHeartbeat(c *gin.Context) {
 	}
 
 	var req contract.AgentTaskHeartbeatRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -191,7 +191,7 @@ func (h *BaseHandlers) AgentTaskRelease(c *gin.Context) {
 	}
 
 	var req contract.AgentTaskReleaseRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -226,7 +226,7 @@ func (h *BaseHandlers) AgentTaskComplete(c *gin.Context) {
 	}
 
 	var req contract.AgentTaskCompleteRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -267,7 +267,7 @@ func (h *BaseHandlers) AgentTaskFail(c *gin.Context) {
 	}
 
 	var req contract.AgentTaskFailRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,

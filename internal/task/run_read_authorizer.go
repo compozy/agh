@@ -10,38 +10,30 @@ type RunReadAuthorizer interface {
 	AuthorizeRunRead(ctx context.Context, actor ActorContext, run Run, task *Task) error
 }
 
-type taskRunReadAuthorizer struct{}
+type taskRunReadAuthorizer struct {
+	tasks ResourceAuthorizer
+}
 
 var _ RunReadAuthorizer = taskRunReadAuthorizer{}
 
-func (taskRunReadAuthorizer) AuthorizeRunRead(
-	_ context.Context,
+func (a taskRunReadAuthorizer) AuthorizeRunRead(
+	ctx context.Context,
 	actor ActorContext,
 	run Run,
 	taskRecord *Task,
 ) error {
 	if taskRecord != nil {
-		return authorizeTaskBackedRunRead(actor, *taskRecord)
+		if err := a.tasks.AuthorizeTask(ctx, actor, *taskRecord); err != nil {
+			return ErrTaskRunNotFound
+		}
+		if workspaceID := strings.TrimSpace(run.WorkspaceID); workspaceID != "" {
+			if err := a.tasks.AuthorizeTaskScope(ctx, actor, ScopeWorkspace, workspaceID); err != nil {
+				return ErrTaskRunNotFound
+			}
+		}
+		return nil
 	}
 	return authorizeTasklessRunRead(actor, run)
-}
-
-func authorizeTaskBackedRunRead(actor ActorContext, taskRecord Task) error {
-	if actor.Scope.Operator || actor.Actor.Kind.Normalize() == ActorKindDaemon {
-		return nil
-	}
-	if taskRecord.Owner != nil &&
-		string(taskRecord.Owner.Kind.Normalize()) == string(actor.Actor.Kind.Normalize()) &&
-		strings.TrimSpace(taskRecord.Owner.Ref) == strings.TrimSpace(actor.Actor.Ref) {
-		return nil
-	}
-	if taskRecord.Scope.Normalize() != ScopeWorkspace {
-		return nil
-	}
-	if strings.TrimSpace(actor.Scope.WorkspaceID) != strings.TrimSpace(taskRecord.WorkspaceID) {
-		return ErrPermissionDenied
-	}
-	return nil
 }
 
 func authorizeTasklessRunRead(actor ActorContext, run Run) error {

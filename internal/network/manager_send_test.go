@@ -130,6 +130,24 @@ func TestManagerSendCommitsBeforeDispatch(t *testing.T) {
 	}
 }
 
+func TestManagerSendDetachesFromRequestCancellation(t *testing.T) {
+	t.Parallel()
+
+	acceptance := &managerAcceptanceStub{}
+	manager := newManagerSendTestManager(t, acceptance)
+	joinManagerSendParticipant(t, manager, "sess-sender", "sender.sess-abc")
+
+	requestCtx, cancel := context.WithCancel(testutil.Context(t))
+	cancel()
+	request := managerThreadSendRequest("msg-manager-detached")
+	if _, err := manager.Send(requestCtx, request); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if got := acceptance.callCount(); got != 1 {
+		t.Fatalf("AcceptNetworkMessage calls = %d, want 1 after request cancellation", got)
+	}
+}
+
 func TestManagerSendObservesCommittedMessagesOnce(t *testing.T) {
 	t.Parallel()
 
@@ -671,15 +689,23 @@ func TestManagerSendGeneratesWhoisResponsesAfterRequestAcceptance(t *testing.T) 
 		t.Parallel()
 
 		acceptance := &managerAcceptanceStub{}
+		var committedDispositions []store.NetworkMessageDisposition
 		acceptance.handle = func(
-			_ store.AcceptNetworkMessageRequest,
+			req store.AcceptNetworkMessageRequest,
 			call int,
 		) (store.AcceptNetworkMessageResult, error) {
 			switch call {
+			case 1:
+				committedDispositions = slices.Clone(req.Dispositions)
+				return store.AcceptNetworkMessageResult{
+					Dispositions: slices.Clone(committedDispositions),
+				}, nil
 			case 2:
 				return store.AcceptNetworkMessageResult{}, errors.New("response persistence failed")
 			case 3:
-				return store.AcceptNetworkMessageResult{Duplicate: true}, nil
+				return store.AcceptNetworkMessageResult{
+					Duplicate: true, Dispositions: slices.Clone(committedDispositions),
+				}, nil
 			default:
 				return store.AcceptNetworkMessageResult{}, nil
 			}
@@ -687,18 +713,19 @@ func TestManagerSendGeneratesWhoisResponsesAfterRequestAcceptance(t *testing.T) 
 		manager := newManagerSendTestManager(t, acceptance)
 		joinManagerSendParticipant(t, manager, "sess-sender", "sender.sess-abc")
 		joinManagerSendParticipant(t, manager, "sess-responder", "reviewer.sess-retry")
-		target := "reviewer.sess-retry"
 		messageID := "msg-whois-retry"
 		request := SendRequest{
 			SessionID: "sess-sender", WorkspaceID: testWorkspaceID, Channel: "builders",
-			Kind: KindWhois, To: &target, Body: mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
+			Kind: KindWhois, Body: mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 			ID: &messageID,
 		}
 
-		if _, err := manager.Send(testutil.Context(t), request); err == nil {
-			t.Fatal("Send(first attempt) error = nil, want response persistence failure")
+		if _, err := manager.Send(testutil.Context(t), request); err == nil ||
+			!strings.Contains(err.Error(), "response persistence failed") {
+			t.Fatalf("Send(first attempt) error = %v, want response persistence failure", err)
 		}
 		firstResponseID := acceptance.request(t, 1).Message.MessageID
+		joinManagerSendParticipant(t, manager, "sess-late-responder", "reviewer.sess-late")
 		if _, err := manager.Send(testutil.Context(t), request); err != nil {
 			t.Fatalf("Send(retry) error = %v", err)
 		}
@@ -707,6 +734,9 @@ func TestManagerSendGeneratesWhoisResponsesAfterRequestAcceptance(t *testing.T) 
 		}
 		if retryResponseID := acceptance.request(t, 3).Message.MessageID; retryResponseID != firstResponseID {
 			t.Fatalf("retry response id = %q, want stable id %q", retryResponseID, firstResponseID)
+		}
+		if got := acceptance.request(t, 3).Message.PeerFrom; got != "sess-responder" {
+			t.Fatalf("retry responder session = %q, want original sess-responder", got)
 		}
 	})
 }
@@ -993,6 +1023,23 @@ func TestManagerSendRejectsInvalidEnvelopeBeforeAcceptance(t *testing.T) {
 		}
 		if got := acceptance.callCount(); got != 0 {
 			t.Fatalf("AcceptNetworkMessage calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should compact insignificant whitespace before acceptance", func(t *testing.T) {
+		t.Parallel()
+
+		acceptance := &managerAcceptanceStub{}
+		manager := newManagerSendTestManager(t, acceptance)
+		joinManagerSendParticipant(t, manager, "sess-sender", "sender.sess-abc")
+		request := managerThreadSendRequest("msg-manager-whitespace")
+		request.Body = json.RawMessage(`{` + strings.Repeat(" ", maxProtocolEnvelopeBytes) + `"text":"ok"}`)
+
+		if _, err := manager.Send(testutil.Context(t), request); err != nil {
+			t.Fatalf("Send() error = %v", err)
+		}
+		if got, want := string(acceptance.request(t, 0).Message.Body), `{"text":"ok"}`; got != want {
+			t.Fatalf("accepted body = %q, want canonical %q", got, want)
 		}
 	})
 

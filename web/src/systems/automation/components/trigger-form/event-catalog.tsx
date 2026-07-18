@@ -9,6 +9,7 @@ import { EventCard } from "./event-card";
 import { EventSubConfig, type SubConfigValues } from "./event-sub-config";
 
 interface EventCatalogProps {
+  disabledCatalogIds?: ReadonlySet<string>;
   selection: EventSelection;
   subConfigValues: SubConfigValues;
   onSelectEvent: (catalogId: string) => void;
@@ -27,6 +28,7 @@ function needsSubConfig(family: EventFamily): boolean {
 
 /** "When" step: searchable event catalog with inline per-event configuration. */
 export function EventCatalog({
+  disabledCatalogIds,
   selection,
   subConfigValues,
   onSelectEvent,
@@ -67,6 +69,7 @@ export function EventCatalog({
                     <EventCard
                       catalogId={event.id}
                       description={event.description}
+                      disabled={disabledCatalogIds?.has(event.id) ?? false}
                       displayId={displayIdFor(event)}
                       icon={event.icon}
                       label={event.label}

@@ -2062,9 +2062,6 @@ func (n *daemonNativeTools) taskCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := n.applyNativeTaskNetworkParticipation(ctx, created.ID, input.NetworkParticipation, actor); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
 	return structuredResult(map[string]any{nativeToolsTaskKey: created}, created.Title)
 }
 
@@ -2085,9 +2082,6 @@ func (n *daemonNativeTools) taskChildCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := n.applyNativeTaskNetworkParticipation(ctx, created.ID, input.NetworkParticipation, actor); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
 	return structuredResult(map[string]any{nativeToolsTaskKey: created}, created.Title)
 }
 
@@ -2104,7 +2098,7 @@ func (n *daemonNativeTools) taskUpdate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	updated, err := n.updateNativeTask(ctx, input, actor)
+	updated, err := n.deps.Tasks.UpdateTask(ctx, input.TaskID, input.patch(), actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -3350,19 +3344,20 @@ func (i taskCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
 		workspaceID = strings.TrimSpace(scope.WorkspaceID)
 	}
 	return taskpkg.CreateTask{
-		ID:             strings.TrimSpace(i.ID),
-		Identifier:     strings.TrimSpace(i.Identifier),
-		Scope:          taskScope,
-		WorkspaceID:    workspaceID,
-		Title:          strings.TrimSpace(i.Title),
-		Description:    strings.TrimSpace(i.Description),
-		Priority:       taskpkg.Priority(strings.TrimSpace(i.Priority)),
-		MaxAttempts:    cloneIntPtr(i.MaxAttempts),
-		Draft:          i.Draft,
-		ApprovalPolicy: taskpkg.ApprovalPolicy(strings.TrimSpace(i.ApprovalPolicy)),
-		Owner:          cloneTaskOwner(i.Owner),
-		WakeCreator:    cloneBoolPtr(i.WakeCreator),
-		Metadata:       cloneJSON(i.Metadata),
+		ID:                   strings.TrimSpace(i.ID),
+		Identifier:           strings.TrimSpace(i.Identifier),
+		Scope:                taskScope,
+		WorkspaceID:          workspaceID,
+		Title:                strings.TrimSpace(i.Title),
+		Description:          strings.TrimSpace(i.Description),
+		Priority:             taskpkg.Priority(strings.TrimSpace(i.Priority)),
+		MaxAttempts:          cloneIntPtr(i.MaxAttempts),
+		Draft:                i.Draft,
+		ApprovalPolicy:       taskpkg.ApprovalPolicy(strings.TrimSpace(i.ApprovalPolicy)),
+		Owner:                cloneTaskOwner(i.Owner),
+		WakeCreator:          cloneBoolPtr(i.WakeCreator),
+		NetworkParticipation: participation.CloneRequest(i.NetworkParticipation),
+		Metadata:             cloneJSON(i.Metadata),
 	}
 }
 
@@ -3392,14 +3387,15 @@ type taskUpdateInput struct {
 
 func (i taskUpdateInput) patch() taskpkg.Patch {
 	return taskpkg.Patch{
-		Title:          cloneStringPtr(i.Title),
-		Description:    cloneStringPtr(i.Description),
-		Priority:       taskPriorityPtr(i.Priority),
-		MaxAttempts:    cloneIntPtr(i.MaxAttempts),
-		ApprovalPolicy: taskApprovalPolicyPtr(i.ApprovalPolicy),
-		Metadata:       cloneRawMessagePtr(i.Metadata),
-		Owner:          cloneTaskOwner(i.Owner),
-		ClearOwner:     i.ClearOwner,
+		Title:                cloneStringPtr(i.Title),
+		Description:          cloneStringPtr(i.Description),
+		Priority:             taskPriorityPtr(i.Priority),
+		MaxAttempts:          cloneIntPtr(i.MaxAttempts),
+		ApprovalPolicy:       taskApprovalPolicyPtr(i.ApprovalPolicy),
+		Metadata:             cloneRawMessagePtr(i.Metadata),
+		Owner:                cloneTaskOwner(i.Owner),
+		ClearOwner:           i.ClearOwner,
+		NetworkParticipation: participation.CloneRequest(i.NetworkParticipation),
 	}
 }
 

@@ -148,6 +148,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"network_live_wakes",
 			"network_wake_sources",
 			"network_participation_budgets",
+			"network_task_status_projections",
 			"scheduler_pause",
 		)
 		for _, table := range []string{"sessions", "task_runs", "loop_runs"} {

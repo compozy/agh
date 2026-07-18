@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,10 +77,52 @@ func NormalizeEnvelope(env Envelope, opts ValidateOptions) (Envelope, error) {
 	if err := validateEnvelopeBodyAndFreshness(normalized, opts); err != nil {
 		return Envelope{}, err
 	}
+	if err := canonicalizeEnvelopeRawMessages(&normalized); err != nil {
+		return Envelope{}, err
+	}
 	if err := validateEnvelopeEncodedSize(normalized); err != nil {
 		return Envelope{}, err
 	}
 	return normalized, nil
+}
+
+func canonicalizeEnvelopeRawMessages(env *Envelope) error {
+	if env == nil {
+		return fmt.Errorf("%w: envelope is required", ErrInvalidEnvelope)
+	}
+	body, err := compactEnvelopeRawMessage("body", env.Body)
+	if err != nil {
+		return err
+	}
+	env.Body = body
+	if env.Proof != nil {
+		for key, raw := range *env.Proof {
+			compacted, compactErr := compactEnvelopeRawMessage("proof."+key, raw)
+			if compactErr != nil {
+				return compactErr
+			}
+			(*env.Proof)[key] = compacted
+		}
+	}
+	for key, raw := range env.Ext {
+		compacted, compactErr := compactEnvelopeRawMessage("ext."+key, raw)
+		if compactErr != nil {
+			return compactErr
+		}
+		env.Ext[key] = compacted
+	}
+	return nil
+}
+
+func compactEnvelopeRawMessage(field string, raw json.RawMessage) (json.RawMessage, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	var compacted bytes.Buffer
+	if err := json.Compact(&compacted, raw); err != nil {
+		return nil, fmt.Errorf("%w: compact %s: %w", ErrInvalidEnvelope, field, err)
+	}
+	return append(json.RawMessage(nil), compacted.Bytes()...), nil
 }
 
 func validateEnvelopeEncodedSize(env Envelope) error {

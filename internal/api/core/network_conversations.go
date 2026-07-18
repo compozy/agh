@@ -81,7 +81,7 @@ func (h *BaseHandlers) PromoteNetworkThreadTask(c *gin.Context) {
 		return
 	}
 	var req contract.PromoteNetworkThreadTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -295,7 +295,7 @@ func (h *BaseHandlers) UpsertNetworkSubscription(c *gin.Context) {
 		return
 	}
 	var req contract.NetworkSubscriptionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,

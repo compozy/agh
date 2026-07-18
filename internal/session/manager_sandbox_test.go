@@ -245,6 +245,36 @@ func TestSessionSandboxCreateAppliesRuntimeSandboxOverride(t *testing.T) {
 func TestSessionSandboxRejectsSymlinkCWDOutsideWorkspace(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve a valid child below a symlinked runtime root", func(t *testing.T) {
+		t.Parallel()
+
+		realRoot := t.TempDir()
+		realChild := filepath.Join(realRoot, "project")
+		if err := os.Mkdir(realChild, 0o755); err != nil {
+			t.Fatalf("Mkdir(project) error = %v", err)
+		}
+		linkedRoot := filepath.Join(t.TempDir(), "runtime-root")
+		if err := os.Symlink(realRoot, linkedRoot); err != nil {
+			t.Skipf("os.Symlink() unavailable: %v", err)
+		}
+
+		got, err := sandboxRuntimeCWD(
+			realChild,
+			sandbox.Prepared{RuntimeRootDir: linkedRoot},
+			sandbox.SessionState{Backend: sandbox.BackendLocal},
+		)
+		if err != nil {
+			t.Fatalf("sandboxRuntimeCWD() error = %v", err)
+		}
+		want, err := canonicalDirectory(realChild)
+		if err != nil {
+			t.Fatalf("canonicalDirectory(project) error = %v", err)
+		}
+		if got != want {
+			t.Fatalf("sandboxRuntimeCWD() = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should reject a workspace child symlink that resolves outside the workspace", func(t *testing.T) {
 		t.Parallel()
 
@@ -265,6 +295,41 @@ func TestSessionSandboxRejectsSymlinkCWDOutsideWorkspace(t *testing.T) {
 		}
 		if got := len(h.driver.startCalls); got != 0 {
 			t.Fatalf("driver Start() calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject a persisted child replaced by an escaping symlink before resume", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		project := filepath.Join(h.workspace, "project")
+		if err := os.Mkdir(project, 0o755); err != nil {
+			t.Fatalf("Mkdir(project) error = %v", err)
+		}
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			CWD:       project,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if err := os.Remove(project); err != nil {
+			t.Fatalf("Remove(project) error = %v", err)
+		}
+		if err := os.Symlink(t.TempDir(), project); err != nil {
+			t.Skipf("os.Symlink() unavailable: %v", err)
+		}
+
+		_, err = h.manager.Resume(testutil.Context(t), session.ID)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("Resume(symlink escape) error = %v, want ErrValidation", err)
+		}
+		if got, want := len(h.driver.startCalls), 1; got != want {
+			t.Fatalf("driver Start() calls = %d, want %d", got, want)
 		}
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var channelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
@@ -191,8 +192,8 @@ func validatePartialBounds(request *BoundsRequest) error {
 		value *int64
 	}{
 		{field: "bounds.max_wakes", value: intPointerAsInt64(request.MaxWakes)},
-		{field: "bounds.max_input_tokens", value: request.MaxInputTokens},
-		{field: "bounds.max_output_tokens", value: request.MaxOutputTokens},
+		{field: boundsMaxInputCountPath, value: request.MaxInputTokens},
+		{field: boundsMaxOutputCountPath, value: request.MaxOutputTokens},
 		{field: "bounds.max_wake_depth", value: intPointerAsInt64(request.MaxWakeDepth)},
 	} {
 		if candidate.value != nil && *candidate.value <= 0 {
@@ -203,6 +204,10 @@ func validatePartialBounds(request *BoundsRequest) error {
 			)
 		}
 	}
+	if err := validatePartialTokenBounds(request); err != nil {
+		return err
+	}
+	var wakeWall, totalWall *time.Duration
 	for _, candidate := range []struct {
 		field string
 		value *string
@@ -214,8 +219,43 @@ func validatePartialBounds(request *BoundsRequest) error {
 		if candidate.value == nil {
 			continue
 		}
-		if _, err := parsePositiveDuration(candidate.field, *candidate.value); err != nil {
+		duration, err := parsePositiveDuration(candidate.field, *candidate.value)
+		if err != nil {
 			return err
+		}
+		switch candidate.field {
+		case "bounds.max_wake_wall_time":
+			wakeWall = &duration
+		case "bounds.max_total_wall_time":
+			totalWall = &duration
+		}
+	}
+	if wakeWall != nil && totalWall != nil && *wakeWall > *totalWall {
+		return exceedsLimit(
+			"bounds.max_wake_wall_time",
+			*request.MaxWakeWallTime,
+			"bounds.max_total_wall_time",
+			*request.MaxTotalWallTime,
+		)
+	}
+	return nil
+}
+
+func validatePartialTokenBounds(request *BoundsRequest) error {
+	for _, candidate := range []struct {
+		field string
+		value *int64
+	}{
+		{field: boundsMaxInputCountPath, value: request.MaxInputTokens},
+		{field: boundsMaxOutputCountPath, value: request.MaxOutputTokens},
+	} {
+		if candidate.value != nil && *candidate.value > maxJavaScriptSafeInteger {
+			return exceedsLimit(
+				candidate.field,
+				*candidate.value,
+				"JavaScript safe integer ceiling",
+				maxJavaScriptSafeInteger,
+			)
 		}
 	}
 	return nil

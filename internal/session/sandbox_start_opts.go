@@ -2,7 +2,6 @@ package session
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/compozy/agh/internal/acp"
@@ -53,22 +52,18 @@ func sandboxRuntimeCWD(
 		if requested == "" {
 			return canonicalRoot, nil
 		}
-		lexicalRoot, err := filepath.Abs(filepath.Clean(runtimeRoot))
-		if err != nil {
-			return "", fmt.Errorf("%w: resolve local sandbox root: %w", ErrValidation, err)
-		}
-		lexicalTarget, err := filepath.Abs(filepath.Clean(requested))
+		canonicalTarget, err := canonicalDirectory(requested)
 		if err != nil {
 			return "", fmt.Errorf("%w: resolve local sandbox cwd: %w", ErrValidation, err)
 		}
-		contained, err := directoryContains(lexicalRoot, lexicalTarget)
+		contained, err := directoryContains(canonicalRoot, canonicalTarget)
 		if err != nil {
 			return "", fmt.Errorf("%w: compare local sandbox cwd: %w", ErrValidation, err)
 		}
 		if !contained {
 			return canonicalRoot, nil
 		}
-		cwd, err := resolveContainedDirectory(runtimeRoot, requested)
+		cwd, err := resolveContainedDirectory(canonicalRoot, canonicalTarget)
 		if err != nil {
 			return "", fmt.Errorf("%w: resolve local sandbox cwd: %w", ErrValidation, err)
 		}

@@ -9,6 +9,7 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	observepkg "github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
@@ -147,12 +148,13 @@ type SessionsListParams struct {
 
 // SessionsCreateParams starts a new session.
 type SessionsCreateParams struct {
-	Agent           string                      `json:"agent"`
-	Prompt          string                      `json:"prompt,omitempty"`
-	Provider        string                      `json:"provider,omitempty"`
-	Model           string                      `json:"model,omitempty"`
-	ReasoningEffort apicontract.ReasoningEffort `json:"reasoning_effort,omitempty"`
-	Workspace       string                      `json:"workspace,omitempty"`
+	Agent                string                      `json:"agent"`
+	Prompt               string                      `json:"prompt,omitempty"`
+	Provider             string                      `json:"provider,omitempty"`
+	Model                string                      `json:"model,omitempty"`
+	ReasoningEffort      apicontract.ReasoningEffort `json:"reasoning_effort,omitempty"`
+	Workspace            string                      `json:"workspace,omitempty"`
+	NetworkParticipation *participation.Request      `json:"network_participation,omitempty"`
 }
 
 // SessionsPromptParams submits one prompt to an existing session.

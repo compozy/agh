@@ -46,18 +46,25 @@ type OwnerRef struct {
 	ID          string    `json:"id"`
 }
 
+// Status is the public, read-only participation evidence for one execution owner.
+type Status struct {
+	Owner         OwnerRef `json:"owner"`
+	Available     bool     `json:"available"`
+	Participating bool     `json:"participating"`
+	Reason        string   `json:"reason,omitempty"`
+}
+
 // AuthorityScope carries the concrete channel grant delegated to one child execution.
 type AuthorityScope struct {
 	Enforced   bool
 	ChannelIDs []string
 }
 
-//nolint:golines // JSON and YAML names are both authored participation contracts.
 type Request struct {
-	Mode            *Mode            `json:"mode,omitempty" yaml:"mode,omitempty"`
-	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty" yaml:"channel_strategy,omitempty"`
-	ChannelID       *string          `json:"channel_id,omitempty" yaml:"channel_id,omitempty"`
-	Bounds          *BoundsRequest   `json:"bounds,omitempty" yaml:"bounds,omitempty"`
+	Mode            *Mode            `json:"mode,omitempty"             yaml:"mode,omitempty"             toml:"mode,omitempty"`
+	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty" yaml:"channel_strategy,omitempty" toml:"channel_strategy,omitempty"`
+	ChannelID       *string          `json:"channel_id,omitempty"       yaml:"channel_id,omitempty"       toml:"channel_id,omitempty"`
+	Bounds          *BoundsRequest   `json:"bounds,omitempty"           yaml:"bounds,omitempty"           toml:"bounds,omitempty"`
 }
 
 type Spec struct {
@@ -72,6 +79,19 @@ type Spec struct {
 
 type Resolver interface {
 	Resolve(ctx context.Context, in ResolveInput) (Spec, error)
+}
+
+// Intent is the participation request and source selected before resolution.
+type Intent struct {
+	Request *Request
+	Source  Source
+}
+
+// IntentResolver exposes the selected intent so pre-resolve policy observes the same input as resolution.
+type IntentResolver interface {
+	Resolver
+	SelectIntent(ctx context.Context, in ResolveInput) (Intent, error)
+	ResolveIntent(ctx context.Context, in ResolveInput, intent Intent) (Spec, error)
 }
 
 // ResolvedObserver receives one immutable snapshot only after its owner commits.

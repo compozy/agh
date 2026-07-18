@@ -10,6 +10,25 @@ func OwnerKey(owner OwnerRef) string {
 	return string(owner.Kind) + ":" + strings.TrimSpace(owner.ID)
 }
 
+// OwnerRefFromKey reconstructs a public owner reference at an internal owner-key boundary.
+func OwnerRefFromKey(workspaceID, value string) (OwnerRef, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	value = strings.TrimSpace(value)
+	if err := ValidateOwnerKey(value); err != nil {
+		return OwnerRef{}, err
+	}
+	parts := strings.SplitN(value, ":", 2)
+	owner := OwnerRef{
+		WorkspaceID: workspaceID,
+		Kind:        OwnerKind(parts[0]),
+		ID:          parts[1],
+	}
+	if err := ValidateOwner(owner); err != nil {
+		return OwnerRef{}, err
+	}
+	return owner, nil
+}
+
 // ValidateOwner verifies that an execution owner has a supported kind and stable identity.
 func ValidateOwner(owner OwnerRef) error {
 	owner.WorkspaceID = strings.TrimSpace(owner.WorkspaceID)

@@ -20,6 +20,7 @@ import (
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	observepkg "github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
@@ -908,12 +909,13 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 	}
 
 	sess, err := h.sessions.Create(ctx, session.CreateOpts{
-		AgentName:       strings.TrimSpace(params.Agent),
-		Provider:        strings.TrimSpace(params.Provider),
-		Model:           strings.TrimSpace(params.Model),
-		ReasoningEffort: strings.TrimSpace(string(params.ReasoningEffort)),
-		Workspace:       strings.TrimSpace(params.Workspace),
-		Type:            session.SessionTypeSystem,
+		AgentName:            strings.TrimSpace(params.Agent),
+		Provider:             strings.TrimSpace(params.Provider),
+		Model:                strings.TrimSpace(params.Model),
+		ReasoningEffort:      strings.TrimSpace(string(params.ReasoningEffort)),
+		Workspace:            strings.TrimSpace(params.Workspace),
+		NetworkParticipation: participation.CloneRequest(params.NetworkParticipation),
+		Type:                 session.SessionTypeSystem,
 	})
 	if err != nil {
 		return nil, err
@@ -2108,10 +2110,13 @@ func (h *HostAPIHandler) jobFromCreateParams(
 	return automationpkg.Job{
 		Scope:       req.Scope,
 		Name:        strings.TrimSpace(req.Name),
+		TargetKind:  req.TargetKind,
 		AgentName:   strings.TrimSpace(req.AgentName),
 		WorkspaceID: workspaceID,
 		Prompt:      strings.TrimSpace(req.Prompt),
 		Schedule:    &schedule,
+		Task:        cloneBundleTaskConfig(req.Task),
+		LoopTarget:  cloneHostAPIAutomationLoopTarget(req.LoopTarget),
 		Enabled:     enabled,
 		Retry:       retry,
 		FireLimit:   fireLimit,
@@ -2120,7 +2125,7 @@ func (h *HostAPIHandler) jobFromCreateParams(
 }
 
 func (h *HostAPIHandler) applyJobUpdateParams(
-	ctx context.Context,
+	_ context.Context,
 	current automationpkg.Job,
 	req apicontract.UpdateJobRequest,
 ) (automationpkg.Job, error) {
@@ -2128,22 +2133,18 @@ func (h *HostAPIHandler) applyJobUpdateParams(
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
 	}
-	if req.AgentName != nil {
-		next.AgentName = strings.TrimSpace(*req.AgentName)
-	}
-	if req.WorkspaceID != nil {
-		workspaceID, err := h.resolveAutomationWorkspaceID(ctx, *req.WorkspaceID)
-		if err != nil {
-			return automationpkg.Job{}, err
-		}
-		next.WorkspaceID = workspaceID
-	}
 	if req.Prompt != nil {
 		next.Prompt = strings.TrimSpace(*req.Prompt)
 	}
 	if req.Schedule != nil {
 		schedule := *req.Schedule
 		next.Schedule = &schedule
+	}
+	if req.Task != nil {
+		next.Task = cloneBundleTaskConfig(req.Task)
+	}
+	if req.LoopTarget != nil {
+		next.LoopTarget = cloneHostAPIAutomationLoopTarget(req.LoopTarget)
 	}
 	if req.Enabled != nil {
 		next.Enabled = *req.Enabled
@@ -2153,6 +2154,9 @@ func (h *HostAPIHandler) applyJobUpdateParams(
 	}
 	if req.FireLimit != nil {
 		next.FireLimit = *req.FireLimit
+	}
+	if err := automationpkg.ValidateImmutableJobTarget(current, next); err != nil {
+		return automationpkg.Job{}, err
 	}
 	return next, nil
 }
@@ -2195,11 +2199,13 @@ func (h *HostAPIHandler) triggerFromCreateParams(
 	trigger := automationpkg.Trigger{
 		Scope:        req.Scope,
 		Name:         strings.TrimSpace(req.Name),
+		TargetKind:   req.TargetKind,
 		AgentName:    strings.TrimSpace(req.AgentName),
 		WorkspaceID:  workspaceID,
 		Prompt:       strings.TrimSpace(req.Prompt),
 		Event:        strings.TrimSpace(req.Event),
 		Filter:       cloneHostAPIStringMap(req.Filter),
+		LoopTarget:   cloneHostAPIAutomationLoopTarget(req.LoopTarget),
 		Enabled:      enabled,
 		Retry:        retry,
 		FireLimit:    fireLimit,
@@ -2216,23 +2222,13 @@ func (h *HostAPIHandler) triggerFromCreateParams(
 }
 
 func (h *HostAPIHandler) applyTriggerUpdateParams(
-	ctx context.Context,
+	_ context.Context,
 	current automationpkg.Trigger,
 	req apicontract.UpdateTriggerRequest,
 ) (automationpkg.Trigger, *automationpkg.WebhookSecretWrite, error) {
 	next := current
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
-	}
-	if req.AgentName != nil {
-		next.AgentName = strings.TrimSpace(*req.AgentName)
-	}
-	if req.WorkspaceID != nil {
-		workspaceID, err := h.resolveAutomationWorkspaceID(ctx, *req.WorkspaceID)
-		if err != nil {
-			return automationpkg.Trigger{}, nil, err
-		}
-		next.WorkspaceID = workspaceID
 	}
 	if req.Prompt != nil {
 		next.Prompt = strings.TrimSpace(*req.Prompt)
@@ -2243,6 +2239,9 @@ func (h *HostAPIHandler) applyTriggerUpdateParams(
 	if req.Filter != nil {
 		next.Filter = cloneHostAPIStringMap(req.Filter)
 	}
+	if req.LoopTarget != nil {
+		next.LoopTarget = cloneHostAPIAutomationLoopTarget(req.LoopTarget)
+	}
 	if req.Enabled != nil {
 		next.Enabled = *req.Enabled
 	}
@@ -2251,6 +2250,9 @@ func (h *HostAPIHandler) applyTriggerUpdateParams(
 	}
 	if req.FireLimit != nil {
 		next.FireLimit = *req.FireLimit
+	}
+	if err := automationpkg.ValidateImmutableTriggerTarget(current, next); err != nil {
+		return automationpkg.Trigger{}, nil, err
 	}
 
 	webhookSecret := applyTriggerWebhookUpdateParams(&next, req)
@@ -2640,21 +2642,20 @@ func (l *hostAPIRateLimiter) Allow(extName string, method string) error {
 
 func hostAPIJobUpdateTouchesImmutableConfigFields(req apicontract.UpdateJobRequest) bool {
 	return req.Name != nil ||
-		req.AgentName != nil ||
-		req.WorkspaceID != nil ||
 		req.Prompt != nil ||
 		req.Schedule != nil ||
+		req.Task != nil ||
+		req.LoopTarget != nil ||
 		req.Retry != nil ||
 		req.FireLimit != nil
 }
 
 func hostAPITriggerUpdateTouchesImmutableConfigFields(req apicontract.UpdateTriggerRequest) bool {
 	return req.Name != nil ||
-		req.AgentName != nil ||
-		req.WorkspaceID != nil ||
 		req.Prompt != nil ||
 		req.Event != nil ||
 		req.Filter != nil ||
+		req.LoopTarget != nil ||
 		req.Retry != nil ||
 		req.FireLimit != nil ||
 		req.WebhookID != nil ||

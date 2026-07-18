@@ -23,6 +23,14 @@ func (m *Service) CreateTask(
 	if err != nil {
 		return nil, err
 	}
+	if err := m.authorizeTaskScope(
+		ctx,
+		actor,
+		normalizedSpec.Scope,
+		normalizedSpec.WorkspaceID,
+	); err != nil {
+		return nil, err
+	}
 	if err := m.validateParentConstraints(ctx, normalizedSpec); err != nil {
 		return nil, err
 	}
@@ -103,6 +111,9 @@ func (m *Service) CreateChildTask(
 			ErrValidation,
 		)
 	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedParentID, actor); err != nil {
+		return nil, err
+	}
 
 	spec.ParentTaskID = trimmedParentID
 	if err := requireCreateAuthority(actor, spec.Scope); err != nil {
@@ -110,6 +121,14 @@ func (m *Service) CreateChildTask(
 	}
 	normalizedSpec, err := normalizeCreateTaskSpec(spec)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.authorizeTaskScope(
+		ctx,
+		actor,
+		normalizedSpec.Scope,
+		normalizedSpec.WorkspaceID,
+	); err != nil {
 		return nil, err
 	}
 	if err := m.validateParentConstraints(ctx, normalizedSpec); err != nil {
@@ -174,7 +193,7 @@ func (m *Service) deleteTaskWithStore(
 	trimmedID string,
 	actor ActorContext,
 ) error {
-	record, err := store.GetTask(ctx, trimmedID)
+	record, err := m.loadAuthorizedTask(ctx, store, trimmedID, actor)
 	if err != nil {
 		return fmt.Errorf("task: load task %q for delete: %w", trimmedID, err)
 	}
@@ -226,7 +245,7 @@ func (m *Service) UpdateTask(
 	if err != nil {
 		return nil, err
 	}
-	current, err := m.store.GetTask(ctx, trimmedID)
+	current, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -352,6 +371,9 @@ func (m *Service) CancelTask(
 
 	tree, root, err := m.loadCancellationTree(ctx, trimmedID)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.authorizeTaskTreeMutation(ctx, actor, tree); err != nil {
 		return nil, err
 	}
 	if err := m.ensureTaskCancelable(ctx, root); err != nil {

@@ -72,6 +72,10 @@ function TaskRunDetailRoute() {
   const timelineItems = timelineQuery.data ?? [];
   const record = run.run;
   const participation = record.resolved_network_participation;
+  const coordinationWorkspaceId =
+    (participation?.mode === "live" ? participation.workspace_id : undefined) ??
+    page.task?.task.workspace_id ??
+    "";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-run-detail-content">
@@ -110,7 +114,13 @@ function TaskRunDetailRoute() {
           Participation: {participation?.mode ?? "local"}
           {participation?.mode === "live" ? ` · ${participation.channel_id}` : ""}
         </div>
-        {taskId ? <TaskRunCoordinationInvitationHost runId={record.id} taskId={taskId} /> : null}
+        {taskId && coordinationWorkspaceId ? (
+          <TaskRunCoordinationInvitationHost
+            runId={record.id}
+            taskId={taskId}
+            workspaceId={coordinationWorkspaceId}
+          />
+        ) : null}
         {conversation && run.network ? (
           <TaskRunConversationPanel
             boundsLabel={formatTaskRunBounds(record, run.network)}

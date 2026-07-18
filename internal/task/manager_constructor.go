@@ -1,6 +1,7 @@
 package task
 
 func newService(options managerOptions) *Service {
+	taskAuthorizer := scopedTaskResourceAuthorizer{}
 	service := &Service{
 		store:                 options.store,
 		sessions:              options.sessions,
@@ -13,7 +14,8 @@ func newService(options managerOptions) *Service {
 		generationFinalizer:   options.generationFinalizer,
 		wakeNotifier:          defaultWakeNotifier(options.wakeNotifier),
 		participationResolver: options.participationResolver,
-		runReadAuthorizer:     taskRunReadAuthorizer{},
+		taskAuthorizer:        taskAuthorizer,
+		runReadAuthorizer:     taskRunReadAuthorizer{tasks: taskAuthorizer},
 		coordinatorStatusOK:   options.coordinatorStatusOK,
 		coordinatorHookOK:     options.coordinatorHookOK,
 		profileValidation:     options.profileValidation,

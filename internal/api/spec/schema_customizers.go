@@ -8,6 +8,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+var putNetworkCoordinationInvitationRequestType = reflect.TypeFor[contract.PutNetworkCoordinationInvitationRequest]()
+
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[binaryResponse](): func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewStringSchema()
@@ -25,9 +27,19 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.BridgeDeliveryDefaultsPayload](): func(schema *openapi3.Schema) {
 		*schema = *bridgeDeliveryDefaultsSchema()
 	},
-	reflect.TypeFor[contract.NetworkSendRequest](): customizeNetworkSendRequestSchema,
-	reflect.TypeFor[contract.TaskPayload]():        describeTaskBlockedReasonsProperty,
-	reflect.TypeFor[contract.TaskSummaryPayload](): describeTaskBlockedReasonsProperty,
-	reflect.TypeFor[participation.Request]():       customizeParticipationRequestSchema,
-	reflect.TypeFor[participation.Spec]():          customizeParticipationSpecSchema,
+	reflect.TypeFor[contract.NetworkSendRequest]():              customizeNetworkSendRequestSchema,
+	reflect.TypeFor[contract.NetworkSubscriptionRequest]():      customizeClosedObjectSchema,
+	reflect.TypeFor[contract.PromoteNetworkThreadTaskRequest](): customizeClosedObjectSchema,
+	reflect.TypeFor[contract.PutNetworkCoordinationRequest]():   customizePutNetworkCoordinationRequestSchema,
+	putNetworkCoordinationInvitationRequestType:                 customizePutNetworkCoordinationInvitationRequestSchema,
+	reflect.TypeFor[contract.TaskPayload]():                     describeTaskBlockedReasonsProperty,
+	reflect.TypeFor[contract.TaskSummaryPayload]():              describeTaskBlockedReasonsProperty,
+	reflect.TypeFor[participation.Request]():                    customizeParticipationRequestSchema,
+	reflect.TypeFor[participation.Spec]():                       customizeParticipationSpecSchema,
+}
+
+func customizeClosedObjectSchema(schema *openapi3.Schema) {
+	if schema != nil {
+		schema.WithoutAdditionalProperties()
+	}
 }

@@ -115,9 +115,7 @@ describe("LoopRunForm", () => {
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_running"));
-    await expect(runRequestBody()).resolves.toMatchObject({
-      network_participation: { mode: "local" },
-    });
+    await expect(runRequestBody()).resolves.not.toHaveProperty("network_participation");
   });
 
   it("Should return canonical immutable snapshots from dry-run and run mock responses", async () => {

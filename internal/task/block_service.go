@@ -24,6 +24,9 @@ func (m *Service) BlockTask(ctx context.Context, req BlockRequest, actor ActorCo
 	if err != nil {
 		return TaskBlock{}, err
 	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, block.TaskID, actor); err != nil {
+		return TaskBlock{}, err
+	}
 	if runID != "" || claimToken != "" {
 		if runID == "" {
 			return TaskBlock{}, fmt.Errorf("%w: task_block.run_id is required when claim_token is set", ErrValidation)
@@ -278,6 +281,9 @@ func (m *Service) ClearTaskBlock(
 	if normalizedBlockID == "" {
 		return TaskBlock{}, fmt.Errorf("%w: task_block.id is required", ErrValidation)
 	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, normalizedTaskID, actor); err != nil {
+		return TaskBlock{}, err
+	}
 	normalizedNote := strings.TrimSpace(note)
 	if err := rejectTaskSecretText("task_block.clear_note", normalizedNote); err != nil {
 		return TaskBlock{}, err
@@ -327,6 +333,9 @@ func (m *Service) RecoverTask(ctx context.Context, id string, note string, actor
 			strings.TrimSpace(actor.Actor.Ref),
 			trimmedID,
 		)
+	}
+	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedID, actor); err != nil {
+		return nil, err
 	}
 	normalizedNote := strings.TrimSpace(note)
 	if err := rejectTaskSecretText("task.recover_note", normalizedNote); err != nil {
@@ -429,7 +438,7 @@ func (m *Service) ListTaskBlocks(
 	if err := m.requireAgentSessionTaskLease(ctx, normalizedTaskID, actor); err != nil {
 		return nil, err
 	}
-	if _, err := m.store.GetTask(ctx, normalizedTaskID); err != nil {
+	if _, err := m.loadAuthorizedTask(ctx, m.store, normalizedTaskID, actor); err != nil {
 		return nil, err
 	}
 	return m.store.ListTaskBlocks(ctx, normalizedTaskID, includeCleared)

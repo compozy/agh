@@ -1087,16 +1087,19 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 	tasksByID, taskIDs := taskSummaryIndex(tasks)
 	taskChannels := taskParticipationChannels(tasks, runs)
 	tasks = filterTasksByNetworkChannel(tasks, taskChannels, query.ParticipationChannel)
-	runs = filterRuns(runs, taskIDs, query)
 
 	runsByID := make(map[string]taskpkg.Run, len(runs))
 	for _, item := range runs {
+		if _, ok := taskIDs[strings.TrimSpace(item.TaskID)]; !ok {
+			continue
+		}
 		runID := strings.TrimSpace(item.ID)
 		if runID == "" {
 			continue
 		}
 		runsByID[runID] = item
 	}
+	runs = filterRuns(runs, taskIDs, query)
 
 	events, err := o.registry.ListTaskEvents(ctx, taskpkg.EventQuery{})
 	if err != nil {

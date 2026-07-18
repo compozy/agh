@@ -726,32 +726,37 @@ export interface Ownership {
   ref: string;
 }
 
-export type Mode = string;
-
-export type ChannelStrategy = string;
-
-export interface BoundsRequest {
-  max_wakes?: number;
-  max_wake_wall_time?: string;
-  max_total_wall_time?: string;
-  max_input_tokens?: number;
-  max_output_tokens?: number;
-  max_wake_depth?: number;
-  coalesce_window?: string;
-}
-
-export interface Request {
-  mode?: Mode;
-  channel_strategy?: ChannelStrategy;
-  channel_id?: string;
-  bounds?: BoundsRequest;
-}
+export type NetworkParticipationRequest =
+  | {
+      mode?: "local";
+      channel_strategy?: never;
+      channel_id?: never;
+      bounds?: never;
+    }
+  | {
+      mode: "live";
+      channel_strategy: "named";
+      channel_id: string;
+      bounds?: NetworkParticipationBoundsRequest;
+    }
+  | {
+      mode: "live";
+      channel_strategy: "run";
+      channel_id?: never;
+      bounds?: NetworkParticipationBoundsRequest;
+    }
+  | {
+      mode: "live";
+      channel_strategy: "loop_run";
+      channel_id?: never;
+      bounds?: NetworkParticipationBoundsRequest;
+    };
 
 export interface JobTaskConfig {
   title?: string;
   description?: string;
   owner?: Ownership;
-  network_participation?: Request;
+  network_participation?: NetworkParticipationRequest;
 }
 
 export interface LoopTarget {
@@ -759,7 +764,7 @@ export interface LoopTarget {
   loop_name: string;
   inputs?: Record<string, JSONValue>;
   input_mapping?: Record<string, string>;
-  network_participation?: Request;
+  network_participation?: NetworkParticipationRequest;
 }
 
 export type RetryStrategy = string;
@@ -833,9 +838,6 @@ export interface AutomationJobTriggerParams {
 export interface AutomationJobUpdateParams {
   id: string;
   name?: string;
-  target_kind?: TargetKind;
-  agent_name?: string;
-  workspace_id?: string;
   prompt?: string;
   schedule?: ScheduleSpec;
   task?: JobTaskConfig;
@@ -978,9 +980,6 @@ export interface AutomationTriggerRunsParams {
 export interface AutomationTriggerUpdateParams {
   id: string;
   name?: string;
-  target_kind?: TargetKind;
-  agent_name?: string;
-  workspace_id?: string;
   prompt?: string;
   event?: string;
   filter?: Record<string, string>;
@@ -1272,27 +1271,25 @@ export interface ControlPatch {
   deny_reason?: string;
 }
 
-export type Source = string;
-
-export interface Bounds {
-  max_wakes: number;
-  max_wake_wall_time: string;
-  max_total_wall_time: string;
-  max_input_tokens: number;
-  max_output_tokens: number;
-  max_wake_depth: number;
-  coalesce_window: string;
-}
-
-export interface Spec {
-  version: string;
-  mode: Mode;
-  workspace_id?: string;
-  channel_strategy?: ChannelStrategy;
-  channel_id?: string;
-  source: Source;
-  bounds?: Bounds;
-}
+export type NetworkParticipationSpec =
+  | {
+      version: "network-participation/v1";
+      mode: "local";
+      workspace_id?: never;
+      channel_strategy?: never;
+      channel_id?: never;
+      source: NetworkParticipationSource;
+      bounds?: never;
+    }
+  | {
+      version: "network-participation/v1";
+      mode: "live";
+      workspace_id: string;
+      channel_strategy: "named" | "run" | "loop_run";
+      channel_id: string;
+      source: NetworkParticipationSource;
+      bounds: NetworkParticipationBounds;
+    };
 
 export interface CoordinatorContext {
   workspace_id?: string;
@@ -1302,7 +1299,7 @@ export interface CoordinatorContext {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
 }
@@ -1317,7 +1314,7 @@ export interface CoordinatorDecisionPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -1336,7 +1333,7 @@ export interface CoordinatorFailedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -1355,7 +1352,7 @@ export interface CoordinatorLifecyclePayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -1378,7 +1375,7 @@ export interface CoordinatorPreSpawnPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   reason?: string;
@@ -1404,7 +1401,7 @@ export interface CoordinatorSpawnedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -1423,7 +1420,7 @@ export interface CoordinatorStoppedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   provider?: string;
   model?: string;
   decision_kind?: string;
@@ -2254,7 +2251,7 @@ export interface LoopContext {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2281,7 +2278,7 @@ export interface LoopGatePostPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2315,7 +2312,7 @@ export interface LoopGatePrePayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2344,7 +2341,7 @@ export interface LoopGenerationPostPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2376,7 +2373,7 @@ export interface LoopGenerationPrePayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2403,7 +2400,7 @@ export interface LoopLifecyclePayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2429,7 +2426,7 @@ export interface LoopNodeTerminalPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2459,7 +2456,7 @@ export interface LoopStartedPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2485,7 +2482,7 @@ export interface LoopTerminalPayload {
   run_kind?: string;
   node_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -2877,23 +2874,57 @@ export interface NetworkObservationPatch {
   labels?: Record<string, string>;
 }
 
+export interface NetworkParticipationBounds {
+  max_wakes: number;
+  max_wake_wall_time: string;
+  max_total_wall_time: string;
+  max_input_tokens: number;
+  max_output_tokens: number;
+  max_wake_depth: number;
+  coalesce_window: string;
+}
+
+export interface NetworkParticipationBoundsRequest {
+  max_wakes?: number;
+  max_wake_wall_time?: string;
+  max_total_wall_time?: string;
+  max_input_tokens?: number;
+  max_output_tokens?: number;
+  max_wake_depth?: number;
+  coalesce_window?: string;
+}
+
+export type NetworkParticipationChannelStrategy = "named" | "run" | "loop_run";
+
+export type NetworkParticipationMode = "local" | "live";
+
+export type NetworkParticipationOwnerKind = "session" | "task_run" | "loop_run" | "automation_run";
+
 export interface NetworkParticipationPreResolvePatch {
   deny?: boolean;
   deny_reason?: string;
-  request?: Request;
+  request?: NetworkParticipationRequest;
 }
 
-export interface OwnerRef {
+export interface NetworkParticipationOwnerRef {
   workspace_id: string;
-  kind: OwnerKind;
+  kind: NetworkParticipationOwnerKind;
   id: string;
 }
 
+export type NetworkParticipationSource =
+  | "explicit_request"
+  | "task_profile"
+  | "workspace_coordination"
+  | "loop_definition"
+  | "automation_job"
+  | "built_in_local";
+
 export interface NetworkParticipationPreResolvePayload {
   workspace_id: string;
-  owner: OwnerRef;
-  request?: Request;
-  source?: Source;
+  owner: NetworkParticipationOwnerRef;
+  request?: NetworkParticipationRequest;
+  source?: NetworkParticipationSource;
   owner_key?: string;
 }
 
@@ -2901,9 +2932,9 @@ export type NetworkParticipationResolvedPatch = Record<string, never>;
 
 export interface NetworkParticipationResolvedPayload {
   workspace_id: string;
-  owner: OwnerRef;
+  owner: NetworkParticipationOwnerRef;
   owner_key?: string;
-  resolved_network_participation: Spec;
+  resolved_network_participation: NetworkParticipationSpec;
 }
 
 export interface NetworkPayload {
@@ -3176,10 +3207,17 @@ export interface NetworkUsageParams {
   limit?: number;
 }
 
+export interface NetworkParticipationStatus {
+  owner: NetworkParticipationOwnerRef;
+  available: boolean;
+  participating: boolean;
+  reason?: string;
+}
+
 export interface NetworkUsageDetailPayload {
   wake_id: string;
   task_run_id: string;
-  owner_key: string;
+  participation_status: NetworkParticipationStatus;
   workspace_id: string;
   channel: string;
   root_id: string;
@@ -3205,7 +3243,7 @@ export interface NetworkUsageSummaryPayload {
 }
 
 export interface NetworkBudgetUsagePayload {
-  owner_key: string;
+  participation_status: NetworkParticipationStatus;
   wakes_used: number;
   wall_time_used: string;
   input_tokens_used: number;
@@ -3794,7 +3832,7 @@ export interface Run {
   error?: string;
   delivery_error?: string;
   delivery_error_at?: ISODateTime;
-  network_participation?: Request;
+  network_participation?: NetworkParticipationRequest;
   metadata?: Record<string, JSONValue>;
 }
 
@@ -4387,6 +4425,7 @@ export interface SessionsCreateParams {
   model?: string;
   reasoning_effort?: ReasoningEffort;
   workspace?: string;
+  network_participation?: NetworkParticipationRequest;
 }
 
 export interface SessionsListParams {
@@ -4433,7 +4472,7 @@ export interface SpawnContext {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -4464,7 +4503,7 @@ export interface SpawnCreatedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -4491,7 +4530,7 @@ export interface SpawnLifecyclePayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -4522,7 +4561,7 @@ export interface SpawnParentStoppedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -4549,7 +4588,7 @@ export interface SpawnPreCreatePayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -4575,7 +4614,7 @@ export interface SpawnReapedPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -4602,7 +4641,7 @@ export interface SpawnTTLExpiredPayload {
   task_id?: string;
   run_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   soul_snapshot_id?: string;
   soul_digest?: string;
   parent_soul_digest?: string;
@@ -4649,7 +4688,7 @@ export interface Task {
   scope: Scope;
   workspace_id?: string;
   parent_task_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   title: string;
   description?: string;
   priority?: Priority;
@@ -4689,7 +4728,7 @@ export interface TaskBlockedPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -4718,7 +4757,7 @@ export interface TaskContext {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -4735,7 +4774,7 @@ export interface TaskCreateParams {
   identifier?: string;
   scope: Scope;
   workspace?: string;
-  network_participation?: Request;
+  network_participation?: NetworkParticipationRequest;
   title: string;
   description?: string;
   priority?: Priority;
@@ -4858,7 +4897,7 @@ export interface TaskDashboardActiveRunPayload {
   attempt: number;
   max_attempts: number;
   session_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   last_activity_at: ISODateTime;
   age_ms: number;
   health_status: string;
@@ -4961,7 +5000,7 @@ export interface TaskRunSummaryPayload {
   claim_token_hash?: string;
   lease_until?: ISODateTime;
   heartbeat_at?: ISODateTime;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   coordination_channel?: CoordinationChannelPayload;
   designation_group_id?: string;
   designation?: RunDesignationSummary;
@@ -4978,7 +5017,7 @@ export interface TaskSummaryPayload {
   scope: Scope;
   workspace_id?: string;
   parent_task_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   title: string;
   priority?: Priority;
   max_attempts?: number;
@@ -5032,7 +5071,7 @@ export interface TaskRun {
   session_id?: string;
   origin: Origin;
   idempotency_key?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   designation_group_id?: string;
   claim_token_hash?: string;
   lease_until?: ISODateTime;
@@ -5103,7 +5142,7 @@ export interface TaskCatalogRunPayload {
   claimed_by?: ActorIdentity;
   lease_until?: ISODateTime;
   heartbeat_at?: ISODateTime;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   queued_at: ISODateTime;
   claimed_at?: ISODateTime;
   started_at?: ISODateTime;
@@ -5185,7 +5224,7 @@ export interface TaskNeedsAttentionPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -5211,7 +5250,7 @@ export interface TaskRecoveredPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -5266,7 +5305,7 @@ export interface TaskRunCompletedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5297,7 +5336,7 @@ export interface TaskRunContext {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5360,7 +5399,7 @@ export interface TaskRunDetail {
 export interface TaskRunEnqueueParams {
   task_id: string;
   idempotency_key?: string;
-  network_participation?: Request;
+  network_participation?: NetworkParticipationRequest;
   metadata?: JSONValue;
 }
 
@@ -5376,7 +5415,7 @@ export interface TaskRunEnqueuedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5412,7 +5451,7 @@ export interface TaskRunFailedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5449,7 +5488,7 @@ export interface TaskRunLeaseExpiredPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5482,7 +5521,7 @@ export interface TaskRunLeaseExtendedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5515,7 +5554,7 @@ export interface TaskRunLeasePayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5548,7 +5587,7 @@ export interface TaskRunLeaseRecoveredPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5585,7 +5624,7 @@ export interface TaskRunPostClaimPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5622,7 +5661,7 @@ export interface TaskRunPreClaimPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5654,7 +5693,7 @@ export interface TaskRunReleasedPayload {
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   session_id?: string;
   actor_kind?: string;
@@ -5695,7 +5734,7 @@ export interface TaskStatusChangedPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -5756,7 +5795,7 @@ export interface TaskUnblockedPayload {
   parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   agent_name?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -5783,7 +5822,7 @@ export interface TaskUpdateParams {
   auto_enqueue_on_ready?: boolean;
   approval_policy?: ApprovalPolicy;
   metadata?: JSONValue;
-  network_participation?: Request;
+  network_participation?: NetworkParticipationRequest;
   owner?: Ownership;
   clear_owner?: boolean;
 }
@@ -5813,7 +5852,7 @@ export interface TaskCatalogItemPayload {
   scope: Scope;
   workspace_id?: string;
   parent_task_id?: string;
-  resolved_network_participation?: Spec;
+  resolved_network_participation?: NetworkParticipationSpec;
   title: string;
   priority?: Priority;
   max_attempts?: number;

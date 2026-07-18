@@ -9,6 +9,7 @@ func customizeNetworkSendRequestSchema(schema *openapi3.Schema) {
 	if schema == nil {
 		return
 	}
+	schema.WithoutAdditionalProperties()
 	schema.Description = "For say, capability, receipt, and trace, surface is required. " +
 		"surface=thread requires thread_id; the first valid send creates the public thread. " +
 		"surface=direct requires an existing direct_id. " +

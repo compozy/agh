@@ -361,7 +361,10 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 		}
 		updated, err = n.automationManager().SetTriggerEnabled(ctx, current.ID, *patch.Enabled)
 	default:
-		next := core.ApplyAutomationTriggerPatch(current, patch)
+		next, patchErr := core.ApplyAutomationTriggerPatch(current, patch)
+		if patchErr != nil {
+			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, patchErr)
+		}
 		updated, err = n.automationManager().UpdateTrigger(ctx, next, input.webhookSecretWrite())
 	}
 	if err != nil {
@@ -633,29 +636,25 @@ func (i automationJobCreateInput) request() contract.CreateJobRequest {
 }
 
 type automationJobUpdateInput struct {
-	JobID       string                         `json:"job_id"`
-	Name        *string                        `json:"name,omitempty"`
-	AgentName   *string                        `json:"agent_name,omitempty"`
-	WorkspaceID *string                        `json:"workspace_id,omitempty"`
-	Prompt      *string                        `json:"prompt,omitempty"`
-	Schedule    *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
-	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
-	Enabled     *bool                          `json:"enabled,omitempty"`
-	Retry       *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	JobID     string                         `json:"job_id"`
+	Name      *string                        `json:"name,omitempty"`
+	Prompt    *string                        `json:"prompt,omitempty"`
+	Schedule  *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
+	Task      *automationpkg.JobTaskConfig   `json:"task,omitempty"`
+	Enabled   *bool                          `json:"enabled,omitempty"`
+	Retry     *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
 }
 
 func (i automationJobUpdateInput) request() contract.UpdateJobRequest {
 	return contract.UpdateJobRequest{
-		Name:        i.Name,
-		AgentName:   i.AgentName,
-		WorkspaceID: i.WorkspaceID,
-		Prompt:      i.Prompt,
-		Schedule:    i.Schedule,
-		Task:        i.Task,
-		Enabled:     i.Enabled,
-		Retry:       i.Retry,
-		FireLimit:   i.FireLimit,
+		Name:      i.Name,
+		Prompt:    i.Prompt,
+		Schedule:  i.Schedule,
+		Task:      i.Task,
+		Enabled:   i.Enabled,
+		Retry:     i.Retry,
+		FireLimit: i.FireLimit,
 	}
 }
 
@@ -704,8 +703,6 @@ func (i automationTriggerCreateInput) webhookSecretWrite() automationpkg.Webhook
 type automationTriggerUpdateInput struct {
 	TriggerID          string                         `json:"trigger_id"`
 	Name               *string                        `json:"name,omitempty"`
-	AgentName          *string                        `json:"agent_name,omitempty"`
-	WorkspaceID        *string                        `json:"workspace_id,omitempty"`
 	Prompt             *string                        `json:"prompt,omitempty"`
 	Event              *string                        `json:"event,omitempty"`
 	Filter             map[string]string              `json:"filter,omitempty"`
@@ -720,8 +717,6 @@ type automationTriggerUpdateInput struct {
 func (i automationTriggerUpdateInput) request() contract.UpdateTriggerRequest {
 	return contract.UpdateTriggerRequest{
 		Name:               i.Name,
-		AgentName:          i.AgentName,
-		WorkspaceID:        i.WorkspaceID,
 		Prompt:             i.Prompt,
 		Event:              i.Event,
 		Filter:             i.Filter,

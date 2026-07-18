@@ -3,6 +3,7 @@ package spec
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -363,6 +364,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				send := operationFor(t, doc, "/api/workspaces/{workspace_id}/network/send", "POST")
 				request := jsonRequestSchema(t, send)
+				assertSchemaHasAdditionalProperties(t, request, false)
 				assertEnumValues(
 					t,
 					propertySchema(t, request, "kind"),
@@ -410,6 +412,21 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 						request.Description,
 					)
 				}
+
+				upsertSubscription := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+					"PUT",
+				)
+				assertSchemaHasAdditionalProperties(t, jsonRequestSchema(t, upsertSubscription), false)
+				promoteThread := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task",
+					"POST",
+				)
+				assertSchemaHasAdditionalProperties(t, jsonRequestSchema(t, promoteThread), false)
 			},
 		},
 		{
@@ -2324,6 +2341,102 @@ func TestParticipationSchemaCustomizerRepresentsRuntimeVariants(t *testing.T) {
 		`{"version":"network-participation/v1","mode":"live","workspace_id":"ws-alpha","channel_strategy":"run","channel_id":"run-1","source":"explicit_request"}`,
 		false,
 	)
+}
+
+func TestNetworkCoordinationMutationSchemaMatchesRuntimeValidation(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document() error = %v", err)
+	}
+
+	tests := []struct {
+		name             string
+		operationID      string
+		mutationProperty string
+	}{
+		{
+			name:             "Should describe coordination setting variants",
+			operationID:      "putNetworkCoordination",
+			mutationProperty: "enabled",
+		},
+		{
+			name:             "Should describe invitation variants",
+			operationID:      "putNetworkCoordinationInvitation",
+			mutationProperty: "dismissed",
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var operation *openapi3.Operation
+			for _, candidate := range doc.Paths.Map() {
+				for _, method := range []string{http.MethodPut} {
+					if current := candidate.GetOperation(method); current != nil &&
+						current.OperationID == testCase.operationID {
+						operation = current
+					}
+				}
+			}
+			if operation == nil {
+				t.Fatalf("missing operation %q", testCase.operationID)
+			}
+
+			schema := jsonRequestSchema(t, operation)
+			if got, want := len(schema.OneOf), 2; got != want {
+				t.Fatalf("coordination request oneOf branches = %d, want %d", got, want)
+			}
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(`{"scope":"workspace",%q:true,"expected_revision":0}`, testCase.mutationProperty),
+				true,
+			)
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(
+					`{"scope":"task","task_id":"task-1",%q:false,"expected_revision":2}`,
+					testCase.mutationProperty,
+				),
+				true,
+			)
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(`{"scope":"workspace",%q:null,"expected_revision":0}`, testCase.mutationProperty),
+				false,
+			)
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(
+					`{"scope":"workspace","task_id":"task-1",%q:true,"expected_revision":0}`,
+					testCase.mutationProperty,
+				),
+				false,
+			)
+			assertOpenAPISchemaJSONValidity(
+				t,
+				schema,
+				fmt.Sprintf(`{"scope":"task",%q:true,"expected_revision":0}`, testCase.mutationProperty),
+				false,
+			)
+			assertResponseStatus(t, operation, http.StatusServiceUnavailable)
+		})
+	}
+
+	getCoordination := operationFor(
+		t,
+		doc,
+		"/api/workspaces/{workspace_id}/network-coordination",
+		http.MethodGet,
+	)
+	usage := operationFor(t, doc, "/api/workspaces/{workspace_id}/network/usage", http.MethodGet)
+	assertResponseStatus(t, getCoordination, http.StatusServiceUnavailable)
+	assertResponseStatus(t, usage, http.StatusServiceUnavailable)
 }
 
 func assertOpenAPISchemaJSONValidity(

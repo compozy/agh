@@ -205,7 +205,7 @@ export function AutomationJobForm({
                 <PillGroup
                   aria-label="Target"
                   className="max-w-full flex-wrap"
-                  items={JOB_TARGET_ITEMS}
+                  items={JOB_TARGET_ITEMS.map(item => ({ ...item, disabled: mode === "edit" }))}
                   onChange={form.onTargetChange}
                   size="sm"
                   value={form.targetMode}
@@ -213,6 +213,7 @@ export function AutomationJobForm({
                 {form.targetMode === "loop" ? (
                   <LoopTargetFields
                     catalog={form.loopCatalog}
+                    identityDisabled={mode === "edit"}
                     mode={mode}
                     value={form.loopTarget}
                     onChange={form.onLoopTargetChange}
@@ -231,6 +232,7 @@ export function AutomationJobForm({
                 ) : (
                   <AgentRunStep
                     agent={draft.agent_name}
+                    agentDisabled={mode === "edit"}
                     agents={form.agents}
                     onAgentChange={form.onAgentChange}
                     onPromptChange={form.onPromptChange}

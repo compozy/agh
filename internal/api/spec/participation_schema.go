@@ -137,8 +137,8 @@ func participationBoundsProperties(schema *openapi3.Schema) *openapi3.Schema {
 		WithProperty("max_wakes", openapi3.NewIntegerSchema().WithMin(1)).
 		WithProperty("max_wake_wall_time", openapi3.NewStringSchema().WithMinLength(1)).
 		WithProperty("max_total_wall_time", openapi3.NewStringSchema().WithMinLength(1)).
-		WithProperty("max_input_tokens", openapi3.NewInt64Schema().WithMin(1)).
-		WithProperty("max_output_tokens", openapi3.NewInt64Schema().WithMin(1)).
+		WithProperty("max_input_tokens", openapi3.NewInt64Schema().WithMin(1).WithMax(9_007_199_254_740_991)).
+		WithProperty("max_output_tokens", openapi3.NewInt64Schema().WithMin(1).WithMax(9_007_199_254_740_991)).
 		WithProperty("max_wake_depth", openapi3.NewIntegerSchema().WithMin(1)).
 		WithProperty("coalesce_window", openapi3.NewStringSchema().WithMinLength(1))
 }

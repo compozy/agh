@@ -342,6 +342,10 @@ describe("AutomationJobForm", () => {
     });
 
     expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("reviews-watch");
+    expect(screen.getByRole("combobox", { name: "Loop" })).toBeDisabled();
+    expect(screen.getByTestId("job-target-agent")).toBeDisabled();
+    expect(screen.getByTestId("job-target-task")).toBeDisabled();
+    expect(screen.getByTestId("job-target-loop")).toBeDisabled();
     expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
       "reviews-watch does not declare the schedule start kind"
     );
@@ -381,7 +385,7 @@ describe("AutomationJobForm", () => {
 
     const request = screen.getByTestId("automation-request-payload");
     expect(request).toHaveTextContent("PATCH /api/automation/jobs/{id}");
-    expect(request).toHaveTextContent('"target_kind": "loop"');
+    expect(request).not.toHaveTextContent('"target_kind"');
     expect(request).toHaveTextContent('"loop_target"');
     expect(request).toHaveTextContent('"slug": "helix-v1-launch"');
   });

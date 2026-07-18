@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/compozy/agh/internal/network/participation"
 )
@@ -29,4 +30,27 @@ func NormalizeDirectTaskParticipation(
 		return nil, nil
 	}
 	return &normalized, nil
+}
+
+// ValidateDirectTaskParticipationScope rejects Live participation when a
+// direct Automation task has no workspace binding.
+func ValidateDirectTaskParticipationScope(
+	scope Scope,
+	request *participation.Request,
+	participationPath string,
+	scopePath string,
+) error {
+	if request == nil || Scope(strings.TrimSpace(string(scope))) != AutomationScopeGlobal {
+		return nil
+	}
+	normalized, err := NormalizeDirectTaskParticipation(request)
+	if err != nil || normalized == nil || normalized.Mode == nil || *normalized.Mode != participation.ModeLive {
+		return err
+	}
+	return fmt.Errorf(
+		"%s cannot be live when %s is %q because a global direct task has no workspace binding",
+		participationPath,
+		scopePath,
+		strings.TrimSpace(string(scope)),
+	)
 }

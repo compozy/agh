@@ -100,6 +100,29 @@ describe("BundleActivationDetail", () => {
     });
   });
 
+  it("Should make a digest-only Network confirmation actionable", async () => {
+    const user = userEvent.setup();
+    mocks.query.data = {
+      ...bundleActivationFixtures[0]!,
+      network_requirement_confirmed_at: undefined,
+      network_requirement_confirmed_by: undefined,
+      spec_drift: false,
+    };
+
+    render(<BundleActivationDetail id="activation-ops-starter" />);
+
+    expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Confirm Live network participation" })
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("switch", { name: "Confirm Live network participation" }));
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    expect(mocks.update.mutate).toHaveBeenCalledWith({
+      body: { confirm_network_requirement: true, expected_version: 7 },
+      id: "activation-ops-starter",
+    });
+  });
+
   it("Should deactivate through the real dialog and return to the Bundles tab", async () => {
     const user = userEvent.setup();
     render(<BundleActivationDetail id="activation-ops-starter" />);
