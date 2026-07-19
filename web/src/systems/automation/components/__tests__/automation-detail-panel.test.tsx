@@ -184,6 +184,23 @@ describe("AutomationDetailPanel", () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 
+  it("Should disable Run now when the automation runtime is unavailable", () => {
+    const { onTriggerNow } = renderPanel({
+      state: {
+        isDeleting: false,
+        isLoading: false,
+        isTogglePending: false,
+        isTriggerDisabled: true,
+        isTriggerPending: false,
+      },
+    });
+
+    const trigger = screen.getByTestId("trigger-job-btn");
+    expect(trigger).toBeDisabled();
+    fireEvent.click(trigger);
+    expect(onTriggerNow).not.toHaveBeenCalled();
+  });
+
   it.each([
     { item: jobFixture, kind: "jobs" as const, noun: "job" },
     {
@@ -289,7 +306,7 @@ describe("AutomationDetailPanel", () => {
     const header = screen.getByTestId("automation-detail-header");
     expect(header).toHaveAttribute("data-slot", "page-head");
     expect(header).toHaveAttribute("data-variant", "detail");
-    screen.getByRole("heading", { level: 1, name: "daily-review" });
+    expect(header).toHaveTextContent("daily-review");
   });
 
   it("renders manual jobs without implying a cron schedule", () => {
@@ -334,20 +351,25 @@ describe("AutomationDetailPanel", () => {
     expect(kindChip).not.toBeNull();
   });
 
-  it("renders config trigger details without mutable actions", () => {
+  it.each([
+    {
+      copy: "This automation is defined in configuration files. Only its enabled state can be changed here.",
+      source: "config" as const,
+    },
+    {
+      copy: "This automation is provided by an installed package. Only its enabled state can be changed here.",
+      source: "package" as const,
+    },
+  ])("Should describe $source trigger ownership without mutable actions", ({ copy, source }) => {
     renderPanel({
-      item: triggerFixture,
+      item: { ...triggerFixture, source },
       kind: "triggers",
       runs: [
         { ...runFixture, id: "run_trigger", trigger_id: "trg_push_review", job_id: undefined },
       ],
     });
 
-    expect(
-      screen.getByText(
-        "This automation is defined in configuration files. Only the enabled state can be toggled from the UI."
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByText(copy)).toBeInTheDocument();
     expect(screen.getByText("Webhook id")).toBeInTheDocument();
     expect(screen.getByText("wbh_push_review")).toBeInTheDocument();
     expect(screen.queryByTestId("edit-automation-btn")).not.toBeInTheDocument();

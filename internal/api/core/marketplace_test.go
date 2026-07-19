@@ -7,8 +7,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/api/core"
@@ -21,20 +23,26 @@ import (
 	"github.com/compozy/agh/internal/skills"
 	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
 	"github.com/gin-gonic/gin"
+	"github.com/google/go-cmp/cmp"
 )
 
 type marketplaceCatalogStub struct {
-	browseFn  func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
-	detailFn  func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
-	refreshFn func(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
+	browseFn     func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
+	browsePageFn func(context.Context, marketplacepkg.Kind, string, int, int) (marketplacepkg.BrowseResult, error)
+	detailFn     func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
+	refreshFn    func(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
 }
 
 func (s marketplaceCatalogStub) Browse(
 	ctx context.Context,
 	kind marketplacepkg.Kind,
 	query string,
+	offset int,
 	limit int,
 ) (marketplacepkg.BrowseResult, error) {
+	if s.browsePageFn != nil {
+		return s.browsePageFn(ctx, kind, query, offset, limit)
+	}
 	if s.browseFn != nil {
 		return s.browseFn(ctx, kind, query, limit)
 	}
@@ -64,7 +72,7 @@ func (s marketplaceCatalogStub) ResolveSkillInstalls(
 	ctx context.Context,
 	installSlugs []string,
 ) ([]marketplacepkg.Entry, error) {
-	result, err := s.Browse(ctx, marketplacepkg.KindSkill, "", len(installSlugs))
+	result, err := s.Browse(ctx, marketplacepkg.KindSkill, "", 0, len(installSlugs))
 	if err != nil {
 		return nil, err
 	}
@@ -206,8 +214,8 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 			if payload.Kinds[index].Items[0].InstallSlug == "" {
 				t.Fatalf("kinds[%d].items[0].install_slug = empty, want acquisition identity", index)
 			}
-			if payload.Kinds[index].Total != nil {
-				t.Fatalf("kinds[%d].total = %v, want omitted bounded-source total", index, payload.Kinds[index].Total)
+			if payload.Kinds[index].Total == nil || *payload.Kinds[index].Total != 1 {
+				t.Fatalf("kinds[%d].total = %v, want exact curated total 1", index, payload.Kinds[index].Total)
 			}
 		}
 		if got := payload.Kinds[2].Items[0].ManagePath; got != "/marketplace/skills?tab=installed" {
@@ -285,6 +293,125 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 		}
 		if got := response.Kinds[0].Items[0].ManagePath; got != "/marketplace/mcps?tab=installed" {
 			t.Fatalf("workspace MCP manage path = %q", got)
+		}
+	})
+
+	t.Run("Should omit continuation cursors from grouped search", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
+			catalogBrowse: func(
+				_ context.Context,
+				kind marketplacepkg.Kind,
+				_ string,
+				_ int,
+			) (marketplacepkg.BrowseResult, error) {
+				entry := marketplaceEntriesForTest()[kind]
+				return marketplacepkg.BrowseResult{
+					Entries: []marketplacepkg.Entry{entry},
+					Total:   2,
+					State: marketplacepkg.KindState{
+						Kind: kind, FetchedAt: time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC),
+					},
+				}, nil
+			},
+		})
+		response, err := handlers.MarketplaceSearch(t.Context(), core.MarketplaceSearchRequest{Limit: 1})
+		if err != nil {
+			t.Fatalf("MarketplaceSearch() error = %v", err)
+		}
+		for _, result := range response.Kinds {
+			if result.NextCursor != "" {
+				t.Fatalf("kind %q next_cursor = %q, want omitted for grouped search", result.Kind, result.NextCursor)
+			}
+		}
+	})
+
+	t.Run("Should page one kind with an opaque cursor bound to its filters and scope", func(t *testing.T) {
+		t.Parallel()
+
+		entries := []marketplacepkg.Entry{
+			marketplaceEntriesForTest()[marketplacepkg.KindMCP],
+			marketplaceEntriesForTest()[marketplacepkg.KindMCP],
+		}
+		entries[0].EntryID = "mcp-alpha"
+		entries[0].Name = "Alpha"
+		entries[0].Payload = json.RawMessage(
+			`{"entry_id":"mcp-alpha","name":"Alpha","description":"Alpha MCP","transport":"stdio","command":"alpha"}`,
+		)
+		entries[1].EntryID = "mcp-beta"
+		entries[1].Name = "Beta"
+		entries[1].Payload = json.RawMessage(
+			`{"entry_id":"mcp-beta","name":"Beta","description":"Beta MCP","transport":"stdio","command":"beta"}`,
+		)
+		offsets := make([]int, 0, 3)
+		revision := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			MarketplaceCatalog: marketplaceCatalogStub{browsePageFn: func(
+				_ context.Context,
+				kind marketplacepkg.Kind,
+				query string,
+				offset int,
+				limit int,
+			) (marketplacepkg.BrowseResult, error) {
+				if kind != marketplacepkg.KindMCP || query != "server" || limit != 1 {
+					t.Fatalf("Browse() = (%q, %q, %d, %d), want MCP/server/offset/1", kind, query, offset, limit)
+				}
+				offsets = append(offsets, offset)
+				return marketplacepkg.BrowseResult{
+					Entries: entries[offset : offset+1], Total: len(entries),
+					State: marketplacepkg.KindState{
+						Kind: marketplacepkg.KindMCP, FetchedAt: revision, EntryCount: len(entries),
+					},
+				}, nil
+			}},
+			Settings: &stubSettingsService{ListCollectionFn: func(
+				context.Context,
+				settingspkg.CollectionRequest,
+			) (settingspkg.CollectionEnvelope, error) {
+				return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{}}, nil
+			}},
+			Logger: testutil.DiscardLogger(),
+		})
+
+		first, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "mcp", Query: " server ", Limit: 1, Scope: "workspace", WorkspaceID: "ws-a",
+		})
+		if err != nil {
+			t.Fatalf("MarketplaceKind(first) error = %v", err)
+		}
+		if first.Total == nil || *first.Total != 2 || len(first.Items) != 1 ||
+			first.Items[0].EntryID != "mcp-alpha" || first.NextCursor == "" {
+			t.Fatalf("MarketplaceKind(first) = %#v, want first row, exact total, and cursor", first)
+		}
+		second, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "mcp", Query: "server", Cursor: first.NextCursor, Limit: 1,
+			Scope: "workspace", WorkspaceID: "ws-a",
+		})
+		if err != nil {
+			t.Fatalf("MarketplaceKind(second) error = %v", err)
+		}
+		if len(second.Items) != 1 || second.Items[0].EntryID != "mcp-beta" || second.NextCursor != "" {
+			t.Fatalf("MarketplaceKind(second) = %#v, want final non-overlapping row", second)
+		}
+		if !slices.Equal(offsets, []int{0, 1}) {
+			t.Fatalf("Browse() offsets = %v, want [0 1]", offsets)
+		}
+		_, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "mcp", Query: "different", Cursor: first.NextCursor, Limit: 1,
+			Scope: "workspace", WorkspaceID: "ws-a",
+		})
+		if !errors.Is(err, core.ErrMarketplaceValidation) {
+			t.Fatalf("MarketplaceKind(mismatched cursor) error = %v, want validation", err)
+		}
+
+		revision = revision.Add(time.Second)
+		_, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "mcp", Query: "server", Cursor: first.NextCursor, Limit: 1,
+			Scope: "workspace", WorkspaceID: "ws-a",
+		})
+		if !errors.Is(err, core.ErrMarketplaceValidation) {
+			t.Fatalf("MarketplaceKind(changed catalog revision) error = %v, want validation", err)
 		}
 	})
 
@@ -405,6 +532,146 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 	})
 }
 
+func TestMarketplaceContinuationRejectsChangedProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a remote skill continuation when its boundary changes", func(t *testing.T) {
+		t.Parallel()
+
+		listings := []registrypkg.Listing{
+			{Slug: "@acme/alpha", Name: "Alpha", Version: "1.0.0", Source: "clawhub"},
+			{Slug: "@acme/beta", Name: "Beta", Version: "1.0.0", Source: "clawhub"},
+			{Slug: "@acme/gamma", Name: "Gamma", Version: "1.0.0", Source: "clawhub"},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			MarketplaceCatalog: marketplaceCatalogStub{},
+			SkillMarketplace: stubSkillMarketplaceService{SearchPageFn: func(
+				_ context.Context,
+				query string,
+				offset int,
+				limit int,
+			) ([]registrypkg.Listing, error) {
+				if query != "review" || offset != 0 {
+					t.Fatalf("Search() = (%q, %d, %d), want review/0/limit", query, offset, limit)
+				}
+				return slices.Clone(listings[offset:min(offset+limit, len(listings))]), nil
+			}},
+			InstalledSkillMarketplace: installedSkillMarketplaceStub{items: []skillmarketplace.InstalledSkill{}},
+			Logger:                    testutil.DiscardLogger(),
+		})
+
+		first, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "skill", Query: "review", Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("MarketplaceKind(first) error = %v", err)
+		}
+		if first.NextCursor == "" {
+			t.Fatal("MarketplaceKind(first) next_cursor = empty, want continuation")
+		}
+
+		listings[0].Version = "2.0.0"
+		_, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "skill", Query: "review", Cursor: first.NextCursor, Limit: 1,
+		})
+		if !errors.Is(err, core.ErrMarketplaceValidation) {
+			t.Fatalf("MarketplaceKind(changed remote boundary) error = %v, want validation", err)
+		}
+	})
+
+	t.Run("Should page remote skills with bounded look-behind requests", func(t *testing.T) {
+		t.Parallel()
+
+		listings := []registrypkg.Listing{
+			{Slug: "@acme/alpha", Name: "Alpha", Source: "clawhub"},
+			{Slug: "@acme/beta", Name: "Beta", Source: "clawhub"},
+			{Slug: "@acme/gamma", Name: "Gamma", Source: "clawhub"},
+			{Slug: "@acme/delta", Name: "Delta", Source: "clawhub"},
+		}
+		type searchRequest struct {
+			offset int
+			limit  int
+		}
+		requests := make([]searchRequest, 0, 3)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			MarketplaceCatalog: marketplaceCatalogStub{},
+			SkillMarketplace: stubSkillMarketplaceService{SearchPageFn: func(
+				_ context.Context,
+				query string,
+				offset int,
+				limit int,
+			) ([]registrypkg.Listing, error) {
+				if query != "review" {
+					t.Fatalf("Search() query = %q, want review", query)
+				}
+				requests = append(requests, searchRequest{offset: offset, limit: limit})
+				return slices.Clone(listings[offset:min(offset+limit, len(listings))]), nil
+			}},
+			InstalledSkillMarketplace: installedSkillMarketplaceStub{items: []skillmarketplace.InstalledSkill{}},
+			Logger:                    testutil.DiscardLogger(),
+		})
+
+		cursor := ""
+		gotSlugs := make([]string, 0, len(listings))
+		for cursor != "" || len(gotSlugs) == 0 {
+			page, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+				Kind: "skill", Query: "review", Cursor: cursor, Limit: 1,
+			})
+			if err != nil {
+				t.Fatalf("MarketplaceKind() error = %v", err)
+			}
+			if len(page.Items) != 1 {
+				t.Fatalf("len(items) = %d, want 1", len(page.Items))
+			}
+			gotSlugs = append(gotSlugs, page.Items[0].Name)
+			cursor = page.NextCursor
+		}
+		if diff := cmp.Diff([]string{"Alpha", "Beta", "Gamma", "Delta"}, gotSlugs); diff != "" {
+			t.Fatalf("paged names mismatch (-want +got):\n%s", diff)
+		}
+		wantRequests := []searchRequest{
+			{offset: 0, limit: 2},
+			{offset: 0, limit: 3},
+			{offset: 1, limit: 3},
+			{offset: 2, limit: 3},
+		}
+		if diff := cmp.Diff(wantRequests, requests, cmp.AllowUnexported(searchRequest{})); diff != "" {
+			t.Fatalf("Search() requests mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("Should reject a bundle continuation when the catalog projection changes", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := []bundlepkg.CatalogEntry{
+			{ExtensionName: "acme", Bundle: extensionpkg.BundleSpec{Name: "Alpha"}},
+			{ExtensionName: "acme", Bundle: extensionpkg.BundleSpec{Name: "Beta"}},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			Bundles: marketplaceBundleServiceStub{catalog: catalog},
+			Logger:  testutil.DiscardLogger(),
+		})
+
+		first, err := handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "bundle", Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("MarketplaceKind(first) error = %v", err)
+		}
+		if first.NextCursor == "" {
+			t.Fatal("MarketplaceKind(first) next_cursor = empty, want continuation")
+		}
+
+		catalog[0].Bundle.Description = "Changed"
+		_, err = handlers.MarketplaceKind(t.Context(), core.MarketplaceKindRequest{
+			Kind: "bundle", Cursor: first.NextCursor, Limit: 1,
+		})
+		if !errors.Is(err, core.ErrMarketplaceValidation) {
+			t.Fatalf("MarketplaceKind(changed bundle projection) error = %v, want validation", err)
+		}
+	})
+}
+
 func TestMarketplaceSearchUsesRemoteSkillsOnlyForQueries(t *testing.T) {
 	t.Parallel()
 
@@ -415,8 +682,8 @@ func TestMarketplaceSearchUsesRemoteSkillsOnlyForQueries(t *testing.T) {
 		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{
 			remoteSearch: func(_ context.Context, query string, limit int) ([]registrypkg.Listing, error) {
 				remoteSearchCalls++
-				if query != "review" || limit != 7 {
-					t.Fatalf("remote search = (%q, %d), want (review, 7)", query, limit)
+				if query != "review" || limit != 8 {
+					t.Fatalf("remote search = (%q, %d), want (review, 8 sentinel page)", query, limit)
 				}
 				return nil, errors.New("clawhub unavailable")
 			},
@@ -817,6 +1084,51 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 		}
 	})
 
+	t.Run("Should resolve exact installed identity before a colliding curated entry", func(t *testing.T) {
+		t.Parallel()
+
+		curated := marketplaceEntriesForTest()[marketplacepkg.KindMCP]
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			MarketplaceCatalog: marketplaceCatalogStub{detailFn: func(
+				context.Context,
+				marketplacepkg.Kind,
+				string,
+			) (*marketplacepkg.Entry, error) {
+				return &curated, nil
+			}},
+			Settings: &stubSettingsService{ListCollectionFn: func(
+				context.Context,
+				settingspkg.CollectionRequest,
+			) (settingspkg.CollectionEnvelope, error) {
+				return settingspkg.CollectionEnvelope{MCPServers: []settingspkg.MCPServerItem{{
+					Name: "mcp-entry", Transport: "http", URL: "https://custom.example.test/mcp",
+				}}}, nil
+			}},
+			Logger: testutil.DiscardLogger(),
+		})
+		engine := gin.New()
+		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/marketplace/mcp/mcp-entry?installed_name=mcp-entry",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.MarketplaceEntryResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Entry.Name != "mcp-entry" || payload.Entry.Source != "installed" ||
+			payload.MCP == nil || payload.MCP.URL != "https://custom.example.test/mcp" {
+			t.Fatalf("installed detail = %#v, want exact custom MCP rather than curated collision", payload)
+		}
+	})
+
 	t.Run("Should resolve remote skill IDs without consulting the curated catalog", func(t *testing.T) {
 		t.Parallel()
 
@@ -1039,7 +1351,9 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 			_ string,
 			_ int,
 		) (marketplacepkg.BrowseResult, error) {
-			return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entries[kind]}}, nil
+			return marketplacepkg.BrowseResult{
+				Entries: []marketplacepkg.Entry{entries[kind]}, Total: 1,
+			}, nil
 		}
 	}
 	catalog := marketplaceCatalogStub{

@@ -4,7 +4,7 @@ root = "."
 tmp_dir = ".tmp/air"
 
 [build]
-cmd = "go build -o ./.tmp/air/agh ./cmd/agh"
+cmd = "bash ./scripts/build-air.sh"
 entrypoint = ["bash", "./scripts/dev-daemon.sh", "./.tmp/air/agh"]
 include_ext = ["go", "gz", "json", "md", "mjs", "sql", "sum", "tmpl", "toml", "yaml", "yml"]
 include_dir = ["cmd", "extensions", "internal", "skills"]
@@ -22,7 +22,7 @@ rerun = false
 time = true
 
 [misc]
-clean_on_exit = true
+clean_on_exit = false
 
 [screen]
 clear_on_rebuild = false

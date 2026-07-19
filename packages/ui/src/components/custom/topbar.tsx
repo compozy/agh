@@ -26,33 +26,58 @@ function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
   );
 }
 
-export interface TopbarProps extends React.ComponentProps<"header"> {
+export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {
   /**
-   * Leading zone content — the route breadcrumb built by the shell.
-   * The topbar answers "where?": no route icon, H1, count, status, search,
-   * or scope selectors live here (route chrome contract §04).
+   * Leading route ancestry built by the shell. The current route title is
+   * rendered separately as this Topbar's single H1.
    */
   breadcrumb?: React.ReactNode;
+  /** Current route identity rendered as the shell-level H1. */
+  title: React.ReactNode;
+  /** Ref used by the shell to transfer focus after path navigation. */
+  titleRef?: React.Ref<HTMLHeadingElement>;
 }
 
-function Topbar({ breadcrumb, className, ...props }: TopbarProps) {
+function Topbar({ breadcrumb, title, titleRef, className, ...props }: TopbarProps) {
   const slot = useTopbarSlotValue();
+  const hasRouteNav = Boolean(slot?.routeNav);
 
   return (
     <header
       data-slot="topbar"
       className={cn(
-        "grid h-12 min-w-0 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 overflow-hidden border-b border-line bg-canvas px-4",
+        "grid h-12 min-w-0 shrink-0 items-center gap-3 overflow-hidden border-b border-line bg-canvas px-4",
+        hasRouteNav
+          ? "grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)]"
+          : "grid-cols-[minmax(0,1fr)_auto]",
         className
       )}
       {...props}
     >
-      <div data-slot="topbar-context" className="flex min-w-0 items-center overflow-hidden">
-        {breadcrumb}
+      <div data-slot="topbar-context" className="flex min-w-0 items-center gap-2 overflow-hidden">
+        {breadcrumb ? (
+          <div data-slot="topbar-breadcrumb" className="hidden min-w-0 sm:block">
+            {breadcrumb}
+          </div>
+        ) : null}
+        <h1
+          ref={titleRef}
+          tabIndex={-1}
+          data-slot="topbar-title"
+          data-testid="topbar-title-text"
+          className="min-w-0 truncate text-card-title font-medium tracking-tight text-fg-strong outline-none focus-visible:shadow-focus-ring"
+        >
+          {title}
+        </h1>
       </div>
-      <div data-slot="topbar-route-nav" className="flex min-w-0 items-center justify-self-center">
-        {slot?.routeNav}
-      </div>
+      {hasRouteNav ? (
+        <div
+          data-slot="topbar-route-nav"
+          className="no-scrollbar flex min-w-0 max-w-full items-center justify-self-stretch overflow-x-auto overscroll-x-contain lg:justify-self-center"
+        >
+          {slot?.routeNav}
+        </div>
+      ) : null}
       <div
         data-slot="topbar-trailing"
         className="flex min-w-0 items-center justify-end gap-2 justify-self-end"

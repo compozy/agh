@@ -1,4 +1,6 @@
-import { Pill, type PillTone } from "@agh/ui";
+import type * as React from "react";
+
+import { cn, Pill, type PillTone } from "@agh/ui";
 
 import type { SessionBadge, SessionPayload, SessionState } from "../types";
 
@@ -26,7 +28,7 @@ const STATE_BADGE_FALLBACK: Record<SessionState, SessionBadge> = {
   stopped: "stopped",
 };
 
-export interface SessionStatusLineProps {
+export interface SessionStatusLineProps extends Omit<React.ComponentProps<"span">, "children"> {
   session: SessionPayload;
 }
 
@@ -34,14 +36,18 @@ export interface SessionStatusLineProps {
  * Daemon badge + agent/provider identity line for the session head band.
  * Status summaries are body chrome — never topbar content (route chrome §04).
  */
-export function SessionStatusLine({ session }: SessionStatusLineProps) {
+export function SessionStatusLine({ className, session, ...props }: SessionStatusLineProps) {
   const badge = session.badge ?? STATE_BADGE_FALLBACK[session.state] ?? "unknown";
   const signal = BADGE_SIGNAL[badge] ?? BADGE_SIGNAL.unknown;
   const agentLabel = session.agent_name.trim();
   const providerLabel = session.provider?.trim();
 
   return (
-    <span data-testid="session-topbar-meta" className="flex min-w-0 items-center gap-2">
+    <span
+      data-testid="session-status-meta"
+      className={cn("flex min-w-0 items-center gap-2", className)}
+      {...props}
+    >
       <Pill.Dot
         size="md"
         tone={signal.tone}
@@ -49,7 +55,7 @@ export function SessionStatusLine({ session }: SessionStatusLineProps) {
         data-testid="agent-status-dot"
         aria-label={`Session badge: ${signal.label}`}
       />
-      <span data-testid="session-topbar-badge" className="font-mono text-eyebrow text-faint">
+      <span data-testid="session-status-badge" className="font-mono text-eyebrow text-faint">
         {signal.label}
       </span>
       {agentLabel ? (
@@ -57,7 +63,7 @@ export function SessionStatusLine({ session }: SessionStatusLineProps) {
           <span aria-hidden="true" className="text-subtle">
             ·
           </span>
-          <span data-testid="session-topbar-agent" className="truncate text-eyebrow text-muted">
+          <span data-testid="session-status-agent" className="truncate text-eyebrow text-muted">
             {agentLabel}
           </span>
         </>
@@ -67,7 +73,7 @@ export function SessionStatusLine({ session }: SessionStatusLineProps) {
           <span aria-hidden="true" className="text-subtle">
             ·
           </span>
-          <span data-testid="session-topbar-provider" className="font-mono text-eyebrow text-faint">
+          <span data-testid="session-status-provider" className="font-mono text-eyebrow text-faint">
             {providerLabel}
           </span>
         </>

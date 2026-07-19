@@ -42,7 +42,7 @@ describe("marketplaceMCPInstalledStatus", () => {
           },
         })
       )
-    ).toBe("authorize");
+    ).toMatchObject({ authorize: true, label: "authorize", tone: "warning" });
   });
 
   it("Should mark ready authenticated remotes as running", () => {
@@ -68,7 +68,7 @@ describe("marketplaceMCPInstalledStatus", () => {
           },
         })
       )
-    ).toBe("running");
+    ).toMatchObject({ authorize: false, label: "running", tone: "success" });
   });
 
   it("Should mark ready stdio servers as running", () => {
@@ -86,6 +86,43 @@ describe("marketplaceMCPInstalledStatus", () => {
           },
         })
       )
-    ).toBe("running");
+    ).toMatchObject({ authorize: false, label: "running", tone: "success" });
+  });
+
+  it.each([
+    ["config_error", "config error", "danger"],
+    ["permission_denied", "permission denied", "danger"],
+    ["runtime_unavailable", "runtime unavailable", "danger"],
+  ] as const)(
+    "Should expose %s instead of reporting a failed runtime as running",
+    (state, label, tone) => {
+      expect(
+        marketplaceMCPInstalledStatus(
+          server({
+            name: "broken-server",
+            transport: "stdio",
+            runtime_status: {
+              configured: true,
+              initialized: false,
+              state,
+              probe: "failed",
+              tool_count: 0,
+            },
+          })
+        )
+      ).toMatchObject({ label, tone });
+    }
+  );
+
+  it("Should render an absent runtime as unknown instead of running", () => {
+    expect(
+      marketplaceMCPInstalledStatus(
+        server({
+          name: "unreported-server",
+          transport: "stdio",
+          runtime_status: undefined,
+        })
+      )
+    ).toMatchObject({ label: "unknown", tone: "neutral" });
   });
 });

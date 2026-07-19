@@ -1,6 +1,6 @@
-import { KeyRound } from "lucide-react";
+import { KeyRound, Trash2 } from "lucide-react";
 
-import { CatalogCard, Pill, Time } from "@agh/ui";
+import { Button, CatalogCard, Pill, Time } from "@agh/ui";
 
 import { vaultNamespaceTone } from "../lib/vault-tones";
 import type { VaultSecret } from "../types";
@@ -9,9 +9,15 @@ export interface VaultSecretsCardProps {
   secret: VaultSecret;
   selected?: boolean;
   onSelect?: (secret: VaultSecret) => void;
+  onDelete?: (secret: VaultSecret) => void;
 }
 
-export function VaultSecretsCard({ secret, selected = false, onSelect }: VaultSecretsCardProps) {
+export function VaultSecretsCard({
+  secret,
+  selected = false,
+  onSelect,
+  onDelete,
+}: VaultSecretsCardProps) {
   const trimmedKind = secret.kind?.trim();
   const selectable = onSelect !== undefined;
 
@@ -57,11 +63,28 @@ export function VaultSecretsCard({ secret, selected = false, onSelect }: VaultSe
             --
           </span>
         )}
-        <Time
-          className="font-mono text-[11px] text-faint"
-          data-testid={`vault-secrets-updated-${secret.ref}`}
-          iso={secret.updated_at}
-        />
+        <div className="flex items-center gap-1">
+          <Time
+            className="font-mono text-[11px] text-faint"
+            data-testid={`vault-secrets-updated-${secret.ref}`}
+            iso={secret.updated_at}
+          />
+          {onDelete ? (
+            <Button
+              aria-label={`Delete ${secret.ref}`}
+              data-testid={`vault-secrets-delete-${secret.ref}`}
+              onClick={event => {
+                event.stopPropagation();
+                onDelete(secret);
+              }}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <Trash2 aria-hidden="true" className="size-3" />
+            </Button>
+          ) : null}
+        </div>
       </CatalogCard.Actions>
     </CatalogCard>
   );

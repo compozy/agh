@@ -29,3 +29,6 @@ replace a retry, and a begin failure offers Retry authorization without exposing
 
 QA impact 2026-07-17: automatic begin now sends `mode=automatic`; begin failure offers a manual
 fallback that creates a new `mode=manual` session rather than exchanging against the failed attempt.
+
+QA impact 2026-07-18: global MCP definitions included in workspace reads authorize against their
+global effective source instead of an unavailable workspace target.

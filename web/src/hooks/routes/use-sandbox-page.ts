@@ -195,7 +195,7 @@ export function useSandboxPage(search: SandboxRouteSearch = {}) {
   };
 
   const clearFilters = () => {
-    updateSearch(() => ({}));
+    updateSearch(current => ({ view: current.view }));
   };
 
   const openInspect = (entry: SettingsSandboxEntry) => {

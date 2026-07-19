@@ -89,13 +89,21 @@ describe("AutomationJobRow", () => {
   it("Should render schedule meta and the run-now control keyed by job id", async () => {
     const user = userEvent.setup();
     const onRun = vi.fn();
-    render(<AutomationJobRow isRunPending={false} job={jobFixture} onRun={onRun} />);
+    render(
+      <AutomationJobRow isRunPending={false} job={jobFixture} onRun={onRun} runDisabled={false} />
+    );
 
     const row = screen.getByTestId("automation-item-job_daily_review");
     expect(row).toHaveTextContent("Cron 0 9 * * *");
 
     await user.click(screen.getByTestId("automation-run-now-job_daily_review"));
     expect(onRun).toHaveBeenCalledWith("job_daily_review");
+  });
+
+  it("Should disable manual runs while the automation runtime is unavailable", () => {
+    render(<AutomationJobRow isRunPending={false} job={jobFixture} onRun={vi.fn()} runDisabled />);
+
+    expect(screen.getByTestId("automation-run-now-job_daily_review")).toBeDisabled();
   });
 });
 

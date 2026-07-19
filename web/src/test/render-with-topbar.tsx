@@ -18,7 +18,7 @@ interface RenderWithTopbarResult extends RenderResult {
 export function renderWithTopbar(ui: ReactElement): RenderWithTopbarResult {
   const wrap = (child: ReactNode) => (
     <TopbarSlotProvider>
-      <Topbar breadcrumb={<span data-testid="test-breadcrumb">Test</span>} />
+      <Topbar breadcrumb={<span data-testid="test-breadcrumb">Test</span>} title="Test" />
       {child}
     </TopbarSlotProvider>
   );

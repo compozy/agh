@@ -13,7 +13,7 @@ const meta: Meta<typeof TopbarShell> = {
     docs: {
       description: {
         component:
-          "Shell-level topbar host. Mounts a single `<Topbar>` for the entire `_app` outlet, hosts a `<TopbarSlotProvider>` so any descendant route can push crumb/routeNav/actions/overflow via `useTopbarSlot`, and moves focus to the content PageHead H1 on navigation. Storybook has no router match chain — stories exercise slot push only.",
+          "Shell-level topbar host. Mounts the route's stable H1 for the entire `_app` outlet, hosts a `<TopbarSlotProvider>` so descendants can push title overrides, routeNav, actions, and overflow, and restores focus to the Topbar H1 after path navigation.",
       },
     },
   },
@@ -90,7 +90,7 @@ function ActionsSlotPusher() {
 }
 
 /**
- * Trailing actions only — identity lives in the content PageHead.
+ * Trailing actions only — route identity remains in the shell Topbar.
  */
 export const WithActions: Story = {
   args: {},

@@ -30,15 +30,20 @@ export function collectCrumbs(matches: ReadonlyArray<unknown>): ReadonlyArray<To
 
 export interface TopbarShellViewModel {
   crumbs: ReadonlyArray<TopbarCrumbContext>;
+  currentTitle: string;
 }
 
 /**
- * Resolves the breadcrumb trail for `<TopbarShellInner>` from every route
- * level's `topbar.crumb` declaration.
+ * Resolves route ancestry and current identity for `<TopbarShellInner>` from
+ * every route level's `topbar.crumb` declaration.
  */
 export function useTopbarShellModel(): TopbarShellViewModel {
   // useMatches exposes the active match chain ordered root → leaf so the trail
   // reads parent › child › page without extra sorting.
   const matches = useMatches() as unknown as ReadonlyArray<unknown>;
-  return { crumbs: collectCrumbs(matches) };
+  const crumbs = collectCrumbs(matches);
+  return {
+    crumbs,
+    currentTitle: crumbs.at(-1)?.label ?? "Untitled",
+  };
 }

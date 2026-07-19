@@ -219,7 +219,7 @@ func TestCatalogServiceDetailStatusAndSelection(t *testing.T) {
 		service := newService(t)
 		ctx := testutil.Context(t)
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-		_, err := service.Browse(nil, KindSkill, "", 10)
+		_, err := service.Browse(nil, KindSkill, "", 0, 10)
 		if err == nil || !strings.Contains(err.Error(), "service context is required") {
 			t.Fatalf("Browse(nil context) error = %v, want service-context validation", err)
 		}
@@ -239,7 +239,7 @@ func TestCatalogServiceDetailStatusAndSelection(t *testing.T) {
 			t.Fatalf("Status(nil context) error = %v, want status-context validation", err)
 		}
 		var unavailable *CatalogService
-		_, err = unavailable.Browse(ctx, KindSkill, "", 10)
+		_, err = unavailable.Browse(ctx, KindSkill, "", 0, 10)
 		if err == nil || !strings.Contains(err.Error(), "service is required") {
 			t.Fatalf("Browse(nil service) error = %v, want service validation", err)
 		}
@@ -315,7 +315,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		}}
 		service := newMarketplaceTestService(t, store, source, fetchedAt.Add(30*time.Minute), nil)
 
-		result, err := service.Browse(ctx, KindSkill, "", 10)
+		result, err := service.Browse(ctx, KindSkill, "", 0, 10)
 		if err != nil {
 			t.Fatalf("Browse() error = %v", err)
 		}
@@ -356,7 +356,7 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		for range callers {
 			go func() {
 				defer wait.Done()
-				result, err := service.Browse(ctx, KindMCP, "", 10)
+				result, err := service.Browse(ctx, KindMCP, "", 0, 10)
 				if err != nil {
 					errorsCh <- err
 					return
@@ -558,12 +558,12 @@ func TestCatalogServiceRefreshLifecycle(t *testing.T) {
 		if got, want := report.Outcomes[0].EntryCount, 1; got != want {
 			t.Fatalf("Refresh() entry count = %d, want %d", got, want)
 		}
-		entries, err := store.ListKind(ctx, KindExtension, "", 10)
+		page, err := store.ListKind(ctx, KindExtension, "", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind() error = %v", err)
 		}
-		if got, want := len(entries), 1; got != want || entries[0].EntryID != "keep" {
-			t.Fatalf("ListKind() = %#v, want only keep after force refresh", entries)
+		if got, want := len(page.Entries), 1; got != want || page.Entries[0].EntryID != "keep" {
+			t.Fatalf("ListKind() = %#v, want only keep after force refresh", page)
 		}
 	})
 }
@@ -589,7 +589,7 @@ func TestCatalogServiceStaleFallbackAndNotifications(t *testing.T) {
 		notifier := &recordingRefreshNotifier{}
 		service := newMarketplaceTestService(t, store, source, fetchedAt.Add(2*time.Hour), notifier)
 
-		result, err := service.Browse(ctx, KindMCP, "", 10)
+		result, err := service.Browse(ctx, KindMCP, "", 0, 10)
 		if err != nil {
 			t.Fatalf("Browse() stale fallback error = %v", err)
 		}
@@ -623,7 +623,7 @@ func TestCatalogServiceStaleFallbackAndNotifications(t *testing.T) {
 		now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 		service := newMarketplaceTestService(t, store, source, now, nil)
 
-		_, err := service.Browse(testutil.Context(t), KindSkill, "", 10)
+		_, err := service.Browse(testutil.Context(t), KindSkill, "", 0, 10)
 		if err == nil {
 			t.Fatal("Browse() error = nil, want failure without stale projection")
 		}

@@ -26,25 +26,29 @@ function SlotInspector({ probeId }: { probeId: string }) {
 }
 
 describe("Topbar", () => {
-  it("Should render the breadcrumb in the leading context zone", () => {
+  it("Should own the route H1 beside the breadcrumb in the leading context zone", () => {
     render(
       <TopbarSlotProvider>
-        <Topbar breadcrumb={<span data-testid="crumb-trail">Operate › Tasks</span>} />
+        <Topbar breadcrumb={<span data-testid="crumb-trail">Operate</span>} title="Tasks" />
       </TopbarSlotProvider>
     );
     const context = document.querySelector("[data-slot='topbar-context']");
     expect(context).toContainElement(screen.getByTestId("crumb-trail"));
+    const title = screen.getByRole("heading", { level: 1, name: "Tasks" });
+    expect(title).toHaveAttribute("tabindex", "-1");
+    expect(title).toHaveAttribute("data-slot", "topbar-title");
   });
 
-  it("Should render no identity chrome without breadcrumb or slots", () => {
+  it("Should render route identity without breadcrumb or slots", () => {
     const { container } = render(
       <TopbarSlotProvider>
-        <Topbar />
+        <Topbar title="Home" />
       </TopbarSlotProvider>
     );
     const header = container.querySelector("[data-slot='topbar']");
     expect(header).toBeInTheDocument();
-    expect(container.querySelector("h1")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
+    expect(container.querySelector("[data-slot='topbar-route-nav']")).toBeNull();
     expect(container.querySelector("[data-slot='topbar-actions']")).toBeNull();
   });
 
@@ -60,7 +64,7 @@ describe("Topbar", () => {
     render(
       <TopbarSlotProvider>
         <Setup />
-        <Topbar />
+        <Topbar title="Tasks" />
       </TopbarSlotProvider>
     );
     expect(document.querySelector("[data-slot='topbar-route-nav']")).toContainElement(
@@ -85,7 +89,7 @@ describe("Topbar", () => {
     render(
       <TopbarSlotProvider>
         <Setup />
-        <Topbar />
+        <Topbar title="Tasks" />
       </TopbarSlotProvider>
     );
 
@@ -101,7 +105,7 @@ describe("Topbar", () => {
     const { rerender } = render(
       <TopbarSlotProvider>
         <Setup label="first" />
-        <Topbar />
+        <Topbar title="Tasks" />
       </TopbarSlotProvider>
     );
     expect(screen.getByText("first")).toBeInTheDocument();
@@ -109,7 +113,7 @@ describe("Topbar", () => {
       rerender(
         <TopbarSlotProvider>
           <Setup label="second" />
-          <Topbar />
+          <Topbar title="Tasks" />
         </TopbarSlotProvider>
       );
     });
@@ -218,7 +222,7 @@ describe("Topbar", () => {
     const { rerender } = render(
       <TopbarSlotProvider>
         <Harness onRun={firstAction} />
-        <Topbar />
+        <Topbar title="Tasks" />
       </TopbarSlotProvider>
     );
 
@@ -230,7 +234,7 @@ describe("Topbar", () => {
       rerender(
         <TopbarSlotProvider>
           <Harness onRun={secondAction} />
-          <Topbar />
+          <Topbar title="Tasks" />
         </TopbarSlotProvider>
       );
     });

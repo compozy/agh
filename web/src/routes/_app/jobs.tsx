@@ -23,6 +23,7 @@ import {
   parseAutomationSource,
 } from "@/systems/automation";
 import {
+  automationListLoopFilter,
   useAutomationJobsPage,
   type AutomationRouteSearch,
 } from "@/hooks/routes/use-automation-page";
@@ -49,7 +50,7 @@ export const Route = createFileRoute("/_app/jobs")({
   }),
   loaderDeps: ({ search }) => ({
     enabled: search.enabled,
-    loop: search.loop,
+    loop: automationListLoopFilter(search),
     q: search.q,
     scope: search.scope,
     source: search.source,
@@ -175,7 +176,7 @@ function JobsPage() {
         </ListingToolbar>
 
         <AutomationJobsCatalog
-          errorMessage={page.runtimeUnavailableMessage}
+          errorMessage={page.errorMessage}
           hasActiveFilters={page.hasActiveFilters}
           isLoading={page.isLoading}
           jobs={page.jobs}
@@ -187,7 +188,8 @@ function JobsPage() {
             isFetchingNextPage: page.isFetchingNextPage,
             onLoadMore: page.loadMore,
           }}
-          runPendingId={page.runPendingId}
+          runDisabled={page.runDisabled}
+          runPendingIds={page.runPendingIds}
           view={page.view}
         />
       </ListingPage>

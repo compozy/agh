@@ -19,7 +19,12 @@ import type { TasksDetailTabItem } from "@/systems/tasks/components/tasks-detail
 
 export const Route = createFileRoute("/_app/tasks/$id")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { crumb: { label: `Task ${params.id}`, params: { id: params.id }, to: "/tasks/$id" } },
+    topbar: {
+      crumb:
+        params.id === "network"
+          ? { label: "Network wakes" }
+          : { label: `Task ${params.id}`, params: { id: params.id }, to: "/tasks/$id" },
+    },
   }),
   component: TaskDetailRoute,
 });

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -405,17 +405,19 @@ describe("Nested agent session route — Topbar slot migration", () => {
     expect(getSlot()?.crumb).toBe("Old runtime");
   });
 
-  it("Should keep the agent name and provider as Topbar metadata", () => {
+  it("Should keep session status metadata inside the session head band", () => {
     renderSessionPage();
-    const meta = screen.getByTestId("session-topbar-meta");
+    const head = screen.getByTestId("session-head-band");
+    const meta = within(head).getByTestId("session-status-meta");
     expect(meta).toBeInTheDocument();
-    const badge = screen.getByTestId("session-topbar-badge");
+    const badge = within(head).getByTestId("session-status-badge");
     expect(badge).toHaveTextContent("stopped");
-    const agent = screen.getByTestId("session-topbar-agent");
+    const agent = within(head).getByTestId("session-status-agent");
     expect(agent).toHaveTextContent("claude-agent");
-    const provider = screen.getByTestId("session-topbar-provider");
+    const provider = within(head).getByTestId("session-status-provider");
     expect(provider).toHaveTextContent("codex");
-    expect(screen.queryByTestId("session-topbar-name")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-status-name")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-topbar-meta")).not.toBeInTheDocument();
   });
 
   it.each([

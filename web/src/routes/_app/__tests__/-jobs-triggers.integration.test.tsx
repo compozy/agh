@@ -32,6 +32,11 @@ const { settingsAutomationQuery, toast } = vi.hoisted(() => ({
   },
 }));
 
+const workspaceContext = vi.hoisted(() => ({
+  activeWorkspaceId: "ws_test" as string | null,
+  isLoading: false,
+}));
+
 let mockJobs: AutomationJob[] = [];
 let mockJobsLoading = false;
 let mockJobsError: Error | null = null;
@@ -129,10 +134,10 @@ vi.mock("@/systems/workspace", async () => {
       workspaces: [workspace],
       hasWorkspaces: true,
       activeWorkspace: workspace,
-      activeWorkspaceId: "ws_test",
+      activeWorkspaceId: workspaceContext.activeWorkspaceId,
       clearActiveWorkspaceSelection: vi.fn(),
       isError: false,
-      isLoading: false,
+      isLoading: workspaceContext.isLoading,
       setActiveWorkspaceId: vi.fn(),
     }),
   };
@@ -300,6 +305,8 @@ beforeEach(() => {
   routerState.childMatches = [];
   routerState.params = {};
   routerState.navigateMock.mockReset();
+  workspaceContext.activeWorkspaceId = "ws_test";
+  workspaceContext.isLoading = false;
   mockJobs = [makeJob()];
   mockJobsLoading = false;
   mockJobsError = null;
@@ -525,6 +532,49 @@ describe("Job detail route", () => {
     expect(screen.getByText("automation job not found")).toBeInTheDocument();
   });
 
+  it("preserves cached job detail when a background refetch fails", () => {
+    mockJobDetailError = new Error("background refetch failed");
+
+    render(<JobDetailPage />);
+
+    expect(screen.getByTestId("automation-detail-panel")).toHaveTextContent("daily-review");
+    expect(screen.queryByTestId("automation-detail-error")).not.toBeInTheDocument();
+  });
+
+  it("Should withhold a workspace job and its runs outside the active workspace", () => {
+    mockJobDetail = makeJob({ workspace_id: "ws_other" });
+
+    render(<JobDetailPage />);
+
+    expect(screen.getByTestId("automation-detail-error")).toHaveTextContent(
+      "This workspace-scoped job belongs to another workspace."
+    );
+    expect(screen.queryByTestId("automation-detail-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("automation-run-run_001")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("edit-automation-btn")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("trigger-job-btn")).not.toBeInTheDocument();
+  });
+
+  it("Should close a job editor when the active workspace changes", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<JobDetailPage />);
+    await user.click(screen.getByTestId("edit-automation-btn"));
+    expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
+
+    workspaceContext.activeWorkspaceId = "ws_other";
+    rerender(<JobDetailPage />);
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("automation-job-form")).not.toBeInTheDocument()
+    );
+
+    workspaceContext.activeWorkspaceId = "ws_test";
+    rerender(<JobDetailPage />);
+
+    expect(screen.queryByTestId("automation-job-form")).not.toBeInTheDocument();
+    expect(mockUpdateJobMutateAsync).not.toHaveBeenCalled();
+  });
+
   it("edits the job using the route-scoped id", async () => {
     const user = userEvent.setup();
     render(<JobDetailPage />);
@@ -660,9 +710,31 @@ describe("Trigger detail route", () => {
     render(<TriggerDetailPage />);
 
     const detailPanel = screen.getByTestId("automation-detail-panel");
-    expect(within(detailPanel).getByRole("heading", { name: "push-review" })).toBeInTheDocument();
+    expect(within(detailPanel).getByText("push-review")).toBeInTheDocument();
     expect(within(detailPanel).getAllByText("ext.github.push").length).toBeGreaterThan(0);
     expect(screen.getByTestId("automation-run-run_trigger")).toBeInTheDocument();
+  });
+
+  it("preserves cached trigger detail when a background refetch fails", () => {
+    mockTriggerDetailError = new Error("background refetch failed");
+
+    render(<TriggerDetailPage />);
+
+    expect(screen.getByTestId("automation-detail-panel")).toHaveTextContent("push-review");
+    expect(screen.queryByTestId("automation-detail-error")).not.toBeInTheDocument();
+  });
+
+  it("Should withhold a workspace trigger and its runs outside the active workspace", () => {
+    mockTriggerDetail = makeTrigger({ workspace_id: "ws_other" });
+
+    render(<TriggerDetailPage />);
+
+    expect(screen.getByTestId("automation-detail-error")).toHaveTextContent(
+      "This workspace-scoped trigger belongs to another workspace."
+    );
+    expect(screen.queryByTestId("automation-detail-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("automation-run-run_trigger")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("edit-automation-btn")).not.toBeInTheDocument();
   });
 
   it("deletes the trigger and navigates back to the list", async () => {

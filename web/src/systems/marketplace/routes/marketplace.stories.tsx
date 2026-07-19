@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
+import { expect, userEvent, within } from "storybook/test";
 
 import { aghApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -9,6 +10,7 @@ import {
   appRouteParameters,
 } from "@/storybook/route-story-meta";
 import { marketplaceDetails, marketplaceSearchFixture } from "@/systems/marketplace/mocks";
+import { mcpManagementCollectionFixture } from "@/systems/settings/mocks";
 import { skillFixtures } from "@/systems/skill/mocks";
 
 const gitFlowSkill = {
@@ -16,6 +18,18 @@ const gitFlowSkill = {
   name: "git-flow",
   dir: "/opt/agh/skills/git-flow",
   version: "1.4.2",
+  metadata: {
+    ...skillFixtures[0]!.metadata,
+    capabilities: ["git.inspect", "git.review", "tests.verify"],
+    recent_calls: [
+      {
+        label: "Review pull request",
+        status: "success",
+        timestamp: "2026-07-18T12:00:00Z",
+      },
+      { label: "Inspect release branch", status: "pending" },
+    ],
+  },
 };
 
 const gitFlowShadows = {
@@ -41,6 +55,27 @@ const gitFlowShadows = {
     },
   ],
 };
+
+function detailSkillHandlers(disableFailure = false) {
+  return storybookMswParameters({
+    marketplace: [
+      aghApiMock.get("/api/skills/{name}", () => HttpResponse.json({ skill: gitFlowSkill })),
+      aghApiMock.get("/api/skills/{name}/content", () =>
+        HttpResponse.json({
+          content:
+            "# Git Flow\n\nBranch, review, and land changes using the repository's own checks as the gate.\n",
+        })
+      ),
+      aghApiMock.get("/api/skills/{name}/shadows", () => HttpResponse.json(gitFlowShadows)),
+      aghApiMock.post("/api/skills/{name}/enable", () => HttpResponse.json({ ok: true })),
+      aghApiMock.post("/api/skills/{name}/disable", () =>
+        disableFailure
+          ? HttpResponse.json({ error: "Skill policy rejected the update" }, { status: 409 })
+          : HttpResponse.json({ ok: true })
+      ),
+    ],
+  });
+}
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/marketplace/routes/Marketplace",
@@ -127,22 +162,27 @@ export const DetailSkillInstalled: Story = {
   args: {},
   parameters: {
     ...appRouteParameters("/marketplace/skill/git-flow"),
-    ...storybookMswParameters({
-      marketplace: [
-        aghApiMock.get("/api/skills/{name}", () => HttpResponse.json({ skill: gitFlowSkill })),
-        aghApiMock.get("/api/skills/{name}/content", () =>
-          HttpResponse.json({
-            content:
-              "# Git Flow\n\nBranch, review, and land changes using the repository's own checks as the gate.\n",
-          })
-        ),
-        aghApiMock.get("/api/skills/{name}/shadows", () => HttpResponse.json(gitFlowShadows)),
-        aghApiMock.post("/api/skills/{name}/enable", () => HttpResponse.json({ ok: true })),
-        aghApiMock.post("/api/skills/{name}/disable", () => HttpResponse.json({ ok: true })),
-      ],
-    }),
+    ...detailSkillHandlers(),
   },
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/** A rejected enablement mutation remains visible beside the owning switch. */
+export const DetailSkillToggleError: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/skill/git-flow"),
+    ...detailSkillHandlers(true),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("skill-enabled-switch"));
+    await expect(canvas.findByTestId("marketplace-skill-toggle-error")).resolves.toHaveTextContent(
+      "Skill policy rejected the update"
+    );
+  },
 };
 
 export const DetailExtensionInstalled: Story = {
@@ -184,6 +224,9 @@ export const DetailMcpInstalled: Story = {
               installed_version: "1.0.0",
             },
           })
+        ),
+        aghApiMock.get("/api/settings/mcp-servers", () =>
+          HttpResponse.json(mcpManagementCollectionFixture)
         ),
       ],
     }),

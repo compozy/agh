@@ -60,10 +60,15 @@ describe("AppHomePage", () => {
     mockHome = makeHome();
   });
 
-  it("pushes the connection indicator into the shell topbar slot", () => {
+  it("Should render the connection indicator beside the subordinate body head", () => {
     renderHome();
     const indicator = screen.getByTestId("home-connection-indicator");
+    const bodyHead = screen.getByTestId("home-page-head").parentElement;
+    const topbar = document.querySelector('[data-slot="topbar"]');
+
     expect(indicator).toHaveAttribute("data-status", "connected");
+    expect(bodyHead).toContainElement(indicator);
+    expect(topbar).not.toContainElement(indicator);
   });
 
   it("renders the daemon status card with the matching StatusDot tone for healthy", () => {

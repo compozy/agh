@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useMCPAuthorize } from "@/hooks/routes/use-mcp-authorize";
@@ -12,6 +12,7 @@ import {
 } from "@/systems/extensions";
 import {
   deriveMCPAuthFilter,
+  deriveMCPManagementFilter,
   MCPAuthorizeDialog,
   useDeleteSettingsMCPServer,
   type SettingsMCPServerEntry,
@@ -52,13 +53,28 @@ interface MarketplaceActionController {
   handleDeactivate: (item: MarketplaceInstalledItem) => Promise<void>;
   handleUpdateBundle: (item: MarketplaceInstalledItem) => void;
   handleToggleEnabled: (item: MarketplaceInstalledItem, enabled: boolean) => void;
+  handleFlashEnd: (entry: MarketplaceListing) => void;
   isEntryPending: (entry: MarketplaceListing) => boolean;
+  isInstalledItemPending: (item: MarketplaceInstalledItem) => boolean;
   isEntryFlashing: (entry: MarketplaceListing) => boolean;
   isAuthorizing: boolean;
 }
 
 function pendingKey(entry: MarketplaceListing): string {
   return `${entry.kind}:${entry.entry_id}`;
+}
+
+function installedItemPendingKey(item: MarketplaceInstalledItem): string {
+  if (item.activationId) return `bundle:${item.activationId}`;
+  if (item.mcpServer) {
+    const filter = deriveMCPManagementFilter(item.mcpServer);
+    const owner = filter
+      ? `${filter.scope}:${filter.target}:${filter.scope === "workspace" ? filter.workspace_id : ""}`
+      : `${item.mcpServer.scope}:${item.mcpServer.workspace_id ?? ""}:unknown`;
+    return `mcp:${owner}:${item.mcpServer.name}`;
+  }
+  if (item.skill) return `skill:${item.skill.source}:${item.skill.name}`;
+  return `${item.entry.kind}:${item.entry.installed_name ?? item.entry.entry_id}`;
 }
 
 function installedName(entry: MarketplaceListing): string {
@@ -95,6 +111,7 @@ function useMarketplaceActionController(
   const [flashIds, setFlashIds] = useState<ReadonlySet<string>>(() => new Set());
   const [authServer, setAuthServer] = useState<SettingsMCPServerEntry | null>(null);
   const [authKick, setAuthKick] = useState(0);
+  const startedAuthKick = useRef(0);
 
   const authFilter = authServer ? deriveMCPAuthFilter(authServer) : null;
   const authorize = useMCPAuthorize(authFilter);
@@ -108,7 +125,10 @@ function useMarketplaceActionController(
     : null;
 
   useEffect(() => {
-    if (authKick === 0 || !authServer || !authFilter) return;
+    if (authKick === 0 || startedAuthKick.current === authKick || !authServer || !authFilter) {
+      return;
+    }
+    startedAuthKick.current = authKick;
     void beginAuthorize(authServer.name, {
       status: authServer.auth_status?.status ?? "needs_login",
       tokenPresent: Boolean(authServer.auth_status?.token_present),
@@ -151,20 +171,18 @@ function useMarketplaceActionController(
   const markFlash = (entry: MarketplaceListing) => {
     const key = pendingKey(entry);
     setFlashIds(current => new Set(current).add(key));
-    window.setTimeout(() => {
-      setFlashIds(current => {
-        const next = new Set(current);
-        next.delete(key);
-        return next;
-      });
-    }, 1400);
   };
 
-  const trackPendingEntry = async <T,>(
-    entry: MarketplaceListing,
-    action: () => Promise<T>
-  ): Promise<T> => {
+  const handleFlashEnd = (entry: MarketplaceListing) => {
     const key = pendingKey(entry);
+    setFlashIds(current => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+  };
+
+  const trackPending = async <T,>(key: string, action: () => Promise<T>): Promise<T> => {
     setPendingEntries(current => {
       const next = new Map(current);
       next.set(key, (next.get(key) ?? 0) + 1);
@@ -183,6 +201,12 @@ function useMarketplaceActionController(
       });
   };
 
+  const trackPendingEntry = <T,>(entry: MarketplaceListing, action: () => Promise<T>) =>
+    trackPending(pendingKey(entry), action);
+
+  const trackPendingItem = <T,>(item: MarketplaceInstalledItem, action: () => Promise<T>) =>
+    trackPending(installedItemPendingKey(item), action);
+
   const withPendingEntry = async (entry: MarketplaceListing, action: () => Promise<void>) => {
     try {
       await trackPendingEntry(entry, action);
@@ -191,10 +215,27 @@ function useMarketplaceActionController(
     }
   };
 
+  const withPendingItem = async (item: MarketplaceInstalledItem, action: () => Promise<void>) => {
+    try {
+      await trackPendingItem(item, action);
+    } catch (error) {
+      toast.error(marketplaceErrorMessage(error, `Failed to update ${item.entry.name}`));
+    }
+  };
+
   const fetchDetail = async (entry: MarketplaceListing) => {
     const kind = entry.kind as MarketplaceKind;
     return queryClient.fetchQuery(
-      marketplaceEntryOptions({ entryId: entry.entry_id, kind, workspaceId })
+      marketplaceEntryOptions(
+        kind === "bundle"
+          ? { entryId: entry.entry_id, kind, workspaceId }
+          : {
+              entryId: entry.entry_id,
+              installedName: entry.installed_name,
+              kind,
+              workspaceId,
+            }
+      )
     );
   };
 
@@ -297,7 +338,7 @@ function useMarketplaceActionController(
 
   const handleRemove = async (item: MarketplaceInstalledItem) => {
     const entry = item.entry;
-    await trackPendingEntry(entry, async () => {
+    await trackPendingItem(item, async () => {
       if (entry.kind === "skill") {
         await removeSkill.mutateAsync({
           name: installedName(entry),
@@ -313,16 +354,13 @@ function useMarketplaceActionController(
       if (entry.kind === "mcp") {
         const server = item.mcpServer;
         if (!server) throw new Error(`MCP server identity is unavailable for ${entry.name}`);
-        const filter =
-          server.scope === "workspace"
-            ? {
-                scope: "workspace" as const,
-                workspace_id: server.workspace_id ?? workspaceId ?? "",
-                target: "auto" as const,
-              }
-            : { scope: "global" as const, target: "auto" as const };
-        await deleteMCP.mutateAsync({ name: server.name, filter });
-        toast.success(`${entry.name} removed`);
+        const filter = deriveMCPManagementFilter(server);
+        if (!filter) {
+          throw new Error(`MCP source identity is unavailable for ${entry.name}`);
+        }
+        const result = await deleteMCP.mutateAsync({ name: server.name, filter });
+        const lifecycle = result.restart_required ? "restart required" : "applied now";
+        toast.success(`${entry.name} removed · ${lifecycle}`);
         return;
       }
       throw new Error(`Remove is not supported for ${entry.kind}`);
@@ -330,16 +368,17 @@ function useMarketplaceActionController(
   };
 
   const handleDeactivate = async (item: MarketplaceInstalledItem) => {
-    if (!item.activationId) {
+    const activationId = item.activationId;
+    if (!activationId) {
       throw new Error(`Activation id is unavailable for ${item.entry.name}`);
     }
-    await trackPendingEntry(item.entry, async () => {
-      await deactivateBundle.mutateAsync(item.activationId!);
+    await trackPendingItem(item, async () => {
+      await deactivateBundle.mutateAsync(activationId);
     });
   };
 
   const handleUpdateBundle = (item: MarketplaceInstalledItem) => {
-    void withPendingEntry(item.entry, async () => {
+    void withPendingItem(item, async () => {
       if (!item.activationId || item.activationVersion === undefined) {
         throw new Error(`Activation identity is unavailable for ${item.entry.name}`);
       }
@@ -352,7 +391,7 @@ function useMarketplaceActionController(
 
   const handleToggleEnabled = (item: MarketplaceInstalledItem, enabled: boolean) => {
     const name = installedName(item.entry);
-    void withPendingEntry(item.entry, async () => {
+    void withPendingItem(item, async () => {
       await toggleExtension.mutateAsync({ enabled, name });
     });
   };
@@ -396,7 +435,7 @@ function useMarketplaceActionController(
       ) : null}
       <MCPAuthorizeDialog
         authorize={authorize}
-        scope={authServer?.scope === "workspace" ? "workspace" : "global"}
+        scope={authFilter?.scope ?? "global"}
         server={authServer}
       />
     </>
@@ -407,12 +446,14 @@ function useMarketplaceActionController(
     handleAction,
     handleAuthorize,
     handleDeactivate,
+    handleFlashEnd,
     handleRemove,
     handleToggleEnabled,
     handleUpdateBundle,
     isAuthorizing: authorize.isAwaiting,
     isEntryFlashing: entry => flashIds.has(pendingKey(entry)),
     isEntryPending: entry => (pendingEntries.get(pendingKey(entry)) ?? 0) > 0,
+    isInstalledItemPending: item => (pendingEntries.get(installedItemPendingKey(item)) ?? 0) > 0,
   };
 }
 

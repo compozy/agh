@@ -17,10 +17,11 @@ export interface AutomationJobRowProps {
   job: AutomationJob;
   isRunPending: boolean;
   onRun: (id: string) => void;
+  runDisabled: boolean;
 }
 
 /** Row presentation for a job in the Jobs catalog (rows view). */
-function AutomationJobRow({ job, isRunPending, onRun }: AutomationJobRowProps) {
+function AutomationJobRow({ job, isRunPending, onRun, runDisabled }: AutomationJobRowProps) {
   const enabledTone = automationStatusTone(job.enabled ? "enabled" : "disabled");
   const nextRun = job.scheduler?.next_run_at ?? job.next_run;
 
@@ -62,7 +63,7 @@ function AutomationJobRow({ job, isRunPending, onRun }: AutomationJobRowProps) {
         <Button
           aria-label={`Run ${job.name} now`}
           data-testid={`automation-run-now-${job.id}`}
-          disabled={isRunPending}
+          disabled={runDisabled || isRunPending}
           onClick={() => onRun(job.id)}
           size="sm"
           type="button"

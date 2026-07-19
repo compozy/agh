@@ -307,8 +307,8 @@
   /* Tabs list + count chip + tab underline. */
   --height-tabs-list: 40px;
   --size-tab-underline: 1.5px;
-  --size-count-chip: 19px;
-  --size-count-chip-sm: 17px;
+  --spacing-count-chip: 19px;
+  --spacing-count-chip-sm: 17px;
 
   /* Empty / menu primitives. */
   --size-empty-icon: 38px;
@@ -325,7 +325,7 @@
   --width-table-cell-lg: 360px;
 
   /* Layout ladder. */
-  --width-content-max: 1320px;
+  --container-content-max: 1320px;
   --width-right-rail-default: 468px;
   --width-message-bubble-max: 640px;
   --width-wire-card-max: 520px;

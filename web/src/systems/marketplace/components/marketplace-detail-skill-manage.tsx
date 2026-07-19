@@ -17,9 +17,15 @@ import {
   Time,
 } from "@agh/ui";
 
-import { skillSourceTone } from "@/systems/skill";
+import {
+  deriveSkillCapabilities,
+  deriveSkillRecentCalls,
+  skillSourceTone,
+  type SkillPayload,
+} from "@/systems/skill";
 
 import { useMarketplaceDetailSkillManage } from "../hooks/use-marketplace-detail-skill-manage";
+import { MarketplaceDetailManageState } from "./marketplace-detail-manage-state";
 
 interface MarketplaceDetailSkillManageProps {
   name: string;
@@ -27,6 +33,22 @@ interface MarketplaceDetailSkillManageProps {
 
 function MarketplaceDetailSkillManage({ name }: MarketplaceDetailSkillManageProps) {
   const state = useMarketplaceDetailSkillManage(name);
+
+  if (!state.skill) {
+    return (
+      <MarketplaceDetailManageState
+        error={state.skillQuery.error ?? null}
+        isLoading={state.skillQuery.isLoading}
+        label="Skill"
+        onRetry={() => void state.skillQuery.refetch()}
+        testId={
+          state.skillQuery.isLoading
+            ? "marketplace-skill-manage-loading"
+            : "marketplace-skill-manage-error"
+        }
+      />
+    );
+  }
 
   return (
     <>
@@ -43,7 +65,19 @@ function MarketplaceDetailSkillManage({ name }: MarketplaceDetailSkillManageProp
             onCheckedChange={state.toggleEnabled}
           />
         </div>
+        {state.toggleError ? (
+          <p
+            className="mt-2 text-form-hint text-danger"
+            data-testid="marketplace-skill-toggle-error"
+            role="alert"
+          >
+            {state.toggleError}
+          </p>
+        ) : null}
       </Section>
+      <SkillManageCapabilities skill={state.skill} />
+      <SkillManageRecentCalls skill={state.skill} />
+      <SkillManageProvenance skill={state.skill} />
       <SkillManageContent
         content={state.contentQuery.data}
         error={state.contentQuery.error}
@@ -58,6 +92,108 @@ function MarketplaceDetailSkillManage({ name }: MarketplaceDetailSkillManageProp
         shadows={state.shadowsQuery.data}
       />
     </>
+  );
+}
+
+function SkillManageCapabilities({ skill }: { skill: SkillPayload }) {
+  const capabilities = deriveSkillCapabilities(skill);
+  return (
+    <Section label={`Capabilities ${capabilities.length}`}>
+      {capabilities.length ? (
+        <div className="flex flex-wrap gap-2" data-testid="skill-capabilities-list">
+          {capabilities.map(capability => (
+            <Pill mono key={capability}>
+              {capability}
+            </Pill>
+          ))}
+        </div>
+      ) : (
+        <p className="text-small-body text-muted">None declared.</p>
+      )}
+    </Section>
+  );
+}
+
+const RECENT_CALL_TONE = {
+  error: "danger",
+  pending: "accent",
+  success: "faint",
+} as const;
+
+function SkillManageRecentCalls({ skill }: { skill: SkillPayload }) {
+  const calls = deriveSkillRecentCalls(skill);
+  return (
+    <Section label="Recent calls">
+      {calls.length ? (
+        <div
+          className="overflow-hidden rounded-lg border border-line"
+          data-testid="skill-recent-calls-table"
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-20">Status</TableHead>
+                <TableHead>Call</TableHead>
+                <TableHead className="w-30 text-right">When</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {calls.map(call => (
+                <TableRow key={`${call.label}-${call.timestamp ?? call.status}`}>
+                  <TableCell>
+                    <StatusDot
+                      label={call.status}
+                      tone={RECENT_CALL_TONE[call.status]}
+                      variant={call.status === "pending" ? "ring" : "solid"}
+                    />
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted">{call.label}</TableCell>
+                  <TableCell className="text-right font-mono text-eyebrow text-subtle">
+                    {call.timestamp ? <Time iso={call.timestamp} /> : "--"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <p className="text-small-body text-muted">No recent invocations recorded.</p>
+      )}
+    </Section>
+  );
+}
+
+function SkillManageProvenance({ skill }: { skill: SkillPayload }) {
+  const provenance = skill.provenance;
+  if (!provenance) return null;
+
+  const rows = [
+    ["Tier", provenance.precedence_tier],
+    ["Extension", provenance.installed_from_extension],
+    ["Bundle", provenance.installed_from_bundle],
+    ["Registry", provenance.registry],
+    ["Slug", provenance.slug],
+    ["Version", provenance.version],
+  ].filter((row): row is [string, string] => typeof row[1] === "string" && row[1].trim() !== "");
+
+  return (
+    <Section label="Provenance">
+      <div
+        className="overflow-hidden rounded-lg border border-line"
+        data-testid="skill-provenance-table"
+      >
+        <Table>
+          <TableBody>
+            {rows.map(([label, value]) => (
+              <TableRow key={label}>
+                <TableCell className="w-32 text-eyebrow text-subtle">{label}</TableCell>
+                <TableCell className="font-mono text-xs text-muted">{value}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </Section>
   );
 }
 

@@ -101,13 +101,14 @@ func (r *marketplaceRuntime) Browse(
 	ctx context.Context,
 	kind marketplace.Kind,
 	query string,
+	offset int,
 	limit int,
 ) (marketplace.BrowseResult, error) {
 	service, err := r.currentService(ctx)
 	if err != nil {
 		return marketplace.BrowseResult{}, err
 	}
-	return service.Browse(ctx, kind, query, limit)
+	return service.Browse(ctx, kind, query, offset, limit)
 }
 
 func (r *marketplaceRuntime) Detail(

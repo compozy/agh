@@ -15,8 +15,23 @@ func (h *BaseHandlers) marketplaceEntry(
 	ctx context.Context,
 	kind string,
 	entryID string,
+	installedName string,
 	scope marketplaceReadScope,
 ) (contract.MarketplaceEntryResponse, error) {
+	if installedName != "" {
+		switch kind {
+		case contract.MarketplaceKindMCP:
+			return h.installedMCPMarketplaceEntryByName(ctx, installedName, scope)
+		case contract.MarketplaceKindExtension:
+			return h.installedExtensionMarketplaceEntryByName(ctx, installedName)
+		case contract.MarketplaceKindSkill:
+			return h.installedSkillMarketplaceEntryByName(ctx, installedName, scope)
+		default:
+			return contract.MarketplaceEntryResponse{}, marketplaceValidationf(
+				"installed_name is not supported for marketplace kind %q", kind,
+			)
+		}
+	}
 	switch kind {
 	case contract.MarketplaceKindMCP:
 		return h.marketplaceCuratedOrInstalledEntry(ctx, marketplacepkg.KindMCP, entryID, scope)

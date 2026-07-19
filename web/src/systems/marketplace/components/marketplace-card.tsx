@@ -12,6 +12,7 @@ interface MarketplaceCardProps {
   pending?: boolean;
   flashing?: boolean;
   onAction: (entry: MarketplaceListing) => void;
+  onFlashEnd?: (entry: MarketplaceListing) => void;
 }
 
 function MarketplaceCard({
@@ -19,6 +20,7 @@ function MarketplaceCard({
   pending = false,
   flashing = false,
   onAction,
+  onFlashEnd,
 }: MarketplaceCardProps) {
   const kind = entry.kind as MarketplaceKind;
   return (
@@ -26,6 +28,9 @@ function MarketplaceCard({
       actionable={!pending}
       className={flashing ? "marketplace-card-flash" : pending ? "opacity-55" : undefined}
       data-testid={`marketplace-card-${entry.entry_id}`}
+      onAnimationEnd={event => {
+        if (event.currentTarget === event.target) onFlashEnd?.(entry);
+      }}
     >
       <Link
         aria-disabled={pending || undefined}

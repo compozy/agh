@@ -5,6 +5,8 @@ import {
   useAutomationTrigger,
   useAutomationTriggerEditor,
   useAutomationTriggerRuns,
+  automationMatchesActiveWorkspace,
+  automationWorkspaceAccessError,
   useDeleteAutomationTrigger,
   useUpdateAutomationTrigger,
 } from "@/systems/automation";
@@ -13,19 +15,30 @@ import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/w
 /** Detail view-model for a single automation trigger resolved from `triggerId`. */
 export function useAutomationTriggerDetailPage(triggerId: string) {
   const navigate = useNavigate();
-  const { activeWorkspaceId, workspaces } = useActiveWorkspace();
+  const { activeWorkspaceId, isLoading: workspaceLoading, workspaces } = useActiveWorkspace();
 
   const triggerDetailQuery = useAutomationTrigger(triggerId, { enabled: Boolean(triggerId) });
+  const loadedTrigger = triggerDetailQuery.data;
+  const canAccessTrigger =
+    loadedTrigger !== undefined &&
+    !workspaceLoading &&
+    automationMatchesActiveWorkspace(loadedTrigger, activeWorkspaceId);
   const triggerRunsQuery = useAutomationTriggerRuns(
     triggerId,
     { limit: 10 },
-    { enabled: Boolean(triggerId) }
+    { enabled: Boolean(triggerId) && canAccessTrigger }
   );
 
   const updateMutation = useUpdateAutomationTrigger();
   const deleteMutation = useDeleteAutomationTrigger();
 
-  const trigger = triggerDetailQuery.data;
+  const trigger = canAccessTrigger ? loadedTrigger : undefined;
+  const accessError = automationWorkspaceAccessError(
+    "trigger",
+    loadedTrigger,
+    activeWorkspaceId,
+    workspaceLoading
+  );
 
   const editor = useAutomationTriggerEditor({
     activeWorkspaceId,
@@ -51,7 +64,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
 
   return {
     editorDialogProps: editor.editorDialogProps,
-    error: triggerDetailQuery.error,
+    error: trigger ? null : (accessError ?? triggerDetailQuery.error),
     handleBack: () => void navigate({ to: "/triggers" }),
     handleDelete,
     handleEdit: () => {
@@ -61,11 +74,11 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
       void handleToggleEnabled(enabled);
     },
     isDeleting: deleteMutation.isPending,
-    isLoading: triggerDetailQuery.isLoading && !trigger,
+    isLoading: (triggerDetailQuery.isLoading || workspaceLoading) && !trigger && !accessError,
     isTogglePending: updateMutation.isPending,
-    runs: triggerRunsQuery.data ?? [],
-    runsError: triggerRunsQuery.error,
-    runsLoading: triggerRunsQuery.isLoading,
+    runs: trigger ? (triggerRunsQuery.data ?? []) : [],
+    runsError: trigger ? triggerRunsQuery.error : null,
+    runsLoading: trigger ? triggerRunsQuery.isLoading : false,
     trigger,
   };
 }

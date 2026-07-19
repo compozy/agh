@@ -39,6 +39,15 @@ export const Default: Story = {
 };
 
 /**
+ * Cards view preserves inspect, edit, and delete controls for every profile.
+ */
+export const Cards: Story = {
+  args: {},
+  parameters: appRouteParameters("/sandbox?view=cards"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
  * Detail sheet opened on the daytona-eu profile (nested network/daytona/env).
  * RAF setup opens the sheet for static Storybook/iframe capture (play is interaction-only).
  */
@@ -112,7 +121,7 @@ export const CreateSandbox: Story = {
  */
 export const DeleteProfile: Story = {
   args: {},
-  parameters: appRouteParameters("/sandbox"),
+  parameters: appRouteParameters("/sandbox?view=cards"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

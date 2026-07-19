@@ -18,3 +18,6 @@ overlaps: ET-web-marketplace-installed-management; ET-web-extensions-manage; ET-
 
 Added by the unified Marketplace hard cut. Verify cancel, failed mutation, successful mutation,
 fresh reload, and removal of a non-catalog installed item without inventing a Marketplace card.
+
+QA impact 2026-07-18: successful MCP removal feedback now reports whether the config applied now
+or requires a daemon restart, using the lifecycle returned by the exact-owner delete operation.

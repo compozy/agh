@@ -556,6 +556,15 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("nav-active-tasks")).toBeInTheDocument();
     });
 
+    it.each([
+      ["network", "/network"],
+      ["bridges", "/bridges"],
+    ])("Should keep %s active for descendant routes (fuzzy)", (testKey, path) => {
+      matchedRouteFuzzy[path] = true;
+      renderSidebar(makeProps());
+      expect(screen.getByTestId(`nav-active-${testKey}`)).toBeInTheDocument();
+    });
+
     it("Should keep Marketplace active for entry detail routes (fuzzy)", () => {
       matchedRouteFuzzy["/marketplace"] = true;
       renderSidebar(makeProps());

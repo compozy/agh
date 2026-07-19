@@ -14,7 +14,7 @@ type PageHeadProps = Omit<React.ComponentProps<"header">, "title"> & {
   icon?: LucideIcon;
   /** Custom leading mark (entity avatar, kind icon); wins over `icon`. */
   leading?: React.ReactNode;
-  /** The route's single H1. Keeps tabIndex -1 so the shell can move focus after navigation. */
+  /** Body-side summary title. The route's single H1 remains in the shell Topbar. */
   title: React.ReactNode;
   /** Mono count chip beside the title. */
   count?: React.ReactNode;
@@ -86,18 +86,17 @@ function PageHead({
           </div>
         ) : null}
         <div data-slot="page-head-title-row" className="flex min-w-0 items-center gap-2">
-          <h1
-            tabIndex={-1}
+          <div
             data-slot="page-head-title"
             className={cn(
-              "min-w-0 truncate font-semibold text-fg-strong outline-none focus-visible:shadow-focus-ring",
+              "min-w-0 truncate font-semibold text-fg-strong",
               variant === "compact"
                 ? "text-compact-h1 tracking-compact-h1"
                 : "text-detail-h1 tracking-detail-h1"
             )}
           >
             {title}
-          </h1>
+          </div>
           {count !== undefined ? (
             <span
               data-slot="page-head-count"

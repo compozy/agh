@@ -20,6 +20,7 @@ import {
   useExtensionDetailState,
   VerifiedMark,
 } from "@/systems/extensions";
+import { formatUptimeSeconds } from "@/lib/format-time";
 
 import {
   ExtensionBundlesProvided,
@@ -27,7 +28,9 @@ import {
   ExtensionDiagnostics,
   ExtensionEnvironmentState,
   ExtensionRailBlock,
+  ExtensionTokenBlock,
 } from "./marketplace-detail-extension-sections";
+import { MarketplaceDetailManageState } from "./marketplace-detail-manage-state";
 
 interface MarketplaceDetailExtensionManageProps {
   name: string;
@@ -46,7 +49,21 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
     toggle,
   } = state;
   const data = detail.data;
-  if (!data) return null;
+  if (!data) {
+    return (
+      <MarketplaceDetailManageState
+        error={detail.error ?? null}
+        isLoading={detail.isLoading}
+        label="Extension"
+        onRetry={() => void detail.refetch()}
+        testId={
+          detail.isLoading
+            ? "marketplace-extension-manage-loading"
+            : "marketplace-extension-manage-error"
+        }
+      />
+    );
+  }
 
   const { extension } = data;
   const provenance = extension.provenance;
@@ -85,6 +102,8 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
           </DropdownMenu>
         </div>
       </Section>
+      <ExtensionTokenBlock label="Capabilities" values={extension.capabilities ?? []} />
+      <ExtensionTokenBlock label="Actions" values={extension.actions ?? []} />
       <ExtensionDetailBlock label="Environment">
         <ExtensionEnvironmentState
           missing={extension.missing_env ?? []}
@@ -97,6 +116,56 @@ function MarketplaceDetailExtensionManage({ name }: MarketplaceDetailExtensionMa
           lastError={extension.last_error}
         />
       </ExtensionDetailBlock>
+      <ExtensionRailBlock
+        label="Runtime"
+        rows={[
+          {
+            term: "State",
+            value: (
+              <Pill mono size="xs" tone={extension.daemon_running ? "success" : "neutral"}>
+                {extension.state}
+              </Pill>
+            ),
+          },
+          {
+            term: "Health",
+            value: extension.health ? (
+              <>
+                <Pill mono size="xs" tone={extension.health === "healthy" ? "success" : "warning"}>
+                  {extension.health}
+                </Pill>
+                {extension.health_message ? <span>{extension.health_message}</span> : null}
+              </>
+            ) : (
+              <code className="font-mono text-xs text-fg">—</code>
+            ),
+          },
+          {
+            term: "Daemon",
+            value: (
+              <Pill mono size="xs" tone={extension.daemon_running ? "success" : "neutral"}>
+                {extension.daemon_running ? "running" : "stopped"}
+              </Pill>
+            ),
+          },
+          {
+            term: "PID",
+            value: (
+              <code className="font-mono text-xs text-fg">
+                {extension.pid ? String(extension.pid) : "—"}
+              </code>
+            ),
+          },
+          {
+            term: "Uptime",
+            value: (
+              <code className="font-mono text-xs text-fg">
+                {formatUptimeSeconds(extension.uptime_seconds)}
+              </code>
+            ),
+          },
+        ]}
+      />
       <ExtensionRailBlock
         label="Provenance"
         rows={[

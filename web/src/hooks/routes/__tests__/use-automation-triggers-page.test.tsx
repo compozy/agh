@@ -18,6 +18,11 @@ const pageState = vi.hoisted(() => ({
   },
 }));
 
+const triggersState = vi.hoisted(() => ({
+  error: null as Error | null,
+  triggers: [] as Array<{ id: string }>,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }));
@@ -35,13 +40,13 @@ vi.mock("@/systems/automation", async importOriginal => {
   return {
     ...actual,
     useAutomationTriggers: () => ({
-      error: null,
+      error: triggersState.error,
       fetchNextPage: vi.fn(),
       hasNextPage: false,
       isFetchingNextPage: false,
       isLoading: false,
-      total: 0,
-      triggers: [],
+      total: triggersState.triggers.length,
+      triggers: triggersState.triggers,
     }),
     useCreateAutomationTrigger: () => ({ isPending: false, mutateAsync: vi.fn() }),
     useDeleteAutomationTrigger: () => ({ isPending: false, mutateAsync: vi.fn() }),
@@ -62,6 +67,8 @@ function createWrapper() {
 
 describe("useAutomationTriggersPage", () => {
   beforeEach(() => {
+    triggersState.error = null;
+    triggersState.triggers = [];
     pageState.current = {
       activeWorkspace: null,
       activeWorkspaceId: null,
@@ -100,5 +107,18 @@ describe("useAutomationTriggersPage", () => {
       })
     );
     expect(result.current.editorDialogProps.editor?.draft.workspace_id).toBe("ws_default");
+  });
+
+  it("Should preserve loaded triggers while exposing a later query failure", () => {
+    triggersState.triggers = [{ id: "trigger-1" }];
+    triggersState.error = new Error("Triggers refresh failed");
+
+    const { result } = renderHook(() => useAutomationTriggersPage(), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.triggers).toHaveLength(1);
+    expect(result.current.error).toBeNull();
+    expect(result.current.errorMessage).toBe("Triggers refresh failed");
   });
 });

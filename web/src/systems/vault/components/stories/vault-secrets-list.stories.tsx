@@ -84,6 +84,7 @@ export const Cards: Story = {
     secrets,
     view: "cards",
     onSelect: fn(),
+    onDelete: fn(),
   },
 };
 

@@ -1,21 +1,35 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { PanelSurface } from "@/storybook/story-layout";
+import { PanelSurface, StoryTopbarHost } from "@/storybook/story-layout";
 import { TasksDetailHeader } from "../tasks-detail-header";
 import { buildDetailFixture } from "./fixtures";
 
 const meta: Meta<typeof TasksDetailHeader> = {
   title: "systems/tasks/components/TasksDetailHeader",
   component: TasksDetailHeader,
+  decorators: [
+    Story => (
+      <StoryTopbarHost breadcrumb={<span>Tasks › TASK-42</span>} title="Task detail">
+        <Story />
+      </StoryTopbarHost>
+    ),
+  ],
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        component: "Task detail header states with their actions rendered in the shell Topbar.",
+      },
+    },
   },
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** Active task detail with its cancellation action. */
 export const Default: Story = {
+  args: {},
   render: () => (
     <PanelSurface>
       <TasksDetailHeader detail={buildDetailFixture()} onCancel={() => undefined} />
@@ -23,7 +37,9 @@ export const Default: Story = {
   ),
 };
 
+/** Draft task detail with its publish action. */
 export const Draft: Story = {
+  args: {},
   render: () => {
     const detail = buildDetailFixture();
     detail.task = { ...detail.task, status: "draft" };
@@ -35,7 +51,9 @@ export const Draft: Story = {
   },
 };
 
+/** Long task title proving the body summary and Topbar keep their layout. */
 export const LongTitle: Story = {
+  args: {},
   render: () => {
     const detail = buildDetailFixture();
     detail.task = {
@@ -51,7 +69,9 @@ export const LongTitle: Story = {
   },
 };
 
+/** Paused task detail with resume and run actions. */
 export const Paused: Story = {
+  args: {},
   render: () => {
     const detail = buildDetailFixture();
     detail.task = {

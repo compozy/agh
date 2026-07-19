@@ -253,7 +253,9 @@ test("operator can manage MCP servers across global and workspace scopes with vi
 
   await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionUI);
-  await appPage.goto(runtime.url("/mcp"), { waitUntil: "domcontentloaded" });
+  await appPage.goto(runtime.url("/marketplace/mcps?tab=installed"), {
+    waitUntil: "domcontentloaded",
+  });
 
   await expect(settingsUI.mcpServers.page).toBeVisible();
   await expect(settingsUI.mcpServers.scopeWorkspace).toBeVisible();
@@ -263,10 +265,10 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
   await expect(appPage.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "false");
   await settingsUI.mcpServers.scopeWorkspace.click();
-  await expect(settingsUI.mcpServers.scopeLabel).toContainText(workspace.name);
+  await expect(settingsUI.mcpServers.scopeWorkspace).toHaveAttribute("aria-pressed", "true");
 
   await settingsUI.mcpServers.scopeGlobal.click();
-  await expect(settingsUI.mcpServers.scopeLabel).toContainText("global");
+  await expect(settingsUI.mcpServers.scopeGlobal).toHaveAttribute("aria-pressed", "true");
 
   await createMCPServerViaUI(settingsUI, {
     name: browserSettingsOperatorFlowScenario.mcpServers.global.name,
@@ -275,15 +277,14 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   });
 
   await expect(settingsUI.mcpServers.actionResult).toContainText(
-    `Saved "${browserSettingsOperatorFlowScenario.mcpServers.global.name}"`
+    `Saved "${browserSettingsOperatorFlowScenario.mcpServers.global.name}" · global-mcp-sidecar · applied now`
   );
-  await expect(settingsUI.mcpServers.actionResult).toContainText("persisted to GLOBAL MCP");
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.global.name)
   ).toBeVisible();
 
   await settingsUI.mcpServers.scopeWorkspace.click();
-  await expect(settingsUI.mcpServers.scopeLabel).toContainText(workspace.name);
+  await expect(settingsUI.mcpServers.scopeWorkspace).toHaveAttribute("aria-pressed", "true");
 
   await createMCPServerViaUI(settingsUI, {
     name: browserSettingsOperatorFlowScenario.mcpServers.workspace.name,
@@ -292,22 +293,15 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   });
 
   await expect(settingsUI.mcpServers.actionResult).toContainText(
-    `Saved "${browserSettingsOperatorFlowScenario.mcpServers.workspace.name}"`
+    `Saved "${browserSettingsOperatorFlowScenario.mcpServers.workspace.name}" · workspace-config · applied now`
   );
-  await expect(settingsUI.mcpServers.actionResult).toContainText("persisted to WS CFG");
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).toBeVisible();
 
-  await settingsUI.mcpServers.scopeGlobal.click();
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.global.name)
   ).toBeVisible();
-  await expect(
-    settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
-  ).not.toBeVisible();
-
-  await settingsUI.mcpServers.scopeWorkspace.click();
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).toBeVisible();
@@ -315,13 +309,18 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   await settingsUI.mcpServers
     .editRow(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
     .click();
-  await expect(settingsUI.mcpServers.editor).toBeVisible();
-  await settingsUI.mcpServers.editorRemove.click();
-  await expect(settingsUI.mcpServers.deleteDialog).toBeVisible();
-  await settingsUI.mcpServers.deleteConfirm.click();
+  await appPage.getByRole("menuitem", { name: "Remove…" }).click();
+  await appPage
+    .getByLabel("Type to confirm")
+    .fill(browserSettingsOperatorFlowScenario.mcpServers.workspace.name);
+  await appPage
+    .getByTestId(
+      `marketplace-confirm-${browserSettingsOperatorFlowScenario.mcpServers.workspace.name}`
+    )
+    .click();
 
   await expect(settingsUI.mcpServers.actionResult).toContainText(
-    `Deleted "${browserSettingsOperatorFlowScenario.mcpServers.workspace.name}"`
+    `${browserSettingsOperatorFlowScenario.mcpServers.workspace.name} removed`
   );
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)

@@ -5,7 +5,7 @@ title: MCP remote-capable editor (stdio/http/sse) with mirrored validation
 persona: Bruno
 journey: J-mcp-authorize-repair
 expected: The editor switches field sets by transport. stdio keeps command, ordered args, non-secret env, and hybrid secret_env bindings; remote (http/sse) keeps url + optional OAuth (client_id + metadata triad + scopes + client-secret binding) and omits command/args/env/secret_env. Switching transport clears hidden fields so the new form remains completable. Existing plain env and secret bindings render as presence-only configured state; unchanged exact-target fields use `preserve_env` or `preserve_secrets`, while renames and scope changes require explicit replacement values. Vault inventory renders distinct loading, error/retry, ready-empty, and ready-with-refs states. Scope lives in `validateSearch`; an initial valid `workspace_id` is adopted once, then sidebar selection owns the workspace and updates the URL.
-entry_points: web `/mcp` Edit action; `PUT /api/settings/mcp-servers/{name}`
+entry_points: web `/marketplace/mcps?tab=installed` Add MCP server/Edit configuration; `PUT /api/settings/mcp-servers/{name}`
 qa_status: untested
 bug_ids: BUG-20260715-mcp-editor-vault-ref-case
 fix_status: BUG-20260715-mcp-editor-vault-ref-case fixed
@@ -33,3 +33,6 @@ without binding refs in the preceding GET response or visible UI.
 QA impact 2026-07-17: plain environment values are now presence-only through `env_keys`. Retest
 same-key `preserve_env`, rename and cross-scope replacement requirements, all Vault inventory
 states, one-shot workspace deep-link adoption, and subsequent sidebar-to-URL synchronization.
+
+QA impact 2026-07-18: the generic editor moved into Marketplace Installed. Retest custom stdio,
+http, and sse creation plus exact-scope editing after the legacy `/mcp` route hard cut.

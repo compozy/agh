@@ -12,9 +12,10 @@ import (
 )
 
 type marketplaceSearchInput struct {
-	Query string `json:"query"`
-	Kind  string `json:"kind"`
-	Limit int    `json:"limit"`
+	Query  string `json:"query"`
+	Kind   string `json:"kind"`
+	Limit  int    `json:"limit"`
+	Cursor string `json:"cursor"`
 }
 
 func (n *daemonNativeTools) marketplaceToolBindings(
@@ -47,12 +48,19 @@ func (n *daemonNativeTools) marketplaceSearch(
 	}
 	if kind := strings.TrimSpace(input.Kind); kind != "" {
 		response, err := handlers.MarketplaceKind(ctx, core.MarketplaceKindRequest{
-			Kind: kind, Query: input.Query, Limit: input.Limit, Scope: readScope, WorkspaceID: workspaceID,
+			Kind: kind, Query: input.Query, Limit: input.Limit, Cursor: input.Cursor,
+			Scope: readScope, WorkspaceID: workspaceID,
 		})
 		if err != nil {
 			return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
 		}
 		return structuredResult(response, fmt.Sprintf("%d %s marketplace entries", len(response.Items), response.Kind))
+	}
+	if strings.TrimSpace(input.Cursor) != "" {
+		return toolspkg.ToolResult{}, marketplaceNativeError(
+			req.ToolID,
+			errors.Join(core.ErrMarketplaceValidation, errors.New("marketplace cursor requires kind")),
+		)
 	}
 	response, err := handlers.MarketplaceSearch(ctx, core.MarketplaceSearchRequest{
 		Query: input.Query, Limit: input.Limit, Scope: readScope, WorkspaceID: workspaceID,

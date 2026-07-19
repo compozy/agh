@@ -1,10 +1,9 @@
 import { Box, Plug, Puzzle, Wrench } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, Pill, Spinner } from "@agh/ui";
+import { Button, Pill, Spinner, buttonVariants } from "@agh/ui";
 
 import type { MarketplaceEntryResponse, MarketplaceKind, MarketplaceListing } from "../types";
-import { marketplaceRouteKindFor } from "../types";
 import { formatMarketplaceCount } from "./marketplace-ui";
 
 interface MarketplaceDetailHeroProps {
@@ -32,9 +31,9 @@ function MarketplaceDetailHero({ entry, pending, onAction }: MarketplaceDetailHe
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="truncate text-detail-h1 font-semibold tracking-detail-h1 text-fg-strong">
+          <h2 className="truncate text-detail-h1 font-semibold tracking-detail-h1 text-fg-strong">
             {entry.name}
-          </h1>
+          </h2>
           <Pill mono>{kind}</Pill>
           <MarketplaceTrustPill entry={entry} />
           {entry.version ? <Pill mono>v{entry.version}</Pill> : null}
@@ -50,20 +49,13 @@ function MarketplaceDetailHero({ entry, pending, onAction }: MarketplaceDetailHe
       <div className="flex w-full flex-col items-start gap-1.5 md:w-auto md:items-end">
         <div className="flex flex-wrap items-center gap-2">
           {entry.installed && entry.manage_path ? (
-            <Button
+            <a
               aria-label={`Manage ${entry.name}`}
-              render={
-                <Link
-                  search={{ tab: "installed" }}
-                  to={`/marketplace/${marketplaceRouteKindFor(kind)}`}
-                />
-              }
-              nativeButton={false}
-              size="sm"
-              variant="ghost"
+              className={buttonVariants({ size: "sm", variant: "ghost" })}
+              href={entry.manage_path}
             >
               Manage →
-            </Button>
+            </a>
           ) : null}
           {shouldShowDetailAction(entry) ? (
             <Button

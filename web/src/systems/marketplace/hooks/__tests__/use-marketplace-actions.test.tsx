@@ -104,7 +104,9 @@ describe("useInstallMarketplaceMCP", () => {
       | { action?: { onClick?: () => void } }
       | undefined;
     authorizeAction?.action?.onClick?.();
-    expect(locationAssign).toHaveBeenCalledWith("/marketplace/mcps?tab=installed");
+    expect(locationAssign).toHaveBeenCalledWith(
+      "/marketplace/mcp/github-mcp?scope=global&installed_name=github"
+    );
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["settings", "collection", "mcp-servers"],
@@ -151,7 +153,9 @@ describe("useInstallMarketplaceMCP", () => {
       .mock.calls.find(call => call[0] === "filesystem installed");
     const manageAction = manageToast?.[1] as { action?: { onClick?: () => void } } | undefined;
     manageAction?.action?.onClick?.();
-    expect(locationAssign).toHaveBeenCalledWith("/marketplace/mcps?tab=installed");
+    expect(locationAssign).toHaveBeenCalledWith(
+      "/marketplace/mcp/filesystem?scope=global&installed_name=filesystem"
+    );
   });
 
   it("Should retain workspace identity in the post-install management deep link", async () => {
@@ -206,7 +210,9 @@ describe("useInstallMarketplaceMCP", () => {
       | { action?: { onClick?: () => void } }
       | undefined;
     authorizeAction?.action?.onClick?.();
-    expect(locationAssign).toHaveBeenCalledWith("/marketplace/mcps?tab=installed");
+    expect(locationAssign).toHaveBeenCalledWith(
+      "/marketplace/mcp/github-mcp?scope=workspace&installed_name=github&workspace_id=ws-polybot"
+    );
   });
 });
 

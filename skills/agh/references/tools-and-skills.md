@@ -53,15 +53,18 @@ contract.
 
 ## Marketplace Discovery
 
-Use canonical `agh__marketplace_search` for read-only discovery across MCP servers, extensions,
-skills, and bundles. Its daemon-owned projection carries stable `entry_id` values and truthful
-installed state for the caller's scope. The structured CLI fallback is
+Use `agh__marketplace_search` for read-only MCP, extension, skill, and bundle discovery. Results carry
+stable `entry_id` values and installed state for the caller's scope. Structured CLI fallback:
 `agh marketplace search [query] [--kind mcp|extension|skill|bundle] [--scope global|workspace]
-[--workspace <id>] -o json`; exact detail accepts the same scope flags through
-`agh marketplace info <kind> <entry_id>`. Global is the default; pair `--scope workspace` with
-`--workspace <id>` to project workspace-installed MCP servers and bundles. Feed refresh is an
-operator mutation through `agh marketplace refresh [--kind]` or `POST /api/marketplace/refresh`;
-bundles are derived and cannot be refreshed directly. Inspect each discovery kind's `stale`,
+[--workspace <id>] [--cursor <opaque>] -o json`. Cursor requires one kind and the same query, scope,
+and workspace. Curated and bundle cursors fence the source projection; remote skill cursors validate
+the previous page boundary. When AGH rejects a continuation, restart from the first page. Human and
+TOON output append a Page block, while JSONL appends a `type: "page"` record after item records.
+Exact installed detail: `agh marketplace info <kind> <entry_id>
+[--installed-name <name>]`; the identity flag applies to MCPs, extensions, and skills, never bundles.
+Scope flags are identical, global is default, and workspace requires an ID.
+Refresh via `agh marketplace refresh [--kind]` or `POST /api/marketplace/refresh`; bundles are derived
+and cannot be refreshed directly. Inspect each kind's `stale`,
 `error_class`, and `error` fields:
 failed feed refreshes preserve the last successful rows and return their per-kind stale outcome.
 On installed HTTP/UDS and structured CLI rows, use `installed_name` for lifecycle mutations;

@@ -2,8 +2,8 @@ import * as React from "react";
 
 export interface TopbarSlotValue {
   /**
-   * Override for the leaf breadcrumb label. Lets routes that resolve their
-   * identity from loader data (entity display names) push it as a live node.
+   * Override for the current route title. Lets routes that resolve identity
+   * from loader data (entity display names) push it as a live node.
    */
   crumb?: React.ReactNode;
   /**

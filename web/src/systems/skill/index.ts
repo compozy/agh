@@ -40,7 +40,12 @@ export {
   skillShadowsOptions,
   skillsListOptions,
 } from "./lib/query-options";
-export { skillSourceTone } from "./lib/skill-formatters";
+export {
+  deriveSkillCapabilities,
+  deriveSkillRecentCalls,
+  skillSourceTone,
+  type SkillRecentCall,
+} from "./lib/skill-formatters";
 
 // Hooks
 export { useSkill, useSkillContent, useSkillShadows, useSkills } from "./hooks/use-skills";

@@ -19,7 +19,8 @@ describe("ListingPage", () => {
     expect(content?.className).toContain("px-9");
     expect(content?.className).toContain("max-w-content-max");
     expect(content?.className).toContain("min-h-full");
-    expect(screen.getByRole("heading", { level: 1, name: "Loops" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getByText("Loops")).toHaveAttribute("data-slot", "page-head-title");
     expect(screen.getByTestId("listing-count")).toHaveTextContent("3");
     expect(screen.getByText("Cached results")).toBeInTheDocument();
     expect(screen.getByText("Listing body")).toBeInTheDocument();

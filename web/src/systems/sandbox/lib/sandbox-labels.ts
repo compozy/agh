@@ -1,6 +1,6 @@
 import type { SettingsSandboxEntry } from "@/systems/settings";
 
-export const SANDBOX_BACKENDS = ["local", "daytona"] as const;
+export const SANDBOX_BACKENDS = ["local", "daytona", "e2b"] as const;
 export type SandboxBackend = (typeof SANDBOX_BACKENDS)[number];
 
 export const SANDBOX_PERSISTENCE_OPTIONS = ["transient", "reuse", "archive"] as const;

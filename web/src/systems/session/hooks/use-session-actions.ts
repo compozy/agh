@@ -137,6 +137,7 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation({
+    mutationKey: sessionKeys.clearConversation(workspaceId ?? ""),
     mutationFn: (id: string) => clearSessionConversation(requireWorkspace(workspaceId), id),
     onMutate: async (id): Promise<ClearConversationSnapshot> => {
       const mutateWorkspaceId = requireWorkspace(workspaceId);

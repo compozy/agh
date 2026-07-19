@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	registrypkg "github.com/compozy/agh/internal/registry"
 	"github.com/compozy/agh/internal/skills"
 )
@@ -31,6 +32,48 @@ type fakeInstallRegistry struct {
 
 type fakeSkillResolver struct {
 	skills map[string]*skills.Skill
+}
+
+type recordingSearchSource struct {
+	query string
+	opts  registrypkg.SearchOpts
+}
+
+func (s *recordingSearchSource) Name() string {
+	return "recording-search"
+}
+
+func (s *recordingSearchSource) Capabilities() registrypkg.SourceCaps {
+	return registrypkg.SourceCaps{Search: true}
+}
+
+func (s *recordingSearchSource) Search(
+	_ context.Context,
+	query string,
+	opts registrypkg.SearchOpts,
+) ([]registrypkg.Listing, error) {
+	s.query = query
+	s.opts = opts
+	return []registrypkg.Listing{}, nil
+}
+
+func (s *recordingSearchSource) Info(
+	context.Context,
+	string,
+) (*registrypkg.Detail, error) {
+	return nil, registrypkg.ErrNotSupported
+}
+
+func (s *recordingSearchSource) Download(
+	context.Context,
+	string,
+	registrypkg.DownloadOpts,
+) (*registrypkg.DownloadResult, error) {
+	return nil, registrypkg.ErrNotSupported
+}
+
+func (s *recordingSearchSource) Close() error {
+	return nil
 }
 
 func (r fakeSkillResolver) Get(name string) (*skills.Skill, bool) {
@@ -267,6 +310,42 @@ func TestNormalizeSkillSlug(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServiceSearch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward continuation pagination to the registry source", func(t *testing.T) {
+		t.Parallel()
+
+		source := &recordingSearchSource{}
+		service := NewService(
+			aghconfig.HomePaths{},
+			aghconfig.SkillsConfig{},
+			WithSourceLoader(func(aghconfig.MarketplaceConfig) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{source}, nil
+			}),
+		)
+
+		listings, err := service.Search(context.Background(), "review", 41, 7)
+		if err != nil {
+			t.Fatalf("Service.Search() error = %v", err)
+		}
+		if len(listings) != 0 {
+			t.Fatalf("Service.Search() listings = %d, want 0", len(listings))
+		}
+		if source.query != "review" {
+			t.Fatalf("registry query = %q, want %q", source.query, "review")
+		}
+		wantOpts := registrypkg.SearchOpts{
+			Limit:  7,
+			Offset: 41,
+			Type:   registrypkg.PackageTypeSkill,
+		}
+		if source.opts != wantOpts {
+			t.Fatalf("registry opts = %+v, want %+v", source.opts, wantOpts)
+		}
+	})
 }
 
 func TestInstallWithRegistryRejectsUnsafeTargets(t *testing.T) {

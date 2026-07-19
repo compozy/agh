@@ -1,5 +1,5 @@
 import { Check, Copy, KeyRound, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button, Eyebrow, Input, Pill, Sheet, SheetContent, Time } from "@agh/ui";
 
@@ -13,6 +13,7 @@ export interface VaultSecretSheetProps {
   replaceValue: string;
   replaceIsValid: boolean;
   replaceIsPending: boolean;
+  deleteIsDisabled: boolean;
   replaceError: string | null;
   onOpenChange: (open: boolean) => void;
   onReplaceValueChange: (value: string) => void;
@@ -26,6 +27,7 @@ export function VaultSecretSheet({
   replaceValue,
   replaceIsValid,
   replaceIsPending,
+  deleteIsDisabled,
   replaceError,
   onOpenChange,
   onReplaceValueChange,
@@ -33,20 +35,45 @@ export function VaultSecretSheet({
   onRequestDelete,
 }: VaultSecretSheetProps) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const copyResetTimerRef = useRef<number | null>(null);
 
-  const handleCopy = () => {
-    if (!secret || !navigator.clipboard) return;
-    void navigator.clipboard.writeText(secret.ref).then(() => {
+  useEffect(
+    () => () => {
+      if (copyResetTimerRef.current) window.clearTimeout(copyResetTimerRef.current);
+    },
+    []
+  );
+
+  const handleCopy = async () => {
+    if (!secret || !navigator.clipboard) {
+      setCopied(false);
+      setCopyError(true);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(secret.ref);
+      setCopyError(false);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    });
+      if (copyResetTimerRef.current) window.clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copyResetTimerRef.current = null;
+      }, 1500);
+    } catch {
+      setCopied(false);
+      setCopyError(true);
+    }
   };
 
   return (
     <Sheet
       open={open}
       onOpenChange={next => {
-        if (!next) setCopied(false);
+        if (!next) {
+          setCopied(false);
+          setCopyError(false);
+        }
         onOpenChange(next);
       }}
     >
@@ -60,6 +87,7 @@ export function VaultSecretSheet({
           <>
             <SheetHead
               copied={copied}
+              copyError={copyError}
               onClose={() => onOpenChange(false)}
               onCopy={handleCopy}
               secret={secret}
@@ -75,7 +103,10 @@ export function VaultSecretSheet({
                 onReplaceValueChange={onReplaceValueChange}
                 replaceValue={replaceValue}
               />
-              <SheetDangerZone onRequestDelete={() => onRequestDelete(secret)} />
+              <SheetDangerZone
+                disabled={deleteIsDisabled}
+                onRequestDelete={() => onRequestDelete(secret)}
+              />
             </div>
             <footer
               className="flex items-center gap-2.5 border-t border-line-soft px-5 py-3"
@@ -95,11 +126,13 @@ export function VaultSecretSheet({
 function SheetHead({
   secret,
   copied,
+  copyError,
   onCopy,
   onClose,
 }: {
   secret: VaultSecret;
   copied: boolean;
+  copyError: boolean;
   onCopy: () => void;
   onClose: () => void;
 }) {
@@ -138,6 +171,15 @@ function SheetHead({
             )}
           </button>
         </div>
+        {copyError ? (
+          <p
+            className="mt-1 text-caption text-danger"
+            data-testid="vault-secret-sheet-copy-error"
+            role="alert"
+          >
+            Vault reference could not be copied.
+          </p>
+        ) : null}
       </div>
       <button
         aria-label="Close"
@@ -268,7 +310,13 @@ function SheetReplaceSection({
   );
 }
 
-function SheetDangerZone({ onRequestDelete }: { onRequestDelete: () => void }) {
+function SheetDangerZone({
+  disabled,
+  onRequestDelete,
+}: {
+  disabled: boolean;
+  onRequestDelete: () => void;
+}) {
   return (
     <section data-testid="vault-secret-sheet-danger">
       <div className="flex items-center justify-between gap-3 rounded-md border border-danger/20 bg-danger-tint px-3.5 py-3">
@@ -280,6 +328,7 @@ function SheetDangerZone({ onRequestDelete }: { onRequestDelete: () => void }) {
         </div>
         <Button
           data-testid="vault-secret-sheet-delete"
+          disabled={disabled}
           onClick={onRequestDelete}
           size="sm"
           type="button"

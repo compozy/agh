@@ -90,11 +90,13 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({
     activeOptions,
     children,
+    onClick,
     search,
     ...rest
   }: {
     activeOptions?: { exact?: boolean; includeSearch?: boolean };
     children: ReactNode;
+    onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
     search?: unknown;
   } & Record<string, unknown>) => {
     const { params: _params, to: _to, ...domRest } = rest as Record<string, unknown>;
@@ -118,6 +120,8 @@ vi.mock("@tanstack/react-router", () => ({
         {...domRest}
         aria-current={isActive ? "page" : undefined}
         onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+          onClick?.(event);
+          if (event.defaultPrevented) return;
           event.preventDefault();
           setSearchParams(nextSearch);
         }}
@@ -390,6 +394,27 @@ describe("TasksRoute", () => {
     expect(screen.getByTestId("tasks-mode-list")).not.toHaveAttribute("aria-current");
     expect(screen.getByTestId("tasks-mode-dashboard")).not.toHaveAttribute("aria-current");
     expect(screen.getByTestId("tasks-mode-inbox")).not.toHaveAttribute("aria-current");
+  });
+
+  it("Should clear the list search when the mounted route changes surface mode", async () => {
+    listTasksMock.mockResolvedValue({
+      facets: { owners: [], statuses: [] },
+      page: { has_more: false, limit: 50, total: 1 },
+      tasks: [buildTaskFixture({ id: "task_search", title: "Searchable task" })],
+    });
+    renderTasksRoute();
+
+    const search = await screen.findByTestId("tasks-list-search-input");
+    fireEvent.change(search, { target: { value: "hidden after navigation" } });
+    expect(search).toHaveValue("hidden after navigation");
+
+    fireEvent.click(screen.getByTestId("tasks-mode-dashboard"));
+    await waitFor(() => {
+      expect(screen.getByTestId("tasks-mode-dashboard")).toHaveAttribute("aria-current", "page");
+    });
+    fireEvent.click(screen.getByTestId("tasks-mode-list"));
+
+    expect(await screen.findByTestId("tasks-list-search-input")).toHaveValue("");
   });
 
   it("keeps the task count unknown until the catalog returns an authoritative total", async () => {

@@ -6,30 +6,56 @@ import {
   useAutomationJob,
   useAutomationJobEditor,
   useAutomationJobRuns,
+  automationMatchesActiveWorkspace,
+  automationWorkspaceAccessError,
   useDeleteAutomationJob,
   useTriggerAutomationJob,
   useUpdateAutomationJob,
 } from "@/systems/automation";
 import type { AutomationRun } from "@/systems/automation";
+import { useSettingsAutomation } from "@/systems/settings";
 import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
+
+import { automationUnavailableMessage } from "./use-automation-page-base";
 
 /** Detail view-model for a single automation job resolved from the route `jobId`. */
 export function useAutomationJobDetailPage(jobId: string) {
   const navigate = useNavigate();
-  const { activeWorkspaceId, workspaces } = useActiveWorkspace();
+  const { activeWorkspaceId, isLoading: workspaceLoading, workspaces } = useActiveWorkspace();
   const [queuedRun, setQueuedRun] = useState<AutomationRun | null>(null);
 
   const jobDetailQuery = useAutomationJob(jobId, { enabled: Boolean(jobId) });
-  const jobRunsQuery = useAutomationJobRuns(jobId, { limit: 10 }, { enabled: Boolean(jobId) });
+  const loadedJob = jobDetailQuery.data;
+  const canAccessJob =
+    loadedJob !== undefined &&
+    !workspaceLoading &&
+    automationMatchesActiveWorkspace(loadedJob, activeWorkspaceId);
+  const jobRunsQuery = useAutomationJobRuns(
+    jobId,
+    { limit: 10 },
+    { enabled: Boolean(jobId) && canAccessJob }
+  );
+  const settingsQuery = useSettingsAutomation();
+  const runtimeUnavailableMessage = automationUnavailableMessage(
+    "jobs",
+    settingsQuery.data?.runtime ?? null,
+    jobDetailQuery.error
+  );
 
   const updateMutation = useUpdateAutomationJob();
   const deleteMutation = useDeleteAutomationJob();
   const triggerMutation = useTriggerAutomationJob();
 
-  const job = jobDetailQuery.data;
-  const persistedRuns = jobRunsQuery.data ?? [];
+  const job = canAccessJob ? loadedJob : undefined;
+  const accessError = automationWorkspaceAccessError(
+    "job",
+    loadedJob,
+    activeWorkspaceId,
+    workspaceLoading
+  );
+  const persistedRuns = job ? (jobRunsQuery.data ?? []) : [];
   const runs =
-    queuedRun && !persistedRuns.some(run => run.id === queuedRun.id)
+    job && queuedRun && !persistedRuns.some(run => run.id === queuedRun.id)
       ? [queuedRun, ...persistedRuns]
       : persistedRuns;
 
@@ -49,7 +75,7 @@ export function useAutomationJobDetailPage(jobId: string) {
   };
 
   const handleTriggerNow = async () => {
-    if (!job) return;
+    if (!job || runtimeUnavailableMessage) return;
     try {
       const run = await triggerMutation.mutateAsync({ id: job.id });
       setQueuedRun(run);
@@ -68,7 +94,7 @@ export function useAutomationJobDetailPage(jobId: string) {
 
   return {
     editorDialogProps: editor.editorDialogProps,
-    error: jobDetailQuery.error,
+    error: job ? null : (accessError ?? jobDetailQuery.error),
     handleBack: () => void navigate({ to: "/jobs" }),
     handleDelete,
     handleEdit: () => {
@@ -81,12 +107,13 @@ export function useAutomationJobDetailPage(jobId: string) {
       void handleTriggerNow();
     },
     isDeleting: deleteMutation.isPending,
-    isLoading: jobDetailQuery.isLoading && !job,
+    isLoading: (jobDetailQuery.isLoading || workspaceLoading) && !job && !accessError,
     isTogglePending: updateMutation.isPending,
     isTriggerPending: triggerMutation.isPending,
+    isTriggerDisabled: runtimeUnavailableMessage !== null,
     job,
     runs,
-    runsError: jobRunsQuery.error,
-    runsLoading: jobRunsQuery.isLoading,
+    runsError: job ? jobRunsQuery.error : null,
+    runsLoading: job ? jobRunsQuery.isLoading : false,
   };
 }

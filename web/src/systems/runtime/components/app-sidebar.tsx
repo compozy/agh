@@ -257,7 +257,7 @@ const DASHBOARD_NAV_ITEM: NavItemProps = {
 
 const OPERATE_NAV_ITEMS: NavItemProps[] = [
   { to: "/agents", icon: Users2, label: "Agents", fuzzy: true },
-  { to: "/network", icon: Network, label: "Network" },
+  { to: "/network", icon: Network, label: "Network", fuzzy: true },
   { to: "/tasks", icon: ListChecks, label: "Tasks", fuzzy: true },
   { to: "/loops", icon: Repeat2, label: "Loops", fuzzy: true },
   { to: "/jobs", icon: Clock3, label: "Jobs", fuzzy: true },
@@ -266,7 +266,7 @@ const OPERATE_NAV_ITEMS: NavItemProps[] = [
 
 const CATALOG_NAV_ITEMS: NavItemProps[] = [
   { to: "/marketplace", icon: Store, label: "Marketplace", fuzzy: true },
-  { to: "/bridges", icon: Waypoints, label: "Bridges" },
+  { to: "/bridges", icon: Waypoints, label: "Bridges", fuzzy: true },
   { to: "/knowledge", icon: Book, label: "Knowledge" },
 ];
 

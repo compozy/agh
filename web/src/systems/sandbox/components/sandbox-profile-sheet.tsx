@@ -67,7 +67,7 @@ export function SandboxProfileSheet({
               data-testid="sandbox-profile-sheet-foot"
             >
               <span className="min-w-0 truncate font-mono text-[10px] text-faint">
-                agh config get sandboxes.{entry.name}
+                agh config get sandboxes.{entry.name}.backend
               </span>
             </footer>
           </>
@@ -264,7 +264,7 @@ function EnvSection({ entry }: { entry: SettingsSandboxEntry }) {
       </div>
       {secretKeys.length > 0 ? (
         <p className="mt-1.5 text-[11.5px] leading-normal text-subtle">
-          Secret values render as vault references and never return in plaintext.
+          Secret bindings are references and never return in plaintext.
         </p>
       ) : null}
     </section>

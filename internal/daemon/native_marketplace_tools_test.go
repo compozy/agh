@@ -25,6 +25,7 @@ func (c lateBootMarketplaceCatalog) Browse(
 	marketplacepkg.Kind,
 	string,
 	int,
+	int,
 ) (marketplacepkg.BrowseResult, error) {
 	return marketplacepkg.BrowseResult{
 		Entries: []marketplacepkg.Entry{c.entry},
@@ -166,6 +167,89 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 		requireNativeStructuredContains(t, result, []byte(`"kind":"bundle"`))
 		requireNativeStructuredContains(t, result, []byte(`"name":"starter"`))
 		requireNativeStructuredContains(t, result, []byte(`"stale":false`))
+	})
+
+	t.Run("Should continue a single-kind search with the opaque core cursor", func(t *testing.T) {
+		t.Parallel()
+
+		bundles := &nativeBundleServiceStub{catalog: []bundlepkg.CatalogEntry{
+			{
+				ExtensionName: "compozy/productivity",
+				Bundle:        extensionpkg.BundleSpec{Name: "alpha", Description: "Alpha team"},
+			},
+			{
+				ExtensionName: "compozy/productivity",
+				Bundle:        extensionpkg.BundleSpec{Name: "beta", Description: "Beta team"},
+			},
+		}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			BundleService: func() core.BundleService { return bundles },
+		}, nativeApproveAllPolicyInputs())
+
+		first, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMarketplaceSearch,
+				Input:  json.RawMessage(`{"kind":"bundle","limit":1}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(first marketplace page) error = %v", err)
+		}
+		var firstPage contract.MarketplaceKindResponse
+		if err := json.Unmarshal(first.Structured, &firstPage); err != nil {
+			t.Fatalf("json.Unmarshal(first marketplace page) error = %v", err)
+		}
+		if len(firstPage.Items) != 1 || firstPage.NextCursor == "" {
+			t.Fatalf("first marketplace page = %#v, want one item and continuation", firstPage)
+		}
+
+		secondInput, err := json.Marshal(map[string]any{
+			"kind": "bundle", "limit": 1, "cursor": firstPage.NextCursor,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(second marketplace request) error = %v", err)
+		}
+		second, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMarketplaceSearch, Input: secondInput},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(second marketplace page) error = %v", err)
+		}
+		var secondPage contract.MarketplaceKindResponse
+		if err := json.Unmarshal(second.Structured, &secondPage); err != nil {
+			t.Fatalf("json.Unmarshal(second marketplace page) error = %v", err)
+		}
+		if len(secondPage.Items) != 1 ||
+			secondPage.Items[0].EntryID == firstPage.Items[0].EntryID {
+			t.Fatalf("second marketplace page = %#v, want one distinct item", secondPage)
+		}
+	})
+
+	t.Run("Should reject an opaque cursor without a single kind", func(t *testing.T) {
+		t.Parallel()
+
+		bundles := &nativeBundleServiceStub{catalog: []bundlepkg.CatalogEntry{{
+			ExtensionName: "compozy/productivity",
+			Bundle:        extensionpkg.BundleSpec{Name: "starter", Description: "Starter team"},
+		}}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			BundleService: func() core.BundleService { return bundles },
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMarketplaceSearch,
+				Input:  json.RawMessage(`{"cursor":"opaque"}`),
+			},
+		)
+		if err == nil || !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(cursor without kind) error = %v, want invalid input", err)
+		}
 	})
 
 	t.Run("Should project installed state from the caller workspace", func(t *testing.T) {

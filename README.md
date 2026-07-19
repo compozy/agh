@@ -89,7 +89,7 @@ AGH is a Go and Bun monorepo. Start the daemon with automatic Go rebuilds and th
 make dev
 ```
 
-The first successful build stops any daemon using the active `AGH_HOME` and takes over its lifecycle. Vite uses the first available port starting at `3000`, and the daemon's web routes redirect to that live UI while API traffic stays on the daemon. Set `AGH_WEB_PORT` to require a specific web port. Press `Ctrl-C` to stop both development processes, or use `make dev-daemon` when you only need the backend.
+The first successful build stops any daemon using the active `AGH_HOME` and takes over its lifecycle. A failed Go rebuild keeps the last successful daemon running; the next successful build replaces it. Vite uses the first available port starting at `3000`, and the daemon's web routes redirect to that live UI while API traffic stays on the daemon. Set `AGH_WEB_PORT` to require a specific web port. Press `Ctrl-C` to stop the owned daemon and both development processes, or use `make dev-daemon` when you only need the backend.
 
 Run the full verification gate before sending changes:
 

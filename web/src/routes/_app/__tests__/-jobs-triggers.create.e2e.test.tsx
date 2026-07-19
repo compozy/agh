@@ -396,6 +396,21 @@ function automationCreateHandlers(): HttpHandler[] {
 
       return new HttpResponse(null, { status: 204 });
     }),
+    http.post("/api/automation/jobs/:id/trigger", ({ params }) => {
+      const id = String(params.id);
+      if (!jobStore.get(id)) {
+        return HttpResponse.json({ error: `Automation job not found: ${id}` }, { status: 404 });
+      }
+      return HttpResponse.json({
+        run: {
+          ...automationRunFixtures[0]!,
+          id: `run_${id}_manual`,
+          job_id: id,
+          session_id: undefined,
+          status: "scheduled",
+        },
+      });
+    }),
     http.get("/api/automation/triggers", ({ request }) => {
       const triggers = triggerStore.listScoped(scopedFilterFromRequest(request));
       return HttpResponse.json({
@@ -978,6 +993,69 @@ describe("Jobs create modal", () => {
       "Summarize edited launch state."
     );
     expect(toast.success).toHaveBeenCalledWith("Updated job existing-job.");
+  });
+
+  it("Should reset detail-local state when job and trigger route identities change", async () => {
+    jobStore.reset([
+      makeJob({ id: "job_alpha", name: "alpha-job" }),
+      makeJob({ id: "job_beta", name: "beta-job" }),
+    ]);
+    runs = [];
+    routerState.currentPath = "/jobs/job_alpha";
+    routerState.params = { jobId: "job_alpha" };
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(workspaceKeys.list(), workspaces);
+    const jobView = renderWithTopbar(
+      <QueryClientProvider client={queryClient}>
+        <JobDetailPage />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("alpha-job")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("trigger-job-btn"));
+    expect(await screen.findByTestId("automation-run-run_job_alpha_manual")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("edit-automation-btn"));
+    expect(screen.getByRole("heading", { name: "Edit job" })).toBeInTheDocument();
+
+    routerState.params = { jobId: "job_beta" };
+    jobView.rerender(
+      <QueryClientProvider client={queryClient}>
+        <JobDetailPage />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("beta-job")).toBeInTheDocument();
+    expect(screen.queryByTestId("automation-run-run_job_alpha_manual")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Edit job" })).not.toBeInTheDocument();
+    jobView.unmount();
+
+    triggerStore.reset([
+      makeTrigger({ id: "trg_alpha", name: "alpha-trigger" }),
+      makeTrigger({ id: "trg_beta", name: "beta-trigger" }),
+    ]);
+    routerState.currentPath = "/triggers/trg_alpha";
+    routerState.params = { triggerId: "trg_alpha" };
+    const triggerClient = createQueryClient();
+    triggerClient.setQueryData(workspaceKeys.list(), workspaces);
+    const triggerView = renderWithTopbar(
+      <QueryClientProvider client={triggerClient}>
+        <TriggerDetailPage />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("alpha-trigger")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("edit-automation-btn"));
+    expect(screen.getByRole("heading", { name: "Edit trigger" })).toBeInTheDocument();
+
+    routerState.params = { triggerId: "trg_beta" };
+    triggerView.rerender(
+      <QueryClientProvider client={triggerClient}>
+        <TriggerDetailPage />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("beta-trigger")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Edit trigger" })).not.toBeInTheDocument();
   });
 
   it("Should disable job task owner ref until kind is selected and submit a specific owner", async () => {

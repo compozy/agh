@@ -37,17 +37,17 @@ func TestSQLiteStoreReplaceKind(t *testing.T) {
 			t.Fatalf("ReplaceKind(second) error = %v", err)
 		}
 
-		entries, err := store.ListKind(ctx, KindMCP, "", 10)
+		page, err := store.ListKind(ctx, KindMCP, "", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind() error = %v", err)
 		}
-		if got, want := len(entries), 1; got != want {
+		if got, want := len(page.Entries), 1; got != want {
 			t.Fatalf("ListKind() entries = %d, want %d", got, want)
 		}
-		if got, want := entries[0].EntryID, "beta"; got != want {
+		if got, want := page.Entries[0].EntryID, "beta"; got != want {
 			t.Fatalf("ListKind() entry id = %q, want %q", got, want)
 		}
-		if got, want := entries[0].Description, "Updated description"; got != want {
+		if got, want := page.Entries[0].Description, "Updated description"; got != want {
 			t.Fatalf("ListKind() description = %q, want %q", got, want)
 		}
 		state, err := store.KindState(ctx, KindMCP)
@@ -77,12 +77,12 @@ func TestSQLiteStoreReplaceKind(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "identity fields are required") {
 			t.Fatalf("ReplaceKind(invalid) error = %v, want identity-fields validation", err)
 		}
-		entries, err := store.ListKind(ctx, KindSkill, "", 10)
+		page, err := store.ListKind(ctx, KindSkill, "", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind() error = %v", err)
 		}
-		if got, want := len(entries), 1; got != want || entries[0].EntryID != "stable" {
-			t.Fatalf("ListKind() = %#v, want preserved stable entry", entries)
+		if got, want := len(page.Entries), 1; got != want || page.Entries[0].EntryID != "stable" {
+			t.Fatalf("ListKind() = %#v, want preserved stable entry", page)
 		}
 	})
 }
@@ -108,63 +108,75 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 			t.Fatalf("ReplaceKind() error = %v", err)
 		}
 
-		entries, err := store.ListKind(ctx, KindExtension, "telemetry", 1)
+		page, err := store.ListKind(ctx, KindExtension, "telemetry", 0, 1)
 		if err != nil {
 			t.Fatalf("ListKind(query) error = %v", err)
 		}
-		if got, want := len(entries), 1; got != want {
+		if got, want := len(page.Entries), 1; got != want {
 			t.Fatalf("ListKind(query) entries = %d, want %d", got, want)
 		}
-		if got, want := entries[0].EntryID, "beta"; got != want {
+		if got, want := page.Total, 2; got != want {
+			t.Fatalf("ListKind(query) total = %d, want %d", got, want)
+		}
+		if got, want := page.Entries[0].EntryID, "beta"; got != want {
 			t.Fatalf("ListKind(query) first id = %q, want deterministic %q", got, want)
 		}
-		byName, err := store.ListKind(ctx, KindExtension, "cost guard", 10)
+		nextPage, err := store.ListKind(ctx, KindExtension, "telemetry", 1, 1)
+		if err != nil {
+			t.Fatalf("ListKind(next page) error = %v", err)
+		}
+		if got, want := nextPage.Total, 2; got != want || len(nextPage.Entries) != 1 ||
+			nextPage.Entries[0].EntryID != "alpha" {
+			t.Fatalf("ListKind(next page) = %#v, want second stable match and exact total %d", nextPage, want)
+		}
+		byName, err := store.ListKind(ctx, KindExtension, "cost guard", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind(name query) error = %v", err)
 		}
-		if got, want := len(byName), 1; got != want || byName[0].EntryID != "gamma" {
+		if got, want := len(byName.Entries), 1; got != want || byName.Entries[0].EntryID != "gamma" {
 			t.Fatalf("ListKind(name query) = %#v, want gamma", byName)
 		}
-		byDescription, err := store.ListKind(ctx, KindExtension, "exports traces", 10)
+		byDescription, err := store.ListKind(ctx, KindExtension, "exports traces", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind(description query) error = %v", err)
 		}
-		if got, want := len(byDescription), 1; got != want || byDescription[0].EntryID != "alpha" {
+		if got, want := len(byDescription.Entries), 1; got != want || byDescription.Entries[0].EntryID != "alpha" {
 			t.Fatalf("ListKind(description query) = %#v, want alpha", byDescription)
 		}
-		caseInsensitive, err := store.ListKind(ctx, KindExtension, "TELEMETRY", 10)
+		caseInsensitive, err := store.ListKind(ctx, KindExtension, "TELEMETRY", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind(case-insensitive query) error = %v", err)
 		}
-		if got, want := len(caseInsensitive), 2; got != want {
+		if got, want := len(caseInsensitive.Entries), 2; got != want {
 			t.Fatalf("ListKind(case-insensitive query) = %#v, want alpha and beta", caseInsensitive)
 		}
-		unicodeFolded, err := store.ListKind(ctx, KindExtension, "résumé", 10)
+		unicodeFolded, err := store.ListKind(ctx, KindExtension, "résumé", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind(Unicode-folded query) error = %v", err)
 		}
-		if got, want := len(unicodeFolded), 1; got != want || unicodeFolded[0].EntryID != "resume" {
+		if got, want := len(unicodeFolded.Entries), 1; got != want || unicodeFolded.Entries[0].EntryID != "resume" {
 			t.Fatalf("ListKind(Unicode-folded query) = %#v, want resume", unicodeFolded)
 		}
-		fullFolded, err := store.ListKind(ctx, KindExtension, "STRASSE", 10)
+		fullFolded, err := store.ListKind(ctx, KindExtension, "STRASSE", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind(full-fold query) error = %v", err)
 		}
-		if got, want := len(fullFolded), 1; got != want || fullFolded[0].EntryID != "strasse" {
+		if got, want := len(fullFolded.Entries), 1; got != want || fullFolded.Entries[0].EntryID != "strasse" {
 			t.Fatalf("ListKind(full-fold query) = %#v, want strasse", fullFolded)
 		}
-		canonicalEquivalent, err := store.ListKind(ctx, KindExtension, "Café", 10)
+		canonicalEquivalent, err := store.ListKind(ctx, KindExtension, "Café", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind(canonical-equivalence query) error = %v", err)
 		}
-		if got, want := len(canonicalEquivalent), 1; got != want || canonicalEquivalent[0].EntryID != "cafe" {
+		if got, want := len(canonicalEquivalent.Entries), 1; got != want ||
+			canonicalEquivalent.Entries[0].EntryID != "cafe" {
 			t.Fatalf("ListKind(canonical-equivalence query) = %#v, want cafe", canonicalEquivalent)
 		}
-		empty, err := store.ListKind(ctx, KindExtension, "not-present", 10)
+		empty, err := store.ListKind(ctx, KindExtension, "not-present", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind(zero-result query) error = %v", err)
 		}
-		if len(empty) != 0 {
+		if len(empty.Entries) != 0 {
 			t.Fatalf("ListKind(zero-result query) = %#v, want empty", empty)
 		}
 
@@ -204,11 +216,11 @@ func TestSQLiteStoreQueriesAndStaleState(t *testing.T) {
 		if !state.Stale || state.ErrorClass != errorClassNetwork || state.LastError != "token=[REDACTED]" {
 			t.Fatalf("KindState() = %#v, want stale network state", state)
 		}
-		entries, err := store.ListKind(ctx, KindMCP, "", 10)
+		page, err := store.ListKind(ctx, KindMCP, "", 0, 10)
 		if err != nil {
 			t.Fatalf("ListKind() error = %v", err)
 		}
-		if got, want := len(entries), 1; got != want {
+		if got, want := len(page.Entries), 1; got != want {
 			t.Fatalf("ListKind() entries = %d, want %d preserved", got, want)
 		}
 	})
@@ -418,7 +430,7 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 
 		store := openMarketplaceTestStore(t)
 		//nolint:staticcheck // Explicitly verifies the public nil-context guard.
-		_, err := store.ListKind(nil, KindSkill, "", 10)
+		_, err := store.ListKind(nil, KindSkill, "", 0, 10)
 		if err == nil || !strings.Contains(err.Error(), "store context is required") {
 			t.Fatalf("ListKind(nil context) error = %v, want context validation", err)
 		}

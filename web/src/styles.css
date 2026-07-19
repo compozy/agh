@@ -16,7 +16,7 @@
   min-height: 100%;
 }
 
-/* Marketplace install flash — domain animation (prototype .card-flash); not a design token. */
+/* Marketplace install flash — domain animation using the shared motion scale. */
 @keyframes marketplace-card-flash {
   0% {
     background-color: var(--color-accent-tint);
@@ -27,5 +27,5 @@
 }
 
 .marketplace-card-flash {
-  animation: marketplace-card-flash 1.4s var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+  animation: marketplace-card-flash var(--duration-slow) var(--ease-out);
 }

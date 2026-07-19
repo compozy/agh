@@ -20,6 +20,12 @@ function useMarketplaceDetailSkillManage(name: string) {
   const disableMutation = useDisableSkill();
   const skill = skillQuery.data;
   const acting = enableMutation.isPending || disableMutation.isPending;
+  const toggleMutationError = enableMutation.error ?? disableMutation.error;
+  const toggleError = toggleMutationError
+    ? toggleMutationError instanceof Error && toggleMutationError.message.trim().length > 0
+      ? toggleMutationError.message
+      : "Couldn't update skill availability"
+    : null;
 
   return {
     acting,
@@ -28,6 +34,8 @@ function useMarketplaceDetailSkillManage(name: string) {
     setContentRequested,
     shadowsQuery,
     skill,
+    skillQuery,
+    toggleError,
     toggleEnabled: (next: boolean) => {
       if (acting || !skill) return;
       if (next) enableMutation.mutate({ name, workspace: workspaceId });

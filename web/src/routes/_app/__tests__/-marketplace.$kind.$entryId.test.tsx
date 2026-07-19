@@ -14,6 +14,8 @@ const router = vi.hoisted(() => ({
   pathname: "/marketplace/skills",
   search: {} as Record<string, unknown>,
 }));
+const useMarketplaceEntryMock = vi.hoisted(() => vi.fn());
+const useMarketplaceActionControllerMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -65,27 +67,26 @@ vi.mock("@/systems/marketplace", async importOriginal => {
     ...actual,
     MarketplaceDetail: () => <div data-testid="marketplace-detail" />,
     MarketplaceDetailSkeleton: () => <div data-testid="marketplace-detail-skeleton" />,
-    useMarketplaceActionController: () => ({
-      dialogs: null,
-      handleAction: vi.fn(),
-      handleDeactivate: vi.fn(),
-      handleRemove: vi.fn(),
-      handleToggleEnabled: vi.fn(),
-      isEntryFlashing: () => false,
-      isEntryPending: () => false,
-    }),
-    useMarketplaceEntry: () => ({
-      data: marketplaceDetails["skill:git-flow"],
-      error: null,
-      isLoading: false,
-      refetch: vi.fn(),
-    }),
+    useMarketplaceActionController: useMarketplaceActionControllerMock,
+    useMarketplaceEntry: useMarketplaceEntryMock,
     useRefreshMarketplaceCatalog: () => ({
       isPending: false,
       mutate: vi.fn(),
     }),
   };
 });
+
+function marketplaceActionControllerResult() {
+  return {
+    dialogs: null,
+    handleAction: vi.fn(),
+    handleDeactivate: vi.fn(),
+    handleRemove: vi.fn(),
+    handleToggleEnabled: vi.fn(),
+    isEntryFlashing: () => false,
+    isEntryPending: () => false,
+  };
+}
 
 vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws-test" }),
@@ -124,10 +125,18 @@ function renderRoute(ui: ReactNode) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   router.childMatches = [];
   router.params = { kind: "skill", entryId: "git-flow" };
   router.pathname = "/marketplace/skills";
   router.search = {};
+  useMarketplaceEntryMock.mockReturnValue({
+    data: marketplaceDetails["skill:git-flow"],
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  });
+  useMarketplaceActionControllerMock.mockReturnValue(marketplaceActionControllerResult());
 });
 
 describe("Marketplace layout and detail topbar ownership", () => {
@@ -209,5 +218,39 @@ describe("Marketplace layout and detail topbar ownership", () => {
 
     expect(getSlot()?.crumb).toBe("git-flow");
     expect(screen.getByTestId("marketplace-detail")).toBeInTheDocument();
+  });
+
+  it("Should keep an explicit global MCP detail out of the active workspace scope", () => {
+    router.params = { kind: "mcp", entryId: "global-filesystem" };
+    router.search = { scope: "global", workspace_id: "ignored-workspace" };
+
+    renderRoute(<MarketplaceDetailPage />);
+
+    expect(useMarketplaceEntryMock).toHaveBeenCalledWith({
+      entryId: "global-filesystem",
+      installedName: undefined,
+      kind: "mcp",
+      workspaceId: null,
+    });
+    expect(useMarketplaceActionControllerMock).toHaveBeenCalledWith(null);
+  });
+
+  it("Should use the installed MCP card's workspace in a scoped detail deep link", () => {
+    router.params = { kind: "mcp", entryId: "workspace-filesystem" };
+    router.search = {
+      installed_name: "workspace-local-name",
+      scope: "workspace",
+      workspace_id: "ws-linked",
+    };
+
+    renderRoute(<MarketplaceDetailPage />);
+
+    expect(useMarketplaceEntryMock).toHaveBeenCalledWith({
+      entryId: "workspace-filesystem",
+      installedName: "workspace-local-name",
+      kind: "mcp",
+      workspaceId: "ws-linked",
+    });
+    expect(useMarketplaceActionControllerMock).toHaveBeenCalledWith("ws-linked");
   });
 });

@@ -27,9 +27,9 @@ func (h *BaseHandlers) marketplaceCuratedOrInstalledEntry(
 	var installedErr error
 	switch kind {
 	case marketplacepkg.KindExtension:
-		installed, installedErr = h.installedExtensionMarketplaceEntry(ctx, entryID)
+		installed, installedErr = h.installedExtensionMarketplaceEntry(ctx, entryID, false)
 	case marketplacepkg.KindMCP:
-		installed, installedErr = h.installedMCPMarketplaceEntry(ctx, entryID, scope)
+		installed, installedErr = h.installedMCPMarketplaceEntry(ctx, entryID, scope, false)
 	default:
 		installedErr = errors.Join(
 			ErrMarketplaceNotFound,
@@ -48,6 +48,7 @@ func (h *BaseHandlers) marketplaceCuratedOrInstalledEntry(
 func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 	ctx context.Context,
 	entryID string,
+	exactName bool,
 ) (contract.MarketplaceEntryResponse, error) {
 	if h == nil || h.Extensions == nil {
 		return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
@@ -65,7 +66,7 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 			catalogEntryID = strings.TrimSpace(item.Provenance.CatalogEntryID)
 		}
 		name := strings.TrimSpace(item.Name)
-		if name != entryID && catalogEntryID != entryID {
+		if name != entryID && (exactName || catalogEntryID != entryID) {
 			continue
 		}
 		source := strings.TrimSpace(item.Source)
@@ -85,10 +86,18 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 	)
 }
 
+func (h *BaseHandlers) installedExtensionMarketplaceEntryByName(
+	ctx context.Context,
+	name string,
+) (contract.MarketplaceEntryResponse, error) {
+	return h.installedExtensionMarketplaceEntry(ctx, name, true)
+}
+
 func (h *BaseHandlers) installedMCPMarketplaceEntry(
 	ctx context.Context,
 	entryID string,
 	scope marketplaceReadScope,
+	exactName bool,
 ) (contract.MarketplaceEntryResponse, error) {
 	if h == nil || h.Settings == nil {
 		return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
@@ -107,7 +116,7 @@ func (h *BaseHandlers) installedMCPMarketplaceEntry(
 	for _, item := range envelope.MCPServers {
 		name := strings.TrimSpace(item.Name)
 		catalogEntryID := strings.TrimSpace(item.CatalogEntry)
-		if name != entryID && catalogEntryID != entryID {
+		if name != entryID && (exactName || catalogEntryID != entryID) {
 			continue
 		}
 		version := strings.TrimSpace(item.CatalogVersion)
@@ -128,6 +137,14 @@ func (h *BaseHandlers) installedMCPMarketplaceEntry(
 		contract.MarketplaceKindMCP,
 		entryID,
 	)
+}
+
+func (h *BaseHandlers) installedMCPMarketplaceEntryByName(
+	ctx context.Context,
+	name string,
+	scope marketplaceReadScope,
+) (contract.MarketplaceEntryResponse, error) {
+	return h.installedMCPMarketplaceEntry(ctx, name, scope, true)
 }
 
 func (h *BaseHandlers) installedSkillMarketplaceEntry(
@@ -184,6 +201,14 @@ func (h *BaseHandlers) installedSkillMarketplaceEntry(
 		contract.MarketplaceKindSkill,
 		entryID,
 	)
+}
+
+func (h *BaseHandlers) installedSkillMarketplaceEntryByName(
+	ctx context.Context,
+	name string,
+	scope marketplaceReadScope,
+) (contract.MarketplaceEntryResponse, error) {
+	return h.installedSkillMarketplaceEntry(ctx, name, scope)
 }
 
 func marketplaceInstalledEntryNotFound(kind string, entryID string) error {

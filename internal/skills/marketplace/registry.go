@@ -35,8 +35,12 @@ func DefaultSourceLoader(registryCfg aghconfig.MarketplaceConfig) ([]registrypkg
 func (s *Service) Search(
 	ctx context.Context,
 	query string,
+	offset int,
 	limit int,
 ) (_ []registrypkg.Listing, err error) {
+	if offset < 0 {
+		return nil, classifiedf(ErrValidation, "search offset must be non-negative: %d", offset)
+	}
 	if limit <= 0 {
 		return nil, classifiedf(ErrValidation, "search limit must be positive: %d", limit)
 	}
@@ -50,8 +54,9 @@ func (s *Service) Search(
 	}()
 
 	return registry.Search(ctx, query, registrypkg.SearchOpts{
-		Limit: limit,
-		Type:  registrypkg.PackageTypeSkill,
+		Limit:  limit,
+		Offset: offset,
+		Type:   registrypkg.PackageTypeSkill,
 	})
 }
 

@@ -62,7 +62,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 			KindExtension: "bridge-github",
 			KindSkill:     "agh",
 		} {
-			result, err := service.Browse(ctx, kind, "", 10)
+			result, err := service.Browse(ctx, kind, "", 0, 10)
 			if err != nil {
 				t.Fatalf("Browse(%q) error = %v", kind, err)
 			}
@@ -111,7 +111,7 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 		if _, err := service.Refresh(ctx, KindSkill); err == nil || !strings.Contains(err.Error(), "connection refused") {
 			t.Fatalf("Refresh(unavailable) error = %v, want connection-refused transport failure", err)
 		}
-		result, err := service.Browse(ctx, KindSkill, "", 10)
+		result, err := service.Browse(ctx, KindSkill, "", 0, 10)
 		if err != nil {
 			t.Fatalf("Browse(stale fallback) error = %v", err)
 		}
@@ -163,16 +163,16 @@ func validSkillFeed(fields ...string) string {
 
 func assertProjectedSkillIDs(t *testing.T, ctx context.Context, store Store, wantEntryIDs ...string) {
 	t.Helper()
-	entries, err := store.ListKind(ctx, KindSkill, "", 10)
+	page, err := store.ListKind(ctx, KindSkill, "", 0, 10)
 	if err != nil {
 		t.Fatalf("ListKind() error = %v", err)
 	}
-	if got, want := len(entries), len(wantEntryIDs); got != want {
-		t.Fatalf("ListKind() count = %d, want %d: %#v", got, want, entries)
+	if got, want := len(page.Entries), len(wantEntryIDs); got != want {
+		t.Fatalf("ListKind() count = %d, want %d: %#v", got, want, page)
 	}
 	for index, wantEntryID := range wantEntryIDs {
-		if entries[index].EntryID != wantEntryID {
-			t.Fatalf("ListKind()[%d].EntryID = %q, want %q", index, entries[index].EntryID, wantEntryID)
+		if page.Entries[index].EntryID != wantEntryID {
+			t.Fatalf("ListKind()[%d].EntryID = %q, want %q", index, page.Entries[index].EntryID, wantEntryID)
 		}
 	}
 }

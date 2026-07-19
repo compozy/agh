@@ -12,7 +12,7 @@ const meta: Meta<typeof PageHead> = {
     docs: {
       description: {
         component:
-          "Route identity block (route chrome §08). Every variant starts with the 24px elevated icon well and owns the route's single focusable H1 (`tabIndex={-1}`). PH1 index: icon · H1 · count · meta. PH2 detail: icon · H1 · pills · meta, hairline base. PH3 compact: pre-title · compact H1 · short meta for split-pane surfaces.",
+          "Body summary block subordinate to the shell Topbar H1. PH1 index: icon · title · count · meta. PH2 detail: icon · title · pills · meta, hairline base. PH3 compact: pre-title · compact title · short meta for split-pane surfaces.",
       },
     },
   },
@@ -22,6 +22,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Index: Story = {
+  args: {},
   render: () => (
     <PageHead
       count={12}
@@ -39,6 +40,7 @@ export const Index: Story = {
 };
 
 export const Detail: Story = {
+  args: {},
   render: () => (
     <PageHead
       icon={Repeat2}
@@ -70,6 +72,7 @@ export const Detail: Story = {
 };
 
 export const DetailWithActions: Story = {
+  args: {},
   render: () => (
     <PageHead
       actions={
@@ -92,6 +95,7 @@ export const DetailWithActions: Story = {
 };
 
 export const Compact: Story = {
+  args: {},
   render: () => (
     <PageHead
       icon={BookOpen}

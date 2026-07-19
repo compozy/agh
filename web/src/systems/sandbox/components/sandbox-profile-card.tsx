@@ -1,4 +1,4 @@
-import { Boxes, Pencil } from "lucide-react";
+import { Boxes, Pencil, Trash2 } from "lucide-react";
 
 import { Button, CatalogCard, Pill } from "@agh/ui";
 
@@ -6,6 +6,7 @@ import type { SettingsSandboxEntry } from "@/systems/settings";
 import {
   sandboxBackendLabel,
   sandboxBackendTone,
+  sandboxIsDeletable,
   sandboxOrDash,
   sandboxUsageLabel,
 } from "../lib/sandbox-labels";
@@ -15,6 +16,7 @@ export interface SandboxProfileCardProps {
   selected?: boolean;
   onSelect?: (entry: SettingsSandboxEntry) => void;
   onEdit?: (entry: SettingsSandboxEntry) => void;
+  onDelete?: (entry: SettingsSandboxEntry) => void;
 }
 
 export function SandboxProfileCard({
@@ -22,8 +24,10 @@ export function SandboxProfileCard({
   selected = false,
   onSelect,
   onEdit,
+  onDelete,
 }: SandboxProfileCardProps) {
   const selectable = onSelect !== undefined;
+  const deletable = sandboxIsDeletable(entry);
   const profile = entry.profile;
 
   return (
@@ -66,22 +70,45 @@ export function SandboxProfileCard({
         <Pill mono size="sm" tone={sandboxBackendTone(profile.backend)}>
           {profile.backend}
         </Pill>
-        {onEdit ? (
-          <Button
-            aria-label={`Edit ${entry.name}`}
-            data-testid={`sandbox-page-card-${entry.name}-edit`}
-            onClick={event => {
-              event.stopPropagation();
-              onEdit(entry);
-            }}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Pencil aria-hidden="true" className="size-3" />
-            Edit
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-1">
+          {onEdit ? (
+            <Button
+              aria-label={`Edit ${entry.name}`}
+              data-testid={`sandbox-page-card-${entry.name}-edit`}
+              onClick={event => {
+                event.stopPropagation();
+                onEdit(entry);
+              }}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Pencil aria-hidden="true" className="size-3" />
+              Edit
+            </Button>
+          ) : null}
+          {onDelete ? (
+            <Button
+              aria-label={`Delete ${entry.name}`}
+              data-testid={`sandbox-page-card-${entry.name}-delete`}
+              disabled={!deletable}
+              onClick={event => {
+                event.stopPropagation();
+                onDelete(entry);
+              }}
+              size="icon-sm"
+              title={
+                deletable
+                  ? undefined
+                  : "Builtin sandboxes cannot be deleted — override them instead."
+              }
+              type="button"
+              variant="ghost"
+            >
+              <Trash2 aria-hidden="true" className="size-3" />
+            </Button>
+          ) : null}
+        </div>
       </CatalogCard.Actions>
     </CatalogCard>
   );

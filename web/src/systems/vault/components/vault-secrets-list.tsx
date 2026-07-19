@@ -58,6 +58,7 @@ export function VaultSecretsList({
             {secrets.map(secret => (
               <VaultSecretsCard
                 key={secret.ref}
+                onDelete={onDelete}
                 onSelect={onSelect}
                 secret={secret}
                 selected={selectedRef === secret.ref}

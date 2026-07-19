@@ -16,6 +16,8 @@ import {
 } from "@agh/ui";
 import { createElement, useState } from "react";
 
+import { deriveMCPManagementFilter } from "@/systems/settings";
+
 import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-page";
 import { marketplaceMCPInstalledStatus } from "../lib/mcp-installed-status";
 import type { MarketplaceKind, MarketplaceListing } from "../types";
@@ -26,6 +28,7 @@ interface MarketplaceInstalledCardProps {
   pending?: boolean;
   onAction: (entry: MarketplaceListing) => void;
   onAuthorize: (item: MarketplaceInstalledItem) => void;
+  onEditMCP: (server: NonNullable<MarketplaceInstalledItem["mcpServer"]>) => void;
   onRemove: (item: MarketplaceInstalledItem) => Promise<void> | void;
   onDeactivate: (item: MarketplaceInstalledItem) => Promise<void> | void;
   onToggleEnabled: (item: MarketplaceInstalledItem, enabled: boolean) => void;
@@ -37,6 +40,7 @@ function MarketplaceInstalledCard({
   pending = false,
   onAction,
   onAuthorize,
+  onEditMCP,
   onRemove,
   onDeactivate,
   onToggleEnabled,
@@ -51,7 +55,22 @@ function MarketplaceInstalledCard({
   const isMcp = kind === "mcp";
   const detailKind = kind === "bundle" ? "bundle" : kind;
   const mcpStatus = item.mcpServer ? marketplaceMCPInstalledStatus(item.mcpServer) : null;
-  const authorizeCta = mcpStatus === "authorize";
+  const authorizeCta = mcpStatus?.authorize === true;
+  const installedName =
+    entry.installed_name ?? item.mcpServer?.name ?? item.skill?.name ?? entry.name;
+  const mcpManagement = item.mcpServer ? deriveMCPManagementFilter(item.mcpServer) : null;
+  const detailSearch = isBundle
+    ? undefined
+    : {
+        installed_name: installedName,
+        ...(isMcp && mcpManagement
+          ? {
+              scope: mcpManagement.scope,
+              workspace_id:
+                mcpManagement.scope === "workspace" ? mcpManagement.workspace_id : undefined,
+            }
+          : {}),
+      };
 
   const handleConfirm = async () => {
     setConfirmPending(true);
@@ -96,6 +115,7 @@ function MarketplaceInstalledCard({
               if (pending) event.preventDefault();
             }}
             params={{ entryId: entry.entry_id, kind: detailKind }}
+            search={detailSearch}
             tabIndex={pending ? -1 : undefined}
             to="/marketplace/$kind/$entryId"
           >
@@ -153,6 +173,15 @@ function MarketplaceInstalledCard({
                 <MoreHorizontal aria-hidden="true" className="size-3.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {item.mcpServer ? (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      if (item.mcpServer) onEditMCP(item.mcpServer);
+                    }}
+                  >
+                    Edit configuration
+                  </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuItem
                   render={
                     <Link
@@ -161,6 +190,7 @@ function MarketplaceInstalledCard({
                           ? { id: item.activationId }
                           : { entryId: entry.entry_id, kind: detailKind }
                       }
+                      search={isBundle && item.activationId ? undefined : detailSearch}
                       to={
                         isBundle && item.activationId
                           ? "/marketplace/bundles/activations/$id"
@@ -248,7 +278,7 @@ function InstalledCardHead({
   kind: MarketplaceKind;
 }) {
   const transport = item.mcpServer?.transport || entry.transport;
-  const scopeMeta = item.mcpServer?.scope;
+  const scopeMeta = item.scopeLabel;
 
   return (
     <>
@@ -292,20 +322,15 @@ function InstalledPills({
   mcpStatus,
 }: {
   item: MarketplaceInstalledItem;
-  mcpStatus: "running" | "authorize" | null;
+  mcpStatus: ReturnType<typeof marketplaceMCPInstalledStatus> | null;
 }) {
   const { entry } = item;
   return (
     <>
       {item.viaBundle ? <Pill mono>{`via ${item.viaBundle}`}</Pill> : null}
-      {mcpStatus === "running" ? (
-        <Pill mono tone="success">
-          running
-        </Pill>
-      ) : null}
-      {mcpStatus === "authorize" ? (
-        <Pill mono tone="warning">
-          authorize
+      {mcpStatus ? (
+        <Pill mono tone={mcpStatus.tone}>
+          {mcpStatus.label}
         </Pill>
       ) : null}
       {entry.kind === "extension" && entry.trust ? (

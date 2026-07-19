@@ -51,6 +51,7 @@ type MarketplaceSearchRequest struct {
 type MarketplaceKindRequest struct {
 	Kind        string
 	Query       string
+	Cursor      string
 	Limit       int
 	Scope       string
 	WorkspaceID string
@@ -58,10 +59,11 @@ type MarketplaceKindRequest struct {
 
 // MarketplaceEntryRequest captures transport-independent marketplace detail identity and scope.
 type MarketplaceEntryRequest struct {
-	Kind        string
-	EntryID     string
-	Scope       string
-	WorkspaceID string
+	Kind          string
+	EntryID       string
+	InstalledName string
+	Scope         string
+	WorkspaceID   string
 }
 
 // SearchMarketplace returns fixed-order grouped marketplace discovery results.
@@ -101,7 +103,8 @@ func (h *BaseHandlers) MarketplaceSearch(
 	results := make([]contract.MarketplaceKindResult, 0, len(marketplaceKindOrder))
 	unavailableKinds := 0
 	for _, kind := range marketplaceKindOrder {
-		result, kindErr := h.marketplaceKindResult(ctx, kind, query, limit, scope)
+		page, kindErr := h.marketplaceKindResult(ctx, kind, query, 0, limit, scope)
+		result := page.result
 		if kindErr != nil {
 			if errors.Is(kindErr, ErrMarketplaceUnavailable) {
 				unavailableKinds++
@@ -134,6 +137,7 @@ func (h *BaseHandlers) BrowseMarketplaceKind(c *gin.Context) {
 	response, err := h.MarketplaceKind(c.Request.Context(), MarketplaceKindRequest{
 		Kind:        c.Param("kind"),
 		Query:       c.Query("q"),
+		Cursor:      c.Query("cursor"),
 		Limit:       limit,
 		Scope:       c.Query("scope"),
 		WorkspaceID: c.Query("workspace_id"),
@@ -162,20 +166,40 @@ func (h *BaseHandlers) MarketplaceKind(
 	if err != nil {
 		return contract.MarketplaceKindResponse{}, err
 	}
-	result, err := h.marketplaceKindResult(ctx, kind, strings.TrimSpace(request.Query), limit, scope)
+	query := strings.TrimSpace(request.Query)
+	offset, cursorFence, err := marketplaceCursorOffset(request.Cursor, kind, query, scope)
 	if err != nil {
 		return contract.MarketplaceKindResponse{}, err
 	}
-	return contract.MarketplaceKindResponse(result), nil
+	page, err := h.marketplaceKindResult(ctx, kind, query, offset, limit, scope)
+	if err != nil {
+		return contract.MarketplaceKindResponse{}, err
+	}
+	if err := validateMarketplaceCursorFence(cursorFence, page.currentFence); err != nil {
+		return contract.MarketplaceKindResponse{}, err
+	}
+	page.result.NextCursor, err = marketplaceNextCursor(
+		kind,
+		query,
+		scope,
+		page.nextFence,
+		page.nextOffset,
+		page.hasMore,
+	)
+	if err != nil {
+		return contract.MarketplaceKindResponse{}, err
+	}
+	return contract.MarketplaceKindResponse(page.result), nil
 }
 
 // GetMarketplaceEntry returns one exact marketplace detail by stable entry_id.
 func (h *BaseHandlers) GetMarketplaceEntry(c *gin.Context) {
 	response, err := h.MarketplaceEntry(c.Request.Context(), MarketplaceEntryRequest{
-		Kind:        c.Param("kind"),
-		EntryID:     c.Param("entry_id"),
-		Scope:       c.Query("scope"),
-		WorkspaceID: c.Query("workspace_id"),
+		Kind:          c.Param("kind"),
+		EntryID:       c.Param("entry_id"),
+		InstalledName: c.Query("installed_name"),
+		Scope:         c.Query("scope"),
+		WorkspaceID:   c.Query("workspace_id"),
 	})
 	if err != nil {
 		h.respondMarketplaceError(c, err)
@@ -201,7 +225,7 @@ func (h *BaseHandlers) MarketplaceEntry(
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}
-	return h.marketplaceEntry(ctx, kind, entryID, scope)
+	return h.marketplaceEntry(ctx, kind, entryID, strings.TrimSpace(request.InstalledName), scope)
 }
 
 // RefreshMarketplaceCatalog refreshes all or one feed-backed marketplace kind.

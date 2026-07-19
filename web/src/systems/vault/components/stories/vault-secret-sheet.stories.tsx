@@ -20,6 +20,7 @@ function SheetHarness() {
   return (
     <div className="min-h-[640px] bg-canvas">
       <VaultSecretSheet
+        deleteIsDisabled={false}
         onOpenChange={fn()}
         onReplace={fn()}
         onReplaceValueChange={setReplaceValue}

@@ -79,6 +79,17 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const NetworkActive: Story = {
+  parameters: {
+    router: { kind: "stub", initialEntries: ["/network"] },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByTestId("nav-network")).toHaveAttribute("data-active", "true");
+    await expect(canvas.getByTestId("nav-active-network")).toBeInTheDocument();
+  },
+};
+
 export const WithHomeWorkspace: Story = {
   args: {
     // Mark a non-first fixture as the home/global workspace (root_dir === user_home_dir).

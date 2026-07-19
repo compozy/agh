@@ -1,3 +1,5 @@
+import { Button } from "@agh/ui";
+
 import { RuntimeSelector } from "@/systems/runtime";
 
 import type { AgentPayload } from "../types";
@@ -25,13 +27,19 @@ export function AgentRuntimeControl({ agent, workspaceId }: AgentRuntimeControlP
         }
       : runtime.error
         ? { tone: "danger" as const, testId: "agent-detail-runtime-error", text: runtime.error }
-        : runtime.modelCatalogError
+        : runtime.providerSourceError
           ? {
-              tone: "warning" as const,
-              testId: "agent-detail-runtime-catalog-error",
-              text: runtime.modelCatalogError,
+              tone: "danger" as const,
+              testId: "agent-detail-runtime-providers-error",
+              text: runtime.providerSourceError,
             }
-          : null;
+          : runtime.modelCatalogError
+            ? {
+                tone: "warning" as const,
+                testId: "agent-detail-runtime-catalog-error",
+                text: runtime.modelCatalogError,
+              }
+            : null;
 
   return (
     <div className="flex min-w-0 items-center gap-2" data-testid="agent-detail-runtime">
@@ -50,6 +58,17 @@ export function AgentRuntimeControl({ agent, workspaceId }: AgentRuntimeControlP
         >
           {statusMessage.text}
         </span>
+      ) : null}
+      {runtime.providerSourceError ? (
+        <Button
+          data-testid="agent-detail-runtime-providers-retry"
+          onClick={runtime.onRetryProviderSource}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          Retry providers
+        </Button>
       ) : null}
       <RuntimeSelector
         ariaLabelledby="agent-detail-runtime-label"

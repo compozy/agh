@@ -25,6 +25,7 @@ export const Route = createFileRoute("/_app/tasks")({
     topbar: { crumb: { label: "Tasks", to: "/tasks" } },
   }),
   validateSearch: validateTasksSearch,
-  loader: ({ context }) => preloadTasksRoute(context.queryClient),
+  loaderDeps: ({ search }) => ({ mode: search.mode }),
+  loader: ({ context, deps }) => preloadTasksRoute(context.queryClient, deps.mode),
   component: TasksRoute,
 });

@@ -53,6 +53,17 @@ function normalizePrefix(value: string): string {
   return value.trim();
 }
 
+export function normalizeVaultPrefixForNamespace(
+  value: unknown,
+  namespace: VaultNamespace | undefined
+): string | undefined {
+  const prefix = normalizeListingSearchValue(value);
+  if (!prefix || !namespace) return prefix;
+
+  const match = /^vault:([^/]+)\//.exec(prefix);
+  return match && match[1] !== namespace ? undefined : prefix;
+}
+
 function filterFor(namespace: VaultNamespaceFilter, prefix: string): VaultListFilter {
   const filter: VaultListFilter = {};
   if (namespace !== "all") {
@@ -130,6 +141,7 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   const setNamespace = (next: VaultNamespaceFilter) => {
     updateSearch(current => ({
       ...current,
+      q: normalizeVaultPrefixForNamespace(current.q, next === "all" ? undefined : next),
       namespace: next === "all" ? undefined : next,
     }));
   };
@@ -199,10 +211,15 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     }
   };
 
-  const replaceIsValid = Boolean(selectedSecret && replaceValue.trim() !== "");
+  const replaceIsValid = Boolean(
+    selectedSecret &&
+    replaceValue.trim() !== "" &&
+    deleteTarget.mode === "closed" &&
+    !deleteMutation.isPending
+  );
 
   const replaceSecret = () => {
-    if (!selectedSecret || !replaceIsValid) return;
+    if (!selectedSecret || !replaceIsValid || deleteMutation.isPending) return;
     const kind = selectedSecret.kind?.trim();
     putMutation.mutate(
       {
@@ -220,6 +237,7 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   };
 
   const openDelete = (secret: VaultSecret) => {
+    if (putMutation.isPending) return;
     deleteMutation.reset();
     setDeleteTarget({ mode: "open", secret });
   };
@@ -230,7 +248,7 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   };
 
   const confirmDelete = () => {
-    if (deleteTarget.mode !== "open") return;
+    if (deleteTarget.mode !== "open" || putMutation.isPending || deleteMutation.isPending) return;
     const ref = deleteTarget.secret.ref;
     deleteMutation.mutate(ref, {
       onSuccess: () => {

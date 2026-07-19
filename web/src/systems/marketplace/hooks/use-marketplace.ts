@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
   marketplaceEntryOptions,
@@ -16,7 +16,7 @@ export function useMarketplaceSearch(options: MarketplaceSearchOptions = {}) {
 }
 
 export function useMarketplaceKind(options: MarketplaceKindOptions) {
-  return useQuery(marketplaceKindOptions(options));
+  return useInfiniteQuery(marketplaceKindOptions(options));
 }
 
 export function useMarketplaceEntry(options: MarketplaceEntryOptions) {

@@ -28,8 +28,9 @@ import {
 import { DEFAULT_MEMORY_LIST_LIMIT, memoriesListOptions, useMemories } from "@/systems/knowledge";
 import { useNotificationPresets } from "@/systems/notifications";
 import { useOnboardingStatus } from "@/systems/onboarding";
+import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
-import { useTaskInbox, useTasks } from "@/systems/tasks";
+import { useTaskDashboard, useTaskInbox, useTasks } from "@/systems/tasks";
 import {
   useSettingsApplyRecords,
   useSettingsGeneral,
@@ -59,6 +60,11 @@ const adapterMocks = vi.hoisted(() => ({
   getLoopAnnotations: vi.fn(),
   getLoopConfig: vi.fn(),
   getLoopRun: vi.fn(),
+  getAutomationJob: vi.fn(),
+  getAutomationTrigger: vi.fn(),
+  getScheduler: vi.fn(),
+  getSchedulerBacklog: vi.fn(),
+  getTaskDashboard: vi.fn(),
   getTaskInbox: vi.fn(),
   getSettingsGeneral: vi.fn(),
   getSettingsHooksExtensions: vi.fn(),
@@ -75,6 +81,8 @@ const adapterMocks = vi.hoisted(() => ({
   listBridgeTargets: vi.fn(),
   listBridges: vi.fn(),
   listAutomationJobs: vi.fn(),
+  listAutomationJobRuns: vi.fn(),
+  listAutomationTriggerRuns: vi.fn(),
   listAutomationTriggers: vi.fn(),
   listLoopRuns: vi.fn(),
   listLoops: vi.fn(),
@@ -119,8 +127,15 @@ vi.mock("@/systems/status/adapters/daemon-api", async importOriginal => ({
 
 vi.mock("@/systems/tasks/adapters/tasks-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/tasks/adapters/tasks-api")>()),
+  getTaskDashboard: adapterMocks.getTaskDashboard,
   listTasks: adapterMocks.listTasks,
   getTaskInbox: adapterMocks.getTaskInbox,
+}));
+
+vi.mock("@/systems/scheduler/adapters/scheduler-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/scheduler/adapters/scheduler-api")>()),
+  getScheduler: adapterMocks.getScheduler,
+  getSchedulerBacklog: adapterMocks.getSchedulerBacklog,
 }));
 
 vi.mock("@/systems/settings/adapters/settings-api", async importOriginal => ({
@@ -167,7 +182,11 @@ vi.mock("@/systems/bridges/adapters/bridges-api", async importOriginal => ({
 
 vi.mock("@/systems/automation/adapters/automation-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/automation/adapters/automation-api")>()),
+  getAutomationJob: adapterMocks.getAutomationJob,
+  getAutomationTrigger: adapterMocks.getAutomationTrigger,
+  listAutomationJobRuns: adapterMocks.listAutomationJobRuns,
   listAutomationJobs: adapterMocks.listAutomationJobs,
+  listAutomationTriggerRuns: adapterMocks.listAutomationTriggerRuns,
   listAutomationTriggers: adapterMocks.listAutomationTriggers,
 }));
 
@@ -193,6 +212,7 @@ import { Route as AgentsRoute } from "../agents";
 import { Route as BridgeDetailRoute } from "../bridges.$id";
 import { Route as BridgesRoute } from "../bridges";
 import { Route as HomeRoute } from "../index";
+import { Route as JobDetailRoute } from "../jobs.$jobId";
 import { Route as JobsRoute } from "../jobs";
 import { Route as KnowledgeRoute } from "../knowledge";
 import { Route as LoopRunDetailRoute } from "../loop-runs.$runId";
@@ -204,6 +224,7 @@ import { Route as LoopDetailRoute } from "../loops.$name";
 import { Route as LoopsRoute } from "../loops";
 import { Route as SandboxRoute } from "../sandbox";
 import { Route as TriggersRoute } from "../triggers";
+import { Route as TriggerDetailRoute } from "../triggers.$triggerId";
 import { Route as TasksRoute } from "../tasks";
 import { Route as VaultRoute } from "../vault";
 import { Route as SettingsGeneralRoute } from "../settings/general";
@@ -315,7 +336,8 @@ const cases: PreloadCase[] = [
   },
   {
     name: "tasks → exact active-workspace infinite catalog options",
-    load: queryClient => invokeLoader(TasksRoute, context(queryClient)),
+    load: queryClient =>
+      invokeLoader(TasksRoute, { ...context(queryClient), deps: { mode: undefined } }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useWorkspaces();
@@ -416,11 +438,15 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.listSettingsSandboxes],
   },
   {
-    name: "vault → vaultSecretsListOptions",
-    load: queryClient => invokeLoader(VaultRoute, context(queryClient)),
+    name: "vault → exact filtered vaultSecretsListOptions",
+    load: queryClient =>
+      invokeLoader(VaultRoute, {
+        ...context(queryClient),
+        deps: { namespace: "providers" as const, prefix: "vault:providers/" },
+      }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
-        useVaultSecrets({});
+        useVaultSecrets({ namespace: "providers", prefix: "vault:providers/" });
       }),
     requests: [adapterMocks.listVaultSecrets],
   },
@@ -773,6 +799,16 @@ describe("route query preloading", () => {
       page: { has_more: false, limit: 50, total: 0 },
       triggers: [],
     });
+    adapterMocks.getAutomationJob.mockResolvedValue({
+      id: "job-1",
+      scope: "global",
+    });
+    adapterMocks.getAutomationTrigger.mockResolvedValue({
+      id: "trigger-1",
+      scope: "global",
+    });
+    adapterMocks.listAutomationJobRuns.mockResolvedValue([]);
+    adapterMocks.listAutomationTriggerRuns.mockResolvedValue([]);
     adapterMocks.listBridges.mockResolvedValue({
       bridge_health: {},
       bridges: [],
@@ -815,6 +851,9 @@ describe("route query preloading", () => {
       page: { has_more: false, limit: 1, total: 0 },
       unread_total: 9,
     });
+    adapterMocks.getTaskDashboard.mockResolvedValue({});
+    adapterMocks.getScheduler.mockResolvedValue({});
+    adapterMocks.getSchedulerBacklog.mockResolvedValue({ runs: [] });
     adapterMocks.getLoop.mockResolvedValue({ name: "review" });
     adapterMocks.getLoopAnnotations.mockResolvedValue({ annotations: [] });
     adapterMocks.getLoopConfig.mockResolvedValue(null);
@@ -853,7 +892,9 @@ describe("route query preloading", () => {
     const queryClient = createQueryClient();
     adapterMocks.listVaultSecrets.mockRejectedValueOnce(new Error("vault unavailable"));
 
-    await expect(invokeLoader(VaultRoute, context(queryClient))).resolves.toBeUndefined();
+    await expect(
+      invokeLoader(VaultRoute, { ...context(queryClient), deps: {} })
+    ).resolves.toBeUndefined();
 
     const state = queryClient.getQueryState(vaultSecretsListOptions({}).queryKey);
     expect(state?.status).toBe("error");
@@ -872,6 +913,85 @@ describe("route query preloading", () => {
     );
     expect(knowledgeState?.status).toBe("error");
     expect(knowledgeState?.error).toEqual(new Error("knowledge unavailable"));
+    queryClient.clear();
+  });
+
+  it("Should skip the full task catalog preload for inbox mode", async () => {
+    const queryClient = createQueryClient();
+
+    await expect(
+      invokeLoader(TasksRoute, { ...context(queryClient), deps: { mode: "inbox" as const } })
+    ).resolves.toBeUndefined();
+
+    expect(adapterMocks.listTasks).not.toHaveBeenCalled();
+    expect(adapterMocks.getTaskInbox).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.getTaskDashboard).not.toHaveBeenCalled();
+    queryClient.clear();
+  });
+
+  it("Should preload and reuse every primary dashboard query", async () => {
+    const queryClient = createQueryClient();
+    const scope = { scope: "workspace" as const, workspace: workspace.id };
+
+    await expect(
+      invokeLoader(TasksRoute, { ...context(queryClient), deps: { mode: "dashboard" as const } })
+    ).resolves.toBeUndefined();
+
+    expect(adapterMocks.listTasks).not.toHaveBeenCalled();
+    for (const request of [
+      adapterMocks.getTaskDashboard,
+      adapterMocks.getTaskInbox,
+      adapterMocks.getScheduler,
+      adapterMocks.getSchedulerBacklog,
+    ]) {
+      expect(request).toHaveBeenCalledTimes(1);
+    }
+
+    const unmount = mountQueries(queryClient, () => {
+      useTaskDashboard(scope);
+      useTaskInbox({ ...scope, limit: 1 });
+      useSchedulerStatus();
+      useSchedulerBacklog({ ...scope, include_paused: true, limit: 5 });
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    for (const request of [
+      adapterMocks.getTaskDashboard,
+      adapterMocks.getTaskInbox,
+      adapterMocks.getScheduler,
+      adapterMocks.getSchedulerBacklog,
+    ]) {
+      expect(request).toHaveBeenCalledTimes(1);
+    }
+    unmount();
+    queryClient.clear();
+  });
+
+  it("Should not preload automation runs for a detail owned by another workspace", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getAutomationJob.mockResolvedValueOnce({
+      id: "job-foreign",
+      scope: "workspace",
+      workspace_id: "ws_other",
+    });
+    adapterMocks.getAutomationTrigger.mockResolvedValueOnce({
+      id: "trigger-foreign",
+      scope: "workspace",
+      workspace_id: "ws_other",
+    });
+
+    await invokeLoader(JobDetailRoute, {
+      ...context(queryClient),
+      params: { jobId: "job-foreign" },
+    });
+    await invokeLoader(TriggerDetailRoute, {
+      ...context(queryClient),
+      params: { triggerId: "trigger-foreign" },
+    });
+
+    expect(adapterMocks.getAutomationJob).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.getAutomationTrigger).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.listAutomationJobRuns).not.toHaveBeenCalled();
+    expect(adapterMocks.listAutomationTriggerRuns).not.toHaveBeenCalled();
     queryClient.clear();
   });
 

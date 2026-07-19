@@ -110,6 +110,10 @@ export {
   parseAutomationScope,
   parseAutomationSource,
 } from "./lib/automation-list-filters";
+export {
+  automationMatchesActiveWorkspace,
+  automationWorkspaceAccessError,
+} from "./lib/workspace-access";
 export type {
   AutomationFilterHandlers,
   AutomationFilterState,

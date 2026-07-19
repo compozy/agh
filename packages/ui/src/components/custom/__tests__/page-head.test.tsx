@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { PageHead } from "../page-head";
 
 describe("PageHead", () => {
-  it("Should render the focusable route H1 with icon well, count, and meta (PH1)", () => {
+  it("Should render body summary chrome without creating a competing page H1", () => {
     render(
       <PageHead
         count={4}
@@ -26,11 +26,8 @@ describe("PageHead", () => {
     const head = screen.getByTestId("head");
     expect(head).toHaveAttribute("data-slot", "page-head");
     expect(head).toHaveAttribute("data-variant", "index");
-    const title = screen.getByRole("heading", { level: 1, name: "Skills" });
-    expect(title).toHaveAttribute("tabindex", "-1");
-    // The app shell moves post-navigation focus via this slot selector — the
-    // name is a cross-package contract, not styling.
-    expect(title).toHaveAttribute("data-slot", "page-head-title");
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getByText("Skills")).toHaveAttribute("data-slot", "page-head-title");
     expect(screen.getByTestId("head-count")).toHaveTextContent("4");
     expect(screen.getByTestId("meta-dot")).toHaveAttribute("aria-hidden", "true");
     expect(head.querySelector("[data-slot='page-head-icon']")).toHaveAttribute(
@@ -69,7 +66,7 @@ describe("PageHead", () => {
     expect(zone).toContainElement(screen.getByTestId("runtime-selector"));
   });
 
-  it("Should render compact variant with mono pre-title above the H1", () => {
+  it("Should render compact variant with mono pre-title above the body title", () => {
     render(
       <PageHead
         data-testid="head"
@@ -81,7 +78,8 @@ describe("PageHead", () => {
 
     expect(screen.getByTestId("head")).toHaveAttribute("data-variant", "compact");
     expect(screen.getByText("operator-style.md")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Operator Style" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getByText("Operator Style")).toHaveAttribute("data-slot", "page-head-title");
   });
 
   it("Should prefer a custom leading mark over the icon well", () => {

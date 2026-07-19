@@ -33,3 +33,11 @@ QA impact 2026-07-14: the Trigger request preview now redacts write-only webhook
 QA impact 2026-07-14: Job Loop-target catalog lookup, scope transitions, validation, preview, and submission now share one workspace resolver. Reset remains untested pending global-explicit and workspace-rebind Browser controls.
 
 2026-07-14 final-worktree control: global and workspace Jobs preserved Loop targets and typed inputs across create/read/update/list/delete; a mismatched workspace target was rejected. The complete Web E2E gate also passed typed Job and Trigger deletion. Retest promoted to pass.
+
+QA impact 2026-07-18: package-backed Jobs and Triggers now accept enabled-only overlays through
+Web, CLI/HTTP/UDS, and native automation tools while continuing to reject definition edits. Reset
+to untested; no QA replay ran.
+
+QA impact 2026-07-18: HTTP/UDS now rejects deletion of config- and package-managed Jobs/Triggers,
+matching native tools, and reports the shared managed-resource cause instead of mislabeling package
+definitions as config-backed. Dynamic definitions remain deletable.

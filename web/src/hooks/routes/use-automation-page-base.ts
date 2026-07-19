@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
 
 import type { ListingViewMode } from "@agh/ui";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { AutomationApiError } from "@/systems/automation";
 import type {
   AutomationScopeFilter,
@@ -36,6 +37,10 @@ export interface AutomationRouteSearch {
   scope?: AutomationScopeFilter;
   source?: AutomationSource;
   view?: ListingViewMode;
+}
+
+export function automationListLoopFilter(search: AutomationRouteSearch): string | undefined {
+  return search.create === "loop" ? undefined : search.loop;
 }
 
 export function automationUnavailableMessage(
@@ -81,10 +86,14 @@ export function useAutomationCreateSeed(
   openLoopCreate: (loop: string) => void
 ): void {
   const navigate = useNavigate();
-  const seededRef = useRef(false);
+  const consumedLoopRef = useRef<string | null>(null);
   useEffect(() => {
-    if (seededRef.current || !seed.loop || !activeWorkspaceId) return;
-    seededRef.current = true;
+    if (!seed.loop) {
+      consumedLoopRef.current = null;
+      return;
+    }
+    if (consumedLoopRef.current === seed.loop || !activeWorkspaceId) return;
+    consumedLoopRef.current = seed.loop;
     openLoopCreate(seed.loop);
     void navigate({
       replace: true,
@@ -126,7 +135,7 @@ export function useAutomationPageBase(
   const listFilters = {
     limit: 50,
     enabled: search.enabled,
-    loop: search.loop,
+    loop: automationListLoopFilter(search),
     q: searchQuery,
     scope: scopeFilter === "all" ? undefined : scopeFilter,
     source: search.source,
@@ -140,7 +149,7 @@ export function useAutomationPageBase(
     });
   };
 
-  const setSearchQuery = (q: string) => updateSearch({ q: q.trim() === "" ? undefined : q });
+  const setSearchQuery = (q: string) => updateSearch({ q: normalizeListingSearchValue(q) });
   const setScopeFilter = (scope: AutomationScopeFilter | null) =>
     updateSearch({ scope: scope && scope !== "all" ? scope : undefined });
   const setSourceFilter = (source: AutomationSource | null) =>

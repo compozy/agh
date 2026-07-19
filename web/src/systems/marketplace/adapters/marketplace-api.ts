@@ -5,7 +5,7 @@ import type {
   MarketplaceEntryOptions,
   MarketplaceEntryQuery,
   MarketplaceEntryResponse,
-  MarketplaceKindOptions,
+  MarketplaceKindPageOptions,
   MarketplaceKindQuery,
   MarketplaceKindResponse,
   MarketplaceSearchOptions,
@@ -35,12 +35,17 @@ function searchQuery(options: MarketplaceSearchOptions): MarketplaceSearchQuery 
   };
 }
 
-function kindQuery(options: MarketplaceKindOptions): MarketplaceKindQuery {
-  return searchQuery(options);
+function kindQuery(options: MarketplaceKindPageOptions): MarketplaceKindQuery {
+  return { ...searchQuery(options), cursor: normalizeOptionalText(options.cursor) };
 }
 
 function entryQuery(options: MarketplaceEntryOptions): MarketplaceEntryQuery {
-  return scopeQuery(options.workspaceId);
+  return {
+    ...scopeQuery(options.workspaceId),
+    ...(options.kind === "bundle"
+      ? {}
+      : { installed_name: normalizeOptionalText(options.installedName) }),
+  };
 }
 
 export async function searchMarketplace(
@@ -60,7 +65,7 @@ export async function searchMarketplace(
 }
 
 export async function browseMarketplaceKind(
-  options: MarketplaceKindOptions,
+  options: MarketplaceKindPageOptions,
   signal?: AbortSignal
 ): Promise<MarketplaceKindResponse> {
   const { data, error, response } = await apiClient.GET("/api/marketplace/{kind}", {

@@ -17,3 +17,16 @@ overlaps: ET-web-page-content-gutter; ET-web-route-chrome-topbar
 ---
 
 Added by vault OpenDesign redesign. Flag only — retest in the next QA cycle.
+
+QA impact 2026-07-18: rejecting or unavailable Clipboard API writes now produce a recoverable
+inline copy error without an unhandled promise rejection.
+
+QA impact 2026-07-18: filtered Vault deep links now preload the exact namespace and prefix from the
+URL instead of warming the unfiltered cache before the route mounts.
+
+QA impact 2026-07-18: Cards view now exposes the same secret-delete confirmation entry point as
+Rows view while retaining inspect selection, metadata, and redaction behavior.
+
+QA impact 2026-07-18: switching namespace clears a prefix owned by another namespace, including
+validated deep links, and delete remains unavailable until an in-flight replacement settles so a
+confirmed delete cannot be recreated by the earlier write.

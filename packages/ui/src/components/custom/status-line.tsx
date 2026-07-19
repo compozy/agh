@@ -8,14 +8,14 @@ import { Eyebrow } from "./eyebrow";
 import type { PillTone } from "./pill";
 
 export interface StatusLineItem {
+  /** Stable identity used when items reorder or filter. */
+  key: React.Key;
   /** Optional structural prefix rendered as an `<Eyebrow>` (uppercase). */
   label?: string;
   /** Item content (count, identifier, short message). */
   value: React.ReactNode;
   /** Tone applied to the value text. Defaults to `neutral`. */
   tone?: PillTone;
-  /** Stable React key. Falls back to the array index when omitted. */
-  key?: React.Key;
 }
 
 export interface StatusLineProps extends React.ComponentProps<"div"> {
@@ -45,11 +45,11 @@ function StatusLine({ status, daemonLabel, items, className, ...props }: StatusL
       {...props}
     >
       <ConnectionIndicator label={daemonLabel} status={status} />
-      {items.map((item, index) => {
+      {items.map(item => {
         const tone: PillTone = item.tone ?? "neutral";
         return (
           <span
-            key={item.key ?? index}
+            key={item.key}
             data-slot="status-line-item"
             data-tone={tone}
             className="flex items-center gap-1.5"

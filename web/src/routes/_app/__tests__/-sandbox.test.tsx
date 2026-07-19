@@ -61,7 +61,7 @@ type PageState = {
   filtered: SettingsSandboxEntry[];
   counts: { total: number; totalWorkspaces: number };
   query: string;
-  backend: "all" | "local" | "daytona";
+  backend: "all" | "local" | "daytona" | "e2b";
   persistence: "all" | "transient" | "reuse" | "archive";
   view: "rows" | "cards";
   hasActiveFilters: boolean;
@@ -235,6 +235,16 @@ describe("SandboxPage", () => {
     expect(pageState.openInspect).toHaveBeenCalledWith(localEnv);
   });
 
+  it("Should preserve delete controls in the card view", () => {
+    pageState = makeState({ view: "cards" });
+    render(<SandboxPage />);
+
+    fireEvent.click(screen.getByTestId("sandbox-page-card-local-delete"));
+
+    expect(pageState.openDelete).toHaveBeenCalledWith(localEnv);
+    expect(screen.getByTestId("sandbox-page-card-builtin-local-delete")).toBeDisabled();
+  });
+
   it("disables delete for builtin sandboxes", () => {
     render(<SandboxPage />);
     expect(screen.getByTestId("sandbox-page-card-builtin-local-delete")).toBeDisabled();
@@ -271,11 +281,23 @@ describe("SandboxPage", () => {
     expect(screen.getByTestId("sandbox-topbar-actions")).toBeInTheDocument();
   });
 
-  it("opens the detail sheet when a profile is selected", () => {
+  it("Should wire inspection-sheet close, edit, and delete actions to the selected profile", () => {
     pageState = makeState({ selectedEntry: localEnv });
     render(<SandboxPage />);
     expect(screen.getByTestId("sandbox-profile-sheet")).toBeInTheDocument();
     expect(screen.getByTestId("sandbox-profile-sheet-title")).toHaveTextContent("local");
+    expect(screen.getByTestId("sandbox-profile-sheet-foot")).toHaveTextContent(
+      "agh config get sandboxes.local.backend"
+    );
+
+    fireEvent.click(screen.getByTestId("sandbox-profile-sheet-edit"));
+    expect(pageState.openEdit).toHaveBeenCalledWith(localEnv);
+
+    fireEvent.click(screen.getByTestId("sandbox-profile-sheet-delete"));
+    expect(pageState.openDelete).toHaveBeenCalledWith(localEnv);
+
+    fireEvent.click(screen.getByTestId("sandbox-profile-sheet-close"));
+    expect(pageState.closeInspect).toHaveBeenCalledTimes(1);
   });
 
   it("renders preserved-fields notice when nested profile keys exist", () => {

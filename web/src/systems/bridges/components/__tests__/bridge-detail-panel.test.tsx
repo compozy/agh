@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -206,7 +206,7 @@ describe("BridgeDetailPanel", () => {
     const header = screen.getByTestId("bridge-detail-header");
     expect(header).toHaveAttribute("data-slot", "page-head");
     expect(header).toHaveAttribute("data-variant", "detail");
-    expect(within(header).getByRole("heading", { level: 1 })).toHaveTextContent("Support");
+    expect(header).toHaveTextContent("Support");
     expect(document.querySelectorAll('[data-slot="metric"]')).toHaveLength(6);
     expect(screen.getByTestId("bridge-metric-delivery-backlog")).toHaveTextContent("4");
     expect(screen.getByTestId("bridge-metric-delivery-failures")).toHaveTextContent("5");

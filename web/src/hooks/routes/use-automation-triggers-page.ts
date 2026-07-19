@@ -40,6 +40,7 @@ export function useAutomationTriggersPage(
     editorDialogProps: editor.editorDialogProps,
     enabledFilter: page.enabledFilter,
     error: automationListError(runtimeUnavailableMessage, triggersQuery.error, triggers.length),
+    errorMessage: runtimeUnavailableMessage ?? triggersQuery.error?.message ?? null,
     eventFilter: page.eventFilter,
     handleCreate: editor.openCreate,
     hasActiveFilters: page.hasActiveFilters,

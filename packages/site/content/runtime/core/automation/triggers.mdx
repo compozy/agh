@@ -11,6 +11,11 @@ Triggers do not bind to jobs by ID. A trigger is its own automation definition w
 filters, target, retry policy, and fire limit. When a matching event arrives, AGH uses the same
 dispatcher and run history model that scheduled jobs use.
 
+Triggers can come from TOML config, package-provided definitions, or the dynamic store. Config and
+package triggers are managed definitions: their source owns the definition, while operators and
+agents can overlay only the enabled state. Dynamic triggers support full create, update, and delete
+management through the CLI, native tools, HTTP, and UDS.
+
 <OperatorNote>
   Use a job when time is the input. Use a trigger when an event envelope is the input. Use a webhook
   trigger when an external system should create that event envelope.

@@ -1,15 +1,28 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { storyAgentNames, storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
-import { PanelSurface } from "@/storybook/story-layout";
+import { PanelSurface, StoryTopbarHost } from "@/storybook/story-layout";
 import type { TaskRunDetailView, TaskTimelineItem } from "../../types";
 import { TaskRunDetailHeader } from "../task-run-detail-header";
 import { TaskRunTimelinePanel } from "../task-run-timeline-panel";
 
-const meta: Meta = {
+const meta: Meta<typeof TaskRunDetailHeader> = {
   title: "systems/tasks/components/TaskRunDetail",
+  component: TaskRunDetailHeader,
+  decorators: [
+    Story => (
+      <StoryTopbarHost breadcrumb={<span>Tasks › TASK-42</span>} title="Task run">
+        <Story />
+      </StoryTopbarHost>
+    ),
+  ],
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        component: "Task run detail states with route actions hosted in the shell Topbar.",
+      },
+    },
   },
 };
 
@@ -136,12 +149,16 @@ function DetailSurface({
   );
 }
 
+/** Running task with a linked live session and operator controls. */
 export const Running: Story = {
+  args: {},
   name: "Populated",
   render: () => <DetailSurface run={buildRun()} />,
 };
 
+/** Completed task run with its terminal timeline event. */
 export const Completed: Story = {
+  args: {},
   render: () => (
     <DetailSurface
       isLive={false}
@@ -170,7 +187,9 @@ export const Completed: Story = {
   ),
 };
 
+/** Claimed task run that has not started execution yet. */
 export const Claimed: Story = {
+  args: {},
   render: () => (
     <DetailSurface
       isLive={false}
@@ -186,7 +205,9 @@ export const Claimed: Story = {
   ),
 };
 
+/** Failed task run with retry controls and the reported failure. */
 export const Failed: Story = {
+  args: {},
   name: "Error",
   render: () => (
     <DetailSurface
@@ -312,7 +333,9 @@ export const ExhaustedNeedsAttention: Story = {
   ),
 };
 
+/** Taskless network wake run with no Task route context. */
 export const NetworkWake: Story = {
+  args: {},
   name: "Taskless Network wake",
   render: () => (
     <DetailSurface
@@ -334,7 +357,9 @@ export const NetworkWake: Story = {
   ),
 };
 
+/** Queued task run waiting to be claimed. */
 export const Queued: Story = {
+  args: {},
   name: "Pending",
   render: () => (
     <DetailSurface

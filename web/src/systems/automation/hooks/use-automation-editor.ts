@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type SetStateAction } from "react";
 import { toast } from "sonner";
 
 import { AutomationApiError } from "../adapters/automation-api";
@@ -41,6 +41,35 @@ interface JobEditorParams {
   workspaces?: ReadonlyArray<WorkspaceOption>;
 }
 
+interface WorkspaceEditorState<T> {
+  editor: T | null;
+  workspaceId: string | null | undefined;
+}
+
+function useWorkspaceBoundEditor<T>(workspaceId: string | null | undefined) {
+  const [state, setState] = useState<WorkspaceEditorState<T>>({
+    editor: null,
+    workspaceId,
+  });
+  const contextMatches = state.workspaceId === workspaceId;
+  if (!contextMatches) {
+    setState({ editor: null, workspaceId });
+  }
+
+  const setEditor = (action: SetStateAction<T | null>) => {
+    setState(current => {
+      const currentEditor = current.workspaceId === workspaceId ? current.editor : null;
+      const editor =
+        typeof action === "function"
+          ? (action as (value: T | null) => T | null)(currentEditor)
+          : action;
+      return { editor, workspaceId };
+    });
+  };
+
+  return { editor: contextMatches ? state.editor : null, setEditor };
+}
+
 /**
  * Modal create/edit controller for automation jobs. Shared by the list route
  * (create + Loop deep-link) and the detail route (edit in place).
@@ -50,7 +79,7 @@ export function useAutomationJobEditor({
   onSaved,
   workspaces,
 }: JobEditorParams) {
-  const [editor, setEditor] = useState<JobEditorState | null>(null);
+  const { editor, setEditor } = useWorkspaceBoundEditor<JobEditorState>(activeWorkspaceId);
   const inFlightRef = useRef(false);
   const [handle] = useState(createAutomationDialogHandle);
   const createMutation = useCreateAutomationJob();
@@ -124,7 +153,7 @@ export function useAutomationTriggerEditor({
   onSaved,
   workspaces,
 }: TriggerEditorParams) {
-  const [editor, setEditor] = useState<TriggerEditorState | null>(null);
+  const { editor, setEditor } = useWorkspaceBoundEditor<TriggerEditorState>(activeWorkspaceId);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const [handle] = useState(createAutomationDialogHandle);

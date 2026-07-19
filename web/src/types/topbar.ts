@@ -1,9 +1,8 @@
 import type { LinkProps } from "@tanstack/react-router";
 
 /**
- * One breadcrumb level for the topbar context zone. Every TanStack Router
- * route's `beforeLoad` declares its own crumb; the shell collects the active
- * match chain into the trail (route chrome contract §05).
+ * One route level for the Topbar. The deepest label becomes the shell H1;
+ * earlier levels become breadcrumb ancestry.
  */
 export interface TopbarCrumbContext {
   /** Crumb label for this route level (static or params-derived). */
@@ -20,9 +19,9 @@ export interface TopbarCrumbContext {
 }
 
 /**
- * Topbar metadata declared by every route's `beforeLoad`. The topbar answers
- * "where?" only — identity (icon well, H1, count, meta) lives in the content
- * `PageHead`, and body chrome owns search/filters/scopes.
+ * Topbar metadata declared by every route's `beforeLoad`. The Topbar owns
+ * route ancestry and the current page H1; body chrome owns summaries,
+ * search, filters, and scope controls.
  */
 export interface TopbarRouteContext {
   crumb: TopbarCrumbContext;

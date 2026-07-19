@@ -439,6 +439,32 @@ export const RuntimeMutationConflict: Story = {
   },
 };
 
+/** Provider-source failures keep the runtime selector inert and expose a retry action. */
+export const RuntimeProvidersError: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudAgentRoute),
+    ...storybookMswParameters({
+      settings: [
+        aghApiMock.get("/api/settings/providers", () =>
+          HttpResponse.json({ error: "Global providers unavailable" }, { status: 503 })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.findByTestId("agent-detail-runtime-providers-error")
+    ).resolves.toHaveTextContent("Global providers unavailable");
+    await expect(
+      canvas.findByTestId("agent-detail-runtime-providers-retry")
+    ).resolves.toBeDefined();
+  },
+};
+
 /**
  * Catalog metrics loading while session rows remain independent.
  */

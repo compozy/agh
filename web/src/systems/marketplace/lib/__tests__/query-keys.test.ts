@@ -42,8 +42,20 @@ describe("marketplaceKeys", () => {
       })
     );
     expect(
-      marketplaceKeys.detail({ entryId: " item ", kind: "extension", workspaceId: " ws-a " })
-    ).toEqual(marketplaceKeys.detail({ entryId: "item", kind: "extension", workspaceId: "ws-a" }));
+      marketplaceKeys.detail({
+        entryId: " item ",
+        installedName: " local-item ",
+        kind: "extension",
+        workspaceId: " ws-a ",
+      })
+    ).toEqual(
+      marketplaceKeys.detail({
+        entryId: "item",
+        installedName: "local-item",
+        kind: "extension",
+        workspaceId: "ws-a",
+      })
+    );
   });
 });
 
@@ -54,7 +66,7 @@ describe("marketplace query options", () => {
     mocks.search.mockResolvedValue({ kinds: [], query: "audit" });
 
     const options = marketplaceSearchOptions(request);
-    await options.queryFn?.({ signal } as never);
+    await options.queryFn?.({ pageParam: "cursor-a", signal } as never);
 
     expect(options.queryKey).toEqual(marketplaceKeys.search(request));
     expect(options.staleTime).toBe(60_000);
@@ -67,10 +79,13 @@ describe("marketplace query options", () => {
     mocks.browse.mockResolvedValue({ items: [], kind: "extension", total: 0 });
 
     const options = marketplaceKindOptions(request);
-    await options.queryFn?.({ signal } as never);
+    await options.queryFn?.({ pageParam: "cursor-a", signal } as never);
 
     expect(options.queryKey).toEqual(marketplaceKeys.kind(request));
-    expect(mocks.browse).toHaveBeenCalledWith(request, signal);
+    expect(mocks.browse).toHaveBeenCalledWith({ ...request, cursor: "cursor-a" }, signal);
+    expect(options.getNextPageParam?.({ next_cursor: "cursor-b" } as never, [], "", [])).toBe(
+      "cursor-b"
+    );
   });
 
   it("Should disable blank detail identities and execute stable entry ids", async () => {

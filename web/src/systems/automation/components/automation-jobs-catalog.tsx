@@ -15,7 +15,8 @@ export interface AutomationJobsCatalogProps {
   errorMessage: string | null;
   hasActiveFilters: boolean;
   pagination: AutomationCatalogPagination;
-  runPendingId: string | null;
+  runDisabled: boolean;
+  runPendingIds: ReadonlySet<string>;
   onClearFilters: () => void;
   onCreate: () => void;
   onRun: (id: string) => void;
@@ -29,7 +30,8 @@ function AutomationJobsCatalog({
   errorMessage,
   hasActiveFilters,
   pagination,
-  runPendingId,
+  runDisabled,
+  runPendingIds,
   onClearFilters,
   onCreate,
   onRun,
@@ -49,17 +51,19 @@ function AutomationJobsCatalog({
       {jobs.map(job =>
         view === "cards" ? (
           <AutomationJobCard
-            isRunPending={runPendingId === job.id}
+            isRunPending={runPendingIds.has(job.id)}
             job={job}
             key={job.id}
             onRun={onRun}
+            runDisabled={runDisabled}
           />
         ) : (
           <AutomationJobRow
-            isRunPending={runPendingId === job.id}
+            isRunPending={runPendingIds.has(job.id)}
             job={job}
             key={job.id}
             onRun={onRun}
+            runDisabled={runDisabled}
           />
         )
       )}

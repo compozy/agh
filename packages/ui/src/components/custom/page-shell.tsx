@@ -10,7 +10,7 @@ type PageShellDensity = Exclude<PageContentDensity, "listing">;
 interface PageShellProps extends Omit<React.ComponentProps<"div">, "title"> {
   slug?: string;
   banner?: React.ReactNode;
-  /** Route identity row (PageHead + status summary) rendered as the first body child. */
+  /** Optional body summary/status chrome rendered as the first content child. */
   head?: React.ReactNode;
   footer?: React.ReactNode;
   bodyClassName?: string;
@@ -18,10 +18,10 @@ interface PageShellProps extends Omit<React.ComponentProps<"div">, "title"> {
 }
 
 /**
- * PageShell hosts a route's body, banner, and sticky footer. The topbar owns
- * only location chrome (breadcrumb · route nav · actions); route identity
- * lives in the `head` slot (`PageHead`) inside content (route chrome §08).
- * Horizontal gutters match ListingPage via shared `PageContent`.
+ * PageShell hosts a route's body, banner, and sticky footer. The shell-level
+ * Topbar owns route identity and navigation focus; the optional `head` slot is
+ * subordinate body summary/status chrome. Horizontal gutters match
+ * ListingPage via shared `PageContent`.
  */
 function PageShell({
   slug,

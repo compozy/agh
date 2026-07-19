@@ -72,7 +72,20 @@ export interface MarketplaceKindOptions extends MarketplaceSearchOptions {
   kind: MarketplaceKind;
 }
 
-export interface MarketplaceEntryOptions extends MarketplaceScopeOptions {
-  kind: MarketplaceKind;
+export interface MarketplaceKindPageOptions extends MarketplaceKindOptions {
+  cursor?: string;
+}
+
+interface MarketplaceEntryIdentityOptions extends MarketplaceScopeOptions {
   entryId: string;
 }
+
+export type MarketplaceEntryOptions =
+  | (MarketplaceEntryIdentityOptions & {
+      kind: "bundle";
+      installedName?: never;
+    })
+  | (MarketplaceEntryIdentityOptions & {
+      kind: Exclude<MarketplaceKind, "bundle">;
+      installedName?: string | null;
+    });

@@ -14,6 +14,7 @@ func marketplaceKindOperation() OperationSpec {
 			marketplaceKindPathParam(),
 			queryParam("q", "Optional kind search query", false),
 			intQueryParam("limit", "Maximum results from 1 to 100"),
+			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			enumQueryParam(
 				specScopeKey,
 				"Installed-state projection scope",

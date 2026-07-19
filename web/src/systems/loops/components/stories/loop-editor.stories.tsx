@@ -2,10 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
 import type { ComponentProps } from "react";
 
-import { Topbar, TopbarSlotProvider } from "@agh/ui";
-
 import { aghApiMock } from "@/storybook/openapi-msw";
-import { StorySurface } from "@/storybook/story-layout";
+import { StorySurface, StoryTopbarHost } from "@/storybook/story-layout";
 
 import { LoopEditor } from "../editor/loop-editor";
 import { handlers as loopHandlers } from "../../mocks";
@@ -98,12 +96,11 @@ function EditorHarness({
   ...args
 }: ComponentProps<typeof LoopEditor> & { heightClass?: string }) {
   return (
-    <TopbarSlotProvider>
-      <Topbar breadcrumb={<span>Loops › {args.name} › Editor</span>} />
+    <StoryTopbarHost breadcrumb={<span>Loops › {args.name}</span>} title="Editor">
       <StorySurface className={`flex ${heightClass} p-0`}>
         <LoopEditor {...args} />
       </StorySurface>
-    </TopbarSlotProvider>
+    </StoryTopbarHost>
   );
 }
 

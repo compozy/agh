@@ -19,6 +19,10 @@ from; it does not prove that the item is safe for every environment.
 Open `/marketplace` to enter the Skills catalog, or go directly to `/marketplace/skills`,
 `/marketplace/mcps`, `/marketplace/extensions`, or `/marketplace/bundles`. Each kind page switches
 between Marketplace and Installed scopes; `/marketplace/<kind>/<entry-id>` opens one catalog record.
+An installed skill detail also shows declared capabilities, recent calls, resolver provenance, and
+shadow resolution. An installed extension detail keeps its runtime state, health, daemon process,
+capabilities, actions, environment requirements, diagnostics, provenance, and provided bundles
+together with its management controls.
 
 The CLI returns the same daemon-owned projection:
 
@@ -29,14 +33,35 @@ agh marketplace search -o json
 # Search one kind.
 agh marketplace search "linear" --kind mcp -o json
 
+# Continue that exact kind/query/scope from the returned next_cursor.
+agh marketplace search "linear" --kind mcp --cursor '<next_cursor>' -o json
+
 # Inspect the stable catalog identity before installing.
 agh marketplace info mcp linear -o json
+
+# Disambiguate an installed definition whose local name collides with a catalog entry.
+agh marketplace info mcp linear --installed-name custom-linear -o json
 ```
 
 Use the returned `entry_id` with `agh marketplace info`. Install commands use the kind-specific
 identifier shown by the detail payload, such as an extension or skill `install_slug`.
+`--installed-name` disambiguates installed MCP, extension, and skill identities; bundle detail
+rejects that flag because bundle activation identity is managed through its activation route.
 The identifiers in the examples below are illustrative; substitute values returned by your active
 catalog.
+
+Single-kind responses return `next_cursor` when more rows remain. Treat it as opaque and pass it
+unchanged with the same kind, query, scope, and workspace; grouped search does not accept a cursor.
+Curated and bundle cursors fence the source projection. Remote skill registries do not expose a
+snapshot revision, so AGH validates the prior page boundary with one bounded look-behind row. If
+that boundary changes, AGH rejects the continuation; restart from the first page instead of
+combining shifted pages.
+`total` is the exact filtered total when the source can determine it. A source that cannot determine
+an exact total omits it while still returning `next_cursor`.
+
+JSON preserves the response envelope. Human and TOON output append a `Page` block; JSONL appends a
+`type: "page"` record after the item records. Read `next_cursor` from that page metadata in any
+output mode before requesting the continuation.
 
 Each kind can fail independently during grouped search. Read the affected kind's `stale`,
 `error_class`, and `error` fields instead of treating an empty group as proof that no items exist.

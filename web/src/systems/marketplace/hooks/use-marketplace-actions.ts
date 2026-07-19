@@ -27,7 +27,19 @@ import type {
   SkillUpdateRequest,
 } from "../types";
 
-const MCP_INSTALLED_PATH = "/marketplace/mcps?tab=installed";
+function mcpInstalledPath(input: {
+  entryId: string;
+  scope: string;
+  server: string;
+  workspaceId?: string;
+}): string {
+  const search = new URLSearchParams({ scope: input.scope });
+  if (input.server) search.set("installed_name", input.server);
+  if (input.scope === "workspace" && input.workspaceId) {
+    search.set("workspace_id", input.workspaceId);
+  }
+  return `/marketplace/mcp/${encodeURIComponent(input.entryId)}?${search.toString()}`;
+}
 
 function invalidateMarketplace(queryClient: ReturnType<typeof useQueryClient>) {
   return queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
@@ -56,16 +68,22 @@ export function useInstallMarketplaceMCP() {
   return useMutation({
     mutationFn: (body: MCPInstallRequest) => installMarketplaceMCP(body),
     onSuccess: (result, variables) => {
+      const installedPath = mcpInstalledPath({
+        entryId: variables.entry_id,
+        scope: result.mcp_server?.scope ?? variables.scope,
+        server: result.mcp_server?.name ?? variables.name ?? "",
+        workspaceId: result.mcp_server?.workspace_id ?? variables.workspace_id,
+      });
       if (result.next_step === "authorize") {
         toast.success(
           `${result.mcp_server?.name ?? variables.name ?? "MCP server"} installed · authorization pending`,
-          mcpToastAction("Authorize →", MCP_INSTALLED_PATH)
+          mcpToastAction("Authorize →", installedPath)
         );
         return;
       }
       toast.success(
         `${result.mcp_server?.name ?? variables.name ?? "MCP server"} installed`,
-        mcpToastAction("View installed →", MCP_INSTALLED_PATH)
+        mcpToastAction("View installed →", installedPath)
       );
     },
     onSettled: () =>

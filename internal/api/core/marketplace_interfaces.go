@@ -10,7 +10,7 @@ import (
 
 // MarketplaceCatalogService exposes the daemon-owned curated feed projection.
 type MarketplaceCatalogService interface {
-	Browse(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
+	Browse(context.Context, marketplacepkg.Kind, string, int, int) (marketplacepkg.BrowseResult, error)
 	Detail(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
 	Refresh(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
 	ResolveSkillInstalls(context.Context, []string) ([]marketplacepkg.Entry, error)
@@ -18,7 +18,7 @@ type MarketplaceCatalogService interface {
 
 // SkillMarketplaceService exposes remote skill marketplace lifecycle operations.
 type SkillMarketplaceService interface {
-	Search(ctx context.Context, query string, limit int) ([]registrypkg.Listing, error)
+	Search(ctx context.Context, query string, offset int, limit int) ([]registrypkg.Listing, error)
 	Info(ctx context.Context, slug string) (*registrypkg.Detail, error)
 	Install(ctx context.Context, slug string, version string) (skillmarketplace.InstallResult, error)
 	Update(ctx context.Context, req skillmarketplace.UpdateRequest) ([]skillmarketplace.UpdateResult, error)

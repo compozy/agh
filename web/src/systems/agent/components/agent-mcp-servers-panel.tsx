@@ -1,6 +1,6 @@
 import { Plug } from "lucide-react";
 
-import { Empty, Pill, Section, cn } from "@agh/ui";
+import { Empty, ListingRow, Pill, Section, cn } from "@agh/ui";
 
 import type { AgentMCPServer, AgentPayload } from "../types";
 
@@ -44,41 +44,50 @@ export function AgentMcpServersPanel({
           const envKeys = envKeyNames(server);
           const secretKeys = secretKeyNames(server);
           return (
-            <li
-              key={server.name}
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-t border-line-soft px-4 py-3.5 first:border-t-0"
-              data-testid={`agent-mcp-row-${server.name}`}
-            >
-              <div className="min-w-0">
-                <p className="truncate font-mono text-small-body font-medium tracking-mono text-fg-strong">
-                  {server.name}
-                </p>
-                {commandOrUrl ? (
-                  <p className="mt-1 truncate font-mono text-badge tracking-mono text-muted">
-                    {commandOrUrl}
-                  </p>
-                ) : null}
-                {envKeys.length > 0 || secretKeys.length > 0 ? (
-                  <div
-                    className="mt-2 flex flex-wrap gap-1"
-                    data-testid={`agent-mcp-keys-${server.name}`}
+            <li key={server.name} className="border-b border-line-soft last:border-b-0">
+              <ListingRow
+                className="border-b-0"
+                interactive={false}
+                data-testid={`agent-mcp-row-${server.name}`}
+              >
+                <ListingRow.Icon>
+                  <Plug className="size-4" />
+                </ListingRow.Icon>
+                <ListingRow.Main>
+                  <ListingRow.Name mono>
+                    <ListingRow.Title>{server.name}</ListingRow.Title>
+                  </ListingRow.Name>
+                  {commandOrUrl ? (
+                    <ListingRow.Description className="font-mono tracking-mono">
+                      {commandOrUrl}
+                    </ListingRow.Description>
+                  ) : null}
+                  {envKeys.length > 0 || secretKeys.length > 0 ? (
+                    <ListingRow.Meta data-testid={`agent-mcp-keys-${server.name}`}>
+                      {envKeys.map(key => (
+                        <Pill key={`env:${key}`} mono size="sm" tone="neutral">
+                          {key}
+                        </Pill>
+                      ))}
+                      {secretKeys.map(key => (
+                        <Pill key={`secret:${key}`} mono size="sm" tone="warning">
+                          {key}
+                        </Pill>
+                      ))}
+                    </ListingRow.Meta>
+                  ) : null}
+                </ListingRow.Main>
+                <ListingRow.Trail>
+                  <Pill
+                    mono
+                    size="sm"
+                    tone="info"
+                    data-testid={`agent-mcp-transport-${server.name}`}
                   >
-                    {envKeys.map(key => (
-                      <Pill key={`env:${key}`} mono size="sm" tone="neutral">
-                        {key}
-                      </Pill>
-                    ))}
-                    {secretKeys.map(key => (
-                      <Pill key={`secret:${key}`} mono size="sm" tone="warning">
-                        {key}
-                      </Pill>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <Pill mono size="sm" tone="info" data-testid={`agent-mcp-transport-${server.name}`}>
-                {transport}
-              </Pill>
+                    {transport}
+                  </Pill>
+                </ListingRow.Trail>
+              </ListingRow>
             </li>
           );
         })}

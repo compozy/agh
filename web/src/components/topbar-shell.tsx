@@ -28,13 +28,12 @@ interface TopbarShellProps {
  * Behavior:
  * - Always leads the breadcrumb with a fixed Home icon that links to the
  *   dashboard (`/`); on `/` the icon is the current page (no duplicate label).
- * - Collects every route level's `topbar.crumb` declaration into the trailing
- *   trail; the deepest crumb renders as the current page and can be overridden
- *   live via `useTopbarSlot({ crumb })` for loader-derived names.
+ * - Collects route-level `topbar.crumb` declarations into ancestry and a
+ *   stable shell H1. Loader-derived names override that H1 via the slot.
  * - Hosts `<TopbarSlotProvider>` so any descendant route can push
  *   routeNav/actions/overflow into the topbar zones.
  * - Subscribes to `router.subscribe("onResolved")` to move focus to the
- *   content `PageHead` H1 after path navigation (route chrome §08).
+ *   always-mounted Topbar H1 after path navigation.
  */
 export function TopbarShell({ children }: TopbarShellProps) {
   return (
@@ -44,28 +43,10 @@ export function TopbarShell({ children }: TopbarShellProps) {
   );
 }
 
-const FOCUS_RETRY_FRAMES = 5;
-
-function focusPageTitle(attempt = 0) {
-  const node = document.querySelector<HTMLElement>("#app-content [data-slot='page-head-title']");
-  if (node) {
-    try {
-      node.focus({ preventScroll: true });
-    } catch {
-      node.focus();
-    }
-    return;
-  }
-  // The destination outlet may not be committed yet when onResolved fires;
-  // retry across a few frames instead of observing the whole subtree.
-  if (attempt < FOCUS_RETRY_FRAMES) {
-    requestAnimationFrame(() => focusPageTitle(attempt + 1));
-  }
-}
-
 function TopbarShellInner({ children }: TopbarShellProps) {
+  const titleRef = React.useRef<HTMLHeadingElement | null>(null);
   const router = useRouter();
-  const { crumbs } = useTopbarShellModel();
+  const { crumbs, currentTitle } = useTopbarShellModel();
   const slot = useTopbarSlotValue();
 
   useEffect(() => {
@@ -73,14 +54,26 @@ function TopbarShellInner({ children }: TopbarShellProps) {
       if (!event.pathChanged) {
         return;
       }
-      focusPageTitle();
+      const title = titleRef.current;
+      if (!title) {
+        return;
+      }
+      try {
+        title.focus({ preventScroll: true });
+      } catch {
+        title.focus();
+      }
     });
     return unsubscribe;
   }, [router]);
 
   return (
     <>
-      <Topbar breadcrumb={<ShellBreadcrumb crumbs={crumbs} leafOverride={slot?.crumb} />} />
+      <Topbar
+        breadcrumb={<ShellBreadcrumb crumbs={crumbs} />}
+        title={slot?.crumb ?? currentTitle}
+        titleRef={titleRef}
+      />
       {children}
     </>
   );
@@ -88,18 +81,17 @@ function TopbarShellInner({ children }: TopbarShellProps) {
 
 interface ShellBreadcrumbProps {
   crumbs: ReadonlyArray<TopbarCrumbContext>;
-  leafOverride?: React.ReactNode;
 }
 
 function isDashboardCrumb(crumb: TopbarCrumbContext): boolean {
   return crumb.to === "/";
 }
 
-function ShellBreadcrumb({ crumbs, leafOverride }: ShellBreadcrumbProps) {
+function ShellBreadcrumb({ crumbs }: ShellBreadcrumbProps) {
   const pathname = useRouterState({ select: state => state.location.pathname });
   const isHome = pathname === "/";
   const trail = crumbs.filter(crumb => !isDashboardCrumb(crumb));
-  const leafIndex = trail.length - 1;
+  const ancestors = trail.slice(0, -1);
 
   return (
     <Breadcrumb aria-label="Breadcrumb" className="min-w-0 overflow-hidden">
@@ -124,17 +116,12 @@ function ShellBreadcrumb({ crumbs, leafOverride }: ShellBreadcrumbProps) {
             </BreadcrumbLink>
           )}
         </BreadcrumbItem>
-        {trail.map((crumb, index) => {
-          const isLeaf = index === leafIndex;
+        {!isHome && trail.length > 0 ? <BreadcrumbSeparator /> : null}
+        {ancestors.map(crumb => {
           return (
             <React.Fragment key={`${crumb.to ?? "current"}:${crumb.label}`}>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem className={isLeaf ? "min-w-0" : undefined}>
-                {isLeaf ? (
-                  <BreadcrumbPage className="min-w-0 truncate" data-testid="topbar-breadcrumb-page">
-                    {leafOverride ?? crumb.label}
-                  </BreadcrumbPage>
-                ) : crumb.to ? (
+              <BreadcrumbItem>
+                {crumb.to ? (
                   <BreadcrumbLink
                     render={<Link params={crumb.params} search={crumb.search} to={crumb.to} />}
                   >
@@ -144,6 +131,7 @@ function ShellBreadcrumb({ crumbs, leafOverride }: ShellBreadcrumbProps) {
                   <span className="px-1.5 py-0.5">{crumb.label}</span>
                 )}
               </BreadcrumbItem>
+              <BreadcrumbSeparator />
             </React.Fragment>
           );
         })}

@@ -24,3 +24,17 @@ partial-failure isolation still holds in both views.
 QA impact 2026-07-18: web search fan-out ended with the grouped landing. The scenario is rescoped to
 the active kind route and its selected Marketplace or Installed scope; daemon grouped discovery
 remains covered by the API/CLI scenarios.
+
+QA impact 2026-07-18: active-kind results now load server-owned continuation pages. Verify `Load
+more`, retry after a continuation failure, exact versus loaded-only counts, and no duplicate cards.
+
+QA impact 2026-07-18: remote skill continuation now uses a bounded one-row boundary check instead
+of refetching the consumed prefix. Verify four or more pages remain ordered, a changed boundary is
+rejected, Installed search stays local, and browser back does not get overwritten by stale debounce.
+
+QA impact 2026-07-18: Market scope now preserves the server-owned result page without applying a
+second literal substring filter. Verify a registry-ranked skill remains visible when the query is
+matched by remote semantics rather than text copied into the listing projection.
+
+QA impact 2026-07-18: pressing `/` outside editable controls focuses the active Marketplace kind
+search. Verify the shortcut from the page body while preserving normal typing inside form controls.

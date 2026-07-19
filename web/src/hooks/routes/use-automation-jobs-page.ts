@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -23,7 +23,8 @@ export function useAutomationJobsPage(
 ) {
   const page = useAutomationPageBase("jobs", search);
   const navigate = useNavigate();
-  const [runPendingId, setRunPendingId] = useState<string | null>(null);
+  const pendingRunIdsRef = useRef(new Set<string>());
+  const [runPendingIds, setRunPendingIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const jobsQuery = useAutomationJobs(page.listFilters);
   const jobs = jobsQuery.jobs;
@@ -32,6 +33,7 @@ export function useAutomationJobsPage(
     page.automationRuntime,
     jobsQuery.error
   );
+  const runDisabled = runtimeUnavailableMessage !== null;
 
   const editor = useAutomationJobEditor({
     activeWorkspaceId: page.activeWorkspaceId,
@@ -43,14 +45,17 @@ export function useAutomationJobsPage(
 
   const triggerJobMutation = useTriggerAutomationJob();
   const onRunJob = async (id: string) => {
-    setRunPendingId(id);
+    if (runDisabled || pendingRunIdsRef.current.has(id)) return;
+    pendingRunIdsRef.current.add(id);
+    setRunPendingIds(new Set(pendingRunIdsRef.current));
     try {
       const run = await triggerJobMutation.mutateAsync({ id });
       toast.success(`Queued run ${run.id}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to trigger automation job");
     }
-    setRunPendingId(null);
+    pendingRunIdsRef.current.delete(id);
+    setRunPendingIds(new Set(pendingRunIdsRef.current));
   };
 
   return {
@@ -58,6 +63,7 @@ export function useAutomationJobsPage(
     editorDialogProps: editor.editorDialogProps,
     enabledFilter: page.enabledFilter,
     error: automationListError(runtimeUnavailableMessage, jobsQuery.error, jobs.length),
+    errorMessage: runtimeUnavailableMessage ?? jobsQuery.error?.message ?? null,
     handleCreate: editor.openCreate,
     hasActiveFilters: page.hasActiveFilters,
     hasChildMatch: page.hasChildMatch,
@@ -67,7 +73,8 @@ export function useAutomationJobsPage(
     jobs,
     loadMore: () => void jobsQuery.fetchNextPage(),
     onRunJob: (id: string) => void onRunJob(id),
-    runPendingId,
+    runDisabled,
+    runPendingIds,
     runtimeUnavailableMessage,
     scopeFilter: page.scopeFilter,
     searchQuery: page.searchQuery,

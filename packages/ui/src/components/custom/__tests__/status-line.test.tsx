@@ -9,9 +9,9 @@ describe("StatusLine", () => {
       <StatusLine
         status="connected"
         items={[
-          { label: "sessions", value: "12", tone: "neutral" },
-          { label: "agents", value: "3", tone: "info" },
-          { value: "workspace · launch", tone: "success" },
+          { key: "sessions", label: "sessions", value: "12", tone: "neutral" },
+          { key: "agents", label: "agents", value: "3", tone: "info" },
+          { key: "workspace", value: "workspace · launch", tone: "success" },
         ]}
       />
     );
@@ -36,8 +36,8 @@ describe("StatusLine", () => {
       <StatusLine
         status="connected"
         items={[
-          { label: "sessions", value: "12", tone: "neutral" },
-          { value: "no-label", tone: "info" },
+          { key: "sessions", label: "sessions", value: "12", tone: "neutral" },
+          { key: "unlabeled", value: "no-label", tone: "info" },
         ]}
       />
     );
@@ -49,7 +49,7 @@ describe("StatusLine", () => {
 
   it("Should default to neutral tone when an item omits the tone field", () => {
     const { container } = render(
-      <StatusLine status="connecting" items={[{ value: "resyncing…" }]} />
+      <StatusLine status="connecting" items={[{ key: "sync", value: "resyncing…" }]} />
     );
     const item = container.querySelector<HTMLElement>('[data-slot="status-line-item"]');
     expect(item?.dataset.tone).toBe("neutral");

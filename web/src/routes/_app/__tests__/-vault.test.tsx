@@ -198,6 +198,24 @@ describe("VaultPage", () => {
     expect(openInspect).toHaveBeenCalledWith(sessionSecret);
   });
 
+  it("disables deletion while the selected secret replacement is pending", () => {
+    const openDelete = vi.fn();
+    mockUseVaultPage.mockReturnValue(
+      makeState({
+        openDelete,
+        replaceIsPending: true,
+        selectedSecret: sessionSecret,
+      })
+    );
+
+    render(<VaultPage />);
+
+    const deleteButton = screen.getByTestId("vault-secret-sheet-delete");
+    expect(deleteButton).toBeDisabled();
+    fireEvent.click(deleteButton);
+    expect(openDelete).not.toHaveBeenCalled();
+  });
+
   it("confirms delete against the selected vault ref", () => {
     const confirmDelete = vi.fn();
     mockUseVaultPage.mockReturnValue(

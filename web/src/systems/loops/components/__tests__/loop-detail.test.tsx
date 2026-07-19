@@ -76,7 +76,7 @@ function renderDetail(
 describe("LoopDetailView", () => {
   it("Should render the full definition page: header, contract, DAG, runs, and the right rail", () => {
     renderDetail();
-    expect(screen.getByRole("heading", { name: "software-delivery" })).toBeInTheDocument();
+    expect(screen.getByText("software-delivery")).toBeInTheDocument();
     expect(screen.getByTestId("loop-contract")).toBeInTheDocument();
     expect(screen.getByTestId("loop-dag")).toBeInTheDocument();
     expect(screen.getByTestId("loop-recent-runs")).toBeInTheDocument();

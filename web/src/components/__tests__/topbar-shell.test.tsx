@@ -69,7 +69,7 @@ describe("TopbarShell", () => {
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Agents" })).toHaveAttribute("href", "/agents");
-    expect(screen.getByTestId("topbar-breadcrumb-page")).toHaveTextContent("release-captain");
+    expect(screen.getByRole("heading", { level: 1, name: "release-captain" })).toBeInTheDocument();
   });
 
   it("Should render exactly Marketplace and the kind crumb after redirect-mediated entry", () => {
@@ -93,7 +93,7 @@ describe("TopbarShell", () => {
       "/marketplace"
     );
     expect(screen.getAllByText("Marketplace")).toHaveLength(1);
-    expect(screen.getByTestId("topbar-breadcrumb-page")).toHaveTextContent("Skills");
+    expect(screen.getByRole("heading", { level: 1, name: "Skills" })).toBeInTheDocument();
   });
 
   it("Should show zero Marketplace crumbs on a sibling route after leaving marketplace", () => {
@@ -124,7 +124,7 @@ describe("TopbarShell", () => {
     );
 
     expect(screen.queryByText("Marketplace")).not.toBeInTheDocument();
-    expect(screen.getByTestId("topbar-breadcrumb-page")).toHaveTextContent("Triggers");
+    expect(screen.getByRole("heading", { level: 1, name: "Triggers" })).toBeInTheDocument();
   });
 
   it("Should still render the home breadcrumb when no match exposes a topbar crumb", () => {
@@ -138,7 +138,8 @@ describe("TopbarShell", () => {
     expect(document.querySelector("[data-slot='breadcrumb']")).not.toBeNull();
     expect(screen.getByTestId("topbar-breadcrumb-home")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
-    expect(screen.queryByTestId("topbar-breadcrumb-page")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Untitled" })).toBeInTheDocument();
+    expect(document.querySelector("[data-slot='breadcrumb-separator']")).toBeNull();
   });
 
   it("Should render the home icon as the current page on the dashboard", () => {
@@ -154,8 +155,7 @@ describe("TopbarShell", () => {
     expect(home).toHaveAttribute("aria-current", "page");
     expect(home).toHaveAttribute("aria-label", "Dashboard");
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Home")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("topbar-breadcrumb-page")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
   });
 
   it("Should override the leaf breadcrumb label via the published slot crumb", () => {
@@ -173,11 +173,11 @@ describe("TopbarShell", () => {
     );
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
-    expect(screen.getByTestId("topbar-breadcrumb-page")).toHaveTextContent("Loop A");
+    expect(screen.getByRole("heading", { level: 1, name: "Loop A" })).toBeInTheDocument();
     expect(screen.queryByText("Loops")).not.toBeInTheDocument();
   });
 
-  it("Should render no H1 or route identity chrome inside the topbar", () => {
+  it("Should render the route H1 inside the topbar", () => {
     matchesMock.mockReturnValue([matchWithCrumb("Tasks")]);
     render(
       <TopbarShell>
@@ -186,7 +186,7 @@ describe("TopbarShell", () => {
     );
 
     const topbar = document.querySelector("[data-slot='topbar']");
-    expect(topbar?.querySelector("h1")).toBeNull();
+    expect(topbar?.querySelector("h1")).toHaveTextContent("Tasks");
     expect(topbar?.querySelector("[data-slot='page-head-count']")).toBeNull();
   });
 
@@ -202,19 +202,12 @@ describe("TopbarShell", () => {
     expect(subscribeMock).toHaveBeenCalledWith("onResolved", expect.any(Function));
   });
 
-  it("Should move focus to the content PageHead H1 when route resolution changes path", () => {
-    vi.stubGlobal("requestAnimationFrame", (callback: () => void) => {
-      callback();
-      return 0;
-    });
-    matchesMock.mockReturnValue([matchWithCrumb("Tasks")]);
+  it("Should keep focus on the stable Topbar H1 while destination content mounts later", () => {
+    matchesMock.mockReturnValue([matchWithCrumb("Home")]);
 
-    render(
+    const { rerender } = render(
       <TopbarShell>
         <main id="app-content">
-          <h1 data-slot="page-head-title" tabIndex={-1}>
-            Tasks
-          </h1>
           <label htmlFor="task-filter">Filter tasks</label>
           <input id="task-filter" />
         </main>
@@ -224,8 +217,19 @@ describe("TopbarShell", () => {
     screen.getByLabelText("Filter tasks").focus();
     getLatestOnResolvedHandler()({ pathChanged: true });
 
-    expect(screen.getByText("Tasks", { selector: "h1" })).toHaveFocus();
-    vi.unstubAllGlobals();
+    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toHaveFocus();
+
+    matchesMock.mockReturnValue([matchWithCrumb("Tasks")]);
+    rerender(
+      <TopbarShell>
+        <main id="app-content">
+          <div data-testid="tasks-loading">Loading tasks</div>
+        </main>
+      </TopbarShell>
+    );
+
+    expect(screen.getByRole("heading", { level: 1, name: "Tasks" })).toHaveFocus();
+    expect(screen.getByTestId("tasks-loading")).toBeInTheDocument();
   });
 
   it("Should preserve field focus when route resolution only changes search params", () => {

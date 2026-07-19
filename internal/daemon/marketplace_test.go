@@ -229,7 +229,7 @@ func newMarketplaceFeedServer(t *testing.T, skillID string) *httptest.Server {
 
 func assertMarketplaceRuntimeEntry(t *testing.T, runtime *marketplaceRuntime, wantEntryID string) {
 	t.Helper()
-	result, err := runtime.Browse(testutil.Context(t), marketplace.KindSkill, "", 10)
+	result, err := runtime.Browse(testutil.Context(t), marketplace.KindSkill, "", 0, 10)
 	if err != nil {
 		t.Fatalf("Browse() error = %v", err)
 	}

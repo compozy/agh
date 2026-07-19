@@ -16,10 +16,11 @@ export interface AutomationJobCardProps {
   job: AutomationJob;
   isRunPending: boolean;
   onRun: (id: string) => void;
+  runDisabled: boolean;
 }
 
 /** Card presentation for a job in the Jobs catalog (cards view). */
-function AutomationJobCard({ job, isRunPending, onRun }: AutomationJobCardProps) {
+function AutomationJobCard({ job, isRunPending, onRun, runDisabled }: AutomationJobCardProps) {
   const enabledTone = automationStatusTone(job.enabled ? "enabled" : "disabled");
   const nextRun = job.scheduler?.next_run_at ?? job.next_run;
 
@@ -54,7 +55,7 @@ function AutomationJobCard({ job, isRunPending, onRun }: AutomationJobCardProps)
         <Button
           aria-label={`Run ${job.name} now`}
           data-testid={`automation-run-now-${job.id}`}
-          disabled={isRunPending}
+          disabled={runDisabled || isRunPending}
           onClick={() => onRun(job.id)}
           size="sm"
           type="button"

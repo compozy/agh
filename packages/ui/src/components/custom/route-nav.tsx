@@ -16,7 +16,10 @@ function RouteNav({ className, ...props }: React.ComponentProps<"nav">) {
   return (
     <nav
       data-slot="route-nav"
-      className={cn("inline-flex items-center gap-px rounded-md bg-canvas-soft p-0.5", className)}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-px rounded-md bg-canvas-soft p-0.5",
+        className
+      )}
       {...props}
     />
   );

@@ -39,6 +39,7 @@ type MarketplaceListingPayload struct {
 type MarketplaceKindResult struct {
 	Kind       string                      `json:"kind"`
 	Total      *int                        `json:"total,omitempty"`
+	NextCursor string                      `json:"next_cursor,omitempty"`
 	Stale      bool                        `json:"stale"`
 	ErrorClass string                      `json:"error_class,omitempty"`
 	Error      string                      `json:"error,omitempty"`
@@ -55,6 +56,7 @@ type MarketplaceSearchResponse struct {
 type MarketplaceKindResponse struct {
 	Kind       string                      `json:"kind"`
 	Total      *int                        `json:"total,omitempty"`
+	NextCursor string                      `json:"next_cursor,omitempty"`
 	Stale      bool                        `json:"stale"`
 	ErrorClass string                      `json:"error_class,omitempty"`
 	Error      string                      `json:"error,omitempty"`

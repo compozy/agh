@@ -1,12 +1,7 @@
 import { useState } from "react";
-import { AlertCircle, Lock, Pencil, Play, Search } from "lucide-react";
+import { AlertCircle, Lock, Search } from "lucide-react";
 import {
-  Button,
   cn,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   Empty,
   Eyebrow,
   Metric,
@@ -15,7 +10,6 @@ import {
   Pill,
   Section,
   Spinner,
-  TopbarOverflowIcon,
   useTopbarSlot,
   type MetricTone,
 } from "@agh/ui";
@@ -39,20 +33,27 @@ import type {
 import { AutomationRunHistory } from "./automation-run-history";
 import { AutomationDeleteAction } from "./automation-delete-action";
 import {
+  AutomationDetailActions,
+  AutomationDetailOverflow,
+} from "./automation-detail-topbar-actions";
+import {
   AutomationTargetSection,
   GovernanceSection,
   PromptSection,
   TriggerHookSection,
 } from "./automation-detail-sections";
 
+interface AutomationDetailState {
+  isDeleting: boolean;
+  isLoading: boolean;
+  isTogglePending: boolean;
+  isTriggerDisabled?: boolean;
+  isTriggerPending: boolean;
+}
+
 interface AutomationDetailPanelProps {
   error: Error | null;
-  state: {
-    isDeleting: boolean;
-    isLoading: boolean;
-    isTogglePending: boolean;
-    isTriggerPending: boolean;
-  };
+  state: AutomationDetailState;
   item: AutomationJob | AutomationTrigger | undefined;
   kind: "jobs" | "triggers";
   onDelete: () => void | Promise<void>;
@@ -244,7 +245,13 @@ export function AutomationDetailPanel({
   runsError,
   runsLoading,
 }: AutomationDetailPanelProps) {
-  const { isDeleting, isLoading, isTogglePending, isTriggerPending } = state;
+  const {
+    isDeleting,
+    isLoading,
+    isTogglePending,
+    isTriggerDisabled = false,
+    isTriggerPending,
+  } = state;
   if (isLoading) {
     return (
       <div
@@ -290,9 +297,6 @@ export function AutomationDetailPanel({
 
   return (
     <AutomationDetailLoadedPanel
-      isDeleting={isDeleting}
-      isTogglePending={isTogglePending}
-      isTriggerPending={isTriggerPending}
       item={item}
       kind={kind}
       onDelete={onDelete}
@@ -302,14 +306,12 @@ export function AutomationDetailPanel({
       runs={runs}
       runsError={runsError}
       runsLoading={runsLoading}
+      state={{ isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending }}
     />
   );
 }
 
 interface AutomationDetailLoadedPanelProps {
-  isDeleting: boolean;
-  isTogglePending: boolean;
-  isTriggerPending: boolean;
   item: AutomationJob | AutomationTrigger;
   kind: "jobs" | "triggers";
   onDelete: () => void | Promise<void>;
@@ -319,12 +321,10 @@ interface AutomationDetailLoadedPanelProps {
   runs: AutomationRun[];
   runsError: Error | null;
   runsLoading: boolean;
+  state: Omit<Required<AutomationDetailState>, "isLoading">;
 }
 
 function AutomationDetailLoadedPanel({
-  isDeleting,
-  isTogglePending,
-  isTriggerPending,
   item,
   kind,
   onDelete,
@@ -334,7 +334,9 @@ function AutomationDetailLoadedPanel({
   runs,
   runsError,
   runsLoading,
+  state,
 }: AutomationDetailLoadedPanelProps) {
+  const { isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending } = state;
   const isJob = kind === "jobs";
   const isDynamic = item.source === "dynamic";
   const job = isJob ? (item as AutomationJob) : null;
@@ -347,73 +349,26 @@ function AutomationDetailLoadedPanel({
   const showOverflow = isDynamic || showRunNow;
   // Route chrome §07: secondary → primary → overflow (Delete / Enable|Disable).
   const detailActions = (
-    <div className="flex items-center gap-2" data-testid="automation-detail-actions">
-      {isDynamic ? (
-        <Button
-          data-testid="edit-automation-btn"
-          onClick={onEdit}
-          size="sm"
-          type="button"
-          variant="neutral"
-        >
-          <Pencil className="size-3" />
-          Edit
-        </Button>
-      ) : null}
-      {showRunNow ? (
-        <Button
-          data-testid="trigger-job-btn"
-          disabled={isTriggerPending}
-          onClick={onTriggerNow}
-          size="sm"
-          type="button"
-        >
-          <Play className="size-3" />
-          {isTriggerPending ? "Queuing..." : "Run now"}
-        </Button>
-      ) : null}
-      {!showOverflow ? (
-        <Button
-          data-testid="toggle-automation-btn"
-          disabled={isTogglePending}
-          onClick={() => onToggleEnabled(!item.enabled)}
-          size="sm"
-          type="button"
-          variant={item.enabled ? "neutral" : "default"}
-        >
-          {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
-        </Button>
-      ) : null}
-    </div>
+    <AutomationDetailActions
+      item={item}
+      onEdit={onEdit}
+      onToggleEnabled={onToggleEnabled}
+      onTriggerNow={showRunNow ? onTriggerNow : undefined}
+      state={{
+        togglePending: isTogglePending,
+        triggerDisabled: isTriggerDisabled,
+        triggerPending: isTriggerPending,
+      }}
+    />
   );
   const detailOverflow = showOverflow ? (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="More actions"
-        data-testid="automation-detail-overflow"
-        render={<Button type="button" variant="ghost" size="icon-sm" />}
-      >
-        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" data-testid="automation-detail-overflow-menu">
-        <DropdownMenuItem
-          data-testid="toggle-automation-btn"
-          disabled={isTogglePending}
-          onClick={() => onToggleEnabled(!item.enabled)}
-        >
-          {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
-        </DropdownMenuItem>
-        {isDynamic ? (
-          <DropdownMenuItem
-            data-testid="delete-automation-btn"
-            onClick={() => setDeleteOpen(true)}
-            variant="destructive"
-          >
-            Delete {isJob ? "job" : "trigger"}
-          </DropdownMenuItem>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <AutomationDetailOverflow
+      isTogglePending={isTogglePending}
+      item={item}
+      kind={kind}
+      onDelete={() => setDeleteOpen(true)}
+      onToggleEnabled={onToggleEnabled}
+    />
   ) : undefined;
   const detailMeta = (
     <span data-testid="automation-detail-meta">
@@ -473,8 +428,9 @@ function AutomationDetailLoadedPanel({
           <div className="flex items-start gap-2 rounded-md border border-dashed border-line px-4 py-3 text-xs text-muted">
             <Lock aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-subtle" />
             <p>
-              This automation is defined in configuration files. Only the enabled state can be
-              toggled from the UI.
+              {item.source === "config"
+                ? "This automation is defined in configuration files. Only its enabled state can be changed here."
+                : "This automation is provided by an installed package. Only its enabled state can be changed here."}
             </p>
           </div>
         ) : null}

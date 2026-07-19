@@ -1,15 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { parseVaultNamespaceFilter, type VaultRouteSearch } from "@/hooks/routes/use-vault-page";
-import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
+import {
+  normalizeVaultPrefixForNamespace,
+  parseVaultNamespaceFilter,
+  type VaultRouteSearch,
+} from "@/hooks/routes/use-vault-page";
+import { parseListingView } from "@/lib/listing-search";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { VaultPage } from "./-vault-page";
 import { preloadVaultRoute } from "./-vault-preload";
 
 function validateVaultSearch(search: Record<string, unknown>): VaultRouteSearch {
+  const namespace = parseVaultNamespaceFilter(search.namespace);
   return {
-    q: normalizeListingSearchValue(search.q),
-    namespace: parseVaultNamespaceFilter(search.namespace),
+    q: normalizeVaultPrefixForNamespace(search.q, namespace),
+    namespace,
     view: parseListingView(search.view),
   };
 }
@@ -19,7 +24,8 @@ export const Route = createFileRoute("/_app/vault")({
     topbar: { crumb: { label: "Vault", to: "/vault" } },
   }),
   validateSearch: validateVaultSearch,
-  loader: ({ context }) => preloadVaultRoute(context.queryClient),
+  loaderDeps: ({ search }) => ({ namespace: search.namespace, prefix: search.q }),
+  loader: ({ context, deps }) => preloadVaultRoute(context.queryClient, deps),
   component: VaultRoute,
 });
 

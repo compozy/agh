@@ -152,6 +152,7 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
       )}
 
       <VaultSecretSheet
+        deleteIsDisabled={page.replaceIsPending}
         onOpenChange={open => {
           if (!open) page.closeInspect();
         }}

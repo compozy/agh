@@ -65,6 +65,8 @@ export interface UseAgentRuntimeEditorResult {
   onChange: (next: RuntimeSelectorValue) => void;
   providerOptions: RuntimeProviderOption[];
   providersLoading: boolean;
+  providerSourceError: string | null;
+  onRetryProviderSource: () => void;
   runtimeModels: RuntimeModelOption[];
   modelCatalogLoading: boolean;
   modelCatalogLoaded: boolean;
@@ -103,6 +105,13 @@ export function useAgentRuntimeEditor({
   const providersLoading = useWorkspaceProviders
     ? workspaceId !== null && workspaceDetail.isLoading
     : settingsProviders.isLoading || settingsProviders.isFetching;
+  const providerSourceError = useWorkspaceProviders
+    ? workspaceDetail.error
+      ? describeError("Couldn't load workspace providers", workspaceDetail.error)
+      : null
+    : settingsProviders.error
+      ? describeError("Couldn't load providers", settingsProviders.error)
+      : null;
 
   const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
     id: option.id,
@@ -166,6 +175,14 @@ export function useAgentRuntimeEditor({
     onChange,
     providerOptions,
     providersLoading,
+    providerSourceError,
+    onRetryProviderSource: () => {
+      if (useWorkspaceProviders) {
+        void workspaceDetail.refetch();
+        return;
+      }
+      void settingsProviders.refetch();
+    },
     runtimeModels: catalog.models as RuntimeModelOption[],
     modelCatalogLoading: catalog.loading,
     modelCatalogLoaded: catalog.loaded,

@@ -23,6 +23,7 @@ import {
   parseAutomationSource,
 } from "@/systems/automation";
 import {
+  automationListLoopFilter,
   useAutomationTriggersPage,
   type AutomationRouteSearch,
 } from "@/hooks/routes/use-automation-page";
@@ -51,7 +52,7 @@ export const Route = createFileRoute("/_app/triggers")({
   loaderDeps: ({ search }) => ({
     enabled: search.enabled,
     event: search.event,
-    loop: search.loop,
+    loop: automationListLoopFilter(search),
     q: search.q,
     scope: search.scope,
     source: search.source,
@@ -182,7 +183,7 @@ function TriggersPage() {
         </ListingToolbar>
 
         <AutomationTriggersCatalog
-          errorMessage={page.runtimeUnavailableMessage}
+          errorMessage={page.errorMessage}
           hasActiveFilters={page.hasActiveFilters}
           isLoading={page.isLoading}
           onClearFilters={page.clearFilters}

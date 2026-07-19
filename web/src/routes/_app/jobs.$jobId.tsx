@@ -17,6 +17,10 @@ export const Route = createFileRoute("/_app/jobs/$jobId")({
 
 function JobDetailRoute() {
   const { jobId } = Route.useParams();
+  return <JobDetailRouteContent jobId={jobId} key={jobId} />;
+}
+
+function JobDetailRouteContent({ jobId }: { jobId: string }) {
   const page = useAutomationJobDetailPage(jobId);
 
   return (
@@ -36,6 +40,7 @@ function JobDetailRoute() {
           isDeleting: page.isDeleting,
           isLoading: page.isLoading,
           isTogglePending: page.isTogglePending,
+          isTriggerDisabled: page.isTriggerDisabled,
           isTriggerPending: page.isTriggerPending,
         }}
       />

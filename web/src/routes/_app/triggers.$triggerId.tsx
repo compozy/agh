@@ -17,6 +17,10 @@ export const Route = createFileRoute("/_app/triggers/$triggerId")({
 
 function TriggerDetailRoute() {
   const { triggerId } = Route.useParams();
+  return <TriggerDetailRouteContent key={triggerId} triggerId={triggerId} />;
+}
+
+function TriggerDetailRouteContent({ triggerId }: { triggerId: string }) {
   const page = useAutomationTriggerDetailPage(triggerId);
 
   return (

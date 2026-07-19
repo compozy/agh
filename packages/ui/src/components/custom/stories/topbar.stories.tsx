@@ -6,7 +6,6 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "../../breadcrumb";
 import { RouteNav } from "../route-nav";
@@ -20,7 +19,7 @@ const meta: Meta<typeof Topbar> = {
     docs: {
       description: {
         component:
-          "Route chrome shell (§04): one 48px three-zone grid — leading breadcrumb, centered sister-route navigation, trailing actions. The topbar answers “where?”; identity (icon well, H1, count, meta) lives in the content `PageHead`. Routes push routeNav/actions/overflow via `useTopbarSlot`.",
+          "Route chrome shell (§04): one 48px three-zone grid — leading ancestry plus the route H1, centered sister-route navigation, and trailing actions. Routes push title overrides, routeNav, actions, and overflow via `useTopbarSlot`.",
       },
     },
   },
@@ -41,8 +40,9 @@ function IndexBreadcrumb() {
     <Breadcrumb aria-label="Breadcrumb">
       <BreadcrumbList className="flex-nowrap whitespace-nowrap">
         <BreadcrumbItem>
-          <BreadcrumbPage>Runs</BreadcrumbPage>
+          <BreadcrumbLink href="#home">Home</BreadcrumbLink>
         </BreadcrumbItem>
+        <BreadcrumbSeparator />
       </BreadcrumbList>
     </Breadcrumb>
   );
@@ -56,9 +56,6 @@ function DetailBreadcrumb() {
           <BreadcrumbLink href="#loops">Loops</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
-        <BreadcrumbItem>
-          <BreadcrumbPage>software-delivery</BreadcrumbPage>
-        </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
   );
@@ -68,9 +65,10 @@ function DetailBreadcrumb() {
  * T1 · Breadcrumb only — the minimum viable topbar.
  */
 export const BreadcrumbOnly: Story = {
+  args: {},
   render: () => (
     <TopbarSlotProvider>
-      <Topbar breadcrumb={<IndexBreadcrumb />} />
+      <Topbar breadcrumb={<IndexBreadcrumb />} title="Runs" />
     </TopbarSlotProvider>
   ),
 };
@@ -98,10 +96,11 @@ function DetailActionsSetup() {
  * T2 · Detail — parent › entity breadcrumb plus trailing actions.
  */
 export const DetailActions: Story = {
+  args: {},
   render: () => (
     <TopbarSlotProvider>
       <DetailActionsSetup />
-      <Topbar breadcrumb={<DetailBreadcrumb />} />
+      <Topbar breadcrumb={<DetailBreadcrumb />} title="software-delivery" />
     </TopbarSlotProvider>
   ),
 };
@@ -128,6 +127,7 @@ function FullCompositionSetup() {
  * T4 · Breadcrumb + centered route navigation + actions.
  */
 export const FullComposition: Story = {
+  args: {},
   render: () => (
     <TopbarSlotProvider>
       <FullCompositionSetup />
@@ -139,12 +139,10 @@ export const FullComposition: Story = {
                 <BreadcrumbLink href="#operate">Operate</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Tasks</BreadcrumbPage>
-              </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
         }
+        title="Tasks"
       />
     </TopbarSlotProvider>
   ),

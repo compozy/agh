@@ -1,6 +1,7 @@
 import type { PillTone } from "@agh/ui";
 
 import type { SettingsMCPAuthFilter, SettingsMCPServerEntry } from "../types";
+import { deriveMCPManagementFilter } from "./mcp-management-target";
 
 /**
  * Pure composition of the four INDEPENDENT MCP status signals
@@ -125,16 +126,15 @@ export function authorizeLabel(server: SettingsMCPServerEntry): MCPAuthorizeLabe
 }
 
 /**
- * The auth filter targets the server's own scope: a workspace-scoped server
- * needs its workspace id present, else authorization has no valid target.
+ * The auth filter targets the effective definition source. A workspace collection
+ * can include global definitions, so the collection row scope is not authoritative.
  */
 export function deriveMCPAuthFilter(server: SettingsMCPServerEntry): SettingsMCPAuthFilter | null {
-  if (server.scope === "workspace") {
-    const workspaceId = server.workspace_id?.trim();
-    if (!workspaceId) return null;
-    return { scope: "workspace", workspace_id: workspaceId };
-  }
-  return { scope: "global" };
+  const management = deriveMCPManagementFilter(server);
+  if (!management) return null;
+  return management.scope === "workspace"
+    ? { scope: "workspace", workspace_id: management.workspace_id }
+    : { scope: "global" };
 }
 
 /**

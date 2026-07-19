@@ -102,6 +102,40 @@ export const TriggerDefault: Story = {
   ),
 };
 
+export const PackageManaged: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface>
+      <AutomationDetailPanel
+        error={null}
+        state={{
+          isDeleting: false,
+          isLoading: false,
+          isTogglePending: false,
+          isTriggerPending: false,
+        }}
+        item={{ ...primaryAutomationTriggerFixture, source: "package" }}
+        kind="triggers"
+        onDelete={fn()}
+        onEdit={fn()}
+        onToggleEnabled={fn()}
+        onTriggerNow={fn()}
+        runs={[]}
+        runsError={null}
+        runsLoading={false}
+      />
+    </PanelSurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(
+        "This automation is provided by an installed package. Only its enabled state can be changed here."
+      )
+    ).toBeInTheDocument();
+  },
+};
+
 export const TriggerHook: Story = {
   args: {},
   tags: ["play-fn"],

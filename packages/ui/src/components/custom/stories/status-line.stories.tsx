@@ -10,7 +10,7 @@ const meta: Meta<typeof StatusLine> = {
     docs: {
       description: {
         component:
-          "Typed status line + N-013 / N-005. Pairs the daemon `ConnectionIndicator` with a typed `Array<{label?, value, tone?}>` item list (replaces the legacy `ReactNode[]` shape). Items render with `·` separators and tone-driven value colors.",
+          "Typed status line + N-013 / N-005. Pairs the daemon `ConnectionIndicator` with a typed `Array<{key, label?, value, tone?}>` item list (replaces the legacy `ReactNode[]` shape). Items render with `·` separators and tone-driven value colors.",
       },
     },
   },
@@ -25,9 +25,9 @@ export const TypedItems: Story = {
     status: "connected",
     daemonLabel: "Daemon",
     items: [
-      { label: "Sessions", value: "12", tone: "neutral" },
-      { label: "Agents", value: "3", tone: "info" },
-      { label: "Workspace", value: "launch", tone: "success" },
+      { key: "sessions", label: "Sessions", value: "12", tone: "neutral" },
+      { key: "agents", label: "Agents", value: "3", tone: "info" },
+      { key: "workspace", label: "Workspace", value: "launch", tone: "success" },
     ],
   },
 };
@@ -37,7 +37,7 @@ export const Connecting: Story = {
   args: {
     status: "connecting",
     daemonLabel: "Daemon",
-    items: [{ label: "Status", value: "Resyncing settings…", tone: "info" }],
+    items: [{ key: "status", label: "Status", value: "Resyncing settings…", tone: "info" }],
   },
 };
 
@@ -46,6 +46,12 @@ export const Disconnected: Story = {
   args: {
     status: "disconnected",
     daemonLabel: "Daemon",
-    items: [{ value: "Reconnect from the topbar before saving changes.", tone: "danger" }],
+    items: [
+      {
+        key: "reconnect",
+        value: "Reconnect from the topbar before saving changes.",
+        tone: "danger",
+      },
+    ],
   },
 };

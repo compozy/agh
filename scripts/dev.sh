@@ -10,7 +10,39 @@ cd "$repo_root"
 air_pid=
 vite_pid=
 dev_web_dir=
-api_proxy_target=${AGH_WEB_API_PROXY_TARGET:-http://localhost:2123}
+air_state_dir=$(go run ./scripts/air-state-dir)
+air_build_dir="$repo_root/.tmp/air"
+dev_run_id="dev-$$-$(date +%s)"
+export AGH_AIR_BUILD_DIR=$air_build_dir
+export AGH_AIR_STATE_DIR=$air_state_dir
+export AGH_AIR_DEV_RUN_ID=$dev_run_id
+
+configured_api_proxy_target() {
+  local config_json
+  if ! config_json=$(go run ./cmd/agh config show -o json); then
+    echo "dev: failed to resolve the daemon HTTP endpoint from the active config" >&2
+    return 1
+  fi
+  printf '%s' "$config_json" | bun -e '
+    const payload = JSON.parse(await Bun.stdin.text());
+    const host = String(payload.config?.http?.host ?? "").trim();
+    const port = Number(payload.config?.http?.port);
+    if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error("active config does not contain a valid http.host and http.port");
+    }
+    const connectHost = host === "0.0.0.0" ? "127.0.0.1" : host === "::" ? "::1" : host;
+    const urlHost = connectHost.includes(":") && !connectHost.startsWith("[")
+      ? `[${connectHost}]`
+      : connectHost;
+    process.stdout.write(`http://${urlHost}:${port}`);
+  '
+}
+
+if [[ -n ${AGH_WEB_API_PROXY_TARGET:-} ]]; then
+  api_proxy_target=$AGH_WEB_API_PROXY_TARGET
+else
+  api_proxy_target=$(configured_api_proxy_target)
+fi
 export AGH_WEB_API_PROXY_TARGET=$api_proxy_target
 
 terminate_process() {
@@ -61,9 +93,19 @@ remove_dev_web_redirect() {
   fi
 
   local redirect_file="$dev_web_dir/index.html"
-  if [[ -e "$redirect_file" ]] && ! rm -f "$redirect_file"; then
+  if [[ -e "$redirect_file" ]] && ! rm -f -- "$redirect_file"; then
     echo "dev: failed to remove $redirect_file" >&2
   fi
+  if [[ -d "$dev_web_dir" ]] && ! rmdir -- "$dev_web_dir"; then
+    echo "dev: failed to remove $dev_web_dir" >&2
+  fi
+}
+
+stop_owned_daemon() {
+  local binary="$air_build_dir/agh"
+
+  go run ./scripts/air-state-lock "$air_state_dir/dev-owner.lock" -- \
+    bash scripts/stop-dev-daemon.sh "$air_state_dir" "$dev_run_id" "$binary"
 }
 
 cleanup() {
@@ -75,6 +117,9 @@ cleanup() {
   terminate_process "$air_pid" "Air"
   wait_for_process "$vite_pid" "Vite"
   wait_for_process "$air_pid" "Air"
+  if ! stop_owned_daemon && ((exit_status == 0)); then
+    exit_status=1
+  fi
 
   exit "$exit_status"
 }
@@ -90,8 +135,12 @@ else
 fi
 web_url="http://localhost:$web_port"
 
-dev_web_dir="$repo_root/.tmp/dev-web-redirect"
-mkdir -p "$dev_web_dir"
+dev_web_parent="$repo_root/.tmp"
+mkdir -p "$dev_web_parent"
+if ! dev_web_dir=$(mktemp -d "$dev_web_parent/dev-web-redirect.XXXXXX"); then
+  echo "dev: failed to allocate the web redirect directory" >&2
+  exit 1
+fi
 {
   printf '%s\n' '<!doctype html>' '<meta charset="utf-8">'
   printf '<meta http-equiv="refresh" content="0;url=%s/">\n' "$web_url"

@@ -15,35 +15,46 @@ import {
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import type { MarketplaceEntryResponse } from "../types";
+import { MarketplaceDetailManageState } from "./marketplace-detail-manage-state";
 
 interface MarketplaceDetailMCPManageProps {
   entry: MarketplaceEntryResponse["entry"];
+  scope?: "global" | "workspace";
+  workspaceId?: string;
 }
 
 function findInstalledMCPServer(
   entry: MarketplaceEntryResponse["entry"],
   servers: readonly SettingsMCPServerEntry[]
 ): SettingsMCPServerEntry | undefined {
+  const installedName = entry.installed_name?.trim();
+  if (installedName) {
+    return servers.find(server => server.name === installedName);
+  }
   return servers.find(
-    server =>
-      server.catalog_entry === entry.entry_id ||
-      server.name === entry.installed_name ||
-      server.name === entry.name
+    server => server.catalog_entry === entry.entry_id || server.name === entry.name
   );
 }
 
-function MarketplaceDetailMCPManage({ entry }: MarketplaceDetailMCPManageProps) {
+function MarketplaceDetailMCPManage({
+  entry,
+  scope,
+  workspaceId,
+}: MarketplaceDetailMCPManageProps) {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const resolvedWorkspaceId = workspaceId ?? activeWorkspaceId ?? undefined;
+  const resolvedScope = scope ?? (resolvedWorkspaceId ? "workspace" : "global");
   const pollInterval = SETTINGS_QUERY_INTERVALS.collectionRefetchInterval;
-  const globalQuery = useSettingsMCPServers({ scope: "global" }, { refetchInterval: pollInterval });
-  const workspaceQuery = useSettingsMCPServers(
-    { scope: "workspace", workspace_id: activeWorkspaceId ?? undefined },
-    { enabled: Boolean(activeWorkspaceId), refetchInterval: pollInterval }
+  const query = useSettingsMCPServers(
+    resolvedScope === "workspace"
+      ? { scope: "workspace", workspace_id: resolvedWorkspaceId }
+      : { scope: "global" },
+    {
+      enabled: resolvedScope === "global" || Boolean(resolvedWorkspaceId),
+      refetchInterval: pollInterval,
+    }
   );
-  const server = findInstalledMCPServer(entry, [
-    ...(globalQuery.data?.mcp_servers ?? []),
-    ...(workspaceQuery.data?.mcp_servers ?? []),
-  ]);
+  const server = findInstalledMCPServer(entry, query.data?.mcp_servers ?? []);
 
   const authFilter = server ? deriveMCPAuthFilter(server) : null;
   const authorize = useMCPAuthorize(authFilter);
@@ -52,11 +63,22 @@ function MarketplaceDetailMCPManage({ entry }: MarketplaceDetailMCPManageProps) 
   useEffect(() => {
     const status = server?.auth_status;
     if (isAwaiting && status?.status) {
+      // react-doctor-disable-next-line react-doctor/no-pass-data-to-parent -- This consumes daemon auth-status updates from the scoped query and advances the local authorization controller; it does not pass child-owned data to a parent.
       acknowledgeStatus(status.status, Boolean(status.token_present));
     }
   }, [acknowledgeStatus, isAwaiting, server?.auth_status]);
 
-  if (!server) return null;
+  if (!server) {
+    return (
+      <MarketplaceDetailManageState
+        error={query.error ?? null}
+        isLoading={query.isLoading}
+        label="MCP"
+        onRetry={() => void query.refetch()}
+        testId={query.isLoading ? "marketplace-mcp-manage-loading" : "marketplace-mcp-manage-error"}
+      />
+    );
+  }
 
   const status = composeMCPRowStatus(server);
   const label = authorizeLabel(server);
@@ -100,7 +122,7 @@ function MarketplaceDetailMCPManage({ entry }: MarketplaceDetailMCPManageProps) 
       </Section>
       <MCPAuthorizeDialog
         authorize={authorize}
-        scope={server.scope === "workspace" ? "workspace" : "global"}
+        scope={authFilter?.scope ?? "global"}
         server={server}
       />
     </>

@@ -30,12 +30,14 @@ type MarketplaceClient interface {
 		kind string,
 		query string,
 		limit int,
+		cursor string,
 		scope MarketplaceReadScope,
 	) (MarketplaceKindRecord, error)
 	MarketplaceInfo(
 		ctx context.Context,
 		kind string,
 		entryID string,
+		installedName string,
 		scope MarketplaceReadScope,
 	) (MarketplaceEntryRecord, error)
 	RefreshMarketplace(ctx context.Context, kind string) (MarketplaceRefreshRecord, error)
@@ -69,6 +71,7 @@ func (c *unixSocketClient) BrowseMarketplace(
 	kind string,
 	query string,
 	limit int,
+	cursor string,
 	scope MarketplaceReadScope,
 ) (MarketplaceKindRecord, error) {
 	trimmedKind := strings.TrimSpace(kind)
@@ -85,6 +88,9 @@ func (c *unixSocketClient) BrowseMarketplace(
 	if limit > 0 {
 		values.Set("limit", strconv.Itoa(limit))
 	}
+	if trimmed := strings.TrimSpace(cursor); trimmed != "" {
+		values.Set("cursor", trimmed)
+	}
 	var response MarketplaceKindRecord
 	path := "/api/marketplace/" + url.PathEscape(trimmedKind)
 	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
@@ -97,6 +103,7 @@ func (c *unixSocketClient) MarketplaceInfo(
 	ctx context.Context,
 	kind string,
 	entryID string,
+	installedName string,
 	scope MarketplaceReadScope,
 ) (MarketplaceEntryRecord, error) {
 	trimmedKind := strings.TrimSpace(kind)
@@ -110,6 +117,16 @@ func (c *unixSocketClient) MarketplaceInfo(
 	values, err := scope.queryValues()
 	if err != nil {
 		return MarketplaceEntryRecord{}, err
+	}
+	if trimmed := strings.TrimSpace(installedName); trimmed != "" {
+		switch trimmedKind {
+		case contract.MarketplaceKindMCP, contract.MarketplaceKindExtension, contract.MarketplaceKindSkill:
+			values.Set("installed_name", trimmed)
+		default:
+			return MarketplaceEntryRecord{}, errors.New(
+				"cli: --installed-name is only supported for mcp, extension, or skill marketplace entries",
+			)
+		}
 	}
 	var response MarketplaceEntryRecord
 	path := "/api/marketplace/" + url.PathEscape(trimmedKind) +

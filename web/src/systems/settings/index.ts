@@ -96,6 +96,8 @@ export {
   MCP_RUNTIME_STATES,
   probeToolLabel,
 } from "./lib/mcp-status-view-model";
+export { deriveMCPManagementFilter, mcpManagementScopeLabel } from "./lib/mcp-management-target";
+export type { MCPManagementFilter } from "./lib/mcp-management-target";
 export type {
   MCPAuthorizeLabel,
   MCPAuthStatus,
@@ -229,6 +231,7 @@ export {
   SettingsSaveBar,
   SettingsSourceBadge,
 } from "./components";
+export type { MCPServerEditorProps } from "./components";
 
 // Stores
 export { useSettingsRestartStore } from "./stores/use-settings-restart-store";

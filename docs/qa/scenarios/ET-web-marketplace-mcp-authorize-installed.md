@@ -18,3 +18,16 @@ overlaps: ET-web-mcp-authorize; ET-web-mcp-authorize-manual; ET-web-mcp-status-m
 
 Added by the unified Marketplace hard cut. Cover global and active-workspace definitions without
 exposing OAuth codes, tokens, PKCE verifiers, or bound secret references.
+
+QA impact 2026-07-18: post-install authorization opens the exact Marketplace detail identity and
+retains scope plus workspace even if the active workspace changes before the toast action is used.
+
+QA impact 2026-07-18: Installed-card and detail authorization dialogs preserve the server's
+effective global or workspace source instead of inheriting the collection scope.
+
+QA impact 2026-07-18: the post-install toast action now opens the canonical singular detail route
+`/marketplace/mcp/<entry-id>` with the exact install identity, scope, and workspace query state.
+
+QA impact 2026-07-18: when two installed definitions share one `catalog_entry`, detail status and
+authorization resolve the exact `installed_name` before catalog identity. Verify the other install
+cannot supply the displayed runtime/auth state or receive the authorization request.

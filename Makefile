@@ -145,7 +145,7 @@ dev: codegen
 	@AIR_VERSION="$(AIR_VERSION)" bash scripts/dev.sh
 
 dev-daemon:
-	@bash scripts/run-air.sh "$(AIR_VERSION)" -c .air.toml
+	@bash scripts/dev-daemon-runner.sh "$(AIR_VERSION)" -c .air.toml
 
 start: build web-build
 	@test -x ./bin/agh || { echo "bin/agh not found — run 'make build' first"; exit 1; }

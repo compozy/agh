@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { VaultSecret } from "../../types";
@@ -95,6 +95,15 @@ describe("VaultSecretsList", () => {
     expect(onSelect).toHaveBeenCalledWith(secrets[1]);
   });
 
+  it("Should call onDelete from the cards grid", () => {
+    const onDelete = vi.fn();
+    render(<VaultSecretsList onDelete={onDelete} secrets={secrets} view="cards" />);
+
+    fireEvent.click(screen.getByTestId(`vault-secrets-delete-${secrets[0].ref}`));
+
+    expect(onDelete).toHaveBeenCalledWith(secrets[0]);
+  });
+
   it("Should mark the selected row", () => {
     render(<VaultSecretsList onSelect={vi.fn()} secrets={secrets} selectedRef={secrets[0].ref} />);
 
@@ -108,6 +117,7 @@ describe("VaultSecretSheet", () => {
   it("Should render redacted metadata tiles without plaintext values", () => {
     const { container } = render(
       <VaultSecretSheet
+        deleteIsDisabled={false}
         onOpenChange={vi.fn()}
         onReplace={vi.fn()}
         onReplaceValueChange={vi.fn()}
@@ -137,6 +147,7 @@ describe("VaultSecretSheet", () => {
 
     render(
       <VaultSecretSheet
+        deleteIsDisabled={false}
         onOpenChange={vi.fn()}
         onReplace={onReplace}
         onReplaceValueChange={onReplaceValueChange}
@@ -160,5 +171,37 @@ describe("VaultSecretSheet", () => {
 
     fireEvent.click(screen.getByTestId("vault-secret-sheet-delete"));
     expect(onRequestDelete).toHaveBeenCalledWith(secret);
+  });
+
+  it("Should handle clipboard rejection and report that the reference was not copied", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("Clipboard blocked"));
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    render(
+      <VaultSecretSheet
+        deleteIsDisabled={false}
+        onOpenChange={vi.fn()}
+        onReplace={vi.fn()}
+        onReplaceValueChange={vi.fn()}
+        onRequestDelete={vi.fn()}
+        open
+        replaceError={null}
+        replaceIsPending={false}
+        replaceIsValid={false}
+        replaceValue=""
+        secret={secret}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId("vault-secret-sheet-copy"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("vault-secret-sheet-copy-error")).toHaveTextContent(
+        "Vault reference could not be copied."
+      )
+    );
+    expect(writeText).toHaveBeenCalledWith(secret.ref);
+
+    vi.unstubAllGlobals();
   });
 });

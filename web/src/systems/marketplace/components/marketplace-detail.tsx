@@ -20,11 +20,19 @@ import { formatMarketplaceCount } from "./marketplace-ui";
 
 interface MarketplaceDetailProps {
   data: MarketplaceEntryResponse;
+  managementScope?: "global" | "workspace";
+  managementWorkspaceId?: string;
   pending?: boolean;
   onAction: (entry: MarketplaceListing) => void;
 }
 
-function MarketplaceDetail({ data, pending = false, onAction }: MarketplaceDetailProps) {
+function MarketplaceDetail({
+  data,
+  managementScope,
+  managementWorkspaceId,
+  pending = false,
+  onAction,
+}: MarketplaceDetailProps) {
   const entry = data.entry;
 
   return (
@@ -38,7 +46,13 @@ function MarketplaceDetail({ data, pending = false, onAction }: MarketplaceDetai
           </main>
           <aside className="flex min-w-0 flex-col gap-6">
             {entry.installed ? <MarketplaceInstalledRail entry={entry} /> : null}
-            {entry.installed ? <MarketplaceDetailManage entry={entry} /> : null}
+            {entry.installed ? (
+              <MarketplaceDetailManage
+                entry={entry}
+                mcpScope={managementScope}
+                mcpWorkspaceId={managementWorkspaceId}
+              />
+            ) : null}
             <MarketplaceDetailsRail data={data} />
             {entry.trust ? <MarketplaceTrustRail trust={entry.trust} /> : null}
           </aside>
@@ -246,11 +260,23 @@ function MarketplaceInstalledRail({ entry }: { entry: MarketplaceEntryResponse["
   );
 }
 
-function MarketplaceDetailManage({ entry }: { entry: MarketplaceEntryResponse["entry"] }) {
+function MarketplaceDetailManage({
+  entry,
+  mcpScope,
+  mcpWorkspaceId,
+}: {
+  entry: MarketplaceEntryResponse["entry"];
+  mcpScope?: "global" | "workspace";
+  mcpWorkspaceId?: string;
+}) {
   const name = entry.installed_name?.trim() || entry.name;
   if (entry.kind === "skill") return <MarketplaceDetailSkillManage name={name} />;
   if (entry.kind === "extension") return <MarketplaceDetailExtensionManage name={name} />;
-  if (entry.kind === "mcp") return <MarketplaceDetailMCPManage entry={entry} />;
+  if (entry.kind === "mcp") {
+    return (
+      <MarketplaceDetailMCPManage entry={entry} scope={mcpScope} workspaceId={mcpWorkspaceId} />
+    );
+  }
   return null;
 }
 

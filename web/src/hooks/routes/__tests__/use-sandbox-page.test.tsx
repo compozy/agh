@@ -110,6 +110,59 @@ afterEach(() => {
 });
 
 describe("useSandboxPage", () => {
+  it("preserves the accepted e2b backend from route state", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSandboxPage({ backend: "e2b" }), { wrapper });
+
+    expect(result.current.backend).toBe("e2b");
+    expect(result.current.hasActiveFilters).toBe(true);
+  });
+
+  it("Should write filters to route search and preserve cards view when clearing them", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(
+      () =>
+        useSandboxPage({
+          backend: "daytona",
+          persistence: "reuse",
+          q: "staging",
+          view: "cards",
+        }),
+      { wrapper }
+    );
+    const current = {
+      backend: "daytona",
+      persistence: "reuse",
+      q: "staging",
+      view: "cards" as const,
+    };
+
+    act(() => result.current.setQuery("  local  "));
+    expect(navigateMock.mock.lastCall?.[0].search(current)).toEqual({ ...current, q: "local" });
+
+    act(() => result.current.setBackend("local"));
+    expect(navigateMock.mock.lastCall?.[0].search(current)).toEqual({
+      ...current,
+      backend: "local",
+    });
+
+    act(() => result.current.setPersistence("transient"));
+    expect(navigateMock.mock.lastCall?.[0].search(current)).toEqual({
+      ...current,
+      persistence: "transient",
+    });
+
+    act(() => result.current.setView("rows"));
+    expect(navigateMock.mock.lastCall?.[0].search(current)).toEqual({
+      ...current,
+      view: undefined,
+    });
+
+    act(() => result.current.clearFilters());
+    expect(navigateMock.mock.lastCall?.[0].search(current)).toEqual({ view: "cards" });
+    expect(navigateMock.mock.lastCall?.[0].to).toBe("/sandbox");
+  });
+
   it("computes total counts and workspace usage", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSandboxPage(), { wrapper });

@@ -111,6 +111,7 @@ export function SandboxProfilesList({
               <SandboxProfileCard
                 key={entry.name}
                 entry={entry}
+                onDelete={onDelete}
                 onEdit={onEdit}
                 onSelect={onSelect}
                 selected={selectedName === entry.name}

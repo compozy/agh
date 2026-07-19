@@ -44,6 +44,9 @@ export function TasksRoute() {
                   render={
                     <Link
                       activeOptions={{ exact: true, includeSearch: true }}
+                      onClick={() => {
+                        if (item.value !== surfaceMode) page.setSearchQuery("");
+                      }}
                       search={item.value === "list" ? {} : { mode: item.value }}
                       to="/tasks"
                     />
