@@ -30,11 +30,3 @@ export function sandboxUsageLabel(count: number): string {
 export function sandboxIsDeletable(entry: SettingsSandboxEntry): boolean {
   return entry.source_metadata.effective_source.kind !== "builtin-provider";
 }
-
-export function sandboxSourceLabel(entry: SettingsSandboxEntry): string {
-  const kind = entry.source_metadata.effective_source.kind;
-  if (kind === "builtin-provider") return "builtin";
-  if (kind === "global-config") return "global config";
-  if (kind === "workspace-config") return "workspace config";
-  return kind;
-}

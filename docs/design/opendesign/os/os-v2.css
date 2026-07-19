@@ -202,10 +202,8 @@ body[data-wallpaper="carbon"] .desktop{
   padding:0 16px;
   pointer-events:none;
 }
-/* flex-grow spacers center the dock; when the sessions rail opens the
-   right spacer collapses and the whole dock glides to the right edge */
-.dock-flex{flex:1 1 0;transition:flex-grow .34s var(--ease-spring)}
-body[data-sessions="open"] .dock-flex-r{flex-grow:.001}
+/* flex-grow spacers keep the dock centered */
+.dock-flex{flex:1 1 0}
 .dock-seg{
   pointer-events:auto;
   display:flex;align-items:flex-end;gap:4px;
@@ -264,26 +262,20 @@ body[data-sessions="open"] .dock-flex-r{flex-grow:.001}
 .dock-new:hover{background:var(--accent-hover);transform:translateY(-2px)}
 .dock-new svg{width:18px;height:18px}
 
-/* ============ SESSIONS RAIL (sidebar-sessions-02 anatomy on dock glass) ============ */
-.sessions-rail{
-  position:fixed;left:10px;top:54px;bottom:10px;z-index:490;
-  width:296px;display:flex;flex-direction:column;
-  background:var(--shell-glass);
-  backdrop-filter:blur(28px) saturate(1.25);
-  border:1px solid var(--line);border-radius:var(--r-dock);
-  box-shadow:0 18px 50px -18px rgba(0,0,0,.6);
-  overflow:hidden;
-  animation:rail-in .26s var(--ease-spring);
+/* ============ SESSIONS WINDOW (sidebar-sessions-02 anatomy) ============ */
+.app.app-sessions{
+  padding:0;gap:0;height:100%;min-height:0;
+  display:flex;flex-direction:column;
+  background:var(--canvas);
 }
-@keyframes rail-in{from{opacity:0;transform:translateX(-14px)}}
-.sr-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 12px 6px 14px}
+.sr-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 14px 6px}
 .sr-back{width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:var(--radius-md);color:var(--muted)}
 .sr-back:hover{background:var(--row-hover);color:var(--fg)}
 .sr-back svg{width:14px;height:14px}
 .sr-eyebrow{flex:1;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
 .sr-eyebrow .mono{margin-left:5px;color:var(--faint);letter-spacing:0}
 
-.session-search{flex:none;padding:4px 12px 6px}
+.session-search{flex:none;padding:4px 14px 6px}
 .session-search__field{
   display:flex;min-height:30px;align-items:center;gap:7px;padding:0 8px;
   border:1px solid var(--line);border-radius:var(--radius);
@@ -386,6 +378,8 @@ body[data-sessions="open"] .dock-flex-r{flex-grow:.001}
   border:1px solid var(--line-strong);border-radius:var(--radius-sm);
   padding:2px 6px;background:var(--badge-fill);
 }
+.desk-hint .dh-desktop{display:inline-flex;align-items:center;gap:8px}
+.desk-hint .dh-mobile{display:none}
 .win{
   position:absolute;
   min-width:400px;min-height:280px;
@@ -524,15 +518,83 @@ body[data-sessions="open"] .dock-flex-r{flex-grow:.001}
 .toast-body code{font-family:var(--font-mono);font-size:11.5px}
 .toast-actions{display:flex;gap:7px}
 
-/* ============ VIEWPORT GUARD / MOTION ============ */
-.small-viewport{
-  display:none;position:fixed;inset:0;z-index:2000;
-  background:var(--rail);
-  place-items:center;text-align:center;
-  font-size:14px;line-height:1.7;color:var(--muted);
+/* ============ MOBILE MODE (<960px) ============
+   Windows become stacked fullscreen surfaces — no drag/resize,
+   z-order decides which one is visible. The dock renders as a
+   bottom tab bar (scrollable strip, full sidebar parity kept)
+   and the sessions rail becomes a full-bleed sheet between the
+   menu bar and the tab bar. JS guards (isMobile) disable drag,
+   resize persistence, zoom and dock magnification. */
+@media (max-width:959px){
+  :root{--tabbar-h:56px}
+  .os{padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px))}
+
+  .mb-menus{display:none}
+
+  /* windows: stacked fullscreen — !important beats the WM's inline rects */
+  .win{
+    left:0!important;top:0!important;width:100%!important;height:100%!important;
+    min-width:0;min-height:0;
+    border:0;border-radius:0;
+    box-shadow:none;resize:none;
+  }
+  .win-head{grid-template-columns:56px minmax(0,1fr) auto;cursor:default}
+  .win-head:active{cursor:default}
+  .win-controls{gap:12px}
+  .wc{width:15px;height:15px;position:relative}
+  .wc::after{content:"";position:absolute;inset:-9px}
+  .wc-zoom{display:none}
+  .win-trail{min-width:56px}
+
+  /* dock → tab bar */
+  .dock-zone{
+    left:0;right:0;bottom:0;gap:0;padding:0;
+    align-items:stretch;
+    background:var(--shell-glass);
+    backdrop-filter:blur(28px) saturate(1.25);
+    border-top:1px solid var(--line);
+  }
+  .dock-flex{display:none}
+  .dock-seg{
+    background:none;backdrop-filter:none;
+    border:0;border-radius:0;box-shadow:none;
+    align-items:center;
+  }
+  .dock{
+    flex:1;min-width:0;gap:2px;
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));
+    overflow-x:auto;overscroll-behavior-x:contain;
+    scrollbar-width:none;
+  }
+  .dock::-webkit-scrollbar{display:none}
+  .dock-sep{display:none}
+  .dock-item{
+    width:44px;height:44px;flex:none;border-radius:10px;
+    transform:none!important;
+    transition:background var(--dur),color var(--dur);
+  }
+  .dock-item .tip,.dock-new .tip{display:none}
+  .dock-item .run-dot{bottom:3px}
+  .dock-item.is-min .run-dot{bottom:2px}
+  .dock-actions{
+    flex:none;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px)) 6px;
+    border-left:1px solid var(--line);
+  }
+  .dock-new{width:44px;height:44px;border-radius:10px}
+  .dock-new:hover{transform:none}
+
+  /* shell hint + overlays fit the phone canvas */
+  .desk-hint{padding:0 24px;text-align:center}
+  .desk-hint .dh-desktop{display:none}
+  .desk-hint .dh-mobile{display:inline}
+  .palette-overlay{padding-top:9vh}
+  .bell-pop{width:min(324px,calc(100vw - 16px))}
+  .toasts{right:12px;width:min(324px,calc(100vw - 24px))}
+  .spaces-row{
+    flex-direction:column;align-items:center;gap:12px;
+    max-height:64vh;overflow-y:auto;padding:4px 16px;
+  }
 }
-.small-viewport strong{color:var(--fg-strong)}
-@media (max-width:959px){.small-viewport{display:grid}}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}

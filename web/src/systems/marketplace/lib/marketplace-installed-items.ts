@@ -124,11 +124,14 @@ function buildInstalledMCPItems(input: InstalledItemsInput): MarketplaceInstalle
 }
 
 function buildInstalledSkillItems(input: InstalledItemsInput): MarketplaceInstalledItem[] {
+  const activationsById = new Map(
+    input.activations.map(activation => [activation.id, activation] as const)
+  );
   const items: MarketplaceInstalledItem[] = [];
   for (const skill of input.skills) {
     const installedFromBundle = skill.provenance?.installed_from_bundle ?? null;
     const bundleActivation = installedFromBundle
-      ? input.activations.find(activation => activation.id === installedFromBundle)
+      ? activationsById.get(installedFromBundle)
       : undefined;
     const slug = skill.provenance?.slug?.trim();
     const listing =

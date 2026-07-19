@@ -19,7 +19,7 @@ The dock mirrors `app-sidebar.tsx` — same 13 routes, same order, with dock sep
 | Window | Existing source (web/) | Change needed |
 | --- | --- | --- |
 | Dashboard | home route (`/`) — KPI strip, runcards, outcome bars | none |
-| Sessions | sidebar-sessions-02 view (recent + Show-all grouped by agent, collapse contract) | renders as the left rounded rail (dock-style shell), not a window; dock glides right while it's open |
+| Sessions | sidebar-sessions-02 view (recent + Show-all grouped by agent, collapse contract) | none — opens as a normal floating window like every other dock app |
 | Session (live) | session route — transcript, tool calls, composer | none |
 | Agents | `/agents` (agents-list) | none |
 | Network | `/network` | none |
@@ -37,8 +37,7 @@ The dock mirrors `app-sidebar.tsx` — same 13 routes, same order, with dock sep
 ## Net-new inventory (the entire cost of phase 1)
 
 1. **MenuBar** — workspace command-select (existing component, compact), Session/View/Help menus, approvals bell, ⌘K, and a Settings cog (AGH has no user concept, so no avatar; Settings lives here instead of the dock). The bell reuses the dashboard "Needs you" rows (`.att__row`).
-1b. **SessionsRail** — the sidebar-sessions-02 view (recent rows with agent·state sub, search, Show all sessions → agent groups with the data-collapsed contract) hosted in a floating rounded panel with the dock's glass/radius, left margin, toggled by the first dock icon. Opening it collapses the dock's right flex spacer so the dock glides to the right edge.
-2. **Dock** — app buttons + running dots + badges + magnification + New session. Minimizing folds a window into its own dock icon (dimmed glyph + hollow indicator; click restores) — no tray, so minimized count never affects layout.
+2. **Dock** — app buttons + running dots + badges + magnification + New session. Sessions is the first dock icon and opens as a normal window (same WindowFrame as Dashboard etc.). Minimizing folds a window into its own dock icon (dimmed glyph + hollow indicator; click restores) — no tray, so minimized count never affects layout. The dock stays centered; it does not slide when Sessions opens.
 3. **WindowFrame** — drag, focus z-order, minimize/zoom/close, resize, rect persistence. Wraps the route outlet; injects controls into the route topbar's leading zone.
 4. **Desktop** — wallpaper layer. (Custom desktop widgets are explicitly out of scope for the first delivery.)
 5. **Spaces** — workspace switch already exists; v2 adds per-workspace window-rect persistence and the overview overlay.
@@ -50,6 +49,15 @@ Deleted: app sidebar. Everything else ships as-is.
 - **P1 (first delivery):** MenuBar + Dock + WindowFrame over existing routes. Single workspace behavior identical to today; sidebar retired.
 - **P2:** Spaces (per-workspace window state), ⌘K palette (can reuse the existing command registry).
 - **P3:** live-session niceties (genie minimize, session-per-window multiplexing), desktop widgets if ever wanted.
+
+## Mobile mode (<960px)
+
+Below 960px the shell reflows instead of blocking (the old "desktop concept" viewport guard was deleted):
+
+- **Windows** become stacked fullscreen surfaces. The media query overrides the WM's inline rects (`!important`), z-order decides which one is visible. Drag, resize, zoom and rect persistence are disabled behind `isMobile()` guards, so the saved desktop layout survives a phone visit untouched and reappears intact above 960px.
+- **Dock** renders as a bottom tab bar: horizontally scrollable icon strip (full `app-sidebar.tsx` parity kept — no route omitted), pinned New-session action, safe-area padding. Tap = switch to app, never minimize; magnification, tooltips and separators are off.
+- **Sessions** is a normal window: on mobile it stacks fullscreen like every other app (no special sheet).
+- **Menu bar** keeps logo · workspace · bell · ⌘K · cog; the Session/View/Help menus hide (their actions stay reachable via ⌘K).
 
 ## Tokens
 

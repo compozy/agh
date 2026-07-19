@@ -264,3 +264,22 @@
 .wp-ember{background:radial-gradient(46px 30px at 15% 110%, var(--accent-tint), transparent 65%), radial-gradient(42px 26px at 90% -10%, color-mix(in oklab, var(--teal) 34%, transparent), transparent 60%), var(--canvas)}
 .wp-mesh{background:radial-gradient(40px 26px at 85% 108%, var(--success-tint), transparent 60%), radial-gradient(50px 30px at 8% -8%, color-mix(in oklab, var(--teal) 42%, transparent), transparent 64%), var(--canvas)}
 .wp-carbon{background:radial-gradient(46px 26px at 50% -14%, rgba(255,255,255,.05), transparent 58%), var(--canvas)}
+
+/* ---- mobile mode (<960px): route content inside fullscreen windows ---- */
+@media (max-width:959px){
+  .app{padding:14px 16px 18px}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .field-search{flex:1 1 160px;width:auto;min-width:0}
+  .app-settings{flex-direction:column}
+  .set-nav{
+    width:auto;flex-direction:row;gap:4px;
+    padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);
+    overflow-x:auto;scrollbar-width:none;
+  }
+  .set-nav::-webkit-scrollbar{display:none}
+  .set-nav-item{flex:none}
+  .session-status{flex-wrap:wrap;height:auto;min-height:38px;padding:6px 16px;row-gap:2px}
+  .transcript{padding:14px 16px}
+  .composer{padding:10px 16px}
+  .msg-text{max-width:none}
+}

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -65,17 +65,6 @@ function useMarketplaceMCPEditor({
   const putMutation = usePutSettingsMCPServer();
   const resetPutMutation = putMutation.reset;
   const [editor, setEditor] = useState<MCPEditorState>({ mode: "closed" });
-  const resetEditorAfterWorkspaceChange = useEffectEvent(() => {
-    setEditor({ mode: "closed" });
-    resetPutMutation();
-  });
-  const previousWorkspaceIdRef = useRef(workspaceId);
-
-  useEffect(() => {
-    if (previousWorkspaceIdRef.current === workspaceId) return;
-    previousWorkspaceIdRef.current = workspaceId;
-    resetEditorAfterWorkspaceChange();
-  }, [workspaceId]);
 
   const editorOpen = enabled && editor.mode !== "closed";
   const vaultQuery = useQuery({

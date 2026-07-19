@@ -257,8 +257,6 @@ interface SessionPageResolvedProps {
 }
 
 function SessionPageResolved({ name, id, workspaceId }: SessionPageResolvedProps) {
-  const navigate = useNavigate();
-
   if (!workspaceId) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -270,24 +268,17 @@ function SessionPageResolved({ name, id, workspaceId }: SessionPageResolvedProps
     );
   }
 
-  return (
-    <SessionPageWithWorkspace name={name} id={id} workspaceId={workspaceId} navigate={navigate} />
-  );
+  return <SessionPageWithWorkspace name={name} id={id} workspaceId={workspaceId} />;
 }
 
 interface SessionPageWithWorkspaceProps {
   name: string;
   id: string;
   workspaceId: string;
-  navigate: ReturnType<typeof useNavigate>;
 }
 
-function SessionPageWithWorkspace({
-  name,
-  id,
-  workspaceId,
-  navigate,
-}: SessionPageWithWorkspaceProps) {
+function SessionPageWithWorkspace({ name, id, workspaceId }: SessionPageWithWorkspaceProps) {
+  const navigate = useNavigate();
   const { data: session, isLoading, error } = useSessionById(id, workspaceId);
   const sessionWorkspaceId = session?.workspace_id?.trim();
 

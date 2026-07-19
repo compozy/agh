@@ -9,6 +9,13 @@
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
+/* Mobile mode (<960px): windows render stacked fullscreen via CSS,
+   the dock is a tab bar. These guards keep the WM from dragging,
+   zooming, magnifying, or persisting fullscreen rects over the
+   saved desktop layout while the media query is active. */
+const mqMobile = window.matchMedia('(max-width: 959px)');
+const isMobile = () => mqMobile.matches;
+
 /* ---------------- icons ---------------- */
 const ICONS = {
   dashboard: '<svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
@@ -78,7 +85,7 @@ const SPARK_DATA = [11, 14, 9, 16, 12, 18, 15, 10, 17, 13, 19, 14, 16, 21];
    mirrors that route's topbar trailing actions. */
 const APPS = {
   dashboard:   { name: 'Dashboard',   w: 680, h: 540, x: 110, y: 56, trail: '' },
-  sessions:    { name: 'Sessions',    w: 390, h: 530, x: 56,  y: 38, trail: '<button class="btn btn--sm" data-trail="new-session">New session</button>' },
+  sessions:    { name: 'Sessions',    w: 420, h: 560, x: 56,  y: 38, trail: '<button class="btn btn--sm" data-trail="new-session">New session</button>' },
   session:     { name: 'Checkout flow polish', w: 630, h: 570, x: 470, y: 26, trail: '' },
   tasks:       { name: 'Tasks',       w: 660, h: 480, x: 200, y: 88, trail: '<button class="btn btn--primary btn--sm" data-trail="new-session">New task</button>' },
   agents:      { name: 'Agents',      w: 540, h: 390, x: 260, y: 118, trail: '' },
@@ -111,7 +118,6 @@ let state = {
   spaces: { agh: defaultSpace('agh'), branasio: defaultSpace('branasio'), labs: defaultSpace('labs') },
   magnify: true,
   motion: 'full',
-  sessionsOpen: true,
   sessionsView: 'recent',
   collapsed: [],
 };
@@ -146,11 +152,6 @@ function clampRect(r) {
 }
 
 function openWindow(appId) {
-  if (appId === 'sessions') {
-    delete space().open.sessions;
-    openSessionsRail();
-    return;
-  }
   const app = APPS[appId];
   if (!app) return;
   const existing = wins.get(appId);
@@ -170,7 +171,8 @@ function openWindow(appId) {
   if (tpl) body.appendChild(tpl.content.cloneNode(true));
 
   const saved = space().open[appId];
-  const rect = clampRect(saved ? { ...saved } : { x: app.x, y: app.y, w: app.w, h: app.h });
+  const rect = saved ? { ...saved } : { x: app.x, y: app.y, w: app.w, h: app.h };
+  if (!isMobile()) clampRect(rect);
   Object.assign(win.style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px' });
   space().open[appId] = rect;
   space().minimized = space().minimized.filter(id => id !== appId);
@@ -200,7 +202,7 @@ function bindWindow(win, appId) {
 
   const head = $('.win-head', win);
   head.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.wc') || e.target.closest('[data-trail]') || win.classList.contains('is-max')) return;
+    if (isMobile() || e.target.closest('.wc') || e.target.closest('[data-trail]') || win.classList.contains('is-max')) return;
     const startX = e.clientX, startY = e.clientY;
     const ox = win.offsetLeft, oy = win.offsetTop;
     head.setPointerCapture(e.pointerId);
@@ -221,6 +223,7 @@ function bindWindow(win, appId) {
 }
 
 function persistRect(appId, win) {
+  if (isMobile()) return; /* fullscreen is CSS-forced — never overwrite the saved desktop rect */
   space().open[appId] = { x: win.offsetLeft, y: win.offsetTop, w: win.offsetWidth, h: win.offsetHeight };
   save();
 }
@@ -269,6 +272,7 @@ function restoreWindow(appId) {
 }
 
 function zoomWindow(appId) {
+  if (isMobile()) return; /* already fullscreen; the zoom control is hidden */
   const win = wins.get(appId);
   if (!win) return;
   if (win.classList.contains('is-max')) {
@@ -308,7 +312,7 @@ function buildDock() {
     b.setAttribute('aria-label', APPS[appId].name);
     b.innerHTML = `${ICONS[appId]}<span class="run-dot"></span><span class="tip">${APPS[appId].name}</span>`;
     b.addEventListener('click', () => {
-      if (appId === 'sessions') { toggleSessionsRail(); return; }
+      if (isMobile()) { openWindow(appId); return; } /* tab-bar semantics: tap = switch to, never minimize */
       const win = wins.get(appId);
       if (win && win.classList.contains('is-focused')) minimizeWindow(appId);
       else openWindow(appId);
@@ -322,13 +326,8 @@ function refreshDock() {
   const badges = DOCK_BADGES();
   $$('.dock-item', dock).forEach(item => {
     const id = item.dataset.app;
-    if (id === 'sessions') {
-      item.classList.toggle('is-open', state.sessionsOpen);
-      item.classList.remove('is-min');
-    } else {
-      item.classList.toggle('is-open', wins.has(id) || space().minimized.includes(id));
-      item.classList.toggle('is-min', !wins.has(id) && space().minimized.includes(id));
-    }
+    item.classList.toggle('is-open', wins.has(id) || space().minimized.includes(id));
+    item.classList.toggle('is-min', !wins.has(id) && space().minimized.includes(id));
     let badge = $('.dk-badge', item);
     const n = badges[id] || 0;
     if (n > 0) {
@@ -341,7 +340,7 @@ function refreshDock() {
 
 const MAG_RADIUS = 96, MAG_SCALE = .34;
 dock.addEventListener('pointermove', (e) => {
-  if (!state.magnify || document.body.dataset.motion === 'reduced') return;
+  if (isMobile() || !state.magnify || document.body.dataset.motion === 'reduced') return;
   $$('.dock-item', dock).forEach(item => {
     const r = item.getBoundingClientRect();
     const d = Math.abs(e.clientX - (r.left + r.width / 2));
@@ -365,7 +364,7 @@ const statusDot = (s) => ({
 
 function initApp(appId, win) {
   const init = {
-    dashboard: initDashboard, session: initSession,
+    dashboard: initDashboard, sessions: initSessions, session: initSession,
     tasks: initTasks, agents: initAgents, marketplace: initMarketplace,
     loops: initLoops, jobs: initJobs, triggers: initTriggers,
     bridges: initBridges, knowledge: initKnowledge, sandbox: initSandbox,
@@ -387,7 +386,7 @@ function initDashboard(win) {
 }
 
 /* ============================================================
-   SESSIONS RAIL — sidebar-sessions-02 anatomy on the dock shell
+   SESSIONS WINDOW — sidebar-sessions-02 anatomy inside WindowFrame
    ============================================================ */
 const SESSION_DS = {
   working: { ds: 'running', label: 'running' },
@@ -396,6 +395,10 @@ const SESSION_DS = {
   done: { ds: 'stopped', label: 'done' },
   idle: { ds: 'idle', label: 'idle' },
 };
+
+function sessionsWin() {
+  return wins.get('sessions') || null;
+}
 
 function sessionRow(s, compact) {
   const a = agentById(s.agent);
@@ -408,21 +411,24 @@ function sessionRow(s, compact) {
   </button>`;
 }
 
-function renderSessionsRail() {
-  const q = ($('#srFilter').value || '').trim().toLowerCase();
-  const match = (s) => !q || s.title.toLowerCase().includes(q) || agentById(s.agent).name.includes(q);
-  const visible = SESSIONS.filter(match);
-  $('#srCount').textContent = SESSIONS.length;
+function renderSessionsList() {
+  const win = sessionsWin();
+  if (!win) return;
+  const q = ($('[data-sr-filter]', win)?.value || '').trim().toLowerCase();
+  const visible = SESSIONS.filter(s => !q || s.title.toLowerCase().includes(q) || agentById(s.agent).name.toLowerCase().includes(q));
+  $('[data-sr-count]', win).textContent = String(visible.length);
 
   const recent = visible.slice(0, 6);
-  $('#srRecent').innerHTML = (recent.length
+  const recentEl = $('[data-sr-recent]', win);
+  recentEl.innerHTML = (recent.length
     ? `<div class="session-list">${recent.map(s => sessionRow(s, false)).join('')}</div>`
     : '<p class="sr-empty">No sessions match.</p>')
-    + `<button class="show-all" id="srShowAll">Show all sessions
+    + `<button class="show-all" data-sr-show-all>Show all sessions
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6.5 3.5 4.2 4.5-4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>`;
 
-  $('#srAll').innerHTML = AGENTS.map(a => {
+  const allEl = $('[data-sr-all]', win);
+  allEl.innerHTML = AGENTS.map(a => {
     const rows = visible.filter(s => s.agent === a.id);
     if (!rows.length) return '';
     const collapsed = state.collapsed.includes(a.id);
@@ -437,13 +443,13 @@ function renderSessionsRail() {
     </div>`;
   }).join('') || '<p class="sr-empty">No sessions match.</p>';
 
-  $$('#sessionsRail .session-row').forEach(row => row.addEventListener('click', () => {
+  $$('.session-row', win).forEach(row => row.addEventListener('click', () => {
     const s = SESSIONS.find(x => x.id === row.dataset.sid);
     openSessionView(s);
   }));
-  const showAll = $('#srShowAll');
+  const showAll = $('[data-sr-show-all]', win);
   if (showAll) showAll.addEventListener('click', () => setSessionsView('all'));
-  $$('#srAll .agent-group__head').forEach(head => head.addEventListener('click', () => {
+  $$('.agent-group__head', allEl).forEach(head => head.addEventListener('click', () => {
     const group = head.closest('.agent-group');
     const id = group.dataset.agent;
     const collapsed = group.dataset.collapsed === 'true';
@@ -456,30 +462,20 @@ function renderSessionsRail() {
 
 function setSessionsView(view) {
   state.sessionsView = view;
-  $('#srTrack').dataset.view = view;
-  $('#srBack').hidden = view !== 'all';
+  const win = sessionsWin();
+  if (win) {
+    $('[data-sr-track]', win).dataset.view = view;
+    $('[data-sr-back]', win).hidden = view !== 'all';
+  }
   save();
 }
 
-function openSessionsRail() {
-  state.sessionsOpen = true;
-  $('#sessionsRail').hidden = false;
-  document.body.dataset.sessions = 'open';
-  refreshDock(); save();
+function initSessions(win) {
+  $('[data-sr-back]', win).addEventListener('click', () => setSessionsView('recent'));
+  $('[data-sr-filter]', win).addEventListener('input', renderSessionsList);
+  setSessionsView(state.sessionsView);
+  renderSessionsList();
 }
-function closeSessionsRail() {
-  state.sessionsOpen = false;
-  $('#sessionsRail').hidden = true;
-  document.body.dataset.sessions = 'closed';
-  refreshDock(); save();
-}
-function toggleSessionsRail() {
-  state.sessionsOpen ? closeSessionsRail() : openSessionsRail();
-}
-
-$('#srBack').addEventListener('click', () => setSessionsView('recent'));
-$('#srNew').addEventListener('click', () => startNewSession('webgen'));
-$('#srFilter').addEventListener('input', renderSessionsRail);
 
 function openSessionView(session) {
   APPS.session.name = session.title;
@@ -946,7 +942,7 @@ function openSpaces() {
   const row = $('#spacesRow');
   row.innerHTML = WORKSPACES.map(w => {
     const sp = state.spaces[w.id] || defaultSpace(w.id);
-    const openIds = Object.keys(sp.open || {}).filter(id => id !== 'sessions' && !(sp.minimized || []).includes(id));
+    const openIds = Object.keys(sp.open || {}).filter(id => !(sp.minimized || []).includes(id));
     const minis = openIds.slice(0, 4).map((id) => {
       const r = sp.open[id];
       const sx = 264 / Math.max(layer.clientWidth, 1000), sy = 148 / Math.max(layer.clientHeight, 600);
@@ -1039,7 +1035,7 @@ function toast({ title, body, actions = [], timeout = 6000 }) {
 /* demo: a session completing while you work */
 setTimeout(() => {
   SESSIONS[3].status = 'done';
-  renderSessionsRail();
+  renderSessionsList();
   toast({
     title: 'research · session done',
     body: '<strong>Competitor pricing scan</strong> finished — 14 sources read, summary ready.',
@@ -1085,9 +1081,6 @@ $('#wsAvatar').textContent = w0.chip;
 
 buildDock();
 renderApprovals();
-renderSessionsRail();
-setSessionsView(state.sessionsView);
-state.sessionsOpen ? openSessionsRail() : closeSessionsRail();
 
 const toOpen = Object.keys(space().open).filter(id => !space().minimized.includes(id));
 if (toOpen.length) toOpen.forEach(id => openWindow(id));

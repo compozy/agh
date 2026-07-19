@@ -18,7 +18,6 @@ export {
   sandboxBackendTone,
   sandboxIsDeletable,
   sandboxOrDash,
-  sandboxSourceLabel,
   sandboxUsageLabel,
   type SandboxBackend,
   type SandboxPersistence,

@@ -3,24 +3,39 @@
   "artifact": "os-v2/agh-os-v2.html",
   "score": 4,
   "axes": {
-    "clarity": { "score": 5, "notes": "The v2 thesis is visible on load: the approved shell (menubar/dock/windows) framing the routes users already know. The window head doubling as the route topbar removes the double-chrome ambiguity v1 would force." },
-    "hierarchy": { "score": 4, "notes": "Opaque production-canvas windows read as 'the app'; glass is reserved for shell furniture (menubar, dock, popovers, widgets). Focused window carries the stronger border/shadow." },
-    "typography": { "score": 4, "notes": "Verbatim production stack: Inter with cv01/ss03, 13.5px base, -.006em tracking; JetBrains Mono with tabular-nums for numerics, ids and paths." },
-    "motion": { "score": 4, "notes": "Same single flourish family as v1 (dock magnification + genie minimize) on the production duration/easing tokens; reduce-motion honored via media query and settings." },
-    "brand": { "score": 4, "notes": "Token block copied verbatim from the production lineage (dashboard.html ← agent-detail.html ← packages/ui tokens.css); zero color literals outside it. Signal vocabulary corrected to production: running = pulsing accent dot, needs = warning, failed = danger." }
+    "clarity": {
+      "score": 5,
+      "notes": "Sessions now uses the same WindowFrame as every other dock app \u2014 no special rail metaphor to learn. Dock stays centered; open/minimize/close match Dashboard."
+    },
+    "hierarchy": {
+      "score": 4,
+      "notes": "Opaque production-canvas windows read as the app; glass stays on shell furniture. Sessions list anatomy (recent \u2192 Show all \u2192 agent groups) unchanged inside the frame."
+    },
+    "typography": {
+      "score": 4,
+      "notes": "Verbatim production stack: Inter with cv01/ss03, 13.5px base; JetBrains Mono with tabular-nums for session times and counts."
+    },
+    "motion": {
+      "score": 4,
+      "notes": "Removed the dock flex-grow slide (the failed flourish). Remaining motion is dock magnification + window open/genie minimize; reduce-motion honored."
+    },
+    "brand": {
+      "score": 4,
+      "notes": "Token block unchanged; Sessions body uses canvas + production list density, not a parallel glass rail surface."
+    }
   },
   "checks": {
-    "polish_pass_root_cause": "fixed — the broken sessions rail was a stale one-off: the removed Sessions-window CSS block (.session-row{display:flex;height:28px} etc.) survived in os-v2-apps.css and, loading after os-v2.css, crushed the rail's grid rows. Block deleted; comm -12 over class selectors of both sheets now returns empty (no cross-file component collisions).",
-    "polish_pass_details": "menubar 38→44px (badge/tray breathing), ⌘K chip simplified to text-only, session-row sub/time bumped one contrast step (faint→subtle, subtle→muted) with tabular-nums, ember wallpaper depth raised one tint step, sessions dock badge now counts waiting sessions (not approvals), desktop empty state teaches ⌘K/dock when zero windows are open.",
-    "token_provenance": "pass — all hex/rgba literals confined to the verbatim :root blocks in os-v2.css; apps CSS, HTML and JS are 100% var()-based",
-    "tag_balance": "pass — template/section/div/button open=close",
-    "js_syntax": "pass — node --check",
-    "view_mode_contract": "pass — Tasks and Sandbox windows ship Rows|Cards PillGroups (aria-label=\"View mode\") + .listing-card-grid; Marketplace stays cards-only per catalog IA v3",
-    "sidebar_parity": "pass — dock mirrors app-sidebar.tsx routes in sidebar order with group separators; Settings intentionally relocated to the menu-bar cog per user direction (AGH has no user/avatar concept), still reachable via ⌘K",
-    "minimize_model": "pass — no tray: minimizing folds the window into its own dock icon (genie targets the icon; dimmed glyph + hollow run-dot marks minimized; click restores) — minimized count can never displace the dock",
-    "scope_trim": "pass — desktop widgets removed (deferred by user), cost readout, mesh chip and clock removed from the menu bar; approvals live in the bell popover only",
-    "sessions_rail": "pass — Sessions renders as a floating rounded left rail on the dock shell (glass, 22px radius, 10px margins), transcribing sidebar-sessions-02: 2-line recent rows (status shapes, agent·state sub), search, Show all sessions → agent groups with the data-collapsed grid-rows contract persisted to localStorage; dock order is Sessions first, Dashboard second, and the dock glides right via flex-grow spacer collapse while the rail is open",
-    "hidden_attr_guard": "pass — global [hidden]{display:none!important}",
-    "visual_capture": "skipped — render helper blocked in this environment; user preview is the visual gate"
+    "sessions_as_window": "pass \u2014 Sessions opens via openWindow like every other APPS entry; #tpl-app-sessions hosts sidebar-sessions-02 anatomy; dock icon toggles focus/minimize; no sessionsRail aside, no body[data-sessions], no dock-flex-r collapse",
+    "dock_static": "pass \u2014 .dock-flex spacers only center the dock; body[data-sessions=open] .dock-flex-r rule deleted",
+    "token_provenance": "pass \u2014 all hex/rgba literals confined to the verbatim :root blocks in os-v2.css",
+    "tag_balance": "pass \u2014 template/section/div/button open=close",
+    "js_syntax": "pass \u2014 node --check",
+    "view_mode_contract": "pass \u2014 Tasks and Sandbox Rows|Cards; Marketplace cards-only",
+    "sidebar_parity": "pass \u2014 dock mirrors app-sidebar.tsx with group separators; Settings in menu-bar cog",
+    "minimize_model": "pass \u2014 no tray; minimize folds into dock icon",
+    "scope_trim": "pass \u2014 widgets/cost/mesh/clock out of menu bar",
+    "hidden_attr_guard": "pass \u2014 global [hidden]{display:none!important}",
+    "mobile_mode": "pass \u2014 Sessions is a normal fullscreen window on mobile (special sheet removed)",
+    "visual_capture": "skipped \u2014 render helper blocked; user preview is the visual gate"
   }
 }

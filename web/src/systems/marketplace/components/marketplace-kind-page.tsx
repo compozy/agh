@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { Plus } from "lucide-react";
 
 import { Button, ListingPage, ListingToolbar, PageHead, PillGroup } from "@agh/ui";
@@ -21,6 +22,23 @@ interface MarketplaceKindPageProps {
 function MarketplaceKindPage({ kind, search }: MarketplaceKindPageProps) {
   const searchInputRef = useListingSearchShortcut();
   const page = useMarketplaceKindPage(kind, search);
+  return (
+    <MarketplaceKindPageBody
+      key={page.workspaceId ?? "none"}
+      kind={kind}
+      page={page}
+      searchInputRef={searchInputRef}
+    />
+  );
+}
+
+interface MarketplaceKindPageBodyProps {
+  kind: MarketplaceKind;
+  page: ReturnType<typeof useMarketplaceKindPage>;
+  searchInputRef: RefObject<HTMLInputElement | null>;
+}
+
+function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKindPageBodyProps) {
   const mcpEditor = useMarketplaceMCPEditor({
     enabled: kind === "mcp",
     scope: page.mcpConfigScope,

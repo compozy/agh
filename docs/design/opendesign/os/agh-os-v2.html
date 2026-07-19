@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AGH OS v2 — shell + existing routes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,31 +44,10 @@
     </div>
   </header>
 
-  <!-- ============ SESSIONS RAIL (sidebar-sessions-02 anatomy · dock-style shell) ============ -->
-  <aside class="sessions-rail" id="sessionsRail" data-od-id="sessions-rail" aria-label="Sessions" hidden>
-    <header class="sr-head">
-      <button class="sr-back" id="srBack" aria-label="Back to recent sessions" hidden>
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <p class="sr-eyebrow">Sessions <span class="mono" id="srCount">7</span></p>
-      <button class="btn btn--sm" id="srNew">New</button>
-    </header>
-    <div class="session-search">
-      <label class="session-search__field">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <input placeholder="Filter sessions…" aria-label="Filter sessions" id="srFilter" autocomplete="off">
-      </label>
-    </div>
-    <div class="sr-track" id="srTrack" data-view="recent">
-      <div class="sr-pane" id="srRecent"></div>
-      <div class="sr-pane" id="srAll"></div>
-    </div>
-  </aside>
-
   <!-- ============ DESKTOP ============ -->
   <main class="desktop" id="desktop" data-od-id="desktop">
     <div class="win-layer" id="winLayer"></div>
-    <p class="desk-hint" id="deskHint" hidden data-od-id="desktop-hint"><kbd class="mono">⌘K</kbd> to open anything — or pick a surface from the dock</p>
+    <p class="desk-hint" id="deskHint" hidden data-od-id="desktop-hint"><span class="dh-desktop"><kbd class="mono">⌘K</kbd> to open anything — or pick a surface from the dock</span><span class="dh-mobile">Pick a surface from the tab bar below</span></p>
   </main>
 
   <!-- ============ DOCK (net-new shell) ============ -->
@@ -125,10 +104,6 @@
   </div>
 
   <div class="toasts" id="toasts" data-od-id="notifications" aria-live="polite"></div>
-
-  <div class="small-viewport" data-od-id="viewport-notice">
-    <p><strong>AGH OS</strong> is a desktop concept.<br>Open this page on a viewport ≥ 960px wide.</p>
-  </div>
 </div>
 
 <!-- ============ WINDOW CHROME ============
@@ -171,6 +146,28 @@
       <header class="panel-h"><h3>Outcomes</h3><span class="prov">task runs · last 14 days</span></header>
       <div class="bars" data-bars></div>
     </section>
+  </div>
+</template>
+
+<!-- ============ APP: SESSIONS — sidebar-sessions-02 as a normal window ============ -->
+<template id="tpl-app-sessions">
+  <div class="app app-sessions" data-od-id="app-sessions">
+    <header class="sr-head">
+      <button class="sr-back" data-sr-back aria-label="Back to recent sessions" hidden>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <p class="sr-eyebrow">Sessions <span class="mono" data-sr-count>7</span></p>
+    </header>
+    <div class="session-search">
+      <label class="session-search__field">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <input placeholder="Filter sessions…" aria-label="Filter sessions" data-sr-filter autocomplete="off">
+      </label>
+    </div>
+    <div class="sr-track" data-sr-track data-view="recent">
+      <div class="sr-pane" data-sr-recent></div>
+      <div class="sr-pane" data-sr-all></div>
+    </div>
   </div>
 </template>
 

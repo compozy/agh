@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 
 import { Input } from "@agh/ui";
 
@@ -46,11 +46,11 @@ function SettingsNumberInputControl({
   ...props
 }: SettingsNumberInputProps) {
   const [rawValue, setRawValue] = useState(() => String(value));
-
-  useEffect(() => {
-    const nextRawValue = String(value);
-    setRawValue(current => (current === nextRawValue ? current : nextRawValue));
-  }, [value]);
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setRawValue(String(value));
+  }
 
   const validationMessage = validateIntegerInput(rawValue, min);
 
