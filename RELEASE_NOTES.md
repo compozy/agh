@@ -1,3 +1,57 @@
+## 0.0.10 - 2026-07-19
+
+### ♻️ Refactoring
+
+- Listing views (#282)
+- Loops improvements (#284)
+- Model selector improvements (#290)
+- Frontend fixes (#293)
+- Store redesign (#303)
+- Network changes (#321)
+
+### 🎉 Features
+
+- Loops specs (#274)
+- Goals (#292)
+- Agent details (#297)
+- Bridge improvements (#311)
+- Ship the AGH Marketplace (#318)
+- Frontend improvements (#324)
+
+### 🐛 Bug Fixes
+
+- Loops issues (#277)
+- Session improvements (#279)
+- Loops improvements (#287)
+- Details review round
+- React doctor adjustments (#300)
+- Agent details ui
+- Preserve automation reliability across Hermes rebase (#312)
+- React-doctor
+
+### 📚 Documentation
+
+- Update skills
+- Update skills
+- Update tanstack skill
+- Fix ui enforcements
+- Add opendesign docs
+- Update cy-loop-tasks
+- Peer review skills
+- Improve react skill
+- Opendesign
+- Update skills
+
+### 📦 Build System
+
+- Ai tooling improvs
+- Sync skeeper specs to main
+- Update deps
+- Update repoclone
+- Tooling adjustments
+- Fix make start
+- Update deps
+
 ## 0.0.9 - 2026-07-04
 
 ### ♻️ Refactoring
