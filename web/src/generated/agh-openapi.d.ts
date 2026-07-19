@@ -4179,6 +4179,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/desktop-state": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List one workspace desktop-state snapshot */
+    get: operations["listDesktopState"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/desktop-state/apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Atomically mutate workspace desktop state */
+    post: operations["applyDesktopState"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/desktop-state/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream one workspace desktop-state snapshot and deltas */
+    get: operations["streamDesktopState"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/desktop-state/{key}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one workspace desktop-state value */
+    get: operations["getDesktopState"];
+    /** Create or replace one workspace desktop-state value */
+    put: operations["putDesktopState"];
+    post?: never;
+    /** Delete one workspace desktop-state value */
+    delete: operations["deleteDesktopState"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/hooks/runs": {
     parameters: {
       query?: never;
@@ -5264,6 +5334,259 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    DesktopStateAckFrame: {
+      /** @enum {string} */
+      op: "ack";
+      req: string;
+      results: {
+        key: string;
+        rev: number;
+        seq: number;
+      }[];
+    };
+    DesktopStateAckResult: {
+      key: string;
+      rev: number;
+      seq: number;
+    };
+    DesktopStateApplyFrame: {
+      /** @enum {string} */
+      op: "apply";
+      ops: {
+        if_rev?: number;
+        key: string;
+        /** @enum {string} */
+        kind: "put" | "delete";
+        value?: {
+          [key: string]: unknown;
+        } | null;
+      }[];
+      req: string;
+    };
+    DesktopStateApplyOp: {
+      if_rev?: number;
+      key: string;
+      /** @enum {string} */
+      kind: "put" | "delete";
+      value?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    DesktopStateApplyRequest: {
+      ops: {
+        if_rev?: number;
+        key: string;
+        /** @enum {string} */
+        kind: "put" | "delete";
+        value?: {
+          [key: string]: unknown;
+        } | null;
+      }[];
+    };
+    DesktopStateApplyResponse: {
+      results: {
+        deleted: boolean;
+        key: string;
+        rev: number;
+        seq: number;
+        /** Format: date-time */
+        updated_at: string;
+        value: {
+          [key: string]: unknown;
+        } | null;
+      }[];
+    };
+    DesktopStateEntry: {
+      deleted: boolean;
+      key: string;
+      rev: number;
+      seq: number;
+      /** Format: date-time */
+      updated_at: string;
+      value: {
+        [key: string]: unknown;
+      } | null;
+    };
+    DesktopStateErrorFrame: {
+      /** @enum {string} */
+      code:
+        | "desktop_state_not_found"
+        | "workspace_not_found"
+        | "desktop_state_rev_conflict"
+        | "desktop_state_value_too_large"
+        | "desktop_state_key_quota_exceeded"
+        | "desktop_state_invalid_key"
+        | "desktop_state_invalid_value"
+        | "desktop_state_slow_consumer";
+      key?: string;
+      /** @enum {string} */
+      op: "error";
+      req?: string;
+    };
+    DesktopStateErrorPayload: {
+      /** @enum {string} */
+      code:
+        | "desktop_state_not_found"
+        | "workspace_not_found"
+        | "desktop_state_rev_conflict"
+        | "desktop_state_value_too_large"
+        | "desktop_state_key_quota_exceeded"
+        | "desktop_state_invalid_key"
+        | "desktop_state_invalid_value"
+        | "desktop_state_slow_consumer";
+      error: string;
+      key?: string;
+    };
+    DesktopStateEventFrame: {
+      entry: {
+        deleted: boolean;
+        key: string;
+        rev: number;
+        seq: number;
+        /** Format: date-time */
+        updated_at: string;
+        value: {
+          [key: string]: unknown;
+        } | null;
+      };
+      /** @enum {string} */
+      op: "event";
+      origin: string;
+    };
+    DesktopStateListResponse: {
+      as_of_seq: number;
+      entries: {
+        deleted: boolean;
+        key: string;
+        rev: number;
+        seq: number;
+        /** Format: date-time */
+        updated_at: string;
+        value: {
+          [key: string]: unknown;
+        } | null;
+      }[];
+    };
+    DesktopStatePingFrame: {
+      /** @enum {string} */
+      op: "ping";
+    };
+    DesktopStatePongFrame: {
+      /** @enum {string} */
+      op: "pong";
+    };
+    DesktopStatePutRequest: {
+      if_rev?: number;
+      value: {
+        [key: string]: unknown;
+      };
+    };
+    DesktopStateSnapshotFrame: {
+      as_of_seq: number;
+      entries: {
+        deleted: boolean;
+        key: string;
+        rev: number;
+        seq: number;
+        /** Format: date-time */
+        updated_at: string;
+        value: {
+          [key: string]: unknown;
+        } | null;
+      }[];
+      /** @enum {string} */
+      op: "snapshot";
+    };
+    DesktopStateSubscribeFrame: {
+      /** @enum {string} */
+      op: "sub";
+    };
+    DesktopStateWebSocketContract: {
+      ack: {
+        /** @enum {string} */
+        op: "ack";
+        req: string;
+        results: {
+          key: string;
+          rev: number;
+          seq: number;
+        }[];
+      };
+      apply: {
+        /** @enum {string} */
+        op: "apply";
+        ops: {
+          if_rev?: number;
+          key: string;
+          /** @enum {string} */
+          kind: "put" | "delete";
+          value?: {
+            [key: string]: unknown;
+          } | null;
+        }[];
+        req: string;
+      };
+      error: {
+        /** @enum {string} */
+        code:
+          | "desktop_state_not_found"
+          | "workspace_not_found"
+          | "desktop_state_rev_conflict"
+          | "desktop_state_value_too_large"
+          | "desktop_state_key_quota_exceeded"
+          | "desktop_state_invalid_key"
+          | "desktop_state_invalid_value"
+          | "desktop_state_slow_consumer";
+        key?: string;
+        /** @enum {string} */
+        op: "error";
+        req?: string;
+      };
+      event: {
+        entry: {
+          deleted: boolean;
+          key: string;
+          rev: number;
+          seq: number;
+          /** Format: date-time */
+          updated_at: string;
+          value: {
+            [key: string]: unknown;
+          } | null;
+        };
+        /** @enum {string} */
+        op: "event";
+        origin: string;
+      };
+      ping: {
+        /** @enum {string} */
+        op: "ping";
+      };
+      pong: {
+        /** @enum {string} */
+        op: "pong";
+      };
+      snapshot: {
+        as_of_seq: number;
+        entries: {
+          deleted: boolean;
+          key: string;
+          rev: number;
+          seq: number;
+          /** Format: date-time */
+          updated_at: string;
+          value: {
+            [key: string]: unknown;
+          } | null;
+        }[];
+        /** @enum {string} */
+        op: "snapshot";
+      };
+      subscribe: {
+        /** @enum {string} */
+        op: "sub";
+      };
+    };
     LoopGraph: {
       edges: ({
         from: string;
@@ -76325,6 +76648,746 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+    };
+  };
+  listDesktopState: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            as_of_seq: number;
+            entries: {
+              deleted: boolean;
+              key: string;
+              rev: number;
+              seq: number;
+              /** Format: date-time */
+              updated_at: string;
+              value: {
+                [key: string]: unknown;
+              } | null;
+            }[];
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+    };
+  };
+  applyDesktopState: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          ops: {
+            if_rev?: number;
+            key: string;
+            /** @enum {string} */
+            kind: "put" | "delete";
+            value?: {
+              [key: string]: unknown;
+            } | null;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description Applied */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            results: {
+              deleted: boolean;
+              key: string;
+              rev: number;
+              seq: number;
+              /** Format: date-time */
+              updated_at: string;
+              value: {
+                [key: string]: unknown;
+              } | null;
+            }[];
+          };
+        };
+      };
+      /** @description Desktop state or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Revision conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Invalid desktop-state mutation */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+    };
+  };
+  streamDesktopState: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description WebSocket upgrade and frame contract */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            ack: {
+              /** @enum {string} */
+              op: "ack";
+              req: string;
+              results: {
+                key: string;
+                rev: number;
+                seq: number;
+              }[];
+            };
+            apply: {
+              /** @enum {string} */
+              op: "apply";
+              ops: {
+                if_rev?: number;
+                key: string;
+                /** @enum {string} */
+                kind: "put" | "delete";
+                value?: {
+                  [key: string]: unknown;
+                } | null;
+              }[];
+              req: string;
+            };
+            error: {
+              /** @enum {string} */
+              code:
+                | "desktop_state_not_found"
+                | "workspace_not_found"
+                | "desktop_state_rev_conflict"
+                | "desktop_state_value_too_large"
+                | "desktop_state_key_quota_exceeded"
+                | "desktop_state_invalid_key"
+                | "desktop_state_invalid_value"
+                | "desktop_state_slow_consumer";
+              key?: string;
+              /** @enum {string} */
+              op: "error";
+              req?: string;
+            };
+            event: {
+              entry: {
+                deleted: boolean;
+                key: string;
+                rev: number;
+                seq: number;
+                /** Format: date-time */
+                updated_at: string;
+                value: {
+                  [key: string]: unknown;
+                } | null;
+              };
+              /** @enum {string} */
+              op: "event";
+              origin: string;
+            };
+            ping: {
+              /** @enum {string} */
+              op: "ping";
+            };
+            pong: {
+              /** @enum {string} */
+              op: "pong";
+            };
+            snapshot: {
+              as_of_seq: number;
+              entries: {
+                deleted: boolean;
+                key: string;
+                rev: number;
+                seq: number;
+                /** Format: date-time */
+                updated_at: string;
+                value: {
+                  [key: string]: unknown;
+                } | null;
+              }[];
+              /** @enum {string} */
+              op: "snapshot";
+            };
+            subscribe: {
+              /** @enum {string} */
+              op: "sub";
+            };
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+    };
+  };
+  getDesktopState: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Desktop-state key */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            deleted: boolean;
+            key: string;
+            rev: number;
+            seq: number;
+            /** Format: date-time */
+            updated_at: string;
+            value: {
+              [key: string]: unknown;
+            } | null;
+          };
+        };
+      };
+      /** @description Desktop state or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+    };
+  };
+  putDesktopState: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Desktop-state key */
+        key: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          if_rev?: number;
+          value: {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            deleted: boolean;
+            key: string;
+            rev: number;
+            seq: number;
+            /** Format: date-time */
+            updated_at: string;
+            value: {
+              [key: string]: unknown;
+            } | null;
+          };
+        };
+      };
+      /** @description Desktop state or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Revision conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Invalid desktop-state mutation */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+    };
+  };
+  deleteDesktopState: {
+    parameters: {
+      query?: {
+        /** @description Expected current revision */
+        if_rev?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Desktop-state key */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Desktop state or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Revision conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Payload too large */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Invalid desktop-state mutation */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            code:
+              | "desktop_state_not_found"
+              | "workspace_not_found"
+              | "desktop_state_rev_conflict"
+              | "desktop_state_value_too_large"
+              | "desktop_state_key_quota_exceeded"
+              | "desktop_state_invalid_key"
+              | "desktop_state_invalid_value"
+              | "desktop_state_slow_consumer";
+            error: string;
+            key?: string;
           };
         };
       };

@@ -77,7 +77,6 @@ func (h *subscriptionHub) publish(events []Event) {
 			}
 			select {
 			case subscription.events <- cloneEvent(event):
-				h.metrics.observeQueueDepth(len(subscription.events))
 			default:
 				delete(h.subscriptions, subscription)
 				h.metrics.subscriptionClosed()

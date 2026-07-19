@@ -13,6 +13,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		observer:           s.observer,
 		schemaStreams:      s.schemaStreams,
 		resources:          s.resources,
+		desktopState:       s.desktopState,
 		automation:         s.automation,
 		loops:              s.loops,
 		bridges:            s.bridges,

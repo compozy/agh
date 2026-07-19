@@ -7,12 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
 )
 
 var sequenceKey = []byte("__meta.seq")
+
+const stagedPurgeBucketPrefix = "__purge:ws:"
 
 type stateStore struct {
 	db *bolt.DB
@@ -218,7 +221,7 @@ func (s *stateStore) apply(
 	return cloneEntries(results), nil
 }
 
-func (s *stateStore) purge(ctx context.Context, ws WorkspaceID) error {
+func (s *stateStore) stagePurge(ctx context.Context, ws WorkspaceID) error {
 	if err := contextError(ctx); err != nil {
 		return err
 	}
@@ -227,18 +230,130 @@ func (s *stateStore) purge(ctx context.Context, ws WorkspaceID) error {
 			return err
 		}
 		name := workspaceBucketName(ws)
+		stagedName := stagedPurgeBucketName(ws)
+		if tx.Bucket(stagedName) != nil {
+			return nil
+		}
+		workspaceBucket := tx.Bucket(name)
+		if workspaceBucket == nil {
+			return nil
+		}
+		stagedBucket, err := tx.CreateBucket(stagedName)
+		if err != nil {
+			return fmt.Errorf("create staged purge bucket: %w", err)
+		}
+		if err := copyBucket(workspaceBucket, stagedBucket); err != nil {
+			return err
+		}
+		return tx.DeleteBucket(name)
+	}); err != nil {
+		return fmt.Errorf("clientstate: stage purge workspace %q: %w", ws, err)
+	}
+	return nil
+}
+
+func (s *stateStore) commitPurge(ctx context.Context, ws WorkspaceID) error {
+	return s.deleteBucket(ctx, stagedPurgeBucketName(ws), "commit purge", ws)
+}
+
+func (s *stateStore) rollbackPurge(ctx context.Context, ws WorkspaceID) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		if err := contextError(ctx); err != nil {
+			return err
+		}
+		stagedName := stagedPurgeBucketName(ws)
+		stagedBucket := tx.Bucket(stagedName)
+		if stagedBucket == nil {
+			return nil
+		}
+		name := workspaceBucketName(ws)
+		if tx.Bucket(name) != nil {
+			return errors.New("live workspace bucket already exists")
+		}
+		workspaceBucket, err := tx.CreateBucket(name)
+		if err != nil {
+			return fmt.Errorf("restore workspace bucket: %w", err)
+		}
+		if err := copyBucket(stagedBucket, workspaceBucket); err != nil {
+			return err
+		}
+		return tx.DeleteBucket(stagedName)
+	}); err != nil {
+		return fmt.Errorf("clientstate: roll back purge workspace %q: %w", ws, err)
+	}
+	return nil
+}
+
+func (s *stateStore) stagedPurges(ctx context.Context) ([]WorkspaceID, error) {
+	if err := contextError(ctx); err != nil {
+		return nil, err
+	}
+	workspaces := make([]WorkspaceID, 0)
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.ForEach(func(name []byte, _ *bolt.Bucket) error {
+			bucketName := string(name)
+			workspaceID, staged := strings.CutPrefix(bucketName, stagedPurgeBucketPrefix)
+			if staged {
+				workspaces = append(workspaces, WorkspaceID(workspaceID))
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, fmt.Errorf("clientstate: list staged workspace purges: %w", err)
+	}
+	return workspaces, nil
+}
+
+func (s *stateStore) deleteBucket(
+	ctx context.Context,
+	name []byte,
+	operation string,
+	ws WorkspaceID,
+) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		if err := contextError(ctx); err != nil {
+			return err
+		}
 		if tx.Bucket(name) == nil {
 			return nil
 		}
 		return tx.DeleteBucket(name)
 	}); err != nil {
-		return fmt.Errorf("clientstate: purge workspace %q: %w", ws, err)
+		return fmt.Errorf("clientstate: %s workspace %q: %w", operation, ws, err)
 	}
 	return nil
 }
 
+func copyBucket(source, target *bolt.Bucket) error {
+	return source.ForEach(func(name, value []byte) error {
+		if value != nil {
+			return target.Put(name, value)
+		}
+		sourceChild := source.Bucket(name)
+		if sourceChild == nil {
+			return fmt.Errorf("clientstate: source child bucket %q is missing", name)
+		}
+		targetChild, err := target.CreateBucket(name)
+		if err != nil {
+			return fmt.Errorf("clientstate: create target child bucket %q: %w", name, err)
+		}
+		return copyBucket(sourceChild, targetChild)
+	})
+}
+
 func workspaceBucketName(ws WorkspaceID) []byte {
 	return []byte("ws:" + string(ws))
+}
+
+func stagedPurgeBucketName(ws WorkspaceID) []byte {
+	return []byte(stagedPurgeBucketPrefix + string(ws))
 }
 
 func contextError(ctx context.Context) error {

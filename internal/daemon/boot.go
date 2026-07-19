@@ -86,63 +86,64 @@ type bootState struct {
 	processRegistry        *toolruntime.Registry
 	sandboxRegistry        *sandbox.Registry
 	workspaceResolver      *workspacepkg.Resolver
-	sessions               SessionManager
-	hostedMCP              *mcppkg.HostedService
-	providerVault          *vault.Service
-	modelCatalog           *modelCatalogRuntime
-	marketplace            *marketplaceRuntime
-	marketplaceNotifier    marketplacepkg.Notifier
-	tasks                  *taskRuntime
-	subprocessHealth       *subprocessHealthEscalator
-	reviewRequests         *runReviewRequestedForwarder
-	spawnReaper            *spawnReaper
-	scheduler              *schedulerRuntime
-	coordinator            *coordinatorRuntime
-	network                networkRuntime
-	networkWakeRunner      *networkWakeRunner
-	participationResolver  participation.Resolver
-	toolRegistry           toolspkg.Registry
-	toolArtifacts          toolspkg.ToolArtifactStore
-	toolsets               core.ToolsetRegistry
-	toolApprovals          toolspkg.ApprovalTokenIssuer
-	clarify                *clarifyBridge
-	observer               Observer
-	lifecycleObservers     *sessionLifecycleFanout
-	hookTelemetrySinks     *hookTelemetryFanout
-	hooks                  hookRuntime
-	hookDispatcher         *hookspkg.Hooks
-	hookBindings           hookBindingPublisher
-	resourceKernel         *resources.Kernel
-	resourceCodecs         *resources.CodecRegistry
-	agentCatalog           *resourceCatalog[aghconfig.AgentDef]
-	soulCatalog            *resourceCatalog[soul.ResourceSpec]
-	heartbeatCatalog       *resourceCatalog[heartbeat.ResourceSpec]
-	toolCatalog            *resourceCatalog[toolspkg.Tool]
-	mcpServerCatalog       *resourceCatalog[aghconfig.MCPServer]
-	mcpAuthGeneration      *mcpauth.MutationGeneration
-	loopCatalog            *resourceCatalog[looppkg.ResourceSpec]
-	agentSkillResources    agentSkillPublisher
-	toolMCPResources       toolMCPPublisher
-	bundleResources        bundleResourcePublisher
-	loopResources          loopResourcePublisher
-	extMu                  sync.RWMutex
-	extensions             extensionRuntime
-	resourceReconcile      resources.ReconcileDriver
-	automation             automationRuntime
-	bridges                *bridgeRuntime
-	notificationPresets    *presetspkg.Service
-	bundles                *bundlepkg.Service
-	httpServer             Server
-	udsServer              Server
-	skillsCancel           context.CancelFunc
-	skillsDone             chan struct{}
-	loopsCancel            context.CancelFunc
-	loopsDone              chan struct{}
-	goalOutboxCancel       context.CancelFunc
-	goalOutboxDone         chan struct{}
-	startedAt              time.Time
-	info                   Info
-	deps                   RuntimeDeps
+	desktopStateBootState
+	sessions              SessionManager
+	hostedMCP             *mcppkg.HostedService
+	providerVault         *vault.Service
+	modelCatalog          *modelCatalogRuntime
+	marketplace           *marketplaceRuntime
+	marketplaceNotifier   marketplacepkg.Notifier
+	tasks                 *taskRuntime
+	subprocessHealth      *subprocessHealthEscalator
+	reviewRequests        *runReviewRequestedForwarder
+	spawnReaper           *spawnReaper
+	scheduler             *schedulerRuntime
+	coordinator           *coordinatorRuntime
+	network               networkRuntime
+	networkWakeRunner     *networkWakeRunner
+	participationResolver participation.Resolver
+	toolRegistry          toolspkg.Registry
+	toolArtifacts         toolspkg.ToolArtifactStore
+	toolsets              core.ToolsetRegistry
+	toolApprovals         toolspkg.ApprovalTokenIssuer
+	clarify               *clarifyBridge
+	observer              Observer
+	lifecycleObservers    *sessionLifecycleFanout
+	hookTelemetrySinks    *hookTelemetryFanout
+	hooks                 hookRuntime
+	hookDispatcher        *hookspkg.Hooks
+	hookBindings          hookBindingPublisher
+	resourceKernel        *resources.Kernel
+	resourceCodecs        *resources.CodecRegistry
+	agentCatalog          *resourceCatalog[aghconfig.AgentDef]
+	soulCatalog           *resourceCatalog[soul.ResourceSpec]
+	heartbeatCatalog      *resourceCatalog[heartbeat.ResourceSpec]
+	toolCatalog           *resourceCatalog[toolspkg.Tool]
+	mcpServerCatalog      *resourceCatalog[aghconfig.MCPServer]
+	mcpAuthGeneration     *mcpauth.MutationGeneration
+	loopCatalog           *resourceCatalog[looppkg.ResourceSpec]
+	agentSkillResources   agentSkillPublisher
+	toolMCPResources      toolMCPPublisher
+	bundleResources       bundleResourcePublisher
+	loopResources         loopResourcePublisher
+	extMu                 sync.RWMutex
+	extensions            extensionRuntime
+	resourceReconcile     resources.ReconcileDriver
+	automation            automationRuntime
+	bridges               *bridgeRuntime
+	notificationPresets   *presetspkg.Service
+	bundles               *bundlepkg.Service
+	httpServer            Server
+	udsServer             Server
+	skillsCancel          context.CancelFunc
+	skillsDone            chan struct{}
+	loopsCancel           context.CancelFunc
+	loopsDone             chan struct{}
+	goalOutboxCancel      context.CancelFunc
+	goalOutboxDone        chan struct{}
+	startedAt             time.Time
+	info                  Info
+	deps                  RuntimeDeps
 }
 
 func (d *Daemon) boot(ctx context.Context) (err error) {
@@ -452,7 +453,7 @@ func (d *Daemon) bootRegistryState(
 	if state.harnessRecorder != nil {
 		state.harnessRecorder.SetStore(registry)
 	}
-	if err := d.ensureDefaultWorkspace(ctx, state); err != nil {
+	if err := d.bootDefaultWorkspaceAndClientState(ctx, state, cleanup); err != nil {
 		return err
 	}
 	memoryProviders, err := newDaemonMemoryProviderRegistry(ctx, state)

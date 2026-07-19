@@ -1,0 +1,50 @@
+---
+title: "agh desktop-state delete"
+description: "Delete one desktop-state value"
+---
+
+## agh desktop-state delete
+
+Delete one desktop-state value
+
+```
+agh desktop-state delete [flags]
+```
+
+### Examples
+
+```
+  agh desktop-state delete --workspace ws_1234 --key 'win:app:tasks'
+  agh desktop-state delete --workspace ws_1234 --key desktop --if-rev 4
+```
+
+### Options
+
+```
+  -h, --help               help for delete
+      --if-rev uint        Require this current revision
+      --key string         Desktop-state key
+      --workspace string   Workspace id
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh desktop-state delete -o json
+```

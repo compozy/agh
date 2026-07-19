@@ -68,6 +68,10 @@ func Open(
 		sequencers: make(map[WorkspaceID]*workspaceSequencer),
 		closeDone:  make(chan struct{}),
 	}
+	if err := engine.recoverWorkspacePurges(context.Background()); err != nil {
+		closeErr := store.close()
+		return nil, errors.Join(err, closeErr)
+	}
 	engine.logger.Info("clientstate.store.open", "path", path)
 	return engine, nil
 }
@@ -206,13 +210,26 @@ func (e *Engine) Watch(
 
 // PurgeWorkspace closes workspace subscriptions and deletes its entire bucket.
 func (e *Engine) PurgeWorkspace(ctx context.Context, ws WorkspaceID) error {
-	return e.execute(
+	preparation, err := e.PrepareWorkspacePurge(ctx, ws)
+	if err != nil {
+		return err
+	}
+	return preparation.Commit(ctx)
+}
+
+// PrepareWorkspacePurge closes subscriptions and removes the live workspace
+// bucket while retaining a rollback copy until the owning row deletion commits.
+func (e *Engine) PrepareWorkspacePurge(
+	ctx context.Context,
+	ws WorkspaceID,
+) (WorkspacePurgePreparation, error) {
+	err := e.execute(
 		ctx,
 		ws,
 		purgeOperation,
 		func(runCtx context.Context, sequencer *workspaceSequencer) error {
 			sequencer.hub.closeAll(nil)
-			if purgeErr := e.store.purge(runCtx, ws); purgeErr != nil {
+			if purgeErr := e.store.stagePurge(runCtx, ws); purgeErr != nil {
 				e.metrics.purgeFailureObserved()
 				e.logger.Warn(
 					"clientstate.workspace.purge_failed",
@@ -225,6 +242,10 @@ func (e *Engine) PurgeWorkspace(ctx context.Context, ws WorkspaceID) error {
 			return nil
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+	return &workspacePurgePreparation{store: e.store, workspace: ws}, nil
 }
 
 // Metrics returns a consistent low-cardinality runtime snapshot.
@@ -247,6 +268,16 @@ func (e *Engine) RecordReconnect() {
 	e.metrics.reconnectRecorded()
 }
 
+// RecordOutboundQueueDepth observes one WebSocket writer-queue sample.
+func (e *Engine) RecordOutboundQueueDepth(depth int) {
+	e.metrics.observeQueueDepth(depth)
+}
+
+// RecordSlowConsumerEviction records a transport-level writer-queue eviction.
+func (e *Engine) RecordSlowConsumerEviction() {
+	e.metrics.slowConsumerEvicted()
+}
+
 // Close stops sequencers and subscriptions before closing bbolt.
 func (e *Engine) Close() error {
 	e.closeOnce.Do(func() {
@@ -261,11 +292,20 @@ func (e *Engine) Close() error {
 		for _, sequencer := range sequencers {
 			sequencer.shutdown()
 		}
+		metrics := e.Metrics()
 		e.closeErr = e.store.close()
 		if e.closeErr != nil {
 			e.logger.Warn("clientstate.store.close_failed", "error", e.closeErr)
 		} else {
-			e.logger.Info("clientstate.store.close")
+			e.logger.Info(
+				"clientstate.store.close",
+				"applies", metrics.Applies,
+				"apply_errors", metrics.ApplyErrors,
+				"rev_conflicts", metrics.RevConflicts,
+				"snapshots", metrics.Snapshots,
+				"slow_consumer_evictions", metrics.SlowConsumerEvictions,
+				"purge_failures", metrics.PurgeFailures,
+			)
 		}
 		close(e.closeDone)
 	})

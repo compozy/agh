@@ -281,15 +281,16 @@ type Daemon struct {
 	dreamRuntime                 *consolidation.Runtime
 	workspaceResolver            workspacepkg.RuntimeResolver
 	sandboxRegistry              *sandbox.Registry
-	skillsRegistry               *skills.Registry
-	modelCatalog                 *modelCatalogRuntime
-	marketplace                  *marketplaceRuntime
-	skillsCancel                 context.CancelFunc
-	skillsDone                   chan struct{}
-	loopsCancel                  context.CancelFunc
-	loopsDone                    chan struct{}
-	goalOutboxCancel             context.CancelFunc
-	goalOutboxDone               chan struct{}
+	desktopStateRuntime
+	skillsRegistry   *skills.Registry
+	modelCatalog     *modelCatalogRuntime
+	marketplace      *marketplaceRuntime
+	skillsCancel     context.CancelFunc
+	skillsDone       chan struct{}
+	loopsCancel      context.CancelFunc
+	loopsDone        chan struct{}
+	goalOutboxCancel context.CancelFunc
+	goalOutboxDone   chan struct{}
 }
 
 // WithHomePaths overrides the resolved AGH home layout.

@@ -70,6 +70,8 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[contract.HeartbeatWakeSource]():              contract.HeartbeatWakeSourceValues(),
 	reflect.TypeFor[contract.HeartbeatWakeResult]():              contract.HeartbeatWakeResultValues(),
 	reflect.TypeFor[contract.HeartbeatWakeReason]():              contract.HeartbeatWakeReasonValues(),
+	reflect.TypeFor[contract.DesktopStateErrorCode]():            contract.DesktopStateErrorCodeValues(),
+	reflect.TypeFor[contract.DesktopStateOpKind]():               contract.DesktopStateOpKindValues(),
 	reflect.TypeFor[contract.SkillDiagnosticState]():             skillDiagnosticStateValues(),
 	reflect.TypeFor[contract.SkillActivationReasonCode]():        skillActivationReasonCodeValues(),
 	reflect.TypeFor[contract.SkillVerificationStatus]():          skillVerificationStatusValues(),

@@ -38,6 +38,13 @@ type Service interface {
 	PurgeWorkspace(ctx context.Context, ws WorkspaceID) error
 }
 
+// WorkspacePurgePreparation is a reversible physical purge staged before the
+// owning workspace row is deleted.
+type WorkspacePurgePreparation interface {
+	Commit(ctx context.Context) error
+	Rollback(ctx context.Context) error
+}
+
 // OpKind identifies one mutation in an atomic Apply batch.
 type OpKind uint8
 

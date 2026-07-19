@@ -31,6 +31,7 @@ type handlerConfig struct {
 	observer           core.Observer
 	schemaStreams      core.SchemaStreamStatusReader
 	resources          core.ResourceService
+	desktopState       core.DesktopStateService
 	automation         core.AutomationManager
 	loops              core.LoopService
 	bridges            core.BridgeService
@@ -136,6 +137,7 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		Observer:                     cfg.observer,
 		SchemaStreams:                cfg.schemaStreams,
 		Resources:                    cfg.resources,
+		DesktopState:                 cfg.desktopState,
 		Extensions:                   cfg.extensions,
 		Automation:                   cfg.automation,
 		Loops:                        cfg.loops,

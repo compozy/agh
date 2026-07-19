@@ -101,6 +101,10 @@ func (p *workspaceUnregisterPreparation) Commit(context.Context) error {
 	return p.manager.commitStagedSessionDeletes(p.staged)
 }
 
+func (*workspaceUnregisterPreparation) BeforeDelete(context.Context) error {
+	return nil
+}
+
 func (p *workspaceUnregisterPreparation) Rollback(context.Context) error {
 	if p == nil || p.manager == nil {
 		return nil

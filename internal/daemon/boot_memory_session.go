@@ -34,15 +34,9 @@ func (d *Daemon) bootMemorySessionRuntime(
 	if err := d.bootClarifyBridge(state, cleanup); err != nil {
 		return err
 	}
-	preparer, ok := sessions.(workspaceRemovalPreparer)
-	if !ok {
-		return errMissingWorkspaceRemovalPreparation
+	if err := installWorkspaceRemovalPreparer(state, sessions); err != nil {
+		return err
 	}
-	state.workspaceResolver.SetUnregisterPreparer(
-		func(ctx context.Context, workspace workspacepkg.Workspace) (workspacepkg.UnregisterPreparation, error) {
-			return preparer.PrepareWorkspaceRemoval(ctx, workspace.ID)
-		},
-	)
 	memoryExtractor, err := newDaemonMemoryExtractor(ctx, state, sessions, d.now)
 	if err != nil {
 		return err

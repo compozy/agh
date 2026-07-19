@@ -50,6 +50,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.udsServer = state.udsServer
 	d.dreamRuntime = state.dreamRuntime
 	d.workspaceResolver = state.workspaceResolver
+	d.desktopState = state.desktopState
 	d.sandboxRegistry = state.sandboxRegistry
 	d.skillsRegistry = state.skillsRegistry
 	d.skillsCancel = state.skillsCancel

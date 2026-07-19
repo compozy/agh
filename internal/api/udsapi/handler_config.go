@@ -26,6 +26,7 @@ type handlerConfig struct {
 	observer           core.Observer
 	schemaStreams      core.SchemaStreamStatusReader
 	resources          core.ResourceService
+	desktopState       core.DesktopStateService
 	automation         core.AutomationManager
 	loops              core.LoopService
 	bridges            core.BridgeService

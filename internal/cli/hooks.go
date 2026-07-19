@@ -257,7 +257,7 @@ func renderHookInfoHuman(hooks []HookCatalogRecord) (string, error) {
 			),
 			renderHumanTable(
 				"Metadata",
-				[]string{"Key", hooksValueValue},
+				[]string{cliKeyValue, hooksValueValue},
 				hookMetadataRows(item.Metadata),
 			),
 		))
@@ -332,7 +332,7 @@ func renderHookInfoToonDetails(item HookCatalogRecord) string {
 		renderToonArray("matcher", []string{"field", hooksValueKey}, hookMatcherRows(item.Matcher)),
 		renderToonArray(
 			"metadata",
-			[]string{"key", hooksValueKey},
+			[]string{cliKeyKey, hooksValueKey},
 			hookMetadataRows(item.Metadata),
 		),
 	)

@@ -25,7 +25,7 @@ func coordinationOutputBundle(payload NetworkCoordinationRecord) outputBundle {
 				{Label: automationScopeValue, Value: stringOrDash(payload.Scope)},
 				{Label: "Task", Value: stringOrDash(payload.TaskID)},
 				{Label: networkEnabledValue, Value: formatBool(payload.Enabled)},
-				{Label: "Revision", Value: strconv.FormatInt(payload.Revision, 10)},
+				{Label: cliRevisionValue, Value: strconv.FormatInt(payload.Revision, 10)},
 				{Label: "Updated By", Value: stringOrDash(payload.UpdatedBy)},
 				{Label: "Invitation Eligible", Value: formatBool(payload.Eligibility.Eligible)},
 				{Label: "Eligibility Reason", Value: stringOrDash(payload.Eligibility.Reason)},

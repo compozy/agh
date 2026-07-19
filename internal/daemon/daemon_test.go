@@ -4597,6 +4597,13 @@ func assertPromptExcludes(t *testing.T, prompt string, fragments ...string) {
 func newTestDaemon(t *testing.T, homePaths aghconfig.HomePaths, cfg *aghconfig.Config) *Daemon {
 	t.Helper()
 
+	if _, err := os.Stat(homePaths.DatabaseFile); errors.Is(err, os.ErrNotExist) {
+		if err := daemonTestStoreSeed.Clone(homePaths.DatabaseFile); err != nil {
+			t.Fatalf("daemon store seed Clone() error = %v", err)
+		}
+	} else if err != nil {
+		t.Fatalf("os.Stat(%q) error = %v", homePaths.DatabaseFile, err)
+	}
 	d, err := New(
 		WithHomePaths(homePaths),
 		WithConfig(cfg),
@@ -5322,8 +5329,16 @@ func (f *fakeSessionManager) PrepareWorkspaceRemoval(
 	context.Context,
 	string,
 ) (workspacepkg.UnregisterPreparation, error) {
-	return nil, nil
+	return fakeWorkspaceRemovalPreparation{}, nil
 }
+
+type fakeWorkspaceRemovalPreparation struct{}
+
+func (fakeWorkspaceRemovalPreparation) BeforeDelete(context.Context) error { return nil }
+
+func (fakeWorkspaceRemovalPreparation) Commit(context.Context) error { return nil }
+
+func (fakeWorkspaceRemovalPreparation) Rollback(context.Context) error { return nil }
 
 type blockingStatusSessionManager struct {
 	*fakeSessionManager

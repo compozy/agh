@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/compozy/agh/internal/clientstate"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/memory/consolidation"
 	"github.com/compozy/agh/internal/resources"
@@ -43,6 +44,7 @@ type shutdownTargets struct {
 	goalOutboxCancel    context.CancelFunc
 	goalOutboxDone      chan struct{}
 	retention           observerRetentionStopper
+	desktopState        *clientstate.Engine
 }
 
 func (d *Daemon) detachShutdownTargets() shutdownTargets {
@@ -123,6 +125,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.closeLogger = func() error { return nil }
 	d.dreamRuntime = nil
 	d.workspaceResolver = nil
+	d.desktopState = nil
 	d.sandboxRegistry = nil
 	d.skillsCancel = nil
 	d.skillsDone = nil

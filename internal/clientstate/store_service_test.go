@@ -370,6 +370,114 @@ func TestEngineShouldHonorStoreContract(t *testing.T) {
 func TestEngineShouldPersistAndPurgeWorkspaceState(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should restore a staged purge when workspace deletion rolls back", func(t *testing.T) {
+		t.Parallel()
+		engine, resolver, _ := newTestEngine(t, testLimits())
+		created := applyPut(
+			t,
+			engine,
+			"w1",
+			"os_shell",
+			"desktop",
+			objectValue("preserved"),
+			0,
+			ApplyOptions{},
+		)
+		resolver.markDeleting("w1")
+		preparation, err := engine.PrepareWorkspacePurge(context.Background(), "w1")
+		if err != nil {
+			t.Fatalf("PrepareWorkspacePurge() error = %v", err)
+		}
+		if err := preparation.Rollback(context.Background()); err != nil {
+			t.Fatalf("Rollback() error = %v", err)
+		}
+		resolver.register("w1", "w1-generation-1")
+		preserved, err := engine.Get(context.Background(), "w1", "os_shell", "desktop")
+		if err != nil {
+			t.Fatalf("Get(after rollback) error = %v", err)
+		}
+		if preserved.Rev != created.Rev || preserved.Seq != created.Seq ||
+			!bytes.Equal(preserved.Value, created.Value) {
+			t.Fatalf("Get(after rollback) = %#v, want %#v", preserved, created)
+		}
+		updated := applyPut(
+			t,
+			engine,
+			"w1",
+			"os_shell",
+			"desktop",
+			objectValue("continued"),
+			created.Rev,
+			ApplyOptions{},
+		)
+		if updated.Rev != created.Rev+1 || updated.Seq != created.Seq+1 {
+			t.Fatalf("updated = %#v, want revision and sequence continuity", updated)
+		}
+	})
+
+	t.Run("Should recover an interrupted staged purge from workspace row truth", func(t *testing.T) {
+		t.Parallel()
+		resolver := newFakeWorkspaceResolver()
+		resolver.register("w1", "generation-1")
+		path := DatabasePath(t.TempDir())
+		engine, err := Open(path, resolver, testLimits())
+		if err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+		want := applyPut(
+			t,
+			engine,
+			"w1",
+			"os_shell",
+			"desktop",
+			objectValue("recover"),
+			0,
+			ApplyOptions{},
+		)
+		resolver.markDeleting("w1")
+		if _, err := engine.PrepareWorkspacePurge(context.Background(), "w1"); err != nil {
+			t.Fatalf("PrepareWorkspacePurge() error = %v", err)
+		}
+		if err := engine.Close(); err != nil {
+			t.Fatalf("Close(staged) error = %v", err)
+		}
+
+		resolver.register("w1", "generation-1")
+		recovered, err := Open(path, resolver, testLimits())
+		if err != nil {
+			t.Fatalf("Open(recover existing workspace) error = %v", err)
+		}
+		got, err := recovered.Get(context.Background(), "w1", "os_shell", "desktop")
+		if err != nil {
+			t.Fatalf("Get(recovered) error = %v", err)
+		}
+		if got.Rev != want.Rev || got.Seq != want.Seq || !bytes.Equal(got.Value, want.Value) {
+			t.Fatalf("Get(recovered) = %#v, want %#v", got, want)
+		}
+
+		resolver.markDeleting("w1")
+		if _, err := recovered.PrepareWorkspacePurge(context.Background(), "w1"); err != nil {
+			t.Fatalf("PrepareWorkspacePurge(second) error = %v", err)
+		}
+		if err := recovered.Close(); err != nil {
+			t.Fatalf("Close(second staged) error = %v", err)
+		}
+		resolver.remove("w1")
+		committed, err := Open(path, resolver, testLimits())
+		if err != nil {
+			t.Fatalf("Open(recover deleted workspace) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := committed.Close(); err != nil {
+				t.Errorf("Close(committed recovery) error = %v", err)
+			}
+		})
+		resolver.register("w1", "generation-2")
+		if entries, err := committed.List(context.Background(), "w1", "os_shell"); err != nil || len(entries) != 0 {
+			t.Fatalf("List(recreated) = %#v, %v; want empty", entries, err)
+		}
+	})
+
 	t.Run("Should purge one deleting workspace and close only its subscriptions (UT-017)", func(t *testing.T) {
 		t.Parallel()
 		engine, resolver, _ := newTestEngine(t, testLimits())
