@@ -55,12 +55,6 @@ const (
 // ErrSandboxProfileNotFound reports a sandbox profile reference that is not configured.
 var ErrSandboxProfileNotFound = errors.New("sandbox profile not found")
 
-// HTTPConfig controls the HTTP server bind address.
-type HTTPConfig struct {
-	Host string `toml:"host"`
-	Port int    `toml:"port"`
-}
-
 // DefaultsConfig holds global runtime defaults.
 type DefaultsConfig struct {
 	Agent    string `toml:"agent"`
@@ -451,6 +445,7 @@ type DaytonaProfile struct {
 type Config struct {
 	Daemon        DaemonConfig              `toml:"daemon"`
 	HTTP          HTTPConfig                `toml:"http"`
+	DesktopState  DesktopStateConfig        `toml:"desktop_state"`
 	Defaults      DefaultsConfig            `toml:"defaults"`
 	Agents        AgentsConfig              `toml:"agents"`
 	Limits        LimitsConfig              `toml:"limits"`
@@ -783,6 +778,9 @@ func (c *Config) validateCore() error {
 	if err := c.HTTP.Validate(); err != nil {
 		return err
 	}
+	if err := c.DesktopState.Validate(); err != nil {
+		return err
+	}
 	if err := c.Defaults.Validate(); err != nil {
 		return err
 	}
@@ -988,18 +986,6 @@ func (p DaytonaProfile) Resolve() sandbox.DaytonaConfig {
 		resolved.StartupRef = resolved.Image
 	}
 	return resolved
-}
-
-// Validate ensures the HTTP bind settings are valid.
-func (c HTTPConfig) Validate() error {
-	if strings.TrimSpace(c.Host) == "" {
-		return errors.New("http.host is required")
-	}
-	if c.Port <= 0 || c.Port > 65535 {
-		return fmt.Errorf("http.port must be between 1 and 65535: %d", c.Port)
-	}
-
-	return nil
 }
 
 // Validate ensures the default agent setting is present.

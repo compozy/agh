@@ -9,16 +9,12 @@ import (
 // DefaultWithHome returns the built-in default configuration for the supplied AGH home.
 func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
-		Daemon: DaemonConfig{
-			Socket:                              homePaths.DaemonSocket,
-			MemoryReportInterval:                DefaultDaemonMemoryReportInterval,
-			SubprocessHealthEscalationThreshold: DefaultDaemonSubprocessHealthEscalationThreshold,
-			ReloadTimeouts:                      DefaultDaemonReloadTimeoutsConfig(),
-		},
+		Daemon: defaultDaemonConfig(homePaths),
 		HTTP: HTTPConfig{
 			Host: "localhost",
 			Port: 2123,
 		},
+		DesktopState: DefaultDesktopStateConfig(),
 		Defaults: DefaultsConfig{
 			Agent: DefaultAgentName,
 		},

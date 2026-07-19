@@ -3,6 +3,7 @@ package config
 type configOverlay struct {
 	Daemon        daemonOverlay              `toml:"daemon"`
 	HTTP          httpOverlay                `toml:"http"`
+	DesktopState  desktopStateOverlay        `toml:"desktop_state"`
 	Defaults      defaultsOverlay            `toml:"defaults"`
 	Agents        agentsOverlay              `toml:"agents"`
 	Limits        limitsOverlay              `toml:"limits"`
@@ -32,6 +33,7 @@ type configOverlay struct {
 func (o *configOverlay) Apply(dst *Config) error {
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)
+	o.DesktopState.Apply(&dst.DesktopState)
 	o.Defaults.Apply(&dst.Defaults)
 	o.Agents.Apply(&dst.Agents)
 	o.Limits.Apply(&dst.Limits)
