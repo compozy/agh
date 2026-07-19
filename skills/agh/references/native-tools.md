@@ -120,18 +120,20 @@ binding semantics.
 
 Config tools live under `agh__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `agh__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
-Automation job/trigger catalogs are available through CLI, HTTP/UDS, and `agh__automation_jobs_list` / `agh__automation_triggers_list`. They return counted cursor pages and support scope/workspace, source, enabled, Loop-target, search, and trigger-event filters. Run/history reads remain separate uncounted `runs` collections; bound them explicitly. Other automation tools under `agh__automation_*` cover detail, mutation, enable/disable, and manual trigger.
-Config- and package-backed definitions accept enabled-only updates and reject deletion; dynamic definitions accept full mutation.
+Automation catalogs use CLI, HTTP/UDS, and `agh__automation_jobs_list` / `agh__automation_triggers_list`.
+Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, search, and event;
+run history stays uncounted and must be bounded. Other `agh__automation_*` tools cover detail,
+mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
+deleted; dynamic definitions are fully mutable.
 
 `agh__automation_suggestions_{list,accept,dismiss}` requires `workspace_id`: list pending; accept
 creates, dismiss latches. Relist on CAS conflict.
 
-`agh__marketplace_search` returns MCP, extension, skill, and bundle rows. Single-kind calls accept
-`next_cursor` as `cursor`; keep kind, query, and workspace unchanged. Curated and bundle cursors
-fence their projection; remote skill cursors validate the prior page boundary with bounded
-look-behind. Restart from the first page when AGH rejects a continuation. Grouped searches omit it.
-Its installed-state projection uses the caller's exact workspace; never reuse a result across
-workspace scopes. Extension lifecycle tools remain under `agh__extensions_*` for
+`agh__marketplace_search` returns MCP, extension, skill, and bundle rows. Single-kind cursors bind the
+query, scope, workspace, and source projection; grouped searches omit them. Paging and installed
+identity rules live in `references/tools-and-skills.md`. Installed state is scoped to the caller's
+exact workspace; never reuse it across workspace scopes.
+Extension lifecycle tools remain under `agh__extensions_*` for
 list/info/install/update/remove/enable/disable; there is no extension-specific native search tool.
 When `agh__extensions_update` with `all=true` stops on a later target, its error identifies the failed
 extension and completed count, and every earlier committed update retains an `extension.updated`
@@ -147,7 +149,7 @@ The `agh__automation_jobs_create` and `agh__automation_jobs_update` descriptors 
 
 Bundle tools live under `agh__bundles_*` for list/info/activate/deactivate/status. Resource tools live under `agh__resources_*` for list/info/snapshot of desired-state resources.
 
-MCP tools expose `agh__mcp_status` and `agh__mcp_auth_status` for redacted diagnostics. A
+MCP diagnostics are `agh__mcp_status` and `agh__mcp_auth_status`. A
 workspace-scoped server with five consecutive confirmed permanent failures reports `state: "dead"`
 from `agh__mcp_status`; its nested runtime reason is `backend_dead`. During the same daemon lifetime,
 resolve its last-known tools through `agh__tool_info`, which retains their unavailable descriptors
@@ -155,20 +157,24 @@ and diagnostic instead of hiding them. Do not retry a dead tool blindly or inven
 admits at most one automatic recovery probe after the 60-second window and clears the mark when that
 probe succeeds. Browser/OAuth login, raw auth material, and any required credential repair remain
 management-surface operations.
-Curated MCP installation is likewise a management-surface mutation through `agh mcp install` or
-`POST /api/settings/mcp-servers/install`; do not invent `agh__mcp_install`.
+Curated install remains a management surface (`agh mcp install` or
+`POST /api/settings/mcp-servers/install`); there is no `agh__mcp_install`.
 
 ## Observability And Bridge Tools
 
 Runtime log inspection is available through `agh__logs`. Metrics and redacted event search are available through `agh__observe_metrics` and `agh__observe_search`.
 
-Bridge list/status reads return counted, filtered pages through CLI, HTTP/UDS, and `agh__bridges_list` / `agh__bridges_status`; native results are redacted. The HTTP/UDS health stream requires at most 200 IDs from the current page under the same scope/workspace boundary. Bridge lifecycle, route mutation, secret binding, `manifest`, `setup`, `verify`, real `send-test`, and webhook registration remain CLI/HTTP/UDS management surfaces unless a scoped native tool is present in the live descriptor; never invent native equivalents.
+Bridge list/status uses CLI, HTTP/UDS, and `agh__bridges_list` / `agh__bridges_status` for counted,
+filtered, redacted pages. The health stream accepts at most 200 current-page IDs in the same scope.
+Lifecycle, routes, secrets, `manifest`, `setup`, `verify`, real `send-test`, and webhooks stay on
+CLI/HTTP/UDS unless the live descriptor exposes a scoped native tool.
 
 ## CLI/HTTP-Only Management Surfaces
 
-Use CLI or HTTP/UDS with structured output for diagnostics (`agh status`, `agh doctor`), session repair/recap/approval/inspect/soul refresh, task inspect/pause/resume/forced release/fail, scheduler controls, config reload/apply history, notification presets, and support bundles.
-
-Task notification subscription tools are native, but notification preset management is not. Do not invent `agh__scheduler_*`, `agh__support_*`, `agh__doctor`, `agh__status`, `agh__task_inspect`, or `agh__notifications_*` calls unless the live registry exposes them.
+CLI/HTTP/UDS owns diagnostics (`agh status`, `agh doctor`), session repair/recap/approval/inspect/soul
+refresh, task inspection/control, schedulers, config reload/history, notification presets, and support
+bundles. Task notification subscriptions are native; presets are not. Use management surfaces unless
+the live registry exposes a matching `agh__*` descriptor.
 
 ## Descriptor Discipline
 

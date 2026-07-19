@@ -69,22 +69,19 @@ contract.
 ## Marketplace Discovery
 
 Use `agh__marketplace_search` for read-only MCP, extension, skill, and bundle discovery. Results carry
-stable `entry_id` values and installed state for the caller's scope. Structured CLI fallback:
+stable `entry_id` values and scoped installed state. CLI fallback:
 `agh marketplace search [query] [--kind mcp|extension|skill|bundle] [--scope global|workspace]
-[--workspace <id>] [--cursor <opaque>] -o json`. Cursor requires one kind and the same query, scope,
-and workspace. Curated and bundle cursors fence the source projection; remote skill cursors validate
-the previous page boundary. When AGH rejects a continuation, restart from the first page. Human and
-TOON output append a Page block, while JSONL appends a `type: "page"` record after item records.
-Exact installed detail: `agh marketplace info <kind> <entry_id>
-[--installed-name <name>]`; the identity flag applies to MCPs, extensions, and skills, never bundles.
-Scope flags are identical, global is default, and workspace requires an ID.
-Refresh via `agh marketplace refresh [--kind]` or `POST /api/marketplace/refresh`; bundles are derived
-and cannot be refreshed directly. Inspect each kind's `stale`,
-`error_class`, and `error` fields:
-failed feed refreshes preserve the last successful rows and return their per-kind stale outcome.
-On installed HTTP/UDS and structured CLI rows, use `installed_name` for lifecycle mutations;
-`name` is feed-owned display text, and `manage_path` is presentation-only. Treat `manage_path` as
-opaque and follow it instead of reconstructing a Web route from runtime identity fields.
+[--workspace <id>] [--cursor <opaque>] -o json`. Continuation requires one kind and unchanged query,
+scope, and workspace. Curated/bundle cursors fence the source; remote-skill cursors validate the prior
+page boundary; grouped search omits cursors. Restart from page one after rejection. Human/TOON output
+adds a Page block; JSONL adds a `type: "page"` record after items.
+
+Exact detail is `agh marketplace info <kind> <entry_id> [--installed-name <name>]`; installed identity
+applies to MCPs, extensions, and skills, never bundles. Global is default; workspace requires an ID.
+Refresh with `agh marketplace refresh [--kind]` or `POST /api/marketplace/refresh`; bundles are derived.
+Read each kind's `stale`, `error_class`, and `error`: failed refreshes preserve the last good rows.
+Installed HTTP/UDS and structured CLI rows use `installed_name` for lifecycle mutations; `name` is
+feed-owned and `manage_path` is an opaque presentation path to follow, not reconstruct.
 
 Extension rows carry the daemon's pre-install `trust` report. Use its `decision`, `registry_tier`,
 `allow_unverified`, and `warnings` directly; `checksum_verified` remains false until download verification.
