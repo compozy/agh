@@ -1,10 +1,27 @@
 import type { ReactNode } from "react";
 
+import { Topbar, TopbarSlotProvider } from "@agh/ui";
+
 import { cn } from "@/lib/utils";
 
 interface StoryFrameProps {
   children: ReactNode;
   className?: string;
+}
+
+interface StoryTopbarHostProps extends StoryFrameProps {
+  breadcrumb?: ReactNode;
+  title: ReactNode;
+}
+
+/** Story-only shell for components that publish route actions through useTopbarSlot. */
+export function StoryTopbarHost({ children, breadcrumb, title }: StoryTopbarHostProps) {
+  return (
+    <TopbarSlotProvider>
+      <Topbar breadcrumb={breadcrumb} title={title} />
+      {children}
+    </TopbarSlotProvider>
+  );
 }
 
 export function StorySurface({ children, className }: StoryFrameProps) {

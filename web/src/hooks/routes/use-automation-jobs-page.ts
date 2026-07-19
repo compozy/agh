@@ -1,35 +1,20 @@
-import { startTransition, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import {
-  automationJobToDraft,
-  buildAutomationJobRequest,
-  automationJobUpdateFromDraft,
-  createAutomationJobDraft,
-  createAutomationDialogHandle,
-  createLoopTargetJobDraft,
-  useAutomationJob,
-  useAutomationJobRuns,
+  useAutomationJobEditor,
   useAutomationJobs,
-  useCreateAutomationJob,
-  useDeleteAutomationJob,
   useTriggerAutomationJob,
-  useUpdateAutomationJob,
-} from "@/systems/automation";
-import type {
-  AutomationRun,
-  AutomationScopeFilter,
-  CreateAutomationJobRequest,
 } from "@/systems/automation";
 
 import {
+  automationListError,
   automationUnavailableMessage,
-  buildEmptyState,
-  resolveSelectedId,
+  useAutomationCreateSeed,
   useAutomationPageBase,
   type AutomationCreateSeed,
   type AutomationRouteSearch,
-  type JobEditorState,
 } from "./use-automation-page-base";
 
 export function useAutomationJobsPage(
@@ -37,11 +22,9 @@ export function useAutomationJobsPage(
   search: AutomationRouteSearch = {}
 ) {
   const page = useAutomationPageBase("jobs", search);
-  const [editor, setEditor] = useState<JobEditorState | null>(null);
-  const [queuedRun, setQueuedRun] = useState<{ jobId: string; run: AutomationRun } | null>(null);
-  const jobSubmitInFlightRef = useRef(false);
-  const seededRef = useRef(false);
-  const [editorHandle] = useState(createAutomationDialogHandle);
+  const navigate = useNavigate();
+  const pendingRunIdsRef = useRef(new Set<string>());
+  const [runPendingIds, setRunPendingIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const jobsQuery = useAutomationJobs(page.listFilters);
   const jobs = jobsQuery.jobs;
@@ -50,217 +33,58 @@ export function useAutomationJobsPage(
     page.automationRuntime,
     jobsQuery.error
   );
-  const effectiveSelectedJobId = resolveSelectedId(page.selectedId, jobs);
+  const runDisabled = runtimeUnavailableMessage !== null;
 
-  const jobDetailQuery = useAutomationJob(effectiveSelectedJobId ?? "", {
-    enabled: Boolean(effectiveSelectedJobId),
+  const editor = useAutomationJobEditor({
+    activeWorkspaceId: page.activeWorkspaceId,
+    workspaces: page.workspaces,
+    onSaved: job => void navigate({ to: "/jobs/$jobId", params: { jobId: job.id } }),
   });
-  const jobRunsQuery = useAutomationJobRuns(
-    effectiveSelectedJobId ?? "",
-    { limit: 10 },
-    { enabled: Boolean(effectiveSelectedJobId) }
-  );
 
-  const createJobMutation = useCreateAutomationJob();
-  const updateJobMutation = useUpdateAutomationJob();
-  const deleteJobMutation = useDeleteAutomationJob();
+  useAutomationCreateSeed("jobs", seed, page.activeWorkspaceId, editor.openLoopCreate);
+
   const triggerJobMutation = useTriggerAutomationJob();
-
-  const selectedJob = jobDetailQuery.data ?? jobs.find(job => job.id === effectiveSelectedJobId);
-
-  const persistedRuns = jobRunsQuery.data ?? [];
-  const displayedRuns =
-    queuedRun &&
-    queuedRun.jobId === effectiveSelectedJobId &&
-    !persistedRuns.some(run => run.id === queuedRun.run.id)
-      ? [queuedRun.run, ...persistedRuns]
-      : persistedRuns;
-
-  const handleScopeChange = (nextScope: AutomationScopeFilter) => {
-    startTransition(() => {
-      page.setScopeFilter(nextScope);
-      page.setSelectedId(null);
-      setEditor(null);
-      setQueuedRun(null);
-    });
-  };
-
-  const handleCreate = () => {
-    setEditor({ draft: createAutomationJobDraft(page.activeWorkspaceId), mode: "create" });
-  };
-
-  // Open the create sheet pre-targeted at a Loop when arriving from the detail CTA.
-  useEffect(() => {
-    if (seededRef.current || !seed.loop || !page.activeWorkspaceId) return;
-    seededRef.current = true;
-    setEditor({
-      draft: createLoopTargetJobDraft(page.activeWorkspaceId, seed.loop),
-      mode: "create",
-    });
-  }, [seed.loop, page.activeWorkspaceId]);
-
-  const handleEdit = () => {
-    if (!selectedJob) {
-      return;
-    }
-
-    setEditor({ draft: automationJobToDraft(selectedJob), id: selectedJob.id, mode: "edit" });
-  };
-
-  const handleSubmit = async () => {
-    if (!editor || jobSubmitInFlightRef.current) {
-      return;
-    }
-
-    jobSubmitInFlightRef.current = true;
+  const onRunJob = async (id: string) => {
+    if (runDisabled || pendingRunIdsRef.current.has(id)) return;
+    pendingRunIdsRef.current.add(id);
+    setRunPendingIds(new Set(pendingRunIdsRef.current));
     try {
-      const payload = buildAutomationJobRequest(editor.draft);
-      const job =
-        editor.mode === "create"
-          ? await createJobMutation.mutateAsync(payload)
-          : await updateJobMutation.mutateAsync({
-              data: automationJobUpdateFromDraft(payload),
-              id: editor.id,
-            });
-
-      page.setSelectedId(job.id);
-      setEditor(null);
-      toast.success(
-        editor.mode === "create" ? `Created job ${job.name}.` : `Updated job ${job.name}.`
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save automation job");
-    }
-    jobSubmitInFlightRef.current = false;
-  };
-
-  const handleDelete = async () => {
-    if (!selectedJob) {
-      throw new Error("The selected job is no longer available.");
-    }
-
-    await deleteJobMutation.mutateAsync({ id: selectedJob.id });
-    page.setSelectedId(null);
-    setQueuedRun(null);
-    toast.success(`Deleted ${selectedJob.name}.`);
-  };
-
-  const handleToggleEnabled = async (enabled: boolean) => {
-    if (!selectedJob) {
-      return;
-    }
-
-    try {
-      await updateJobMutation.mutateAsync({ data: { enabled }, id: selectedJob.id });
-      toast.success(`${enabled ? "Enabled" : "Disabled"} ${selectedJob.name}.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update automation state");
-    }
-  };
-
-  const handleTriggerNow = async () => {
-    if (!selectedJob) {
-      return;
-    }
-
-    try {
-      const run = await triggerJobMutation.mutateAsync({ id: selectedJob.id });
-      setQueuedRun({ jobId: selectedJob.id, run });
+      const run = await triggerJobMutation.mutateAsync({ id });
       toast.success(`Queued run ${run.id}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to trigger automation job");
     }
-  };
-
-  const emptyState =
-    jobs.length === 0
-      ? buildEmptyState({
-          hasQuery: page.searchQuery.trim() !== "",
-          kind: "jobs",
-          onCreate: handleCreate,
-        })
-      : null;
-
-  const listPanelProps = {
-    activeWorkspaceName: page.activeWorkspace?.name,
-    errorMessage: jobsQuery.error?.message ?? null,
-    isLoading: jobsQuery.isLoading,
-    hasNextPage: jobsQuery.hasNextPage,
-    isFetchingNextPage: jobsQuery.isFetchingNextPage,
-    jobs,
-    kind: "jobs" as const,
-    onSearchChange: page.setSearchQuery,
-    onLoadMore: () => void jobsQuery.fetchNextPage(),
-    onSelect: (id: string) =>
-      startTransition(() => {
-        page.setSelectedId(id);
-        setQueuedRun(null);
-      }),
-    scopeFilter: page.scopeFilter,
-    searchQuery: page.searchQuery,
-    selectedId: effectiveSelectedJobId,
-    totalCount: jobsQuery.total,
-    triggers: [],
-  };
-
-  const detailPanelProps = {
-    emptyState,
-    error: jobDetailQuery.error,
-    state: {
-      isDeleting: deleteJobMutation.isPending,
-      isLoading: jobDetailQuery.isLoading,
-      isTogglePending: updateJobMutation.isPending,
-      isTriggerPending: triggerJobMutation.isPending,
-    },
-    item: selectedJob,
-    kind: "jobs" as const,
-    onDelete: handleDelete,
-    onEdit: handleEdit,
-    onToggleEnabled: (enabled: boolean) => {
-      void handleToggleEnabled(enabled);
-    },
-    onTriggerNow: () => {
-      void handleTriggerNow();
-    },
-    runs: displayedRuns,
-    runsError: jobRunsQuery.error,
-    runsLoading: jobRunsQuery.isLoading,
-  };
-
-  const editorDialogProps = {
-    activeWorkspaceId: page.activeWorkspaceId,
-    handle: editorHandle,
-    workspaces: page.workspaces,
-    editor: editor
-      ? {
-          ...editor,
-          kind: "jobs" as const,
-          isPending: createJobMutation.isPending || updateJobMutation.isPending,
-          onCancel: () => setEditor(null),
-          onChange: (draft: CreateAutomationJobRequest) =>
-            setEditor(current => (current ? { ...current, draft } : current)),
-          onSubmit: () => {
-            void handleSubmit();
-          },
-        }
-      : null,
+    pendingRunIdsRef.current.delete(id);
+    setRunPendingIds(new Set(pendingRunIdsRef.current));
   };
 
   return {
-    currentTotalCount: jobsQuery.total,
-    detailPanelProps,
-    editorDialogProps,
-    handleCreate,
-    handleScopeChange,
-    initialError:
-      runtimeUnavailableMessage && jobs.length === 0
-        ? new Error(runtimeUnavailableMessage)
-        : jobsQuery.error && jobs.length === 0
-          ? jobsQuery.error
-          : null,
-    isInitialLoading: jobsQuery.isLoading && jobs.length === 0,
-    listPanelProps,
+    clearFilters: page.clearFilters,
+    editorDialogProps: editor.editorDialogProps,
+    enabledFilter: page.enabledFilter,
+    error: automationListError(runtimeUnavailableMessage, jobsQuery.error, jobs.length),
+    errorMessage: runtimeUnavailableMessage ?? jobsQuery.error?.message ?? null,
+    handleCreate: editor.openCreate,
+    hasActiveFilters: page.hasActiveFilters,
+    hasChildMatch: page.hasChildMatch,
+    hasNextPage: jobsQuery.hasNextPage,
+    isFetchingNextPage: jobsQuery.isFetchingNextPage,
+    isLoading: jobsQuery.isLoading && jobs.length === 0,
+    jobs,
+    loadMore: () => void jobsQuery.fetchNextPage(),
+    onRunJob: (id: string) => void onRunJob(id),
+    runDisabled,
+    runPendingIds,
     runtimeUnavailableMessage,
     scopeFilter: page.scopeFilter,
+    searchQuery: page.searchQuery,
+    setEnabledFilter: page.setEnabledFilter,
+    setScopeFilter: page.setScopeFilter,
+    setSearchQuery: page.setSearchQuery,
+    setSourceFilter: page.setSourceFilter,
+    setView: page.setView,
+    sourceFilter: page.sourceFilter,
+    total: jobsQuery.total,
+    view: page.view,
   };
 }

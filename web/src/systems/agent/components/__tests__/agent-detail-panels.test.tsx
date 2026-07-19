@@ -116,6 +116,7 @@ describe("agent detail panels", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Release" })).toBeVisible();
+    expect(screen.getByTestId("agent-file-meta")).toHaveTextContent("Read-only here");
     expect(screen.getByTestId("agent-file-soul-missing-badge")).toBeVisible();
     expect(screen.getByTestId("agent-file-heartbeat-missing-badge")).toBeVisible();
     await user.click(screen.getByTestId("agent-file-edit-prompt"));
@@ -150,7 +151,9 @@ describe("agent detail panels", () => {
       />
     );
 
-    expect(screen.getAllByText("Default")).toHaveLength(3);
+    expect(screen.getAllByText("Default")).toHaveLength(2);
+    expect(screen.queryByText("Provider")).not.toBeInTheDocument();
+    expect(screen.queryByText("Model")).not.toBeInTheDocument();
     expect(screen.getByTestId("agent-overview-skills")).toHaveTextContent("1 skill disabled");
     expect(screen.getAllByTestId(/^agent-overview-live-sess-/)).toHaveLength(3);
     expect(screen.getByTestId("agent-overview-live-sess-active")).toHaveTextContent("59s");
@@ -241,7 +244,9 @@ describe("agent detail panels", () => {
     const onEditSection = vi.fn();
     render(<AgentConfigurationTab agent={agent()} onEditSection={onEditSection} />);
     expect(screen.getByTestId("agent-config-runtime")).toHaveTextContent("Default");
-    expect(screen.getByTestId("agent-config-access")).toHaveTextContent("agh__task_view");
+    expect(screen.queryByText("Provider")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-config-tools")).toHaveTextContent("agh__task_view");
+    expect(screen.getByTestId("agent-config-deny-tools")).toHaveTextContent("agh__task_delete");
     expect(screen.getByTestId("agent-mcp-empty")).toBeVisible();
     await user.click(screen.getByTestId("agent-config-edit-runtime"));
     await user.click(screen.getByTestId("agent-config-edit-access"));

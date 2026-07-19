@@ -248,12 +248,18 @@ export { providerIconMap } from "./components/provider-icon-map";
 export {
   AgentPageActions,
   AgentPageMeta,
+  AgentPageOverflow,
   AgentPageStatusPill,
   type AgentPageActionsProps,
   type AgentPageMetaProps,
+  type AgentPageOverflowProps,
   type AgentPageStatusPillProps,
 } from "./components/agent-page-header";
 export { AgentDetailHeader, type AgentDetailHeaderProps } from "./components/agent-detail-header";
+export {
+  AgentRuntimeControl,
+  type AgentRuntimeControlProps,
+} from "./components/agent-runtime-control";
 export { AgentSessionsList, type AgentSessionsListProps } from "./components/agent-sessions-list";
 export {
   AgentStatsGrid,

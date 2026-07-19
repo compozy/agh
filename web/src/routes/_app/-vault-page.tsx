@@ -1,4 +1,4 @@
-import { AlertCircle, Check, KeyRound, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, KeyRound, Lock, Plus, RefreshCw, Trash2, X } from "lucide-react";
 
 import {
   Alert,
@@ -11,6 +11,7 @@ import {
   Input,
   ListingPage,
   ListingToolbar,
+  PageHead,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -19,14 +20,20 @@ import {
   type VaultDraft,
   type VaultEditorState,
   type VaultLastAction,
+  type VaultRouteSearch,
 } from "@/hooks/routes/use-vault-page";
 import { SettingsEditorDialog, SettingsFieldRow } from "@/systems/settings";
-import { VaultListFilters, VaultSecretsList, type VaultSecret } from "@/systems/vault";
-export function VaultPage() {
-  const page = useVaultPage();
+import {
+  VaultListFilters,
+  VaultSecretSheet,
+  VaultSecretsList,
+  type VaultSecret,
+} from "@/systems/vault";
+
+export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
+  const page = useVaultPage(search);
 
   useTopbarSlot({
-    count: page.isLoading ? undefined : page.counts.total,
     actions: (
       <div className="flex items-center gap-2" data-testid="vault-topbar-actions">
         <Button
@@ -63,16 +70,17 @@ export function VaultPage() {
       }
       data-testid="vault-shell"
     >
-      <ListingPage.Head
+      <PageHead
         count={page.counts.total}
         countTestId="vault-page-count"
         data-testid="vault-page-head"
+        icon={KeyRound}
         meta={
           <>
             <span>Write-only secrets; the daemon returns redacted metadata only.</span>
-            <ListingPage.MetaDot />
+            <PageHead.MetaDot />
             <span data-testid="vault-page-sessions">{page.counts.sessions} session-scoped</span>
-            <ListingPage.MetaDot />
+            <PageHead.MetaDot />
             <span data-testid="vault-page-providers">{page.counts.providers} provider-scoped</span>
           </>
         }
@@ -85,14 +93,28 @@ export function VaultPage() {
             aria-label="Filter by vault ref prefix"
             data-testid="vault-page-prefix"
             onChange={page.setPrefix}
-            placeholder="vault:sessions/sess_123/"
+            placeholder="Filter by ref prefix"
             value={page.prefix}
           />
           <ListingToolbar.Filters>
             <VaultListFilters namespace={page.namespace} onNamespaceChange={page.setNamespace} />
           </ListingToolbar.Filters>
         </ListingToolbar.Leading>
+        <ListingToolbar.Trailing>
+          <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
+        </ListingToolbar.Trailing>
       </ListingToolbar>
+
+      <p
+        className="mb-3 flex items-center gap-2 text-xs text-subtle"
+        data-testid="vault-page-sec-note"
+      >
+        <Lock aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
+        <span>
+          {page.counts.total} redacted metadata {page.counts.total === 1 ? "entry" : "entries"} —
+          values are write-only and never leave the daemon.
+        </span>
+      </p>
 
       {page.queryError && page.secrets.length === 0 ? (
         <Empty
@@ -122,9 +144,28 @@ export function VaultPage() {
           error={page.queryError ? new Error(page.queryError) : null}
           isLoading={page.isRefetching && page.secrets.length === 0}
           onDelete={page.openDelete}
+          onSelect={page.openInspect}
           secrets={page.secrets}
+          selectedRef={page.selectedSecret?.ref ?? null}
+          view={page.view}
         />
       )}
+
+      <VaultSecretSheet
+        deleteIsDisabled={page.replaceIsPending}
+        onOpenChange={open => {
+          if (!open) page.closeInspect();
+        }}
+        onReplace={page.replaceSecret}
+        onReplaceValueChange={page.setReplaceValue}
+        onRequestDelete={page.openDelete}
+        open={page.selectedSecret !== null}
+        replaceError={page.replaceError}
+        replaceIsPending={page.replaceIsPending}
+        replaceIsValid={page.replaceIsValid}
+        replaceValue={page.replaceValue}
+        secret={page.selectedSecret}
+      />
 
       <VaultEditor
         canSave={page.editorIsValid}

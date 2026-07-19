@@ -1,6 +1,6 @@
 {
     "permissions": {
-        "allow": ["Bash(wc:*)", "Bash(agh network:*)"]
+        "allow": ["Bash(wc:*)", "Bash(agh network:*)", "Bash(rtk grep *)"]
     },
     "hooks": {
         "PostToolUse": [

@@ -1,18 +1,6 @@
 import { Plug } from "lucide-react";
 
-import {
-  Empty,
-  Eyebrow,
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-  Pill,
-  Section,
-  cn,
-} from "@agh/ui";
+import { Empty, ListingRow, Pill, Section, cn } from "@agh/ui";
 
 import type { AgentMCPServer, AgentPayload } from "../types";
 
@@ -46,56 +34,64 @@ export function AgentMcpServersPanel({
         description="This agent does not declare any MCP servers."
         data-testid="agent-mcp-empty"
         fill={false}
+        className="px-4 py-8"
       />
     ) : (
-      <ItemGroup className="gap-2" data-testid="agent-mcp-list">
+      <ul data-testid="agent-mcp-list">
         {mcpServers.map(server => {
           const transport = server.transport ?? "stdio";
           const commandOrUrl = server.url ?? server.command;
           const envKeys = envKeyNames(server);
           const secretKeys = secretKeyNames(server);
           return (
-            <Item
-              key={server.name}
-              role="listitem"
-              variant="outline"
-              size="sm"
-              data-testid={`agent-mcp-row-${server.name}`}
-            >
-              <ItemContent>
-                <ItemTitle>{server.name}</ItemTitle>
-                {commandOrUrl ? (
-                  <ItemDescription className="truncate font-mono text-badge tracking-mono text-muted">
-                    {commandOrUrl}
-                  </ItemDescription>
-                ) : null}
-                {envKeys.length > 0 || secretKeys.length > 0 ? (
-                  <div
-                    className="mt-2 flex flex-wrap gap-1"
-                    data-testid={`agent-mcp-keys-${server.name}`}
+            <li key={server.name} className="border-b border-line-soft last:border-b-0">
+              <ListingRow
+                className="border-b-0"
+                interactive={false}
+                data-testid={`agent-mcp-row-${server.name}`}
+              >
+                <ListingRow.Icon>
+                  <Plug className="size-4" />
+                </ListingRow.Icon>
+                <ListingRow.Main>
+                  <ListingRow.Name mono>
+                    <ListingRow.Title>{server.name}</ListingRow.Title>
+                  </ListingRow.Name>
+                  {commandOrUrl ? (
+                    <ListingRow.Description className="font-mono tracking-mono">
+                      {commandOrUrl}
+                    </ListingRow.Description>
+                  ) : null}
+                  {envKeys.length > 0 || secretKeys.length > 0 ? (
+                    <ListingRow.Meta data-testid={`agent-mcp-keys-${server.name}`}>
+                      {envKeys.map(key => (
+                        <Pill key={`env:${key}`} mono size="sm" tone="neutral">
+                          {key}
+                        </Pill>
+                      ))}
+                      {secretKeys.map(key => (
+                        <Pill key={`secret:${key}`} mono size="sm" tone="warning">
+                          {key}
+                        </Pill>
+                      ))}
+                    </ListingRow.Meta>
+                  ) : null}
+                </ListingRow.Main>
+                <ListingRow.Trail>
+                  <Pill
+                    mono
+                    size="sm"
+                    tone="info"
+                    data-testid={`agent-mcp-transport-${server.name}`}
                   >
-                    {envKeys.map(key => (
-                      <Pill key={`env:${key}`} mono size="sm" tone="neutral">
-                        {key}
-                      </Pill>
-                    ))}
-                    {secretKeys.map(key => (
-                      <Pill key={`secret:${key}`} mono size="sm" tone="warning">
-                        {key}
-                      </Pill>
-                    ))}
-                  </div>
-                ) : null}
-              </ItemContent>
-              <ItemActions>
-                <Eyebrow data-testid={`agent-mcp-transport-${server.name}`} className="text-muted">
-                  {transport.toUpperCase()}
-                </Eyebrow>
-              </ItemActions>
-            </Item>
+                    {transport}
+                  </Pill>
+                </ListingRow.Trail>
+              </ListingRow>
+            </li>
           );
         })}
-      </ItemGroup>
+      </ul>
     );
 
   if (bare) {

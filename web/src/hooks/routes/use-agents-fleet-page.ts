@@ -13,15 +13,9 @@ import {
 import { useSessionCreate } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
+import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 
 const SEARCH_DEBOUNCE_MS = 200;
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
 
 function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const childMatches = useChildMatches();
@@ -31,7 +25,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const navigate = useNavigate({ from: "/agents" });
   const { openDialog } = useAgentCreateHost();
   const sessionCreate = useSessionCreate();
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useListingSearchShortcut(!hasChildMatch);
   const routeQuery = search.q ?? "";
   const [draftQueryState, setDraftQueryState] = useState({ routeQuery, value: routeQuery });
   const draftQuery = draftQueryState.routeQuery === routeQuery ? draftQueryState.value : routeQuery;
@@ -57,19 +51,6 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [routeQuery]);
-
-  useEffect(() => {
-    if (hasChildMatch) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (isEditableTarget(event.target)) return;
-      if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return;
-      event.preventDefault();
-      searchInputRef.current?.focus();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [hasChildMatch]);
 
   const updateSearch = (updater: (current: AgentsFleetSearch) => AgentsFleetSearch) => {
     void navigate({ search: current => updater(current), to: "/agents" });
@@ -121,6 +102,9 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     !isLoading && !catalogQuery.isError && catalogQuery.total === 0 && filtersActive;
   const showFacets =
     !isLoading && !isFirstRunEmpty && !(catalogQuery.isError && agents.length === 0);
+  // View toggle is independent of facets: available while loading/ready, hidden only when
+  // there is no list surface (first-run empty or fatal empty error).
+  const showViewToggle = !isFirstRunEmpty && !(catalogQuery.isError && agents.length === 0);
 
   return {
     hasChildMatch,
@@ -151,6 +135,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
       void catalogQuery.fetchNextPage();
     },
     showFacets,
+    showViewToggle,
     agentsError: catalogQuery.error,
     retryAgents: () => {
       void catalogQuery.refetch();

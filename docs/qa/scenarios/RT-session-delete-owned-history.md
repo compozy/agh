@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-11
 expected: Confirming deletion of a stopped session removes its catalog row, transcript/history, permission log, token statistics, and other session-owned rows atomically while preserving every other session.
 entry_points: Web session Delete session modal; HTTP session DELETE; global session catalog
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260714-session-delete-history-fk
 fix_status: fixed
 retest_status: pass

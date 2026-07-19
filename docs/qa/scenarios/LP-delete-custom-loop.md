@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-06
 expected: The custom Loop's destructive-action modal requires intentional confirmation and, after refresh, removes that fork from catalog/detail reads without changing the built-in source Loop.
 entry_points: web loop detail overflow menu; web delete Loop modal
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260713-custom-loop-delete-missing
 fix_status: fixed
 retest_status: pass

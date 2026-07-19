@@ -20,3 +20,7 @@ Added by marketplace Task 07. Verify the exact D13 ordering without count badges
 
 QA impact 2026-07-16: Marketplace now uses fuzzy route matching so kind and entry detail routes
 retain the sidebar active indicator.
+
+QA impact 2026-07-18: Network and Bridges now use the same descendant-aware active matching as
+other catalog roots. Verify nested channel/thread and bridge-detail routes retain their parent
+sidebar indicator.

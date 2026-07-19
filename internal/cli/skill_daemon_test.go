@@ -170,11 +170,15 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 				kind string,
 				query string,
 				limit int,
+				cursor string,
 				scope MarketplaceReadScope,
 			) (MarketplaceKindRecord, error) {
 				called = true
 				if kind != "skill" || query != "review" || limit != 7 {
 					t.Fatalf("BrowseMarketplace(%q, %q, %d), want skill review 7", kind, query, limit)
+				}
+				if cursor != "" {
+					t.Fatalf("BrowseMarketplace cursor = %q, want empty", cursor)
 				}
 				if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
 					t.Fatalf("Marketplace read scope = %#v, want global", scope)
@@ -234,11 +238,15 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 				_ context.Context,
 				kind string,
 				entryID string,
+				installedName string,
 				scope MarketplaceReadScope,
 			) (MarketplaceEntryRecord, error) {
 				called = true
 				if kind != contract.MarketplaceKindSkill || entryID != "skill_review" {
 					t.Fatalf("MarketplaceInfo(%q, %q), want skill skill_review", kind, entryID)
+				}
+				if installedName != "" {
+					t.Fatalf("MarketplaceInfo installedName = %q, want empty", installedName)
 				}
 				if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
 					t.Fatalf("Marketplace read scope = %#v, want global", scope)

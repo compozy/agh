@@ -62,10 +62,18 @@ export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
       >
         {classLabel(nodeClass, kind)}
       </MonoTag>
-      <span className="text-[12.5px] font-medium leading-tight text-fg-strong">
+      <span
+        className="min-w-0 truncate text-[12.5px] font-medium leading-tight text-fg-strong"
+        title={String(raw.id)}
+      >
         {String(raw.id)}
       </span>
-      <span className="font-mono text-[10px] text-subtle">{kind || "—"}</span>
+      <span
+        className="min-w-0 truncate font-mono text-[10px] text-subtle"
+        title={kind || undefined}
+      >
+        {kind || "—"}
+      </span>
       {chips.length > 0 ? (
         <div className="mt-0.5 flex flex-wrap gap-1" data-testid="loop-editor-node-branches">
           {chips.map(chip => (

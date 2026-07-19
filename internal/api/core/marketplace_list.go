@@ -6,41 +6,37 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
-	"sort"
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
-	bundlepkg "github.com/compozy/agh/internal/bundles"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	marketplacepkg "github.com/compozy/agh/internal/marketplace"
 	registrypkg "github.com/compozy/agh/internal/registry"
 	settingspkg "github.com/compozy/agh/internal/settings"
 )
 
-const bundleEntryPrefix = "bundle_"
-
 func (h *BaseHandlers) marketplaceKindResult(
 	ctx context.Context,
 	kind string,
 	query string,
+	offset int,
 	limit int,
 	scope marketplaceReadScope,
-) (contract.MarketplaceKindResult, error) {
+) (marketplaceKindPage, error) {
 	switch kind {
 	case contract.MarketplaceKindMCP:
-		return h.curatedMarketplaceKind(ctx, marketplacepkg.KindMCP, query, limit, scope)
+		return h.curatedMarketplaceKind(ctx, marketplacepkg.KindMCP, query, offset, limit, scope)
 	case contract.MarketplaceKindExtension:
-		return h.curatedMarketplaceKind(ctx, marketplacepkg.KindExtension, query, limit, scope)
+		return h.curatedMarketplaceKind(ctx, marketplacepkg.KindExtension, query, offset, limit, scope)
 	case contract.MarketplaceKindSkill:
 		if strings.TrimSpace(query) == "" {
-			return h.curatedMarketplaceKind(ctx, marketplacepkg.KindSkill, "", limit, scope)
+			return h.curatedMarketplaceKind(ctx, marketplacepkg.KindSkill, "", offset, limit, scope)
 		}
-		return h.remoteSkillMarketplaceKind(ctx, query, limit)
+		return h.remoteSkillMarketplaceKind(ctx, query, offset, limit, scope)
 	case contract.MarketplaceKindBundle:
-		return h.bundleMarketplaceKind(ctx, query, limit, scope)
+		return h.bundleMarketplaceKind(ctx, query, offset, limit, scope)
 	default:
-		return contract.MarketplaceKindResult{}, errors.Join(
+		return marketplaceKindPage{}, errors.Join(
 			ErrMarketplaceNotFound, fmt.Errorf("unknown marketplace kind %q", kind),
 		)
 	}
@@ -50,36 +46,45 @@ func (h *BaseHandlers) curatedMarketplaceKind(
 	ctx context.Context,
 	kind marketplacepkg.Kind,
 	query string,
+	offset int,
 	limit int,
 	scope marketplaceReadScope,
-) (contract.MarketplaceKindResult, error) {
+) (marketplaceKindPage, error) {
 	if h == nil || h.MarketplaceCatalog == nil {
-		return contract.MarketplaceKindResult{}, errors.Join(
+		return marketplaceKindPage{}, errors.Join(
 			ErrMarketplaceUnavailable, errors.New("catalog is not configured"),
 		)
 	}
-	result, err := h.MarketplaceCatalog.Browse(ctx, kind, query, limit)
+	result, err := h.MarketplaceCatalog.Browse(ctx, kind, query, offset, limit)
 	if err != nil {
-		return contract.MarketplaceKindResult{}, err
+		return marketplaceKindPage{}, err
 	}
 	installed, err := h.marketplaceInstallIndex(ctx, string(kind), scope)
 	if err != nil {
-		return contract.MarketplaceKindResult{}, err
+		return marketplaceKindPage{}, err
 	}
 	items := make([]contract.MarketplaceListingPayload, 0, len(result.Entries))
 	for _, entry := range result.Entries {
 		item, mapErr := h.curatedMarketplaceListing(ctx, entry, installed)
 		if mapErr != nil {
-			return contract.MarketplaceKindResult{}, mapErr
+			return marketplaceKindPage{}, mapErr
 		}
 		items = append(items, item)
 	}
-	return contract.MarketplaceKindResult{
-		Kind:       string(kind),
-		Stale:      result.State.Stale,
-		ErrorClass: result.State.ErrorClass,
-		Error:      h.marketplaceKindDiagnostic(result.State.LastError),
-		Items:      items,
+	fence := marketplaceCatalogFence(kind, result.State)
+	return marketplaceKindPage{
+		result: contract.MarketplaceKindResult{
+			Kind:       string(kind),
+			Total:      &result.Total,
+			Stale:      result.State.Stale,
+			ErrorClass: result.State.ErrorClass,
+			Error:      h.marketplaceKindDiagnostic(result.State.LastError),
+			Items:      items,
+		},
+		currentFence: fence,
+		nextFence:    fence,
+		nextOffset:   offset + len(items),
+		hasMore:      offset+len(items) < result.Total,
 	}, nil
 }
 
@@ -93,34 +98,71 @@ func (h *BaseHandlers) marketplaceKindDiagnostic(diagnostic string) string {
 func (h *BaseHandlers) remoteSkillMarketplaceKind(
 	ctx context.Context,
 	query string,
+	offset int,
 	limit int,
-) (contract.MarketplaceKindResult, error) {
+	_ marketplaceReadScope,
+) (marketplaceKindPage, error) {
 	if h == nil {
-		return contract.MarketplaceKindResult{}, errors.Join(
+		return marketplaceKindPage{}, errors.Join(
 			ErrMarketplaceUnavailable, errors.New("skill marketplace is not configured"),
 		)
 	}
-	listings, err := h.skillMarketplaceService().Search(ctx, query, limit)
-	if err != nil {
-		return contract.MarketplaceKindResult{}, normalizeSkillMarketplaceError(err)
+	if limit > int(^uint(0)>>1)-2 {
+		return marketplaceKindPage{}, marketplaceValidationf("cursor offset exceeds the marketplace limit")
 	}
+	searchOffset := offset
+	searchLimit := limit + 1
+	if offset > 0 {
+		searchOffset--
+		searchLimit++
+	}
+	listings, err := h.skillMarketplaceService().Search(ctx, query, searchOffset, searchLimit)
+	if err != nil {
+		return marketplaceKindPage{}, normalizeSkillMarketplaceError(err)
+	}
+	pageStart := 0
+	currentFence := ""
+	if offset > 0 {
+		if len(listings) > 0 {
+			currentFence = marketplaceRemoteSkillFence(listings[:1])
+			pageStart = 1
+		} else {
+			currentFence = marketplaceRemoteSkillFence(nil)
+		}
+	}
+	remainingListings := listings[pageStart:]
+	pageEnd := min(limit, len(remainingListings))
+	pageListings := remainingListings[:pageEnd]
 	installed, err := h.skillInstallIndex(ctx)
 	if err != nil {
-		return contract.MarketplaceKindResult{}, err
+		return marketplaceKindPage{}, err
 	}
-	curatedEntryIDs, err := h.curatedSkillEntryIDs(ctx, listings)
+	curatedEntryIDs, err := h.curatedSkillEntryIDs(ctx, pageListings)
 	if err != nil {
-		return contract.MarketplaceKindResult{}, err
+		return marketplaceKindPage{}, err
 	}
-	items := make([]contract.MarketplaceListingPayload, 0, len(listings))
-	for _, listing := range listings {
+	items := make([]contract.MarketplaceListingPayload, 0, len(pageListings))
+	for _, listing := range pageListings {
 		item := remoteSkillMarketplaceListing(listing, installed)
 		if entryID := curatedEntryIDs[strings.TrimSpace(listing.Slug)]; entryID != "" {
 			item.EntryID = entryID
 		}
 		items = append(items, item)
 	}
-	return contract.MarketplaceKindResult{Kind: contract.MarketplaceKindSkill, Items: items}, nil
+	nextFence := currentFence
+	if len(pageListings) > 0 {
+		nextFence = marketplaceRemoteSkillFence(pageListings[len(pageListings)-1:])
+	}
+	return marketplaceKindPage{
+		result: contract.MarketplaceKindResult{
+			Kind:  contract.MarketplaceKindSkill,
+			Items: items,
+		},
+		currentFence: currentFence,
+		nextFence:    nextFence,
+		nextOffset:   offset + len(pageListings),
+		hasMore:      len(remainingListings) > pageEnd,
+	}, nil
 }
 
 func (h *BaseHandlers) curatedSkillEntryIDs(
@@ -150,59 +192,6 @@ func (h *BaseHandlers) curatedSkillEntryIDs(
 		}
 	}
 	return entryIDs, nil
-}
-
-func (h *BaseHandlers) bundleMarketplaceKind(
-	ctx context.Context,
-	query string,
-	limit int,
-	scope marketplaceReadScope,
-) (contract.MarketplaceKindResult, error) {
-	if h == nil || h.Bundles == nil {
-		return contract.MarketplaceKindResult{}, errors.Join(
-			ErrMarketplaceUnavailable, errors.New("bundle catalog is not configured"),
-		)
-	}
-	catalog, err := h.Bundles.Catalog(ctx)
-	if err != nil {
-		return contract.MarketplaceKindResult{}, err
-	}
-	activations, err := h.Bundles.ListActivations(ctx)
-	if err != nil {
-		return contract.MarketplaceKindResult{}, err
-	}
-	activationIndex := bundleActivationIndex(activations, scope)
-	needle := strings.ToLower(strings.TrimSpace(query))
-	filtered := make([]bundlepkg.CatalogEntry, 0, len(catalog))
-	for _, entry := range catalog {
-		if needle != "" && !strings.Contains(strings.ToLower(
-			entry.ExtensionName+" "+entry.Bundle.Name+" "+entry.Bundle.Description,
-		), needle) {
-			continue
-		}
-		filtered = append(filtered, entry)
-	}
-	total := len(filtered)
-	if len(filtered) > limit {
-		filtered = filtered[:limit]
-	}
-	items := make([]contract.MarketplaceListingPayload, 0, len(filtered))
-	for _, entry := range filtered {
-		key := bundleIdentityKey(entry.ExtensionName, entry.Bundle.Name)
-		activation, installed := activationIndex[key]
-		managePath := ""
-		if installed {
-			managePath = "/extensions/bundles/" + url.PathEscape(activation.Activation.ID)
-		}
-		items = append(items, contract.MarketplaceListingPayload{
-			Kind: contract.MarketplaceKindBundle, EntryID: encodeBundleEntryID(entry.ExtensionName, entry.Bundle.Name),
-			Name: entry.Bundle.Name, Description: entry.Bundle.Description, Source: entry.ExtensionName,
-			Installed: installed, UpdateAvailable: installed && activation.SpecDrift, ManagePath: managePath,
-		})
-	}
-	return contract.MarketplaceKindResult{
-		Kind: contract.MarketplaceKindBundle, Total: &total, Items: items,
-	}, nil
 }
 
 type marketplaceInstall struct {
@@ -265,17 +254,9 @@ func (h *BaseHandlers) mcpInstallIndex(
 		if entryID == "" {
 			continue
 		}
-		params := url.Values{
-			"scope":  {string(scope.scope)},
-			"server": {strings.TrimSpace(item.Name)},
-		}
-		if scope.scope == settingspkg.ScopeWorkspace {
-			params.Set("workspace_id", scope.workspaceID)
-		}
-		managePath := "/mcp?" + params.Encode()
 		index.byEntryID[entryID] = marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
-			managePath: managePath,
+			managePath: "/marketplace/mcps?tab=installed",
 		}
 	}
 	return index, nil
@@ -300,7 +281,7 @@ func (h *BaseHandlers) extensionInstallIndex(ctx context.Context) (marketplaceIn
 		installation := marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Version),
-			managePath: "/extensions/" + url.PathEscape(strings.TrimSpace(item.Name)),
+			managePath: marketplaceExtensionsInstalledPath,
 		}
 		if entryID := strings.TrimSpace(item.Provenance.CatalogEntryID); entryID != "" {
 			index.byEntryID[entryID] = installation
@@ -338,7 +319,7 @@ func (h *BaseHandlers) skillInstallIndex(ctx context.Context) (marketplaceInstal
 		index.bySlug[slug] = marketplaceInstall{
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Provenance.Version),
-			managePath: "/skills/" + url.PathEscape(strings.TrimSpace(item.Name)),
+			managePath: "/marketplace/skills?tab=installed",
 		}
 	}
 	return index, nil
@@ -422,32 +403,6 @@ func remoteSkillMarketplaceListing(
 	}
 }
 
-func bundleActivationIndex(
-	activations []bundlepkg.ActivationPreview,
-	scope marketplaceReadScope,
-) map[string]bundlepkg.ActivationPreview {
-	sort.SliceStable(activations, func(i, j int) bool {
-		return activations[i].Activation.ID < activations[j].Activation.ID
-	})
-	index := make(map[string]bundlepkg.ActivationPreview)
-	for _, item := range activations {
-		activation := item.Activation
-		visible := activation.Scope == bundlepkg.ScopeGlobal ||
-			scope.scope == settingspkg.ScopeWorkspace && activation.Scope == bundlepkg.ScopeWorkspace &&
-				strings.TrimSpace(activation.WorkspaceID) == scope.workspaceID
-		if !visible {
-			continue
-		}
-		key := bundleIdentityKey(activation.ExtensionName, activation.BundleName)
-		existing, exists := index[key]
-		if !exists || activation.Scope == bundlepkg.ScopeWorkspace &&
-			existing.Activation.Scope != bundlepkg.ScopeWorkspace {
-			index[key] = item
-		}
-	}
-	return index
-}
-
 func encodeRemoteSkillEntryID(slug string) string {
 	return marketplacepkg.RemoteSkillEntryPrefix + base64.RawURLEncoding.EncodeToString([]byte(strings.TrimSpace(slug)))
 }
@@ -463,29 +418,4 @@ func decodeRemoteSkillEntryID(entryID string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSpace(string(decoded)), true
-}
-
-func encodeBundleEntryID(extensionName string, bundleName string) string {
-	return bundleEntryPrefix + base64.RawURLEncoding.EncodeToString(
-		[]byte(bundleIdentityKey(extensionName, bundleName)),
-	)
-}
-
-func decodeBundleEntryID(entryID string) (string, string, bool) {
-	if !strings.HasPrefix(entryID, bundleEntryPrefix) {
-		return "", "", false
-	}
-	decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(entryID, bundleEntryPrefix))
-	if err != nil {
-		return "", "", false
-	}
-	parts := strings.Split(string(decoded), "\x00")
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-		return "", "", false
-	}
-	return parts[0], parts[1], true
-}
-
-func bundleIdentityKey(extensionName string, bundleName string) string {
-	return strings.TrimSpace(extensionName) + "\x00" + strings.TrimSpace(bundleName)
 }

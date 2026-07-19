@@ -1,4 +1,3 @@
-import { Network as NetworkIcon } from "lucide-react";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { Spinner, useTopbarSlot } from "@agh/ui";
@@ -17,7 +16,7 @@ import { preloadNetworkRootRoute } from "./-network-preload";
 
 export const Route = createFileRoute("/_app/network")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Network", icon: NetworkIcon },
+    topbar: { crumb: { label: "Network", to: "/network" } },
   }),
   loader: ({ context }) => preloadNetworkRootRoute(context.queryClient),
   component: NetworkRouteShell,
@@ -35,9 +34,7 @@ function NetworkRouteShell() {
   } = view.inspectorView;
   const showInspectorInRightRail = !view.showOverlayInRightRail && inspector.open;
 
-  const totalChannelCount = page.status ? page.channels.length : undefined;
   useTopbarSlot({
-    count: totalChannelCount,
     actions: page.status ? view.networkCreate.action : undefined,
   });
 

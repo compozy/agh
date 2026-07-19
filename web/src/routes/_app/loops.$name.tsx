@@ -9,7 +9,7 @@ import { preloadLoopDetailRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loops/$name")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: params.name, icon: Repeat2 },
+    topbar: { crumb: { label: params.name, params: { name: params.name }, to: "/loops/$name" } },
   }),
   loader: ({ context, location, params }) =>
     location.pathname.split("/").filter(Boolean).length === 2
@@ -92,7 +92,6 @@ function LoopDetailRoute() {
       bindingTriggers={bindings.triggers}
       successRate={catalogEntry?.success_rate_30d ?? null}
       aggregate={catalogEntry?.aggregate_30d ?? null}
-      onBack={handlers.onBack}
       onRun={handlers.onRun}
       onConfigure={handlers.onConfigure}
       onOpenEditor={handlers.onOpenEditor}
@@ -115,10 +114,7 @@ interface DetailStateProps {
 
 function DetailState({ title, description, testId, icon = Repeat2 }: DetailStateProps) {
   return (
-    <div
-      className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-      data-testid={testId}
-    >
+    <div className="flex min-h-0 flex-1 items-center justify-center py-10" data-testid={testId}>
       <Empty className="max-w-md" description={description} icon={icon} title={title} />
     </div>
   );

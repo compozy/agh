@@ -58,3 +58,28 @@ export const WithAction: Story = {
     </div>
   ),
 };
+
+/** Empty with default fill inside a tall flex column — mirrors ListingPage remaining height. */
+export const FillRemaining: Story = {
+  parameters: { layout: "fullscreen" },
+  render: () => (
+    <div className="flex h-screen w-full flex-col">
+      <div className="shrink-0 border-b border-line px-9 py-4 text-sm text-muted">
+        Page head + toolbar
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col px-9 pb-20 pt-7">
+        <Empty
+          action={
+            <Button size="sm" type="button">
+              <PlusIcon className="size-3" />
+              Create job
+            </Button>
+          }
+          description="Create your first job to run a configured target on a schedule."
+          icon={InboxIcon}
+          title="No jobs yet"
+        />
+      </div>
+    </div>
+  ),
+};

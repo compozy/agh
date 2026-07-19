@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Settings as SettingsIcon } from "lucide-react";
 
 import type { TopbarRouteContext } from "@/types/topbar";
 import {
@@ -10,7 +9,7 @@ import { SettingsShell } from "./-settings-shell";
 
 export const Route = createFileRoute("/_app/settings")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Settings", icon: SettingsIcon },
+    topbar: { crumb: { label: "Settings", to: "/settings" } },
   }),
   component: SettingsShell,
   errorComponent: SettingsShellErrorBoundary,

@@ -1,6 +1,5 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -11,6 +10,9 @@ import type {
   VaultNamespaceFilter,
 } from "@/hooks/routes/use-vault-page";
 import type { VaultListFilter, VaultSecret } from "@/systems/vault";
+import type { ListingViewMode } from "@agh/ui";
+
+import { VaultPage } from "../-vault-page";
 
 type PageState = {
   counts: { total: number; sessions: number; providers: number };
@@ -30,31 +32,40 @@ type PageState = {
   prefix: string;
   queryError: string | null;
   refetch: ReturnType<typeof vi.fn>;
+  replaceError: string | null;
+  replaceIsPending: boolean;
+  replaceIsValid: boolean;
+  replaceSecret: ReturnType<typeof vi.fn>;
+  replaceValue: string;
   secrets: VaultSecret[];
+  selectedSecret: VaultSecret | null;
   setNamespace: ReturnType<typeof vi.fn>;
   setPrefix: ReturnType<typeof vi.fn>;
+  setReplaceValue: ReturnType<typeof vi.fn>;
+  setView: ReturnType<typeof vi.fn>;
   closeDelete: ReturnType<typeof vi.fn>;
   closeEditor: ReturnType<typeof vi.fn>;
+  closeInspect: ReturnType<typeof vi.fn>;
   confirmDelete: ReturnType<typeof vi.fn>;
   openCreate: ReturnType<typeof vi.fn>;
   openDelete: ReturnType<typeof vi.fn>;
+  openInspect: ReturnType<typeof vi.fn>;
   saveEditor: ReturnType<typeof vi.fn>;
   updateDraft: ReturnType<typeof vi.fn>;
+  view: ListingViewMode;
 };
 
 const { mockUseVaultPage } = vi.hoisted(() => ({
   mockUseVaultPage: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-  }),
-}));
-
-vi.mock("@/hooks/routes/use-vault-page", () => ({
-  useVaultPage: () => mockUseVaultPage(),
-}));
+vi.mock("@/hooks/routes/use-vault-page", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/hooks/routes/use-vault-page")>();
+  return {
+    ...actual,
+    useVaultPage: (...args: unknown[]) => mockUseVaultPage(...args),
+  };
+});
 
 const sessionSecret: VaultSecret = {
   ref: "vault:sessions/sess_123/github-token",
@@ -84,16 +95,27 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     prefix: "",
     queryError: null,
     refetch: vi.fn(),
+    replaceError: null,
+    replaceIsPending: false,
+    replaceIsValid: false,
+    replaceSecret: vi.fn(),
+    replaceValue: "",
     secrets: [sessionSecret],
+    selectedSecret: null,
     setNamespace: vi.fn(),
     setPrefix: vi.fn(),
+    setReplaceValue: vi.fn(),
+    setView: vi.fn(),
     closeDelete: vi.fn(),
     closeEditor: vi.fn(),
+    closeInspect: vi.fn(),
     confirmDelete: vi.fn(),
     openCreate: vi.fn(),
     openDelete: vi.fn(),
+    openInspect: vi.fn(),
     saveEditor: vi.fn(),
     updateDraft: vi.fn(),
+    view: "rows",
     ...overrides,
   };
 }
@@ -102,11 +124,6 @@ beforeEach(() => {
   mockUseVaultPage.mockReturnValue(makeState());
 });
 
-import { routeComponent } from "@/test/route-options";
-import { Route } from "../vault";
-
-const VaultPage = routeComponent(Route);
-
 describe("VaultPage", () => {
   it("renders vault counts, filters, and redacted metadata rows", () => {
     render(<VaultPage />);
@@ -114,8 +131,12 @@ describe("VaultPage", () => {
     expect(screen.getByTestId("vault-page-count")).toHaveTextContent("1");
     expect(screen.getByTestId("vault-page-sessions")).toHaveTextContent("1 session-scoped");
     expect(screen.getByTestId("vault-list-filters-add")).toBeInTheDocument();
+    expect(screen.getByTestId("vault-page-sec-note")).toHaveTextContent(
+      "1 redacted metadata entry"
+    );
     expect(screen.getByTestId("vault-page-list")).toHaveTextContent(sessionSecret.ref);
     expect(screen.getByTestId("vault-page-list")).not.toHaveTextContent("super-secret-token");
+    expect(screen.getByTestId("listing-view-toggle")).toBeInTheDocument();
   });
 
   it("forwards prefix search changes to the page state hook", () => {
@@ -155,6 +176,44 @@ describe("VaultPage", () => {
       "password"
     );
     expect(container.textContent).not.toContain("super-secret-token");
+  });
+
+  it("opens the inspect sheet when a row is selected", () => {
+    const openInspect = vi.fn();
+    mockUseVaultPage.mockReturnValue(
+      makeState({
+        openInspect,
+        selectedSecret: sessionSecret,
+      })
+    );
+
+    render(<VaultPage />);
+
+    expect(screen.getByTestId("vault-secret-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("vault-secret-sheet-ref")).toHaveTextContent(sessionSecret.ref);
+    expect(screen.getByTestId("vault-secret-sheet-value")).toHaveTextContent("write-only");
+    expect(screen.queryByText("super-secret-token")).toBeNull();
+
+    fireEvent.click(screen.getByTestId(`vault-secrets-select-${sessionSecret.ref}`));
+    expect(openInspect).toHaveBeenCalledWith(sessionSecret);
+  });
+
+  it("disables deletion while the selected secret replacement is pending", () => {
+    const openDelete = vi.fn();
+    mockUseVaultPage.mockReturnValue(
+      makeState({
+        openDelete,
+        replaceIsPending: true,
+        selectedSecret: sessionSecret,
+      })
+    );
+
+    render(<VaultPage />);
+
+    const deleteButton = screen.getByTestId("vault-secret-sheet-delete");
+    expect(deleteButton).toBeDisabled();
+    fireEvent.click(deleteButton);
+    expect(openDelete).not.toHaveBeenCalled();
   });
 
   it("confirms delete against the selected vault ref", () => {

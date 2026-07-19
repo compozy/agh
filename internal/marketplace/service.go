@@ -130,13 +130,14 @@ func (s *CatalogService) Browse(
 	ctx context.Context,
 	kind Kind,
 	query string,
+	offset int,
 	limit int,
 ) (BrowseResult, error) {
 	if err := s.checkReady(ctx, kind); err != nil {
 		return BrowseResult{}, err
 	}
 	refreshErr := s.ensureFresh(ctx, kind)
-	entries, listErr := s.store.ListKind(ctx, kind, query, limit)
+	page, listErr := s.store.ListKind(ctx, kind, query, offset, limit)
 	if listErr != nil {
 		return BrowseResult{}, errors.Join(refreshErr, listErr)
 	}
@@ -144,10 +145,10 @@ func (s *CatalogService) Browse(
 	if stateErr != nil {
 		return BrowseResult{}, errors.Join(refreshErr, stateErr)
 	}
-	if refreshErr != nil && len(entries) == 0 {
+	if refreshErr != nil && len(page.Entries) == 0 {
 		return BrowseResult{}, refreshErr
 	}
-	return BrowseResult{Entries: entries, State: *state}, nil
+	return BrowseResult{Entries: page.Entries, Total: page.Total, State: *state}, nil
 }
 
 // Detail refreshes stale state on demand and resolves by immutable entry id.

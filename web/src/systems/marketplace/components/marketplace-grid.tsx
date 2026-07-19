@@ -12,8 +12,9 @@ interface MarketplaceGridProps {
 function MarketplaceGrid({ entries, isEntryPending, onAction }: MarketplaceGridProps) {
   return (
     <div
-      className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+      className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
       data-testid="marketplace-grid"
+      data-view="cards"
     >
       {entries.map(entry => (
         <MarketplaceCard
@@ -27,11 +28,11 @@ function MarketplaceGrid({ entries, isEntryPending, onAction }: MarketplaceGridP
   );
 }
 
-function MarketplaceGridSkeleton({ count = 3 }: { count?: number }) {
+function MarketplaceGridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div
       aria-label="Loading marketplace entries"
-      className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+      className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
       role="status"
     >
       {Array.from({ length: count }, (_, index) => (

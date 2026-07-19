@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -8,6 +9,20 @@ import (
 	"github.com/compozy/agh/internal/store"
 	"github.com/gin-gonic/gin"
 )
+
+func sessionStreamStopped(ctx context.Context, streamDone <-chan struct{}) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+	}
+	select {
+	case <-streamDone:
+		return true
+	default:
+		return false
+	}
+}
 
 func (h *BaseHandlers) pollSessionStreamTick(
 	c *gin.Context,

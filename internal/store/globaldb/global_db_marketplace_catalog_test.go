@@ -86,12 +86,12 @@ func seedMarketplaceMigrationProjection(t *testing.T, store *marketplace.SQLiteS
 func assertMarketplaceMigrationProjection(t *testing.T, store *marketplace.SQLiteStore) {
 	t.Helper()
 	ctx := testutil.Context(t)
-	entries, err := store.ListKind(ctx, marketplace.KindSkill, "", 10)
+	page, err := store.ListKind(ctx, marketplace.KindSkill, "", 0, 10)
 	if err != nil {
 		t.Fatalf("ListKind() error = %v", err)
 	}
-	if got, want := len(entries), 1; got != want || entries[0].EntryID != "migration-fixture" {
-		t.Fatalf("ListKind() = %#v, want persisted migration fixture", entries)
+	if got, want := len(page.Entries), 1; got != want || page.Entries[0].EntryID != "migration-fixture" {
+		t.Fatalf("ListKind() = %#v, want persisted migration fixture", page)
 	}
 	state, err := store.KindState(ctx, marketplace.KindSkill)
 	if err != nil {

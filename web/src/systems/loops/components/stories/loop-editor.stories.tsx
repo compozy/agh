@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import { aghApiMock } from "@/storybook/openapi-msw";
+import type { ComponentProps } from "react";
 
-import { StorySurface } from "@/storybook/story-layout";
+import { aghApiMock } from "@/storybook/openapi-msw";
+import { StorySurface, StoryTopbarHost } from "@/storybook/story-layout";
 
 import { LoopEditor } from "../editor/loop-editor";
 import { handlers as loopHandlers } from "../../mocks";
@@ -58,6 +59,27 @@ function goalDetail(): LoopDetail {
   };
 }
 
+/** Long tool kind + id so canvas cards prove ellipsis stays inside the fixed 132px width. */
+function longKindDetail(): LoopDetail {
+  const graph = delivery.definition.graph as unknown as RawGraph;
+  const nodes = graph.nodes.map(node =>
+    node.id === "execute_task"
+      ? {
+          ...node,
+          id: "resolve_threads",
+          kind: "ext__dev_cycle__coderabbit_resolve_threads",
+        }
+      : node
+  );
+  return {
+    ...delivery,
+    definition: {
+      ...delivery.definition,
+      graph: { ...graph, nodes } as unknown as LoopDetail["definition"]["graph"],
+    },
+  };
+}
+
 function editorHandlers(detail: LoopDetail) {
   // The override getLoop must win, but keep the loop handlers (validate lints the posted
   // definition) so the auto-validate still surfaces the fan_out_ceiling_exceeded issue.
@@ -69,15 +91,24 @@ function editorHandlers(detail: LoopDetail) {
   ];
 }
 
+function EditorHarness({
+  heightClass = "h-[880px]",
+  ...args
+}: ComponentProps<typeof LoopEditor> & { heightClass?: string }) {
+  return (
+    <StoryTopbarHost breadcrumb={<span>Loops › {args.name}</span>} title="Editor">
+      <StorySurface className={`flex ${heightClass} p-0`}>
+        <LoopEditor {...args} />
+      </StorySurface>
+    </StoryTopbarHost>
+  );
+}
+
 const meta: Meta<typeof LoopEditor> = {
   title: "systems/loops/components/LoopEditor",
   component: LoopEditor,
   parameters: { layout: "fullscreen" },
-  render: args => (
-    <StorySurface className="flex h-[880px] p-0">
-      <LoopEditor {...args} />
-    </StorySurface>
-  ),
+  render: args => <EditorHarness {...args} />,
 };
 
 export default meta;
@@ -94,11 +125,7 @@ export const Editor: Story = {
 export const GoalBlock: Story = {
   args: { workspaceId: WS, name: "software-delivery" },
   parameters: { msw: { handlers: editorHandlers(goalDetail()) } },
-  render: args => (
-    <StorySurface className="flex h-[1100px] p-0">
-      <LoopEditor {...args} />
-    </StorySurface>
-  ),
+  render: args => <EditorHarness {...args} heightClass="h-[1100px]" />,
 };
 
 /** A fan-out node over the daemon ceiling: the shared linter returns a per-node 422 —
@@ -111,4 +138,10 @@ export const FanOutError: Story = {
 /** Editing a read-only watch Loop before a workspace fork exists. */
 export const WatchFork: Story = {
   args: { workspaceId: WS, name: "reviews-watch" },
+};
+
+/** Canvas node id/kind ellipsis inside the fixed-width card (long extension tool ids). */
+export const LongKindLabels: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(longKindDetail()) } },
 };

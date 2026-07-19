@@ -1,7 +1,6 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
@@ -13,19 +12,6 @@ import {
   useTopbarSlot,
   useTopbarSlotValue,
 } from "./hooks/use-topbar-slot";
-
-export interface TopbarRouteContext {
-  title: string;
-  icon?: LucideIcon;
-  subtitle?: string;
-  getCount?: () => number | string;
-  /**
-   * Opt-in identifier resolved by the shell via `useNavCounts`. When set and
-   * the active slot omits `count`, the shell injects the resolved value into
-   * `<Topbar navCount>`.
-   */
-  navCountKey?: string;
-}
 
 export interface TopbarSlotProviderProps {
   children: React.ReactNode;
@@ -41,114 +27,68 @@ function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
 }
 
 export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {
-  route: TopbarRouteContext | null;
   /**
-   * Count resolved by the shell from `useNavCounts()` when the route declares
-   * a `navCountKey`. Falls back through `slot.count` -> `route.getCount()` ->
-   * `navCount` / §8.
+   * Leading route ancestry built by the shell. The current route title is
+   * rendered separately as this Topbar's single H1.
    */
-  navCount?: number | string;
-  /** Optional ref for the topbar title element so the shell can move focus on route resolve. */
+  breadcrumb?: React.ReactNode;
+  /** Current route identity rendered as the shell-level H1. */
+  title: React.ReactNode;
+  /** Ref used by the shell to transfer focus after path navigation. */
   titleRef?: React.Ref<HTMLHeadingElement>;
 }
 
-function hasCountValue(value: number | string | undefined | null): value is number | string {
-  if (value === undefined || value === null) return false;
-  if (typeof value === "number") return true;
-  return value !== "";
-}
-
-function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps) {
+function Topbar({ breadcrumb, title, titleRef, className, ...props }: TopbarProps) {
   const slot = useTopbarSlotValue();
-  const Icon = route?.icon;
-  const routeCount = route?.getCount?.();
-  const slotCount = slot?.count;
-  const resolvedCount: number | string | undefined = hasCountValue(slotCount)
-    ? slotCount
-    : hasCountValue(routeCount)
-      ? routeCount
-      : hasCountValue(navCount)
-        ? navCount
-        : undefined;
-  const hasCount = hasCountValue(resolvedCount);
-  const renderedTitle: React.ReactNode = slot?.title ?? route?.title ?? "Untitled";
-  const back = slot?.back;
-  const backLabel = slot?.backLabel ?? "Go back";
-  const hasTabs = Boolean(slot?.tabs);
+  const hasRouteNav = Boolean(slot?.routeNav);
 
   return (
     <header
       data-slot="topbar"
-      data-mode={back ? "detail" : "default"}
       className={cn(
-        "flex h-12 min-w-0 shrink-0 items-center gap-3 overflow-hidden border-b border-line bg-canvas px-4",
+        "grid h-12 min-w-0 shrink-0 items-center gap-3 overflow-hidden border-b border-line bg-canvas px-4",
+        hasRouteNav
+          ? "grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)]"
+          : "grid-cols-[minmax(0,1fr)_auto]",
         className
       )}
       {...props}
     >
-      {back ? (
-        <button
-          aria-label={backLabel}
-          className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
-          data-slot="topbar-back"
-          data-testid="topbar-back"
-          onClick={back}
-          type="button"
-        >
-          <ChevronLeft aria-hidden="true" className="size-3" />
-        </button>
-      ) : null}
-      <div data-slot="topbar-title" className="flex min-w-0 items-center gap-2">
-        {Icon ? (
-          <span
-            aria-hidden="true"
-            data-slot="topbar-icon"
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm bg-elevated text-accent"
-          >
-            <Icon className="size-3" />
-          </span>
+      <div data-slot="topbar-context" className="flex min-w-0 items-center gap-2 overflow-hidden">
+        {breadcrumb ? (
+          <div data-slot="topbar-breadcrumb" className="hidden min-w-0 sm:block">
+            {breadcrumb}
+          </div>
         ) : null}
         <h1
           ref={titleRef}
           tabIndex={-1}
+          data-slot="topbar-title"
           data-testid="topbar-title-text"
-          className="truncate text-card-title font-medium tracking-tight text-fg-strong outline-none focus-visible:shadow-focus-ring"
+          className="min-w-0 truncate text-card-title font-medium tracking-tight text-fg-strong outline-none focus-visible:shadow-focus-ring"
         >
-          {renderedTitle}
+          {title}
         </h1>
-        {hasCount ? (
-          <span
-            data-slot="topbar-count"
-            data-testid="topbar-count"
-            className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-canvas-soft px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted"
-          >
-            {resolvedCount}
-          </span>
-        ) : null}
-        {slot?.meta ? (
-          <div
-            data-slot="topbar-meta"
-            data-testid="topbar-meta"
-            className="flex min-w-0 items-center gap-2 text-muted"
-          >
-            {slot.meta}
-          </div>
-        ) : null}
       </div>
-      {slot?.tabs ? (
+      {hasRouteNav ? (
         <div
-          data-slot="topbar-tabs"
-          className="flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          data-slot="topbar-route-nav"
+          className="no-scrollbar flex min-w-0 max-w-full items-center justify-self-stretch overflow-x-auto overscroll-x-contain lg:justify-self-center"
         >
-          {slot.tabs}
+          {slot?.routeNav}
         </div>
       ) : null}
       <div
         data-slot="topbar-trailing"
-        className={cn("flex shrink-0 items-center gap-2", hasTabs ? "ml-0" : "ml-auto")}
+        className="flex min-w-0 items-center justify-end gap-2 justify-self-end"
       >
-        {slot?.search ? <div data-slot="topbar-search">{slot.search}</div> : null}
-        {slot?.actions ? <div data-slot="topbar-actions">{slot.actions}</div> : null}
+        {slot?.actions ? (
+          // The zone owns the row layout so block-level action composites
+          // (e.g. a selector div + button cluster) never stack into a second line.
+          <div data-slot="topbar-actions" className="flex min-w-0 items-center gap-2">
+            {slot.actions}
+          </div>
+        ) : null}
         {slot?.overflow ? (
           <div
             data-slot="topbar-overflow"

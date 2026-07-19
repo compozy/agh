@@ -195,17 +195,21 @@ func (h *BaseHandlers) pollAndStreamSessionEvents(
 	defer keepAlive.Stop()
 
 	currentInfo := info
+	streamDone := h.StreamDoneChannel()
 	for {
 		select {
 		case <-c.Request.Context().Done():
 			return
-		case <-h.StreamDoneChannel():
+		case <-streamDone:
 			return
 		case <-keepAlive.C:
 			if !h.writeKeepAlive(writer) {
 				return
 			}
 		case <-ticker.C:
+			if sessionStreamStopped(c.Request.Context(), streamDone) {
+				return
+			}
 			var done bool
 			afterSequence, currentInfo, done = h.pollSessionStreamTick(
 				c,
@@ -215,7 +219,7 @@ func (h *BaseHandlers) pollAndStreamSessionEvents(
 				pollQuery,
 				afterSequence,
 			)
-			if done {
+			if done || sessionStreamStopped(c.Request.Context(), streamDone) {
 				return
 			}
 		}

@@ -1,8 +1,6 @@
-import { Link, useRouter } from "@tanstack/react-router";
+import { PageHead, Pill } from "@agh/ui";
 
-import { DetailHeader, Pill } from "@agh/ui";
-
-import { taskShortId, taskStatusSignal } from "../lib/task-formatters";
+import { taskStatusSignal } from "../lib/task-formatters";
 import type { TaskDetailView } from "../types";
 import {
   TasksDetailHeaderActions,
@@ -30,7 +28,7 @@ export interface TasksDetailHeaderProps {
   onRecover?: () => void | Promise<void>;
 }
 
-/** `/tasks/$id` hero composed from the canonical DetailHeader anatomy. */
+/** `/tasks/$id` hero rendering identity via PageHead; actions publish to the topbar. */
 export function TasksDetailHeader({
   detail,
   pending,
@@ -42,53 +40,35 @@ export function TasksDetailHeader({
   onResume,
   onRecover,
 }: TasksDetailHeaderProps) {
-  const router = useRouter();
   const record = detail.task;
-  const identifier = taskShortId(record);
   const signal = taskStatusSignal(record.status);
 
   return (
-    <DetailHeader
-      data-testid="tasks-detail-header"
-      back={() => router.history.back()}
-      backLabel="Back to tasks"
-      crumbs={
-        <span data-testid="tasks-detail-breadcrumb" className="inline-flex items-center gap-1.5">
-          <Link
-            data-testid="tasks-detail-breadcrumb-tasks"
-            to="/tasks"
-            className="transition-colors duration-base ease-out hover:text-fg"
-          >
-            Tasks
-          </Link>
-          <span aria-hidden="true" className="text-faint">
-            ·
+    <div className="pt-5">
+      <TasksDetailHeaderActions
+        detail={detail}
+        pending={pending}
+        onCancel={onCancel}
+        onDelete={onDelete}
+        onEnqueueRun={onEnqueueRun}
+        onPause={onPause}
+        onPublish={onPublish}
+        onRecover={onRecover}
+        onResume={onResume}
+      />
+      <PageHead
+        data-testid="tasks-detail-header"
+        pretitle="Task"
+        title={
+          <span data-testid="tasks-detail-title" className="inline-flex min-w-0 items-center gap-2">
+            <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
+            <span className="truncate">{record.title}</span>
           </span>
-          <span>{identifier}</span>
-        </span>
-      }
-      preTitle="Task"
-      title={
-        <span data-testid="tasks-detail-title" className="inline-flex min-w-0 items-center gap-2">
-          <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
-          <span className="truncate">{record.title}</span>
-        </span>
-      }
-      pills={<TasksDetailHeaderPills detail={detail} />}
-      meta={<TasksDetailHeaderMeta detail={detail} />}
-      actions={
-        <TasksDetailHeaderActions
-          detail={detail}
-          pending={pending}
-          onCancel={onCancel}
-          onDelete={onDelete}
-          onEnqueueRun={onEnqueueRun}
-          onPause={onPause}
-          onPublish={onPublish}
-          onRecover={onRecover}
-          onResume={onResume}
-        />
-      }
-    />
+        }
+        variant="detail"
+        pills={<TasksDetailHeaderPills detail={detail} />}
+        meta={<TasksDetailHeaderMeta detail={detail} />}
+      />
+    </div>
   );
 }

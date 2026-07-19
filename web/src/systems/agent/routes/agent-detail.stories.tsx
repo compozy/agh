@@ -10,6 +10,7 @@ import {
   storyWorkspacePaths,
 } from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
+import type { AgentPayload } from "@/systems/agent/types";
 import { sessionFixtures } from "@/systems/session/mocks";
 import type { SessionPayload } from "@/systems/session/types";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -67,6 +68,53 @@ const fraudAgentRoute = `/agents/${storyAgentNames.fraud}`;
 const complianceAgentRoute = `/agents/${storyAgentNames.compliance}`;
 const missingAgentRoute = "/agents/ghost-risk-agent";
 
+const fraudAgentBase = agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!;
+
+/** Reference-density payload for OpenDesign tab parity captures. */
+const denseFraudAgent: AgentPayload = {
+  ...fraudAgentBase,
+  prompt: `# Role
+
+You are \`${storyAgentNames.fraud}\`, the operator agent for payout holds and reserve anomalies.
+
+## Operating rules
+
+- Prefer verified daemon state over assumptions.
+- Never invent metrics or claim a hold cleared unless the runtime confirms it.
+- Keep permissions at approve-reads unless the operator raises them.
+
+## Outputs
+
+Produce concrete next steps: files to touch, the hold id, and the exact \`agh\` commands to run.`,
+  permissions: "approve-reads",
+  tools: ["Bash", "Read", "Edit", "Write", "Glob", "Grep"],
+  deny_tools: ["WebFetch", "Bash(rm:*)"],
+  toolsets: ["agh-core"],
+  mcp_servers: [
+    {
+      name: "github",
+      transport: "stdio",
+      command: "npx -y @modelcontextprotocol/server-github",
+      env: { GITHUB_TOKEN: "redacted" },
+    },
+    {
+      name: "linear",
+      transport: "sse",
+      url: "https://mcp.linear.app/sse",
+      env: { LINEAR_API_KEY: "redacted" },
+    },
+  ],
+  skills: { disabled: [] },
+};
+
+function denseFraudAgentHandlers() {
+  return storybookMswParameters({
+    agent: [
+      aghApiMock.get("/api/agents/{name}", () => HttpResponse.json({ agent: denseFraudAgent })),
+    ],
+  });
+}
+
 function AgentWorkspaceSetup() {
   return <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />;
 }
@@ -76,7 +124,10 @@ function AgentWorkspaceSetup() {
  */
 export const Default: Story = {
   args: {},
-  parameters: appRouteParameters(fraudAgentRoute),
+  parameters: {
+    ...appRouteParameters(fraudAgentRoute),
+    ...denseFraudAgentHandlers(),
+  },
   render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
@@ -85,18 +136,24 @@ export const Default: Story = {
     await expect(canvas.findByTestId("agent-overview-tab")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-page-header-status")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-page-toolbar")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-overview-glance")).resolves.toBeDefined();
     expect(canvas.queryByTestId("agent-info-inspector")).toBeNull();
   },
 };
 
 export const InstructionsAgent: Story = {
   args: {},
-  parameters: appRouteParameters(`${fraudAgentRoute}?tab=instructions&file=agent`),
+  parameters: {
+    ...appRouteParameters(`${fraudAgentRoute}?tab=instructions&file=agent`),
+    ...denseFraudAgentHandlers(),
+  },
   render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.findByTestId("agent-file-agent")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-file-meta")).resolves.toBeDefined();
+    expect(canvas.getByTestId("agent-file-meta")).toHaveTextContent("Read-only here");
   },
 };
 
@@ -148,12 +205,17 @@ export const HeartbeatEditor: Story = {
 
 export const Configuration: Story = {
   args: {},
-  parameters: appRouteParameters(`${fraudAgentRoute}?tab=configuration`),
+  parameters: {
+    ...appRouteParameters(`${fraudAgentRoute}?tab=configuration`),
+    ...denseFraudAgentHandlers(),
+  },
   render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.findByTestId("agent-configuration-tab")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-config-deny-tools")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-mcp-list")).resolves.toBeDefined();
   },
 };
 
@@ -374,6 +436,32 @@ export const RuntimeMutationConflict: Story = {
     const body = await openDetailRuntimeSelector(canvasElement);
     await chooseAlternateRuntimeOption(await body.findByTestId("runtime-selector-popup"));
     await expect(await canvas.findByTestId("agent-detail-runtime-conflict")).toBeInTheDocument();
+  },
+};
+
+/** Provider-source failures keep the runtime selector inert and expose a retry action. */
+export const RuntimeProvidersError: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudAgentRoute),
+    ...storybookMswParameters({
+      settings: [
+        aghApiMock.get("/api/settings/providers", () =>
+          HttpResponse.json({ error: "Global providers unavailable" }, { status: 503 })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.findByTestId("agent-detail-runtime-providers-error")
+    ).resolves.toHaveTextContent("Global providers unavailable");
+    await expect(
+      canvas.findByTestId("agent-detail-runtime-providers-retry")
+    ).resolves.toBeDefined();
   },
 };
 

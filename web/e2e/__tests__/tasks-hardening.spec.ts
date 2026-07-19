@@ -140,7 +140,7 @@ test("operator rejects a manual approval task without creating hidden work", asy
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await ui.modeInbox.click();
-  await expect(ui.modeInbox).toHaveAttribute("aria-pressed", "true");
+  await expect(ui.modeInbox).toHaveAttribute("aria-current", "page");
   await expect(ui.inboxView).toBeVisible();
   await expect(ui.inboxItem(seeded.approvalTask.id)).toHaveAttribute("data-lane", "blocked");
   await expect(ui.inboxReject(seeded.approvalTask.id)).toBeHidden();
@@ -470,7 +470,8 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
   await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(disposable.id)}`), {
     waitUntil: "domcontentloaded",
   });
-  await expect(ui.detailDelete).toBeVisible();
+  await expect(ui.detailOverflow).toBeVisible();
+  await ui.detailOverflow.click();
   await ui.detailDelete.click();
   await expect(ui.detailDeleteDialog).toBeVisible();
   await runtime.artifactCollector.captureJSON(
@@ -548,10 +549,10 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
     await appPage.setViewportSize({ height: viewport.height, width: viewport.width });
 
     await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-    if ((await ui.modeList.getAttribute("aria-pressed")) !== "true") {
+    if ((await ui.modeList.getAttribute("aria-current")) !== "page") {
       await ui.modeList.click();
     }
-    await expect(ui.modeList).toHaveAttribute("aria-pressed", "true");
+    await expect(ui.modeList).toHaveAttribute("aria-current", "page");
     await revealTasksListPanel(appPage);
     await expect(appPage.getByTestId("tasks-list-surface")).toBeVisible();
     await expect(appPage.getByTestId("tasks-list-filters")).toBeVisible();
@@ -563,7 +564,7 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
     await expect(ui.taskCard(seeded.referenceTask.id)).toBeVisible();
 
     await ui.modeInbox.click();
-    await expect(ui.modeInbox).toHaveAttribute("aria-pressed", "true");
+    await expect(ui.modeInbox).toHaveAttribute("aria-current", "page");
     await expect(ui.inboxView).toBeVisible();
     await expect(appPage.getByTestId("tasks-inbox-groups")).toBeVisible();
     const inboxSearch = appPage.getByTestId("tasks-inbox-search");
@@ -789,10 +790,10 @@ test("tasks list and kanban surface needs_attention as a distinct status", async
 
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
-  if ((await ui.modeList.getAttribute("aria-pressed")) !== "true") {
+  if ((await ui.modeList.getAttribute("aria-current")) !== "page") {
     await ui.modeList.click();
   }
-  await expect(ui.modeList).toHaveAttribute("aria-pressed", "true");
+  await expect(ui.modeList).toHaveAttribute("aria-current", "page");
   await revealTasksListPanel(appPage);
   await expect(appPage.getByTestId("tasks-list-surface")).toBeVisible();
 
@@ -809,7 +810,7 @@ test("tasks list and kanban surface needs_attention as a distinct status", async
 
   // Distinct kanban column: the same task lands in the needs_attention column.
   await ui.modeKanban.click();
-  await expect(ui.modeKanban).toHaveAttribute("aria-pressed", "true");
+  await expect(ui.modeKanban).toHaveAttribute("aria-current", "page");
   await expect(appPage.getByTestId("tasks-kanban-column-needs_attention")).toBeVisible();
   await expect(
     appPage

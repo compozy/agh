@@ -1,4 +1,4 @@
-import { Link, useMatchRoute } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   Book,
   Boxes,
@@ -10,14 +10,11 @@ import {
   ListChecks,
   Network,
   Plus,
-  Puzzle,
   Repeat2,
-  Server,
   Settings,
   Store,
   Users2,
   Waypoints,
-  Wrench,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -223,27 +220,31 @@ interface NavItemProps {
 }
 
 function NavItem({ to, icon: Icon, label, fuzzy, badge }: NavItemProps) {
-  const matchRoute = useMatchRoute();
-  const isActive = Boolean(matchRoute({ to, fuzzy }));
   const testKey = label.toLowerCase();
 
   return (
     <Link
       to={to}
+      activeOptions={{ exact: !fuzzy, includeSearch: false }}
+      activeProps={{ className: ACTIVE_NAV_ROW_CLASS, "data-active": "true" }}
       data-testid={`nav-${testKey}`}
-      data-active={isActive}
-      className={cn(NAV_ROW_CLASS, isActive && ACTIVE_NAV_ROW_CLASS)}
+      inactiveProps={{ "data-active": "false" }}
+      className={NAV_ROW_CLASS}
     >
-      {isActive && (
-        <span
-          aria-hidden="true"
-          data-testid={`nav-active-${testKey}`}
-          className={ACTIVE_NAV_INDICATOR_CLASS}
-        />
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <span
+              aria-hidden="true"
+              data-testid={`nav-active-${testKey}`}
+              className={ACTIVE_NAV_INDICATOR_CLASS}
+            />
+          )}
+          <Icon aria-hidden="true" className="size-3 shrink-0" />
+          <span className="truncate">{label}</span>
+          {badge ? <span className="ml-auto shrink-0">{badge}</span> : null}
+        </>
       )}
-      <Icon aria-hidden="true" className="size-3 shrink-0" />
-      <span className="truncate">{label}</span>
-      {badge ? <span className="ml-auto shrink-0">{badge}</span> : null}
     </Link>
   );
 }
@@ -256,19 +257,16 @@ const DASHBOARD_NAV_ITEM: NavItemProps = {
 
 const OPERATE_NAV_ITEMS: NavItemProps[] = [
   { to: "/agents", icon: Users2, label: "Agents", fuzzy: true },
-  { to: "/network", icon: Network, label: "Network" },
+  { to: "/network", icon: Network, label: "Network", fuzzy: true },
   { to: "/tasks", icon: ListChecks, label: "Tasks", fuzzy: true },
   { to: "/loops", icon: Repeat2, label: "Loops", fuzzy: true },
-  { to: "/jobs", icon: Clock3, label: "Jobs" },
-  { to: "/triggers", icon: Zap, label: "Triggers" },
+  { to: "/jobs", icon: Clock3, label: "Jobs", fuzzy: true },
+  { to: "/triggers", icon: Zap, label: "Triggers", fuzzy: true },
 ];
 
 const CATALOG_NAV_ITEMS: NavItemProps[] = [
   { to: "/marketplace", icon: Store, label: "Marketplace", fuzzy: true },
-  { to: "/extensions", icon: Puzzle, label: "Extensions", fuzzy: true },
-  { to: "/bridges", icon: Waypoints, label: "Bridges" },
-  { to: "/skills", icon: Wrench, label: "Skills" },
-  { to: "/mcp", icon: Server, label: "MCP" },
+  { to: "/bridges", icon: Waypoints, label: "Bridges", fuzzy: true },
   { to: "/knowledge", icon: Book, label: "Knowledge" },
 ];
 

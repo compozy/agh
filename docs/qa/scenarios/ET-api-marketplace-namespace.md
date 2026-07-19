@@ -26,3 +26,12 @@ activations and prove each result projects only the caller's activation and drif
 
 QA impact 2026-07-16: inspect the default Repository Orientation extension detail over HTTP and UDS;
 both must expose the same `artifact_url`, digest, install slug, and repository metadata.
+
+QA impact 2026-07-18: single-kind browse now returns opaque `next_cursor` continuation and exact
+filtered totals where the source can determine them. Prove stable, non-overlapping pages and reject
+a cursor replayed with a different kind, query, scope, or workspace.
+
+QA impact 2026-07-18: grouped search no longer advertises an unusable continuation cursor. A
+single-kind cursor now carries a projection fence; mutate the curated catalog, remote-skill prefix,
+or bundle projection between pages and prove the daemon rejects the stale cursor with restart
+guidance instead of returning duplicate or skipped entries.

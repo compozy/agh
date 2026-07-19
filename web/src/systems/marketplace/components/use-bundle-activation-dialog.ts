@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -28,6 +29,7 @@ export function useBundleActivationDialog({
   const [confirmNetworkRequirement, setConfirmNetworkRequirement] = useState(false);
   const preview = usePreviewMarketplaceBundle();
   const activate = useActivateMarketplaceBundle();
+  const navigate = useNavigate();
   useEffect(() => {
     if (!open || !bundle) return;
     preview.mutate(buildBundleRequest(data, profile, scope, workspaceId));
@@ -47,7 +49,7 @@ export function useBundleActivationDialog({
         action: {
           label: "Manage →",
           onClick: () => {
-            window.location.href = "/extensions?tab=bundles";
+            void navigate({ to: "/marketplace/bundles", search: { tab: "installed" } });
           },
         },
       });

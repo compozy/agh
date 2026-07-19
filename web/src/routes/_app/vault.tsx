@@ -1,14 +1,34 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { KeyRound } from "lucide-react";
 
+import {
+  normalizeVaultPrefixForNamespace,
+  parseVaultNamespaceFilter,
+  type VaultRouteSearch,
+} from "@/hooks/routes/use-vault-page";
+import { parseListingView } from "@/lib/listing-search";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { VaultPage } from "./-vault-page";
 import { preloadVaultRoute } from "./-vault-preload";
 
+function validateVaultSearch(search: Record<string, unknown>): VaultRouteSearch {
+  const namespace = parseVaultNamespaceFilter(search.namespace);
+  return {
+    q: normalizeVaultPrefixForNamespace(search.q, namespace),
+    namespace,
+    view: parseListingView(search.view),
+  };
+}
+
 export const Route = createFileRoute("/_app/vault")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Vault", icon: KeyRound },
+    topbar: { crumb: { label: "Vault", to: "/vault" } },
   }),
-  loader: ({ context }) => preloadVaultRoute(context.queryClient),
-  component: VaultPage,
+  validateSearch: validateVaultSearch,
+  loaderDeps: ({ search }) => ({ namespace: search.namespace, prefix: search.q }),
+  loader: ({ context, deps }) => preloadVaultRoute(context.queryClient, deps),
+  component: VaultRoute,
 });
+
+function VaultRoute() {
+  return <VaultPage search={Route.useSearch()} />;
+}

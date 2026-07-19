@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -298,10 +298,10 @@ function TopbarSlotProbe({ onSlot }: { onSlot: (slot: TopbarSlotValue | null) =>
   return (
     <div data-testid="topbar-probe">
       <span data-testid="topbar-probe-title">
-        {typeof slot?.title === "string" ? slot.title : ""}
+        {typeof slot?.crumb === "string" ? slot.crumb : ""}
       </span>
-      <div data-testid="topbar-probe-meta">{slot?.meta ?? null}</div>
       <div data-testid="topbar-probe-actions">{slot?.actions ?? null}</div>
+      <div data-testid="topbar-probe-overflow">{slot?.overflow ?? null}</div>
     </div>
   );
 }
@@ -400,22 +400,24 @@ describe("Nested agent session route — Topbar slot migration", () => {
     expect(screen.queryByTestId("chat-breadcrumb")).not.toBeInTheDocument();
   });
 
-  it("Should push the persisted session name into the Topbar title slot", () => {
+  it("Should push the persisted session name into the Topbar crumb slot", () => {
     const { getSlot } = renderSessionPage();
-    expect(getSlot()?.title).toBe("Old runtime");
+    expect(getSlot()?.crumb).toBe("Old runtime");
   });
 
-  it("Should keep the agent name and provider as Topbar metadata", () => {
+  it("Should keep session status metadata inside the session head band", () => {
     renderSessionPage();
-    const meta = screen.getByTestId("session-topbar-meta");
+    const head = screen.getByTestId("session-head-band");
+    const meta = within(head).getByTestId("session-status-meta");
     expect(meta).toBeInTheDocument();
-    const badge = screen.getByTestId("session-topbar-badge");
+    const badge = within(head).getByTestId("session-status-badge");
     expect(badge).toHaveTextContent("stopped");
-    const agent = screen.getByTestId("session-topbar-agent");
+    const agent = within(head).getByTestId("session-status-agent");
     expect(agent).toHaveTextContent("claude-agent");
-    const provider = screen.getByTestId("session-topbar-provider");
+    const provider = within(head).getByTestId("session-status-provider");
     expect(provider).toHaveTextContent("codex");
-    expect(screen.queryByTestId("session-topbar-name")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-status-name")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-topbar-meta")).not.toBeInTheDocument();
   });
 
   it.each([
@@ -430,17 +432,18 @@ describe("Nested agent session route — Topbar slot migration", () => {
     });
 
     const { getSlot } = renderSessionPage();
-    expect(getSlot()?.title).toBe("New session");
-    expect(getSlot()?.title).not.toBe("claude-agent");
-    expect(getSlot()?.title).not.toBe("sess_123");
+    expect(getSlot()?.crumb).toBe("New session");
+    expect(getSlot()?.crumb).not.toBe("claude-agent");
+    expect(getSlot()?.crumb).not.toBe("sess_123");
   });
 
   it("Should expose delete without attach controls for stopped sessions", () => {
     renderSessionPage();
     expect(screen.getByTestId("session-topbar-actions")).toBeInTheDocument();
-    expect(screen.getByTestId("delete-button")).toBeInTheDocument();
     expect(screen.queryByTestId("resume-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("stop-button")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("session-topbar-overflow"));
+    expect(screen.getByTestId("delete-button")).toBeInTheDocument();
   });
 
   it("Should expose stop and attach controls for attachable active sessions", () => {
@@ -991,6 +994,7 @@ describe("Nested agent session route — attach failure UX", () => {
 
     renderSessionPage();
 
+    fireEvent.click(screen.getByTestId("session-topbar-overflow"));
     fireEvent.click(screen.getByTestId("delete-button"));
     fireEvent.click(screen.getByTestId("delete-dialog-confirm"));
 

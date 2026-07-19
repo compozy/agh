@@ -33,19 +33,16 @@ export const Default: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-export const ScopeWorkspace: Story = {
+export const Cards: Story = {
   args: {},
   tags: ["play-fn"],
-  parameters: appRouteParameters("/triggers"),
+  parameters: appRouteParameters("/triggers?view=cards"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByTestId("triggers-scope-workspace")).toBeVisible(), {
+    await waitFor(() => expect(canvas.getByTestId("triggers-list-card-grid")).toBeVisible(), {
       timeout: 5000,
     });
-    const workspaceScope = canvas.getByTestId("triggers-scope-workspace");
-    await userEvent.click(workspaceScope);
-    await expect(workspaceScope).toHaveAttribute("aria-selected", "true");
   },
 };
 
@@ -116,4 +113,17 @@ export const Loading: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
+};
+
+export const TriggerDetail: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: appRouteParameters("/triggers/trg_support_sla_breach"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByTestId("automation-detail-panel")).toBeVisible(), {
+      timeout: 5000,
+    });
+  },
 };

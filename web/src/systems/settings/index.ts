@@ -87,6 +87,7 @@ export {
 export {
   authorizeLabel,
   composeMCPRowStatus,
+  deriveMCPAuthFilter,
   formatStatusLabel,
   isOAuthCapable,
   isOAuthRepairable,
@@ -95,6 +96,8 @@ export {
   MCP_RUNTIME_STATES,
   probeToolLabel,
 } from "./lib/mcp-status-view-model";
+export { deriveMCPManagementFilter, mcpManagementScopeLabel } from "./lib/mcp-management-target";
+export type { MCPManagementFilter } from "./lib/mcp-management-target";
 export type {
   MCPAuthorizeLabel,
   MCPAuthStatus,
@@ -201,10 +204,10 @@ export {
   RESTART_TERMINAL_STATUSES,
 } from "./lib/restart-status";
 export { restartBannerPropsFor } from "./lib/restart-banner-mapper";
+export { SettingsPageHead, type SettingsPageHeadProps } from "./components/settings-page-head";
 
 // Components
 export {
-  MCPActionResultBanner,
   MCPAuthorizeDialog,
   MCPSelectionStrip,
   MCPServerDeleteDialog,
@@ -228,6 +231,7 @@ export {
   SettingsSaveBar,
   SettingsSourceBadge,
 } from "./components";
+export type { MCPServerEditorProps } from "./components";
 
 // Stores
 export { useSettingsRestartStore } from "./stores/use-settings-restart-store";

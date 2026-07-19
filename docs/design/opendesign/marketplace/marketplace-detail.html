@@ -343,7 +343,7 @@
 
   // Shared enriched catalog (review-001 §4 daemon-truth annex). Every field below maps to a
   // real payload field; render only what exists per kind. Duplicated verbatim across
-  // marketplace.html / marketplace-kind.html / marketplace-detail.html.
+  // marketplace.html / marketplace-detail.html.
   var CATALOG = {
     skills: [
       { id:"git-flow", name:"git-flow", author:"@agh", version:"1.4.2", downloads:"3.4k", source:"registry", icon:"skill", state:"installed", href:"marketplace-detail.html?kind=skills&name=git-flow",
@@ -487,10 +487,10 @@
     ]
   };
   var KIND_META = {
-    skills:{ label:"Skills", eyebrow:"SKILLS", verb:"Install", manage:"skills", manageTitle:"Opens /skills in the app" },
-    extensions:{ label:"Extensions", eyebrow:"EXTENSIONS", verb:"Install", manage:"extensions.html", manageItem:function(item){ return "extension-detail.html?name="+encodeURIComponent(item.name||item.id); } },
-    bundles:{ label:"Bundles", eyebrow:"BUNDLES", verb:"Activate", manage:"extensions.html?tab=bundles", manageItem:function(item){ return "bundle-activation-detail.html?id="+encodeURIComponent(item.id); } },
-    mcp:{ label:"MCP Servers", eyebrow:"MCP SERVERS", verb:"Install", manage:"mcp", manageTitle:"Opens /mcp in the app" }
+    skills:{ label:"Skills", eyebrow:"SKILLS", verb:"Install", manage:"marketplace.html?kind=skills&tab=installed" },
+    extensions:{ label:"Extensions", eyebrow:"EXTENSIONS", verb:"Install", manage:"marketplace.html?kind=extensions&tab=installed" },
+    bundles:{ label:"Bundles", eyebrow:"BUNDLES", verb:"Activate", manage:"marketplace.html?kind=bundles&tab=installed", manageItem:function(item){ return "bundle-activation-detail.html?id="+encodeURIComponent(item.id); } },
+    mcp:{ label:"MCP Servers", eyebrow:"MCP SERVERS", verb:"Install", manage:"marketplace.html?kind=mcps&tab=installed" }
   };
 
   function iconSvg(kind){
@@ -565,7 +565,7 @@
   var item=(CATALOG[kind]||[]).find(function(x){ return x.id===name; });
   var root=document.getElementById("detail-root");
   document.getElementById("crumb-kind").textContent=KIND_META[kind].label;
-  document.getElementById("crumb-kind").href="marketplace-kind.html?kind="+kind;
+  document.getElementById("crumb-kind").href="marketplace.html?kind="+(kind==="mcp"?"mcps":kind);
   document.getElementById("crumb-name").textContent=name;
 
   // R-006: demonstrable loading skeleton via ?state=loading
@@ -829,8 +829,8 @@
     var cta=document.getElementById("cta");
     if(cta){
       cta.addEventListener("click", function(){
-        if(kind==="mcp"){ location.href="marketplace-kind.html?kind=mcp&install="+item.id; return; }
-        if(kind==="bundles"){ location.href="marketplace-kind.html?kind=bundles&activate="+item.id; return; }
+        if(kind==="mcp"){ location.href="marketplace.html?kind=mcps"; return; }
+        if(kind==="bundles"){ location.href="marketplace.html?kind=bundles"; return; }
         if(kind==="extensions" && item.trust==="unverified"){
           if(!confirm("Install unverified extension "+item.name+"?\n\nReview the trust warnings above before confirming.")) return;
         }

@@ -109,7 +109,7 @@ function MCPInstallDialog({
           ) : null}
           {remote ? (
             <p className="text-form-hint text-muted">
-              No secret is stored for remote servers. Authorization runs after install.
+              No secret is stored for remote servers. You authorize in the browser after install.
             </p>
           ) : null}
 

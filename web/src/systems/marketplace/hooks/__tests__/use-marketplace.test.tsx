@@ -58,7 +58,7 @@ describe("marketplace query hooks", () => {
       { wrapper }
     );
 
-    await waitFor(() => expect(kind.result.current.data).toEqual(kindResponse));
+    await waitFor(() => expect(kind.result.current.data?.pages).toEqual([kindResponse]));
     await waitFor(() => expect(detail.result.current.data).toEqual(detailResponse));
     expect(client.getQueryCache().getAll()).toHaveLength(2);
   });

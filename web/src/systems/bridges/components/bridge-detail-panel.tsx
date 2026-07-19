@@ -1,6 +1,6 @@
 import { AlertCircle, Waypoints } from "lucide-react";
 
-import { DataSurface } from "@agh/ui";
+import { cn, DataSurface, PAGE_CONTENT_GUTTER } from "@agh/ui";
 
 import { formatBridgeProviderConfig } from "../lib/bridge-formatters";
 import type { BridgeSetupProjection } from "../lib/bridge-setup";
@@ -29,7 +29,6 @@ interface BridgeDetailPanelProps {
   emptyMessage?: string;
   error: Error | null;
   health: BridgeHealth | undefined;
-  onBack?: () => void;
   onDeleteSecretBinding?: (bindingName: string) => void;
   onDisableBridge?: () => void;
   onEnableBridge?: () => void;
@@ -75,7 +74,6 @@ export function BridgeDetailPanel({
   emptyMessage = "Select a bridge to inspect configuration, routes, and delivery health.",
   error,
   health,
-  onBack,
   onDeleteSecretBinding,
   onDisableBridge,
   onEnableBridge,
@@ -112,7 +110,7 @@ export function BridgeDetailPanel({
     const surfaceState = isLoading ? "loading" : error ? "error" : "empty";
     return (
       <DataSurface
-        className="flex min-h-0 flex-1 items-center justify-center p-6"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         state={surfaceState}
       >
         <DataSurface.Loading
@@ -145,21 +143,20 @@ export function BridgeDetailPanel({
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden")}
       data-testid="bridge-detail-panel"
     >
       <BridgeDetailHeader
         bridge={bridge}
         effectiveStatus={effectiveStatus}
         isLifecyclePending={isLifecyclePending}
-        onBack={onBack}
         onDisableBridge={onDisableBridge}
         onEnableBridge={onEnableBridge}
         onOpenEdit={onOpenEdit}
         onRestartBridge={onRestartBridge}
       />
 
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-5">
         <BridgeSetupChecklist
           isLifecyclePending={isLifecyclePending}
           isRegistering={setup.isRegistering}

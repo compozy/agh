@@ -31,9 +31,9 @@ function MarketplaceDetailHero({ entry, pending, onAction }: MarketplaceDetailHe
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="truncate text-detail-h1 font-semibold tracking-detail-h1 text-fg-strong">
+          <h2 className="truncate text-detail-h1 font-semibold tracking-detail-h1 text-fg-strong">
             {entry.name}
-          </h1>
+          </h2>
           <Pill mono>{kind}</Pill>
           <MarketplaceTrustPill entry={entry} />
           {entry.version ? <Pill mono>v{entry.version}</Pill> : null}

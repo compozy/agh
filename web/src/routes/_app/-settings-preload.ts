@@ -6,7 +6,6 @@ import {
   settingsApplyRecordsOptions,
   settingsGeneralOptions,
   settingsHooksExtensionsOptions,
-  settingsMCPServersListOptions,
   settingsMemoryOptions,
   settingsObservabilityOptions,
   settingsProvidersListOptions,
@@ -20,19 +19,6 @@ import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
 export function preloadSandboxRoute(queryClient: QueryClient): Promise<void> {
   return settleRouteQueries([queryClient.ensureQueryData(settingsSandboxesListOptions())]);
-}
-
-export async function preloadMcpRoute(queryClient: QueryClient): Promise<void> {
-  const workspaceId = await resolveActiveWorkspaceId(queryClient);
-  if (!workspaceId) {
-    return;
-  }
-
-  await settleRouteQueries([
-    queryClient.ensureQueryData(
-      settingsMCPServersListOptions({ scope: "workspace", workspace_id: workspaceId })
-    ),
-  ]);
 }
 
 export async function preloadSettingsGeneralRoute(queryClient: QueryClient): Promise<void> {

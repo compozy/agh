@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { SettingsMCPServerEntry } from "../../types";
+import { deriveMCPManagementFilter } from "../mcp-management-target";
 import {
   authTone,
   authorizeLabel,
   composeMCPRowStatus,
+  deriveMCPAuthFilter,
   formatStatusLabel,
   isOAuthCapable,
   isOAuthRepairable,
@@ -25,6 +27,13 @@ interface EntryOverrides {
   auth?: AuthConfig | null;
   authStatus?: Partial<AuthStatus> | null;
   runtimeStatus?: Partial<RuntimeStatus> | null;
+  effectiveSource?: {
+    kind: string;
+    scope: "global" | "workspace";
+    workspace_id?: string;
+  };
+  scope?: "global" | "workspace";
+  workspaceId?: string;
 }
 
 // Minimal fixture at the type boundary: the view-model only reads
@@ -60,11 +69,14 @@ function makeEntry(overrides: EntryOverrides = {}): SettingsMCPServerEntry {
   return {
     name: "srv",
     transport: overrides.transport ?? "stdio",
-    scope: "workspace",
+    scope: overrides.scope ?? "workspace",
     auth: overrides.auth ?? null,
     auth_status: authStatus,
     runtime_status: runtimeStatus,
-    source_metadata: {},
+    source_metadata: {
+      effective_source: overrides.effectiveSource,
+    },
+    workspace_id: overrides.workspaceId,
   } as SettingsMCPServerEntry;
 }
 
@@ -215,6 +227,67 @@ describe("authorize gating", () => {
       runtimeStatus: { state: "permission_denied", probe: "failed" },
     });
     expect(isOAuthRepairable(permissionDenied)).toBe(false);
+  });
+});
+
+describe("authorization target", () => {
+  it("uses a global effective source even when the collection row is workspace-scoped", () => {
+    const server = makeEntry({
+      effectiveSource: { kind: "global-config", scope: "global" },
+      scope: "workspace",
+      workspaceId: "ws-active",
+    });
+
+    expect(deriveMCPAuthFilter(server)).toEqual({ scope: "global" });
+  });
+
+  it("uses the effective workspace source identity", () => {
+    const server = makeEntry({
+      effectiveSource: {
+        kind: "workspace-config",
+        scope: "workspace",
+        workspace_id: "ws-owner",
+      },
+      scope: "global",
+    });
+
+    expect(deriveMCPAuthFilter(server)).toEqual({
+      scope: "workspace",
+      workspace_id: "ws-owner",
+    });
+  });
+
+  it("rejects a workspace effective source without its workspace identity", () => {
+    const server = makeEntry({
+      effectiveSource: { kind: "workspace-config", scope: "workspace" },
+    });
+
+    expect(deriveMCPAuthFilter(server)).toBeNull();
+  });
+
+  it.each([
+    ["global-config", { scope: "global", target: "config" }],
+    ["global-mcp-sidecar", { scope: "global", target: "sidecar" }],
+  ] as const)("maps %s to its exact global management target", (kind, expected) => {
+    const server = makeEntry({ effectiveSource: { kind, scope: "global" } });
+
+    expect(deriveMCPManagementFilter(server)).toEqual(expected);
+  });
+
+  it.each([
+    ["workspace-config", "config"],
+    ["workspace-mcp-sidecar", "sidecar"],
+  ] as const)("maps %s to its exact workspace management target", (kind, target) => {
+    const server = makeEntry({
+      effectiveSource: { kind, scope: "workspace", workspace_id: "ws-owner" },
+      scope: "global",
+    });
+
+    expect(deriveMCPManagementFilter(server)).toEqual({
+      scope: "workspace",
+      target,
+      workspace_id: "ws-owner",
+    });
   });
 });
 

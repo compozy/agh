@@ -3,26 +3,30 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { PageContent, type PageContentDensity } from "./page-content";
 
-type PageShellDensity = "comfortable" | "compact" | "route";
+type PageShellDensity = Exclude<PageContentDensity, "listing">;
 
 interface PageShellProps extends Omit<React.ComponentProps<"div">, "title"> {
   slug?: string;
   banner?: React.ReactNode;
+  /** Optional body summary/status chrome rendered as the first content child. */
+  head?: React.ReactNode;
   footer?: React.ReactNode;
   bodyClassName?: string;
   density?: PageShellDensity;
 }
 
 /**
- * PageShell hosts a route's body, banner, and sticky footer. After P4 the
- * shell-level `<Topbar>` owns the route title and chrome, so PageShell does
- * not render its own header. Routes push title/icon/count via TanStack Router
- * `beforeLoad` and dynamic tabs/search/actions via `useTopbarSlot`.
+ * PageShell hosts a route's body, banner, and sticky footer. The shell-level
+ * Topbar owns route identity and navigation focus; the optional `head` slot is
+ * subordinate body summary/status chrome. Horizontal gutters match
+ * ListingPage via shared `PageContent`.
  */
 function PageShell({
   slug,
   banner,
+  head,
   footer,
   bodyClassName,
   className,
@@ -34,18 +38,7 @@ function PageShell({
   const bodyTestId = slug ? `settings-page-${slug}-body` : undefined;
   const footerTestId = slug ? `settings-page-${slug}-footer` : undefined;
   const bannerTestId = slug ? `settings-page-${slug}-banner-slot` : undefined;
-  const bodyPadding =
-    density === "compact"
-      ? "px-4 py-3 sm:px-5 md:px-6"
-      : density === "route"
-        ? "px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10"
-        : "px-4 py-5 sm:px-6 md:px-8 md:py-6 xl:px-10";
-  const bodyGap =
-    density === "compact"
-      ? "gap-4 pb-8 md:gap-5 md:pb-10"
-      : density === "route"
-        ? "gap-5 pb-10 md:gap-6 md:pb-12"
-        : "gap-6 pb-12 md:gap-8 md:pb-16";
+  const headTestId = slug ? `settings-page-${slug}-head-slot` : undefined;
 
   return (
     <div
@@ -56,11 +49,11 @@ function PageShell({
     >
       {banner ? <div data-testid={bannerTestId}>{banner}</div> : null}
 
-      <div
-        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", bodyPadding, bodyClassName)}
-        data-testid={bodyTestId}
-      >
-        <div className={cn("flex min-h-full flex-col", bodyGap)}>{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid={bodyTestId}>
+        <PageContent density={density} className={bodyClassName}>
+          {head ? <div data-testid={headTestId}>{head}</div> : null}
+          {children}
+        </PageContent>
       </div>
 
       {footer ? (

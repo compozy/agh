@@ -161,7 +161,7 @@ function BridgeListPanel({
   if (status === "loading" && isEmpty) {
     return (
       <div
-        className="flex min-h-60 items-center justify-center px-6 py-10"
+        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
         data-testid="bridge-list-loading"
       >
         <Spinner aria-hidden="true" className="size-5 text-subtle" />
@@ -172,7 +172,7 @@ function BridgeListPanel({
   if (errorMessage && isEmpty) {
     return (
       <div
-        className="flex min-h-60 items-center justify-center p-4"
+        className="flex min-h-0 flex-1 items-center justify-center p-4"
         data-testid="bridge-list-error"
       >
         <Empty
@@ -188,7 +188,7 @@ function BridgeListPanel({
   if (isEmpty) {
     return (
       <div
-        className="flex min-h-60 items-center justify-center p-4"
+        className="flex min-h-0 flex-1 items-center justify-center p-4"
         data-testid="bridge-list-empty"
       >
         <Empty

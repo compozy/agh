@@ -88,18 +88,23 @@ func newSkillsHandlerFixtureWithMarketplaceAndResources(
 }
 
 type stubSkillMarketplaceService struct {
-	SearchFn  func(ctx context.Context, query string, limit int) ([]registrypkg.Listing, error)
-	InfoFn    func(ctx context.Context, slug string) (*registrypkg.Detail, error)
-	InstallFn func(ctx context.Context, slug string, version string) (skillmarketplace.InstallResult, error)
-	UpdateFn  func(ctx context.Context, req skillmarketplace.UpdateRequest) ([]skillmarketplace.UpdateResult, error)
-	RemoveFn  func(ctx context.Context, name string) (skillmarketplace.RemoveResult, error)
+	SearchFn     func(ctx context.Context, query string, limit int) ([]registrypkg.Listing, error)
+	SearchPageFn func(ctx context.Context, query string, offset int, limit int) ([]registrypkg.Listing, error)
+	InfoFn       func(ctx context.Context, slug string) (*registrypkg.Detail, error)
+	InstallFn    func(ctx context.Context, slug string, version string) (skillmarketplace.InstallResult, error)
+	UpdateFn     func(ctx context.Context, req skillmarketplace.UpdateRequest) ([]skillmarketplace.UpdateResult, error)
+	RemoveFn     func(ctx context.Context, name string) (skillmarketplace.RemoveResult, error)
 }
 
 func (s stubSkillMarketplaceService) Search(
 	ctx context.Context,
 	query string,
+	offset int,
 	limit int,
 ) ([]registrypkg.Listing, error) {
+	if s.SearchPageFn != nil {
+		return s.SearchPageFn(ctx, query, offset, limit)
+	}
 	if s.SearchFn != nil {
 		return s.SearchFn(ctx, query, limit)
 	}

@@ -2,11 +2,13 @@
 // Invariant: Detail states and lifecycle controls always reflect the daemon activation payload.
 // Boundary IN: Bundle activation query plus update/deactivate mutation hooks.
 // Boundary OUT: Generated transport and cache invalidation, owned by adapter/hook suites.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { renderWithTopbar } from "@/test/render-with-topbar";
+import { useTopbarSlotValue, type TopbarSlotValue } from "@agh/ui";
 import { bundleActivationFixtures } from "../../mocks/fixtures";
 import type { BundleActivation } from "../../types";
 
@@ -48,6 +50,14 @@ vi.mock("../../hooks/use-extension-actions", () => ({
 
 import { BundleActivationDetail } from "../bundle-activation-detail";
 
+function TopbarSlotProbe({ onSlot }: { onSlot: (slot: TopbarSlotValue | null) => void }) {
+  const slot = useTopbarSlotValue();
+  useEffect(() => {
+    onSlot(slot);
+  }, [onSlot, slot]);
+  return null;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.query.data = bundleActivationFixtures[0];
@@ -63,7 +73,7 @@ describe("BundleActivationDetail", () => {
   it("Should replace stale detail with explicit loading, failure, and not-found states", () => {
     mocks.query.data = undefined;
     mocks.query.isLoading = true;
-    const { rerender } = render(<BundleActivationDetail id="activation-missing" />);
+    const { rerender } = renderWithTopbar(<BundleActivationDetail id="activation-missing" />);
     expect(screen.queryByTestId("bundle-activation-detail")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Loading bundle activation");
 
@@ -81,7 +91,14 @@ describe("BundleActivationDetail", () => {
   it("Should render daemon inventory and explicitly confirm a Live requirement on update", async () => {
     const user = userEvent.setup();
     mocks.query.data = { ...bundleActivationFixtures[0]!, spec_drift: true };
-    render(<BundleActivationDetail id="activation-ops-starter" />);
+    let slotValue: TopbarSlotValue | null = null;
+    const getSlot = () => slotValue;
+    renderWithTopbar(
+      <>
+        <BundleActivationDetail id="activation-ops-starter" />
+        <TopbarSlotProbe onSlot={slot => (slotValue = slot)} />
+      </>
+    );
 
     expect(screen.getAllByText("incident-commander").length).toBeGreaterThan(0);
     expect(screen.getAllByText("daily-status").length).toBeGreaterThan(0);
@@ -91,6 +108,7 @@ describe("BundleActivationDetail", () => {
     expect(screen.getByText("update available")).toBeInTheDocument();
     expect(screen.getByText("Live confirmed")).toBeInTheDocument();
     expect(screen.queryByText("Bind primary channel as default")).not.toBeInTheDocument();
+    expect(getSlot()?.crumb).toBe("ops-starter");
 
     await user.click(screen.getByRole("switch", { name: "Confirm Live network participation" }));
     await user.click(screen.getByRole("button", { name: "Update" }));
@@ -109,7 +127,7 @@ describe("BundleActivationDetail", () => {
       spec_drift: false,
     };
 
-    render(<BundleActivationDetail id="activation-ops-starter" />);
+    renderWithTopbar(<BundleActivationDetail id="activation-ops-starter" />);
 
     expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
     expect(
@@ -125,7 +143,7 @@ describe("BundleActivationDetail", () => {
 
   it("Should deactivate through the real dialog and return to the Bundles tab", async () => {
     const user = userEvent.setup();
-    render(<BundleActivationDetail id="activation-ops-starter" />);
+    renderWithTopbar(<BundleActivationDetail id="activation-ops-starter" />);
 
     await user.click(screen.getByRole("button", { name: "Actions for ops-starter" }));
     await user.click(await screen.findByRole("menuitem", { name: "Deactivate…" }));
@@ -135,8 +153,8 @@ describe("BundleActivationDetail", () => {
       expect(mocks.deactivate.mutateAsync).toHaveBeenCalledWith("activation-ops-starter")
     );
     expect(mocks.navigate).toHaveBeenCalledWith({
-      search: { tab: "bundles" },
-      to: "/extensions",
+      search: { tab: "installed" },
+      to: "/marketplace/bundles",
     });
   });
 
@@ -147,7 +165,7 @@ describe("BundleActivationDetail", () => {
       inventory: undefined,
       profile_description: undefined,
     };
-    render(<BundleActivationDetail id="activation-dep-kit" />);
+    renderWithTopbar(<BundleActivationDetail id="activation-dep-kit" />);
 
     expect(screen.getByText("No bundle description is available.")).toBeInTheDocument();
     expect(screen.getByText("No profile description is available.")).toBeInTheDocument();
@@ -156,7 +174,7 @@ describe("BundleActivationDetail", () => {
   });
 
   it("Should render scope and semantic timestamps", () => {
-    render(<BundleActivationDetail id="activation-ops-starter" />);
+    renderWithTopbar(<BundleActivationDetail id="activation-ops-starter" />);
 
     expect(screen.getAllByText("workspace").length).toBeGreaterThan(0);
     expect(screen.getByText(/ws_northstar/i)).toBeInTheDocument();

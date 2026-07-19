@@ -1,14 +1,19 @@
 import type { QueryClient } from "@tanstack/react-query";
+import type { TasksRouteSearch } from "./tasks";
 
 import { statusOptions } from "@/systems/status";
-import { taskInboxOptions, tasksListOptions } from "@/systems/tasks";
+import { schedulerBacklogOptions, schedulerStatusOptions } from "@/systems/scheduler";
+import { taskDashboardOptions, taskInboxOptions, tasksListOptions } from "@/systems/tasks";
 import { workspacesListOptions } from "@/systems/workspace";
 import { defaultTaskCatalogFilter } from "@/hooks/routes/task-catalog-route-filter";
 import { taskScopeForActiveWorkspace } from "@/hooks/routes/workspace-scope-filter";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
-export async function preloadTasksRoute(queryClient: QueryClient): Promise<void> {
+export async function preloadTasksRoute(
+  queryClient: QueryClient,
+  mode: TasksRouteSearch["mode"]
+): Promise<void> {
   const [workspaceId, statusResult, workspacesResult] = await Promise.all([
     resolveActiveWorkspaceId(queryClient),
     queryClient.ensureQueryData(statusOptions()).catch(() => null),
@@ -20,10 +25,30 @@ export async function preloadTasksRoute(queryClient: QueryClient): Promise<void>
     return;
   }
 
-  await settleRouteQueries([
-    queryClient.ensureInfiniteQueryData(tasksListOptions(defaultTaskCatalogFilter(scope))),
+  const queries: Promise<unknown>[] = [
     queryClient.ensureInfiniteQueryData(
       taskInboxOptions({ scope: scope.scope, workspace: scope.workspace, limit: 1 })
     ),
-  ]);
+  ];
+  if (mode === "dashboard") {
+    queries.unshift(
+      queryClient.ensureQueryData(
+        taskDashboardOptions({ scope: scope.scope, workspace: scope.workspace })
+      ),
+      queryClient.ensureQueryData(schedulerStatusOptions()),
+      queryClient.ensureQueryData(
+        schedulerBacklogOptions({
+          include_paused: true,
+          limit: 5,
+          scope: scope.scope,
+          workspace: scope.workspace,
+        })
+      )
+    );
+  } else if (mode !== "inbox") {
+    queries.unshift(
+      queryClient.ensureInfiniteQueryData(tasksListOptions(defaultTaskCatalogFilter(scope)))
+    );
+  }
+  await settleRouteQueries(queries);
 }

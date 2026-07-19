@@ -1,5 +1,4 @@
 import { useDeferredValue, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import {
@@ -33,7 +32,6 @@ function bridgeSecretDraftKey(bridgeID: string, bindingName: string) {
 }
 
 function useBridgeDetailPage(bridgeId: string) {
-  const navigate = useNavigate();
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
 
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
@@ -349,16 +347,11 @@ function useBridgeDetailPage(bridgeId: string) {
     }
   };
 
-  const handleBack = () => {
-    void navigate({ to: "/bridges" });
-  };
-
   const detailPanelProps = {
     bridge: selectedBridge,
     emptyMessage: "Bridge not found.",
     error: detailError,
     health: selectedHealth,
-    onBack: handleBack,
     state: {
       isLifecyclePending,
       isLoading: detailLoading,
@@ -425,7 +418,6 @@ function useBridgeDetailPage(bridgeId: string) {
   return {
     detailPanelProps,
     editDialogProps,
-    handleBack,
     selectedBridge,
     sendTestDialogProps: deliveryTests.sendTestDialogProps,
     testDeliveryDialogProps: deliveryTests.dryRunDialogProps,

@@ -208,7 +208,7 @@ describe("section reads and updates", () => {
         poll_interval: "5m",
         marketplace: { registry: "agh" },
       },
-      links: [{ label: "skills", path: "/skills" }],
+      links: [{ label: "skills", path: "/marketplace/skills?tab=installed" }],
     };
 
     mockJsonResponse(skillsSection);

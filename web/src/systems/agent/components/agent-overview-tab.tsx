@@ -1,16 +1,17 @@
 import { Link } from "@tanstack/react-router";
+import { MessageSquare } from "lucide-react";
 
-import { Card, MetadataList, Pill, Section, Skeleton } from "@agh/ui";
+import { Empty, MetadataList, Pill, Section, Skeleton } from "@agh/ui";
 
 import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 
 import {
-  formatAbsentListLabels,
   formatAbsentOverride,
   formatPromptWordCount,
   formatSkillsPolicyLine,
 } from "../lib/agent-absent-value";
 import type { AgentPayload } from "../types";
+import { AgentPanelBox } from "./agent-panel-box";
 import { AgentStatsGrid } from "./agent-stats-grid";
 import { formatAgentRuntimeDuration } from "../lib/format-agent-runtime-duration";
 
@@ -82,7 +83,7 @@ export function AgentOverviewTab({
         />
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
+      <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
         <div className="flex flex-col gap-6">
           <Section
             className="gap-0"
@@ -99,18 +100,8 @@ export function AgentOverviewTab({
             }
             data-testid="agent-overview-runtime"
           >
-            <Card className="gap-0 border border-line py-0">
+            <AgentPanelBox>
               <MetadataList className="gap-0">
-                <MetadataList.Row className={metadataRowClassName}>
-                  <MetadataList.Term>Provider</MetadataList.Term>
-                  <MetadataList.Value>{agent.provider}</MetadataList.Value>
-                </MetadataList.Row>
-                <MetadataList.Row className={metadataRowClassName}>
-                  <MetadataList.Term>Model</MetadataList.Term>
-                  <MetadataList.Value className={agent.model ? undefined : "text-muted"}>
-                    {formatAbsentOverride(agent.model)}
-                  </MetadataList.Value>
-                </MetadataList.Row>
                 <MetadataList.Row className={metadataRowClassName}>
                   <MetadataList.Term>Command</MetadataList.Term>
                   <MetadataList.Value className={agent.command ? "font-mono" : "text-muted"}>
@@ -119,12 +110,14 @@ export function AgentOverviewTab({
                 </MetadataList.Row>
                 <MetadataList.Row className={metadataRowClassName}>
                   <MetadataList.Term>Permissions</MetadataList.Term>
-                  <MetadataList.Value className={agent.permissions ? undefined : "text-muted"}>
+                  <MetadataList.Value
+                    className={agent.permissions?.trim() ? "font-mono" : "text-muted"}
+                  >
                     {agent.permissions?.trim() || "Default"}
                   </MetadataList.Value>
                 </MetadataList.Row>
               </MetadataList>
-            </Card>
+            </AgentPanelBox>
           </Section>
 
           <Section
@@ -142,7 +135,7 @@ export function AgentOverviewTab({
               </button>
             }
           >
-            <Card className="gap-0 border border-line py-0">
+            <AgentPanelBox>
               {sessionsLoading ? (
                 <div className="flex flex-col gap-2 p-4">
                   <Skeleton className="h-10 rounded-md" />
@@ -151,9 +144,14 @@ export function AgentOverviewTab({
               ) : sessionsError ? (
                 <p className="p-4 text-small-body text-muted">Session status unavailable</p>
               ) : liveSessions.length === 0 ? (
-                <p className="p-4 text-small-body text-muted" data-testid="agent-overview-no-live">
-                  No active sessions
-                </p>
+                <Empty
+                  icon={MessageSquare}
+                  title="No active sessions"
+                  description="Start a session to see live work here."
+                  data-testid="agent-overview-no-live"
+                  fill={false}
+                  className="px-4 py-8"
+                />
               ) : (
                 <ul>
                   {liveSessions.map(session => {
@@ -195,17 +193,28 @@ export function AgentOverviewTab({
                   })}
                 </ul>
               )}
-            </Card>
+            </AgentPanelBox>
           </Section>
         </div>
 
         <Section className="gap-0" label="At a glance" data-testid="agent-overview-glance">
-          <Card className="gap-0 border border-line py-0">
+          <AgentPanelBox>
             <MetadataList className="gap-0">
               <MetadataList.Row className={metadataRowClassName}>
                 <MetadataList.Term>MCP servers</MetadataList.Term>
-                <MetadataList.Value className={mcpNames.length === 0 ? "text-muted" : undefined}>
-                  {formatAbsentListLabels(mcpNames)}
+                <MetadataList.Value>
+                  {mcpNames.length === 0 ? (
+                    <span className="text-muted">None</span>
+                  ) : (
+                    <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                      {mcpNames.map((name, index) => (
+                        <span key={name} className="inline-flex items-center gap-1.5">
+                          {index > 0 ? <span className="text-muted">·</span> : null}
+                          <code className="font-mono text-badge tracking-mono text-fg">{name}</code>
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </MetadataList.Value>
               </MetadataList.Row>
               <MetadataList.Row className={metadataRowClassName}>
@@ -231,7 +240,7 @@ export function AgentOverviewTab({
                 </MetadataList.Value>
               </MetadataList.Row>
             </MetadataList>
-          </Card>
+          </AgentPanelBox>
         </Section>
       </div>
     </div>

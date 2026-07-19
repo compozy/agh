@@ -65,6 +65,7 @@ func searchExtensions(
 		"extension",
 		query,
 		limit,
+		"",
 		MarketplaceReadScope{Scope: contract.SettingsWorkspaceScopeGlobal},
 	)
 	if err != nil {

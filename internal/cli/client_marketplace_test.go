@@ -40,8 +40,14 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 					if got := req.URL.Query().Get("limit"); got != "5" {
 						t.Fatalf("browse limit = %q, want 5", got)
 					}
+					if got := req.URL.Query().Get("cursor"); got != "next-page" {
+						t.Fatalf("browse cursor = %q, want next-page", got)
+					}
 					return newHTTPResponse(http.StatusOK, `{"kind":"skill","items":[]}`), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/marketplace/skill/skill-entry":
+					if got := req.URL.Query().Get("installed_name"); got != "local-skill" {
+						t.Fatalf("detail installed_name = %q, want local-skill", got)
+					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"entry":{"kind":"skill","entry_id":"skill-entry","name":"Review","description":"Review helper","installed":false,"source":"curated"}}`,
@@ -68,7 +74,7 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 			t.Fatalf("SearchMarketplace().Kinds = %#v, want empty", search.Kinds)
 		}
 
-		browse, err := client.BrowseMarketplace(ctx, "skill", " review ", 5, readScope)
+		browse, err := client.BrowseMarketplace(ctx, "skill", " review ", 5, " next-page ", readScope)
 		if err != nil {
 			t.Fatalf("BrowseMarketplace() error = %v", err)
 		}
@@ -76,7 +82,7 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 			t.Fatalf("BrowseMarketplace().Kind = %q, want skill", browse.Kind)
 		}
 
-		detail, err := client.MarketplaceInfo(ctx, "skill", "skill-entry", readScope)
+		detail, err := client.MarketplaceInfo(ctx, "skill", "skill-entry", " local-skill ", readScope)
 		if err != nil {
 			t.Fatalf("MarketplaceInfo() error = %v", err)
 		}
@@ -99,15 +105,15 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 		client := &unixSocketClient{}
 		ctx := context.Background()
 		globalScope := MarketplaceReadScope{Scope: "global"}
-		if _, err := client.BrowseMarketplace(ctx, "   ", "", 20, globalScope); err == nil ||
+		if _, err := client.BrowseMarketplace(ctx, "   ", "", 20, "", globalScope); err == nil ||
 			!strings.Contains(err.Error(), "marketplace kind is required") {
 			t.Fatalf("BrowseMarketplace(blank kind) error = %v", err)
 		}
-		if _, err := client.MarketplaceInfo(ctx, "   ", "entry", globalScope); err == nil ||
+		if _, err := client.MarketplaceInfo(ctx, "   ", "entry", "", globalScope); err == nil ||
 			!strings.Contains(err.Error(), "marketplace kind is required") {
 			t.Fatalf("MarketplaceInfo(blank kind) error = %v", err)
 		}
-		if _, err := client.MarketplaceInfo(ctx, "skill", "   ", globalScope); err == nil ||
+		if _, err := client.MarketplaceInfo(ctx, "skill", "   ", "", globalScope); err == nil ||
 			!strings.Contains(err.Error(), "marketplace entry ID is required") {
 			t.Fatalf("MarketplaceInfo(blank entry ID) error = %v", err)
 		}
@@ -123,9 +129,33 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 			ctx,
 			"skill",
 			"entry",
+			"",
 			MarketplaceReadScope{Scope: "global", WorkspaceID: "ws-alpha"},
 		); err == nil || !strings.Contains(err.Error(), "--workspace requires --scope workspace") {
 			t.Fatalf("MarketplaceInfo(global with workspace) error = %v", err)
+		}
+	})
+
+	t.Run("Should reject installed identity for bundle detail before transport", func(t *testing.T) {
+		t.Parallel()
+
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				t.Fatalf("unexpected marketplace request: %s %s", req.Method, req.URL.String())
+				return nil, nil
+			})},
+		}
+
+		_, err := client.MarketplaceInfo(
+			t.Context(),
+			"bundle",
+			"review-kit",
+			"activation-review-kit",
+			MarketplaceReadScope{Scope: "global"},
+		)
+		if err == nil || !strings.Contains(err.Error(), "--installed-name is only supported") {
+			t.Fatalf("MarketplaceInfo(bundle installed identity) error = %v, want local validation", err)
 		}
 	})
 }

@@ -23,156 +23,218 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestUpdateAutomationJobConfigBackedRejectsDefinitionEditsButAllowsEnabledToggle(t *testing.T) {
+func TestAutomationJobManagedLifecycleAllowsOnlyEnabledUpdates(t *testing.T) {
 	t.Parallel()
 
-	current := automationpkg.Job{
-		ID:        "job-config",
-		Scope:     automationpkg.AutomationScopeGlobal,
-		Name:      "config-job",
-		AgentName: "coder",
-		Prompt:    "do work",
-		Schedule: &automationpkg.ScheduleSpec{
-			Mode:     automationpkg.ScheduleModeEvery,
-			Interval: "1h",
-		},
-		Enabled:   true,
-		Retry:     automationpkg.DefaultRetryConfig(),
-		FireLimit: automationpkg.DefaultFireLimitConfig(),
-		Source:    automationpkg.JobSourceConfig,
-	}
+	for _, source := range []automationpkg.JobSource{
+		automationpkg.JobSourceConfig,
+		automationpkg.JobSourcePackage,
+	} {
+		t.Run("Should enforce the managed lifecycle for "+string(source)+" jobs", func(t *testing.T) {
+			t.Parallel()
 
-	setCalled := false
-	router := newAutomationCoreTestRouter(t, stubAutomationManager{
-		GetJobFn: func(_ context.Context, id string) (automationpkg.Job, error) {
-			if id != current.ID {
-				t.Fatalf("GetJob() id = %q, want %q", id, current.ID)
+			current := automationpkg.Job{
+				ID:        "job-managed",
+				Scope:     automationpkg.AutomationScopeGlobal,
+				Name:      "managed-job",
+				AgentName: "coder",
+				Prompt:    "do work",
+				Schedule: &automationpkg.ScheduleSpec{
+					Mode:     automationpkg.ScheduleModeEvery,
+					Interval: "1h",
+				},
+				Enabled:   true,
+				Retry:     automationpkg.DefaultRetryConfig(),
+				FireLimit: automationpkg.DefaultFireLimitConfig(),
+				Source:    source,
 			}
-			return current, nil
-		},
-		SetJobEnabledFn: func(_ context.Context, id string, enabled bool) (automationpkg.Job, error) {
-			setCalled = true
-			if id != current.ID || enabled {
-				t.Fatalf("SetJobEnabled() = (%q, %v), want (%q, false)", id, enabled, current.ID)
+			setCalled := false
+			router := newAutomationCoreTestRouter(t, stubAutomationManager{
+				GetJobFn: func(_ context.Context, id string) (automationpkg.Job, error) {
+					if id != current.ID {
+						t.Fatalf("GetJob() id = %q, want %q", id, current.ID)
+					}
+					return current, nil
+				},
+				SetJobEnabledFn: func(_ context.Context, id string, enabled bool) (automationpkg.Job, error) {
+					setCalled = true
+					if id != current.ID || enabled {
+						t.Fatalf("SetJobEnabled() = (%q, %v), want (%q, false)", id, enabled, current.ID)
+					}
+					next := current
+					next.Enabled = false
+					return next, nil
+				},
+				UpdateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
+					t.Fatal("UpdateJob() should not be called for managed job validation")
+					return automationpkg.Job{}, nil
+				},
+				DeleteJobFn: func(context.Context, string) error {
+					t.Fatal("DeleteJob() should not be called for a managed job")
+					return nil
+				},
+			})
+
+			invalid := performAutomationCoreRequest(t, router, http.MethodPatch,
+				"/automation/jobs/"+current.ID, []byte(`{"enabled":false,"prompt":"changed"}`), nil)
+			if invalid.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"invalid status = %d, want %d; body=%s",
+					invalid.Code,
+					http.StatusBadRequest,
+					invalid.Body.String(),
+				)
 			}
-			next := current
-			next.Enabled = false
-			return next, nil
-		},
-		UpdateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
-			t.Fatal("UpdateJob() should not be called for config-backed job validation")
-			return automationpkg.Job{}, nil
-		},
-	})
+			if !strings.Contains(invalid.Body.String(), "managed automation jobs only accept enabled updates") {
+				t.Fatalf("invalid body = %q, want managed enabled-only error", invalid.Body.String())
+			}
+			if setCalled {
+				t.Fatal("SetJobEnabled() called for rejected managed definition edit")
+			}
 
-	invalid := performAutomationCoreRequest(
-		t,
-		router,
-		http.MethodPatch,
-		"/automation/jobs/"+current.ID,
-		[]byte(`{"prompt":"changed"}`),
-		nil,
-	)
-	if invalid.Code != http.StatusBadRequest {
-		t.Fatalf("invalid status = %d, want %d; body=%s", invalid.Code, http.StatusBadRequest, invalid.Body.String())
-	}
-	if setCalled {
-		t.Fatal("SetJobEnabled() called for rejected config-backed definition edit")
-	}
+			valid := performAutomationCoreRequest(t, router, http.MethodPatch,
+				"/automation/jobs/"+current.ID, []byte(`{"enabled":false}`), nil)
+			if valid.Code != http.StatusOK {
+				t.Fatalf(
+					"valid status = %d, want %d; body=%s",
+					valid.Code,
+					http.StatusOK,
+					valid.Body.String(),
+				)
+			}
+			if !setCalled {
+				t.Fatal("SetJobEnabled() not called for enabled-only managed update")
+			}
 
-	valid := performAutomationCoreRequest(
-		t,
-		router,
-		http.MethodPatch,
-		"/automation/jobs/"+current.ID,
-		[]byte(`{"enabled":false}`),
-		nil,
-	)
-	if valid.Code != http.StatusOK {
-		t.Fatalf("valid status = %d, want %d; body=%s", valid.Code, http.StatusOK, valid.Body.String())
-	}
-	if !setCalled {
-		t.Fatal("SetJobEnabled() not called for enabled-only config-backed update")
-	}
+			var response struct {
+				Job struct {
+					Enabled bool `json:"enabled"`
+				} `json:"job"`
+			}
+			decodeAutomationCoreJSON(t, valid, &response)
+			if response.Job.Enabled {
+				t.Fatalf("response.job.enabled = %v, want false", response.Job.Enabled)
+			}
 
-	var response struct {
-		Job struct {
-			Enabled bool `json:"enabled"`
-		} `json:"job"`
-	}
-	decodeAutomationCoreJSON(t, valid, &response)
-	if response.Job.Enabled {
-		t.Fatalf("response.job.enabled = %v, want false", response.Job.Enabled)
+			deleted := performAutomationCoreRequest(t, router, http.MethodDelete,
+				"/automation/jobs/"+current.ID, nil, nil)
+			if deleted.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"delete status = %d, want %d; body=%s",
+					deleted.Code,
+					http.StatusBadRequest,
+					deleted.Body.String(),
+				)
+			}
+			if !strings.Contains(deleted.Body.String(), "managed automation jobs cannot be deleted") {
+				t.Fatalf("delete body = %q, want managed delete error", deleted.Body.String())
+			}
+		})
 	}
 }
 
-func TestUpdateAutomationTriggerConfigBackedRejectsDefinitionEditsButAllowsEnabledToggle(t *testing.T) {
+func TestAutomationTriggerManagedLifecycleAllowsOnlyEnabledUpdates(t *testing.T) {
 	t.Parallel()
 
-	current := automationpkg.Trigger{
-		ID:        "trigger-config",
-		Scope:     automationpkg.AutomationScopeGlobal,
-		Name:      "config-trigger",
-		AgentName: "coder",
-		Prompt:    `review {{ index .Data "session_id" }}`,
-		Event:     "session.stopped",
-		Enabled:   true,
-		Retry:     automationpkg.DefaultRetryConfig(),
-		FireLimit: automationpkg.DefaultFireLimitConfig(),
-		Source:    automationpkg.JobSourceConfig,
-	}
+	for _, source := range []automationpkg.JobSource{
+		automationpkg.JobSourceConfig,
+		automationpkg.JobSourcePackage,
+	} {
+		t.Run("Should enforce the managed lifecycle for "+string(source)+" triggers", func(t *testing.T) {
+			t.Parallel()
 
-	setCalled := false
-	router := newAutomationCoreTestRouter(t, stubAutomationManager{
-		GetTriggerFn: func(_ context.Context, id string) (automationpkg.Trigger, error) {
-			if id != current.ID {
-				t.Fatalf("GetTrigger() id = %q, want %q", id, current.ID)
+			current := automationpkg.Trigger{
+				ID:        "trigger-managed",
+				Scope:     automationpkg.AutomationScopeGlobal,
+				Name:      "managed-trigger",
+				AgentName: "coder",
+				Prompt:    `review {{ index .Data "session_id" }}`,
+				Event:     "session.stopped",
+				Enabled:   true,
+				Retry:     automationpkg.DefaultRetryConfig(),
+				FireLimit: automationpkg.DefaultFireLimitConfig(),
+				Source:    source,
 			}
-			return current, nil
-		},
-		SetTriggerEnabledFn: func(_ context.Context, id string, enabled bool) (automationpkg.Trigger, error) {
-			setCalled = true
-			if id != current.ID || enabled {
-				t.Fatalf("SetTriggerEnabled() = (%q, %v), want (%q, false)", id, enabled, current.ID)
+			setCalled := false
+			router := newAutomationCoreTestRouter(t, stubAutomationManager{
+				GetTriggerFn: func(_ context.Context, id string) (automationpkg.Trigger, error) {
+					if id != current.ID {
+						t.Fatalf("GetTrigger() id = %q, want %q", id, current.ID)
+					}
+					return current, nil
+				},
+				SetTriggerEnabledFn: func(
+					_ context.Context,
+					id string,
+					enabled bool,
+				) (automationpkg.Trigger, error) {
+					setCalled = true
+					if id != current.ID || enabled {
+						t.Fatalf("SetTriggerEnabled() = (%q, %v), want (%q, false)", id, enabled, current.ID)
+					}
+					next := current
+					next.Enabled = false
+					return next, nil
+				},
+				UpdateTriggerFn: func(
+					context.Context,
+					automationpkg.Trigger,
+					*automationpkg.WebhookSecretWrite,
+				) (automationpkg.Trigger, error) {
+					t.Fatal("UpdateTrigger() should not be called for managed trigger validation")
+					return automationpkg.Trigger{}, nil
+				},
+				DeleteTriggerFn: func(context.Context, string) error {
+					t.Fatal("DeleteTrigger() should not be called for a managed trigger")
+					return nil
+				},
+			})
+
+			invalid := performAutomationCoreRequest(t, router, http.MethodPatch,
+				"/automation/triggers/"+current.ID, []byte(`{"enabled":false,"prompt":"changed"}`), nil)
+			if invalid.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"invalid status = %d, want %d; body=%s",
+					invalid.Code,
+					http.StatusBadRequest,
+					invalid.Body.String(),
+				)
 			}
-			next := current
-			next.Enabled = false
-			return next, nil
-		},
-		UpdateTriggerFn: func(context.Context, automationpkg.Trigger, *automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error) {
-			t.Fatal("UpdateTrigger() should not be called for config-backed trigger validation")
-			return automationpkg.Trigger{}, nil
-		},
-	})
+			if !strings.Contains(invalid.Body.String(), "managed automation triggers only accept enabled updates") {
+				t.Fatalf("invalid body = %q, want managed enabled-only error", invalid.Body.String())
+			}
+			if setCalled {
+				t.Fatal("SetTriggerEnabled() called for rejected managed definition edit")
+			}
 
-	invalid := performAutomationCoreRequest(
-		t,
-		router,
-		http.MethodPatch,
-		"/automation/triggers/"+current.ID,
-		[]byte(`{"prompt":"changed"}`),
-		nil,
-	)
-	if invalid.Code != http.StatusBadRequest {
-		t.Fatalf("invalid status = %d, want %d; body=%s", invalid.Code, http.StatusBadRequest, invalid.Body.String())
-	}
-	if setCalled {
-		t.Fatal("SetTriggerEnabled() called for rejected config-backed definition edit")
-	}
+			valid := performAutomationCoreRequest(t, router, http.MethodPatch,
+				"/automation/triggers/"+current.ID, []byte(`{"enabled":false}`), nil)
+			if valid.Code != http.StatusOK {
+				t.Fatalf(
+					"valid status = %d, want %d; body=%s",
+					valid.Code,
+					http.StatusOK,
+					valid.Body.String(),
+				)
+			}
+			if !setCalled {
+				t.Fatal("SetTriggerEnabled() not called for enabled-only managed update")
+			}
 
-	valid := performAutomationCoreRequest(
-		t,
-		router,
-		http.MethodPatch,
-		"/automation/triggers/"+current.ID,
-		[]byte(`{"enabled":false}`),
-		nil,
-	)
-	if valid.Code != http.StatusOK {
-		t.Fatalf("valid status = %d, want %d; body=%s", valid.Code, http.StatusOK, valid.Body.String())
-	}
-	if !setCalled {
-		t.Fatal("SetTriggerEnabled() not called for enabled-only config-backed update")
+			deleted := performAutomationCoreRequest(t, router, http.MethodDelete,
+				"/automation/triggers/"+current.ID, nil, nil)
+			if deleted.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"delete status = %d, want %d; body=%s",
+					deleted.Code,
+					http.StatusBadRequest,
+					deleted.Body.String(),
+				)
+			}
+			if !strings.Contains(deleted.Body.String(), "managed automation triggers cannot be deleted") {
+				t.Fatalf("delete body = %q, want managed delete error", deleted.Body.String())
+			}
+		})
 	}
 }
 

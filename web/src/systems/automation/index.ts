@@ -102,6 +102,22 @@ export {
   formatRunDuration,
   formatRunTitle,
 } from "./lib/automation-formatters";
+export {
+  applyAutomationFilterChips,
+  automationFiltersToChips,
+  buildAutomationFilterFields,
+  parseAutomationEnabled,
+  parseAutomationScope,
+  parseAutomationSource,
+} from "./lib/automation-list-filters";
+export {
+  automationMatchesActiveWorkspace,
+  automationWorkspaceAccessError,
+} from "./lib/workspace-access";
+export type {
+  AutomationFilterHandlers,
+  AutomationFilterState,
+} from "./lib/automation-list-filters";
 // Hooks
 export {
   useAutomationJob,
@@ -121,12 +137,14 @@ export {
   useUpdateAutomationJob,
   useUpdateAutomationTrigger,
 } from "./hooks/use-automation-actions";
+export { useAutomationJobEditor, useAutomationTriggerEditor } from "./hooks/use-automation-editor";
 
 // Components
 export { AutomationDetailPanel } from "./components/automation-detail-panel";
 export { AutomationEditorDialog } from "./components/automation-editor-dialog";
 export { AutomationJobForm } from "./components/automation-job-form";
-export { AutomationListPanel } from "./components/automation-list-panel";
-export { AutomationOperationsPage } from "./components/automation-operations-page";
+export { AutomationListFilters } from "./components/automation-list-filters";
+export { AutomationJobsCatalog } from "./components/automation-jobs-catalog";
+export { AutomationTriggersCatalog } from "./components/automation-triggers-catalog";
 export { AutomationRunHistory } from "./components/automation-run-history";
 export { AutomationTriggerForm } from "./components/automation-trigger-form";

@@ -580,7 +580,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve config-backed enable-only update semantics", func(t *testing.T) {
+	t.Run("Should preserve managed enable-only update semantics", func(t *testing.T) {
 		t.Parallel()
 
 		configJob := nativeAutomationJobFixture("job-config", automationpkg.JobSourceConfig)
@@ -672,6 +672,42 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonAutomationValidationFailed)
 		if setJobEnabledCalls != 1 {
 			t.Fatalf("SetJobEnabled calls = %d, want unchanged after invalid config patch", setJobEnabledCalls)
+		}
+
+		configJob.Source = automationpkg.JobSourcePackage
+		configTrigger.Source = automationpkg.JobSourcePackage
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsUpdate,
+				Input:  json.RawMessage(`{"job_id":"job-config","enabled":true}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(package automation_jobs_update) error = %v", err)
+		}
+		if setJobEnabledCalls != 2 || !setJobEnabledValue {
+			t.Fatalf("SetJobEnabled package calls/value = %d/%v, want 2/true", setJobEnabledCalls, setJobEnabledValue)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationTriggersUpdate,
+				Input:  json.RawMessage(`{"trigger_id":"trigger-config","enabled":true}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(package automation_triggers_update) error = %v", err)
+		}
+		if setTriggerEnabledCalls != 2 || !setTriggerEnabledValue {
+			t.Fatalf(
+				"SetTriggerEnabled package calls/value = %d/%v, want 2/true",
+				setTriggerEnabledCalls,
+				setTriggerEnabledValue,
+			)
 		}
 	})
 

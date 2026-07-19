@@ -5,7 +5,7 @@ title: Inspect an installed extension
 persona: Bruno
 journey: J-marketplace-acquisition
 expected: The extension detail route survives refresh and renders runtime state, required and missing environment variables, diagnostics and last_error severity, provenance and trust, and links active provided bundles to their activation details.
-entry_points: /extensions/$name; extension listing row
+entry_points: /marketplace/extension/$entryId?installed_name=$name; Marketplace Extensions Installed row
 qa_status: untested
 bug_ids:
 fix_status:
@@ -26,3 +26,7 @@ with installed inventory; assert the Marketplace badge and action after returnin
 
 QA impact 2026-07-16: the Bundles provided rail and Remove dialog now distinguish loading, failed,
 active, and confirmed-inactive dependency states; retest the error message and Retry path.
+
+QA impact 2026-07-18: the Marketplace hard-cut detail preserves runtime state, health message,
+daemon/PID/uptime, capabilities, actions, environment, diagnostics, provenance, and active-bundle
+links. Exercise both healthy/running and degraded/stopped payloads.

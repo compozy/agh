@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { StorySurface } from "@/storybook/story-layout";
+import { StorySurface, StoryTopbarHost } from "@/storybook/story-layout";
 
 import { LoopDetailView } from "../detail/loop-detail";
 import type { LoopBindingRow } from "../../lib/loop-bindings";
@@ -15,7 +15,21 @@ import {
 const meta: Meta<typeof LoopDetailView> = {
   title: "systems/loops/components/LoopDetail",
   component: LoopDetailView,
-  parameters: { layout: "fullscreen" },
+  decorators: [
+    Story => (
+      <StoryTopbarHost breadcrumb={<span>Loops</span>} title="software-delivery">
+        <Story />
+      </StoryTopbarHost>
+    ),
+  ],
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component: "Loop detail states with run, edit, configure, and delete Topbar actions.",
+      },
+    },
+  },
 };
 
 export default meta;
@@ -46,6 +60,7 @@ const BINDINGS: LoopBindingRow[] = [
 
 const noop = () => {};
 
+/** Workspace Loop with an existing schedule binding. */
 export const WithBinding: Story = {
   args: {},
   render: () => (
@@ -59,7 +74,6 @@ export const WithBinding: Story = {
         bindingsLoading={false}
         successRate={catalogEntry.success_rate_30d}
         aggregate={catalogEntry.aggregate_30d}
-        onBack={noop}
         onRun={noop}
         onConfigure={noop}
         onOpenEditor={noop}
@@ -74,6 +88,7 @@ export const WithBinding: Story = {
   ),
 };
 
+/** Workspace Loop before any trigger or schedule has been attached. */
 export const NoBindings: Story = {
   args: {},
   render: () => (
@@ -87,7 +102,6 @@ export const NoBindings: Story = {
         bindingsLoading={false}
         successRate={catalogEntry.success_rate_30d}
         aggregate={catalogEntry.aggregate_30d}
-        onBack={noop}
         onRun={noop}
         onConfigure={noop}
         onOpenEditor={noop}

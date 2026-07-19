@@ -1,8 +1,10 @@
 import {
   Button,
+  cn,
   DescriptionCard,
   Eyebrow,
   MetadataList,
+  PAGE_CONTENT_GUTTER,
   Pill,
   RouteState,
   Skeleton,
@@ -10,21 +12,32 @@ import {
 import type { ReactNode } from "react";
 
 import type { MarketplaceEntryResponse, MarketplaceListing } from "../types";
+import { MarketplaceDetailExtensionManage } from "./marketplace-detail-extension-manage";
 import { MarketplaceDetailHero } from "./marketplace-detail-hero";
+import { MarketplaceDetailMCPManage } from "./marketplace-detail-mcp-manage";
+import { MarketplaceDetailSkillManage } from "./marketplace-detail-skill-manage";
 import { formatMarketplaceCount } from "./marketplace-ui";
 
 interface MarketplaceDetailProps {
   data: MarketplaceEntryResponse;
+  managementScope?: "global" | "workspace";
+  managementWorkspaceId?: string;
   pending?: boolean;
   onAction: (entry: MarketplaceListing) => void;
 }
 
-function MarketplaceDetail({ data, pending = false, onAction }: MarketplaceDetailProps) {
+function MarketplaceDetail({
+  data,
+  managementScope,
+  managementWorkspaceId,
+  pending = false,
+  onAction,
+}: MarketplaceDetailProps) {
   const entry = data.entry;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="marketplace-detail">
-      <div className="mx-auto flex w-full max-w-[1320px] flex-col px-4 pb-20 sm:px-9">
+      <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pb-20")}>
         <MarketplaceDetailHero entry={entry} onAction={onAction} pending={pending} />
 
         <div className="grid grid-cols-1 gap-8 pt-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -33,6 +46,13 @@ function MarketplaceDetail({ data, pending = false, onAction }: MarketplaceDetai
           </main>
           <aside className="flex min-w-0 flex-col gap-6">
             {entry.installed ? <MarketplaceInstalledRail entry={entry} /> : null}
+            {entry.installed ? (
+              <MarketplaceDetailManage
+                entry={entry}
+                mcpScope={managementScope}
+                mcpWorkspaceId={managementWorkspaceId}
+              />
+            ) : null}
             <MarketplaceDetailsRail data={data} />
             {entry.trust ? <MarketplaceTrustRail trust={entry.trust} /> : null}
           </aside>
@@ -240,6 +260,26 @@ function MarketplaceInstalledRail({ entry }: { entry: MarketplaceEntryResponse["
   );
 }
 
+function MarketplaceDetailManage({
+  entry,
+  mcpScope,
+  mcpWorkspaceId,
+}: {
+  entry: MarketplaceEntryResponse["entry"];
+  mcpScope?: "global" | "workspace";
+  mcpWorkspaceId?: string;
+}) {
+  const name = entry.installed_name?.trim() || entry.name;
+  if (entry.kind === "skill") return <MarketplaceDetailSkillManage name={name} />;
+  if (entry.kind === "extension") return <MarketplaceDetailExtensionManage name={name} />;
+  if (entry.kind === "mcp") {
+    return (
+      <MarketplaceDetailMCPManage entry={entry} scope={mcpScope} workspaceId={mcpWorkspaceId} />
+    );
+  }
+  return null;
+}
+
 function MarketplaceDetailsRail({ data }: { data: MarketplaceEntryResponse }) {
   const { entry } = data;
   return (
@@ -307,10 +347,7 @@ function MarketplaceKvRow({ term, children }: { term: string; children: ReactNod
 
 function MarketplaceDetailSkeleton() {
   return (
-    <div
-      className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 pb-20 sm:px-9"
-      role="status"
-    >
+    <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col gap-6 pb-20")} role="status">
       <div className="flex items-start gap-3.5 border-b border-line py-5">
         <Skeleton className="size-(--size-provider-logo-well) shrink-0 rounded-lg" />
         <div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -344,7 +381,7 @@ function MarketplaceDetailSkeleton() {
 
 function MarketplaceDetailNotFound({ onBack }: { onBack: () => void }) {
   return (
-    <div className="mx-auto flex w-full max-w-[1320px] flex-col px-4 pb-20 sm:px-9">
+    <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pb-20")}>
       <RouteState
         className="border-0 bg-transparent py-14"
         action={

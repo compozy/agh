@@ -4,8 +4,8 @@ area: ET
 title: Manage installed extensions and active bundles
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The Extensions page lists daemon-owned installed extensions and bundle activations, applies enable changes immediately, derives extension Update from the catalog join and bundle Update from spec_drift, blocks removal while a bundle is active, then permits typed removal after deactivation.
-entry_points: /extensions; /extensions?tab=bundles; Marketplace Manage actions
+expected: The Extensions and Bundles Installed scopes list daemon-owned inventory, apply enable changes immediately, derive truthful update state, block extension removal while a bundle is active, then permit typed removal after deactivation.
+entry_points: /marketplace/extensions?tab=installed; /marketplace/bundles?tab=installed; Marketplace Manage actions
 qa_status: untested
 bug_ids:
 fix_status:
@@ -27,3 +27,12 @@ discovery so action labels and update badges reconcile together.
 QA impact 2026-07-16: removal now fails closed while bundle dependency activity is loading or
 failed, exposes Retry, and proceeds only after a successful dependency response; malformed 2xx
 extension envelopes surface as request errors instead of incomplete inventory data.
+
+QA impact 2026-07-17: Extensions and Bundles inventory now share Rows/Cards ViewToggle with URL
+`view` persistence and CatalogCard wrappers; verify enable/update/overflow actions in both views.
+
+QA impact 2026-07-17: Extensions|Bundles tabs are RouteNav links in the topbar; detail heroes use
+PageHead with actions in the topbar slot. Flag only — next QA cycle.
+
+QA impact 2026-07-18: extension and bundle management moved into their Marketplace Installed
+scopes; the legacy Extensions inventory and Bundles tab no longer exist.

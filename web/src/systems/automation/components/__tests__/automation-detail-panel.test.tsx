@@ -2,10 +2,12 @@
 // Invariant: Persisted automation reads render the stored execution target without agent-only loss.
 // Boundary IN: Job/Trigger API read models and the detail/run-history presentation.
 // Boundary OUT: persistence and dispatch, owned by daemon/store suites.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+import { renderWithTopbar } from "@/test/render-with-topbar";
 
 interface MockLinkParams {
   id?: string;
@@ -104,9 +106,8 @@ function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>
   const onToggleEnabled = vi.fn();
   const onTriggerNow = vi.fn();
 
-  render(
+  renderWithTopbar(
     <AutomationDetailPanel
-      emptyState={null}
       error={null}
       state={{
         isDeleting: false,
@@ -150,19 +151,10 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByTestId("automation-detail-error")).toBeInTheDocument();
   });
 
-  it("renders route-level empty state", () => {
-    renderPanel({
-      emptyState: {
-        actionLabel: "Create Job",
-        description: "Create the first job.",
-        icon: "jobs",
-        onAction: vi.fn(),
-        title: "No jobs configured",
-      },
-      item: undefined,
-    });
+  it("renders the unavailable state when the routed item resolves to nothing", () => {
+    renderPanel({ item: undefined });
     expect(screen.getByTestId("automation-detail-empty")).toBeInTheDocument();
-    expect(screen.getByText("No jobs configured")).toBeInTheDocument();
+    expect(screen.getByText("Job unavailable")).toBeInTheDocument();
   });
 
   it("renders dynamic job details and dispatches non-destructive action callbacks", () => {
@@ -181,14 +173,32 @@ describe("AutomationDetailPanel", () => {
       "/session/sess_001"
     );
 
-    fireEvent.click(screen.getByTestId("toggle-automation-btn"));
     fireEvent.click(screen.getByTestId("edit-automation-btn"));
     fireEvent.click(screen.getByTestId("trigger-job-btn"));
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    fireEvent.click(screen.getByTestId("toggle-automation-btn"));
 
     expect(onToggleEnabled).toHaveBeenCalledWith(false);
     expect(onEdit).toHaveBeenCalledOnce();
     expect(onTriggerNow).toHaveBeenCalledOnce();
     expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("Should disable Run now when the automation runtime is unavailable", () => {
+    const { onTriggerNow } = renderPanel({
+      state: {
+        isDeleting: false,
+        isLoading: false,
+        isTogglePending: false,
+        isTriggerDisabled: true,
+        isTriggerPending: false,
+      },
+    });
+
+    const trigger = screen.getByTestId("trigger-job-btn");
+    expect(trigger).toBeDisabled();
+    fireEvent.click(trigger);
+    expect(onTriggerNow).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -202,7 +212,8 @@ describe("AutomationDetailPanel", () => {
     const user = userEvent.setup();
     const { onDelete } = renderPanel({ item: case_.item, kind: case_.kind, runs: [] });
 
-    await user.click(screen.getByTestId("delete-automation-btn"));
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    fireEvent.click(screen.getByTestId("delete-automation-btn"));
     expect(onDelete).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: `Delete ${case_.noun}?` })).toBeInTheDocument();
 
@@ -210,7 +221,8 @@ describe("AutomationDetailPanel", () => {
     expect(onDelete).not.toHaveBeenCalled();
     expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("delete-automation-btn"));
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    fireEvent.click(screen.getByTestId("delete-automation-btn"));
     const confirmButton = screen.getByTestId("confirm-delete-automation-btn");
     await user.type(screen.getByLabelText("Type to confirm"), `${case_.item.name}-wrong`);
     expect(confirmButton).toBeDisabled();
@@ -288,12 +300,13 @@ describe("AutomationDetailPanel", () => {
     expect(screen.queryByText(/Dispatches to/)).not.toBeInTheDocument();
   });
 
-  it("Should render the 24 px DetailHeader anatomy with the job name as H1", () => {
+  it("Should render the PageHead detail anatomy with the job name as H1", () => {
     renderPanel();
 
     const header = screen.getByTestId("automation-detail-header");
-    expect(header).toHaveAttribute("data-slot", "detail-header");
-    screen.getByRole("heading", { level: 1, name: "daily-review" });
+    expect(header).toHaveAttribute("data-slot", "page-head");
+    expect(header).toHaveAttribute("data-variant", "detail");
+    expect(header).toHaveTextContent("daily-review");
   });
 
   it("renders manual jobs without implying a cron schedule", () => {
@@ -338,20 +351,25 @@ describe("AutomationDetailPanel", () => {
     expect(kindChip).not.toBeNull();
   });
 
-  it("renders config trigger details without mutable actions", () => {
+  it.each([
+    {
+      copy: "This automation is defined in configuration files. Only its enabled state can be changed here.",
+      source: "config" as const,
+    },
+    {
+      copy: "This automation is provided by an installed package. Only its enabled state can be changed here.",
+      source: "package" as const,
+    },
+  ])("Should describe $source trigger ownership without mutable actions", ({ copy, source }) => {
     renderPanel({
-      item: triggerFixture,
+      item: { ...triggerFixture, source },
       kind: "triggers",
       runs: [
         { ...runFixture, id: "run_trigger", trigger_id: "trg_push_review", job_id: undefined },
       ],
     });
 
-    expect(
-      screen.getByText(
-        "This automation is defined in configuration files. Only the enabled state can be toggled from the UI."
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByText(copy)).toBeInTheDocument();
     expect(screen.getByText("Webhook id")).toBeInTheDocument();
     expect(screen.getByText("wbh_push_review")).toBeInTheDocument();
     expect(screen.queryByTestId("edit-automation-btn")).not.toBeInTheDocument();
@@ -388,6 +406,7 @@ describe("AutomationDetailPanel", () => {
       expect(writeText).toHaveBeenCalledWith("/api/webhooks/global/push-review--wbh_push_review")
     );
     expect(screen.getByTestId("edit-automation-btn")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     expect(screen.getByTestId("delete-automation-btn")).toBeInTheDocument();
   });
 });

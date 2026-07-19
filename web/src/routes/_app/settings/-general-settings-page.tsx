@@ -10,6 +10,7 @@ import {
   SettingsSaveBar,
   type SettingsGeneralSection,
   type SettingsUpdateStatus,
+  SettingsPageHead,
 } from "@/systems/settings";
 import {
   Button,
@@ -22,8 +23,7 @@ import {
   RestartBanner,
   Section,
   Spinner,
-  StatusLineTopbarSlot,
-  useTopbarSlot,
+  StatusLine,
 } from "@agh/ui";
 
 const PERMISSION_MODES = ["deny-all", "approve-reads", "approve-all"] as const;
@@ -70,27 +70,25 @@ export function GeneralSettingsPage() {
   const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const runtime = page.envelope?.runtime;
   const configPaths = page.envelope?.config_paths;
-  useTopbarSlot({
-    tabs:
-      runtime && configPaths ? (
-        <StatusLineTopbarSlot
-          data-testid="settings-page-general-status-line"
-          status={runtime.available ? "connected" : "error"}
-          items={[
-            {
-              key: "sessions",
-              value: `${runtime.active_sessions} active sessions · ${runtime.active_agents} agents`,
-              tone: "neutral",
-            },
-            {
-              key: "config",
-              value: <span className="font-mono">config: {configPaths.global_config}</span>,
-              tone: "neutral",
-            },
-          ]}
-        />
-      ) : undefined,
-  });
+  const statusLine =
+    runtime && configPaths ? (
+      <StatusLine
+        data-testid="settings-page-general-status-line"
+        status={runtime.available ? "connected" : "error"}
+        items={[
+          {
+            key: "sessions",
+            value: `${runtime.active_sessions} active sessions · ${runtime.active_agents} agents`,
+            tone: "neutral",
+          },
+          {
+            key: "config",
+            value: <span className="font-mono">config: {configPaths.global_config}</span>,
+            tone: "neutral",
+          },
+        ]}
+      />
+    ) : null;
 
   if (page.isLoading) {
     return (
@@ -130,6 +128,7 @@ export function GeneralSettingsPage() {
     <PageShell
       slug="general"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
+      head={<SettingsPageHead slug="general" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="general"

@@ -27578,6 +27578,7 @@ export interface operations {
                 version?: string;
               }[];
               kind: string;
+              next_cursor?: string;
               stale: boolean;
               total?: number | null;
             }[];
@@ -27669,6 +27670,8 @@ export interface operations {
         q?: string;
         /** @description Maximum results from 1 to 100 */
         limit?: number;
+        /** @description Opaque next_cursor from the previous page */
+        cursor?: string;
         /** @description Installed-state projection scope */
         scope?: "global" | "workspace";
         /** @description Required for workspace installed-state projection */
@@ -27735,6 +27738,7 @@ export interface operations {
               version?: string;
             }[];
             kind: string;
+            next_cursor?: string;
             stale: boolean;
             total?: number | null;
           };
@@ -27845,6 +27849,8 @@ export interface operations {
   getMarketplaceEntry: {
     parameters: {
       query?: {
+        /** @description Exact installed MCP, extension, or skill identity; rejected for bundles */
+        installed_name?: string;
         /** @description Installed-state projection scope */
         scope?: "global" | "workspace";
         /** @description Required for workspace installed-state projection */

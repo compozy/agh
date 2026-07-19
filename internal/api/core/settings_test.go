@@ -1147,7 +1147,10 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				DiscoveredCount:  5,
 				DisabledCount:    1,
 				RuntimeAvailable: true,
-				Links:            []settingspkg.OperationalLink{{Label: "skills", Path: "/skills"}},
+				Links: []settingspkg.OperationalLink{{
+					Label: "skills",
+					Path:  "/marketplace/skills?tab=installed",
+				}},
 			},
 		},
 		{

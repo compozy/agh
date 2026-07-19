@@ -175,8 +175,8 @@ func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 
 	var updated automationpkg.Job
 	switch current.Source {
-	case automationpkg.JobSourceConfig:
-		if err := validateConfigJobUpdate(req); err != nil {
+	case automationpkg.JobSourceConfig, automationpkg.JobSourcePackage:
+		if err := validateManagedJobUpdate(req); err != nil {
 			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 			return
 		}
@@ -222,11 +222,11 @@ func (h *BaseHandlers) DeleteAutomationJob(c *gin.Context) {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
-	if current.Source == automationpkg.JobSourceConfig {
+	if current.Source != automationpkg.JobSourceDynamic {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
-			NewAutomationValidationError(errors.New("config-backed automation jobs cannot be deleted")),
+			NewAutomationValidationError(errors.New("managed automation jobs cannot be deleted")),
 		)
 		return
 	}
@@ -400,8 +400,8 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 
 	var updated automationpkg.Trigger
 	switch current.Source {
-	case automationpkg.JobSourceConfig:
-		if err := validateConfigTriggerUpdate(req); err != nil {
+	case automationpkg.JobSourceConfig, automationpkg.JobSourcePackage:
+		if err := validateManagedTriggerUpdate(req); err != nil {
 			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 			return
 		}
@@ -435,11 +435,11 @@ func (h *BaseHandlers) DeleteAutomationTrigger(c *gin.Context) {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
-	if current.Source == automationpkg.JobSourceConfig {
+	if current.Source != automationpkg.JobSourceDynamic {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
-			NewAutomationValidationError(errors.New("config-backed automation triggers cannot be deleted")),
+			NewAutomationValidationError(errors.New("managed automation triggers cannot be deleted")),
 		)
 		return
 	}
@@ -847,15 +847,15 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) (au
 	return next, nil
 }
 
-// ValidateAutomationConfigJobUpdate enforces the config-backed job mutation policy.
-func ValidateAutomationConfigJobUpdate(req contract.UpdateJobRequest) error {
-	return validateConfigJobUpdate(req)
+// ValidateAutomationManagedJobUpdate enforces the managed job mutation policy.
+func ValidateAutomationManagedJobUpdate(req contract.UpdateJobRequest) error {
+	return validateManagedJobUpdate(req)
 }
 
-func validateConfigJobUpdate(req contract.UpdateJobRequest) error {
+func validateManagedJobUpdate(req contract.UpdateJobRequest) error {
 	switch {
 	case req.Enabled == nil:
-		return errors.New("config-backed automation jobs only accept enabled updates")
+		return errors.New("managed automation jobs only accept enabled updates")
 	case req.Name != nil ||
 		req.Prompt != nil ||
 		req.Schedule != nil ||
@@ -863,7 +863,7 @@ func validateConfigJobUpdate(req contract.UpdateJobRequest) error {
 		req.LoopTarget != nil ||
 		req.Retry != nil ||
 		req.FireLimit != nil:
-		return errors.New("config-backed automation jobs only accept enabled updates")
+		return errors.New("managed automation jobs only accept enabled updates")
 	default:
 		return nil
 	}
@@ -988,15 +988,15 @@ func webhookSecretWriteFromUpdateRequest(req contract.UpdateTriggerRequest) *aut
 	return &write
 }
 
-// ValidateAutomationConfigTriggerUpdate enforces the config-backed trigger mutation policy.
-func ValidateAutomationConfigTriggerUpdate(req contract.UpdateTriggerRequest) error {
-	return validateConfigTriggerUpdate(req)
+// ValidateAutomationManagedTriggerUpdate enforces the managed trigger mutation policy.
+func ValidateAutomationManagedTriggerUpdate(req contract.UpdateTriggerRequest) error {
+	return validateManagedTriggerUpdate(req)
 }
 
-func validateConfigTriggerUpdate(req contract.UpdateTriggerRequest) error {
+func validateManagedTriggerUpdate(req contract.UpdateTriggerRequest) error {
 	switch {
 	case req.Enabled == nil:
-		return errors.New("config-backed automation triggers only accept enabled updates")
+		return errors.New("managed automation triggers only accept enabled updates")
 	case req.Name != nil ||
 		req.Prompt != nil ||
 		req.Event != nil ||
@@ -1007,7 +1007,7 @@ func validateConfigTriggerUpdate(req contract.UpdateTriggerRequest) error {
 		req.WebhookID != nil ||
 		req.EndpointSlug != nil ||
 		req.WebhookSecretValue != nil:
-		return errors.New("config-backed automation triggers only accept enabled updates")
+		return errors.New("managed automation triggers only accept enabled updates")
 	default:
 		return nil
 	}

@@ -59,12 +59,14 @@ describe("useSkills", () => {
     expect(listSkills).toHaveBeenCalledWith("ws_123", expect.any(AbortSignal));
   });
 
-  it("does not fetch when workspace is empty", () => {
-    renderHook(() => useSkills(""), {
+  it("loads global skills when workspace is empty", async () => {
+    vi.mocked(listSkills).mockResolvedValue([validSkill]);
+    const { result } = renderHook(() => useSkills(""), {
       wrapper: createWrapper(),
     });
 
-    expect(listSkills).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.data).toEqual([validSkill]));
+    expect(listSkills).toHaveBeenCalledWith("", expect.any(AbortSignal));
   });
 });
 
@@ -97,6 +99,16 @@ describe("useSkill", () => {
     });
 
     expect(getSkill).not.toHaveBeenCalled();
+  });
+
+  it("loads a global skill when workspace is empty", async () => {
+    vi.mocked(getSkill).mockResolvedValue(validSkill);
+    const { result } = renderHook(() => useSkill("test-skill", ""), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(validSkill));
+    expect(getSkill).toHaveBeenCalledWith("test-skill", "", expect.any(AbortSignal));
   });
 });
 

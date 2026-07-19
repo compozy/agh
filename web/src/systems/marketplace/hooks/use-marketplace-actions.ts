@@ -27,21 +27,25 @@ import type {
   SkillUpdateRequest,
 } from "../types";
 
+function mcpInstalledPath(input: {
+  entryId: string;
+  scope: string;
+  server: string;
+  workspaceId?: string;
+}): string {
+  const search = new URLSearchParams({ scope: input.scope });
+  if (input.server) search.set("installed_name", input.server);
+  if (input.scope === "workspace" && input.workspaceId) {
+    search.set("workspace_id", input.workspaceId);
+  }
+  return `/marketplace/mcp/${encodeURIComponent(input.entryId)}?${search.toString()}`;
+}
+
 function invalidateMarketplace(queryClient: ReturnType<typeof useQueryClient>) {
   return queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
 }
 
-// Deep-link the post-install toast to the exact installed scope + server so the
-// operator lands on /mcp with the row preselected, matching the marketplace
-// Manage path producer (internal/api/core/marketplace_list.go).
-function mcpManagePath(scope: string, server: string, workspaceId: string): string {
-  const params = new URLSearchParams({ scope });
-  if (server) params.set("server", server);
-  if (scope === "workspace" && workspaceId) params.set("workspace_id", workspaceId);
-  return `/mcp?${params.toString()}`;
-}
-
-function mcpToastAction(label: "Authorize →" | "Manage →", path: string) {
+function mcpToastAction(label: "Authorize →" | "View installed →", path: string) {
   return {
     action: {
       label,
@@ -64,18 +68,23 @@ export function useInstallMarketplaceMCP() {
   return useMutation({
     mutationFn: (body: MCPInstallRequest) => installMarketplaceMCP(body),
     onSuccess: (result, variables) => {
-      const server = result.mcp_server?.name ?? variables.name ?? "";
-      const scope = result.mcp_server?.scope ?? variables.scope;
-      const workspaceId = result.mcp_server?.workspace_id ?? variables.workspace_id ?? "";
-      const path = mcpManagePath(scope, server, workspaceId);
+      const installedPath = mcpInstalledPath({
+        entryId: variables.entry_id,
+        scope: result.mcp_server?.scope ?? variables.scope,
+        server: result.mcp_server?.name ?? variables.name ?? "",
+        workspaceId: result.mcp_server?.workspace_id ?? variables.workspace_id,
+      });
       if (result.next_step === "authorize") {
         toast.success(
-          "MCP server installed. Authorization is required.",
-          mcpToastAction("Authorize →", path)
+          `${result.mcp_server?.name ?? variables.name ?? "MCP server"} installed · authorization pending`,
+          mcpToastAction("Authorize →", installedPath)
         );
         return;
       }
-      toast.success("MCP server installed.", mcpToastAction("Manage →", path));
+      toast.success(
+        `${result.mcp_server?.name ?? variables.name ?? "MCP server"} installed`,
+        mcpToastAction("View installed →", installedPath)
+      );
     },
     onSettled: () =>
       Promise.all([

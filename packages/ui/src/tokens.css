@@ -189,6 +189,9 @@
   /* Type ladder additions. */
   --text-detail-h1: 1.4rem;
   --text-detail-h1--line-height: 1.25;
+  /* PH3 split-pane compact page-head H1 (route chrome contract §08). */
+  --text-compact-h1: 1.1rem;
+  --text-compact-h1--line-height: 1.25;
   --text-empty-h1: 1.125rem;
   --text-modal-title: 0.84375rem;
   --text-section-head: 0.7rem;
@@ -220,6 +223,7 @@
   /* Tracking ladder. */
   --tracking-mono: 0.06em;
   --tracking-detail-h1: -0.028em;
+  --tracking-compact-h1: -0.022em;
   --tracking-empty-h1: -0.022em;
   --tracking-modal-title: -0.012em;
   --tracking-section-head: -0.008em;
@@ -303,8 +307,8 @@
   /* Tabs list + count chip + tab underline. */
   --height-tabs-list: 40px;
   --size-tab-underline: 1.5px;
-  --size-count-chip: 19px;
-  --size-count-chip-sm: 17px;
+  --spacing-count-chip: 19px;
+  --spacing-count-chip-sm: 17px;
 
   /* Empty / menu primitives. */
   --size-empty-icon: 38px;
@@ -321,7 +325,7 @@
   --width-table-cell-lg: 360px;
 
   /* Layout ladder. */
-  --width-content-max: 1320px;
+  --container-content-max: 1320px;
   --width-right-rail-default: 468px;
   --width-message-bubble-max: 640px;
   --width-wire-card-max: 520px;

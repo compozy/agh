@@ -1,6 +1,7 @@
 import type { PillTone } from "@agh/ui";
 
-import type { SettingsMCPServerEntry } from "../types";
+import type { SettingsMCPAuthFilter, SettingsMCPServerEntry } from "../types";
+import { deriveMCPManagementFilter } from "./mcp-management-target";
 
 /**
  * Pure composition of the four INDEPENDENT MCP status signals
@@ -122,6 +123,18 @@ export function isOAuthRepairable(server: SettingsMCPServerEntry): boolean {
 export function authorizeLabel(server: SettingsMCPServerEntry): MCPAuthorizeLabel | null {
   if (!isOAuthRepairable(server)) return null;
   return server.auth_status?.status === "needs_login" ? "Authorize" : "Reauthorize";
+}
+
+/**
+ * The auth filter targets the effective definition source. A workspace collection
+ * can include global definitions, so the collection row scope is not authoritative.
+ */
+export function deriveMCPAuthFilter(server: SettingsMCPServerEntry): SettingsMCPAuthFilter | null {
+  const management = deriveMCPManagementFilter(server);
+  if (!management) return null;
+  return management.scope === "workspace"
+    ? { scope: "workspace", workspace_id: management.workspace_id }
+    : { scope: "global" };
 }
 
 /**

@@ -1,9 +1,9 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SettingsSandboxEntry } from "@/systems/settings";
+import { SandboxPage } from "../-sandbox-page";
 
 type RestartBanner = {
   isVisible: boolean;
@@ -53,10 +53,27 @@ const builtinEnv: SettingsSandboxEntry = {
 
 type PageState = {
   isLoading: boolean;
+  isRefetching: boolean;
+  queryError: string | null;
   error: Error | null;
   envelope: { sandboxes: SettingsSandboxEntry[] } | null;
   sandboxes: SettingsSandboxEntry[];
+  filtered: SettingsSandboxEntry[];
   counts: { total: number; totalWorkspaces: number };
+  query: string;
+  backend: "all" | "local" | "daytona" | "e2b";
+  persistence: "all" | "transient" | "reuse" | "archive";
+  view: "rows" | "cards";
+  hasActiveFilters: boolean;
+  setQuery: ReturnType<typeof vi.fn>;
+  setBackend: ReturnType<typeof vi.fn>;
+  setPersistence: ReturnType<typeof vi.fn>;
+  setView: ReturnType<typeof vi.fn>;
+  clearFilters: ReturnType<typeof vi.fn>;
+  selectedEntry: SettingsSandboxEntry | null;
+  openInspect: ReturnType<typeof vi.fn>;
+  closeInspect: ReturnType<typeof vi.fn>;
+  refetch: ReturnType<typeof vi.fn>;
   restart: RestartBanner;
   editor: { mode: "closed" | "create" | "edit"; [key: string]: unknown };
   editorIsValid: boolean;
@@ -101,23 +118,38 @@ const restartBanner: RestartBanner = {
 
 let pageState: PageState;
 
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-  }),
-}));
-
-vi.mock("@/hooks/routes/use-sandbox-page", () => ({
-  useSandboxPage: () => pageState,
-}));
+vi.mock("@/hooks/routes/use-sandbox-page", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/hooks/routes/use-sandbox-page")>();
+  return {
+    ...actual,
+    useSandboxPage: () => pageState,
+  };
+});
 
 function makeState(overrides: Partial<PageState> = {}): PageState {
   return {
     isLoading: false,
+    isRefetching: false,
+    queryError: null,
     error: null,
     envelope: { sandboxes: [localEnv, builtinEnv] },
     sandboxes: [localEnv, builtinEnv],
+    filtered: [localEnv, builtinEnv],
     counts: { total: 2, totalWorkspaces: 3 },
+    query: "",
+    backend: "all",
+    persistence: "all",
+    view: "rows",
+    hasActiveFilters: false,
+    setQuery: vi.fn(),
+    setBackend: vi.fn(),
+    setPersistence: vi.fn(),
+    setView: vi.fn(),
+    clearFilters: vi.fn(),
+    selectedEntry: null,
+    openInspect: vi.fn(),
+    closeInspect: vi.fn(),
+    refetch: vi.fn(),
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
     editor: { mode: "closed" },
     editorIsValid: false,
@@ -145,14 +177,9 @@ beforeEach(() => {
   pageState = makeState();
 });
 
-import { routeComponent } from "@/test/route-options";
-import { Route } from "../sandbox";
-
-const SandboxPage = routeComponent(Route);
-
 describe("SandboxPage", () => {
   it("renders loading state", () => {
-    pageState = makeState({ isLoading: true, envelope: null, sandboxes: [] });
+    pageState = makeState({ isLoading: true, envelope: null, sandboxes: [], filtered: [] });
     render(<SandboxPage />);
     expect(screen.getByTestId("sandbox-page-loading")).toBeInTheDocument();
   });
@@ -161,25 +188,28 @@ describe("SandboxPage", () => {
     pageState = makeState({
       envelope: null,
       sandboxes: [],
+      filtered: [],
+      queryError: "nope",
       error: new Error("nope"),
     });
     render(<SandboxPage />);
     expect(screen.getByTestId("sandbox-page-error")).toHaveTextContent("nope");
   });
 
-  it("renders the profile grid with workspace usage counts", () => {
+  it("renders the profile list with workspace usage counts", () => {
     render(<SandboxPage />);
     expect(screen.getByTestId("sandbox-page-total")).toHaveTextContent("2 profiles");
     expect(screen.getByTestId("sandbox-page-workspaces")).toHaveTextContent(
       "3 workspace references"
     );
-    expect(screen.getByTestId("sandbox-page-card-local-usage")).toHaveTextContent("3 workspaces");
+    expect(screen.getByTestId("sandbox-page-card-local-usage")).toHaveTextContent("3");
     expect(screen.getByTestId("sandbox-page-card-local-source")).toHaveTextContent("CONFIG");
   });
 
   it("shows the @agh/ui Empty card when no sandboxes exist", () => {
     pageState = makeState({
       sandboxes: [],
+      filtered: [],
       envelope: { sandboxes: [] },
       counts: { total: 0, totalWorkspaces: 0 },
     });
@@ -190,7 +220,7 @@ describe("SandboxPage", () => {
     expect(empty).toHaveTextContent("No sandbox profiles defined");
   });
 
-  it("wires create, edit, and delete controls", () => {
+  it("wires create, edit, delete, and inspect controls", () => {
     render(<SandboxPage />);
     fireEvent.click(screen.getByTestId("sandbox-page-create"));
     expect(pageState.openCreate).toHaveBeenCalled();
@@ -200,6 +230,19 @@ describe("SandboxPage", () => {
 
     fireEvent.click(screen.getByTestId("sandbox-page-card-local-delete"));
     expect(pageState.openDelete).toHaveBeenCalledWith(localEnv);
+
+    fireEvent.click(screen.getByTestId("sandbox-page-select-local"));
+    expect(pageState.openInspect).toHaveBeenCalledWith(localEnv);
+  });
+
+  it("Should preserve delete controls in the card view", () => {
+    pageState = makeState({ view: "cards" });
+    render(<SandboxPage />);
+
+    fireEvent.click(screen.getByTestId("sandbox-page-card-local-delete"));
+
+    expect(pageState.openDelete).toHaveBeenCalledWith(localEnv);
+    expect(screen.getByTestId("sandbox-page-card-builtin-local-delete")).toBeDisabled();
   });
 
   it("disables delete for builtin sandboxes", () => {
@@ -230,10 +273,31 @@ describe("SandboxPage", () => {
     expect(screen.getByTestId("sandbox-editor-backend-input")).toHaveValue("local");
   });
 
-  it("mounts the sandbox shell under PageShell with density route", () => {
+  it("mounts the sandbox shell under ListingPage", () => {
     render(<SandboxPage />);
     const shell = screen.getByTestId("sandbox-shell");
-    expect(shell).toHaveAttribute("data-density", "route");
+    expect(shell).toBeInTheDocument();
+    expect(screen.getByTestId("sandbox-page-sec-note")).toBeInTheDocument();
+    expect(screen.getByTestId("sandbox-topbar-actions")).toBeInTheDocument();
+  });
+
+  it("Should wire inspection-sheet close, edit, and delete actions to the selected profile", () => {
+    pageState = makeState({ selectedEntry: localEnv });
+    render(<SandboxPage />);
+    expect(screen.getByTestId("sandbox-profile-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("sandbox-profile-sheet-title")).toHaveTextContent("local");
+    expect(screen.getByTestId("sandbox-profile-sheet-foot")).toHaveTextContent(
+      "agh config get sandboxes.local.backend"
+    );
+
+    fireEvent.click(screen.getByTestId("sandbox-profile-sheet-edit"));
+    expect(pageState.openEdit).toHaveBeenCalledWith(localEnv);
+
+    fireEvent.click(screen.getByTestId("sandbox-profile-sheet-delete"));
+    expect(pageState.openDelete).toHaveBeenCalledWith(localEnv);
+
+    fireEvent.click(screen.getByTestId("sandbox-profile-sheet-close"));
+    expect(pageState.closeInspect).toHaveBeenCalledTimes(1);
   });
 
   it("renders preserved-fields notice when nested profile keys exist", () => {

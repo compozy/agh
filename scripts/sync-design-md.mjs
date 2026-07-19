@@ -18,6 +18,7 @@ const colorGroups = {
   "glaze-ladder":
     "row-hover row-selected surface-glaze bar-fill input-fill btn-default-fill btn-default-hover badge-fill",
 };
+const componentSizeTokenPattern = /^(container|height|size|space|spacing|width)-|^overlay-blur$/;
 const runtimeTheme = parseTheme(runtimeCss, "packages/ui/src/tokens.css");
 const runtimeDecls = parseDecls(runtimeCss);
 const siteTheme = parseTheme(siteCss, "packages/site/app/global.css");
@@ -64,10 +65,7 @@ function replaceGeneratedSections(text) {
     ["type-ladder", typeTable()],
     ["tracking-ladder", tokenTable(prefixRows(runtimeTheme, "tracking-"))],
     ["radii", tokenTable(prefixRows(runtimeTheme, "radius", true))],
-    [
-      "component-sizes",
-      tokenTable(namedRows(runtimeDecls, /^(height|width|size|space)-|^overlay-blur$/)),
-    ],
+    ["component-sizes", tokenTable(namedRows(runtimeDecls, componentSizeTokenPattern))],
     ["shadows", tokenTable(prefixRows(runtimeTheme, "shadow-"))],
     ["motion", tokenTable(namedRows(runtimeTheme, /^(duration|ease)-/))],
     ["site-clamps", tokenTable(namedRows(siteTheme, /^text-site-|^leading-doc-body$/))],
@@ -181,7 +179,7 @@ function emitFrontmatter() {
     yamlMap("shadow", namespaceMap(runtimeTheme, "shadow"), 4),
     yamlMap(
       "sizes",
-      mapNamed(runtimeDecls, /^(height|width|size|space)-|^overlay-blur$/, name => name),
+      mapNamed(runtimeDecls, componentSizeTokenPattern, name => name),
       4
     ),
     "  site:",

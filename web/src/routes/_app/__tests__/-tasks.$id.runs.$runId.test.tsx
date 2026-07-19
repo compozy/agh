@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,11 +11,18 @@ vi.mock("@tanstack/react-router", () => ({
     const { params: _params, to: _to, ...domRest } = rest as Record<string, unknown>;
     return <a {...domRest}>{children}</a>;
   },
-  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-    useParams: () => routeParams,
-  }),
+  createFileRoute:
+    () =>
+    (opts: {
+      beforeLoad?: (args: { params: typeof routeParams }) => unknown;
+      component: () => ReactNode;
+    }) => ({
+      beforeLoad: opts.beforeLoad,
+      component: opts.component,
+      useParams: () => routeParams,
+    }),
   useRouter: () => ({ history: { back: () => undefined } }),
+  useChildMatches: () => [],
 }));
 
 vi.mock("@/systems/network", async importOriginal => ({
@@ -63,14 +70,16 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
 
 import { getTask, getTaskRun } from "@/systems/tasks/adapters/tasks-api";
 
-import { routeComponent } from "@/test/route-options";
+import { renderWithTopbar } from "@/test/render-with-topbar";
+import { routeBeforeLoad, routeComponent } from "@/test/route-options";
+import { Route as TaskDetailRoute } from "../tasks.$id";
 import { Route } from "../tasks.$id.runs.$runId";
 
 const TaskRunDetailRoute = routeComponent(Route);
 
 function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  return renderWithTopbar(
     <QueryClientProvider client={client}>
       <TaskRunDetailRoute />
     </QueryClientProvider>
@@ -255,12 +264,19 @@ describe("TaskRunDetailRoute", () => {
     renderRoute();
 
     await waitFor(() => expect(screen.getByTestId("tasks-run-detail-content")).toBeInTheDocument());
-    expect(screen.getByTestId("task-run-detail-breadcrumb-taskless")).toHaveTextContent(
-      "Network wake"
-    );
-    expect(screen.queryByTestId("task-run-detail-breadcrumb-task")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-run-detail-context")).toHaveTextContent("Network wake");
     expect(screen.getByTestId("tasks-run-detail-card")).toHaveTextContent("run_wake");
     expect(getTask).not.toHaveBeenCalled();
+  });
+
+  it("keeps the taskless network-wake sentinel out of the task breadcrumb", () => {
+    routeParams = { id: "network", runId: "run_wake" };
+
+    expect(
+      routeBeforeLoad<{ params: typeof routeParams }>(TaskDetailRoute)({ params: routeParams })
+    ).toMatchObject({
+      topbar: { crumb: { label: "Network wakes" } },
+    });
   });
 
   it("renders a not-found state when the run cannot be fetched", async () => {

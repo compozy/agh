@@ -28,7 +28,8 @@ const marketplaceSearchInputSchema = `{
 	"properties":{
 		"query":{"type":"string"},
 		"kind":{"type":"string","enum":["mcp","extension","skill","bundle"]},
-		"limit":{"type":"integer","minimum":1,"maximum":100}
+		"limit":{"type":"integer","minimum":1,"maximum":100},
+		"cursor":{"type":"string","description":"Opaque continuation cursor; requires kind"}
 	},
 	"additionalProperties":false
 }`

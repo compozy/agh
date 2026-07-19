@@ -82,15 +82,41 @@ describe("marketplace browse transport", () => {
       kind: "skill",
       limit: 24,
       q: " review ",
+      cursor: " next-page ",
       workspaceId: " ws-a ",
     });
 
     await expectFetchRequest({
-      path: "/api/marketplace/skill?q=review&limit=24&scope=workspace&workspace_id=ws-a",
+      path: "/api/marketplace/skill?q=review&limit=24&scope=workspace&workspace_id=ws-a&cursor=next-page",
     });
   });
 
-  it("Should load detail by the stable feed entry id", async () => {
+  it("Should load installed detail by the stable feed entry id and supported identity", async () => {
+    mockJsonResponse({
+      entry: {
+        description: "Review agent work",
+        entry_id: "review/strict",
+        installed: false,
+        kind: "skill",
+        name: "Strict review",
+        source: "registry",
+        update_available: false,
+      },
+    });
+
+    await getMarketplaceEntry({
+      entryId: " review/strict ",
+      installedName: " local-review ",
+      kind: "skill",
+      workspaceId: null,
+    });
+
+    await expectFetchRequest({
+      path: "/api/marketplace/skill/review%2Fstrict?scope=global&installed_name=local-review",
+    });
+  });
+
+  it("Should omit installed identity for bundle detail", async () => {
     mockJsonResponse({
       entry: {
         description: "Review agent work",

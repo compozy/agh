@@ -1,10 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ChevronDown, ListChecksIcon, NetworkIcon } from "lucide-react";
-import { useEffect } from "react";
 
-import { Button, Pill } from "@agh/ui";
-import { LaneTabs } from "../lane-tabs";
-import { SearchInput } from "../search-input";
+import { Button } from "../../button";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "../../breadcrumb";
+import { RouteNav } from "../route-nav";
 import { Topbar, TopbarOverflowIcon, TopbarSlotProvider, useTopbarSlot } from "../topbar";
 
 const meta: Meta<typeof Topbar> = {
@@ -15,13 +19,13 @@ const meta: Meta<typeof Topbar> = {
     docs: {
       description: {
         component:
-          "Shell-level topbar. Route context (icon, title, count) comes from TanStack Router; live tabs/search/actions are pushed into a single dynamic slot via `useTopbarSlot`. Title is focusable so the shell can move focus on route resolve.",
+          "Route chrome shell (§04): one 48px three-zone grid — leading ancestry plus the route H1, centered sister-route navigation, and trailing actions. Routes push title overrides, routeNav, actions, and overflow via `useTopbarSlot`.",
       },
     },
   },
   decorators: [
     Story => (
-      <div className="w-full bg-background border border-line">
+      <div className="w-full border border-line bg-background">
         <Story />
       </div>
     ),
@@ -31,133 +35,56 @@ const meta: Meta<typeof Topbar> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/**
- * Static route only — icon, title, count.
- */
-export const RouteOnly: Story = {
-  args: {},
-  render: () => (
-    <TopbarSlotProvider>
-      <Topbar
-        route={{
-          title: "Tasks",
-          icon: ListChecksIcon,
-          getCount: () => 12,
-        }}
-      />
-    </TopbarSlotProvider>
-  ),
-};
+function IndexBreadcrumb() {
+  return (
+    <Breadcrumb aria-label="Breadcrumb">
+      <BreadcrumbList className="flex-nowrap whitespace-nowrap">
+        <BreadcrumbItem>
+          <BreadcrumbLink href="#home">Home</BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
 
-function TabsAndSearchSetup() {
-  useTopbarSlot({
-    tabs: (
-      <LaneTabs
-        ariaLabel="Tasks lanes"
-        items={[
-          { value: "all", label: "All", count: 124 },
-          { value: "active", label: "Active", count: 8 },
-        ]}
-        value="active"
-        onChange={() => undefined}
-      />
-    ),
-    search: <SearchInput placeholder="Search tasks..." />,
-    actions: <Button size="sm">New task</Button>,
-  });
-  return null;
+function DetailBreadcrumb() {
+  return (
+    <Breadcrumb aria-label="Breadcrumb">
+      <BreadcrumbList className="flex-nowrap whitespace-nowrap">
+        <BreadcrumbItem>
+          <BreadcrumbLink href="#loops">Loops</BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
 }
 
 /**
- * Full slot composition — tabs in the middle, search + actions on the trailing edge.
+ * T1 · Breadcrumb only — the minimum viable topbar.
  */
-export const WithSlot: Story = {
+export const BreadcrumbOnly: Story = {
   args: {},
   render: () => (
     <TopbarSlotProvider>
-      <TabsAndSearchSetup />
-      <Topbar
-        route={{
-          title: "Tasks",
-          icon: ListChecksIcon,
-          getCount: () => 124,
-        }}
-      />
+      <Topbar breadcrumb={<IndexBreadcrumb />} title="Runs" />
     </TopbarSlotProvider>
   ),
 };
 
-function LiveTitleSetup({ count }: { count: number }) {
-  useEffect(() => {
-    /* re-render trigger only — slot is recomputed each render, the component's bail-out absorbs no-op pushes */
-  }, [count]);
+function DetailActionsSetup() {
   useTopbarSlot({
-    title: "Live route title",
-    count,
-    actions: <Pill tone="accent">Live</Pill>,
-  });
-  return null;
-}
-
-/**
- * Slot overrides title and count for routes that resolve from loader data.
- */
-export const LiveTitle: Story = {
-  args: {},
-  render: () => (
-    <TopbarSlotProvider>
-      <LiveTitleSetup count={42} />
-      <Topbar
-        route={{
-          title: "Static fallback",
-          icon: NetworkIcon,
-          getCount: () => 0,
-        }}
-      />
-    </TopbarSlotProvider>
-  ),
-};
-
-/**
- * Auto-resolved count from `useNavCounts()`. The route declares its
- * `navCountKey` and the shell threads the resolved value via `navCount`.
- */
-export const AutoResolvedNavCount: Story = {
-  args: {},
-  render: () => (
-    <TopbarSlotProvider>
-      <Topbar
-        navCount={42}
-        route={{
-          title: "Tasks",
-          icon: ListChecksIcon,
-          navCountKey: "tasks",
-        }}
-      />
-    </TopbarSlotProvider>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "When the slot omits `count` and the route declares `navCountKey`, the shell passes the resolved count through `navCount`.",
-      },
-    },
-  },
-};
-
-function DetailModeSetup() {
-  useTopbarSlot({
-    back: () => undefined,
-    meta: (
-      <>
-        <span className="font-mono text-[10.5px] text-faint">task_01H</span>
-        <span className="text-[12px] text-muted">created 2h ago</span>
-      </>
+    actions: (
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="ghost">
+          Edit
+        </Button>
+        <Button size="sm">Run loop</Button>
+      </div>
     ),
-    actions: <Button size="sm">Run</Button>,
     overflow: (
-      <Button aria-label="More" size="sm" variant="ghost">
+      <Button aria-label="More actions" size="sm" variant="ghost">
         <TopbarOverflowIcon className="size-3" />
       </Button>
     ),
@@ -166,18 +93,56 @@ function DetailModeSetup() {
 }
 
 /**
- * Detail-mode topbar (/§8) — back chevron, meta line, overflow menu.
+ * T2 · Detail — parent › entity breadcrumb plus trailing actions.
  */
-export const DetailMode: Story = {
+export const DetailActions: Story = {
   args: {},
   render: () => (
     <TopbarSlotProvider>
-      <DetailModeSetup />
+      <DetailActionsSetup />
+      <Topbar breadcrumb={<DetailBreadcrumb />} title="software-delivery" />
+    </TopbarSlotProvider>
+  ),
+};
+
+function FullCompositionSetup() {
+  useTopbarSlot({
+    routeNav: (
+      <RouteNav aria-label="Tasks views">
+        <RouteNav.Link aria-current="page" href="#list">
+          List
+        </RouteNav.Link>
+        <RouteNav.Link href="#kanban">Kanban</RouteNav.Link>
+        <RouteNav.Link href="#inbox">
+          Inbox <RouteNav.Count>2</RouteNav.Count>
+        </RouteNav.Link>
+      </RouteNav>
+    ),
+    actions: <Button size="sm">New task</Button>,
+  });
+  return null;
+}
+
+/**
+ * T4 · Breadcrumb + centered route navigation + actions.
+ */
+export const FullComposition: Story = {
+  args: {},
+  render: () => (
+    <TopbarSlotProvider>
+      <FullCompositionSetup />
       <Topbar
-        route={{
-          title: "Reconcile order ledger",
-          icon: ChevronDown,
-        }}
+        breadcrumb={
+          <Breadcrumb aria-label="Breadcrumb">
+            <BreadcrumbList className="flex-nowrap whitespace-nowrap">
+              <BreadcrumbItem>
+                <BreadcrumbLink href="#operate">Operate</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+            </BreadcrumbList>
+          </Breadcrumb>
+        }
+        title="Tasks"
       />
     </TopbarSlotProvider>
   ),

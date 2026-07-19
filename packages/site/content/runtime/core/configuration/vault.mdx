@@ -165,8 +165,10 @@ Use the Vault page for global metadata inspection and write-only updates. The pa
 
 - namespace filtering
 - prefix filtering
+- namespace changes clear a prefix that belongs to a different namespace
 - create/update by ref
 - delete by ref
+- replacement and deletion of the same selected ref are serialized
 - loading, empty, error, pending-write, and pending-delete states
 
 Session pages include a Vault tab in the inspector. It shows only entries below

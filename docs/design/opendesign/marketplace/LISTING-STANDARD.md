@@ -13,6 +13,8 @@ Reusable catalog listing pattern for AGH redesigns (Loops, Skills, Bridges, Vaul
 
 Default view is always **rows**. Persist `view=rows|cards` in URL/search params when both ship.
 
+**Marketplace exception:** the unified marketplace kind pages are cards-only. The listing-toolbar trailing PillGroup is reused for **`Installed | Marketplace`** scope (with icons), not Rows|Cards. See `UNIFIED-CATALOG-SPEC.md` §2.1.
+
 ## Toolbar anatomy (left → right)
 
 ```
@@ -20,15 +22,23 @@ Default view is always **rows**. Persist `view=rows|cards` in URL/search params 
 [ PillGroup: Rows | Cards ]
 ```
 
+Marketplace kind pages (exception — no Filters, no view mode):
+
+```
+[ SearchInput (compact) ] … spacer …
+[ PillGroup: Installed | Marketplace ]   ← icons on both segments; Installed may show count chip
+```
+
 - **Search** = `@agh/ui` `SearchInput` (26px row, min 220px — `--width-search-input-min`, `/` shortcut). Lives **before** Filters in the listing toolbar — not in the topbar. AND-combined with filter chips.
-- **Filters** = `@agh/ui` reui `<Filters>` (HTML: vault-redesign chip pattern). Not kind/category tab strips.
-- **View mode** = `PillGroup` (default `md`, 24px segments) — borderless track, `radius-xs` segments, elevated active segment, never accent fill. Labels `Rows` | `Cards` (optional Lucide `List` / `LayoutGrid` inside the segment).
+- **Filters** = `@agh/ui` reui `<Filters>` (HTML: vault-redesign chip pattern). Not kind/category tab strips. Marketplace kind pages omit Filters.
+- **View mode** = `PillGroup` (default `md`, 24px segments) — borderless track, `radius-xs` segments, elevated active segment, never accent fill. Labels `Rows` | `Cards` (optional Lucide `List` / `LayoutGrid` inside the segment). Marketplace reuses this slot for **scope**, not view mode.
 - Do **not** show a “Sorted by …” label unless the page has a real sort control.
 - Do **not** double-encode the same facet as both a PillGroup and a Filter field.
+- Do **not** put Marketplace|Installed as underline page-body tabs — that control is the trailing PillGroup only.
 
 ## Topbar (inventory pages)
 
-Match Vault / Bridges shell — **not** a breadcrumb:
+**Default (Vault / Bridges / Loops):** title-in-topbar shell — **not** a breadcrumb:
 
 ```
 [ icon well ] [ Title ] [ count ] ………… [ secondary ghost ] [ primary CTA ]
@@ -41,6 +51,19 @@ Match Vault / Bridges shell — **not** a breadcrumb:
   - **Primary CTA** = `btn btn--primary btn--sm` (New from template, New secret, …)
 - Do **not** use `btn--outline` for the default secondary in inventory topbars.
 - Do **not** size the primary CTA larger than its sibling ghost — topbar actions share one row height.
+
+### Marketplace chrome (exception)
+
+Marketplace kind pages follow the product shell in `systems/design-system.html`, not the inventory title-in-topbar shell:
+
+```
+Topbar:     Breadcrumb (Home › Marketplace › Kind) · RouteNav (Skills · MCPs · Extensions · Bundles) · Refresh
+PageHead:   kind icon well · H1 · count · meta
+Toolbar:    Search leading · Installed | Marketplace PillGroup trailing
+Body:       card grid
+```
+
+Full contract: `UNIFIED-CATALOG-SPEC.md` §2.1.
 
 ## Filter fields (Loops catalog reference)
 

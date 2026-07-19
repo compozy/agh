@@ -6,6 +6,7 @@ import { Button } from "../../button";
 import { ListingPage } from "../listing-page";
 import { ListingRow } from "../listing-row";
 import { ListingToolbar, type ListingViewMode } from "../listing-toolbar";
+import { PageHead } from "../page-head";
 import { Pill } from "../pill";
 
 const ROWS = [
@@ -27,12 +28,13 @@ function ListingPageDemo() {
 
   return (
     <ListingPage>
-      <ListingPage.Head
+      <PageHead
         count={ROWS.length}
+        icon={Repeat2}
         meta={
           <>
             <span>Reusable, guardrailed cycles that pursue a goal until it is verified.</span>
-            <ListingPage.MetaDot />
+            <PageHead.MetaDot />
             <span>launch-hq</span>
           </>
         }
@@ -85,7 +87,7 @@ const meta: Meta<typeof ListingPageDemo> = {
     docs: {
       description: {
         component:
-          "Canonical inventory listing shell: scroll area + width-capped (`--width-content-max`), centered content container, plus `ListingPage.Head` (title · mono count · dot-meta). Every listing route shares this one container contract.",
+          "Canonical inventory listing shell: scroll area + width-capped, centered content container. Pairs with `PageHead` (icon well · H1 · mono count · dot-meta) for route identity. Every listing route shares this one container contract.",
       },
     },
   },

@@ -377,7 +377,8 @@ describe("KnowledgePage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(screen.getByTestId("topbar-count")).toHaveTextContent("8");
+    const pageHead = screen.getByTestId("knowledge-page-head");
+    expect(pageHead.querySelector("[data-slot='page-head-count']")).toHaveTextContent("8");
     await user.click(screen.getByRole("button", { name: "Load more knowledge" }));
     expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
   });

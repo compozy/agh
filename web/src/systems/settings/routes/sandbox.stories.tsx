@@ -20,7 +20,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Sandbox profile route stories covering the table layout, empty state, editor flow, delete warnings, and request failures.",
+          "Sandbox profile route stories covering the listing inventory, detail sheet, empty state, editor flow, delete warnings, and request failures.",
       },
     },
   },
@@ -30,12 +30,41 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Default sandbox catalog with workspace usage counts rendered in a @agh/ui Table.
+ * Default sandbox catalog with workspace usage counts in ListingPage rows.
  */
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/sandbox"),
   render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Cards view preserves inspect, edit, and delete controls for every profile.
+ */
+export const Cards: Story = {
+  args: {},
+  parameters: appRouteParameters("/sandbox?view=cards"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Detail sheet opened on the daytona-eu profile (nested network/daytona/env).
+ * RAF setup opens the sheet for static Storybook/iframe capture (play is interaction-only).
+ */
+export const ProfileSheet: Story = {
+  args: {},
+  parameters: appRouteParameters("/sandbox"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookSandboxSheetSetup />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("sandbox-profile-sheet")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("sandbox-profile-sheet-daytona")).resolves.toBeDefined();
+  },
 };
 
 /**
@@ -92,7 +121,7 @@ export const CreateSandbox: Story = {
  */
 export const DeleteProfile: Story = {
   args: {},
-  parameters: appRouteParameters("/sandbox"),
+  parameters: appRouteParameters("/sandbox?view=cards"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -137,6 +166,35 @@ export const Error: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
 };
+
+/**
+ * Opens the daytona-eu detail sheet once the listing mounts (static capture).
+ */
+function StorybookSandboxSheetSetup() {
+  useEffect(() => {
+    let cancelled = false;
+    const advance = () => {
+      if (cancelled) return;
+      const sheet = document.querySelector('[data-testid="sandbox-profile-sheet"]');
+      if (sheet && sheet.getAttribute("data-state") === "open") return;
+      const trigger = document.querySelector<HTMLButtonElement>(
+        '[data-testid="sandbox-page-select-daytona-eu"]'
+      );
+      if (trigger) {
+        trigger.dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true, view: window })
+        );
+        return;
+      }
+      requestAnimationFrame(advance);
+    };
+    requestAnimationFrame(advance);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return null;
+}
 
 /**
  * Reaches the dirty editor state by opening the new-sandbox dialog and

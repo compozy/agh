@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Settings Design System · AGH</title>
+<style>
+  /* ============ tokens — verbatim from agents/agent-detail.html (packages/ui/src/tokens.css lineage) ============ */
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --dur-fast:100ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-ring:0 0 0 1px var(--line-strong);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--canvas);color:var(--fg);font-family:var(--font-sans);
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
+    font-feature-settings:"cv01","ss03";
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  }
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;letter-spacing:inherit}
+  svg{display:block}
+  code,.mono{font-family:var(--font-mono);-webkit-font-smoothing:subpixel-antialiased;font-feature-settings:normal}
+  :is(button,a,input,select):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+  /* ============ catalog chrome ============ */
+  .doc{max-width:1080px;margin:0 auto;padding:48px 40px 160px}
+  .hero{margin-bottom:56px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+  .kicker{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-strong)}
+  .hero h1{margin-top:10px;font-size:2rem;font-weight:600;letter-spacing:-.03em;color:var(--fg-strong);line-height:1.15;text-wrap:balance}
+  .hero p{margin-top:12px;font-size:14px;line-height:1.65;color:var(--muted);max-width:72ch;text-wrap:pretty}
+  .hero__links{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .doclink{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--btn-fill);font-size:12.5px;font-weight:500;color:var(--fg);transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .doclink:hover{background:var(--btn-hover);border-color:var(--line-strong)}
+  .doclink svg{width:13px;height:13px;color:var(--subtle)}
+
+  .sec{margin-bottom:64px}
+  .sec__head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+  .sec__id{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+  .sec__head h2{font-size:1.25rem;font-weight:600;letter-spacing:-.022em;color:var(--fg-strong)}
+  .sec>p.lede{margin:4px 0 20px;font-size:13px;line-height:1.6;color:var(--muted);max-width:72ch;text-wrap:pretty}
+  .sec h3{margin:26px 0 10px;font-size:13.5px;font-weight:600;letter-spacing:-.014em;color:var(--fg-strong)}
+
+  .stage{padding:24px;background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .stage--tint{background:var(--canvas)}
+  .stage+.caption{margin-top:10px}
+  .caption{font-size:12px;line-height:1.55;color:var(--subtle);max-width:72ch}
+  .caption code{font-size:10.5px;color:var(--muted)}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;padding:8px 12px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);border-bottom:1px solid var(--line)}
+  td{padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted)}
+  td:first-child{color:var(--fg);font-weight:500;white-space:nowrap}
+  td code{font-size:11px;color:var(--muted)}
+  .tablebox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+  .tablebox table td:last-child,.tablebox table th:last-child{padding-right:16px}
+  .tablebox table td:first-child,.tablebox table th:first-child{padding-left:16px}
+  .del{color:var(--danger)}
+  .keep{color:var(--success)}
+
+  .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .cols3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  @media (max-width:860px){.cols,.cols3{grid-template-columns:1fr}}
+
+  .rulecard{padding:16px 18px;background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .rulecard b{display:block;font-size:13px;font-weight:600;color:var(--fg-strong);letter-spacing:-.01em}
+  .rulecard p{margin-top:5px;font-size:12.5px;line-height:1.55;color:var(--muted)}
+  .rulecard .num{font-family:var(--font-mono);font-size:10px;color:var(--faint);display:block;margin-bottom:8px}
+
+  /* ============ shell schematic ============ */
+  .schematic{display:grid;grid-template-columns:180px minmax(0,1fr);gap:0;height:340px;border:1px solid var(--line-strong);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas)}
+  .schematic__side{display:flex;flex-direction:column;background:var(--canvas-soft);border-right:1px solid var(--line-soft);padding:10px;gap:6px}
+  .schematic__main{display:flex;flex-direction:column}
+  .schematic__topbar{height:34px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 12px}
+  .schematic__content{flex:1;display:flex;justify-content:center;padding:18px}
+  .schematic__col{width:70%;max-width:420px;display:flex;flex-direction:column;gap:10px}
+  .sk{border:1px dashed var(--line-strong);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-size:9.5px;letter-spacing:.03em;color:var(--subtle);text-transform:uppercase;padding:4px 6px;text-align:center}
+  .sk--fill{flex:1}
+  .annot{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+
+  /* ============ specimen kit (mirrors the two screen files) ============ */
+  .snav-demo{display:flex;flex-direction:column;width:240px}
+  .sgroup-label{padding:12px 9px 5px;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--faint)}
+  .snav-demo a{display:flex;align-items:center;gap:10px;height:32px;padding:0 9px;margin:1px 0;border-radius:var(--radius-md);
+    color:var(--muted);font-size:13px;font-weight:500;transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .snav-demo a svg{width:16px;height:16px;color:var(--subtle);flex:none}
+  .snav-demo a:hover{background:var(--row-hover);color:var(--fg)}
+  .snav-demo a[aria-current="page"]{background:var(--accent-tint);color:var(--accent-strong)}
+  .snav-demo a[aria-current="page"] svg{color:var(--accent-strong)}
+
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+  .stage .panelbox{background:var(--canvas-tint)}
+  .srow{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 16px;min-height:54px;border-top:1px solid var(--line-soft)}
+  .srow:first-child{border-top:0}
+  .srow__main{min-width:0;flex:1}
+  .srow__label{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:var(--fg-strong)}
+  .srow__desc{margin-top:2px;font-size:12px;color:var(--muted);line-height:1.5;max-width:52ch}
+  .srow__ctl{display:flex;align-items:center;gap:8px;flex:none}
+  .srow--link{cursor:pointer;transition:background var(--dur) var(--ease)}
+  .srow--link:hover{background:var(--row-hover)}
+  .srow__value{font-size:12.5px;font-weight:510;color:var(--fg)}
+  .srow__value.mono{font-size:11.5px;font-weight:500;color:var(--muted)}
+  .chev{width:14px;height:14px;color:var(--faint);flex:none}
+
+  .ctl{height:32px;padding:0 11px;border:1px solid var(--line);border-radius:var(--radius-md);
+    background:var(--elevated);color:var(--fg);font:inherit;font-size:12.5px;
+    transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+  .ctl:focus{outline:none;border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+  select.ctl{appearance:none;min-width:190px;padding-right:32px;cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2376767c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center}
+  input.ctl--num{width:110px;font-family:var(--font-mono);font-size:12px;text-align:right}
+  .unit{font-size:12px;color:var(--subtle)}
+
+  .switch{position:relative;width:32px;height:18px;flex:none;border:1px solid var(--line);border-radius:var(--radius-pill);
+    background:var(--elevated);cursor:pointer;padding:0;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .switch::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:var(--radius-pill);
+    background:var(--fg-strong);transition:transform var(--dur) var(--ease)}
+  .switch[aria-checked="true"]{border-color:transparent;background:var(--accent)}
+  .switch[aria-checked="true"]::after{transform:translateX(14px)}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover)}
+
+  .provchip{display:inline-flex;align-items:center;height:16px;padding:0 6px;border-radius:var(--radius-xxs);
+    background:var(--badge-fill);color:var(--subtle);font-family:var(--font-mono);font-size:9.5px;font-weight:500;letter-spacing:0}
+  .jargonchip{display:inline-flex;align-items:center;height:16px;padding:0 6px;border-radius:var(--radius-xxs);
+    background:var(--badge-fill);color:var(--subtle);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+
+  .choice-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  @media (max-width:860px){.choice-grid{grid-template-columns:1fr}}
+  .choice{position:relative;display:flex;flex-direction:column;gap:6px;padding:12px 13px;text-align:left;
+    border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-tint);cursor:pointer;font:inherit;color:inherit;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+  .choice:hover{border-color:var(--line);background:var(--elevated)}
+  .choice[aria-checked="true"]{border-color:transparent;background:var(--surface-glaze);box-shadow:inset 0 0 0 1px var(--line-strong)}
+  .choice__top{display:flex;align-items:center;gap:8px}
+  .choice__name{flex:1;font-size:12.5px;font-weight:550;color:var(--fg-strong)}
+  .choice__check{width:14px;height:14px;flex:none;color:var(--fg-strong);opacity:0;transition:opacity var(--dur) var(--ease)}
+  .choice[aria-checked="true"] .choice__check{opacity:1}
+  .choice__desc{font-size:11.5px;line-height:1.45;color:var(--muted)}
+  .choice__mode{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+
+  .savebar-demo{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px;background:var(--elevated);
+    border:1px solid var(--line-strong);border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay)}
+  .savebar-demo .msg{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--fg)}
+  .savebar-demo .d{width:7px;height:7px;border-radius:50%;background:var(--warning);flex:none}
+  .savebar-demo .d[data-state="saved"]{background:var(--success)}
+  .savebar-demo .spacer{flex:1}
+
+  .notice-demo{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:var(--radius-md);
+    background:var(--warning-tint);font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .notice-demo>svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--warning)}
+  .notice-demo b{display:block;color:var(--fg-strong);font-weight:500;font-size:13px}
+  .notice-demo .acts{display:flex;align-items:center;gap:6px;flex:none;margin-left:8px}
+
+  .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .tile{padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--input-fill)}
+  .tile__l{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);margin-bottom:6px}
+  .tile__v{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:510;color:var(--fg)}
+  .tile__v .mono{font-size:11px;color:var(--muted)}
+  .tile__v .d{width:6px;height:6px;border-radius:50%;flex:none}
+
+  .before-after{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  @media (max-width:860px){.before-after{grid-template-columns:1fr}}
+  .ba__tag{display:inline-flex;margin-bottom:10px;font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+  .ba__tag.bad{color:var(--danger)}
+  .ba__tag.good{color:var(--success)}
+
+  @media (max-width:760px){.doc{padding:32px 20px 120px}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<main class="doc" data-od-id="settings-design-system">
+
+  <header class="hero" data-od-id="hero">
+    <div class="kicker">AGH · Settings design system</div>
+    <h1>Settings, redesigned for people — not just operators</h1>
+    <p>
+      Settings is the one surface where AGH talks to the person, not the operator. This spec replaces the current
+      dual-rail, jargon-chip, twelve-section pattern with a focused takeover shell, a plain-language row vocabulary,
+      and progressive disclosure for everything mechanical. It reuses the established prototype canon
+      (topbar, page head, panelbox, listing toolbar, sheet) — only the settings-specific layer is new.
+    </p>
+    <div class="hero__links">
+      <a class="doclink" href="settings-general.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+        settings-general.html — form page reference
+      </a>
+      <a class="doclink" href="settings-providers.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+        settings-providers.html — listing + sheet reference
+      </a>
+    </div>
+  </header>
+
+  <!-- ============ 01 PRINCIPLES ============ -->
+  <section class="sec" id="principles" data-od-id="sec-principles">
+    <div class="sec__head"><span class="sec__id">01</span><h2>Principles</h2></div>
+    <p class="lede">Five rules that produced every decision below. When a migration question is not covered by this spec, answer it with these.</p>
+    <div class="cols">
+      <div class="rulecard"><span class="num">P-01</span><b>Written for the person, not the process</b>
+        <p>Every label and description says what the setting does to the user&rsquo;s work, in a sentence. Mechanism names (<code>config.toml</code>, policies, thresholds) never appear in a primary row — they live one level down, in Advanced.</p></div>
+      <div class="rulecard"><span class="num">P-02</span><b>One navigation at a time</b>
+        <p>Settings takes over the window with its own sidebar; the app sidebar yields. Two parallel rails was the single biggest source of visual pollution in the current screens.</p></div>
+      <div class="rulecard"><span class="num">P-03</span><b>Jargon earns its place through disclosure</b>
+        <p>Operator depth is not deleted — it is demoted. Circuit breakers, apply records, delivery tuning, env policies: all reachable, all one fold away, none competing with the primary flow.</p></div>
+      <div class="rulecard"><span class="num">P-04</span><b>Saving is visible and honest</b>
+        <p>The three real persistence models (page draft, per-item, immediate) stay exactly as the daemon implements them — the UI just makes each one legible: a floating save bar, a sheet with its own Save, a switch that just works.</p></div>
+      <div class="rulecard"><span class="num">P-05</span><b>Truthful UI, calm color</b>
+        <p>Every row maps to a daemon-persisted value; nothing is invented to fill a layout. Accent appears only on the active nav item and the primary action. State is carried by the signal palette plus text, never color alone.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 02 SHELL ============ -->
+  <section class="sec" id="shell" data-od-id="sec-shell">
+    <div class="sec__head"><span class="sec__id">02</span><h2>Shell — the settings takeover</h2></div>
+    <p class="lede">
+      Entering Settings swaps the app shell for a dedicated one: a 264px settings sidebar on <code>--canvas-soft</code>,
+      the standard 48px topbar with breadcrumb, and a centered content column. &ldquo;Back to app&rdquo; (and <code>Esc</code> with no
+      dialog open) returns to the previous route. This replaces the current pattern where the app sidebar and a second
+      <code>w-56</code> settings rail render side by side.
+    </p>
+    <div class="schematic" aria-label="Settings shell schematic">
+      <div class="schematic__side">
+        <div class="sk" style="height:30px">&larr; back to app</div>
+        <div class="sk" style="height:28px">search / filter</div>
+        <div class="sk sk--fill">nav · 3 groups<br>items 32px</div>
+        <div class="sk" style="height:32px">daemon · version</div>
+      </div>
+      <div class="schematic__main">
+        <div class="schematic__topbar"><span class="annot">topbar 48px · breadcrumb: Settings › Section</span></div>
+        <div class="schematic__content">
+          <div class="schematic__col">
+            <div class="sk" style="height:56px">page head · icon + title + desc + meta</div>
+            <div class="sk sk--fill">setting groups · panelbox rows</div>
+            <div class="sk" style="height:36px">save bar · sticky, only when dirty</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Content column: <code>max-width 768px</code> for form pages, <code>960px</code> for listing pages (Providers). Sidebar collapses to a horizontal chip strip below 900px — same behavior the current nav already has below <code>xl</code>.</p>
+
+    <h3>Geometry</h3>
+    <div class="tablebox"><table>
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Sidebar</td><td><code>264px</code> · bg <code>--canvas-soft</code> · border-right <code>--line-soft</code></td></tr>
+      <tr><td>Back to app</td><td>row 30px · 12.5px/500 <code>--muted</code> · chevron-left 13px · hover <code>--row-hover</code></td></tr>
+      <tr><td>Search</td><td>28px field · bg <code>--canvas</code> · border <code>--line-soft</code> · <code>/</code> shortcut · filters nav items live</td></tr>
+      <tr><td>Group label</td><td>11px/600 · uppercase · tracking .03em · <code>--faint</code> (sidebar eyebrow canon)</td></tr>
+      <tr><td>Nav item</td><td>32px · radius-md · icon 16px <code>--subtle</code> · label 13px/500 <code>--muted</code></td></tr>
+      <tr><td>Nav active</td><td>bg <code>--accent-tint</code> · text+icon <code>--accent-strong</code> (rail-item canon; accent = current page, never decoration)</td></tr>
+      <tr><td>Sidebar foot</td><td>status dot + &ldquo;Daemon running&rdquo; 11.5px + version mono 10px <code>--faint</code></td></tr>
+      <tr><td>Topbar</td><td>48px · 3-zone grid · breadcrumb <code>Settings &rsaquo; Section</code> (unchanged canon)</td></tr>
+    </table></div>
+  </section>
+
+  <!-- ============ 03 NAVIGATION ============ -->
+  <section class="sec" id="navigation" data-od-id="sec-navigation">
+    <div class="sec__head"><span class="sec__id">03</span><h2>Navigation — 9 sections, 3 groups</h2></div>
+    <p class="lede">
+      The nine existing sections survive unchanged as routes — only their presentation is grouped so the list reads as a
+      mental model instead of an inventory. No section is renamed, added, or removed.
+    </p>
+    <div class="cols">
+      <div class="stage stage--tint">
+        <div class="snav-demo">
+          <div class="sgroup-label">Workspace</div>
+          <a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg>General</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>Providers</a>
+          <div class="sgroup-label">Runtime</div>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M12 5v13"/></svg>Memory</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Skills</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Automation</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>Network</a>
+          <div class="sgroup-label">System</div>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>Observability</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/></svg>Hooks</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/></svg>Extensions</a>
+        </div>
+      </div>
+      <div>
+        <div class="tablebox"><table>
+          <tr><th>Group</th><th>Sections</th><th>Reads as</th></tr>
+          <tr><td>Workspace</td><td>General, Providers</td><td>&ldquo;How my work is set up&rdquo;</td></tr>
+          <tr><td>Runtime</td><td>Memory, Skills, Automation, Network</td><td>&ldquo;What my agents can do&rdquo;</td></tr>
+          <tr><td>System</td><td>Observability, Hooks, Extensions</td><td>&ldquo;How the daemon itself behaves&rdquo;</td></tr>
+        </table></div>
+        <p class="caption" style="margin-top:10px">
+          Sandbox, Vault and MCP servers stay top-level routes (they moved out of Settings already) — they are
+          <em>not</em> re-added here. Pages that touch them link out contextually instead.
+          The sidebar search filters items by label and by per-section keywords, so &ldquo;timeout&rdquo; finds General
+          and &ldquo;peers&rdquo; finds Network.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 04 PAGE ANATOMY ============ -->
+  <section class="sec" id="page-anatomy" data-od-id="sec-page-anatomy">
+    <div class="sec__head"><span class="sec__id">04</span><h2>Page anatomy</h2></div>
+    <p class="lede">
+      Every settings page = head &rarr; (optional restart notice) &rarr; setting groups &rarr; (optional Advanced) &rarr; save bar
+      when the page uses draft semantics. The head keeps the canon icon + 1.4rem title and gains a one-line description;
+      the old <code>StatusLine</code> count dump becomes a quiet dotsep meta row.
+    </p>
+    <h3>Restart notice — replaces RestartBanner</h3>
+    <div class="stage">
+      <div class="notice-demo" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <div style="min-width:0;flex:1">
+          <b>Restart needed</b>
+          Permission changes apply after the daemon restarts. Running sessions keep their current rules until then.
+        </div>
+        <div class="acts">
+          <button class="btn btn--ghost">Not now</button>
+          <button class="btn">Restart daemon</button>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Warning tint, no border, sits under the head. It states <em>what happens if you don&rsquo;t act</em> — never just &ldquo;pending restart&rdquo;. Same component with <code>--danger-tint</code> serves hard failures.</p>
+  </section>
+
+  <!-- ============ 05 SETTING ROWS ============ -->
+  <section class="sec" id="rows" data-od-id="sec-rows">
+    <div class="sec__head"><span class="sec__id">05</span><h2>Setting rows — the core vocabulary</h2></div>
+    <p class="lede">
+      One row = one decision. Label + plain-language consequence on the left, a single control on the right, 54px minimum,
+      hairline separators inside a <code>.panelbox</code>. Six variants cover every field in all nine current pages.
+    </p>
+    <div class="stage">
+      <div class="panelbox" style="max-width:640px">
+        <div class="srow">
+          <div class="srow__main">
+            <div class="srow__label">Switch row</div>
+            <p class="srow__desc">Immediate boolean. The description states the consequence, not the flag name.</p>
+          </div>
+          <div class="srow__ctl"><button class="switch" role="switch" aria-checked="true" aria-label="Demo switch"></button></div>
+        </div>
+        <div class="srow">
+          <div class="srow__main">
+            <div class="srow__label">Select row</div>
+            <p class="srow__desc">One choice from a short list. Options are humanized; machine values live in Advanced.</p>
+          </div>
+          <div class="srow__ctl">
+            <select class="ctl" aria-label="Demo select"><option>Workspace — read &amp; write</option><option>Read-only</option></select>
+          </div>
+        </div>
+        <div class="srow">
+          <div class="srow__main">
+            <div class="srow__label">Number row</div>
+            <p class="srow__desc">Numeric with its unit outside the field, mono, right-aligned.</p>
+          </div>
+          <div class="srow__ctl"><input class="ctl ctl--num" type="number" value="3600" aria-label="Demo number"><span class="unit">seconds</span></div>
+        </div>
+        <div class="srow">
+          <div class="srow__main">
+            <div class="srow__label">Action row</div>
+            <p class="srow__desc">A verb the daemon performs now. Button shows progress inline.</p>
+          </div>
+          <div class="srow__ctl"><button class="btn">Reload</button></div>
+        </div>
+        <div class="srow srow--link" tabindex="0" role="link">
+          <div class="srow__main">
+            <div class="srow__label">Link row</div>
+            <p class="srow__desc">Leads somewhere else — a marketplace, a top-level route, a history sheet.</p>
+          </div>
+          <div class="srow__ctl"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></div>
+        </div>
+        <div class="srow">
+          <div class="srow__main">
+            <div class="srow__label">Read-only row <span class="provchip">config.toml</span></div>
+            <p class="srow__desc">Facts the daemon owns. Value in mono; provenance chip only inside Advanced.</p>
+          </div>
+          <div class="srow__ctl"><span class="srow__value mono">~/.agh/config.toml</span></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>The jargon chip rule</h3>
+    <div class="before-after">
+      <div class="stage stage--tint">
+        <span class="ba__tag bad">Before — every row</span>
+        <div class="srow" style="border:0;padding:0;min-height:0">
+          <div class="srow__main">
+            <div class="srow__label">Session timeout <span class="jargonchip">config.toml</span> <span class="jargonchip">seconds</span> <span class="jargonchip">optional</span></div>
+            <p class="srow__desc">session.timeout_seconds</p>
+          </div>
+        </div>
+      </div>
+      <div class="stage stage--tint">
+        <span class="ba__tag good">After — primary row</span>
+        <div class="srow" style="border:0;padding:0;min-height:0">
+          <div class="srow__main">
+            <div class="srow__label">End idle sessions after</div>
+            <p class="srow__desc">A session with no activity for this long is ended and kept in history.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">
+      The current <code>SettingsFieldRow</code> hint chips (<code>CONFIG.TOML</code>, <code>OPTIONAL</code>, <code>DEFAULT</code>, <code>IANA</code>,
+      <code>SECONDS</code>, <code>TRUST</code>, <code>PI</code>&hellip;) are deleted from primary rows. The only survivor is the mono
+      <code>.provchip</code>, allowed exclusively inside Advanced folds and sheet Advanced sections, where it names the
+      real key (<code>env_policy</code>, <code>session.timeout</code>).
+    </p>
+  </section>
+
+  <!-- ============ 06 CONTROLS ============ -->
+  <section class="sec" id="controls" data-od-id="sec-controls">
+    <div class="sec__head"><span class="sec__id">06</span><h2>Controls</h2></div>
+    <p class="lede">All controls come from the packages/ui lineage: 32px inputs and selects on <code>--elevated</code>, the 32&times;18 switch, and choice cards for the few decisions that deserve explanation space. No new control families.</p>
+    <h3>Choice cards — for modes with consequences</h3>
+    <div class="stage">
+      <div class="choice-grid" role="radiogroup" aria-label="Permission mode demo" id="demo-choices" style="max-width:640px">
+        <button type="button" class="choice" role="radio" aria-checked="false" data-mode="deny-all">
+          <div class="choice__top"><span class="choice__name">Ask first</span>
+            <svg class="choice__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <p class="choice__desc">Every action waits for your approval.</p>
+          <span class="choice__mode">deny-all</span>
+        </button>
+        <button type="button" class="choice" role="radio" aria-checked="true" data-mode="approve-reads">
+          <div class="choice__top"><span class="choice__name">Allow reading</span>
+            <svg class="choice__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <p class="choice__desc">Reads run on their own; changes still ask.</p>
+          <span class="choice__mode">approve-reads</span>
+        </button>
+        <button type="button" class="choice" role="radio" aria-checked="false" data-mode="approve-all">
+          <div class="choice__top"><span class="choice__name">Allow everything</span>
+            <svg class="choice__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <p class="choice__desc">Agents act freely. For trusted work only.</p>
+          <span class="choice__mode">approve-all</span>
+        </button>
+      </div>
+    </div>
+    <p class="caption">
+      Use choice cards when a wrong pick has real consequences (permission mode, provider sign-in method). Everything
+      else uses the plain select. Selection state is neutral (glaze + inset ring + check) — accent is not a selection color.
+      The machine value sits at the card foot in 9.5px mono <code>--faint</code>: honest, but whispering.
+    </p>
+    <h3>Read-only facts — tiles</h3>
+    <div class="stage">
+      <div class="tiles" style="max-width:640px">
+        <div class="tile"><div class="tile__l">Local socket</div><div class="tile__v"><span class="mono">~/.agh/agh.sock</span></div></div>
+        <div class="tile"><div class="tile__l">Active sessions</div><div class="tile__v"><span class="d" style="background:var(--success)"></span>3</div></div>
+      </div>
+    </div>
+    <p class="caption">Runtime facts (socket, bind, counts, storage) render as quiet tiles — replacing the current <code>MetricGrid</code>. They are visibly non-editable: no border-on-focus, no hover.</p>
+  </section>
+
+  <!-- ============ 07 SAVE & APPLY ============ -->
+  <section class="sec" id="save" data-od-id="sec-save">
+    <div class="sec__head"><span class="sec__id">07</span><h2>Save &amp; apply</h2></div>
+    <p class="lede">
+      The daemon has three persistence models. They stay — the redesign only standardizes how each one looks, and
+      removes the ambiguity of per-section &ldquo;Apply&rdquo; buttons scattered mid-page.
+    </p>
+    <div class="stage" style="display:flex;flex-direction:column;gap:12px">
+      <div class="savebar-demo" style="max-width:560px">
+        <span class="msg"><span class="d"></span>Unsaved changes</span>
+        <span class="spacer"></span>
+        <button class="btn btn--ghost">Discard</button>
+        <button class="btn btn--primary">Save changes</button>
+      </div>
+      <div class="savebar-demo" style="max-width:560px">
+        <span class="msg"><span class="d" data-state="saved"></span>Saved</span>
+        <span class="spacer"></span>
+        <button class="btn btn--ghost" disabled style="opacity:.5">Discard</button>
+        <button class="btn btn--primary" disabled style="opacity:.5">Save changes</button>
+      </div>
+    </div>
+    <p class="caption">Floating save bar: sticky at <code>bottom 24px</code> inside the content column, <code>--elevated</code> + overlay shadow, hidden until dirty. States: dirty (warning dot) &rarr; saving &rarr; saved (success dot, auto-dismiss ~1.2s) &rarr; restart notice if the change requires it.</p>
+    <div class="tablebox" style="margin-top:14px"><table>
+      <tr><th>Model</th><th>Sections</th><th>Presentation</th></tr>
+      <tr><td>Page draft</td><td>General, Memory, Automation, Network, Observability, Extensions</td><td>Floating save bar. Extensions&rsquo; inline &ldquo;Save policy&rdquo; is absorbed into it.</td></tr>
+      <tr><td>Per-item</td><td>Providers (per provider), notification presets</td><td>Inspector sheet with its own Cancel / Save. The page itself never gets a save bar.</td></tr>
+      <tr><td>Immediate</td><td>Hooks enable/disable, Skills disabled-list toggles</td><td>The switch is the save. Row confirms by state; failures surface as a danger notice on the row group.</td></tr>
+    </table></div>
+  </section>
+
+  <!-- ============ 08 DISCLOSURE ============ -->
+  <section class="sec" id="disclosure" data-od-id="sec-disclosure">
+    <div class="sec__head"><span class="sec__id">08</span><h2>Progressive disclosure — the Advanced fold</h2></div>
+    <p class="lede">
+      Each page may end with exactly one <code>Advanced</code> fold (chevron toggle, closed by default). It holds the
+      operator layer for that page. Nothing inside it is required for everyday use; everything inside it is honest about
+      its mechanism, including <code>.provchip</code> provenance.
+    </p>
+    <div class="tablebox"><table>
+      <tr><th>Page</th><th>Stays primary</th><th>Moves into Advanced</th></tr>
+      <tr><td>General</td><td>Defaults, permissions, session timeout, runtime tiles, version</td><td>Reload config, apply records, config file path</td></tr>
+      <tr><td>Providers (sheet)</td><td>Name, command, models, sign-in method</td><td>Env policy, home policy, credential slot detail</td></tr>
+      <tr><td>Memory</td><td>Memory on/off, recall, dream, daily logs</td><td>Circuit breaker, controller LLM, file caps, extractor internals</td></tr>
+      <tr><td>Network</td><td>Embedded network on/off, port, default channel</td><td>All nine delivery-tuning numbers</td></tr>
+      <tr><td>Observability</td><td>Capture on/off, retention, transcripts, support bundle</td><td>Byte caps, segment sizes, log-tail stream</td></tr>
+      <tr><td>Skills</td><td>Scope, disabled skills, marketplace link-out</td><td>Registry URLs, poll interval, install allow-lists</td></tr>
+      <tr><td>Automation</td><td>Engine on/off, timezone, links to Jobs &amp; Triggers</td><td>Concurrency and fire-limit numbers</td></tr>
+    </table></div>
+  </section>
+
+  <!-- ============ 09 MIGRATION MAP ============ -->
+  <section class="sec" id="migration" data-od-id="sec-migration">
+    <div class="sec__head"><span class="sec__id">09</span><h2>Migration map — everything that changes</h2></div>
+    <p class="lede">Per current production file: what is kept, reshaped, or deleted. Zero-legacy applies — replaced patterns are removed, not aliased.</p>
+    <div class="tablebox"><table>
+      <tr><th>Current (web/src/&hellip;)</th><th>Change</th></tr>
+      <tr><td><code>routes/_app/-settings-shell-frame.tsx</code></td><td><span class="del">Replace</span> dual-rail frame with the takeover shell: settings sidebar + topbar + centered column. App sidebar unmounts inside <code>/settings</code>.</td></tr>
+      <tr><td><code>routes/_app/-settings-section-nav.tsx</code></td><td><span class="del">Replace</span> flat 9-item rail with 3 grouped navs + back row + search. Keep the below-<code>xl</code> chip-strip collapse. Slugs and routes unchanged.</td></tr>
+      <tr><td><code>systems/settings/&hellip;/settings-page-head</code> + <code>StatusLine</code></td><td><span class="del">Reshape</span>: add one-line description per section; live counts become quiet dotsep meta. Delete the count-jargon StatusLine.</td></tr>
+      <tr><td><code>settings-field-row.tsx</code> hint chips</td><td><span class="del">Delete</span> all uppercase hint-chip variants. Introduce <code>.provchip</code> (mono, Advanced-only). Every field gains a consequence sentence.</td></tr>
+      <tr><td><code>settings-save-bar.tsx</code></td><td><span class="keep">Keep</span> semantics; restyle as floating sticky bar scoped to the column, with dirty/saving/saved states.</td></tr>
+      <tr><td><code>RestartBanner</code></td><td><span class="del">Replace</span> with the inline restart notice (04) — consequence copy + Restart / Not now.</td></tr>
+      <tr><td><code>-general-settings-page.tsx</code></td><td><span class="del">Reshape</span>: permissions PillGroup &rarr; choice cards; MetricGrid &rarr; tiles; update section &rarr; version row; apply-records panel &rarr; Advanced.</td></tr>
+      <tr><td><code>-providers-settings-page.tsx</code> + filters</td><td><span class="del">Reshape</span>: six filter selects &rarr; search + one status chip; grid &rarr; provider cards with humanized status; keep inspector sheet + per-provider save; auth modes get plain-language labels.</td></tr>
+      <tr><td><code>-memory-settings-page.tsx</code> (12 sections)</td><td><span class="del">Regroup</span> into Memory / Recall / Dream / Files + one Advanced fold (per 08). No field is dropped.</td></tr>
+      <tr><td><code>-skills-settings-page.tsx</code></td><td><span class="keep">Keep</span> scope PillGroup; marketplace policy &rarr; Advanced; &ldquo;Open Skills&rdquo; becomes a link row; unify the two save controls under one save bar.</td></tr>
+      <tr><td><code>-network-settings-page.tsx</code></td><td><span class="del">Reshape</span>: delivery 4-col number grid &rarr; Advanced rows; listener settings stay primary as rows.</td></tr>
+      <tr><td><code>-observability-settings-page.tsx</code></td><td><span class="del">Reshape</span> into switch/number rows + support-bundle action row; byte caps &rarr; Advanced.</td></tr>
+      <tr><td><code>-hooks-settings-page.tsx</code> table</td><td><span class="del">Reshape</span> dense table into panelbox rows: name + event pill + per-row switch (immediate). Presets stay per-item.</td></tr>
+      <tr><td><code>-extensions-settings-page.tsx</code></td><td><span class="keep">Keep</span> fields; inline Discard/Save &rarr; standard save bar.</td></tr>
+      <tr><td><code>-automation-settings-page.tsx</code></td><td><span class="del">Reshape</span>: manager metrics &rarr; tiles; jobs/triggers links &rarr; link rows; limits &rarr; number rows (primary) + Advanced.</td></tr>
+    </table></div>
+  </section>
+
+  <!-- ============ 10 CLASS CONTRACT ============ -->
+  <section class="sec" id="contract" data-od-id="sec-contract">
+    <div class="sec__head"><span class="sec__id">10</span><h2>Class contract</h2></div>
+    <p class="lede">Role &rarr; class map for the settings layer. Everything not listed here comes from the existing canon (topbar, breadcrumb, btn, pill, panelbox, tiles, sheet, listing toolbar).</p>
+    <div class="tablebox"><table>
+      <tr><th>Role</th><th>Class</th><th>Key spec</th></tr>
+      <tr><td>Shell</td><td><code>.shell</code> &rarr; <code>.sside</code> + <code>.main</code></td><td>grid <code>264px / 1fr</code></td></tr>
+      <tr><td>Back to app</td><td><code>.back</code></td><td>30px row, chevron-left</td></tr>
+      <tr><td>Settings search</td><td><code>.ssearch</code></td><td>28px, <code>/</code> shortcut, filters nav</td></tr>
+      <tr><td>Nav group label</td><td><code>.sgroup-label</code></td><td>11px/600 uppercase <code>--faint</code></td></tr>
+      <tr><td>Nav item</td><td><code>.snav a</code></td><td>32px; active <code>--accent-tint</code>/<code>--accent-strong</code></td></tr>
+      <tr><td>Daemon foot</td><td><code>.sside__foot</code></td><td>status dot + version mono</td></tr>
+      <tr><td>Setting group</td><td><code>.sgroup</code> &rarr; <code>.sgroup__title/__desc</code></td><td>13.5px/600 title, sentence case</td></tr>
+      <tr><td>Setting row</td><td><code>.srow</code> (+ <code>--link</code>)</td><td>54px min, label 13px/500, desc &le;52ch</td></tr>
+      <tr><td>Controls</td><td><code>.ctl</code>, <code>.switch</code>, <code>.choice</code></td><td>32px fields; 32&times;18 switch; neutral selection</td></tr>
+      <tr><td>Provenance</td><td><code>.provchip</code></td><td>mono 9.5px, Advanced-only</td></tr>
+      <tr><td>Advanced fold</td><td><code>.adv-toggle</code> + <code>.adv-body</code></td><td>one per page, closed by default</td></tr>
+      <tr><td>Save bar</td><td><code>.savebar</code></td><td>sticky bottom 24px, hidden until dirty</td></tr>
+      <tr><td>Restart notice</td><td><code>.notice</code></td><td>warning tint, consequence copy</td></tr>
+    </table></div>
+  </section>
+
+  <!-- ============ CHECKLIST ============ -->
+  <section class="sec" id="checklist" data-od-id="sec-checklist">
+    <div class="sec__head"><span class="sec__id">11</span><h2>Implementation checklist</h2></div>
+    <div class="cols">
+      <div class="rulecard"><b>P0 — blocking</b>
+        <p>
+          Takeover shell only (no app sidebar inside /settings) · nav = 3 groups, 9 unchanged routes ·
+          every primary row has a consequence sentence · zero uppercase jargon chips outside Advanced ·
+          save bar appears only when dirty and names its state · restart notice states the consequence ·
+          accent limited to active nav + primary action · all controls keyboard-operable with visible focus ·
+          every value maps to a daemon-persisted field.
+        </p></div>
+      <div class="rulecard"><b>P1 — required next</b>
+        <p>
+          Sidebar search filters by per-section keywords · below-900px chip strip parity with production ·
+          per-model save matrix (07) implemented exactly · Providers listing ships Rows|Cards toggle ·
+          empty and error states for lists and immediate-save failures · <code>Esc</code> exits Settings when no
+          dialog or sheet is open.
+        </p></div>
+    </div>
+  </section>
+
+</main>
+<script>
+(function(){
+  "use strict";
+  /* demo interactions: switches + choice cards */
+  Array.prototype.slice.call(document.querySelectorAll(".switch")).forEach(function(s){
+    s.addEventListener("click", function(){
+      s.setAttribute("aria-checked", s.getAttribute("aria-checked") === "true" ? "false" : "true");
+    });
+  });
+  var choices = Array.prototype.slice.call(document.querySelectorAll("#demo-choices .choice"));
+  choices.forEach(function(c){
+    c.addEventListener("click", function(){
+      choices.forEach(function(x){ x.setAttribute("aria-checked", String(x === c)); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

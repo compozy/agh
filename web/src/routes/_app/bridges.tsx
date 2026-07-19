@@ -9,6 +9,7 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
+  PageHead,
   Spinner,
   useTopbarSlot,
 } from "@agh/ui";
@@ -42,7 +43,7 @@ function validateBridgesSearch(search: Record<string, unknown>): BridgesRouteSea
 
 export const Route = createFileRoute("/_app/bridges")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Bridges", icon: Waypoints },
+    topbar: { crumb: { label: "Bridges", to: "/bridges" } },
   }),
   validateSearch: validateBridgesSearch,
   loaderDeps: ({ search }) => ({
@@ -59,33 +60,39 @@ function BridgesPage() {
   const page = useBridgesPage(Route.useSearch());
   const { activeWorkspace } = useActiveWorkspace();
 
-  useTopbarSlot({
-    count: page.hasChildMatch ? undefined : page.totalBridgeCount,
-    actions: page.hasChildMatch ? undefined : (
-      <div className="flex items-center gap-2" data-testid="bridges-topbar-actions">
-        <Button
-          data-testid="bridges-refresh"
-          onClick={page.handleRefresh}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <RefreshCw aria-hidden="true" className="size-3" />
-          Refresh
-        </Button>
-        <Button
-          data-testid="create-bridge-btn"
-          disabled={!page.canCreateBridge}
-          onClick={page.openCreateDialog}
-          size="sm"
-          type="button"
-        >
-          <Plus aria-hidden="true" className="size-3" />
-          Bridge
-        </Button>
-      </div>
-    ),
-  });
+  // Publish null while a child route is mounted: a non-null slot from this
+  // parent would steal the detail route's publish (layout effects run child
+  // first, parent last in the same commit).
+  useTopbarSlot(
+    page.hasChildMatch
+      ? null
+      : {
+          actions: (
+            <div className="flex items-center gap-2" data-testid="bridges-topbar-actions">
+              <Button
+                data-testid="bridges-refresh"
+                onClick={page.handleRefresh}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <RefreshCw aria-hidden="true" className="size-3" />
+                Refresh
+              </Button>
+              <Button
+                data-testid="create-bridge-btn"
+                disabled={!page.canCreateBridge}
+                onClick={page.openCreateDialog}
+                size="sm"
+                type="button"
+              >
+                <Plus aria-hidden="true" className="size-3" />
+                Bridge
+              </Button>
+            </div>
+          ),
+        }
+  );
 
   if (page.hasChildMatch) {
     return <Outlet />;
@@ -105,7 +112,7 @@ function BridgesPage() {
   if (page.fatalError) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="bridges-error"
       >
         <Empty
@@ -150,14 +157,15 @@ function BridgesPage() {
         }
         data-testid="bridges-shell"
       >
-        <ListingPage.Head
+        <PageHead
           count={page.totalBridgeCount}
           countTestId="bridges-page-count"
           data-testid="bridges-page-head"
+          icon={Waypoints}
           meta={
             <>
               <span>Messaging bridges that connect AGH to external platforms.</span>
-              <ListingPage.MetaDot />
+              <PageHead.MetaDot />
               <span>{workspaceLabel}</span>
             </>
           }

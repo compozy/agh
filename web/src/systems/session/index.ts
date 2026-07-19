@@ -190,6 +190,7 @@ export {
   SessionResumeFailure,
   type SessionResumeFailureProps,
 } from "./components/session-resume-failure";
+export { SessionStatusLine, type SessionStatusLineProps } from "./components/session-status-line";
 export { SessionToolCallRow, type SessionToolCallRowProps } from "./components/tool-call-card";
 export {
   SessionChatRuntimeProvider,

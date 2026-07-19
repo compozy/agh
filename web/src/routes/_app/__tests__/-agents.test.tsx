@@ -19,9 +19,7 @@ function render(ui: React.ReactElement) {
       mutations: { retry: false },
     },
   });
-  return renderWithTopbar(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>, {
-    title: "Agents",
-  });
+  return renderWithTopbar(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
 function agent(overrides: Partial<AgentPayload> & Pick<AgentPayload, "name">): AgentPayload {
@@ -331,7 +329,9 @@ describe("Agents fleet route", () => {
   });
 
   it("Should register the Agents topbar contract", () => {
-    expect(routeBeforeLoad(Route)()).toMatchObject({ topbar: { title: "Agents" } });
+    expect(routeBeforeLoad(Route)()).toMatchObject({
+      topbar: { crumb: { label: "Agents", to: "/agents" } },
+    });
   });
 
   it("Should ask for a workspace before querying the fleet", async () => {
@@ -351,7 +351,7 @@ describe("Agents fleet route", () => {
     render(<AgentsPage />);
     expect(screen.getByTestId("agent-fleet-loading")).toBeInTheDocument();
     expect(screen.getByTestId("agent-fleet-toolbar")).toBeInTheDocument();
-    expect(screen.queryByTestId("listing-view-toggle")).not.toBeInTheDocument();
+    expect(screen.getByTestId("listing-view-toggle")).toBeInTheDocument();
 
     const list = await screen.findByTestId("agent-fleet-list");
     expect(screen.getByTestId("agents-page-head")).toHaveTextContent("Operate");
@@ -363,7 +363,12 @@ describe("Agents fleet route", () => {
     const newSession = within(row).getByTestId("agent-fleet-new-session-code-reviewer");
     expect(newSession).toBeInTheDocument();
     expect(link).not.toContainElement(newSession);
-    expect(link).not.toContainElement(screen.getByTestId("agent-fleet-sessions-code-reviewer"));
+    expect(within(row).getByTestId("agent-fleet-origin-code-reviewer")).toHaveTextContent("Global");
+    expect(within(row).getByTestId("agent-fleet-meta-code-reviewer")).toHaveTextContent(
+      "Engineering"
+    );
+    expect(within(row).getByTestId("agent-fleet-meta-code-reviewer")).toHaveTextContent("openai");
+    expect(screen.queryByTestId("agent-fleet-sessions-code-reviewer")).not.toBeInTheDocument();
     await user.click(newSession);
     expect(mockOpenNewSession).toHaveBeenCalledWith("code-reviewer");
     expect(link).toHaveAttribute("href", "/agents/code-reviewer");
@@ -382,8 +387,11 @@ describe("Agents fleet route", () => {
 
     expect(await screen.findByTestId("agent-fleet-card-grid")).toBeInTheDocument();
     const card = screen.getByTestId("agent-fleet-card-triage-bot");
-    expect(within(card).getByTestId("agent-fleet-card-meta-triage-bot")).toHaveTextContent(
+    expect(within(card).getByTestId("agent-fleet-origin-triage-bot")).toHaveTextContent(
       "Workspace"
+    );
+    expect(within(card).getByTestId("agent-fleet-card-meta-triage-bot")).toHaveTextContent(
+      "openai"
     );
     const cardLink = within(card).getByTestId("agent-fleet-card-link-triage-bot");
     expect(cardLink).toHaveAttribute("aria-label", "triage-bot, Idle, 0 of 0 sessions active");
@@ -415,7 +423,7 @@ describe("Agents fleet route", () => {
     const user = userEvent.setup();
     render(<AgentsPage />);
     await screen.findByTestId("agent-fleet-list");
-    expect(screen.getByTestId("topbar-count")).toHaveTextContent("3");
+    expect(screen.getByTestId("agents-page-count")).toHaveTextContent("3");
 
     await user.type(screen.getByTestId("agent-fleet-search"), "release");
     await waitFor(() => {
@@ -424,7 +432,7 @@ describe("Agents fleet route", () => {
     await waitFor(() => {
       expect(getValidatedSearch()).toMatchObject({ q: "release" });
     });
-    await waitFor(() => expect(screen.getByTestId("topbar-count")).toHaveTextContent("1"));
+    await waitFor(() => expect(screen.getByTestId("agents-page-count")).toHaveTextContent("1"));
 
     routerState.searchParams = { q: "release", category: "Engineering / Release", status: "idle" };
     act(() => {
@@ -437,7 +445,7 @@ describe("Agents fleet route", () => {
       expect(screen.queryByTestId("agent-fleet-row-release-captain")).not.toBeInTheDocument();
       expect(screen.getByTestId("agent-fleet-filtered-empty")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("topbar-count")).toHaveTextContent("0");
+    expect(screen.getByTestId("agents-page-count")).toHaveTextContent("0");
   });
 
   it("Should keep rows and omit status when sessions fail, including with a status URL filter", async () => {
@@ -449,8 +457,9 @@ describe("Agents fleet route", () => {
     expect(screen.getByTestId("agent-fleet-sessions-notice")).toHaveTextContent(
       "Session status unavailable"
     );
-    expect(screen.getByTestId("agent-fleet-sessions-release-captain")).toHaveTextContent("--");
+    expect(screen.queryByTestId("agent-fleet-sessions-release-captain")).not.toBeInTheDocument();
     expect(screen.queryByTestId("agent-fleet-status-release-captain")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-fleet-origin-release-captain")).toHaveTextContent("Global");
     expect(screen.getByTestId("agent-fleet-row-link-release-captain")).toHaveAttribute(
       "aria-label",
       "release-captain, session status unavailable"
@@ -489,7 +498,7 @@ describe("Agents fleet route", () => {
     const { unmount } = render(<AgentsPage />);
     expect(await screen.findByTestId("agent-fleet-empty")).toBeInTheDocument();
     expect(screen.getByText("No agents yet")).toBeInTheDocument();
-    expect(screen.queryByTestId("topbar-count")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agents-page-count")).toHaveTextContent("0");
     expect(screen.queryByTestId("agents-topbar-create")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("agent-fleet-empty-create"));
     expect(mockOpenCreate).toHaveBeenCalledOnce();

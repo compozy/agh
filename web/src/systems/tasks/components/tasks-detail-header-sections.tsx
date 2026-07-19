@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -17,10 +18,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   MonoId,
   Pill,
   Textarea,
   Time,
+  TopbarOverflowIcon,
+  useTopbarSlot,
 } from "@agh/ui";
 
 import { useTaskPauseDialog } from "../hooks/use-task-pause-dialog";
@@ -213,6 +220,7 @@ export function TasksDetailHeaderActions({
   onRecover,
 }: TasksDetailHeaderActionsProps) {
   const pauseDialog = useTaskPauseDialog(onPause);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const record = detail.task;
   const isDraft = taskIsDraft(record);
   const isDirectlyPaused = Boolean(record.paused);
@@ -237,9 +245,14 @@ export function TasksDetailHeaderActions({
     ? "Resume task dispatch before starting a run."
     : startCopy.tooltip;
   const isPausePending = pending?.pause ?? false;
+  const showResume = isDirectlyPaused && Boolean(onResume);
+  const showPause = !isDirectlyPaused && Boolean(onPause);
+  const showOverflow =
+    Boolean(onDelete) || (canCancel && Boolean(onCancel)) || showResume || showPause;
 
-  return (
-    <>
+  // Route chrome §07: Edit + one accent primary; Cancel/Pause/Delete → overflow.
+  useTopbarSlot({
+    actions: (
       <div
         data-testid="tasks-detail-actions"
         className="flex shrink-0 flex-wrap items-center gap-2"
@@ -266,57 +279,6 @@ export function TasksDetailHeaderActions({
             Recover
           </Button>
         ) : null}
-        {canCancel && onCancel ? (
-          <Button
-            data-testid="tasks-detail-cancel"
-            disabled={pending?.cancel}
-            onClick={onCancel}
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
-            Cancel
-          </Button>
-        ) : null}
-        {isDirectlyPaused && onResume ? (
-          <Button
-            data-testid="tasks-detail-resume"
-            disabled={pending?.resume}
-            onClick={() => void onResume()}
-            size="sm"
-            title="Resume scheduler claims for this task."
-            type="button"
-            variant="neutral"
-          >
-            <PlayCircle className="size-3" aria-hidden="true" />
-            Resume
-          </Button>
-        ) : !isDirectlyPaused && onPause ? (
-          <Button
-            data-testid="tasks-detail-pause"
-            disabled={isPausePending}
-            onClick={pauseDialog.open}
-            size="sm"
-            title="Pause future scheduler claims for this task."
-            type="button"
-            variant="neutral"
-          >
-            <PauseCircle className="size-3" aria-hidden="true" />
-            Pause
-          </Button>
-        ) : null}
-        {onDelete ? (
-          <TaskDeleteAction
-            taskId={record.id}
-            taskTitle={record.title}
-            onDelete={onDelete}
-            isPending={pending?.delete ?? false}
-            triggerTestId="tasks-detail-delete"
-            dialogTestId="tasks-detail-delete-dialog"
-            cancelTestId="tasks-detail-delete-cancel"
-            confirmTestId="tasks-detail-delete-confirm"
-          />
-        ) : null}
         {isDraft && onPublish ? (
           <Button
             data-testid="tasks-detail-publish"
@@ -342,6 +304,78 @@ export function TasksDetailHeaderActions({
           </Button>
         ) : null}
       </div>
+    ),
+    overflow: showOverflow ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="More actions"
+          data-testid="tasks-detail-overflow"
+          render={<Button type="button" variant="ghost" size="icon-sm" />}
+        >
+          <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" data-testid="tasks-detail-overflow-menu">
+          {canCancel && onCancel ? (
+            <DropdownMenuItem
+              data-testid="tasks-detail-cancel"
+              disabled={pending?.cancel}
+              onClick={onCancel}
+            >
+              Cancel
+            </DropdownMenuItem>
+          ) : null}
+          {showResume ? (
+            <DropdownMenuItem
+              data-testid="tasks-detail-resume"
+              disabled={pending?.resume}
+              onClick={() => void onResume?.()}
+            >
+              <PlayCircle className="size-3" aria-hidden="true" />
+              Resume
+            </DropdownMenuItem>
+          ) : null}
+          {showPause ? (
+            <DropdownMenuItem
+              data-testid="tasks-detail-pause"
+              disabled={isPausePending}
+              onClick={pauseDialog.open}
+            >
+              <PauseCircle className="size-3" aria-hidden="true" />
+              Pause
+            </DropdownMenuItem>
+          ) : null}
+          {onDelete ? (
+            <DropdownMenuItem
+              data-testid="tasks-detail-delete"
+              disabled={pending?.delete}
+              onClick={() => setDeleteOpen(true)}
+              variant="destructive"
+            >
+              Delete
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : undefined,
+  });
+
+  return (
+    <>
+      {onDelete ? (
+        <TaskDeleteAction
+          cancelTestId="tasks-detail-delete-cancel"
+          confirmTestId="tasks-detail-delete-confirm"
+          dialogTestId="tasks-detail-delete-dialog"
+          hideTrigger
+          isPending={pending?.delete ?? false}
+          onDelete={onDelete}
+          onOpenChange={setDeleteOpen}
+          open={deleteOpen}
+          taskId={record.id}
+          taskTitle={record.title}
+          triggerTestId="tasks-detail-delete"
+        />
+      ) : null}
       <Dialog open={pauseDialog.isOpen} onOpenChange={pauseDialog.onOpenChange}>
         <DialogContent
           data-testid="tasks-detail-pause-dialog"

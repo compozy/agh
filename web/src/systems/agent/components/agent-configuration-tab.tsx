@@ -3,6 +3,7 @@ import { Pill, Section } from "@agh/ui";
 import { formatAbsentOverride } from "../lib/agent-absent-value";
 import type { AgentPayload } from "../types";
 import { AgentMcpServersPanel } from "./agent-mcp-servers-panel";
+import { AgentPanelBox } from "./agent-panel-box";
 
 export interface AgentConfigurationTabProps {
   agent: AgentPayload;
@@ -17,51 +18,60 @@ export function AgentConfigurationTab({ agent, onEditSection }: AgentConfigurati
   return (
     <div className="flex flex-col gap-6" data-testid="agent-configuration-tab">
       <Section
+        className="gap-0"
         label="Runtime"
         data-testid="agent-config-runtime"
         right={
           <EditLink onClick={() => onEditSection("runtime")} testId="agent-config-edit-runtime" />
         }
       >
-        <dl className="grid gap-3 sm:grid-cols-2">
-          <ConfigField label="Provider" value={agent.provider} />
-          <ConfigField
-            label="Model"
-            value={formatAbsentOverride(agent.model)}
-            muted={!agent.model?.trim()}
-          />
-          <ConfigField
-            label="Command"
-            value={formatAbsentOverride(agent.command)}
-            muted={!agent.command?.trim()}
-            mono={Boolean(agent.command?.trim())}
-          />
-          <ConfigField
-            label="Permissions"
-            value={agent.permissions?.trim() || "Default"}
-            muted={!agent.permissions?.trim()}
-          />
-        </dl>
+        <AgentPanelBox>
+          <div className="flex flex-col">
+            <ConfigKvRow
+              label="Command"
+              value={formatAbsentOverride(agent.command)}
+              muted={!agent.command?.trim()}
+              mono={Boolean(agent.command?.trim())}
+            />
+            <ConfigKvRow
+              label="Permissions"
+              value={agent.permissions?.trim() || "Default"}
+              muted={!agent.permissions?.trim()}
+              mono={Boolean(agent.permissions?.trim())}
+            />
+          </div>
+        </AgentPanelBox>
       </Section>
 
       <Section
+        className="gap-0"
         label="Access"
         data-testid="agent-config-access"
         right={
           <EditLink onClick={() => onEditSection("access")} testId="agent-config-edit-access" />
         }
       >
-        <TokenRow label="Tools" values={tools} />
-        <TokenRow label="Deny tools" values={denyTools} />
-        <TokenRow label="Toolsets" values={toolsets} />
+        <AgentPanelBox>
+          <AccessTokenRow label="Tools" values={tools} testId="agent-config-tools" />
+          <AccessTokenRow
+            label="Deny tools"
+            values={denyTools}
+            tone="danger"
+            testId="agent-config-deny-tools"
+          />
+          <AccessTokenRow label="Toolsets" values={toolsets} testId="agent-config-toolsets" />
+        </AgentPanelBox>
       </Section>
 
       <Section
+        className="gap-0"
         label="MCP servers"
         data-testid="agent-config-mcp"
         right={<EditLink onClick={() => onEditSection("mcp")} testId="agent-config-edit-mcp" />}
       >
-        <AgentMcpServersPanel agent={agent} bare />
+        <AgentPanelBox>
+          <AgentMcpServersPanel agent={agent} bare />
+        </AgentPanelBox>
       </Section>
     </div>
   );
@@ -80,7 +90,7 @@ function EditLink({ onClick, testId }: { onClick: () => void; testId: string }) 
   );
 }
 
-function ConfigField({
+function ConfigKvRow({
   label,
   value,
   muted,
@@ -92,34 +102,41 @@ function ConfigField({
   mono?: boolean;
 }) {
   return (
-    <div>
-      <dt className="eyebrow text-muted">{label}</dt>
-      <dd
+    <div className="border-t border-line-soft px-4 py-3.5 first:border-t-0">
+      <p className="eyebrow text-muted">{label}</p>
+      <p
         className={[
-          "mt-1 text-body",
+          "mt-1.5 text-body",
           muted ? "text-muted" : "text-fg",
           mono ? "font-mono" : "",
         ].join(" ")}
       >
         {value}
-      </dd>
+      </p>
     </div>
   );
 }
 
-function TokenRow({ label, values }: { label: string; values: readonly string[] }) {
+function AccessTokenRow({
+  label,
+  values,
+  tone = "neutral",
+  testId,
+}: {
+  label: string;
+  values: readonly string[];
+  tone?: "neutral" | "danger";
+  testId: string;
+}) {
   return (
-    <div
-      className="mb-4 last:mb-0"
-      data-testid={`agent-config-${label.toLowerCase().replace(/\s+/g, "-")}`}
-    >
+    <div className="border-t border-line-soft px-4 py-3.5 first:border-t-0" data-testid={testId}>
       <p className="eyebrow mb-2 text-muted">{label}</p>
       {values.length === 0 ? (
         <p className="text-small-body text-muted">None</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {values.map(value => (
-            <Pill key={value} mono size="sm" tone="neutral">
+            <Pill key={value} mono size="sm" tone={tone}>
               {value}
             </Pill>
           ))}

@@ -75,7 +75,14 @@ type KindState struct {
 // BrowseResult returns projected rows with their truthful freshness state.
 type BrowseResult struct {
 	Entries []Entry
+	Total   int
 	State   KindState
+}
+
+// ListResult is one deterministic page from the durable catalog projection.
+type ListResult struct {
+	Entries []Entry
+	Total   int
 }
 
 // RefreshOutcome is the canonical per-kind refresh result.
@@ -110,7 +117,7 @@ type Source interface {
 type Store interface {
 	ReplaceKind(ctx context.Context, kind Kind, document *Document) error
 	MarkKindStale(ctx context.Context, kind Kind, errorClass string, lastError string) error
-	ListKind(ctx context.Context, kind Kind, query string, limit int) ([]Entry, error)
+	ListKind(ctx context.Context, kind Kind, query string, offset int, limit int) (ListResult, error)
 	GetEntry(ctx context.Context, kind Kind, entryID string) (*Entry, error)
 	GetExtensionByInstallSlug(ctx context.Context, installSlug string, version string) (*Entry, error)
 	ListSkillsByInstallSlugs(ctx context.Context, installSlugs []string) ([]Entry, error)
@@ -119,7 +126,7 @@ type Store interface {
 
 // Service exposes internal curated browse, detail, refresh, and status operations.
 type Service interface {
-	Browse(ctx context.Context, kind Kind, query string, limit int) (BrowseResult, error)
+	Browse(ctx context.Context, kind Kind, query string, offset int, limit int) (BrowseResult, error)
 	Detail(ctx context.Context, kind Kind, entryID string) (*Entry, error)
 	ResolveExtensionInstall(ctx context.Context, installSlug string, version string) (*Entry, error)
 	Refresh(ctx context.Context, kinds ...Kind) (RefreshReport, error)

@@ -33,6 +33,8 @@ describe("TasksInboxView", () => {
 
     expect(screen.getByTestId("tasks-inbox-page-head")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-inbox-page-title")).toHaveTextContent(/Inbox/);
+    expect(screen.getByRole("heading", { level: 2, name: "Inbox" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Inbox" })).not.toBeInTheDocument();
     expect(screen.getByTestId("tasks-inbox-page-count")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-inbox-page-totals")).toBeInTheDocument();
   });

@@ -318,6 +318,7 @@ func searchMarketplaceSkills(
 			"skill",
 			query,
 			limit,
+			"",
 			MarketplaceReadScope{Scope: contract.SettingsWorkspaceScopeGlobal},
 		)
 		if err != nil {

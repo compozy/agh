@@ -136,17 +136,14 @@ describe("captureRouteState", () => {
     window.history.replaceState({}, "", "/jobs");
     document.title = "AGH";
     document.body.innerHTML = `
-      <div data-testid="jobs-shell">
-        <button data-testid="jobs-scope-all" aria-pressed="true"></button>
-        <button data-testid="jobs-scope-global" aria-pressed="false"></button>
-        <button data-testid="jobs-scope-workspace" aria-pressed="false"></button>
+      <div data-testid="jobs-shell"></div>
+      <div data-testid="jobs-list-rows">
+        <div data-testid="automation-item-job_daily_review"><a href="/jobs/job_daily_review"></a></div>
+        <div data-testid="automation-item-job_weekly_triage"><a href="/jobs/job_weekly_triage"></a></div>
       </div>
-      <aside data-testid="automation-list-panel">
-        <button data-testid="automation-item-job_daily_review"></button>
-        <button data-testid="automation-item-job_weekly_triage"></button>
-      </aside>
       <section data-testid="automation-detail-panel">
         <h1>deploy-review</h1>
+        <button data-testid="automation-detail-overflow"></button>
         <button data-testid="toggle-automation-btn"></button>
         <button data-testid="trigger-job-btn"></button>
         <button data-testid="delete-automation-btn"></button>
@@ -169,6 +166,7 @@ describe("captureRouteState", () => {
       automation_view_visible: true,
       automation_active_tab: "jobs",
       automation_delete_visible: true,
+      automation_detail_overflow_visible: true,
       automation_enabled_toggle_visible: true,
       automation_editor_kind: "job",
       automation_editor_open: false,
@@ -224,10 +222,10 @@ describe("captureRouteState", () => {
     document.title = "AGH";
     document.body.innerHTML = `
       <div data-testid="tasks-dashboard-view">
-        <button data-testid="tasks-mode-dashboard" aria-pressed="false"></button>
-        <button data-testid="tasks-mode-inbox" aria-pressed="false"></button>
-        <button data-testid="tasks-mode-kanban" aria-pressed="false"></button>
-        <button data-testid="tasks-mode-list" aria-pressed="true"></button>
+        <a data-testid="tasks-mode-dashboard" href="/tasks?mode=dashboard"></a>
+        <a data-testid="tasks-mode-inbox" href="/tasks?mode=inbox"></a>
+        <a data-testid="tasks-mode-kanban" href="/tasks?mode=kanban"></a>
+        <a data-testid="tasks-mode-list" aria-current="page" href="/tasks"></a>
         <article data-testid="task-card-task_launch"></article>
         <article data-testid="task-card-task_review"></article>
       </div>
@@ -317,22 +315,16 @@ describe("captureRouteState", () => {
     });
   });
 
-  it("captures the installed Skills catalog, detail, and enabled state", async () => {
-    window.history.replaceState({}, "", "/skills");
+  it("captures the installed Skills catalog and unified detail state", async () => {
+    window.history.replaceState({}, "", "/marketplace/skills?tab=installed");
     document.title = "AGH";
     document.body.innerHTML = `
-      <main data-testid="skills-shell">
-        <input data-testid="skill-search-input" value="browser-context" />
-        <aside data-testid="skill-list-panel">
-          <button data-testid="skill-item-browser-context-skill" data-state="selected">
-            Browser Context Skill
-          </button>
-          <button data-testid="skill-item-browser-other-skill">Other Skill</button>
-        </aside>
-        <section data-testid="skill-detail-panel">
-          <button data-testid="skill-enabled-toggle">Enabled</button>
-          <article data-testid="content-body">Skill content</article>
-        </section>
+      <main data-testid="marketplace-kind-skill">
+        <input data-testid="marketplace-kind-search-skill" value="browser-context" />
+        <article data-testid="marketplace-installed-card-browser-context-skill">
+          Browser Context Skill
+        </article>
+        <article data-testid="marketplace-installed-card-browser-other-skill">Other Skill</article>
       </main>
     `;
 
@@ -341,24 +333,18 @@ describe("captureRouteState", () => {
     });
 
     expect(installedState).toMatchObject({
-      pathname: "/skills",
-      skills_content_visible: true,
-      skills_detail_visible: true,
-      skills_enabled_state: "enabled",
+      pathname: "/marketplace/skills",
+      skills_content_visible: false,
+      skills_detail_visible: false,
       skills_item_count: 2,
       skills_search_active: true,
-      skills_selected_item: "browser-context-skill",
       skills_view_visible: true,
     });
 
-    window.history.replaceState(
-      {},
-      "",
-      "/skills/browser-context-skill?content=browser-context-skill"
-    );
+    window.history.replaceState({}, "", "/marketplace/skill/browser-context-skill");
     document.body.innerHTML = `
-      <section data-testid="skill-detail-panel">
-        <button data-testid="skill-enabled-toggle">Enabled</button>
+      <section data-testid="marketplace-detail">
+        <span id="marketplace-skill-enabled-label">Enabled</span>
         <article data-testid="content-body">Skill content</article>
       </section>
     `;
@@ -368,7 +354,7 @@ describe("captureRouteState", () => {
     });
 
     expect(detailState).toMatchObject({
-      pathname: "/skills/browser-context-skill",
+      pathname: "/marketplace/skill/browser-context-skill",
       skills_content_visible: true,
       skills_detail_visible: true,
       skills_enabled_state: "enabled",

@@ -6,7 +6,7 @@ persona: Maya
 journey: J-edit-reply-context
 expected: A supported Slack or Telegram message edit reaches the routed agent as a distinct edit with the affected message identity and replacement or deletion operation; Slack, Telegram, and Google Chat replies include bounded already-observed parent text and author when available, while a cache miss remains empty without a provider fetch or workspace, instance, or conversation bleed.
 entry_points: Public Slack, Telegram, and Google Chat inbound bridge webhooks; routed session prompt
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

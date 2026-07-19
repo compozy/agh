@@ -8,8 +8,6 @@ import {
   automationOperatorTestIds,
   bridgeOperatorSelectors,
   bridgeOperatorTestIds,
-  extensionsOperatorSelectors,
-  extensionsOperatorTestIds,
   marketplaceOperatorSelectors,
   marketplaceOperatorTestIds,
   networkOperatorSelectors,
@@ -24,8 +22,6 @@ import {
   settingsSkillsTestIds,
   sandboxOperatorSelectors,
   sandboxOperatorTestIds,
-  skillsOperatorSelectors,
-  skillsOperatorTestIds,
   sessionLifecycleSelectors,
   sessionLifecycleTestIds,
   tasksOperatorSelectors,
@@ -129,9 +125,9 @@ describe("automation operator selectors", () => {
     expect(selectors.navTriggers).toBe(`locator:${automationOperatorTestIds.navTriggers}`);
     expect(selectors.jobsShell).toBe(`locator:${automationOperatorTestIds.jobsShell}`);
     expect(selectors.triggersShell).toBe(`locator:${automationOperatorTestIds.triggersShell}`);
-    expect(selectors.jobsScopeAll).toBe(`locator:${automationOperatorTestIds.jobsScopeAll}`);
-    expect(selectors.triggersScopeAll).toBe(
-      `locator:${automationOperatorTestIds.triggersScopeAll}`
+    expect(selectors.jobsListRows).toBe(`locator:${automationOperatorTestIds.jobsListRows}`);
+    expect(selectors.triggersListRows).toBe(
+      `locator:${automationOperatorTestIds.triggersListRows}`
     );
     expect(selectors.createJobButton).toBe(`locator:${automationOperatorTestIds.createJobButton}`);
     expect(selectors.createTriggerButton).toBe(
@@ -260,41 +256,11 @@ describe("bridge operator selectors", () => {
   });
 });
 
-describe("skills operator selectors", () => {
-  it("maps the installed Skills catalog, detail, and workspace guard surfaces to stable test IDs", () => {
-    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const selectors = skillsOperatorSelectors({
-      getByTestId,
-    });
-
-    expect(selectors.appSidebar).toBe(`locator:${skillsOperatorTestIds.appSidebar}`);
-    expect(selectors.contentBody).toBe(`locator:${skillsOperatorTestIds.contentBody}`);
-    expect(selectors.detailPanel).toBe(`locator:${skillsOperatorTestIds.detailPanel}`);
-    expect(selectors.enabledSwitch).toBe(`locator:${skillsOperatorTestIds.enabledSwitch}`);
-    expect(selectors.enabledToggle).toBe(`locator:${skillsOperatorTestIds.enabledToggle}`);
-    expect(selectors.listPanel).toBe(`locator:${skillsOperatorTestIds.listPanel}`);
-    expect(selectors.navSkills).toBe(`locator:${skillsOperatorTestIds.navSkills}`);
-    expect(selectors.searchInput).toBe(`locator:${skillsOperatorTestIds.searchInput}`);
-    expect(selectors.shell).toBe(`locator:${skillsOperatorTestIds.shell}`);
-    expect(selectors.viewFullContent).toBe(`locator:${skillsOperatorTestIds.viewFullContent}`);
-    expect(selectors.workspaceOnboarding).toBe(
-      `locator:${skillsOperatorTestIds.workspaceOnboarding}`
-    );
-    expect(selectors.workspaceUseGlobal).toBe(
-      `locator:${skillsOperatorTestIds.workspaceUseGlobal}`
-    );
-    expect(selectors.item("browser-context-skill")).toBe(
-      "locator:skill-item-browser-context-skill"
-    );
-  });
-});
-
 describe("marketplace operator selectors", () => {
   it("maps acquisition, detail, and overlay surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
     const selectors = marketplaceOperatorSelectors({ getByTestId });
 
-    expect(selectors.landing).toBe(`locator:${marketplaceOperatorTestIds.landing}`);
     expect(selectors.kindNavigation).toBe(`locator:${marketplaceOperatorTestIds.kindNavigation}`);
     expect(selectors.detail).toBe(`locator:${marketplaceOperatorTestIds.detail}`);
     expect(selectors.detailAction).toBe(`locator:${marketplaceOperatorTestIds.detailAction}`);
@@ -319,33 +285,12 @@ describe("marketplace operator selectors", () => {
     expect(selectors.card("browser-skill")).toBe("locator:marketplace-card-browser-skill");
     expect(selectors.action("browser-skill")).toBe("locator:marketplace-action-browser-skill");
     expect(selectors.kind("skill")).toBe("locator:marketplace-kind-skill");
-    expect(selectors.section("mcp")).toBe("locator:marketplace-section-mcp");
     expect(selectors.mcpVaultSelector("BROWSER_TOKEN")).toBe(
       "locator:mcp-vault-selector-BROWSER_TOKEN"
     );
     expect(selectors.mcpCreateSecret("BROWSER_TOKEN")).toBe(
       "locator:mcp-create-secret-BROWSER_TOKEN"
     );
-  });
-});
-
-describe("extensions operator selectors", () => {
-  it("maps installed extension and bundle management surfaces to stable test IDs", () => {
-    const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const selectors = extensionsOperatorSelectors({ getByTestId });
-
-    expect(selectors.page).toBe(`locator:${extensionsOperatorTestIds.page}`);
-    expect(selectors.list).toBe(`locator:${extensionsOperatorTestIds.list}`);
-    expect(selectors.detail).toBe(`locator:${extensionsOperatorTestIds.detail}`);
-    expect(selectors.bundlePage).toBe(`locator:${extensionsOperatorTestIds.bundlePage}`);
-    expect(selectors.bundleList).toBe(`locator:${extensionsOperatorTestIds.bundleList}`);
-    expect(selectors.bundleDetail).toBe(`locator:${extensionsOperatorTestIds.bundleDetail}`);
-    expect(selectors.removeDialog).toBe(`locator:${extensionsOperatorTestIds.removeDialog}`);
-    expect(selectors.deactivateDialog).toBe(
-      `locator:${extensionsOperatorTestIds.deactivateDialog}`
-    );
-    expect(selectors.row("browser-extension")).toBe("locator:extension-row-browser-extension");
-    expect(selectors.bundleRow("activation-1")).toBe("locator:bundle-row-activation-1");
   });
 });
 
@@ -467,13 +412,13 @@ describe("settings operator selectors", () => {
       `locator:${settingsMCPServersTestIds.scopeWorkspace}`
     );
     expect(selectors.mcpServers.row("browser-global-mcp")).toBe(
-      "locator:settings-page-mcp-servers-row-browser-global-mcp"
+      "locator:marketplace-installed-card-browser-global-mcp"
     );
     expect(selectors.mcpServers.rowSource("browser-global-mcp")).toBe(
-      "locator:settings-page-mcp-servers-row-browser-global-mcp-source"
+      'locator:[data-testid="marketplace-installed-card-browser-global-mcp"] [data-slot="pill"]'
     );
     expect(selectors.mcpServers.editRow("browser-global-mcp")).toBe(
-      "locator:settings-page-mcp-servers-row-browser-global-mcp-edit"
+      'locator:[data-testid="marketplace-installed-card-browser-global-mcp"] button[aria-label^="More for"]'
     );
     expect(selectors.mcpServers.editorRemove).toBe("locator:settings-mcp-servers-editor-remove");
 

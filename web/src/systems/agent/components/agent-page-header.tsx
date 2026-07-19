@@ -52,17 +52,14 @@ export function AgentPageMeta({ agent }: AgentPageMetaProps) {
 export interface AgentPageActionsProps {
   onEditSettings: () => void;
   onNewSession: () => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
   isCreatingSession: boolean;
   newSessionDisabled: boolean;
 }
 
+/** Leading topbar actions: New session (accent) + Edit settings (secondary). */
 export function AgentPageActions({
   onEditSettings,
   onNewSession,
-  onDuplicate,
-  onDelete,
   isCreatingSession,
   newSessionDisabled,
 }: AgentPageActionsProps) {
@@ -90,34 +87,45 @@ export function AgentPageActions({
         <Settings2 aria-hidden="true" className="size-3" />
         Edit settings
       </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          aria-label="More agent actions"
-          data-testid="agent-page-overflow"
-          render={<Button type="button" variant="ghost" size="icon-sm" />}
-        >
-          <TopbarOverflowIcon aria-hidden="true" className="size-3" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" data-testid="agent-page-overflow-menu">
-          <DropdownMenuItem
-            data-testid="agent-page-duplicate"
-            onClick={() => {
-              onDuplicate();
-            }}
-          >
-            Duplicate
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            data-testid="agent-page-delete"
-            onClick={() => {
-              onDelete();
-            }}
-          >
-            Delete…
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
+  );
+}
+
+export interface AgentPageOverflowProps {
+  onDuplicate: () => void;
+  onDelete: () => void;
+}
+
+/** Trailing topbar overflow: Duplicate + Delete. */
+export function AgentPageOverflow({ onDuplicate, onDelete }: AgentPageOverflowProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="More agent actions"
+        data-testid="agent-page-overflow"
+        render={<Button type="button" variant="ghost" size="icon-sm" />}
+      >
+        <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" data-testid="agent-page-overflow-menu">
+        <DropdownMenuItem
+          data-testid="agent-page-duplicate"
+          onClick={() => {
+            onDuplicate();
+          }}
+        >
+          Duplicate
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          variant="destructive"
+          data-testid="agent-page-delete"
+          onClick={() => {
+            onDelete();
+          }}
+        >
+          Delete…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -1,7 +1,7 @@
-import { AlertCircle, Play } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Spinner } from "@agh/ui";
+import { cn, PAGE_CONTENT_GUTTER, Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskRunPage } from "@/hooks/routes/use-task-run-page";
 import {
@@ -20,7 +20,7 @@ import {
 
 export const Route = createFileRoute("/_app/tasks/$id/runs/$runId")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: `Run ${params.runId}`, icon: Play },
+    topbar: { crumb: { label: `Run ${params.runId}` } },
   }),
   component: TaskRunDetailRoute,
 });
@@ -46,7 +46,10 @@ function TaskRunDetailRoute() {
   if (page.notFound || (!page.run && page.fatalError)) {
     return (
       <div
-        className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+        className={cn(
+          PAGE_CONTENT_GUTTER,
+          "flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center"
+        )}
         data-testid="tasks-run-detail-not-found"
       >
         <AlertCircle className="size-6 text-danger" />
@@ -78,7 +81,10 @@ function TaskRunDetailRoute() {
     "";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-run-detail-content">
+    <div
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col")}
+      data-testid="tasks-run-detail-content"
+    >
       <TaskRunDetailHeader
         maxAttempts={page.task?.task.max_attempts}
         pendingActions={
@@ -104,7 +110,7 @@ function TaskRunDetailRoute() {
       />
 
       <div
-        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
+        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto py-5"
         data-testid="tasks-run-detail-main"
       >
         <div

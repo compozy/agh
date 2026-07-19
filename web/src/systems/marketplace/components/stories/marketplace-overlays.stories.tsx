@@ -20,7 +20,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const MCPStdioTyped: Story = {
-  parameters: appRouteParameters("/marketplace?kind=mcp"),
+  parameters: appRouteParameters("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -31,7 +31,7 @@ export const MCPStdioTyped: Story = {
 
 export const MCPVaultSelector: Story = {
   parameters: {
-    ...appRouteParameters("/marketplace?kind=mcp"),
+    ...appRouteParameters("/marketplace/mcps"),
     ...storybookMswParameters({
       vault: [
         aghApiMock.get("/api/vault/secrets", () =>
@@ -67,7 +67,7 @@ export const MCPVaultSelector: Story = {
 
 export const MCPVaultCreate: Story = {
   parameters: {
-    ...appRouteParameters("/marketplace?kind=mcp"),
+    ...appRouteParameters("/marketplace/mcps"),
     ...storybookMswParameters({
       vault: [aghApiMock.get("/api/vault/secrets", () => HttpResponse.json({ secrets: [] }))],
     }),
@@ -84,7 +84,7 @@ export const MCPVaultCreate: Story = {
 };
 
 export const MCPRemote: Story = {
-  parameters: appRouteParameters("/marketplace?kind=mcp"),
+  parameters: appRouteParameters("/marketplace/mcps"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -96,7 +96,7 @@ export const MCPRemote: Story = {
 };
 
 export const BundlePreview: Story = {
-  parameters: appRouteParameters("/marketplace?kind=bundles"),
+  parameters: appRouteParameters("/marketplace/bundles"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -107,7 +107,7 @@ export const BundlePreview: Story = {
 
 export const BundleConflict: Story = {
   parameters: {
-    ...appRouteParameters("/marketplace?kind=bundles"),
+    ...appRouteParameters("/marketplace/bundles"),
     ...storybookMswParameters({
       marketplace: [
         aghApiMock.post("/api/bundles/preview", () =>
@@ -130,7 +130,7 @@ export const BundleConflict: Story = {
 };
 
 export const ExtensionWarning: Story = {
-  parameters: appRouteParameters("/marketplace?kind=extensions"),
+  parameters: appRouteParameters("/marketplace/extensions"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

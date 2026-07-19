@@ -107,6 +107,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				kind string,
 				query string,
 				limit int,
+				cursor string,
 				scope MarketplaceReadScope,
 			) (MarketplaceKindRecord, error) {
 				if kind != "extension" {
@@ -118,6 +119,9 @@ func TestMarketplaceCommands(t *testing.T) {
 				if limit != marketplaceDefaultLimit {
 					t.Fatalf("limit = %d, want %d", limit, marketplaceDefaultLimit)
 				}
+				if cursor != "page-two" {
+					t.Fatalf("cursor = %q, want page-two", cursor)
+				}
 				if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
 					t.Fatalf("read scope = %#v, want global", scope)
 				}
@@ -126,7 +130,7 @@ func TestMarketplaceCommands(t *testing.T) {
 		})
 
 		stdout, _, err := executeRootCommand(
-			t, deps, "marketplace", "search", "--kind", "extension", "-o", "json",
+			t, deps, "marketplace", "search", "--kind", "extension", "--cursor", "page-two", "-o", "json",
 		)
 		if err != nil {
 			t.Fatalf("marketplace kind search command error = %v", err)
@@ -137,6 +141,62 @@ func TestMarketplaceCommands(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("marketplace kind search = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should preserve one-kind continuation metadata in every non-JSON format", func(t *testing.T) {
+		t.Parallel()
+
+		total := 7
+		response := MarketplaceKindRecord{
+			Kind: "skill", Total: &total, NextCursor: "skill-page-two", Stale: true,
+			ErrorClass: "network", Error: "serving cached catalog",
+			Items: []MarketplaceListingRecord{{
+				Kind: "skill", EntryID: "skill-entry", Name: "Reviewer", Source: "clawhub",
+			}},
+		}
+		deps := newTestDeps(t, &stubClient{browseMarketplaceFn: func(
+			context.Context,
+			string,
+			string,
+			int,
+			string,
+			MarketplaceReadScope,
+		) (MarketplaceKindRecord, error) {
+			return response, nil
+		}})
+
+		for _, format := range []string{"human", "toon", "jsonl"} {
+			t.Run("Should preserve continuation metadata in "+format+" format", func(t *testing.T) {
+				t.Parallel()
+
+				stdout, _, err := executeRootCommand(
+					t, deps, "marketplace", "search", "--kind", "skill", "-o", format,
+				)
+				if err != nil {
+					t.Fatalf("marketplace kind search -o %s error = %v", format, err)
+				}
+				if !strings.Contains(stdout, "skill-page-two") {
+					t.Fatalf("marketplace %s output dropped next cursor: %s", format, stdout)
+				}
+				if !strings.Contains(stdout, "serving cached catalog") {
+					t.Fatalf("marketplace %s output dropped page diagnostic: %s", format, stdout)
+				}
+				if format == "jsonl" {
+					lines := strings.Split(strings.TrimSpace(stdout), "\n")
+					if len(lines) != 2 {
+						t.Fatalf("marketplace JSONL lines = %d, want item plus page; output=%q", len(lines), stdout)
+					}
+					var page marketplaceKindPageRecord
+					if err := json.Unmarshal([]byte(lines[1]), &page); err != nil {
+						t.Fatalf("json.Unmarshal(marketplace page) error = %v", err)
+					}
+					if page.Type != listPageRecordType || page.NextCursor != response.NextCursor ||
+						page.Total == nil || *page.Total != total {
+						t.Fatalf("marketplace JSONL page = %#v, want continuation metadata", page)
+					}
+				}
+			})
 		}
 	})
 
@@ -151,6 +211,7 @@ func TestMarketplaceCommands(t *testing.T) {
 				_ context.Context,
 				kind string,
 				entryID string,
+				installedName string,
 				scope MarketplaceReadScope,
 			) (MarketplaceEntryRecord, error) {
 				if kind != "mcp" {
@@ -158,6 +219,9 @@ func TestMarketplaceCommands(t *testing.T) {
 				}
 				if entryID != "github-mcp" {
 					t.Fatalf("entryID = %q, want github-mcp", entryID)
+				}
+				if installedName != "custom-github" {
+					t.Fatalf("installedName = %q, want custom-github", installedName)
 				}
 				if scope.Scope != contract.SettingsWorkspaceScopeWorkspace || scope.WorkspaceID != "ws-alpha" {
 					t.Fatalf("read scope = %#v, want workspace ws-alpha", scope)
@@ -173,6 +237,8 @@ func TestMarketplaceCommands(t *testing.T) {
 			"info",
 			"mcp",
 			"github-mcp",
+			"--installed-name",
+			"custom-github",
 			"--scope",
 			"workspace",
 			"--workspace",
@@ -253,6 +319,28 @@ func TestMarketplaceCommands(t *testing.T) {
 					t.Fatalf("executeRootCommand() error = %v, want containing %q", err, tc.wantErr)
 				}
 			})
+		}
+	})
+
+	t.Run("Should reject a continuation cursor without one marketplace kind", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newTestDeps(t, &stubClient{searchMarketplaceFn: func(
+			context.Context,
+			string,
+			int,
+			MarketplaceReadScope,
+		) (MarketplaceSearchRecord, error) {
+			called = true
+			return MarketplaceSearchRecord{}, nil
+		}})
+		_, _, err := executeRootCommand(t, deps, "marketplace", "search", "--cursor", "page-two")
+		if err == nil || !strings.Contains(err.Error(), "--cursor requires --kind") {
+			t.Fatalf("marketplace search --cursor error = %v, want kind validation", err)
+		}
+		if called {
+			t.Fatal("marketplace transport called after local cursor validation failure")
 		}
 	})
 }

@@ -110,10 +110,13 @@ binding semantics.
 Config tools live under `agh__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `agh__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
 Automation job/trigger catalogs are available through CLI, HTTP/UDS, and `agh__automation_jobs_list` / `agh__automation_triggers_list`. They return counted cursor pages and support scope/workspace, source, enabled, Loop-target, search, and trigger-event filters. Run/history reads remain separate uncounted `runs` collections; bound them explicitly. Other automation tools under `agh__automation_*` cover detail, mutation, enable/disable, and manual trigger.
+Config- and package-backed definitions accept enabled-only updates and reject deletion; dynamic definitions accept full mutation.
 
-Marketplace discovery has its own `agh__marketplace` toolset with `agh__marketplace_search` for MCP,
-extension, skill, and bundle rows. Its installed-state projection uses the caller's exact workspace;
-never reuse a result across workspace scopes. Extension lifecycle tools remain under `agh__extensions_*` for
+`agh__marketplace_search` returns MCP, extension, skill, and bundle rows. Single-kind calls accept
+`next_cursor` as `cursor`; keep kind, query, and workspace unchanged. Curated and bundle cursors
+fence their projection; remote skill cursors validate the prior page boundary with bounded
+look-behind. Restart from the first page when AGH rejects a continuation. Grouped searches omit it.
+Extension lifecycle tools remain under `agh__extensions_*` for
 list/info/install/update/remove/enable/disable; there is no extension-specific native search tool.
 When `agh__extensions_update` with `all=true` stops on a later target, its error identifies the failed
 extension and completed count, and every earlier committed update retains an `extension.updated`

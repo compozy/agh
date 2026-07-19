@@ -1,825 +1,1178 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  MarketplaceEntryResponse,
-  MarketplaceSearchResponse,
-  MCPInstallResponse,
-} from "../../types";
-import {
-  marketplaceBundlePreviewFixture,
-  marketplaceDetails,
-  marketplaceListings,
-  marketplaceSearchFixture,
-} from "../../mocks";
-import { BundleActivationDialog } from "../bundle-activation-dialog";
-import { ExtensionTrustDialog } from "../extension-trust-dialog";
+import type { MarketplaceListing, MCPInstallResponse } from "../../types";
+import { marketplaceDetails, marketplaceKindFixture, marketplaceListings } from "../../mocks";
 import { MarketplaceCard } from "../marketplace-card";
-import { MarketplaceDetail } from "../marketplace-detail";
-import { MarketplaceKindView } from "../marketplace-kind-view";
-import { MarketplaceLanding } from "../marketplace-landing";
+import { MarketplaceDetailHero } from "../marketplace-detail-hero";
+import { MarketplaceEntryAction, MarketplaceEntryStatus } from "../marketplace-entry-actions";
+import { MarketplaceGrid, MarketplaceGridSkeleton } from "../marketplace-grid";
+import { MarketplaceKindPage } from "../marketplace-kind-page";
 import { MCPInstallDialog } from "../mcp-install-dialog";
 import { buildMCPInstallRequest } from "../mcp-install-model";
 
 const mocks = vi.hoisted(() => ({
-  activate: vi.fn(),
-  activateError: null as Error | null,
-  activateReset: vi.fn(),
+  navigate: vi.fn(),
+  activeWorkspaceId: "ws-a" as string | null,
+  marketData: null as unknown,
+  marketPages: null as unknown[] | null,
+  marketOptions: vi.fn(),
+  marketError: null as Error | null,
+  mcpError: null as Error | null,
+  marketLoading: false,
+  skills: [] as unknown[],
+  skillsWorkspace: vi.fn(),
+  extensions: [] as unknown[],
+  activations: [] as unknown[],
+  handleAction: vi.fn(),
+  handleAuthorize: vi.fn(),
+  handleUpdateBundle: vi.fn(),
+  fetchNextPage: vi.fn(),
+  hasNextPage: false,
+  isFetchNextPageError: false,
+  isFetchingNextPage: false,
+  putMCP: vi.fn(),
+  isEntryPending: vi.fn((_entry: MarketplaceListing) => false),
+  isInstalledItemPending: vi.fn(() => false),
+  isEntryFlashing: vi.fn(() => false),
+  setScope: vi.fn(),
+  toastSuccess: vi.fn(),
+  mcpServers: [] as unknown[],
+  vaultSecrets: [] as unknown[],
   createSecret: vi.fn(),
-  preview: vi.fn(),
-  previewData: undefined as unknown,
-  previewError: null as Error | null,
-  vaultError: null as Error | null,
-  vaultSecrets: [] as Array<{
-    created_at: string;
-    kind: string;
-    namespace: string;
-    present: boolean;
-    ref: string;
-    updated_at: string;
-  }>,
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => {
-    const { params: _params, search, to, ...anchorProps } = props;
-    const searchParams = new URLSearchParams();
-    if (search && typeof search === "object") {
-      for (const [key, value] of Object.entries(search)) {
-        if (value !== undefined) searchParams.set(key, String(value));
-      }
-    }
-    const path = typeof to === "string" ? to : "#marketplace";
-    const href = searchParams.size ? `${path}?${searchParams.toString()}` : path;
-    return (
-      <a href={href} {...anchorProps}>
-        {children}
-      </a>
-    );
+vi.mock("sonner", () => ({
+  toast: { success: mocks.toastSuccess },
+}));
+
+vi.mock("@tanstack/react-router", async () => {
+  const actual =
+    await vi.importActual<typeof import("@tanstack/react-router")>("@tanstack/react-router");
+  return {
+    ...actual,
+    Link: ({
+      children,
+      params,
+      to,
+      search,
+      ...props
+    }: {
+      children?: React.ReactNode;
+      to?: string;
+      params?: Record<string, string>;
+      search?: Record<string, unknown>;
+    } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+      const path = params
+        ? Object.entries(params).reduce(
+            (current, [key, value]) => current.replace(`$${key}`, encodeURIComponent(value)),
+            to ?? ""
+          )
+        : (to ?? "");
+      return (
+        <a
+          href={`${path}${
+            search
+              ? `?${new URLSearchParams(
+                  Object.entries(search).flatMap(([key, value]) =>
+                    value === undefined || value === null ? [] : [[key, String(value)]]
+                  )
+                ).toString()}`
+              : ""
+          }`}
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    },
+    useNavigate: () => mocks.navigate,
+  };
+});
+
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
+}));
+
+vi.mock("@/systems/vault", async () => {
+  const actual = await vi.importActual<typeof import("@/systems/vault")>("@/systems/vault");
+  return {
+    ...actual,
+    usePutVaultSecret: () => ({ isPending: false, mutateAsync: mocks.createSecret }),
+    useVaultSecrets: () => ({
+      data: mocks.vaultSecrets,
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    }),
+  };
+});
+
+vi.mock("../../hooks/use-marketplace", () => ({
+  useMarketplaceKind: (options: unknown) => {
+    mocks.marketOptions(options);
+    return {
+      data:
+        mocks.marketPages || mocks.marketData
+          ? {
+              pageParams: (mocks.marketPages ?? [mocks.marketData]).map(() => undefined),
+              pages: mocks.marketPages ?? [mocks.marketData],
+            }
+          : undefined,
+      error: mocks.marketError,
+      fetchNextPage: mocks.fetchNextPage,
+      hasNextPage: mocks.hasNextPage,
+      isFetching: false,
+      isFetchingNextPage: mocks.isFetchingNextPage,
+      isFetchNextPageError: mocks.isFetchNextPageError,
+      isLoading: mocks.marketLoading,
+      refetch: vi.fn(),
+    };
   },
 }));
 
-vi.mock("@/systems/vault", () => ({
-  usePutVaultSecret: () => ({ isPending: false, mutateAsync: mocks.createSecret }),
-  useVaultSecrets: () => ({
-    data: mocks.vaultSecrets,
-    error: mocks.vaultError,
-    isLoading: false,
-  }),
-}));
-
-vi.mock("../../hooks/use-marketplace-actions", () => ({
-  useActivateMarketplaceBundle: () => ({
-    error: mocks.activateError,
-    isPending: false,
-    mutateAsync: mocks.activate,
-    reset: mocks.activateReset,
-  }),
-  usePreviewMarketplaceBundle: () => ({
-    data: mocks.previewData,
-    error: mocks.previewError,
-    isPending: false,
-    mutate: mocks.preview,
-  }),
-}));
-
-const noop = () => undefined;
-
-beforeEach(() => {
-  mocks.activate.mockReset();
-  mocks.activateError = null;
-  mocks.activateReset.mockReset();
-  mocks.createSecret.mockReset();
-  mocks.preview.mockReset();
-  mocks.previewData = marketplaceBundlePreviewFixture;
-  mocks.previewError = null;
-  mocks.vaultError = null;
-  mocks.vaultSecrets = [];
-  mocks.createSecret.mockResolvedValue({ present: true });
+vi.mock("@/systems/skill", async () => {
+  const actual = await vi.importActual<typeof import("@/systems/skill")>("@/systems/skill");
+  return {
+    ...actual,
+    useSkills: (workspace: string) => {
+      mocks.skillsWorkspace(workspace);
+      return {
+        data: mocks.skills,
+        error: null,
+        isLoading: false,
+        refetch: vi.fn(),
+      };
+    },
+    useRemoveSkillMarketplace: () => ({ mutateAsync: vi.fn() }),
+  };
 });
 
-describe("Marketplace landing and kind views", () => {
-  it("Should keep sibling sections usable when one source fails", () => {
-    const partial: MarketplaceSearchResponse = {
-      ...marketplaceSearchFixture,
-      query: "run",
-      kinds: marketplaceSearchFixture.kinds.map(result =>
-        result.kind === "extension"
-          ? { ...result, error: "source unavailable", items: [], total: null }
-          : result
-      ),
-    };
+vi.mock("@/systems/extensions", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/systems/extensions")>("@/systems/extensions");
+  return {
+    ...actual,
+    useExtensionInventory: () => ({
+      data: mocks.extensions,
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    }),
+    useBundleActivations: () => ({
+      data: mocks.activations,
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    }),
+    useDeactivateBundle: () => ({ mutateAsync: vi.fn() }),
+    useRemoveExtension: () => ({ mutateAsync: vi.fn() }),
+    useToggleExtension: () => ({ mutateAsync: vi.fn() }),
+  };
+});
 
-    render(
-      <MarketplaceLanding
-        data={partial}
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={noop}
-        onSearchChange={noop}
-        query="run"
-      />
-    );
+vi.mock("@/systems/settings/hooks/use-settings-collections", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/systems/settings/hooks/use-settings-collections")
+  >("@/systems/settings/hooks/use-settings-collections");
+  return {
+    ...actual,
+    useSettingsMCPServers: (filter: { scope: string }) => ({
+      data: {
+        mcp_servers: mocks.mcpServers.filter(
+          server => (server as { scope?: string }).scope === filter.scope
+        ),
+      },
+      error: mocks.mcpError,
+      isLoading: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    }),
+  };
+});
 
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Extensions marketplace is unreachable");
-    expect(alert).toHaveAttribute("data-variant", "danger");
+vi.mock("@/systems/settings/hooks/use-settings-mutations", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/systems/settings/hooks/use-settings-mutations")
+  >("@/systems/settings/hooks/use-settings-mutations");
+  return {
+    ...actual,
+    useDeleteSettingsMCPServer: () => ({ mutateAsync: vi.fn() }),
+    usePutSettingsMCPServer: () => ({
+      data: undefined,
+      error: null,
+      isPending: false,
+      mutate: mocks.putMCP,
+      reset: vi.fn(),
+    }),
+  };
+});
+
+vi.mock("../use-marketplace-action-controller", () => ({
+  useMarketplaceActionController: () => ({
+    dialogs: null,
+    handleAction: mocks.handleAction,
+    handleAuthorize: mocks.handleAuthorize,
+    handleDeactivate: vi.fn(),
+    handleRemove: vi.fn(),
+    handleToggleEnabled: vi.fn(),
+    handleUpdateBundle: mocks.handleUpdateBundle,
+    isAuthorizing: false,
+    isEntryFlashing: mocks.isEntryFlashing,
+    isEntryPending: mocks.isEntryPending,
+    isInstalledItemPending: mocks.isInstalledItemPending,
+  }),
+}));
+
+function renderKindPage(
+  kind: "skill" | "mcp" | "extension" | "bundle" = "skill",
+  search: {
+    config_scope?: "global" | "workspace";
+    tab?: "installed";
+    q?: string;
+  } = {}
+) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const page = () => (
+    <QueryClientProvider client={client}>
+      <MarketplaceKindPage kind={kind} search={search} />
+    </QueryClientProvider>
+  );
+  const view = render(page());
+  return { ...view, rerenderKindPage: () => view.rerender(page()) };
+}
+
+describe("MarketplaceKindPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.activeWorkspaceId = "ws-a";
+    mocks.marketData = marketplaceKindFixture("skill");
+    mocks.marketPages = null;
+    mocks.marketError = null;
+    mocks.mcpError = null;
+    mocks.marketLoading = false;
+    mocks.hasNextPage = false;
+    mocks.isFetchNextPageError = false;
+    mocks.isFetchingNextPage = false;
+    mocks.skills = [];
+    mocks.extensions = [];
+    mocks.activations = [];
+    mocks.mcpServers = [];
+    mocks.vaultSecrets = [];
+    mocks.createSecret.mockReset();
+    mocks.isEntryPending.mockReturnValue(false);
+    mocks.isInstalledItemPending.mockReturnValue(false);
+  });
+
+  it("Should render PageHead identity, scope PillGroup, and marketplace cards", () => {
+    renderKindPage("skill");
+    expect(screen.getByTestId("marketplace-kind-head-skill")).toHaveTextContent("Skills");
+    expect(screen.getByTestId("marketplace-scope-skill")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-grid")).toHaveAttribute("data-view", "cards");
     expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
-    expect(screen.getByTestId("marketplace-card-dep-kit")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View all skills results" })).toHaveAttribute(
-      "href",
-      "/marketplace?kind=skills&q=run"
-    );
-    expect(screen.getByRole("link", { name: "View all bundles results" })).toHaveAttribute(
-      "href",
-      "/marketplace?kind=bundles&q=run"
-    );
   });
 
-  it("Should keep a stale source's cached items visible while flagging staleness", async () => {
+  it("Should focus Marketplace search when slash is pressed outside an editable control", async () => {
     const user = userEvent.setup();
-    const onRetry = vi.fn();
-    const stale: MarketplaceSearchResponse = {
-      ...marketplaceSearchFixture,
-      query: "run",
-      kinds: marketplaceSearchFixture.kinds.map(result =>
-        result.kind === "extension"
-          ? { ...result, error: "feed refresh failed", stale: true }
-          : result
-      ),
+    renderKindPage("skill");
+
+    await user.keyboard("/");
+
+    expect(screen.getByTestId("marketplace-kind-search-skill")).toHaveFocus();
+  });
+
+  it("Should preserve server-matched Market entries that do not contain the route query", () => {
+    mocks.marketData = {
+      ...marketplaceKindFixture("skill"),
+      items: [marketplaceListings.skill[0]!],
+      total: 1,
     };
 
-    render(
-      <MarketplaceLanding
-        data={stale}
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={onRetry}
-        onSearchChange={noop}
-        query="run"
-      />
+    renderKindPage("skill", { q: "registry-ranking-signal" });
+
+    expect(mocks.marketOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "skill", q: "registry-ranking-signal" })
     );
-
-    expect(screen.getByTestId("marketplace-card-otel-bridge")).toBeInTheDocument();
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Extensions results may be out of date");
-    expect(alert).toHaveAttribute("data-variant", "warning");
-    await user.click(within(alert).getByRole("button", { name: "Retry" }));
-    expect(onRetry).toHaveBeenCalledOnce();
-  });
-
-  it("Should surface one page-level stale notice when a background refresh fails", async () => {
-    const user = userEvent.setup();
-    const onRetry = vi.fn();
-    render(
-      <MarketplaceLanding
-        data={marketplaceSearchFixture}
-        error={new Error("refresh failed")}
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={onRetry}
-        onSearchChange={noop}
-        query=""
-      />
-    );
-
-    const alerts = screen.getAllByRole("alert");
-    expect(alerts).toHaveLength(1);
-    const alert = alerts[0]!;
-    expect(alert).toHaveTextContent("Marketplace results may be out of date");
-    expect(alert).toHaveAttribute("data-variant", "warning");
     expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
-    expect(screen.getByTestId("marketplace-card-otel-bridge")).toBeInTheDocument();
-    await user.click(within(alert).getByRole("button", { name: "Retry" }));
-    expect(onRetry).toHaveBeenCalledOnce();
   });
 
-  it("Should collapse all-zero search into one clearable empty state", async () => {
+  it("Should request the next server-owned marketplace page", async () => {
     const user = userEvent.setup();
-    const onClear = vi.fn();
-    const empty: MarketplaceSearchResponse = {
-      query: "missing",
-      kinds: marketplaceSearchFixture.kinds.map(result => ({ ...result, items: [], total: 0 })),
+    mocks.hasNextPage = true;
+    renderKindPage("skill");
+
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+
+    expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should render every loaded cursor page with the exact server total", () => {
+    const firstPage = {
+      ...marketplaceKindFixture("skill"),
+      items: marketplaceListings.skill.slice(0, 2),
+      next_cursor: "page-2",
+      total: 4,
     };
-    render(
-      <MarketplaceLanding
-        data={empty}
-        onAction={noop}
-        onClearSearch={onClear}
-        onRetry={noop}
-        onSearchChange={noop}
-        query="missing"
-      />
-    );
+    const secondPage = {
+      ...marketplaceKindFixture("skill"),
+      items: marketplaceListings.skill.slice(2),
+      total: 4,
+    };
+    mocks.marketPages = [firstPage, secondPage];
 
-    expect(screen.getByText("No matches in the marketplace")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Clear search" }));
-    expect(onClear).toHaveBeenCalledOnce();
+    renderKindPage("skill");
+
+    expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-card-spec-preflight")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-kind-count-skill")).toHaveTextContent("4");
   });
 
-  it("Should offer Most downloaded only when the response exposes downloads", () => {
-    const { rerender } = render(
-      <MarketplaceKindView
-        data={{ items: marketplaceListings.skill, kind: "skill", stale: false, total: 12 }}
-        kind="skill"
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={noop}
-        onSearchChange={noop}
-        onSortChange={noop}
-        query=""
-        sort="relevance"
-      />
-    );
-
-    expect(screen.getByRole("option", { name: "Sort: Most downloaded" })).toBeInTheDocument();
-    expect(screen.getByText("Showing 4 of 12")).toBeInTheDocument();
-
-    rerender(
-      <MarketplaceKindView
-        data={{ items: marketplaceListings.bundle, kind: "bundle", stale: false }}
-        kind="bundle"
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={noop}
-        onSearchChange={noop}
-        onSortChange={noop}
-        query=""
-        sort="downloads"
-      />
-    );
-    expect(screen.queryByRole("option", { name: "Sort: Most downloaded" })).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Sort bundles" })).toHaveValue("relevance");
-    expect(screen.queryByText(/Showing .* of/)).not.toBeInTheDocument();
-  });
-
-  it("Should expose retry behavior for top-level and kind catalog failures", async () => {
+  it("Should preserve loaded cards and retry only the failed continuation", async () => {
     const user = userEvent.setup();
-    const onRetry = vi.fn();
-    const { rerender } = render(
-      <MarketplaceLanding
-        error={new Error("catalog offline")}
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={onRetry}
-        onSearchChange={noop}
-        query=""
-      />
-    );
+    mocks.marketPages = [
+      {
+        ...marketplaceKindFixture("skill"),
+        items: marketplaceListings.skill.slice(0, 2),
+        next_cursor: "page-2",
+        total: 4,
+      },
+    ];
+    mocks.hasNextPage = true;
+    mocks.isFetchNextPageError = true;
+    mocks.marketError = new Error("page 2 failed");
 
-    expect(screen.getByRole("heading", { level: 1, name: "Marketplace" })).toBeInTheDocument();
-    expect(screen.getByRole("searchbox", { name: "Search the marketplace" })).toBeInTheDocument();
-    expect(screen.getByText("Unable to load the marketplace")).toBeInTheDocument();
+    renderKindPage("skill");
+
+    expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
+    expect(screen.getByText("More results could not be loaded.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retry" }));
-    expect(onRetry).toHaveBeenCalledOnce();
-
-    rerender(
-      <MarketplaceKindView
-        error={new Error("skills offline")}
-        kind="skill"
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={onRetry}
-        onSearchChange={noop}
-        onSortChange={noop}
-        query=""
-        sort="relevance"
-      />
-    );
-    expect(screen.getByRole("heading", { level: 1, name: "Marketplace" })).toBeInTheDocument();
-    expect(screen.getByRole("searchbox", { name: "Search skills" })).toBeInTheDocument();
-    expect(screen.getByText("Unable to load skills")).toBeInTheDocument();
+    expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1);
   });
 
-  it("Should keep the landing browse frame while loading and omit unavailable section actions", () => {
-    render(
-      <MarketplaceLanding
-        isLoading
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={noop}
-        onSearchChange={noop}
-        query=""
-      />
-    );
-
-    expect(screen.getByRole("heading", { level: 1, name: "Marketplace" })).toBeInTheDocument();
-    expect(screen.getAllByRole("status", { name: "Loading marketplace entries" })).toHaveLength(4);
-    expect(screen.queryByRole("link", { name: /view all/i })).not.toBeInTheDocument();
-  });
-
-  it("Should keep loading geometry and empty kind recovery truthful", async () => {
-    const user = userEvent.setup();
-    const onClear = vi.fn();
-    const { rerender } = render(
-      <MarketplaceKindView
-        isLoading
-        kind="mcp"
-        onAction={noop}
-        onClearSearch={onClear}
-        onRetry={noop}
-        onSearchChange={noop}
-        onSortChange={noop}
-        query=""
-        sort="relevance"
-      />
-    );
-    expect(screen.getByRole("status", { name: "Loading marketplace entries" })).toBeInTheDocument();
-
-    rerender(
-      <MarketplaceKindView
-        data={{ items: [], kind: "mcp", stale: false, total: 0 }}
-        kind="mcp"
-        onAction={noop}
-        onClearSearch={onClear}
-        onRetry={noop}
-        onSearchChange={noop}
-        onSortChange={noop}
-        query="missing"
-        sort="relevance"
-      />
-    );
-    expect(screen.getByText("No mcp servers match this query")).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Clear search" }));
-    expect(onClear).toHaveBeenCalledOnce();
-  });
-
-  it("Should flag a stale kind while keeping its cached rows operable", async () => {
-    const user = userEvent.setup();
-    const onRetry = vi.fn();
-    render(
-      <MarketplaceKindView
-        data={{
-          error: "feed refresh failed",
-          items: marketplaceListings.extension,
-          kind: "extension",
-          stale: true,
-          total: marketplaceListings.extension.length,
-        }}
-        kind="extension"
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={onRetry}
-        onSearchChange={noop}
-        onSortChange={noop}
-        query=""
-        sort="relevance"
-      />
-    );
-
-    expect(screen.getByTestId("marketplace-card-otel-bridge")).toBeInTheDocument();
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Extensions results may be out of date");
-    expect(alert).toHaveAttribute("data-variant", "warning");
-    await user.click(within(alert).getByRole("button", { name: "Retry" }));
-    expect(onRetry).toHaveBeenCalledOnce();
-  });
-
-  it("Should surface an unreachable kind source as a danger banner", () => {
-    render(
-      <MarketplaceKindView
-        data={{
-          error: "source unavailable",
-          items: [],
-          kind: "extension",
-          stale: false,
-          total: null,
-        }}
-        kind="extension"
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={noop}
-        onSearchChange={noop}
-        onSortChange={noop}
-        query=""
-        sort="relevance"
-      />
-    );
-
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Extensions marketplace is unreachable");
-    expect(alert).toHaveAttribute("data-variant", "danger");
-    expect(screen.queryByTestId("marketplace-card-otel-bridge")).not.toBeInTheDocument();
-    expect(screen.queryByText("No extensions")).not.toBeInTheDocument();
-  });
-
-  it("Should keep cached rows visible when a background refresh errors", async () => {
-    const user = userEvent.setup();
-    const onRetry = vi.fn();
-    render(
-      <MarketplaceKindView
-        data={{
-          items: marketplaceListings.extension,
-          kind: "extension",
-          stale: false,
-          total: marketplaceListings.extension.length,
-        }}
-        error={new Error("refresh failed")}
-        kind="extension"
-        onAction={noop}
-        onClearSearch={noop}
-        onRetry={onRetry}
-        onSearchChange={noop}
-        onSortChange={noop}
-        query=""
-        sort="relevance"
-      />
-    );
-
-    expect(screen.getByTestId("marketplace-card-otel-bridge")).toBeInTheDocument();
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Extensions results may be out of date");
-    await user.click(within(alert).getByRole("button", { name: "Retry" }));
-    expect(onRetry).toHaveBeenCalledOnce();
-  });
-});
-
-describe("Marketplace cards and trust", () => {
-  it("Should render installed Manage, update, and focusable policy-block actions", async () => {
-    const user = userEvent.setup();
-    const { rerender } = render(
-      <MarketplaceCard entry={marketplaceListings.skill[0]!} onAction={noop} />
-    );
-    expect(screen.getByRole("link", { name: "Manage git-flow" })).toHaveAttribute(
-      "href",
-      "/skills/git-flow"
-    );
-
-    rerender(<MarketplaceCard entry={marketplaceListings.skill[2]!} onAction={noop} />);
-    expect(screen.getByRole("button", { name: "Update qa-bootstrap" })).toBeInTheDocument();
-
-    rerender(<MarketplaceCard entry={marketplaceListings.extension[2]!} onAction={noop} />);
-    const blocked = screen.getByRole("button", { name: /blocked by extensions policy/i });
-    expect(blocked).toHaveAttribute("aria-disabled", "true");
-    expect(blocked).not.toBeDisabled();
-    await user.tab();
-    await user.tab();
-    expect(blocked).toHaveFocus();
-    expect(await screen.findByText("Blocked by extensions policy")).toBeInTheDocument();
-  });
-
-  it("Should list the daemon trust warnings in the unverified confirmation", () => {
-    render(
-      <ExtensionTrustDialog
-        entry={marketplaceListings.extension[1]!}
-        onConfirm={noop}
-        onOpenChange={noop}
-        open
-      />
-    );
-    expect(screen.getByText("Unsigned package")).toBeInTheDocument();
-    expect(screen.getByText("Network egress")).toBeInTheDocument();
-  });
-
-  it("Should expose every acquisition status and pending action without losing card identity", async () => {
-    const user = userEvent.setup();
-    const onAction = vi.fn();
-    const { rerender } = render(
-      <MarketplaceCard entry={marketplaceListings.extension[0]!} onAction={onAction} />
-    );
-
-    expect(screen.getAllByText("verified")).toHaveLength(2);
-
-    rerender(<MarketplaceCard entry={marketplaceListings.extension[1]!} onAction={onAction} />);
-    expect(screen.getByText("unverified · 2")).toBeInTheDocument();
-
-    rerender(<MarketplaceCard entry={marketplaceListings.mcp[0]!} onAction={onAction} />);
-    expect(screen.getByText("curated")).toBeInTheDocument();
-
-    rerender(<MarketplaceCard entry={marketplaceListings.skill[1]!} onAction={onAction} />);
-    await user.click(screen.getByRole("button", { name: "Install docs-sync" }));
-    expect(onAction).toHaveBeenCalledWith(marketplaceListings.skill[1]);
-
-    rerender(<MarketplaceCard entry={marketplaceListings.skill[1]!} onAction={onAction} pending />);
-    expect(screen.getByRole("button", { name: "Install docs-sync" })).toHaveTextContent(
-      "Installing…"
-    );
-    expect(screen.getByRole("link", { name: "View docs-sync details" })).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
-
-    rerender(<MarketplaceCard entry={marketplaceListings.skill[2]!} onAction={onAction} pending />);
-    expect(screen.getByRole("button", { name: "Update qa-bootstrap" })).toHaveTextContent(
-      "Updating…"
-    );
-
-    rerender(
-      <MarketplaceCard entry={marketplaceListings.bundle[0]!} onAction={onAction} pending />
-    );
-    expect(screen.getByRole("button", { name: "Activate dep-kit" })).toHaveTextContent(
-      "Activating…"
-    );
-
-    rerender(
-      <MarketplaceCard
-        entry={{ ...marketplaceListings.skill[2]!, version: undefined }}
-        onAction={onAction}
-      />
-    );
-    expect(screen.getByText("update available")).toBeInTheDocument();
-  });
-
-  it("Should expose the policy settings bridge on blocked detail", () => {
-    render(
-      <MarketplaceDetail data={marketplaceDetails["extension:policy-blocked"]!} onAction={noop} />
-    );
-    expect(screen.getByText("Settings › Extensions")).toHaveAttribute(
-      "href",
-      "/settings/extensions"
-    );
-    const blockedAction = screen.getByRole("button", { name: "Install policy-blocked" });
-    expect(blockedAction).toHaveAttribute("aria-disabled", "true");
-    expect(blockedAction).not.toBeDisabled();
-  });
-
-  it("Should render installed skill readme and management metadata without a duplicate history", () => {
-    render(<MarketplaceDetail data={marketplaceDetails["skill:git-flow"]!} onAction={noop} />);
-
-    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "Manage git-flow" })).toHaveAttribute(
-      "href",
-      "/skills/git-flow"
-    );
-    expect(screen.getByText("What it does")).toBeInTheDocument();
-    expect(screen.queryByText("v1.4.1")).not.toBeInTheDocument();
-    expect(screen.getByText("MIT")).toBeInTheDocument();
-    expect(screen.getByText("3.4K")).toBeInTheDocument();
-  });
-
-  it("Should render extension provenance and route its primary action", async () => {
-    const user = userEvent.setup();
-    const onAction = vi.fn();
-    render(
-      <MarketplaceDetail data={marketplaceDetails["extension:slack-notify"]!} onAction={onAction} />
-    );
-
-    expect(screen.getByText("Provenance")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Repository" })).toHaveAttribute(
-      "href",
-      "https://github.com/community/slack-notify"
-    );
-    expect(screen.getByRole("link", { name: "Pinned archive" })).toHaveAttribute(
-      "href",
-      "https://github.com/community/slack-notify/releases/download/v1.1.4/slack-notify-v1.1.4.tar.gz"
-    );
-    expect(
-      screen.getByText("9be4d36a7bf48f5df88bb0ee3564561eaeaaeef2bcf76c2e2ad19856c045ef98")
-    ).toBeInTheDocument();
-    expect(screen.getByText("Unsigned package")).toBeInTheDocument();
-    expect(screen.getByText("Network egress")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Install slack-notify" }));
-    expect(onAction).toHaveBeenCalledWith(marketplaceListings.extension[1]);
-  });
-
-  it("Should render bundle profiles and MCP transport-specific configuration", async () => {
-    const user = userEvent.setup();
-    const onAction = vi.fn();
-    const { rerender } = render(
-      <MarketplaceDetail data={marketplaceDetails["bundle:dep-kit"]!} onAction={onAction} />
-    );
-
-    expect(screen.getByText("Dependency review with release notifications.")).toBeInTheDocument();
-    expect(screen.getByText(/2 jobs · 2 triggers/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Activate dep-kit" }));
-    expect(onAction).toHaveBeenCalledWith(marketplaceListings.bundle[0]);
-
-    rerender(<MarketplaceDetail data={marketplaceDetails["mcp:github"]!} onAction={noop} />);
-    expect(screen.getByText("npx -y @modelcontextprotocol/server-github")).toBeInTheDocument();
-    expect(screen.getByText("GITHUB_TOKEN")).toBeInTheDocument();
-
-    rerender(<MarketplaceDetail data={marketplaceDetails["mcp:linear"]!} onAction={noop} />);
-    expect(screen.getByText("https://mcp.linear.app/sse")).toBeInTheDocument();
-    expect(screen.getByText("OAuth 2 PKCE")).toBeInTheDocument();
-    expect(screen.getByText("read, issues:create")).toBeInTheDocument();
-  });
-
-  it("Should render sparse catalog details and all pending detail actions truthfully", () => {
-    const sparseMCP: MarketplaceEntryResponse = {
-      entry: {
-        description: "A transport-only MCP entry.",
-        entry_id: "transport-only",
-        installed: false,
-        kind: "mcp",
-        name: "transport-only",
-        source: "curated",
-        update_available: false,
+  it("Should hydrate the complete catalog before rendering Installed update state", () => {
+    mocks.skills = [
+      {
+        description: "QA lab bootstrap",
+        dir: "/tmp/skills/qa-bootstrap",
+        enabled: true,
+        name: "qa-bootstrap",
+        provenance: { slug: "agh/qa-bootstrap" },
+        source: "workspace",
+        version: "2.0.0",
       },
-      mcp: {
-        env: [{ name: "OPTIONAL_PATH", required: false, secret: false }],
-        transport: "stdio",
+    ];
+    mocks.marketPages = [
+      {
+        ...marketplaceKindFixture("skill"),
+        items: marketplaceListings.skill.slice(0, 2),
+        next_cursor: "page-2",
+        total: 4,
       },
-    };
-    const { rerender } = render(<MarketplaceDetail data={sparseMCP} onAction={noop} pending />);
+    ];
+    mocks.hasNextPage = true;
 
-    expect(screen.getByRole("button", { name: "Install transport-only" })).toHaveTextContent(
-      "Installing…"
-    );
-    expect(screen.getByText("Optional")).toBeInTheDocument();
+    renderKindPage("skill", { tab: "installed" });
 
-    rerender(
-      <MarketplaceDetail
-        data={{
-          ...marketplaceDetails["bundle:dep-kit"]!,
-          bundle: {
-            extension_name: "agh-foundations",
-            profiles: [
-              {
-                agents: 0,
-                bridges: 0,
-                channels: 0,
-                jobs: 0,
-                name: "minimal",
-                triggers: 0,
-              },
-            ],
-          },
-        }}
-        onAction={noop}
-        pending
-      />
-    );
-    expect(screen.getByRole("button", { name: "Activate dep-kit" })).toHaveTextContent(
-      "Activating…"
-    );
-    expect(screen.getByText(/0 agents · 0 jobs/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-installed-card-qa-bootstrap")).not.toBeInTheDocument();
+    expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1);
+  });
 
-    rerender(
-      <MarketplaceDetail
-        data={{
-          ...marketplaceDetails["skill:git-flow"]!,
-          entry: marketplaceListings.skill[2]!,
-        }}
-        onAction={noop}
-        pending
-      />
-    );
-    expect(screen.getByRole("button", { name: "Update qa-bootstrap" })).toHaveTextContent(
-      "Updating…"
+  it("Should query Installed inventory without forwarding the local search to the catalog", () => {
+    renderKindPage("skill", { q: "local-filter", tab: "installed" });
+
+    expect(mocks.marketOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "skill", q: null })
     );
   });
 
-  it("Should distinguish verified checksums and error-level trust guidance", () => {
-    const verifiedDetail: MarketplaceEntryResponse = {
-      ...marketplaceDetails["extension:slack-notify"]!,
-      entry: {
-        ...marketplaceListings.extension[0]!,
-        trust: {
-          allow_unverified: false,
-          checksum_verified: true,
-          decision: "verified",
-          registry_tier: "verified",
-          warnings: [
-            {
-              category: "supply_chain",
-              code: "extension_checksum_mismatch",
-              data_freshness: "live",
-              id: "extension_checksum_mismatch",
-              message: "The downloaded archive did not match the curated digest.",
-              severity: "error",
-              suggested_command: "agh extensions marketplace diagnostics otel-bridge",
-              title: "Checksum mismatch",
-            },
-          ],
+  it("Should block partial Installed truth and retry a failed catalog continuation", async () => {
+    const user = userEvent.setup();
+    mocks.skills = [
+      {
+        description: "QA lab bootstrap",
+        dir: "/tmp/skills/qa-bootstrap",
+        enabled: true,
+        name: "qa-bootstrap",
+        provenance: { slug: "agh/qa-bootstrap" },
+        source: "workspace",
+        version: "2.0.0",
+      },
+    ];
+    mocks.marketPages = [
+      {
+        ...marketplaceKindFixture("skill"),
+        items: marketplaceListings.skill.slice(0, 2),
+        next_cursor: "page-2",
+        total: 4,
+      },
+    ];
+    mocks.hasNextPage = true;
+    mocks.isFetchNextPageError = true;
+    mocks.marketError = new Error("page 2 failed");
+
+    renderKindPage("skill", { tab: "installed" });
+
+    expect(screen.getByText("The marketplace catalog is incomplete")).toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-installed-card-qa-bootstrap")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should join MCP inventory using its effective source identity", () => {
+    mocks.marketData = marketplaceKindFixture("mcp");
+    mocks.mcpServers = [
+      {
+        name: "linear",
+        transport: "sse",
+        catalog_entry: "linear",
+        scope: "workspace",
+        workspace_id: "ws-a",
+        auth: { type: "oauth2_pkce", client_id: "x", client_secret_configured: false },
+        auth_status: {
+          server_name: "linear",
+          scope: "global",
+          status: "needs_login",
+          token_present: false,
+          refreshable: true,
+        },
+        runtime_status: {
+          configured: true,
+          initialized: false,
+          state: "auth_required",
+          probe: "skipped",
+          tool_count: 0,
+        },
+        source_metadata: {
+          available_targets: [],
+          effective_source: { kind: "global-config", scope: "global" },
+          shadowed_sources: [],
         },
       },
+    ];
+    renderKindPage("mcp", { tab: "installed" });
+    const card = screen.getByTestId("marketplace-installed-card-linear");
+    expect(card).toBeInTheDocument();
+    expect(within(card).getByText("sse")).toBeInTheDocument();
+    expect(within(card).getByText("global")).toBeInTheDocument();
+    expect(within(card).getByText("authorize")).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "View linear details" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/marketplace\/mcp\/linear\?.*scope=global/)
+    );
+    expect(within(card).getByRole("link", { name: "View linear details" })).not.toHaveAttribute(
+      "href",
+      expect.stringContaining("workspace_id")
+    );
+    expect(screen.getByRole("button", { name: "Authorize" })).toBeInTheDocument();
+  });
+
+  it("Should create and edit arbitrary MCP server definitions from Installed", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = marketplaceKindFixture("mcp");
+    mocks.mcpServers = [
+      {
+        name: "custom-local",
+        transport: "stdio",
+        command: "custom-mcp",
+        scope: "workspace",
+        workspace_id: "ws-a",
+        runtime_status: {
+          configured: true,
+          initialized: true,
+          state: "ready",
+          probe: "succeeded",
+          tool_count: 2,
+        },
+        source_metadata: {
+          available_targets: ["workspace-config"],
+          effective_source: {
+            kind: "workspace-config",
+            scope: "workspace",
+            workspace_id: "ws-a",
+          },
+          shadowed_sources: [],
+        },
+      },
+    ];
+    renderKindPage("mcp", { tab: "installed" });
+
+    await user.click(screen.getByRole("button", { name: "Add MCP server" }));
+    expect(screen.getByTestId("settings-mcp-servers-editor-title")).toHaveTextContent(
+      "Add MCP server"
+    );
+    await user.type(screen.getByTestId("settings-mcp-servers-editor-name-input"), "new-local");
+    await user.type(screen.getByTestId("settings-mcp-servers-editor-command-input"), "new-mcp");
+    await user.click(screen.getByTestId("settings-mcp-servers-editor-save"));
+    expect(mocks.putMCP.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        filter: {
+          scope: "workspace",
+          target: "auto",
+          workspace_id: "ws-a",
+        },
+        name: "new-local",
+      })
+    );
+    await user.click(screen.getByTestId("settings-mcp-servers-editor-cancel"));
+
+    const menu = screen.getByRole("button", { name: "More for custom-local" });
+    fireEvent.pointerDown(menu, { button: 0, pointerType: "mouse" });
+    await user.click(menu);
+    await user.click(await screen.findByRole("menuitem", { name: "Edit configuration" }));
+    expect(screen.getByTestId("settings-mcp-servers-editor-title")).toHaveTextContent(
+      "Edit custom-local"
+    );
+  });
+
+  it("Should close the MCP editor when the active workspace changes", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = marketplaceKindFixture("mcp");
+    const view = renderKindPage("mcp", { tab: "installed" });
+
+    await user.click(screen.getByRole("button", { name: "Add MCP server" }));
+    expect(screen.getByTestId("settings-mcp-servers-editor-title")).toBeInTheDocument();
+
+    mocks.activeWorkspaceId = "ws-b";
+    view.rerenderKindPage();
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("settings-mcp-servers-editor-title")).not.toBeInTheDocument()
+    );
+    expect(mocks.putMCP).not.toHaveBeenCalled();
+  });
+
+  it("Should preserve sidecar or config ownership when saving installed MCP edits", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = marketplaceKindFixture("mcp");
+    const cases = [
+      {
+        expectedFilter: { scope: "workspace", target: "sidecar", workspace_id: "ws-a" },
+        name: "workspace-sidecar",
+        scope: "workspace",
+        source: { kind: "workspace-mcp-sidecar", scope: "workspace", workspace_id: "ws-a" },
+        workspace_id: "ws-a",
+      },
+      {
+        expectedFilter: { scope: "global", target: "sidecar" },
+        name: "global-sidecar",
+        scope: "global",
+        source: { kind: "global-mcp-sidecar", scope: "global" },
+        workspace_id: undefined,
+      },
+      {
+        expectedFilter: { scope: "workspace", target: "config", workspace_id: "ws-a" },
+        name: "workspace-config",
+        scope: "workspace",
+        source: { kind: "workspace-config", scope: "workspace", workspace_id: "ws-a" },
+        workspace_id: "ws-a",
+      },
+      {
+        expectedFilter: { scope: "global", target: "config" },
+        name: "global-config-from-workspace-collection",
+        scope: "workspace",
+        source: { kind: "global-config", scope: "global" },
+        workspace_id: "ws-a",
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      mocks.putMCP.mockReset();
+      mocks.mcpServers = [
+        {
+          command: "before-edit",
+          name: testCase.name,
+          runtime_status: {
+            configured: true,
+            initialized: true,
+            probe: "succeeded",
+            state: "ready",
+            tool_count: 1,
+          },
+          scope: testCase.scope,
+          source_metadata: {
+            available_targets: [],
+            effective_source: testCase.source,
+            shadowed_sources: [],
+          },
+          transport: "stdio",
+          ...(testCase.workspace_id ? { workspace_id: testCase.workspace_id } : {}),
+        },
+      ];
+      const view = renderKindPage("mcp", { tab: "installed" });
+      const menu = screen.getByRole("button", { name: `More for ${testCase.name}` });
+      fireEvent.pointerDown(menu, { button: 0, pointerType: "mouse" });
+      await user.click(menu);
+      await user.click(await screen.findByRole("menuitem", { name: "Edit configuration" }));
+      const command = screen.getByTestId("settings-mcp-servers-editor-command-input");
+      await user.clear(command);
+      await user.type(command, "after-edit");
+      await user.click(screen.getByTestId("settings-mcp-servers-editor-save"));
+
+      expect(mocks.putMCP).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filter: testCase.expectedFilter,
+          name: testCase.name,
+        }),
+        expect.any(Object)
+      );
+      view.unmount();
+    }
+  });
+
+  it("Should reject a hidden same-scope MCP name before a create mutation", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = marketplaceKindFixture("mcp");
+    mocks.mcpServers = [
+      {
+        command: "hidden-server",
+        name: "hidden-server",
+        scope: "workspace",
+        source_metadata: {
+          available_targets: [],
+          effective_source: {
+            kind: "workspace-config",
+            scope: "workspace",
+            workspace_id: "ws-a",
+          },
+          shadowed_sources: [],
+        },
+        transport: "stdio",
+        workspace_id: "ws-a",
+      },
+    ];
+    renderKindPage("mcp", { q: "no-match", tab: "installed" });
+
+    await user.click(screen.getByRole("button", { name: "Add MCP server" }));
+    await user.type(screen.getByTestId("settings-mcp-servers-editor-name-input"), "hidden-server");
+    await user.type(screen.getByTestId("settings-mcp-servers-editor-command-input"), "replacement");
+
+    expect(screen.getByText('An MCP server named "hidden-server" already exists.')).toBeVisible();
+    expect(screen.getByTestId("settings-mcp-servers-editor-save")).toBeDisabled();
+    expect(mocks.putMCP).not.toHaveBeenCalled();
+  });
+
+  it("Should allow a workspace MCP override of an inherited global definition", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = marketplaceKindFixture("mcp");
+    mocks.mcpServers = [
+      {
+        command: "global-command",
+        name: "inherited-server",
+        scope: "workspace",
+        source_metadata: {
+          available_targets: [],
+          effective_source: { kind: "global-config", scope: "global" },
+          shadowed_sources: [],
+        },
+        transport: "stdio",
+        workspace_id: "ws-a",
+      },
+    ];
+    renderKindPage("mcp", { tab: "installed" });
+
+    await user.click(screen.getByRole("button", { name: "Add MCP server" }));
+    await user.type(
+      screen.getByTestId("settings-mcp-servers-editor-name-input"),
+      "inherited-server"
+    );
+    await user.type(screen.getByTestId("settings-mcp-servers-editor-command-input"), "override");
+
+    expect(screen.queryByText(/already exists/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("settings-mcp-servers-editor-save")).toBeEnabled();
+  });
+
+  it("Should report the MCP write target and lifecycle after a successful save", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = marketplaceKindFixture("mcp");
+    mocks.putMCP.mockImplementation((_variables, options) => {
+      options.onSuccess({
+        restart_required: true,
+        section: "mcp-servers",
+        write_target: "workspace-mcp-sidecar",
+      });
+    });
+    renderKindPage("mcp", { tab: "installed" });
+
+    await user.click(screen.getByRole("button", { name: "Add MCP server" }));
+    await user.type(screen.getByTestId("settings-mcp-servers-editor-name-input"), "feedback");
+    await user.type(
+      screen.getByTestId("settings-mcp-servers-editor-command-input"),
+      "feedback-mcp"
+    );
+    await user.click(screen.getByTestId("settings-mcp-servers-editor-save"));
+
+    expect(mocks.toastSuccess).toHaveBeenCalledWith(
+      'Saved "feedback" · workspace-mcp-sidecar · restart required'
+    );
+    expect(screen.queryByTestId("settings-mcp-servers-editor-title")).not.toBeInTheDocument();
+  });
+
+  it("Should preserve installed MCP rows while exposing an inventory refresh failure", () => {
+    mocks.marketData = marketplaceKindFixture("mcp");
+    mocks.mcpError = new Error("MCP inventory refresh failed");
+    mocks.mcpServers = [
+      {
+        name: "custom-local",
+        transport: "stdio",
+        command: "custom-mcp",
+        scope: "workspace",
+        workspace_id: "ws-a",
+        runtime_status: {
+          configured: true,
+          initialized: true,
+          state: "ready",
+          probe: "succeeded",
+          tool_count: 2,
+        },
+        source_metadata: {
+          available_targets: ["workspace-config"],
+          effective_source: {
+            kind: "workspace-config",
+            scope: "workspace",
+            workspace_id: "ws-a",
+          },
+          shadowed_sources: [],
+        },
+      },
+    ];
+
+    renderKindPage("mcp", { tab: "installed" });
+
+    expect(screen.getByTestId("marketplace-installed-card-custom-local")).toBeInTheDocument();
+    expect(screen.getByText("MCPs results may be out of date")).toBeInTheDocument();
+  });
+
+  it("Should keep a global MCP server visible and scoped with an active workspace", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = marketplaceKindFixture("mcp");
+    mocks.mcpServers = [
+      {
+        name: "global-filesystem",
+        transport: "stdio",
+        scope: "global",
+        runtime_status: {
+          configured: true,
+          initialized: true,
+          state: "ready",
+          probe: "succeeded",
+          tool_count: 3,
+        },
+        source_metadata: {
+          available_targets: [],
+          effective_source: { kind: "global-config", scope: "global" },
+          shadowed_sources: [],
+        },
+      },
+    ];
+
+    renderKindPage("mcp", { tab: "installed" });
+
+    expect(screen.getByRole("link", { name: "View global-filesystem details" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/marketplace\/mcp\/global-filesystem\?.*scope=global/)
+    );
+    const menu = screen.getByRole("button", { name: "More for global-filesystem" });
+    fireEvent.pointerDown(menu, { button: 0, pointerType: "mouse" });
+    await user.click(menu);
+    await user.click(await screen.findByRole("menuitem", { name: "Edit configuration" }));
+    expect(screen.getByText("MCP server · global")).toBeInTheDocument();
+  });
+
+  it("Should show teaching empty for Installed scope with browse CTA", async () => {
+    const user = userEvent.setup();
+    renderKindPage("skill", { tab: "installed" });
+    expect(screen.getByTestId("marketplace-installed-empty-skill")).toBeInTheDocument();
+    expect(screen.getByText(/agh skill install/)).toBeInTheDocument();
+    await user.click(screen.getByTestId("marketplace-browse-market-skill"));
+    expect(mocks.navigate).toHaveBeenCalled();
+  });
+
+  it("Should load global installed skills when no workspace is active", () => {
+    mocks.activeWorkspaceId = null;
+    mocks.skills = [
+      {
+        description: "Global skill",
+        dir: "/tmp/skills/global-review",
+        enabled: true,
+        name: "global-review",
+        source: "global",
+      },
+    ];
+
+    renderKindPage("skill", { tab: "installed" });
+
+    expect(mocks.skillsWorkspace).toHaveBeenLastCalledWith("");
+    expect(screen.getByTestId("marketplace-installed-card-global-review")).toBeInTheDocument();
+  });
+
+  it("Should derive installed update state from later catalog pages", () => {
+    mocks.marketPages = [
+      {
+        ...marketplaceKindFixture("skill"),
+        items: marketplaceListings.skill.slice(0, 2),
+        next_cursor: "page-2",
+        total: 4,
+      },
+      {
+        ...marketplaceKindFixture("skill"),
+        items: marketplaceListings.skill.slice(2),
+        total: 4,
+      },
+    ];
+    mocks.skills = [
+      {
+        description: "QA lab bootstrap",
+        dir: "/tmp/skills/qa-bootstrap",
+        enabled: true,
+        name: "qa-bootstrap",
+        provenance: { slug: "agh/qa-bootstrap" },
+        source: "workspace",
+        version: "2.0.0",
+      },
+    ];
+
+    renderKindPage("skill", { tab: "installed" });
+
+    expect(screen.getByTestId("marketplace-installed-card-qa-bootstrap")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
+  });
+
+  it("Should disable an installed update while its catalog entry action is pending", () => {
+    mocks.marketPages = [
+      {
+        ...marketplaceKindFixture("skill"),
+        items: marketplaceListings.skill,
+        total: marketplaceListings.skill.length,
+      },
+    ];
+    mocks.skills = [
+      {
+        description: "QA lab bootstrap",
+        dir: "/tmp/skills/qa-bootstrap",
+        enabled: true,
+        name: "qa-bootstrap",
+        provenance: { slug: "agh/qa-bootstrap" },
+        source: "workspace",
+        version: "2.0.0",
+      },
+    ];
+    mocks.isEntryPending.mockImplementation(
+      entry => (entry as { entry_id: string }).entry_id === "qa-bootstrap"
+    );
+
+    renderKindPage("skill", { tab: "installed" });
+
+    expect(screen.getByRole("button", { name: "Update" })).toBeDisabled();
+  });
+
+  it("Should match installed skills by metadata tag", () => {
+    mocks.skills = [
+      {
+        description: "Review production changes",
+        dir: "/tmp/skills/reviewer",
+        enabled: true,
+        metadata: { tags: ["security"] },
+        name: "reviewer",
+        source: "workspace",
+      },
+    ];
+
+    renderKindPage("skill", { q: "security", tab: "installed" });
+
+    expect(screen.getByTestId("marketplace-installed-card-reviewer")).toBeInTheDocument();
+  });
+
+  it("Should link bundle-managed skills to their activation", async () => {
+    const user = userEvent.setup();
+    mocks.skills = [
+      {
+        description: "Bundled skill",
+        dir: "/tmp/skills/bundled-skill",
+        enabled: true,
+        name: "bundled-skill",
+        provenance: {
+          installed_from_bundle: "activation-ops-starter",
+          precedence_tier: "workspace",
+        },
+        source: "workspace",
+      },
+    ];
+    mocks.activations = [
+      {
+        bundle_name: "ops-starter",
+        extension_name: "ops-extension",
+        id: "activation-ops-starter",
+        profile_name: "default",
+        scope: "workspace",
+      },
+    ];
+    renderKindPage("skill", { tab: "installed" });
+
+    const trigger = screen.getByRole("button", { name: "More for bundled-skill" });
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
+    await user.click(trigger);
+    expect(await screen.findByText("ops-starter/default")).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "Open bundle activation" })).toHaveAttribute(
+      "href",
+      "/marketplace/bundles/activations/activation-ops-starter"
+    );
+  });
+
+  it("Should join installed bundles by extension and bundle identity", () => {
+    mocks.marketData = {
+      ...marketplaceKindFixture("bundle"),
+      items: [
+        {
+          ...marketplaceListings.bundle[0]!,
+          description: "Bundle from extension A",
+          entry_id: "bundle-extension-a",
+          name: "shared-bundle",
+          source: "extension-a",
+        },
+        {
+          ...marketplaceListings.bundle[0]!,
+          description: "Bundle from extension B",
+          entry_id: "bundle-extension-b",
+          name: "shared-bundle",
+          source: "extension-b",
+        },
+      ],
+      total: 2,
     };
+    mocks.activations = [
+      {
+        bundle_name: "shared-bundle",
+        extension_name: "extension-b",
+        id: "activation-extension-b",
+        profile_name: "default",
+        scope: "global",
+      },
+    ];
 
-    render(<MarketplaceDetail data={verifiedDetail} onAction={noop} />);
+    renderKindPage("bundle", { tab: "installed" });
 
-    const checksumTerm = screen
-      .getAllByRole("term")
-      .find(element => element.textContent === "Checksum");
-    expect(checksumTerm).toBeDefined();
-    const checksumRow = checksumTerm!.parentElement;
-    expect(checksumRow).not.toBeNull();
-    expect(within(checksumRow!).getByRole("definition")).toHaveTextContent("verified");
-    expect(screen.getByText("Checksum mismatch")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-installed-card-bundle-extension-b")).toHaveTextContent(
+      "Bundle from extension B"
+    );
     expect(
-      screen.getByText("agh extensions marketplace diagnostics otel-bridge")
-    ).toBeInTheDocument();
+      screen.queryByTestId("marketplace-installed-card-bundle-extension-a")
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should preserve activation identity when updating an installed bundle", async () => {
+    const user = userEvent.setup();
+    mocks.marketData = marketplaceKindFixture("bundle");
+    mocks.activations = [
+      {
+        bundle_name: "dep-kit",
+        created_at: "2026-07-14T12:00:00Z",
+        extension_name: "agh-foundations",
+        id: "activation-dep-kit",
+        profile_name: "default",
+        scope: "global",
+        spec_drift: true,
+        updated_at: "2026-07-14T12:00:00Z",
+        version: 7,
+      },
+    ];
+    renderKindPage("bundle", { tab: "installed" });
+
+    await user.click(screen.getByRole("button", { name: "Update" }));
+
+    expect(mocks.handleUpdateBundle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activationId: "activation-dep-kit",
+        activationVersion: 7,
+      })
+    );
+  });
+
+  it("Should render query-empty with clear search", () => {
+    mocks.marketData = { ...marketplaceKindFixture("skill"), items: [], total: 0 };
+    renderKindPage("skill", { q: "zzzz" });
+    expect(screen.getByTestId("marketplace-query-empty-skill")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear search" })).toBeInTheDocument();
+  });
+
+  it("Should cancel a pending search update when the query is cleared", () => {
+    vi.useFakeTimers();
+    mocks.marketData = { ...marketplaceKindFixture("skill"), items: [], total: 0 };
+    renderKindPage("skill", { q: "missing" });
+
+    fireEvent.change(screen.getByTestId("marketplace-kind-search-skill"), {
+      target: { value: "stale query" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    vi.runAllTimers();
+
+    expect(mocks.navigate).toHaveBeenCalledTimes(1);
+    const navigation = mocks.navigate.mock.calls[0]?.[0] as {
+      search: (current: Record<string, unknown>) => Record<string, unknown>;
+    };
+    expect(navigation.search({ q: "missing" })).toEqual({ q: undefined });
+    vi.useRealTimers();
+  });
+
+  it("Should cancel a pending search update when browser navigation changes the route query", () => {
+    vi.useFakeTimers();
+    const view = renderKindPage("skill", { q: "before" });
+
+    fireEvent.change(screen.getByTestId("marketplace-kind-search-skill"), {
+      target: { value: "stale local query" },
+    });
+    view.rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <MarketplaceKindPage kind="skill" search={{ q: "browser-back-query" }} />
+      </QueryClientProvider>
+    );
+    vi.runAllTimers();
+
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(screen.getByTestId("marketplace-kind-search-skill")).toHaveValue("browser-back-query");
+    vi.useRealTimers();
   });
 });
 
 describe("MCP guided install", () => {
-  it("Should keep Install disabled until the required typed value is present", async () => {
+  it("Should serialize a required typed value into the workspace install request", async () => {
     const user = userEvent.setup();
     const onInstall = vi.fn().mockResolvedValue({} as MCPInstallResponse);
     render(
       <MCPInstallDialog
         data={marketplaceDetails["mcp:github"]!}
         onInstall={onInstall}
-        onOpenChange={noop}
+        onOpenChange={vi.fn()}
         open
-        workspaceId="ws_story_fintech"
+        workspaceId="ws-story"
       />
     );
+
     const confirm = screen.getByTestId("mcp-install-confirm");
     expect(confirm).toBeDisabled();
     await user.type(screen.getByLabelText(/^GITHUB_TOKEN\*?$/), "github-secret");
-    expect(confirm).toBeEnabled();
     await user.click(confirm);
+
     await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
-    expect(onInstall.mock.calls[0]?.[0]).toMatchObject({
-      scope: "workspace",
-      values: { env: { GITHUB_TOKEN: { value: "github-secret" } } },
-      workspace_id: "ws_story_fintech",
-    });
+    expect(onInstall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: "workspace",
+        values: { env: { GITHUB_TOKEN: { value: "github-secret" } } },
+        workspace_id: "ws-story",
+      })
+    );
   });
 
-  it("Should bind a selected present Vault ref without reading its value", async () => {
+  it("Should bind an existing Vault ref without reading its value", async () => {
     const user = userEvent.setup();
     const onInstall = vi.fn().mockResolvedValue({} as MCPInstallResponse);
     mocks.vaultSecrets = [
       {
-        created_at: "2026-07-14T11:00:00Z",
+        created_at: "2026-07-18T12:00:00Z",
         kind: "mcp_env",
         namespace: "mcp",
         present: true,
-        ref: "vault:mcp/ws/ws_story_fintech/github/env/GITHUB_TOKEN",
-        updated_at: "2026-07-14T11:00:00Z",
+        ref: "vault:mcp/ws/ws-story/github/env/GITHUB_TOKEN",
+        updated_at: "2026-07-18T12:00:00Z",
       },
     ];
     render(
       <MCPInstallDialog
         data={marketplaceDetails["mcp:github"]!}
         onInstall={onInstall}
-        onOpenChange={noop}
+        onOpenChange={vi.fn()}
         open
-        workspaceId="ws_story_fintech"
+        workspaceId="ws-story"
       />
     );
+
     await user.click(screen.getByRole("button", { name: "Use Vault" }));
-    expect(screen.getByText("Choose existing secret")).toBeInTheDocument();
-    expect(screen.getByText("namespace=mcp")).toBeInTheDocument();
-    expect(screen.getByText("Values stay hidden.")).toBeInTheDocument();
-    const vaultRadio = screen.getByRole("radio", {
-      name: /vault:mcp\/ws\/ws_story_fintech\/github\/env\/GITHUB_TOKEN/,
-    });
-    await user.click(vaultRadio);
-    expect(vaultRadio).toHaveAttribute("aria-checked", "true");
+    await user.click(
+      screen.getByRole("radio", { name: /vault:mcp\/ws\/ws-story\/github\/env\/GITHUB_TOKEN/ })
+    );
     await user.click(screen.getByTestId("mcp-install-confirm"));
+
     await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
-    expect(onInstall.mock.calls[0]?.[0]).toMatchObject({
-      values: {
-        env: {
-          GITHUB_TOKEN: {
-            vault_ref: "vault:mcp/ws/ws_story_fintech/github/env/GITHUB_TOKEN",
+    expect(onInstall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: {
+          env: {
+            GITHUB_TOKEN: { vault_ref: "vault:mcp/ws/ws-story/github/env/GITHUB_TOKEN" },
           },
         },
-      },
-    });
+      })
+    );
   });
 
-  it("Should create an inline Vault secret and bind the canonical ref", async () => {
+  it("Should create an inline Vault secret and install with its canonical ref", async () => {
     const user = userEvent.setup();
     const onInstall = vi.fn().mockResolvedValue({} as MCPInstallResponse);
+    mocks.createSecret.mockResolvedValue(undefined);
     render(
       <MCPInstallDialog
         data={marketplaceDetails["mcp:github"]!}
         onInstall={onInstall}
-        onOpenChange={noop}
+        onOpenChange={vi.fn()}
         open
-        workspaceId="ws_story_fintech"
+        workspaceId="ws-story"
       />
     );
+
     await user.click(screen.getByRole("button", { name: "Use Vault" }));
     await user.click(screen.getByRole("button", { name: "Create Vault secret" }));
     await user.type(screen.getByLabelText("New Vault value for GITHUB_TOKEN"), "created-secret");
     await user.click(screen.getByTestId("mcp-create-secret-GITHUB_TOKEN"));
+
     await waitFor(() => expect(mocks.createSecret).toHaveBeenCalledOnce());
     expect(mocks.createSecret).toHaveBeenCalledWith({
       kind: "mcp_env",
-      ref: "vault:mcp/ws/ws_story_fintech/github/env/GITHUB_TOKEN",
+      ref: "vault:mcp/ws/ws-story/github/env/GITHUB_TOKEN",
       secret_value: "created-secret",
     });
+
     await user.click(screen.getByTestId("mcp-install-confirm"));
     await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
+    expect(onInstall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: {
+          env: {
+            GITHUB_TOKEN: { vault_ref: "vault:mcp/ws/ws-story/github/env/GITHUB_TOKEN" },
+          },
+        },
+      })
+    );
   });
 
-  it("Should preserve field values and show the daemon error after submit failure", async () => {
+  it("Should preserve bindings and expose the daemon error after install rejection", async () => {
     const user = userEvent.setup();
     const onInstall = vi.fn().mockRejectedValue(new Error("Config write rejected"));
+    const onOpenChange = vi.fn();
     render(
       <MCPInstallDialog
         data={marketplaceDetails["mcp:github"]!}
         onInstall={onInstall}
-        onOpenChange={noop}
+        onOpenChange={onOpenChange}
         open
-        workspaceId="ws_story_fintech"
+        workspaceId="ws-story"
       />
     );
+
     const input = screen.getByLabelText(/^GITHUB_TOKEN\*?$/);
     await user.type(input, "keep-this-value");
     await user.click(screen.getByTestId("mcp-install-confirm"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Config write rejected");
+
+    expect(await screen.findByTestId("mcp-install-error")).toHaveTextContent(
+      "Config write rejected"
+    );
     expect(input).toHaveValue("keep-this-value");
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("Should render remote auth without secret fields and submit null values", async () => {
+  it("Should submit remote OAuth installation without secret values", async () => {
     const user = userEvent.setup();
     const onInstall = vi.fn().mockResolvedValue({} as MCPInstallResponse);
     const remote = marketplaceDetails["mcp:linear"]!;
@@ -827,103 +1180,125 @@ describe("MCP guided install", () => {
       <MCPInstallDialog
         data={remote}
         onInstall={onInstall}
-        onOpenChange={noop}
+        onOpenChange={vi.fn()}
         open
-        workspaceId="ws_story_fintech"
+        workspaceId="ws-story"
       />
     );
+
     expect(screen.getByText("Authorization · OAuth 2 PKCE")).toBeInTheDocument();
     expect(screen.queryByText("Required configuration")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("mcp-install-confirm"));
+
     await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
-    expect(onInstall.mock.calls[0]?.[0]).toMatchObject({ entry_id: "linear", values: null });
-    expect(buildMCPInstallRequest(remote, "global", null, {}, true)).not.toHaveProperty(
-      "values.env"
+    expect(onInstall).toHaveBeenCalledWith(
+      expect.objectContaining({ entry_id: "linear", values: null })
     );
+    expect(buildMCPInstallRequest(remote, "global", null, {}, true).values).toBeNull();
   });
 });
 
-describe("Bundle activation preview", () => {
-  it("Should rerun preview when the selected profile changes", async () => {
+describe("Marketplace cards and actions", () => {
+  it("Should dispatch install and update actions with their exact entries", async () => {
     const user = userEvent.setup();
-    render(
-      <BundleActivationDialog
-        data={marketplaceDetails["bundle:dep-kit"]!}
-        onOpenChange={noop}
-        open
-        workspaceId="ws_story_fintech"
-      />
-    );
-    await waitFor(() => expect(mocks.preview).toHaveBeenCalled());
-    await user.click(screen.getByRole("radio", { name: /release/i }));
-    await waitFor(() =>
-      expect(mocks.preview).toHaveBeenLastCalledWith(
-        expect.objectContaining({ profile_name: "release" })
-      )
+    const onAction = vi.fn();
+    const installEntry = marketplaceListings.mcp[0]!;
+    const updateEntry = marketplaceListings.skill[2]!;
+    const view = render(<MarketplaceEntryAction entry={installEntry} onAction={onAction} />);
+
+    await user.click(screen.getByRole("button", { name: `Install ${installEntry.name}` }));
+    expect(onAction).toHaveBeenLastCalledWith(installEntry);
+
+    view.rerender(<MarketplaceEntryAction entry={updateEntry} onAction={onAction} />);
+    await user.click(screen.getByRole("button", { name: `Update ${updateEntry.name}` }));
+    expect(onAction).toHaveBeenLastCalledWith(updateEntry);
+  });
+
+  it.each([
+    [marketplaceListings.mcp[0]!, "Installing…"],
+    [marketplaceListings.skill[2]!, "Updating…"],
+    [marketplaceListings.bundle[0]!, "Activating…"],
+  ])("Should render disabled pending action for %s", (entry, label) => {
+    render(<MarketplaceEntryAction entry={entry} onAction={vi.fn()} pending />);
+
+    expect(screen.getByRole("button", { name: new RegExp(entry.name, "i") })).toBeDisabled();
+    expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  it("Should expose blocked extension action without dispatching it", async () => {
+    const user = userEvent.setup();
+    const onAction = vi.fn();
+    const entry = marketplaceListings.extension[2]!;
+    render(<MarketplaceEntryAction entry={entry} onAction={onAction} />);
+
+    const button = screen.getByTestId(`marketplace-action-${entry.entry_id}`);
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    await user.click(button);
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [marketplaceListings.extension[0]!, "verified"],
+    [marketplaceListings.extension[1]!, "unverified · 2"],
+    [marketplaceListings.extension[2]!, "blocked · 1"],
+    [marketplaceListings.mcp[0]!, "curated"],
+  ])("Should render marketplace trust status for %s", (entry, label) => {
+    render(<MarketplaceEntryStatus entry={entry} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  it("Should render Manage link to Installed scope for installed entries", () => {
+    render(<MarketplaceEntryAction entry={marketplaceListings.skill[0]!} onAction={vi.fn()} />);
+    expect(screen.getByRole("link", { name: /Manage git-flow/i })).toHaveAttribute(
+      "href",
+      "/marketplace/skills?tab=installed"
     );
   });
 
-  it("Should name the daemon conflict and keep Activate disabled", () => {
-    mocks.previewData = undefined;
-    mocks.previewError = new Error("Primary channel already belongs to another activation");
-    render(
-      <BundleActivationDialog
-        data={marketplaceDetails["bundle:dep-kit"]!}
-        onOpenChange={noop}
-        open
-        workspaceId="ws_story_fintech"
-      />
+  it("Should preserve an activation-specific manage path in cards and detail", () => {
+    const entry = {
+      ...marketplaceListings.bundle[0]!,
+      installed: true,
+      manage_path: "/marketplace/bundles/activations/activation-specific",
+      update_available: false,
+    };
+    const view = render(<MarketplaceEntryAction entry={entry} onAction={vi.fn()} />);
+    expect(screen.getByRole("link", { name: `Manage ${entry.name}` })).toHaveAttribute(
+      "href",
+      entry.manage_path
     );
-    expect(screen.getByTestId("bundle-preview-error")).toHaveTextContent(
-      "Primary channel already belongs to another activation"
+
+    view.rerender(<MarketplaceDetailHero entry={entry} onAction={vi.fn()} pending={false} />);
+    expect(screen.getByRole("link", { name: `Manage ${entry.name}` })).toHaveAttribute(
+      "href",
+      entry.manage_path
     );
-    expect(screen.getByTestId("bundle-activate-confirm")).toBeDisabled();
+    expect(screen.getByRole("heading", { level: 2, name: entry.name })).toBeInTheDocument();
   });
 
-  it("Should clear an activation error before retrying the preview", async () => {
-    const user = userEvent.setup();
-    mocks.activateError = new Error("Activation conflict");
-    render(
-      <BundleActivationDialog
-        data={marketplaceDetails["bundle:dep-kit"]!}
-        onOpenChange={noop}
-        open
-        workspaceId="ws_story_fintech"
-      />
-    );
-    await waitFor(() => expect(mocks.preview).toHaveBeenCalled());
-    const previewCalls = mocks.preview.mock.calls.length;
-
-    await user.click(screen.getByRole("button", { name: "Retry bundle preview" }));
-
-    expect(mocks.activateReset).toHaveBeenCalledOnce();
-    expect(mocks.preview).toHaveBeenCalledTimes(previewCalls + 1);
+  it("Should label installed bundles as active", () => {
+    const entry = {
+      ...marketplaceListings.bundle[0]!,
+      installed: true,
+      update_available: false,
+    };
+    render(<MarketplaceEntryStatus entry={entry} />);
+    expect(screen.getByText("active")).toBeInTheDocument();
   });
 
-  it("Should submit the selected global scope and Live network confirmation", async () => {
-    const user = userEvent.setup();
-    const onOpenChange = vi.fn();
-    render(
-      <BundleActivationDialog
-        data={marketplaceDetails["bundle:dep-kit"]!}
-        onOpenChange={onOpenChange}
-        open
-        workspaceId="ws_story_fintech"
-      />
-    );
+  it("Should render cards-only grid skeleton", () => {
+    const { container } = render(<MarketplaceGridSkeleton count={2} />);
+    expect(container.querySelector('[data-view="rows"]')).toBeNull();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole("radio", { name: /Global/ }));
-    await user.click(screen.getByRole("switch", { name: "Confirm Live network participation" }));
-    await user.click(screen.getByTestId("bundle-activate-confirm"));
+  it("Should render marketplace card linking to API-kind detail", () => {
+    render(<MarketplaceCard entry={marketplaceListings.skill[1]!} onAction={vi.fn()} />);
+    expect(screen.getByTestId("marketplace-card-docs-sync")).toBeInTheDocument();
+  });
 
-    await waitFor(() =>
-      expect(mocks.activate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          confirm_network_requirement: true,
-          scope: "global",
-        })
-      )
-    );
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+  it("Should render marketplace grid of cards", () => {
+    render(<MarketplaceGrid entries={marketplaceListings.skill.slice(0, 2)} onAction={vi.fn()} />);
+    expect(screen.getByTestId("marketplace-grid")).toHaveAttribute("data-view", "cards");
   });
 });

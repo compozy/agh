@@ -21,7 +21,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "MCP management route: composed status matrix, authorize/repair flow, and the stdio/HTTP/SSE editor. Stories back the Task 08 Visual Contract capture set.",
+          "Marketplace MCP management: composed status matrix, authorize/repair flow, and the stdio/HTTP/SSE editor. Stories back the Task 08 Visual Contract capture set.",
       },
     },
   },
@@ -56,55 +56,78 @@ function managementParams(path: string) {
   return { ...appRouteParameters(path), ...managementMsw };
 }
 
-async function openAuthorizeWaiting(canvas: ReturnType<typeof within>) {
-  await userEvent.click(
-    await canvas.findByTestId("settings-page-mcp-servers-row-linear-authorize")
-  );
-  await canvas.findByTestId("settings-page-mcp-authorize-url");
+async function clickLinearAuthorize(canvasElement: HTMLElement) {
+  const canvas = within(canvasElement);
+  const page = within(canvasElement.ownerDocument.body);
+  const linearCard = within(await canvas.findByTestId("marketplace-installed-card-linear"));
+  await userEvent.click(linearCard.getByRole("button", { name: "Authorize" }));
+  return page;
+}
+
+async function openAuthorizeWaiting(canvasElement: HTMLElement) {
+  const page = await clickLinearAuthorize(canvasElement);
+  await page.findByTestId("settings-page-mcp-authorize-url");
+  return page;
+}
+
+async function openInstalledServerEditor(
+  canvasElement: HTMLElement,
+  serverName: string,
+  editorTestId: "settings-mcp-editor-stdio" | "settings-mcp-editor-remote"
+) {
+  const canvas = within(canvasElement);
+  const page = within(canvasElement.ownerDocument.body);
+  const card = within(await canvas.findByTestId(`marketplace-installed-card-${serverName}`));
+  await userEvent.click(card.getByRole("button", { name: `More for ${serverName}` }));
+  await userEvent.click(await page.findByRole("menuitem", { name: "Edit configuration" }));
+  await page.findByTestId(editorTestId);
 }
 
 /** matrix-desktop / matrix-mobile */
 export const Matrix: Story = {
-  parameters: managementParams("/mcp?scope=workspace"),
+  args: {},
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 /** selected-needs-login-desktop */
 export const SelectedNeedsLogin: Story = {
-  parameters: managementParams("/mcp?scope=workspace&server=linear"),
+  args: {},
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
 };
 
 /** authorize-waiting-desktop / authorize-mobile */
 export const AuthorizeWaiting: Story = {
+  args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await openAuthorizeWaiting(canvas);
-    await expect(canvas.getByTestId("settings-page-mcp-authorize-waiting")).toBeInTheDocument();
+    const page = await openAuthorizeWaiting(canvasElement);
+    await expect(page.getByTestId("settings-page-mcp-authorize-waiting")).toBeInTheDocument();
   },
 };
 
 /** authorize-manual-desktop */
 export const AuthorizeManual: Story = {
+  args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await openAuthorizeWaiting(canvas);
-    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-manual-trigger"));
-    await canvas.findByTestId("settings-page-mcp-authorize-manual");
+    const page = await openAuthorizeWaiting(canvasElement);
+    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
+    await page.findByTestId("settings-page-mcp-authorize-manual");
   },
 };
 
 /** auth-failure-desktop */
 export const AuthFailure: Story = {
+  args: {},
   tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/mcp?scope=workspace"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", () =>
@@ -126,23 +149,23 @@ export const AuthFailure: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await openAuthorizeWaiting(canvas);
-    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-manual-trigger"));
+    const page = await openAuthorizeWaiting(canvasElement);
+    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
     await userEvent.type(
-      await canvas.findByTestId("settings-page-mcp-authorize-manual-input"),
+      await page.findByTestId("settings-page-mcp-authorize-manual-input"),
       "rejected-code"
     );
-    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-exchange"));
-    await canvas.findByTestId("settings-page-mcp-authorize-failure");
+    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-exchange"));
+    await page.findByTestId("settings-page-mcp-authorize-failure");
   },
 };
 
 /** auth-begin-failure-desktop */
 export const AuthBeginFailure: Story = {
+  args: {},
   tags: ["play-fn"],
   parameters: {
-    ...appRouteParameters("/mcp?scope=workspace"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", () =>
@@ -157,49 +180,47 @@ export const AuthBeginFailure: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(
-      await canvas.findByTestId("settings-page-mcp-servers-row-linear-authorize")
-    );
-    await canvas.findByText("Authorization could not be started");
-    await canvas.findByTestId("settings-page-mcp-authorize-retry");
+    const page = await clickLinearAuthorize(canvasElement);
+    await page.findByText("Authorization could not be started");
+    await page.findByTestId("settings-page-mcp-authorize-retry");
   },
 };
 
 /** authenticated-token-desktop */
 export const Authenticated: Story = {
+  args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await openAuthorizeWaiting(canvas);
-    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-manual-trigger"));
+    const page = await openAuthorizeWaiting(canvasElement);
+    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-manual-trigger"));
     await userEvent.type(
-      await canvas.findByTestId("settings-page-mcp-authorize-manual-input"),
+      await page.findByTestId("settings-page-mcp-authorize-manual-input"),
       "valid-code"
     );
-    await userEvent.click(canvas.getByTestId("settings-page-mcp-authorize-exchange"));
-    await canvas.findByTestId("settings-page-mcp-authorize-confirmed");
+    await userEvent.click(page.getByTestId("settings-page-mcp-authorize-exchange"));
+    await page.findByTestId("settings-page-mcp-authorize-confirmed");
   },
 };
 
 /** editor-stdio-desktop */
 export const EditorStdio: Story = {
+  args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      await canvas.findByTestId("settings-page-mcp-servers-row-github-local-edit")
-    );
-    await canvas.findByTestId("settings-mcp-editor-stdio");
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole("button", { name: "Add MCP server" }));
+    await page.findByTestId("settings-mcp-editor-stdio");
   },
 };
 
 /** editor-stdio-incomplete-secret-desktop */
 export const EditorStdioIncompleteSecret: Story = {
+  args: {},
   render: () => (
     <div className="min-h-screen bg-canvas">
       <MCPServerEditor
@@ -237,25 +258,23 @@ export const EditorStdioIncompleteSecret: Story = {
 
 /** editor-http-desktop / remote-editor-mobile */
 export const EditorHttp: Story = {
+  args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("settings-page-mcp-servers-row-linear-edit"));
-    await canvas.findByTestId("settings-mcp-editor-remote");
+    await openInstalledServerEditor(canvasElement, "linear", "settings-mcp-editor-remote");
   },
 };
 
 /** editor-sse-desktop */
 export const EditorSse: Story = {
+  args: {},
   tags: ["play-fn"],
-  parameters: managementParams("/mcp?scope=workspace"),
+  parameters: managementParams("/marketplace/mcps?tab=installed"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("settings-page-mcp-servers-row-sentry-edit"));
-    await canvas.findByTestId("settings-mcp-editor-remote");
+    await openInstalledServerEditor(canvasElement, "sentry", "settings-mcp-editor-remote");
   },
 };
 
@@ -265,8 +284,9 @@ export const EditorSse: Story = {
  * global query.
  */
 export const Loading: Story = {
+  args: {},
   parameters: {
-    ...appRouteParameters("/mcp?scope=global"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", async ({ request }) => {
@@ -281,8 +301,9 @@ export const Loading: Story = {
 
 /** empty-desktop */
 export const Empty: Story = {
+  args: {},
   parameters: {
-    ...appRouteParameters("/mcp?scope=global"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", () =>
@@ -299,8 +320,9 @@ export const Empty: Story = {
  * matrix then renders its in-component retry block for the failing global query.
  */
 export const Error: Story = {
+  args: {},
   parameters: {
-    ...appRouteParameters("/mcp?scope=global"),
+    ...appRouteParameters("/marketplace/mcps?tab=installed"),
     ...storybookMswParameters({
       settings: [
         aghApiMock.get("/api/settings/mcp-servers", ({ request }) => {

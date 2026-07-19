@@ -84,13 +84,17 @@ func (s *SQLiteStore) ListKind(
 	ctx context.Context,
 	kind Kind,
 	query string,
+	offset int,
 	limit int,
-) ([]Entry, error) {
+) (ListResult, error) {
 	if err := s.checkReady(ctx); err != nil {
-		return nil, err
+		return ListResult{}, err
 	}
 	if _, err := kindFilename(kind); err != nil {
-		return nil, err
+		return ListResult{}, err
+	}
+	if offset < 0 {
+		return ListResult{}, fmt.Errorf("marketplace catalog: list offset must be non-negative: %d", offset)
 	}
 	rows, err := s.repository.ListMarketplaceCatalogEntries(
 		ctx,
@@ -98,14 +102,14 @@ func (s *SQLiteStore) ListKind(
 		maxCatalogEntriesPerKind,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("marketplace catalog: list %q entries: %w", kind, err)
+		return ListResult{}, fmt.Errorf("marketplace catalog: list %q entries: %w", kind, err)
 	}
 	needle := foldMarketplaceText(query)
-	entries := make([]Entry, 0, min(len(rows), normalizeListLimit(limit)))
+	entries := make([]Entry, 0, len(rows))
 	for _, row := range rows {
 		entry, mapErr := marketplaceEntryFromRow(row)
 		if mapErr != nil {
-			return nil, mapErr
+			return ListResult{}, mapErr
 		}
 		if needle == "" || strings.Contains(foldMarketplaceText(entry.Name), needle) ||
 			strings.Contains(foldMarketplaceText(entry.Description), needle) {
@@ -120,10 +124,12 @@ func (s *SQLiteStore) ListKind(
 		}
 		return left < right
 	})
-	if normalizedLimit := normalizeListLimit(limit); len(entries) > normalizedLimit {
-		entries = entries[:normalizedLimit]
+	total := len(entries)
+	if offset >= total {
+		return ListResult{Entries: []Entry{}, Total: total}, nil
 	}
-	return entries, nil
+	end := min(offset+normalizeListLimit(limit), total)
+	return ListResult{Entries: entries[offset:end], Total: total}, nil
 }
 
 // GetEntry returns one projected entry by immutable feed identity.

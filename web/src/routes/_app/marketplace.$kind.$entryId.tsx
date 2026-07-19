@@ -1,5 +1,4 @@
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { Button, RouteState, useTopbarSlot } from "@agh/ui";
 import {
@@ -17,61 +16,84 @@ import {
 import { useActiveWorkspace } from "@/systems/workspace";
 import type { TopbarRouteContext } from "@/types/topbar";
 
+interface MarketplaceDetailSearch {
+  installed_name?: string;
+  scope?: "global" | "workspace";
+  workspace_id?: string;
+}
+
+function validateMarketplaceDetailSearch(search: Record<string, unknown>): MarketplaceDetailSearch {
+  const scope =
+    search.scope === "global" || search.scope === "workspace" ? search.scope : undefined;
+  const workspaceId =
+    scope === "workspace" && typeof search.workspace_id === "string"
+      ? search.workspace_id.trim() || undefined
+      : undefined;
+  const installedName =
+    typeof search.installed_name === "string"
+      ? search.installed_name.trim() || undefined
+      : undefined;
+  return { installed_name: installedName, scope, workspace_id: workspaceId };
+}
+
 export const Route = createFileRoute("/_app/marketplace/$kind/$entryId")({
+  validateSearch: validateMarketplaceDetailSearch,
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: params.entryId },
+    topbar: {
+      parentCrumb: isMarketplaceKind(params.kind)
+        ? {
+            label: MARKETPLACE_KIND_LABEL[params.kind],
+            to: `/marketplace/${marketplaceRouteKindFor(params.kind)}`,
+          }
+        : undefined,
+      crumb: { label: params.entryId },
+    },
   }),
   component: MarketplaceDetailRoute,
 });
 
 function MarketplaceDetailRoute() {
   const { kind, entryId } = Route.useParams();
+  const search = Route.useSearch();
   const navigate = useNavigate();
   if (!isMarketplaceKind(kind)) {
     return (
-      <MarketplaceDetailNotFound onBack={() => void navigate({ search: {}, to: "/marketplace" })} />
+      <MarketplaceDetailNotFound onBack={() => void navigate({ to: "/marketplace/skills" })} />
     );
   }
-  return <MarketplaceDetailRouteBody entryId={entryId} kind={kind} />;
+  return <MarketplaceDetailRouteBody entryId={entryId} kind={kind} search={search} />;
 }
 
-function MarketplaceDetailRouteBody({ entryId, kind }: { entryId: string; kind: MarketplaceKind }) {
+function MarketplaceDetailRouteBody({
+  entryId,
+  kind,
+  search,
+}: {
+  entryId: string;
+  kind: MarketplaceKind;
+  search: MarketplaceDetailSearch;
+}) {
   const navigate = useNavigate();
   const { activeWorkspaceId } = useActiveWorkspace();
-  const query = useMarketplaceEntry({ entryId, kind, workspaceId: activeWorkspaceId });
-  const actions = useMarketplaceActionController(activeWorkspaceId);
+  const workspaceId = search.scope === "global" ? null : (search.workspace_id ?? activeWorkspaceId);
+  const managementScope = search.scope ?? (workspaceId ? "workspace" : "global");
+  const query = useMarketplaceEntry(
+    kind === "bundle"
+      ? { entryId, kind, workspaceId }
+      : { entryId, installedName: search.installed_name, kind, workspaceId }
+  );
+  const actions = useMarketplaceActionController(workspaceId);
   const entryName = query.data?.entry.name ?? entryId;
 
   useTopbarSlot({
-    title: (
-      <span
-        aria-label={`Marketplace, ${MARKETPLACE_KIND_LABEL[kind]}, ${entryName}`}
-        className="flex min-w-0 items-center gap-1.5 text-small-body font-normal text-muted"
-      >
-        <Link className="shrink-0 hover:text-fg" search={{}} to="/marketplace">
-          Marketplace
-        </Link>
-        <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-faint" />
-        <Link
-          className="shrink-0 hover:text-fg"
-          search={{ kind: marketplaceRouteKindFor(kind) }}
-          to="/marketplace"
-        >
-          {MARKETPLACE_KIND_LABEL[kind]}
-        </Link>
-        <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-faint" />
-        <span className="truncate font-medium text-fg-strong">{entryName}</span>
-      </span>
-    ),
+    crumb: entryName,
   });
 
   if (query.isLoading) return <MarketplaceDetailSkeleton />;
   if (query.error instanceof MarketplaceApiError && query.error.status === 404) {
     return (
       <MarketplaceDetailNotFound
-        onBack={() =>
-          void navigate({ search: { kind: marketplaceRouteKindFor(kind) }, to: "/marketplace" })
-        }
+        onBack={() => void navigate({ to: `/marketplace/${marketplaceRouteKindFor(kind)}` })}
       />
     );
   }
@@ -92,6 +114,8 @@ function MarketplaceDetailRouteBody({ entryId, kind }: { entryId: string; kind: 
     <>
       <MarketplaceDetail
         data={query.data}
+        managementScope={managementScope}
+        managementWorkspaceId={workspaceId ?? undefined}
         onAction={actions.handleAction}
         pending={actions.isEntryPending(query.data.entry)}
       />
@@ -99,3 +123,6 @@ function MarketplaceDetailRouteBody({ entryId, kind }: { entryId: string; kind: 
     </>
   );
 }
+
+export { validateMarketplaceDetailSearch };
+export type { MarketplaceDetailSearch };

@@ -71,6 +71,34 @@ function promotionKeys(message: ThreadMessage, source: MessageSource): string[] 
   return [...keys];
 }
 
+function transcriptReconciliationIndex(transcriptMessages: readonly ThreadMessage[]) {
+  return {
+    ids: new Set(transcriptMessages.map(message => message.id)),
+    promotionKeys: new Set(
+      transcriptMessages.flatMap(message => promotionKeys(message, "transcript"))
+    ),
+  };
+}
+
+function isRuntimeMessageReconciled(
+  message: ThreadMessage,
+  transcriptIndex: ReturnType<typeof transcriptReconciliationIndex>
+): boolean {
+  if (transcriptIndex.ids.has(message.id)) return true;
+  return promotionKeys(message, "runtime").some(key => transcriptIndex.promotionKeys.has(key));
+}
+
+export function hasUnreconciledRuntimeMessages({
+  transcriptMessages,
+  runtimeMessages,
+}: {
+  transcriptMessages: readonly ThreadMessage[];
+  runtimeMessages: readonly ThreadMessage[];
+}): boolean {
+  const transcriptIndex = transcriptReconciliationIndex(transcriptMessages);
+  return runtimeMessages.some(message => !isRuntimeMessageReconciled(message, transcriptIndex));
+}
+
 export function mergeSessionThreadReadModel({
   transcriptMessages,
   runtimeMessages,
@@ -84,22 +112,11 @@ export function mergeSessionThreadReadModel({
     return transcriptMessages;
   }
 
-  const transcriptIds = new Set(transcriptMessages.map(message => message.id));
-  const transcriptPromotionKeys = new Set(
-    transcriptMessages.flatMap(message => promotionKeys(message, "transcript"))
-  );
+  const transcriptIndex = transcriptReconciliationIndex(transcriptMessages);
   const optimisticTail: ThreadMessage[] = [];
 
   for (const message of runtimeMessages) {
-    if (transcriptIds.has(message.id)) {
-      continue;
-    }
-    const hasPromotedServerEcho = promotionKeys(message, "runtime").some(key =>
-      transcriptPromotionKeys.has(key)
-    );
-    if (hasPromotedServerEcho) {
-      continue;
-    }
+    if (isRuntimeMessageReconciled(message, transcriptIndex)) continue;
     optimisticTail.push(message);
   }
 

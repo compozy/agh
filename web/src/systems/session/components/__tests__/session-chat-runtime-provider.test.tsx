@@ -1,13 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useAui } from "@assistant-ui/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { Toaster } from "@agh/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
-import { sessionKeys, useSessionTranscriptThreadState } from "@/systems/session";
+import {
+  sessionKeys,
+  useClearSessionConversation,
+  useSessionTranscriptThreadState,
+} from "@/systems/session";
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import { mergeSessionThreadReadModel } from "@/systems/session/lib/session-thread-read-model";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
@@ -256,9 +261,29 @@ function TranscriptStateProbe() {
   );
 }
 
+function ClearConversationButton() {
+  const aui = useAui();
+  const clearMutation = useClearSessionConversation({ workspaceId: fixtureWorkspaceId() });
+
+  return (
+    <button
+      type="button"
+      disabled={clearMutation.isPending}
+      onClick={() => {
+        clearMutation.mutate(primarySessionFixture.id, {
+          onSuccess: () => aui.thread().reset(),
+        });
+      }}
+    >
+      Clear test conversation
+    </button>
+  );
+}
+
 function renderSessionThread(
   options: {
     eventSourceFactory?: (url: string) => FakeSessionEventSource;
+    includeClearAction?: boolean;
     includeToaster?: boolean;
     queryClient?: QueryClient;
     includeTranscriptStateProbe?: boolean;
@@ -276,6 +301,7 @@ function renderSessionThread(
         eventSourceFactory={options.eventSourceFactory}
       >
         {options.includeTranscriptStateProbe ? <TranscriptStateProbe /> : null}
+        {options.includeClearAction ? <ClearConversationButton /> : null}
         <SessionThread
           sessionId={primarySessionFixture.id}
           agentName={primarySessionFixture.agent_name}
@@ -339,6 +365,7 @@ describe("SessionChatRuntimeProvider", () => {
   let transcriptGeneration = 1;
   let transcriptFetchShouldFail = false;
   let transcriptResponsePromise: Promise<Response> | null = null;
+  let clearResponsePromise: Promise<Response> | null = null;
   let promptResponsePromise: Promise<Response> | null = null;
   let olderTranscriptResponsePromise: Promise<Response> | null = null;
   let transcriptFirstSequence = 1;
@@ -359,6 +386,7 @@ describe("SessionChatRuntimeProvider", () => {
     transcriptGeneration = 1;
     transcriptFetchShouldFail = false;
     transcriptResponsePromise = null;
+    clearResponsePromise = null;
     promptResponsePromise = null;
     olderTranscriptResponsePromise = null;
     transcriptFirstSequence = 1;
@@ -408,6 +436,14 @@ describe("SessionChatRuntimeProvider", () => {
           epoch: transcriptEpoch,
           generation: transcriptGeneration,
         });
+      }
+
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/clear`
+      ) {
+        if (clearResponsePromise) return clearResponsePromise;
+        return jsonResponse({ session: sessionDetailResponse });
       }
 
       if (
@@ -781,8 +817,22 @@ describe("SessionChatRuntimeProvider", () => {
           },
         ],
       },
+    ];
+    await queryClient.invalidateQueries({
+      queryKey: sessionKeys.transcript(fixtureWorkspaceId(), primarySessionFixture.id),
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Continue from the reattached thread")).toHaveLength(1);
+      expect(
+        screen.getByText("Live runtime answer before transcript reconciliation.")
+      ).toBeInTheDocument();
+    });
+
+    transcriptMessages = [
+      ...transcriptMessages,
       {
-        id: "transcript_assistant_after_send_001",
+        id: "turn-runtime-001",
         role: "assistant",
         parts: [
           {
@@ -827,6 +877,45 @@ describe("SessionChatRuntimeProvider", () => {
         );
       })
     ).toBe(true);
+  }, 10_000);
+
+  it("Should hide a completed runtime tail while an authoritative Clear is pending", async () => {
+    transcriptMessages = [];
+    const clearResponse = createDeferred<Response>();
+    clearResponsePromise = clearResponse.promise;
+    const user = userEvent.setup();
+    renderSessionThread({ includeClearAction: true, includeTranscriptStateProbe: true });
+
+    const composer = await screen.findByRole("textbox", { name: "Session prompt" });
+    await user.type(composer, "Conversation that should disappear during Clear");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    expect(
+      await screen.findByText("Conversation that should disappear during Clear")
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Live runtime answer before transcript reconciliation.")
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear test conversation" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Clear test conversation" })).toBeDisabled();
+    });
+    expect(
+      screen.queryByText("Conversation that should disappear during Clear")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Live runtime answer before transcript reconciliation.")
+    ).not.toBeInTheDocument();
+
+    clearResponse.resolve(jsonResponse({ session: sessionDetailResponse }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Clear test conversation" })).toBeEnabled();
+    });
+    expect(
+      screen.queryByText("Conversation that should disappear during Clear")
+    ).not.toBeInTheDocument();
   }, 10_000);
 
   it("promotes an optimistic runtime message to the server identity without a duplicate row", () => {

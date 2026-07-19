@@ -1,6 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
-import { MessageCircle } from "lucide-react";
 
 import type { RouterContext } from "@/integrations/tanstack-query/root-context";
 import {
@@ -25,7 +24,7 @@ export async function redirectSessionPermalinkRoute({
   context: RouterContext;
   params: { id: string };
 }): Promise<SessionPermalinkRouteContext> {
-  const topbar = { title: "Session", icon: MessageCircle };
+  const topbar = { crumb: { label: "Session" } };
   let session: SessionPayload;
   try {
     session = await resolveSessionPermalink({

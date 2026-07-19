@@ -36,6 +36,8 @@ export const sessionKeys = {
     [...sessionKeys.events(workspace, id), normalizedEventParams(params)] as const,
   history: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "history"] as const,
+  clearConversation: (workspace: string) =>
+    [...sessionKeys.workspace(workspace), "clear-conversation"] as const,
   transcript: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "transcript"] as const,
   goal: (workspace: string, id: string) => [...sessionKeys.detail(workspace, id), "goal"] as const,

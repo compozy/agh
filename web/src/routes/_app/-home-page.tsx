@@ -1,14 +1,15 @@
-import { AlertTriangle, ServerOff } from "lucide-react";
+import { AlertTriangle, Home, ServerOff } from "lucide-react";
 
 import {
   ConnectionIndicator,
   Empty,
   Metric,
+  PageHead,
+  PageShell,
   Pill,
   Section,
   Skeleton,
   StatusCard,
-  useTopbarSlot,
 } from "@agh/ui";
 
 import { type HomeMetricEntry, type HomePageView, useHomePage } from "@/hooks/routes/use-home-page";
@@ -22,27 +23,34 @@ const METRIC_ORDER: HomeMetricEntry["key"][] = [
 
 export function AppHomePage() {
   const page = useHomePage();
-  useTopbarSlot({
-    actions: (
+
+  const head = (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <PageHead
+        data-testid="home-page-head"
+        icon={Home}
+        meta="Daemon health and workspace overview."
+        title="Home"
+      />
       <ConnectionIndicator data-testid="home-connection-indicator" status={page.connectionStatus} />
-    ),
-  });
+    </div>
+  );
 
   if (page.isLoading) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col" data-testid="home-shell">
-        <div className="flex flex-col gap-6 p-6" data-testid="home-loading">
+      <PageShell data-testid="home-shell" density="route" head={head}>
+        <div className="flex flex-col gap-6" data-testid="home-loading">
           <DaemonStatusSkeleton />
           <MetricsSkeleton />
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   if (page.hasFatalError) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col" data-testid="home-shell">
-        <div className="flex flex-1 items-start p-6" data-testid="home-error">
+      <PageShell data-testid="home-shell" density="route" head={head}>
+        <div data-testid="home-error">
           <Empty
             className="max-w-xl"
             description={page.errorMessage ?? "Unable to load workspace data from the daemon."}
@@ -50,17 +58,17 @@ export function AppHomePage() {
             title="Unable to load dashboard"
           />
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="home-shell">
-      <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-6" data-testid="home-body">
+    <PageShell data-testid="home-shell" density="route" head={head}>
+      <div className="flex flex-col gap-6" data-testid="home-body">
         <DaemonStatusSection page={page} />
         <OverviewSection page={page} />
       </div>
-    </div>
+    </PageShell>
   );
 }
 

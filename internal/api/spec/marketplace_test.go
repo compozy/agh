@@ -73,11 +73,11 @@ func TestMarketplaceOperations(t *testing.T) {
 			t.Fatal("search kinds items schema = nil")
 		}
 		assertRequired(t, searchKinds.Items.Value, "kind", "stale", "items")
-		assertNotRequired(t, searchKinds.Items.Value, "total", "error_class", "error")
+		assertNotRequired(t, searchKinds.Items.Value, "total", "next_cursor", "error_class", "error")
 
 		browse := jsonResponseSchema(t, operationFor(t, doc, "/api/marketplace/{kind}", "GET"), 200)
 		assertRequired(t, browse, "kind", "stale", "items")
-		assertNotRequired(t, browse, "total", "error_class", "error")
+		assertNotRequired(t, browse, "total", "next_cursor", "error_class", "error")
 
 		refresh := jsonResponseSchema(t, operationFor(t, doc, "/api/marketplace/refresh", "POST"), 200)
 		refreshKinds := propertySchema(t, refresh, "kinds")
@@ -132,6 +132,7 @@ func TestMarketplaceOperations(t *testing.T) {
 					},
 					{name: "q", in: openapi3.ParameterInQuery},
 					{name: "limit", in: openapi3.ParameterInQuery},
+					{name: "cursor", in: openapi3.ParameterInQuery},
 					{name: "scope", in: openapi3.ParameterInQuery, enum: []string{"global", "workspace"}},
 					{name: "workspace_id", in: openapi3.ParameterInQuery},
 				},
@@ -147,6 +148,7 @@ func TestMarketplaceOperations(t *testing.T) {
 						enum: []string{"mcp", "extension", "skill", "bundle"},
 					},
 					{name: "entry_id", in: openapi3.ParameterInPath, required: true},
+					{name: "installed_name", in: openapi3.ParameterInQuery},
 					{name: "scope", in: openapi3.ParameterInQuery, enum: []string{"global", "workspace"}},
 					{name: "workspace_id", in: openapi3.ParameterInQuery},
 				},

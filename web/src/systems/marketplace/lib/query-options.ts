@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   browseMarketplaceKind,
@@ -23,9 +23,12 @@ export function marketplaceSearchOptions(options: MarketplaceSearchOptions = {})
 }
 
 export function marketplaceKindOptions(options: MarketplaceKindOptions) {
-  return queryOptions({
+  return infiniteQueryOptions({
     queryKey: marketplaceKeys.kind(options),
-    queryFn: ({ signal }) => browseMarketplaceKind(options, signal),
+    queryFn: ({ pageParam, signal }) =>
+      browseMarketplaceKind({ ...options, cursor: pageParam }, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.next_cursor || undefined,
     staleTime: MARKETPLACE_STALE_TIME,
   });
 }

@@ -63046,6 +63046,9 @@
                           "kind": {
                             "type": "string"
                           },
+                          "next_cursor": {
+                            "type": "string"
+                          },
                           "stale": {
                             "type": "boolean"
                           },
@@ -63317,6 +63320,14 @@
             }
           },
           {
+            "description": "Opaque next_cursor from the previous page",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Installed-state projection scope",
             "in": "query",
             "name": "scope",
@@ -63498,6 +63509,9 @@
                       "type": "array"
                     },
                     "kind": {
+                      "type": "string"
+                    },
+                    "next_cursor": {
                       "type": "string"
                     },
                     "stale": {
@@ -63810,6 +63824,14 @@
             "in": "path",
             "name": "entry_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact installed MCP, extension, or skill identity; rejected for bundles",
+            "in": "query",
+            "name": "installed_name",
             "schema": {
               "type": "string"
             }

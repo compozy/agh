@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -114,6 +114,7 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
 
 import { getTask, getTaskTree } from "@/systems/tasks/adapters/tasks-api";
 
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import { routeComponent } from "@/test/route-options";
 import { Route } from "../tasks.$id";
 
@@ -121,7 +122,7 @@ const TaskDetailRoute = routeComponent(Route);
 
 function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  return renderWithTopbar(
     <QueryClientProvider client={client}>
       <TaskDetailRoute />
     </QueryClientProvider>

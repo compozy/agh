@@ -1,5 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 
+import type { ListingViewMode } from "@agh/ui";
+
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 import {
   useDeleteVaultSecret,
   usePutVaultSecret,
@@ -12,6 +16,12 @@ import {
 } from "@/systems/vault";
 
 export type VaultNamespaceFilter = VaultNamespace | "all";
+
+export interface VaultRouteSearch {
+  q?: string;
+  namespace?: VaultNamespace;
+  view?: ListingViewMode;
+}
 
 export interface VaultDraft {
   ref: string;
@@ -41,6 +51,17 @@ function errorMessage(error: unknown): string | null {
 
 function normalizePrefix(value: string): string {
   return value.trim();
+}
+
+export function normalizeVaultPrefixForNamespace(
+  value: unknown,
+  namespace: VaultNamespace | undefined
+): string | undefined {
+  const prefix = normalizeListingSearchValue(value);
+  if (!prefix || !namespace) return prefix;
+
+  const match = /^vault:([^/]+)\//.exec(prefix);
+  return match && match[1] !== namespace ? undefined : prefix;
 }
 
 function filterFor(namespace: VaultNamespaceFilter, prefix: string): VaultListFilter {
@@ -73,12 +94,24 @@ function countVaultSecrets(secrets: VaultSecret[]) {
   };
 }
 
-export function useVaultPage() {
-  const [namespace, setNamespace] = useState<VaultNamespaceFilter>("all");
-  const [prefix, setPrefix] = useState("");
+export function parseVaultNamespaceFilter(value: unknown): VaultNamespace | undefined {
+  if (typeof value !== "string") return undefined;
+  return (VAULT_NAMESPACES as readonly string[]).includes(value)
+    ? (value as VaultNamespace)
+    : undefined;
+}
+
+export function useVaultPage(search: VaultRouteSearch = {}) {
+  const navigate = useNavigate({ from: "/vault" });
+  const prefix = search.q ?? "";
+  const namespace: VaultNamespaceFilter = search.namespace ?? "all";
+  const view: ListingViewMode = search.view ?? "rows";
+
   const [editor, setEditor] = useState<VaultEditorState>({ mode: "closed" });
   const [deleteTarget, setDeleteTarget] = useState<VaultDeleteState>({ mode: "closed" });
   const [lastAction, setLastAction] = useState<VaultLastAction | null>(null);
+  const [selectedRef, setSelectedRef] = useState<string | null>(null);
+  const [replaceValue, setReplaceValue] = useState("");
 
   const filter = filterFor(namespace, prefix);
   const query = useVaultSecrets(filter);
@@ -87,9 +120,43 @@ export function useVaultPage() {
 
   const secrets = query.data ?? [];
   const counts = countVaultSecrets(secrets);
+  const selectedSecret = selectedRef
+    ? (secrets.find(secret => secret.ref === selectedRef) ?? null)
+    : null;
+
+  const updateSearch = (updater: (current: VaultRouteSearch) => VaultRouteSearch) => {
+    void navigate({
+      search: current => updater((current as VaultRouteSearch | undefined) ?? {}),
+      to: "/vault",
+    });
+  };
+
+  const setPrefix = (nextPrefix: string) => {
+    updateSearch(current => ({
+      ...current,
+      q: normalizeListingSearchValue(nextPrefix),
+    }));
+  };
+
+  const setNamespace = (next: VaultNamespaceFilter) => {
+    updateSearch(current => ({
+      ...current,
+      q: normalizeVaultPrefixForNamespace(current.q, next === "all" ? undefined : next),
+      namespace: next === "all" ? undefined : next,
+    }));
+  };
+
+  const setView = (nextView: ListingViewMode) => {
+    updateSearch(current => ({
+      ...current,
+      view: nextView === "rows" ? undefined : nextView,
+    }));
+  };
 
   const openCreate = () => {
     putMutation.reset();
+    setSelectedRef(null);
+    setReplaceValue("");
     setEditor({ mode: "create", draft: emptyDraft() });
   };
 
@@ -129,7 +196,48 @@ export function useVaultPage() {
     );
   };
 
+  const openInspect = (secret: VaultSecret) => {
+    putMutation.reset();
+    setEditor({ mode: "closed" });
+    setReplaceValue("");
+    setSelectedRef(secret.ref);
+  };
+
+  const closeInspect = () => {
+    setSelectedRef(null);
+    setReplaceValue("");
+    if (editor.mode === "closed") {
+      putMutation.reset();
+    }
+  };
+
+  const replaceIsValid = Boolean(
+    selectedSecret &&
+    replaceValue.trim() !== "" &&
+    deleteTarget.mode === "closed" &&
+    !deleteMutation.isPending
+  );
+
+  const replaceSecret = () => {
+    if (!selectedSecret || !replaceIsValid || deleteMutation.isPending) return;
+    const kind = selectedSecret.kind?.trim();
+    putMutation.mutate(
+      {
+        ref: selectedSecret.ref,
+        secret_value: replaceValue,
+        ...(kind ? { kind } : {}),
+      },
+      {
+        onSuccess: secret => {
+          setLastAction({ kind: "saved", ref: secret.ref, secret });
+          setReplaceValue("");
+        },
+      }
+    );
+  };
+
   const openDelete = (secret: VaultSecret) => {
+    if (putMutation.isPending) return;
     deleteMutation.reset();
     setDeleteTarget({ mode: "open", secret });
   };
@@ -140,12 +248,16 @@ export function useVaultPage() {
   };
 
   const confirmDelete = () => {
-    if (deleteTarget.mode !== "open") return;
+    if (deleteTarget.mode !== "open" || putMutation.isPending || deleteMutation.isPending) return;
     const ref = deleteTarget.secret.ref;
     deleteMutation.mutate(ref, {
       onSuccess: () => {
         setLastAction({ kind: "deleted", ref });
         setDeleteTarget({ mode: "closed" });
+        if (selectedRef === ref) {
+          setSelectedRef(null);
+          setReplaceValue("");
+        }
       },
     });
   };
@@ -154,6 +266,8 @@ export function useVaultPage() {
     setLastAction(null);
   };
 
+  const putError = errorMessage(putMutation.error);
+
   return {
     counts,
     deleteError: errorMessage(deleteMutation.error),
@@ -161,8 +275,8 @@ export function useVaultPage() {
     deleteTarget,
     dismissLastAction,
     editor,
-    editorError: errorMessage(putMutation.error),
-    editorIsSaving: putMutation.isPending,
+    editorError: editor.mode === "create" ? putError : null,
+    editorIsSaving: editor.mode === "create" && putMutation.isPending,
     editorIsValid,
     filter,
     isLoading: query.isLoading,
@@ -172,15 +286,26 @@ export function useVaultPage() {
     prefix,
     queryError: errorMessage(query.error),
     refetch: query.refetch,
+    replaceError: selectedSecret ? putError : null,
+    replaceIsPending: Boolean(selectedSecret) && putMutation.isPending && editor.mode === "closed",
+    replaceIsValid,
+    replaceSecret,
+    replaceValue,
     secrets,
+    selectedSecret,
     setNamespace,
     setPrefix,
+    setReplaceValue,
+    setView,
     closeDelete,
     closeEditor,
+    closeInspect,
     confirmDelete,
     openCreate,
     openDelete,
+    openInspect,
     saveEditor,
     updateDraft,
+    view,
   };
 }

@@ -13,7 +13,7 @@ export interface TasksInboxPageHeadProps {
 }
 
 /**
- * Top of the `/tasks?mode=inbox` page — the h1, the visible/total count chip,
+ * Top of the `/tasks?mode=inbox` page — its body summary, visible/total count chip,
  * and the meta line (workspace + sync freshness + unread/archived totals).
  * Pure presentation; data flows from `useTasksPage` via `TasksInboxView`.
  */
@@ -38,12 +38,12 @@ export function TasksInboxPageHead({
   return (
     <div className="mb-6 flex flex-col gap-2" data-testid="tasks-inbox-page-head">
       <div className="flex items-center gap-3">
-        <h1
+        <h2
           className="m-0 text-detail-h1 font-medium tracking-detail-h1 text-fg-strong"
           data-testid="tasks-inbox-page-title"
         >
           Inbox
-        </h1>
+        </h2>
         {countLabel === null ? null : (
           <span
             className="inline-flex min-h-5 items-center rounded bg-canvas-soft px-1.5 py-0.5 font-mono text-form-hint font-medium tabular-nums text-faint"

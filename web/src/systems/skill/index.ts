@@ -40,6 +40,12 @@ export {
   skillShadowsOptions,
   skillsListOptions,
 } from "./lib/query-options";
+export {
+  deriveSkillCapabilities,
+  deriveSkillRecentCalls,
+  skillSourceTone,
+  type SkillRecentCall,
+} from "./lib/skill-formatters";
 
 // Hooks
 export { useSkill, useSkillContent, useSkillShadows, useSkills } from "./hooks/use-skills";
@@ -50,21 +56,3 @@ export {
   useRemoveSkillMarketplace,
   useUpdateSkillMarketplace,
 } from "./hooks/use-skill-actions";
-
-// Components
-export { SkillListPanel } from "./components/skill-list-panel";
-export { SkillListFilters } from "./components/skill-list-filters";
-export { SkillDetailPanel } from "./components/skill-detail-panel";
-export type {
-  SkillEnabledFilter,
-  SkillFilterState,
-  SkillSourceFilter,
-} from "./lib/skill-list-filters";
-export {
-  applySkillFilterChips,
-  buildSkillFilterFields,
-  filterInstalledSkills,
-  parseSkillEnabledFilter,
-  parseSkillSourceFilter,
-  skillFiltersToChips,
-} from "./lib/skill-list-filters";

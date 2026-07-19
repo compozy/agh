@@ -174,8 +174,8 @@ func (n *daemonNativeTools) automationJobsUpdate(
 	}
 	var updated automationpkg.Job
 	switch current.Source {
-	case automationpkg.JobSourceConfig:
-		if err := core.ValidateAutomationConfigJobUpdate(patch); err != nil {
+	case automationpkg.JobSourceConfig, automationpkg.JobSourcePackage:
+		if err := core.ValidateAutomationManagedJobUpdate(patch); err != nil {
 			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 		}
 		updated, err = n.automationManager().SetJobEnabled(ctx, current.ID, *patch.Enabled)
@@ -355,8 +355,8 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 	}
 	var updated automationpkg.Trigger
 	switch current.Source {
-	case automationpkg.JobSourceConfig:
-		if err := core.ValidateAutomationConfigTriggerUpdate(patch); err != nil {
+	case automationpkg.JobSourceConfig, automationpkg.JobSourcePackage:
+		if err := core.ValidateAutomationManagedTriggerUpdate(patch); err != nil {
 			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 		}
 		updated, err = n.automationManager().SetTriggerEnabled(ctx, current.ID, *patch.Enabled)

@@ -73,8 +73,8 @@ type stubClient struct {
 	promoteNetworkThreadTaskFn  func(context.Context, string, string, string, PromoteNetworkThreadTaskRequest) (PromoteNetworkThreadTaskRecord, error)
 	listExtensionsFn            func(context.Context) ([]ExtensionRecord, error)
 	searchMarketplaceFn         func(context.Context, string, int, MarketplaceReadScope) (MarketplaceSearchRecord, error)
-	browseMarketplaceFn         func(context.Context, string, string, int, MarketplaceReadScope) (MarketplaceKindRecord, error)
-	marketplaceInfoFn           func(context.Context, string, string, MarketplaceReadScope) (MarketplaceEntryRecord, error)
+	browseMarketplaceFn         func(context.Context, string, string, int, string, MarketplaceReadScope) (MarketplaceKindRecord, error)
+	marketplaceInfoFn           func(context.Context, string, string, string, MarketplaceReadScope) (MarketplaceEntryRecord, error)
 	refreshMarketplaceFn        func(context.Context, string) (MarketplaceRefreshRecord, error)
 	installSettingsMCPServerFn  func(context.Context, InstallSettingsMCPServerRequest) (InstallSettingsMCPServerRecord, error)
 	listSettingsMCPServersFn    func(context.Context, contract.SettingsWorkspaceScopeKind, string) (contract.SettingsMCPServersResponse, error)
@@ -882,10 +882,11 @@ func (s *stubClient) BrowseMarketplace(
 	kind string,
 	query string,
 	limit int,
+	cursor string,
 	scope MarketplaceReadScope,
 ) (MarketplaceKindRecord, error) {
 	if s.browseMarketplaceFn != nil {
-		return s.browseMarketplaceFn(ctx, kind, query, limit, scope)
+		return s.browseMarketplaceFn(ctx, kind, query, limit, cursor, scope)
 	}
 	return MarketplaceKindRecord{}, errors.New("unexpected BrowseMarketplace call")
 }
@@ -894,10 +895,11 @@ func (s *stubClient) MarketplaceInfo(
 	ctx context.Context,
 	kind string,
 	entryID string,
+	installedName string,
 	scope MarketplaceReadScope,
 ) (MarketplaceEntryRecord, error) {
 	if s.marketplaceInfoFn != nil {
-		return s.marketplaceInfoFn(ctx, kind, entryID, scope)
+		return s.marketplaceInfoFn(ctx, kind, entryID, installedName, scope)
 	}
 	return MarketplaceEntryRecord{}, errors.New("unexpected MarketplaceInfo call")
 }

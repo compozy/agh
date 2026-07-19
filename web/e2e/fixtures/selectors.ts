@@ -4,13 +4,16 @@ export const sessionLifecycleTestIds = {
   appSidebar: "app-sidebar",
   chatHeader: "chat-header",
   chatView: "chat-view",
+  composerClearButton: "composer-clear-button",
   composerSendButton: "composer-send-button",
   composerTextarea: "composer-textarea",
+  deleteButton: "delete-button",
   permissionAllowOnce: "permission-allow-once",
   permissionPrompt: "permission-prompt",
   processingIndicator: "processing-indicator",
   resumeButton: "resume-button",
   stopButton: "stop-button",
+  topbarOverflow: "session-topbar-overflow",
   workspaceManualPathInput: "workspace-manual-path-input",
   workspaceOnboarding: "workspace-onboarding",
   workspaceRegisterManual: "workspace-register-manual",
@@ -23,13 +26,16 @@ export interface SessionLifecycleSelectors {
   appSidebar: Locator;
   chatHeader: Locator;
   chatView: Locator;
+  composerClearButton: Locator;
   composerSendButton: Locator;
   composerTextarea: Locator;
+  deleteButton: Locator;
   permissionAllowOnce: Locator;
   permissionPrompt: Locator;
   processingIndicator: Locator;
   resumeButton: Locator;
   stopButton: Locator;
+  topbarOverflow: Locator;
   workspaceManualPathInput: Locator;
   workspaceOnboarding: Locator;
   workspaceRegisterManual: Locator;
@@ -83,7 +89,6 @@ export const automationOperatorTestIds = {
   automationEditorDialog: "automation-editor-dialog",
   automationJobScheduler: "automation-job-scheduler",
   automationJobForm: "automation-job-form",
-  automationListPanel: "automation-list-panel",
   automationRunHistory: "automation-run-history",
   automationDeleteDialog: "automation-delete-dialog",
   automationDeleteConfirmTyping: "automation-delete-confirm-typing",
@@ -91,15 +96,14 @@ export const automationOperatorTestIds = {
   createJobButton: "create-job-btn",
   createTriggerButton: "create-trigger-btn",
   deleteAutomationButton: "delete-automation-btn",
+  detailOverflow: "automation-detail-overflow",
   editAutomationButton: "edit-automation-btn",
   jobAgentInput: "job-agent-input",
   jobEnabledToggle: "job-enabled-toggle",
   jobFireLimitMax: "job-fire-limit-max",
   jobFireLimitWindow: "job-fire-limit-window",
   jobGovernanceToggle: "job-governance-toggle",
-  jobsScopeAll: "jobs-scope-all",
-  jobsScopeGlobal: "jobs-scope-global",
-  jobsScopeWorkspace: "jobs-scope-workspace",
+  jobsListRows: "jobs-list-rows",
   jobsShell: "jobs-shell",
   jobNameInput: "job-name-input",
   jobPromptInput: "job-prompt-input",
@@ -119,9 +123,7 @@ export const automationOperatorTestIds = {
   triggerEndpointSlugInput: "trigger-endpoint-slug-input",
   triggerFireLimitMax: "trigger-fire-limit-max",
   triggerFireLimitWindow: "trigger-fire-limit-window",
-  triggersScopeAll: "triggers-scope-all",
-  triggersScopeGlobal: "triggers-scope-global",
-  triggersScopeWorkspace: "triggers-scope-workspace",
+  triggersListRows: "triggers-list-rows",
   triggersShell: "triggers-shell",
   triggerPromptInput: "trigger-prompt-input",
   triggerRetryMax: "trigger-retry-max",
@@ -166,6 +168,7 @@ export const bridgeOperatorTestIds = {
   createBridgeScopeSelect: "bridge-scope-select",
   createBridgeWizardNext: "bridge-wizard-next",
   createBridgeButton: "create-bridge-btn",
+  detailOverflow: "bridge-detail-overflow",
   disableBridgeButton: "disable-bridge-btn",
   editBridgeButton: "edit-bridge-btn",
   enableBridgeButton: "enable-bridge-btn",
@@ -219,21 +222,6 @@ export const knowledgeOperatorTestIds = {
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
 
-export const skillsOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
-  contentBody: "content-body",
-  detailPanel: "skill-detail-panel",
-  enabledSwitch: "skill-enabled-switch",
-  enabledToggle: "skill-enabled-toggle",
-  listPanel: "skill-list-panel",
-  navSkills: "nav-skills",
-  searchInput: "skill-search-input",
-  shell: "skills-shell",
-  viewFullContent: "view-full-content-btn",
-  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
-  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
-} as const;
-
 export const marketplaceOperatorTestIds = {
   bundleActivateConfirm: "bundle-activate-confirm",
   bundleActivationDialog: "bundle-activation-dialog",
@@ -244,23 +232,10 @@ export const marketplaceOperatorTestIds = {
   extensionTrustDialog: "extension-trust-dialog",
   grid: "marketplace-grid",
   kindNavigation: "marketplace-kind-navigation",
-  landing: "marketplace-landing",
   mcpInstallConfirm: "mcp-install-confirm",
   mcpInstallDialog: "mcp-install-dialog",
   mcpInstallError: "mcp-install-error",
   refresh: "marketplace-refresh",
-  resultAnnouncement: "marketplace-result-announcement",
-} as const;
-
-export const extensionsOperatorTestIds = {
-  bundleDetail: "bundle-activation-detail",
-  bundleList: "bundle-activation-list",
-  bundlePage: "bundle-activations-page",
-  deactivateDialog: "deactivate-bundle-dialog",
-  detail: "extension-detail",
-  list: "extension-list",
-  page: "extensions-page",
-  removeDialog: "remove-extension-dialog",
 } as const;
 
 export const sandboxOperatorTestIds = {
@@ -346,6 +321,7 @@ export interface AutomationOperatorSelectors {
   createJobButton: Locator;
   createTriggerButton: Locator;
   deleteAutomationButton: Locator;
+  detailOverflow: Locator;
   detailPanel: Locator;
   editAutomationButton: Locator;
   item(id: string): Locator;
@@ -367,15 +343,14 @@ export interface AutomationOperatorSelectors {
   jobScheduleTime: Locator;
   jobScopeGlobal: Locator;
   jobScopeWorkspace: Locator;
-  jobsScopeAll: Locator;
-  jobsScopeGlobal: Locator;
-  jobsScopeWorkspace: Locator;
+  jobsListRows: Locator;
   jobsShell: Locator;
-  listPanel: Locator;
+  itemLink(id: string): Locator;
   navJobs: Locator;
   navTriggers: Locator;
   run(id: string): Locator;
   runHistory: Locator;
+  runNow(id: string): Locator;
   runSessionLink(runId: string): Locator;
   submitJobForm: Locator;
   submitTriggerForm: Locator;
@@ -388,9 +363,7 @@ export interface AutomationOperatorSelectors {
   triggerFilterValue(index: number): Locator;
   triggerFireLimitMax: Locator;
   triggerFireLimitWindow: Locator;
-  triggersScopeAll: Locator;
-  triggersScopeGlobal: Locator;
-  triggersScopeWorkspace: Locator;
+  triggersListRows: Locator;
   triggersShell: Locator;
   triggerPromptInput: Locator;
   triggerRetryMax: Locator;
@@ -424,6 +397,7 @@ export interface BridgeOperatorSelectors {
   createWizardNext: Locator;
   deleteSecret(bindingName: string): Locator;
   detailPanel: Locator;
+  detailOverflow: Locator;
   disableBridgeButton: Locator;
   editBridgeButton: Locator;
   editDialog: Locator;
@@ -502,22 +476,6 @@ export interface KnowledgeOperatorSelectors {
   workspaceUseGlobal: Locator;
 }
 
-export interface SkillsOperatorSelectors {
-  appSidebar: Locator;
-  contentBody: Locator;
-  detailPanel: Locator;
-  enabledSwitch: Locator;
-  enabledToggle: Locator;
-  item(name: string): Locator;
-  listPanel: Locator;
-  navSkills: Locator;
-  searchInput: Locator;
-  shell: Locator;
-  viewFullContent: Locator;
-  workspaceOnboarding: Locator;
-  workspaceUseGlobal: Locator;
-}
-
 export interface MarketplaceOperatorSelectors {
   action(entryId: string): Locator;
   bundleActivateConfirm: Locator;
@@ -531,28 +489,12 @@ export interface MarketplaceOperatorSelectors {
   grid: Locator;
   kind(kind: string): Locator;
   kindNavigation: Locator;
-  landing: Locator;
   mcpCreateSecret(envName: string): Locator;
   mcpInstallConfirm: Locator;
   mcpInstallDialog: Locator;
   mcpInstallError: Locator;
   mcpVaultSelector(envName: string): Locator;
   refresh: Locator;
-  resultAnnouncement: Locator;
-  section(kind: string): Locator;
-}
-
-export interface ExtensionsOperatorSelectors {
-  bundleDetail: Locator;
-  bundleList: Locator;
-  bundlePage: Locator;
-  bundleRow(id: string): Locator;
-  deactivateDialog: Locator;
-  detail: Locator;
-  list: Locator;
-  page: Locator;
-  removeDialog: Locator;
-  row(name: string): Locator;
 }
 
 export interface SandboxOperatorSelectors {
@@ -640,14 +582,14 @@ export const settingsProvidersTestIds = {
 } as const;
 
 export const settingsMCPServersTestIds = {
-  page: "settings-page-mcp-servers",
-  list: "settings-page-mcp-servers-list",
-  create: "settings-page-mcp-servers-create",
-  actionResult: "settings-page-mcp-servers-action-result",
+  page: "marketplace-kind-mcp",
+  list: "marketplace-installed-grid",
+  create: "marketplace-mcp-add",
+  actionResult: "marketplace-mcp-save-toast",
   actionResultDismiss: "settings-page-mcp-servers-action-result-dismiss",
-  scopeGlobal: "mcp-scope-global",
-  scopeWorkspace: "mcp-scope-workspace",
-  scopeLabel: "settings-page-mcp-servers-scope-label",
+  scopeGlobal: "marketplace-mcp-config-scope-global",
+  scopeWorkspace: "marketplace-mcp-config-scope-workspace",
+  scopeLabel: "marketplace-mcp-config-scope",
   editor: "settings-mcp-servers-editor",
   editorNameInput: "settings-mcp-servers-editor-name-input",
   editorCommandInput: "settings-mcp-servers-editor-command-input",
@@ -810,6 +752,7 @@ export const tasksOperatorTestIds = {
   detailDeleteDialog: "tasks-detail-delete-dialog",
   detailEdit: "tasks-detail-edit",
   detailEnqueue: "tasks-detail-enqueue",
+  detailOverflow: "tasks-detail-overflow",
   detailLifecycle: "tasks-detail-lifecycle",
   detailLifecycleHint: "tasks-detail-lifecycle-hint",
   detailPublish: "tasks-detail-publish",
@@ -889,6 +832,7 @@ export interface TasksOperatorSelectors {
   detailDeleteDialog: Locator;
   detailEdit: Locator;
   detailEnqueue: Locator;
+  detailOverflow: Locator;
   detailLifecycle: Locator;
   detailLifecycleHint: Locator;
   detailPublish: Locator;
@@ -959,13 +903,16 @@ export function sessionLifecycleSelectors(
     appSidebar: page.getByTestId(sessionLifecycleTestIds.appSidebar),
     chatHeader: page.getByTestId(sessionLifecycleTestIds.chatView),
     chatView: page.getByTestId(sessionLifecycleTestIds.chatView),
+    composerClearButton: page.getByTestId(sessionLifecycleTestIds.composerClearButton),
     composerSendButton: page.getByRole("button", { name: "Send message" }),
     composerTextarea: page.getByRole("textbox", { name: "Session prompt" }),
+    deleteButton: page.getByTestId(sessionLifecycleTestIds.deleteButton),
     permissionAllowOnce: page.getByTestId(sessionLifecycleTestIds.permissionAllowOnce),
     permissionPrompt: page.getByTestId(sessionLifecycleTestIds.permissionPrompt),
     processingIndicator: page.getByTestId(sessionLifecycleTestIds.processingIndicator),
     resumeButton: page.getByTestId(sessionLifecycleTestIds.resumeButton),
     stopButton: page.getByTestId(sessionLifecycleTestIds.stopButton),
+    topbarOverflow: page.getByTestId(sessionLifecycleTestIds.topbarOverflow),
     workspaceManualPathInput: page.getByTestId(sessionLifecycleTestIds.workspaceManualPathInput),
     workspaceOnboarding: page.getByTestId(sessionLifecycleTestIds.workspaceOnboarding),
     workspaceRegisterManual: page.getByTestId(sessionLifecycleTestIds.workspaceRegisterManual),
@@ -1068,24 +1015,6 @@ export function knowledgeOperatorSelectors(
   };
 }
 
-export function skillsOperatorSelectors(page: Pick<Page, "getByTestId">): SkillsOperatorSelectors {
-  return {
-    appSidebar: page.getByTestId(skillsOperatorTestIds.appSidebar),
-    contentBody: page.getByTestId(skillsOperatorTestIds.contentBody),
-    detailPanel: page.getByTestId(skillsOperatorTestIds.detailPanel),
-    enabledSwitch: page.getByTestId(skillsOperatorTestIds.enabledSwitch),
-    enabledToggle: page.getByTestId(skillsOperatorTestIds.enabledToggle),
-    item: (name: string) => page.getByTestId(`skill-item-${name}`),
-    listPanel: page.getByTestId(skillsOperatorTestIds.listPanel),
-    navSkills: page.getByTestId(skillsOperatorTestIds.navSkills),
-    searchInput: page.getByTestId(skillsOperatorTestIds.searchInput),
-    shell: page.getByTestId(skillsOperatorTestIds.shell),
-    viewFullContent: page.getByTestId(skillsOperatorTestIds.viewFullContent),
-    workspaceOnboarding: page.getByTestId(skillsOperatorTestIds.workspaceOnboarding),
-    workspaceUseGlobal: page.getByTestId(skillsOperatorTestIds.workspaceUseGlobal),
-  };
-}
-
 export function marketplaceOperatorSelectors(
   page: Pick<Page, "getByTestId">
 ): MarketplaceOperatorSelectors {
@@ -1102,32 +1031,12 @@ export function marketplaceOperatorSelectors(
     grid: page.getByTestId(marketplaceOperatorTestIds.grid),
     kind: (kind: string) => page.getByTestId(`marketplace-kind-${kind}`),
     kindNavigation: page.getByTestId(marketplaceOperatorTestIds.kindNavigation),
-    landing: page.getByTestId(marketplaceOperatorTestIds.landing),
     mcpCreateSecret: (envName: string) => page.getByTestId(`mcp-create-secret-${envName}`),
     mcpInstallConfirm: page.getByTestId(marketplaceOperatorTestIds.mcpInstallConfirm),
     mcpInstallDialog: page.getByTestId(marketplaceOperatorTestIds.mcpInstallDialog),
     mcpInstallError: page.getByTestId(marketplaceOperatorTestIds.mcpInstallError),
     mcpVaultSelector: (envName: string) => page.getByTestId(`mcp-vault-selector-${envName}`),
     refresh: page.getByTestId(marketplaceOperatorTestIds.refresh),
-    resultAnnouncement: page.getByTestId(marketplaceOperatorTestIds.resultAnnouncement),
-    section: (kind: string) => page.getByTestId(`marketplace-section-${kind}`),
-  };
-}
-
-export function extensionsOperatorSelectors(
-  page: Pick<Page, "getByTestId">
-): ExtensionsOperatorSelectors {
-  return {
-    bundleDetail: page.getByTestId(extensionsOperatorTestIds.bundleDetail),
-    bundleList: page.getByTestId(extensionsOperatorTestIds.bundleList),
-    bundlePage: page.getByTestId(extensionsOperatorTestIds.bundlePage),
-    bundleRow: (id: string) => page.getByTestId(`bundle-row-${id}`),
-    deactivateDialog: page.getByTestId(extensionsOperatorTestIds.deactivateDialog),
-    detail: page.getByTestId(extensionsOperatorTestIds.detail),
-    list: page.getByTestId(extensionsOperatorTestIds.list),
-    page: page.getByTestId(extensionsOperatorTestIds.page),
-    removeDialog: page.getByTestId(extensionsOperatorTestIds.removeDialog),
-    row: (name: string) => page.getByTestId(`extension-row-${name}`),
   };
 }
 
@@ -1185,10 +1094,12 @@ export function automationOperatorSelectors(
     createJobButton: page.getByTestId(automationOperatorTestIds.createJobButton),
     createTriggerButton: page.getByTestId(automationOperatorTestIds.createTriggerButton),
     deleteAutomationButton: page.getByTestId(automationOperatorTestIds.deleteAutomationButton),
+    detailOverflow: page.getByTestId(automationOperatorTestIds.detailOverflow),
     detailPanel: page.getByTestId(automationOperatorTestIds.automationDetailPanel),
     editAutomationButton: page.getByTestId(automationOperatorTestIds.editAutomationButton),
     editorDialog,
     item: (id: string) => page.getByTestId(`automation-item-${id}`),
+    itemLink: (id: string) => page.getByTestId(`automation-item-${id}`).getByRole("link"),
     jobAgentInput: page.getByTestId(automationOperatorTestIds.jobAgentInput),
     jobEnabledToggle: page.getByTestId(automationOperatorTestIds.jobEnabledToggle),
     jobFireLimitMax: page.getByTestId(automationOperatorTestIds.jobFireLimitMax),
@@ -1206,15 +1117,13 @@ export function automationOperatorSelectors(
     jobScheduleTime: page.getByTestId(automationOperatorTestIds.jobScheduleTime),
     jobScopeGlobal: page.getByTestId(automationOperatorTestIds.jobScopeGlobal),
     jobScopeWorkspace: page.getByTestId(automationOperatorTestIds.jobScopeWorkspace),
-    jobsScopeAll: page.getByTestId(automationOperatorTestIds.jobsScopeAll),
-    jobsScopeGlobal: page.getByTestId(automationOperatorTestIds.jobsScopeGlobal),
-    jobsScopeWorkspace: page.getByTestId(automationOperatorTestIds.jobsScopeWorkspace),
+    jobsListRows: page.getByTestId(automationOperatorTestIds.jobsListRows),
     jobsShell: page.getByTestId(automationOperatorTestIds.jobsShell),
-    listPanel: page.getByTestId(automationOperatorTestIds.automationListPanel),
     navJobs: page.getByTestId(automationOperatorTestIds.navJobs),
     navTriggers: page.getByTestId(automationOperatorTestIds.navTriggers),
     run: (id: string) => page.getByTestId(`automation-run-${id}`),
     runHistory: page.getByTestId(automationOperatorTestIds.automationRunHistory),
+    runNow: (id: string) => page.getByTestId(`automation-run-now-${id}`),
     runSessionLink: (runId: string) => page.getByTestId(`automation-run-${runId}`),
     submitJobForm: page.getByTestId(automationOperatorTestIds.submitJobForm),
     submitTriggerForm: page.getByTestId(automationOperatorTestIds.submitTriggerForm),
@@ -1227,9 +1136,7 @@ export function automationOperatorSelectors(
     triggerFilterValue: (index: number) => page.getByTestId(`trigger-filter-value-${index}`),
     triggerFireLimitMax: page.getByTestId(automationOperatorTestIds.triggerFireLimitMax),
     triggerFireLimitWindow: page.getByTestId(automationOperatorTestIds.triggerFireLimitWindow),
-    triggersScopeAll: page.getByTestId(automationOperatorTestIds.triggersScopeAll),
-    triggersScopeGlobal: page.getByTestId(automationOperatorTestIds.triggersScopeGlobal),
-    triggersScopeWorkspace: page.getByTestId(automationOperatorTestIds.triggersScopeWorkspace),
+    triggersListRows: page.getByTestId(automationOperatorTestIds.triggersListRows),
     triggersShell: page.getByTestId(automationOperatorTestIds.triggersShell),
     triggerPromptInput: page.getByTestId(automationOperatorTestIds.triggerPromptInput),
     triggerRetryMax: page.getByTestId(automationOperatorTestIds.triggerRetryMax),
@@ -1283,6 +1190,7 @@ export function bridgeOperatorSelectors(
     createWizardNext: page.getByTestId(bridgeOperatorTestIds.createBridgeWizardNext),
     deleteSecret: (bindingName: string) => page.getByTestId(`delete-bridge-secret-${bindingName}`),
     detailPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDetailPanel),
+    detailOverflow: page.getByTestId(bridgeOperatorTestIds.detailOverflow),
     disableBridgeButton: page.getByTestId(bridgeOperatorTestIds.disableBridgeButton),
     editBridgeButton: page.getByTestId(bridgeOperatorTestIds.editBridgeButton),
     editDialog: page.getByTestId(bridgeOperatorTestIds.bridgeEditDialog),
@@ -1400,7 +1308,7 @@ export function settingsOperatorSelectors(
       page: page.getByTestId(settingsMCPServersTestIds.page),
       list: page.getByTestId(settingsMCPServersTestIds.list),
       create: page.getByTestId(settingsMCPServersTestIds.create),
-      actionResult: page.getByTestId(settingsMCPServersTestIds.actionResult),
+      actionResult: page.locator("[data-sonner-toast]:last-of-type"),
       actionResultDismiss: page.getByTestId(settingsMCPServersTestIds.actionResultDismiss),
       scopeGlobal: page.getByTestId(settingsMCPServersTestIds.scopeGlobal),
       scopeWorkspace: page.getByTestId(settingsMCPServersTestIds.scopeWorkspace),
@@ -1414,9 +1322,13 @@ export function settingsOperatorSelectors(
       deleteDialog: page.getByTestId(settingsMCPServersTestIds.deleteDialog),
       deleteConfirm: page.getByTestId(settingsMCPServersTestIds.deleteConfirm),
       restartBanner: page.getByTestId(settingsMCPServersTestIds.restartBanner),
-      row: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}`),
-      rowSource: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-source`),
-      editRow: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-edit`),
+      row: (name: string) => page.getByTestId(`marketplace-installed-card-${name}`),
+      rowSource: (name: string) =>
+        page.locator(`[data-testid="marketplace-installed-card-${name}"] [data-slot="pill"]`),
+      editRow: (name: string) =>
+        page.locator(
+          `[data-testid="marketplace-installed-card-${name}"] button[aria-label^="More for"]`
+        ),
     },
     hooks: {
       page: page.getByTestId(settingsHooksTestIds.page),
@@ -1470,6 +1382,7 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     detailDeleteDialog: page.getByTestId(tasksOperatorTestIds.detailDeleteDialog),
     detailEdit: page.getByTestId(tasksOperatorTestIds.detailEdit),
     detailEnqueue: page.getByTestId(tasksOperatorTestIds.detailEnqueue),
+    detailOverflow: page.getByTestId(tasksOperatorTestIds.detailOverflow),
     detailLifecycle: page.getByTestId(tasksOperatorTestIds.detailLifecycle),
     detailLifecycleHint: page.getByTestId(tasksOperatorTestIds.detailLifecycleHint),
     detailPublish: page.getByTestId(tasksOperatorTestIds.detailPublish),

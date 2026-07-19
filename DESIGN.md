@@ -118,6 +118,7 @@ tokens:
       accent-glyph: { size: "0.85em" }
       ui-title-lg: { size: "1.35rem" }
       detail-h1: { size: "1.4rem", line: "1.25", tracking: "-0.028em" }
+      compact-h1: { size: "1.1rem", line: "1.25", tracking: "-0.022em" }
       empty-h1: { size: "1.125rem", tracking: "-0.022em" }
       modal-title: { size: "0.84375rem", tracking: "-0.012em" }
       section-head: { size: "0.7rem", tracking: "-0.008em" }
@@ -180,8 +181,8 @@ tokens:
       height-sidebar-row: "28px"
       height-tabs-list: "40px"
       size-tab-underline: "1.5px"
-      size-count-chip: "19px"
-      size-count-chip-sm: "17px"
+      spacing-count-chip: "19px"
+      spacing-count-chip-sm: "17px"
       size-empty-icon: "38px"
       width-menu-sub-min: "96px"
       height-form-textarea: "136px"
@@ -190,7 +191,7 @@ tokens:
       width-table-cell-sm: "224px"
       width-table-cell-md: "288px"
       width-table-cell-lg: "360px"
-      width-content-max: "1320px"
+      container-content-max: "1320px"
       width-right-rail-default: "468px"
       width-message-bubble-max: "640px"
       width-wire-card-max: "520px"
@@ -483,6 +484,7 @@ because they are small.
 | `--text-accent-glyph`     | `0.85em`     |            |            |
 | `--text-ui-title-lg`      | `1.35rem`    |            |            |
 | `--text-detail-h1`        | `1.4rem`     | `1.25`     | `-0.028em` |
+| `--text-compact-h1`       | `1.1rem`     | `1.25`     | `-0.022em` |
 | `--text-empty-h1`         | `1.125rem`   |            | `-0.022em` |
 | `--text-modal-title`      | `0.84375rem` |            | `-0.012em` |
 | `--text-section-head`     | `0.7rem`     |            | `-0.008em` |
@@ -509,6 +511,7 @@ because they are small.
 | ------------------------- | ---------- |
 | `--tracking-mono`         | `0.06em`   |
 | `--tracking-detail-h1`    | `-0.028em` |
+| `--tracking-compact-h1`   | `-0.022em` |
 | `--tracking-empty-h1`     | `-0.022em` |
 | `--tracking-modal-title`  | `-0.012em` |
 | `--tracking-section-head` | `-0.008em` |
@@ -565,10 +568,10 @@ widths come from `--site-*` tokens.
 | `--width-switch-default`          | `32px`  | `--height-switch-sm`               | `14px`   | `--width-switch-sm`               | `24px`   |
 | `--height-pill-xs`                | `17px`  | `--height-pill-sm`                 | `19px`   | `--height-pill-md`                | `22px`   |
 | `--height-sidebar-row`            | `28px`  | `--height-tabs-list`               | `40px`   | `--size-tab-underline`            | `1.5px`  |
-| `--size-count-chip`               | `19px`  | `--size-count-chip-sm`             | `17px`   | `--size-empty-icon`               | `38px`   |
+| `--spacing-count-chip`            | `19px`  | `--spacing-count-chip-sm`          | `17px`   | `--size-empty-icon`               | `38px`   |
 | `--width-menu-sub-min`            | `96px`  | `--height-form-textarea`           | `136px`  | `--height-editor-footer`          | `52px`   |
 | `--width-detail-inspector-inline` | `320px` | `--width-table-cell-sm`            | `224px`  | `--width-table-cell-md`           | `288px`  |
-| `--width-table-cell-lg`           | `360px` | `--width-content-max`              | `1320px` | `--width-right-rail-default`      | `468px`  |
+| `--width-table-cell-lg`           | `360px` | `--container-content-max`          | `1320px` | `--width-right-rail-default`      | `468px`  |
 | `--width-message-bubble-max`      | `640px` | `--width-wire-card-max`            | `520px`  | `--width-search-input-min`        | `220px`  |
 | `--width-filters-menu-default`    | `200px` | `--width-filters-menu-stack`       | `220px`  | `--width-settings-nav`            | `224px`  |
 | `--height-modal-md`               | `760px` | `--height-modal-tall`              | `900px`  | `--height-modal-wizard`           | `960px`  |

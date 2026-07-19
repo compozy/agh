@@ -37,8 +37,14 @@ export { useDeleteVaultSecret, usePutVaultSecret } from "./hooks/use-vault-actio
 export {
   SessionVaultPanel,
   VaultListFilters,
+  VaultSecretSheet,
+  VaultSecretsCard,
   VaultSecretsList,
   VaultSecretsRow,
   type VaultListFiltersProps,
+  type VaultSecretSheetProps,
+  type VaultSecretsCardProps,
   type VaultSecretsRowProps,
 } from "./components";
+
+export { vaultSecretTitle } from "./lib/vault-secret-title";

@@ -263,7 +263,7 @@ export const e2eScenarioContracts: ScenarioContract[] = [
       "TC-EXT-001",
       "extensibility-tools-resources",
       "operator installs a local extension tool provider, invokes it over transports, activates bundle resources, and verifies fail-closed manifest security",
-      "web/e2e/__tests__/extensibility.spec.ts"
+      "web/e2e/__tests__/marketplace.spec.ts"
     ),
     priority: "P0",
     auditIDs: ["A1", "A3", "A6", "A8", "A9", "A10", "A12", "A13", "A15"],
@@ -306,7 +306,7 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     providerBoundary: "blocked",
     artifacts: standardBrowserArtifacts,
     lanes: ["make test-e2e-nightly"],
-    specPath: "web/e2e/__tests__/extensibility.spec.ts",
+    specPath: "web/e2e/__tests__/marketplace.spec.ts",
     nightly: true,
     blockedReason:
       "The local release gate covers SDK contracts with sdk/typescript, sdk/go, create-extension unit/integration tests and installs a hand-authored local extension fixture through the daemon. The full scaffold-build-install-launch-update-disable-remove chain is intentionally mapped to nightly because it spans generated TS and Go extension workspaces plus daemon lifecycle mutation and would exceed the daemon-served browser gate budget.",
@@ -323,7 +323,7 @@ export const e2eScenarioContracts: ScenarioContract[] = [
     providerBoundary: "blocked",
     artifacts: standardBrowserArtifacts,
     lanes: ["make test-e2e-nightly"],
-    specPath: "web/e2e/__tests__/extensibility.spec.ts",
+    specPath: "web/e2e/__tests__/marketplace.spec.ts",
     nightly: true,
     blockedReason:
       "Requires hosted MCP OAuth credentials and an external server; local daemon-served coverage proves MCP config and tool registry parity, while the credentialed OAuth path remains mapped to nightly.",

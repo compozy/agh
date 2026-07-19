@@ -175,9 +175,9 @@
   <div class="main">
     <header class="topbar" data-od-id="bun-detail-topbar">
       <div class="crumb" id="crumb">
-        <a href="extensions.html">Extensions</a>
+        <a href="marketplace.html?kind=bundles">Marketplace</a>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-        <a href="extensions.html?tab=bundles">Bundles</a>
+        <a href="marketplace.html?kind=bundles&tab=installed">Bundles</a>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         <b id="crumb-name">…</b>
       </div>
@@ -428,7 +428,7 @@
   document.getElementById("deactivate-submit").onclick=function(){
     var n=item.name;
     closeDeactivate();
-    location.href="extensions.html?tab=bundles&toast="+encodeURIComponent(n+" deactivated");
+    location.href="marketplace.html?kind=bundles&tab=installed";
   };
 
   document.addEventListener("click", function(e){ if(menuEl && !menuEl.contains(e.target) && !e.target.closest("#btn-more")) closeMenu(); });

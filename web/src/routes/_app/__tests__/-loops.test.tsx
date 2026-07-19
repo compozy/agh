@@ -8,7 +8,7 @@ import type { LoopCatalogEntry } from "@/systems/loops/types";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
 function render(ui: React.ReactElement) {
-  return renderWithTopbar(ui, { title: "Loops" });
+  return renderWithTopbar(ui);
 }
 
 let mockLoops: LoopCatalogEntry[] = [];

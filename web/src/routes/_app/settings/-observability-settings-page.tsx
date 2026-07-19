@@ -7,6 +7,7 @@ import {
   SettingsFieldRow,
   SettingsSaveBar,
   type SettingsObservabilitySection,
+  SettingsPageHead,
 } from "@/systems/settings";
 import { useSupportBundleDownload } from "@/systems/support";
 import {
@@ -19,9 +20,8 @@ import {
   RestartBanner,
   Section,
   Spinner,
-  StatusLineTopbarSlot,
+  StatusLine,
   Switch,
-  useTopbarSlot,
 } from "@agh/ui";
 
 type ObservabilityConfig = SettingsObservabilitySection["config"];
@@ -52,31 +52,29 @@ export function ObservabilitySettingsPage() {
     ? runtimeForSlot.global_db_size_bytes + runtimeForSlot.session_db_size_bytes
     : 0;
   const capForSlot = draftForSlot?.max_global_bytes ?? 0;
-  useTopbarSlot({
-    tabs:
-      runtimeForSlot && draftForSlot ? (
-        <StatusLineTopbarSlot
-          data-testid="settings-page-observability-status-line"
-          status={runtimeForSlot.available ? "connected" : "error"}
-          items={[
-            {
-              key: "sessions",
-              value: `${runtimeForSlot.active_sessions} active sessions`,
-              tone: "neutral",
-            },
-            {
-              key: "storage",
-              value: (
-                <span data-testid="settings-page-observability-storage-summary">
-                  storage {formatBytes(totalStorageForSlot)} / {formatBytes(capForSlot)}
-                </span>
-              ),
-              tone: "neutral",
-            },
-          ]}
-        />
-      ) : undefined,
-  });
+  const statusLine =
+    runtimeForSlot && draftForSlot ? (
+      <StatusLine
+        data-testid="settings-page-observability-status-line"
+        status={runtimeForSlot.available ? "connected" : "error"}
+        items={[
+          {
+            key: "sessions",
+            value: `${runtimeForSlot.active_sessions} active sessions`,
+            tone: "neutral",
+          },
+          {
+            key: "storage",
+            value: (
+              <span data-testid="settings-page-observability-storage-summary">
+                storage {formatBytes(totalStorageForSlot)} / {formatBytes(capForSlot)}
+              </span>
+            ),
+            tone: "neutral",
+          },
+        ]}
+      />
+    ) : null;
 
   if (page.isLoading) {
     return (
@@ -121,6 +119,7 @@ export function ObservabilitySettingsPage() {
     <PageShell
       slug="observability"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
+      head={<SettingsPageHead slug="observability" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="observability"

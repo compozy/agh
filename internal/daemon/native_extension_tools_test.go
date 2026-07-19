@@ -43,6 +43,7 @@ func (c nativeExtensionCatalog) Browse(
 	marketplacepkg.Kind,
 	string,
 	int,
+	int,
 ) (marketplacepkg.BrowseResult, error) {
 	return marketplacepkg.BrowseResult{}, errors.New("unexpected catalog browse")
 }

@@ -14,9 +14,9 @@ describe("skillsListOptions", () => {
     expect(options.queryKey).toEqual(["skills", "list", "ws_123"]);
   });
 
-  it("is disabled when workspace is empty", () => {
+  it("uses an empty workspace as the global scope", () => {
     const options = skillsListOptions("");
-    expect(options.enabled).toBe(false);
+    expect(options.enabled).toBe(true);
   });
 
   it("is enabled when workspace is provided", () => {
@@ -41,9 +41,9 @@ describe("skillDetailOptions", () => {
     expect(options.enabled).toBe(false);
   });
 
-  it("is disabled when workspace is empty", () => {
+  it("is enabled for a named global skill when workspace is empty", () => {
     const options = skillDetailOptions("my-skill", "");
-    expect(options.enabled).toBe(false);
+    expect(options.enabled).toBe(true);
   });
 
   it("is enabled when both name and workspace are provided", () => {
@@ -58,9 +58,9 @@ describe("skillShadowsOptions", () => {
     expect(options.queryKey).toEqual(["skills", "shadows", "my-skill", "ws_123"]);
   });
 
-  it("is disabled until name and workspace are provided", () => {
+  it("is disabled until a name is provided and accepts global scope", () => {
     expect(skillShadowsOptions("", "ws_123").enabled).toBe(false);
-    expect(skillShadowsOptions("my-skill", "").enabled).toBe(false);
+    expect(skillShadowsOptions("my-skill", "").enabled).toBe(true);
     expect(skillShadowsOptions("my-skill", "ws_123").enabled).toBe(true);
   });
 });

@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+
+import { renderWithTopbar } from "@/test/render-with-topbar";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -44,7 +46,6 @@ function renderDetail(
 ) {
   const noop = vi.fn();
   const merged = {
-    onBack: noop,
     onRun: noop,
     onConfigure: noop,
     onOpenEditor: noop,
@@ -54,7 +55,7 @@ function renderDetail(
     onAddSchedule: noop,
     ...handlers,
   };
-  render(
+  renderWithTopbar(
     <LoopDetailView
       loop={renderedLoop}
       effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
@@ -75,7 +76,7 @@ function renderDetail(
 describe("LoopDetailView", () => {
   it("Should render the full definition page: header, contract, DAG, runs, and the right rail", () => {
     renderDetail();
-    expect(screen.getByRole("heading", { name: "software-delivery" })).toBeInTheDocument();
+    expect(screen.getByText("software-delivery")).toBeInTheDocument();
     expect(screen.getByTestId("loop-contract")).toBeInTheDocument();
     expect(screen.getByTestId("loop-dag")).toBeInTheDocument();
     expect(screen.getByTestId("loop-recent-runs")).toBeInTheDocument();
@@ -116,8 +117,9 @@ describe("LoopDetailView", () => {
     const onOpenEditor = vi.fn();
     renderDetail({ onRun, onConfigure, onOpenEditor });
     fireEvent.click(screen.getByTestId("loop-run-action"));
-    fireEvent.click(screen.getByTestId("loop-configure-action"));
     fireEvent.click(screen.getByTestId("loop-edit-action"));
+    fireEvent.click(screen.getByTestId("loop-detail-overflow"));
+    fireEvent.click(screen.getByTestId("loop-configure-action"));
     expect(onRun).toHaveBeenCalledTimes(1);
     expect(onConfigure).toHaveBeenCalledTimes(1);
     expect(onOpenEditor).toHaveBeenCalledTimes(1);
@@ -128,6 +130,7 @@ describe("LoopDetailView", () => {
     const onDelete = vi.fn();
     renderDetail({ onDelete });
 
+    fireEvent.click(screen.getByTestId("loop-detail-overflow"));
     fireEvent.click(screen.getByTestId("loop-delete-action"));
     const dialog = screen.getByRole("dialog", { name: "Delete software-delivery?" });
     const confirm = within(dialog).getByRole("button", { name: "Delete loop" });
@@ -146,6 +149,7 @@ describe("LoopDetailView", () => {
     const readOnlyLoop = loopDetailByName.get("reviews-watch")!;
     renderDetail({}, savedConfig, readOnlyLoop);
 
+    fireEvent.click(screen.getByTestId("loop-detail-overflow"));
     expect(screen.queryByTestId("loop-delete-action")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Fork & edit");
   });

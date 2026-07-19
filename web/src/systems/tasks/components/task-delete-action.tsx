@@ -18,6 +18,11 @@ export interface TaskDeleteActionProps {
   dialogTestId?: string;
   cancelTestId?: string;
   confirmTestId?: string;
+  /** Controlled open — use with `hideTrigger` when opened from a menu item. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Omit the built-in DialogTrigger (caller owns the open control). */
+  hideTrigger?: boolean;
 }
 
 export function TaskDeleteAction({
@@ -32,8 +37,18 @@ export function TaskDeleteAction({
   dialogTestId = "task-delete-dialog",
   cancelTestId = "task-delete-cancel",
   confirmTestId = "task-delete-confirm",
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
 }: TaskDeleteActionProps) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : uncontrolledOpen;
+
+  const setOpen = (next: boolean) => {
+    if (!controlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
 
   const handleConfirm = () => {
     setOpen(false);
@@ -61,20 +76,22 @@ export function TaskDeleteAction({
       title="Delete task?"
       tone="danger"
     >
-      <DialogTrigger
-        render={
-          <Button
-            data-testid={triggerTestId}
-            disabled={isPending}
-            size={size}
-            type="button"
-            variant={triggerVariant}
-          />
-        }
-      >
-        {isPending ? <Spinner className="size-3" /> : <Trash2 className="size-3" />}
-        {triggerLabel}
-      </DialogTrigger>
+      {hideTrigger ? null : (
+        <DialogTrigger
+          render={
+            <Button
+              data-testid={triggerTestId}
+              disabled={isPending}
+              size={size}
+              type="button"
+              variant={triggerVariant}
+            />
+          }
+        >
+          {isPending ? <Spinner className="size-3" /> : <Trash2 className="size-3" />}
+          {triggerLabel}
+        </DialogTrigger>
+      )}
     </ConfirmDialog>
   );
 }

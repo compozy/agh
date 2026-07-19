@@ -63,6 +63,7 @@ export interface BrowserRouteState {
   title: string;
   automation_active_tab?: "jobs" | "triggers";
   automation_delete_visible?: boolean;
+  automation_detail_overflow_visible?: boolean;
   automation_enabled_toggle_visible?: boolean;
   automation_editor_kind?: "job" | "trigger";
   automation_editor_open?: boolean;
@@ -90,6 +91,7 @@ export interface BrowserRouteState {
   composer_clear_button_enabled?: boolean;
   composer_clear_button_visible?: boolean;
   delete_button_visible?: boolean;
+  session_topbar_overflow_visible?: boolean;
   home_active_sessions_value?: string;
   home_agents_value?: string;
   home_connection_status?: string;

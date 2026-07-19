@@ -2,7 +2,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { AgentPageActions, AgentPageMeta, AgentPageStatusPill } from "../agent-page-header";
+import {
+  AgentPageActions,
+  AgentPageMeta,
+  AgentPageOverflow,
+  AgentPageStatusPill,
+} from "../agent-page-header";
 
 describe("AgentPageStatusPill", () => {
   it("Should show Active when the exact active count is positive", () => {
@@ -36,19 +41,15 @@ describe("AgentPageMeta", () => {
 });
 
 describe("AgentPageActions", () => {
-  it("Should expose New session, Edit settings, Duplicate, and Delete only", async () => {
+  it("Should expose New session and Edit settings only", async () => {
     const user = userEvent.setup();
     const onEditSettings = vi.fn();
     const onNewSession = vi.fn();
-    const onDuplicate = vi.fn();
-    const onDelete = vi.fn();
 
     render(
       <AgentPageActions
         onEditSettings={onEditSettings}
         onNewSession={onNewSession}
-        onDuplicate={onDuplicate}
-        onDelete={onDelete}
         isCreatingSession={false}
         newSessionDisabled={false}
       />
@@ -59,11 +60,22 @@ describe("AgentPageActions", () => {
     expect(screen.queryByText("Pause")).not.toBeInTheDocument();
     expect(screen.queryByText("Reset")).not.toBeInTheDocument();
     expect(screen.queryByText("Rename")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "More agent actions" })).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("agent-page-new-session"));
     await user.click(screen.getByTestId("agent-page-edit-settings"));
     expect(onNewSession).toHaveBeenCalledTimes(1);
     expect(onEditSettings).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("AgentPageOverflow", () => {
+  it("Should expose Duplicate and Delete in the overflow menu", async () => {
+    const user = userEvent.setup();
+    const onDuplicate = vi.fn();
+    const onDelete = vi.fn();
+
+    render(<AgentPageOverflow onDelete={onDelete} onDuplicate={onDuplicate} />);
 
     await user.click(screen.getByRole("button", { name: "More agent actions" }));
     await user.click(await screen.findByRole("menuitem", { name: "Duplicate" }));

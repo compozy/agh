@@ -1,13 +1,16 @@
-import { AlertCircle, Clock3, Lock, Pencil, Play, Search, Zap } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, Lock, Search } from "lucide-react";
 import {
-  Button,
-  DetailHeader,
+  cn,
   Empty,
   Eyebrow,
   Metric,
+  PAGE_CONTENT_GUTTER,
+  PageHead,
   Pill,
   Section,
   Spinner,
+  useTopbarSlot,
   type MetricTone,
 } from "@agh/ui";
 
@@ -30,29 +33,27 @@ import type {
 import { AutomationRunHistory } from "./automation-run-history";
 import { AutomationDeleteAction } from "./automation-delete-action";
 import {
+  AutomationDetailActions,
+  AutomationDetailOverflow,
+} from "./automation-detail-topbar-actions";
+import {
   AutomationTargetSection,
   GovernanceSection,
   PromptSection,
   TriggerHookSection,
 } from "./automation-detail-sections";
 
-export interface AutomationDetailEmptyState {
-  actionLabel?: string;
-  description: string;
-  icon: "jobs" | "search" | "triggers";
-  onAction?: () => void;
-  title: string;
+interface AutomationDetailState {
+  isDeleting: boolean;
+  isLoading: boolean;
+  isTogglePending: boolean;
+  isTriggerDisabled?: boolean;
+  isTriggerPending: boolean;
 }
 
 interface AutomationDetailPanelProps {
-  emptyState?: AutomationDetailEmptyState | null;
   error: Error | null;
-  state: {
-    isDeleting: boolean;
-    isLoading: boolean;
-    isTogglePending: boolean;
-    isTriggerPending: boolean;
-  };
+  state: AutomationDetailState;
   item: AutomationJob | AutomationTrigger | undefined;
   kind: "jobs" | "triggers";
   onDelete: () => void | Promise<void>;
@@ -109,31 +110,6 @@ function computeJobMetrics(runs: AutomationRun[], job: AutomationJob): JobMetric
     nextRunValue,
     nextRunSubtext,
   };
-}
-
-function EmptyDetailState({ emptyState }: { emptyState: AutomationDetailEmptyState }) {
-  const Icon = emptyState.icon === "jobs" ? Clock3 : emptyState.icon === "triggers" ? Zap : Search;
-
-  return (
-    <div
-      className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-      data-testid="automation-detail-empty"
-    >
-      <Empty
-        action={
-          emptyState.actionLabel && emptyState.onAction ? (
-            <Button onClick={emptyState.onAction} type="button" variant="outline">
-              {emptyState.actionLabel}
-            </Button>
-          ) : undefined
-        }
-        className="max-w-md"
-        description={emptyState.description}
-        icon={Icon}
-        title={emptyState.title}
-      />
-    </div>
-  );
 }
 
 function JobScheduleSection({ job }: { job: AutomationJob }) {
@@ -257,7 +233,6 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
 }
 
 export function AutomationDetailPanel({
-  emptyState,
   error,
   state,
   item,
@@ -270,7 +245,13 @@ export function AutomationDetailPanel({
   runsError,
   runsLoading,
 }: AutomationDetailPanelProps) {
-  const { isDeleting, isLoading, isTogglePending, isTriggerPending } = state;
+  const {
+    isDeleting,
+    isLoading,
+    isTogglePending,
+    isTriggerDisabled = false,
+    isTriggerPending,
+  } = state;
   if (isLoading) {
     return (
       <div
@@ -285,7 +266,7 @@ export function AutomationDetailPanel({
   if (error) {
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center p-6"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="automation-detail-error"
       >
         <Empty
@@ -299,20 +280,16 @@ export function AutomationDetailPanel({
   }
 
   if (!item) {
-    if (emptyState) {
-      return <EmptyDetailState emptyState={emptyState} />;
-    }
-
     return (
       <div
-        className="flex min-h-0 flex-1 items-center justify-center p-6"
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
         data-testid="automation-detail-empty"
       >
         <Empty
           className="max-w-md"
-          description="Select an automation item to inspect its configuration and run history."
+          description={`This ${kind === "jobs" ? "job" : "trigger"} is no longer available.`}
           icon={Search}
-          title="Select an automation"
+          title={kind === "jobs" ? "Job unavailable" : "Trigger unavailable"}
         />
       </div>
     );
@@ -320,9 +297,6 @@ export function AutomationDetailPanel({
 
   return (
     <AutomationDetailLoadedPanel
-      isDeleting={isDeleting}
-      isTogglePending={isTogglePending}
-      isTriggerPending={isTriggerPending}
       item={item}
       kind={kind}
       onDelete={onDelete}
@@ -332,14 +306,12 @@ export function AutomationDetailPanel({
       runs={runs}
       runsError={runsError}
       runsLoading={runsLoading}
+      state={{ isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending }}
     />
   );
 }
 
 interface AutomationDetailLoadedPanelProps {
-  isDeleting: boolean;
-  isTogglePending: boolean;
-  isTriggerPending: boolean;
   item: AutomationJob | AutomationTrigger;
   kind: "jobs" | "triggers";
   onDelete: () => void | Promise<void>;
@@ -349,12 +321,10 @@ interface AutomationDetailLoadedPanelProps {
   runs: AutomationRun[];
   runsError: Error | null;
   runsLoading: boolean;
+  state: Omit<Required<AutomationDetailState>, "isLoading">;
 }
 
 function AutomationDetailLoadedPanel({
-  isDeleting,
-  isTogglePending,
-  isTriggerPending,
   item,
   kind,
   onDelete,
@@ -364,59 +334,42 @@ function AutomationDetailLoadedPanel({
   runs,
   runsError,
   runsLoading,
+  state,
 }: AutomationDetailLoadedPanelProps) {
+  const { isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending } = state;
   const isJob = kind === "jobs";
   const isDynamic = item.source === "dynamic";
   const job = isJob ? (item as AutomationJob) : null;
   const trigger = !isJob ? (item as AutomationTrigger) : null;
   const target = projectAutomationTarget(item);
   const enabledTone = automationStatusTone(item.enabled ? "enabled" : "disabled");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const showRunNow = isJob && Boolean(onTriggerNow);
+  // When Edit/Run claim the action row, Enable/Disable (+ Delete) move to overflow.
+  const showOverflow = isDynamic || showRunNow;
+  // Route chrome §07: secondary → primary → overflow (Delete / Enable|Disable).
   const detailActions = (
-    <>
-      <Button
-        data-testid="toggle-automation-btn"
-        disabled={isTogglePending}
-        onClick={() => onToggleEnabled(!item.enabled)}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
-      </Button>
-      {isJob && onTriggerNow ? (
-        <Button
-          data-testid="trigger-job-btn"
-          disabled={isTriggerPending}
-          onClick={onTriggerNow}
-          size="sm"
-          type="button"
-        >
-          <Play className="size-3" />
-          {isTriggerPending ? "Queuing..." : "Run now"}
-        </Button>
-      ) : null}
-      {isDynamic ? (
-        <Button
-          data-testid="edit-automation-btn"
-          onClick={onEdit}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          <Pencil className="size-3" />
-          Edit
-        </Button>
-      ) : null}
-      {isDynamic ? (
-        <AutomationDeleteAction
-          isPending={isDeleting}
-          kind={kind}
-          name={item.name}
-          onConfirm={onDelete}
-        />
-      ) : null}
-    </>
+    <AutomationDetailActions
+      item={item}
+      onEdit={onEdit}
+      onToggleEnabled={onToggleEnabled}
+      onTriggerNow={showRunNow ? onTriggerNow : undefined}
+      state={{
+        togglePending: isTogglePending,
+        triggerDisabled: isTriggerDisabled,
+        triggerPending: isTriggerPending,
+      }}
+    />
   );
+  const detailOverflow = showOverflow ? (
+    <AutomationDetailOverflow
+      isTogglePending={isTogglePending}
+      item={item}
+      kind={kind}
+      onDelete={() => setDeleteOpen(true)}
+      onToggleEnabled={onToggleEnabled}
+    />
+  ) : undefined;
   const detailMeta = (
     <span data-testid="automation-detail-meta">
       {`${automationTargetLabel(target)} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
@@ -437,26 +390,47 @@ function AutomationDetailLoadedPanel({
     </>
   );
 
+  // Single publisher: crumb + actions/overflow must share one slot push (store is last-writer).
+  useTopbarSlot({
+    actions: detailActions,
+    crumb: item.name,
+    overflow: detailOverflow,
+  });
+
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden")}
       data-testid="automation-detail-panel"
     >
-      <DetailHeader
-        actions={detailActions}
-        data-testid="automation-detail-header"
-        meta={detailMeta}
-        pills={detailPills}
-        title={item.name}
-      />
+      {isDynamic ? (
+        <AutomationDeleteAction
+          hideTrigger
+          isPending={isDeleting}
+          kind={kind}
+          name={item.name}
+          onConfirm={onDelete}
+          onOpenChange={setDeleteOpen}
+          open={deleteOpen}
+        />
+      ) : null}
+      <div className="pt-5">
+        <PageHead
+          data-testid="automation-detail-header"
+          title={item.name}
+          variant="detail"
+          meta={detailMeta}
+          pills={detailPills}
+        />
+      </div>
 
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-5">
         {!isDynamic ? (
           <div className="flex items-start gap-2 rounded-md border border-dashed border-line px-4 py-3 text-xs text-muted">
             <Lock aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-subtle" />
             <p>
-              This automation is defined in configuration files. Only the enabled state can be
-              toggled from the UI.
+              {item.source === "config"
+                ? "This automation is defined in configuration files. Only its enabled state can be changed here."
+                : "This automation is provided by an installed package. Only its enabled state can be changed here."}
             </p>
           </div>
         ) : null}

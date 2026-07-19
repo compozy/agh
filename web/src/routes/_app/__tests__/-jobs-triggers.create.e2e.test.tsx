@@ -1,6 +1,6 @@
 // Suite: automation create modal route E2E
 // Invariant: jobs and triggers create modals submit the visible draft through real page hooks, query hooks, adapters, and the selected workspace scope.
-// Boundary IN: jobs/triggers routes, AutomationOperationsPage, editor dialog/forms, TanStack Query hooks, and openapi-fetch.
+// Boundary IN: jobs/triggers catalog + detail routes, editor dialog/forms, TanStack Query hooks, and openapi-fetch.
 // Boundary OUT: AGH daemon HTTP implementation, replaced by MSW handlers at the fetch boundary.
 // Note: this historical *.e2e.test.tsx file runs in Vitest/jsdom with MSW; browser
 // dismissal parity for Dialog behavior is verified separately by visual/browser QA.
@@ -45,8 +45,10 @@ const { clipboardWriteText, toast } = vi.hoisted(() => ({
 }));
 
 const routerState = vi.hoisted(() => ({
+  childMatches: [] as unknown[],
   currentPath: "/jobs",
   navigateMock: vi.fn(),
+  params: {} as Record<string, string>,
   searchListeners: new Set<(search: Record<string, unknown>) => void>(),
   searchParams: {} as Record<string, unknown>,
 }));
@@ -97,6 +99,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 
         return {
           component: opts.component,
+          useParams: () => routerState.params,
           useSearch: () => {
             const [search, setSearch] = useState(() => validateSearch(routerState.searchParams));
 
@@ -114,11 +117,13 @@ vi.mock("@tanstack/react-router", async importOriginal => {
           },
         };
       },
-    Link: ({ children, params, ...props }: MockLinkProps) => (
-      <a href={`/session/${params?.id ?? ""}`} {...props}>
+    Link: ({ children, params, to, ...props }: MockLinkProps & { to?: string }) => (
+      <a href={to ?? `/${params?.id ?? ""}`} {...props}>
         {children}
       </a>
     ),
+    Outlet: () => null,
+    useChildMatches: () => routerState.childMatches,
     useNavigate: () => navigate,
   };
 });
@@ -128,10 +133,14 @@ vi.mock("sonner", () => ({
 }));
 
 import { Route as JobsRoute } from "../jobs";
+import { Route as JobDetailRoute } from "../jobs.$jobId";
 import { Route as TriggersRoute } from "../triggers";
+import { Route as TriggerDetailRoute } from "../triggers.$triggerId";
 
 const JobsPage = routeComponent(JobsRoute);
 const TriggersPage = routeComponent(TriggersRoute);
+const JobDetailPage = routeComponent(JobDetailRoute);
+const TriggerDetailPage = routeComponent(TriggerDetailRoute);
 const originalFetch = globalThis.fetch;
 
 const defaultWorkspaces: WorkspacePayload[] = [
@@ -187,6 +196,20 @@ function createQueryClient() {
 function renderAutomationPage(page: "jobs" | "triggers") {
   routerState.currentPath = `/${page}`;
   const Page = page === "jobs" ? JobsPage : TriggersPage;
+  const queryClient = createQueryClient();
+  queryClient.setQueryData(workspaceKeys.list(), workspaces);
+
+  return renderWithTopbar(
+    <QueryClientProvider client={queryClient}>
+      <Page />
+    </QueryClientProvider>
+  );
+}
+
+function renderAutomationDetail(kind: "jobs" | "triggers", id: string) {
+  routerState.currentPath = kind === "jobs" ? `/jobs/${id}` : `/triggers/${id}`;
+  routerState.params = kind === "jobs" ? { jobId: id } : { triggerId: id };
+  const Page = kind === "jobs" ? JobDetailPage : TriggerDetailPage;
   const queryClient = createQueryClient();
   queryClient.setQueryData(workspaceKeys.list(), workspaces);
 
@@ -373,6 +396,21 @@ function automationCreateHandlers(): HttpHandler[] {
 
       return new HttpResponse(null, { status: 204 });
     }),
+    http.post("/api/automation/jobs/:id/trigger", ({ params }) => {
+      const id = String(params.id);
+      if (!jobStore.get(id)) {
+        return HttpResponse.json({ error: `Automation job not found: ${id}` }, { status: 404 });
+      }
+      return HttpResponse.json({
+        run: {
+          ...automationRunFixtures[0]!,
+          id: `run_${id}_manual`,
+          job_id: id,
+          session_id: undefined,
+          status: "scheduled",
+        },
+      });
+    }),
     http.get("/api/automation/triggers", ({ request }) => {
       const triggers = triggerStore.listScoped(scopedFilterFromRequest(request));
       return HttpResponse.json({
@@ -473,6 +511,8 @@ beforeEach(() => {
   routerState.navigateMock.mockReset();
   routerState.searchListeners.clear();
   routerState.searchParams = {};
+  routerState.childMatches = [];
+  routerState.params = {};
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: clipboardWriteText },
@@ -571,10 +611,10 @@ describe("Jobs create modal", () => {
       expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
     });
     expect(await screen.findByTestId("automation-item-job_nightly_docs")).toBeInTheDocument();
-    expect(screen.getByTestId("automation-detail-panel")).toHaveTextContent("nightly-docs");
-    expect(screen.getByTestId("automation-detail-panel")).toHaveTextContent(
-      "Summarize docs changes."
-    );
+    expect(routerState.navigateMock).toHaveBeenCalledWith({
+      to: "/jobs/$jobId",
+      params: { jobId: "job_nightly_docs" },
+    });
     expect(toast.success).toHaveBeenCalledWith("Created job nightly-docs.");
   });
 
@@ -726,7 +766,7 @@ describe("Jobs create modal", () => {
     expect(await screen.findByTestId("automation-item-job_single_job")).toBeInTheDocument();
   });
 
-  it("Should create an at-mode job, persist the RFC3339 next run, and select it in detail", async () => {
+  it("Should create an at-mode job, persist the RFC3339 next run, and navigate to detail", async () => {
     renderAutomationPage("jobs");
 
     fireEvent.click(await screen.findByTestId("create-job-btn"));
@@ -752,10 +792,11 @@ describe("Jobs create modal", () => {
       expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
     });
     expect(await screen.findByTestId("automation-item-job_one_time_release")).toBeInTheDocument();
-    const detail = screen.getByTestId("automation-detail-panel");
-    expect(detail).toHaveTextContent("one-time-release");
-    expect(screen.getByTestId("automation-job-metric-next-run")).toHaveTextContent("2099");
     expect(jobStore.get("job_one_time_release")?.next_run).toBe(expectedTime);
+    expect(routerState.navigateMock).toHaveBeenCalledWith({
+      to: "/jobs/$jobId",
+      params: { jobId: "job_one_time_release" },
+    });
     expect(toast.success).toHaveBeenCalledWith("Created job one-time-release.");
   });
 
@@ -859,7 +900,8 @@ describe("Jobs create modal", () => {
     }
   );
 
-  it("Should isolate workspace-created jobs when the active workspace changes", async () => {
+  it("Should isolate workspace-scoped jobs when the active workspace changes", async () => {
+    routerState.searchParams = { scope: "workspace" };
     renderAutomationPage("jobs");
 
     fireEvent.click(await screen.findByTestId("create-job-btn"));
@@ -867,16 +909,12 @@ describe("Jobs create modal", () => {
     fireEvent.click(screen.getByTestId("submit-job-form"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("automation-item-job_alpha_only_job")).toBeInTheDocument();
+      expect(createJobRequests).toHaveLength(1);
     });
-    fireEvent.click(screen.getByTestId("jobs-scope-workspace"));
-    await waitFor(() => {
-      expect(routerState.navigateMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ search: expect.any(Function), to: "/jobs" })
-      );
-      expect(routerState.searchParams).toEqual(expect.objectContaining({ scope: "workspace" }));
-      expect(screen.getByTestId("automation-item-job_alpha_only_job")).toBeInTheDocument();
-    });
+    expect(createJobRequests[0]).toEqual(
+      expect.objectContaining({ scope: "workspace", workspace_id: "ws_alpha" })
+    );
+    expect(await screen.findByTestId("automation-item-job_alpha_only_job")).toBeInTheDocument();
 
     useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws_beta" });
 
@@ -902,9 +940,8 @@ describe("Jobs create modal", () => {
     });
     expect(createJobRequests[0]?.prompt).toBe(unsafePrompt);
     expect(await screen.findByTestId("automation-item-job_html_paste_job")).toBeInTheDocument();
-    expect(screen.getByTestId("automation-detail-panel")).toHaveTextContent(
-      "<script>window.__agh_job_xss = true</script>"
-    );
+    // Job rows summarize schedule (not prompt); the invariant here is that the
+    // pasted markup never lands in the DOM as elements or executes.
     expect(document.querySelector("script")).toBeNull();
     expect((window as { __agh_job_xss?: boolean }).__agh_job_xss).toBeUndefined();
   });
@@ -925,9 +962,9 @@ describe("Jobs create modal", () => {
   });
 
   it("Should prefill an existing job in edit mode and patch only the changed values", async () => {
-    renderAutomationPage("jobs");
+    renderAutomationDetail("jobs", "job_existing");
 
-    expect(await screen.findByTestId("automation-item-job_existing")).toBeInTheDocument();
+    expect(await screen.findByTestId("automation-detail-panel")).toBeInTheDocument();
     fireEvent.click(await screen.findByTestId("edit-automation-btn"));
 
     expect(screen.getByRole("heading", { name: "Edit job" })).toBeInTheDocument();
@@ -956,6 +993,69 @@ describe("Jobs create modal", () => {
       "Summarize edited launch state."
     );
     expect(toast.success).toHaveBeenCalledWith("Updated job existing-job.");
+  });
+
+  it("Should reset detail-local state when job and trigger route identities change", async () => {
+    jobStore.reset([
+      makeJob({ id: "job_alpha", name: "alpha-job" }),
+      makeJob({ id: "job_beta", name: "beta-job" }),
+    ]);
+    runs = [];
+    routerState.currentPath = "/jobs/job_alpha";
+    routerState.params = { jobId: "job_alpha" };
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(workspaceKeys.list(), workspaces);
+    const jobView = renderWithTopbar(
+      <QueryClientProvider client={queryClient}>
+        <JobDetailPage />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("alpha-job")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("trigger-job-btn"));
+    expect(await screen.findByTestId("automation-run-run_job_alpha_manual")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("edit-automation-btn"));
+    expect(screen.getByRole("heading", { name: "Edit job" })).toBeInTheDocument();
+
+    routerState.params = { jobId: "job_beta" };
+    jobView.rerender(
+      <QueryClientProvider client={queryClient}>
+        <JobDetailPage />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("beta-job")).toBeInTheDocument();
+    expect(screen.queryByTestId("automation-run-run_job_alpha_manual")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Edit job" })).not.toBeInTheDocument();
+    jobView.unmount();
+
+    triggerStore.reset([
+      makeTrigger({ id: "trg_alpha", name: "alpha-trigger" }),
+      makeTrigger({ id: "trg_beta", name: "beta-trigger" }),
+    ]);
+    routerState.currentPath = "/triggers/trg_alpha";
+    routerState.params = { triggerId: "trg_alpha" };
+    const triggerClient = createQueryClient();
+    triggerClient.setQueryData(workspaceKeys.list(), workspaces);
+    const triggerView = renderWithTopbar(
+      <QueryClientProvider client={triggerClient}>
+        <TriggerDetailPage />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("alpha-trigger")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("edit-automation-btn"));
+    expect(screen.getByRole("heading", { name: "Edit trigger" })).toBeInTheDocument();
+
+    routerState.params = { triggerId: "trg_beta" };
+    triggerView.rerender(
+      <QueryClientProvider client={triggerClient}>
+        <TriggerDetailPage />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("beta-trigger")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Edit trigger" })).not.toBeInTheDocument();
   });
 
   it("Should disable job task owner ref until kind is selected and submit a specific owner", async () => {
@@ -1154,6 +1254,30 @@ describe("Triggers create modal", () => {
       expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
     });
     expect(await screen.findByTestId("automation-item-trg_ci_webhook")).toBeInTheDocument();
+    expect(routerState.navigateMock).toHaveBeenCalledWith({
+      to: "/triggers/$triggerId",
+      params: { triggerId: "trg_ci_webhook" },
+    });
+    expect(toast.success).toHaveBeenCalledWith("Created trigger ci-webhook.");
+  });
+
+  it("Should expose the webhook endpoint identity and copy control on the trigger detail", async () => {
+    triggerStore.reset([
+      makeTrigger({
+        agent_name: "release",
+        endpoint_slug: "ci-deploys",
+        event: "webhook",
+        id: "trg_ci_webhook",
+        name: "ci-webhook",
+        scope: "global",
+        webhook_id: "wbh_ci_deploys",
+        webhook_secret_present: true,
+        workspace_id: undefined,
+      }),
+    ]);
+    renderAutomationDetail("triggers", "trg_ci_webhook");
+
+    expect(await screen.findByTestId("automation-detail-panel")).toBeInTheDocument();
     expect(screen.getByText("Webhook endpoint")).toBeInTheDocument();
     expect(screen.getByText("/api/webhooks/global/ci-deploys--wbh_ci_deploys")).toBeInTheDocument();
     expect(screen.getByText("curl")).toBeInTheDocument();
@@ -1161,7 +1285,6 @@ describe("Triggers create modal", () => {
     expect(clipboardWriteText).toHaveBeenCalledWith(
       "/api/webhooks/global/ci-deploys--wbh_ci_deploys"
     );
-    expect(toast.success).toHaveBeenCalledWith("Created trigger ci-webhook.");
   });
 
   it("Should keep the trigger draft open on server failure and allow retry", async () => {
@@ -1272,7 +1395,8 @@ describe("Triggers create modal", () => {
     expect(await screen.findByTestId("automation-item-trg_single_submit")).toBeInTheDocument();
   });
 
-  it("Should isolate workspace-created triggers when the active workspace changes", async () => {
+  it("Should isolate workspace-scoped triggers when the active workspace changes", async () => {
+    routerState.searchParams = { scope: "workspace" };
     renderAutomationPage("triggers");
 
     fireEvent.click(await screen.findByTestId("create-trigger-btn"));
@@ -1283,16 +1407,12 @@ describe("Triggers create modal", () => {
     fireEvent.click(screen.getByTestId("submit-trigger-form"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("automation-item-trg_alpha_only_trigger")).toBeInTheDocument();
+      expect(createTriggerRequests).toHaveLength(1);
     });
-    fireEvent.click(screen.getByTestId("triggers-scope-workspace"));
-    await waitFor(() => {
-      expect(routerState.navigateMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ search: expect.any(Function), to: "/triggers" })
-      );
-      expect(routerState.searchParams).toEqual(expect.objectContaining({ scope: "workspace" }));
-      expect(screen.getByTestId("automation-item-trg_alpha_only_trigger")).toBeInTheDocument();
-    });
+    expect(createTriggerRequests[0]).toEqual(
+      expect.objectContaining({ scope: "workspace", workspace_id: "ws_alpha" })
+    );
+    expect(await screen.findByTestId("automation-item-trg_alpha_only_trigger")).toBeInTheDocument();
 
     useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws_beta" });
 
@@ -1322,9 +1442,9 @@ describe("Triggers create modal", () => {
         workspace_id: undefined,
       }),
     ]);
-    renderAutomationPage("triggers");
+    renderAutomationDetail("triggers", "trg_webhook_edit");
 
-    expect(await screen.findByTestId("automation-item-trg_webhook_edit")).toBeInTheDocument();
+    expect(await screen.findByTestId("automation-detail-panel")).toBeInTheDocument();
     fireEvent.click(await screen.findByTestId("edit-automation-btn"));
 
     expect(screen.getByRole("heading", { name: "Edit trigger" })).toBeInTheDocument();
@@ -1378,10 +1498,9 @@ describe("Triggers create modal", () => {
       expect(createTriggerRequests).toHaveLength(1);
     });
     expect(createTriggerRequests[0]?.prompt).toBe(unsafePrompt);
-    expect(await screen.findByTestId("automation-item-trg_html_paste_trigger")).toBeInTheDocument();
-    expect(screen.getByTestId("automation-detail-panel")).toHaveTextContent(
-      "<script>window.__agh_trigger_xss = true</script>"
-    );
+    const triggerRow = await screen.findByTestId("automation-item-trg_html_paste_trigger");
+    // The markup must render as escaped text in the row preview, never as DOM.
+    expect(triggerRow).toHaveTextContent("<script>window.__agh_trigger_xss = true</script>");
     expect(document.querySelector("script")).toBeNull();
     expect((window as { __agh_trigger_xss?: boolean }).__agh_trigger_xss).toBeUndefined();
   });
@@ -1401,7 +1520,7 @@ describe("Triggers create modal", () => {
     expect(await screen.findByTestId("automation-item-trg_refresh_trigger")).toBeInTheDocument();
   });
 
-  it("Should create, edit, and delete the same trigger through stateful reads", async () => {
+  it("Should create a trigger on the catalog then navigate to its detail", async () => {
     renderAutomationPage("triggers");
 
     fireEvent.click(await screen.findByTestId("create-trigger-btn"));
@@ -1409,6 +1528,26 @@ describe("Triggers create modal", () => {
     fireEvent.click(screen.getByTestId("submit-trigger-form"));
 
     expect(await screen.findByTestId("automation-item-trg_continuity_trigger")).toBeInTheDocument();
+    expect(routerState.navigateMock).toHaveBeenCalledWith({
+      to: "/triggers/$triggerId",
+      params: { triggerId: "trg_continuity_trigger" },
+    });
+    expect(triggerStore.get("trg_continuity_trigger")).toBeDefined();
+  });
+
+  it("Should edit and delete a trigger through detail-route stateful reads", async () => {
+    triggerStore.reset([
+      makeTrigger({
+        agent_name: "reviewer",
+        event: "session.stopped",
+        id: "trg_continuity_trigger",
+        name: "continuity-trigger",
+        prompt: "Original trigger prompt.",
+      }),
+    ]);
+    renderAutomationDetail("triggers", "trg_continuity_trigger");
+
+    expect(await screen.findByTestId("automation-detail-panel")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("edit-automation-btn"));
     expect(screen.getByTestId("trigger-name-input")).toHaveValue("continuity-trigger");
     expect(screen.getByTestId("trigger-prompt-input")).toHaveValue("Original trigger prompt.");
@@ -1425,6 +1564,7 @@ describe("Triggers create modal", () => {
       "Edited trigger prompt."
     );
 
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("delete-automation-btn"));
     expect(triggerStore.get("trg_continuity_trigger")).toBeDefined();
     fireEvent.change(screen.getByTestId("automation-delete-confirm-typing"), {
@@ -1435,7 +1575,7 @@ describe("Triggers create modal", () => {
     await waitFor(() => {
       expect(triggerStore.get("trg_continuity_trigger")).toBeUndefined();
     });
-    expect(screen.queryByTestId("automation-item-trg_continuity_trigger")).not.toBeInTheDocument();
+    expect(routerState.navigateMock).toHaveBeenCalledWith({ to: "/triggers", replace: true });
   });
 
   it("Should submit the last-selected trigger workspace after filling the form first", async () => {

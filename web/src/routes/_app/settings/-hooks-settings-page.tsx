@@ -2,35 +2,26 @@ import { AlertCircle } from "lucide-react";
 
 import { useSettingsHooksPage } from "@/hooks/routes/use-settings-hooks-page";
 import { NotificationPresetsPanel } from "@/systems/notifications";
-import { restartBannerPropsFor } from "@/systems/settings";
-import {
-  Button,
-  PageShell,
-  RestartBanner,
-  Spinner,
-  StatusLineTopbarSlot,
-  useTopbarSlot,
-} from "@agh/ui";
+import { restartBannerPropsFor, SettingsPageHead } from "@/systems/settings";
+import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
 
 import { HooksSection } from "./-hooks-section";
 
 export function HooksSettingsPage() {
   const page = useSettingsHooksPage();
-  useTopbarSlot({
-    tabs: page.envelope ? (
-      <StatusLineTopbarSlot
-        data-testid="settings-page-hooks-status-line"
-        items={[
-          {
-            key: "hooks",
-            value: `${page.hooksCounts.enabled}/${page.hooksCounts.total} hooks enabled`,
-            tone: "neutral",
-          },
-        ]}
-        status="connected"
-      />
-    ) : undefined,
-  });
+  const statusLine = page.envelope ? (
+    <StatusLine
+      data-testid="settings-page-hooks-status-line"
+      items={[
+        {
+          key: "hooks",
+          value: `${page.hooksCounts.enabled}/${page.hooksCounts.total} hooks enabled`,
+          tone: "neutral",
+        },
+      ]}
+      status="connected"
+    />
+  ) : null;
   if (page.isLoading)
     return (
       <div
@@ -59,7 +50,11 @@ export function HooksSettingsPage() {
     );
   const banner = restartBannerPropsFor("hooks", page.restart);
   return (
-    <PageShell banner={banner ? <RestartBanner {...banner} /> : null} slug="hooks">
+    <PageShell
+      banner={banner ? <RestartBanner {...banner} /> : null}
+      head={<SettingsPageHead slug="hooks" statusLine={statusLine} />}
+      slug="hooks"
+    >
       <HooksSection
         canMutate={page.canMutateHooks}
         hookError={page.hookError}

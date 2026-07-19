@@ -1,8 +1,9 @@
+import { Fragment } from "react";
 import { Link } from "@tanstack/react-router";
 
-import { KindIcon, ListingRow, Pill, cn, providerKindIconRegistry } from "@agh/ui";
+import { KindIcon, ListingRow, Pill, providerKindIconRegistry } from "@agh/ui";
 
-import type { AgentFleetRowModel } from "../lib/agent-fleet-projection";
+import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
 
 export interface AgentFleetRowProps {
@@ -11,17 +12,23 @@ export interface AgentFleetRowProps {
   onNewSession: (agentName: string) => void;
 }
 
+function agentFleetMetaSegments(
+  agent: AgentFleetRowModel["agent"]
+): Array<{ key: "category" | "provider" | "model"; value: string }> {
+  const segments: Array<{ key: "category" | "provider" | "model"; value: string }> = [];
+  const category = formatCategoryMetaSegment(agent.category_path);
+  if (category) segments.push({ key: "category", value: category });
+  if (agent.provider?.trim()) segments.push({ key: "provider", value: agent.provider.trim() });
+  if (agent.model?.trim()) segments.push({ key: "model", value: agent.model.trim() });
+  return segments;
+}
+
 function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentFleetRowProps) {
-  const { agent, signals, meta, ariaLabel, hasDiagnostics, sessionsAvailable } = row;
-  const sessionsTone =
-    sessionsAvailable && signals && signals.active > 0 ? "text-success" : "text-muted";
+  const { agent, signals, ariaLabel, hasDiagnostics, sessionsAvailable, cardOrigin } = row;
+  const metaSegments = agentFleetMetaSegments(agent);
 
   return (
-    <ListingRow
-      className="max-[920px]:grid-cols-[34px_minmax(0,1fr)] max-[920px]:gap-x-3 max-[920px]:gap-y-2"
-      data-agent={agent.name}
-      data-testid={`agent-fleet-row-${agent.name}`}
-    >
+    <ListingRow data-agent={agent.name} data-testid={`agent-fleet-row-${agent.name}`}>
       <ListingRow.Link
         render={
           <Link
@@ -32,9 +39,9 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
           />
         }
       >
-        <ListingRow.Icon className="bg-elevated p-0 text-fg">
+        <ListingRow.Icon>
           <KindIcon
-            className="size-[18px]"
+            className="size-4"
             kind={agent.provider}
             registry={providerKindIconRegistry}
             size="sm"
@@ -43,19 +50,24 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
         </ListingRow.Icon>
         <ListingRow.Main>
           <ListingRow.Name>
-            <ListingRow.Title className="text-item-title">{agent.name}</ListingRow.Title>
+            <ListingRow.Title>{agent.name}</ListingRow.Title>
+            <Pill size="xs" tone="neutral" data-testid={`agent-fleet-origin-${agent.name}`}>
+              {cardOrigin}
+            </Pill>
           </ListingRow.Name>
-          <ListingRow.Meta className="font-mono text-badge text-muted">{meta}</ListingRow.Meta>
+          {metaSegments.length > 0 ? (
+            <ListingRow.Meta data-testid={`agent-fleet-meta-${agent.name}`}>
+              {metaSegments.map((segment, index) => (
+                <Fragment key={segment.key}>
+                  {index > 0 ? <ListingRow.MetaDot /> : null}
+                  <span className="font-mono text-badge text-subtle">{segment.value}</span>
+                </Fragment>
+              ))}
+            </ListingRow.Meta>
+          ) : null}
         </ListingRow.Main>
       </ListingRow.Link>
-      <ListingRow.Trail className="gap-2.5 max-[920px]:col-span-2 max-[920px]:col-start-2 max-[920px]:justify-self-start">
-        <span
-          aria-hidden="true"
-          className={cn("font-mono text-badge tabular-nums", sessionsTone)}
-          data-testid={`agent-fleet-sessions-${agent.name}`}
-        >
-          {sessionsAvailable && signals ? `● ${signals.active} / ${signals.total}` : "--"}
-        </span>
+      <ListingRow.Trail className="gap-3">
         {sessionsAvailable && signals ? (
           <Pill
             size="sm"

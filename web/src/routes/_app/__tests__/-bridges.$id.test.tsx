@@ -1,5 +1,5 @@
 import * as React from "react";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,7 +22,7 @@ import type {
 } from "@/systems/bridges";
 
 function render(ui: React.ReactElement) {
-  return renderWithTopbar(ui, { title: "brg_support" });
+  return renderWithTopbar(ui);
 }
 
 const { toast } = vi.hoisted(() => ({
@@ -467,22 +467,13 @@ describe("BridgeDetailRoute", () => {
     } satisfies BridgeResolveTargetResponse);
   });
 
-  it("renders bridge detail with back navigation", () => {
+  it("renders bridge detail", () => {
     render(<BridgeDetailPage />);
 
     const detailPanel = screen.getByTestId("bridge-detail-panel");
     expect(within(detailPanel).getByText("Support")).toBeInTheDocument();
     expect(within(detailPanel).getByText("support-agent")).toBeInTheDocument();
     expect(screen.getByTestId("bridge-route-sess_123")).toBeInTheDocument();
-    expect(screen.getByLabelText("Back to bridges")).toBeInTheDocument();
-  });
-
-  it("navigates back to the bridges list", async () => {
-    const user = userEvent.setup();
-    render(<BridgeDetailPage />);
-
-    await user.click(screen.getByLabelText("Back to bridges"));
-    expect(routerState.navigateMock).toHaveBeenCalledWith({ to: "/bridges" });
   });
 
   it("renders the no routes detail variant when the bridge has no routes", () => {
@@ -907,7 +898,8 @@ describe("BridgeDetailRoute", () => {
 
     expect(screen.getByTestId("bridge-restart-required")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("restart-bridge-btn"));
+    fireEvent.click(screen.getByTestId("bridge-detail-overflow"));
+    fireEvent.click(screen.getByTestId("restart-bridge-btn"));
 
     await waitFor(() => {
       expect(mockRestartBridgeMutateAsync).toHaveBeenCalledWith({
@@ -920,10 +912,10 @@ describe("BridgeDetailRoute", () => {
   });
 
   it("disables the selected bridge", async () => {
-    const user = userEvent.setup();
     render(<BridgeDetailPage />);
 
-    await user.click(screen.getByTestId("disable-bridge-btn"));
+    fireEvent.click(screen.getByTestId("bridge-detail-overflow"));
+    fireEvent.click(screen.getByTestId("disable-bridge-btn"));
     await waitFor(() => {
       expect(mockDisableBridgeMutateAsync).toHaveBeenCalledWith({
         id: "brg_support",

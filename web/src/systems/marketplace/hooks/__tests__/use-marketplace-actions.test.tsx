@@ -94,17 +94,19 @@ describe("useInstallMarketplaceMCP", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(installMarketplaceMCP).toHaveBeenCalledWith(body);
-    expect(toast.success).toHaveBeenCalledWith("MCP server installed. Authorization is required.", {
+    expect(toast.success).toHaveBeenCalledWith("github installed · authorization pending", {
       action: { label: "Authorize →", onClick: expect.any(Function) },
     });
     const authorizeToast = vi
       .mocked(toast.success)
-      .mock.calls.find(call => call[0] === "MCP server installed. Authorization is required.");
+      .mock.calls.find(call => call[0] === "github installed · authorization pending");
     const authorizeAction = authorizeToast?.[1] as
       | { action?: { onClick?: () => void } }
       | undefined;
     authorizeAction?.action?.onClick?.();
-    expect(locationAssign).toHaveBeenCalledWith("/mcp?scope=global&server=github");
+    expect(locationAssign).toHaveBeenCalledWith(
+      "/marketplace/mcp/github-mcp?scope=global&installed_name=github"
+    );
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["settings", "collection", "mcp-servers"],
@@ -143,15 +145,17 @@ describe("useInstallMarketplaceMCP", () => {
     act(() => result.current.mutate({ entry_id: "filesystem", scope: "global", values: null }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(toast.success).toHaveBeenCalledWith("MCP server installed.", {
-      action: { label: "Manage →", onClick: expect.any(Function) },
+    expect(toast.success).toHaveBeenCalledWith("filesystem installed", {
+      action: { label: "View installed →", onClick: expect.any(Function) },
     });
     const manageToast = vi
       .mocked(toast.success)
-      .mock.calls.find(call => call[0] === "MCP server installed.");
+      .mock.calls.find(call => call[0] === "filesystem installed");
     const manageAction = manageToast?.[1] as { action?: { onClick?: () => void } } | undefined;
     manageAction?.action?.onClick?.();
-    expect(locationAssign).toHaveBeenCalledWith("/mcp?scope=global&server=filesystem");
+    expect(locationAssign).toHaveBeenCalledWith(
+      "/marketplace/mcp/filesystem?scope=global&installed_name=filesystem"
+    );
   });
 
   it("Should retain workspace identity in the post-install management deep link", async () => {
@@ -201,13 +205,13 @@ describe("useInstallMarketplaceMCP", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const authorizeToast = vi
       .mocked(toast.success)
-      .mock.calls.find(call => call[0] === "MCP server installed. Authorization is required.");
+      .mock.calls.find(call => String(call[0]).includes("authorization pending"));
     const authorizeAction = authorizeToast?.[1] as
       | { action?: { onClick?: () => void } }
       | undefined;
     authorizeAction?.action?.onClick?.();
     expect(locationAssign).toHaveBeenCalledWith(
-      "/mcp?scope=workspace&server=github&workspace_id=ws-polybot"
+      "/marketplace/mcp/github-mcp?scope=workspace&installed_name=github&workspace_id=ws-polybot"
     );
   });
 });

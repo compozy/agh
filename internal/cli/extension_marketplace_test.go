@@ -23,11 +23,15 @@ func TestExtensionSearchCommandUsesDaemonClient(t *testing.T) {
 			kind string,
 			query string,
 			limit int,
+			cursor string,
 			scope MarketplaceReadScope,
 		) (MarketplaceKindRecord, error) {
 			called = true
 			if kind != "extension" || query != "bridge" || limit != 7 {
 				t.Fatalf("BrowseMarketplace(%q, %q, %d), want extension bridge 7", kind, query, limit)
+			}
+			if cursor != "" {
+				t.Fatalf("BrowseMarketplace cursor = %q, want empty", cursor)
 			}
 			if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
 				t.Fatalf("Marketplace read scope = %#v, want global", scope)

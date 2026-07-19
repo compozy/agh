@@ -54,7 +54,30 @@ export function AgentSessionsTab({
 }: AgentSessionsTabProps) {
   const filtered = filterAgentSessionsByStatus(sessions, filter);
   const emptyTitle = filter === "all" ? "No sessions for this agent" : `No ${filter} sessions`;
-  const emptyDescription = filter === "all" ? "Start a session to see it here." : undefined;
+  const emptyDescription =
+    filter === "all"
+      ? "Start a session to see it here."
+      : "Try another filter or show all sessions.";
+  const emptyAction =
+    filter === "all" ? (
+      <button
+        type="button"
+        className="text-small-body text-accent hover:underline"
+        onClick={onNewSession}
+        data-testid="agent-sessions-empty-new"
+      >
+        New session
+      </button>
+    ) : (
+      <button
+        type="button"
+        className="text-small-body text-accent hover:underline"
+        onClick={onClearFilter}
+        data-testid="agent-sessions-show-all"
+      >
+        Show all
+      </button>
+    );
 
   return (
     <div className="flex flex-col gap-4" data-testid="agent-sessions-tab">
@@ -91,33 +114,11 @@ export function AgentSessionsTab({
         sessions={filtered}
         status={status}
         emptyTitle={emptyTitle}
-        emptyDescription={
-          emptyDescription ?? (
-            <button
-              type="button"
-              className="text-accent hover:underline"
-              onClick={onClearFilter}
-              data-testid="agent-sessions-show-all"
-            >
-              Show all
-            </button>
-          )
-        }
+        emptyDescription={emptyDescription}
+        emptyAction={emptyAction}
         paginationStatus={paginationStatus}
         onLoadMore={onLoadMore}
       />
-      {filter === "all" && status === "ready" && sessions.length === 0 ? (
-        <div className="flex justify-center">
-          <button
-            type="button"
-            className="text-small-body text-accent hover:underline"
-            onClick={onNewSession}
-            data-testid="agent-sessions-empty-new"
-          >
-            New session
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

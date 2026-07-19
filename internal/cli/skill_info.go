@@ -26,6 +26,7 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 				cmd.Context(),
 				contract.MarketplaceKindSkill,
 				args[0],
+				"",
 				MarketplaceReadScope{Scope: contract.SettingsWorkspaceScopeGlobal},
 			)
 			if err != nil {

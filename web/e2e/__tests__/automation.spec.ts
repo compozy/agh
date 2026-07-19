@@ -60,14 +60,12 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
 
   await expect(appPage).toHaveURL(/\/jobs$/);
   await expect(automationUI.jobsShell).toBeVisible();
-  await expect(automationUI.jobsScopeAll).toHaveAttribute("aria-pressed", "true");
-  await expect(automationUI.listPanel).toBeVisible();
-  const selectedJobItem = automationUI.item(seeded.job.id);
-  await expect(selectedJobItem).toBeVisible();
-  await expect(selectedJobItem).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    selectedJobItem.locator('[data-slot="item-selection-indicator"][data-indicator="rail"]')
-  ).toBeVisible();
+  await expect(automationUI.jobsListRows).toBeVisible();
+  await expect(automationUI.item(seeded.job.id)).toBeVisible();
+  await automationUI.itemLink(seeded.job.id).click();
+
+  await expect(appPage).toHaveURL(new RegExp(`/jobs/${seeded.job.id}$`));
+  await expect(automationUI.detailPanel).toBeVisible();
   await expect(automationUI.detailPanel).toContainText(seeded.job.name);
   await expect(automationUI.detailPanel).toContainText(
     browserAutomationOperatorFlowScenario.job.prompt
@@ -84,19 +82,16 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
   await automationUI.navTriggers.click();
   await expect(appPage).toHaveURL(/\/triggers$/);
   await expect(automationUI.triggersShell).toBeVisible();
-  await expect(automationUI.triggersScopeAll).toHaveAttribute("aria-pressed", "true");
-  const selectedTriggerItem = automationUI.item(seeded.trigger.id);
-  await expect(selectedTriggerItem).toBeVisible();
-  await expect(selectedTriggerItem).toHaveAttribute("aria-pressed", "true");
-  await expect(
-    selectedTriggerItem.locator('[data-slot="item-selection-indicator"][data-indicator="rail"]')
-  ).toBeVisible();
+  await expect(automationUI.triggersListRows).toBeVisible();
+  await expect(automationUI.item(seeded.trigger.id)).toBeVisible();
+  await automationUI.itemLink(seeded.trigger.id).click();
+
+  await expect(appPage).toHaveURL(new RegExp(`/triggers/${seeded.trigger.id}$`));
   await expect(automationUI.detailPanel).toContainText(seeded.trigger.name);
   await expect(automationUI.detailPanel).toContainText(
     browserAutomationOperatorFlowScenario.trigger.webhookID
   );
 
-  await selectedTriggerItem.click();
   await expect(automationUI.editAutomationButton).toBeVisible();
   await expect(automationUI.editAutomationButton).toBeEnabled();
   await automationUI.editAutomationButton.click();
@@ -122,7 +117,8 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
   await automationUI.navJobs.click();
   await expect(appPage).toHaveURL(/\/jobs$/);
   await expect(automationUI.jobsShell).toBeVisible();
-  await automationUI.item(seeded.job.id).click();
+  await automationUI.itemLink(seeded.job.id).click();
+  await expect(appPage).toHaveURL(new RegExp(`/jobs/${seeded.job.id}$`));
 
   await expect(automationUI.editAutomationButton).toBeVisible();
   await expect(automationUI.editAutomationButton).toBeEnabled();

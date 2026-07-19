@@ -32,8 +32,8 @@ declare module "@tanstack/react-router" {
   interface RouteContext {
     /**
      * Static topbar metadata declared by every TanStack Router route's
-     * `beforeLoad`. Read by the shell `<Topbar>` via `useRouterState` to
-     * resolve the deepest match's title/icon/count.
+     * `beforeLoad`. The shell resolves the deepest label into the Topbar H1
+     * and earlier labels into breadcrumb ancestry.
      */
     topbar?: TopbarRouteContext;
   }
