@@ -139,6 +139,12 @@
             "skillPath": "skills/productivity/handoff/SKILL.md",
             "computedHash": "1a78d774f8a59db5daa6e65e20a6596872fa8cde769f9a6e3a09b678dd5ae8cc"
         },
+        "herdr-orchestration": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/herdr-orchestration/SKILL.md",
+            "computedHash": "407bc24b22ebf9652e129d062cab2391214a2d08315c618d71daf105fad3bbf4"
+        },
         "humanizer": {
             "source": "pedronauck/skills",
             "sourceType": "github",
