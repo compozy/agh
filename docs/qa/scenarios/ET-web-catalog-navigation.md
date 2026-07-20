@@ -1,11 +1,11 @@
 ---
 id: ET-web-catalog-navigation
 area: ET
-title: Navigate the Catalog information architecture
+title: Navigate the desktop app registry
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: The sidebar Catalog group appears in the exact Marketplace, Extensions, Bridges, Skills, MCP, Knowledge order and System contains only Sandbox, Vault, Settings, with child routes preserving the correct active item.
-entry_points: web app sidebar; Catalog and System destinations
+expected: The dock and command palette expose the canonical desktop app registry without duplicate windows; Marketplace owns its Extensions, Skills, MCP, and Bundles routes; Sandbox and Vault stay in the final dock group; Settings opens from the menubar cog; focusing a child route preserves the owning app window.
+entry_points: web desktop dock; command palette; settings cog; Catalog and System destinations
 qa_status: untested
 bug_ids:
 fix_status:
@@ -24,3 +24,7 @@ retain the sidebar active indicator.
 QA impact 2026-07-18: Network and Bridges now use the same descendant-aware active matching as
 other catalog roots. Verify nested channel/thread and bridge-detail routes retain their parent
 sidebar indicator.
+
+QA impact 2026-07-20: OS Shell Task 04 deleted the sidebar and replaced its app-navigation role
+with the dock, command palette, and settings cog. Reset to `untested`; later app-port tasks own the
+content journeys inside each registered window.

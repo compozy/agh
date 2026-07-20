@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 
-import { useSidebarStore } from "@/hooks/use-sidebar-store";
 import type { SettingsSectionName } from "@/systems/settings";
 import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
@@ -17,7 +16,6 @@ export function StorybookWorkspaceSetup({
   workspaceId?: string;
 }) {
   useEffect(() => {
-    useSidebarStore.getState().setCollapsed(false);
     useActiveWorkspaceStore.getState().setSelectedWorkspaceId(workspaceId);
   }, [workspaceId]);
 

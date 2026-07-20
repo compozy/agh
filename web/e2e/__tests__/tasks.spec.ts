@@ -66,7 +66,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
 
   await useGlobalWorkspaceIfPrompted(tasksUI);
 
-  await expect(tasksUI.appSidebar).toBeVisible();
+  await expect(tasksUI.osDesktop).toBeVisible();
   await expect(tasksUI.navTasks).toBeVisible();
   await tasksUI.navTasks.click();
 

@@ -1,11 +1,11 @@
 ---
 id: ET-web-route-chrome-topbar
 area: ET
-title: Route chrome topbar breadcrumb and PageHead focus
+title: Window chrome breadcrumb and PageHead focus
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: Every `_app` route shows a 3-zone topbar (breadcrumb ancestry and current-route H1 · optional RouteNav · actions) with a fixed Home icon as the first breadcrumb item linking to Dashboard (`/`); on `/` the Home icon is current and the Topbar H1 is Home; PageHead is a subordinate body summary and never creates a competing H1; after path navigation focus moves to the always-mounted Topbar H1, including routes whose body resolves asynchronously; parent breadcrumb links replace body back-chevrons on detail routes; taskless network wakes never claim a `Task network` ancestor.
-entry_points: web app shell TopbarShell; any catalog or detail route
+expected: Every open desktop window owns one 3-zone 48px topbar with workspace and route breadcrumbs, the current route identity, optional RouteNav, and app actions; PageHead remains subordinate body metadata; focusing a window makes its topbar and URL authoritative without creating a second shell-level title.
+entry_points: web desktop windows; any windowed catalog or detail route
 qa_status: untested
 bug_ids:
 fix_status:
@@ -41,3 +41,6 @@ outside the persistent Topbar H1/action rails.
 QA impact 2026-07-18: routes without a center RouteNav no longer reserve its grid column. Verify
 long detail-route titles use the released width at collapsed and desktop viewports while trailing
 actions remain aligned.
+
+QA impact 2026-07-20: OS Shell Task 04 deleted the global `TopbarShell`. Route identity and
+actions now live in each window's `TopbarSlotProvider`; reset to `untested` for the next QA cycle.

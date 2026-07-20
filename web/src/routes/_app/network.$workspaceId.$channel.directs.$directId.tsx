@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { DirectRoom } from "@/systems/network";
 import { preloadNetworkDirectDetailRoute } from "./-network-preload";
 
 export const Route = createFileRoute("/_app/network/$workspaceId/$channel/directs/$directId")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: `#${params.channel} · Direct` } },
   }),
-  component: NetworkChannelDirectDetailRoute,
+  component: createOsRouteSync("network"),
   loader: ({ context, params }) =>
     preloadNetworkDirectDetailRoute(
       context.queryClient,
@@ -17,8 +17,3 @@ export const Route = createFileRoute("/_app/network/$workspaceId/$channel/direct
       params.directId
     ),
 });
-
-function NetworkChannelDirectDetailRoute() {
-  const { workspaceId, channel, directId } = Route.useParams();
-  return <DirectRoom channel={channel} directId={directId} workspaceId={workspaceId} />;
-}

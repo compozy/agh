@@ -26,7 +26,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   const ui = sessionLifecycleSelectors(appPage);
 
   await useGlobalWorkspaceIfPrompted(ui);
-  await expect(ui.appSidebar).toBeVisible();
+  await expect(ui.osDesktop).toBeVisible();
 
   await appPage.getByTestId("add-workspace-btn").click();
 
@@ -55,7 +55,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   // Closing the dialog returns to the operator app shell without losing the registered workspace.
   await appPage.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(ui.appSidebar).toBeVisible();
+  await expect(ui.osDesktop).toBeVisible();
 });
 
 test.describe("first-run default model", () => {

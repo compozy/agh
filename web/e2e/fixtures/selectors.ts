@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
 export const sessionLifecycleTestIds = {
-  appSidebar: "app-sidebar",
+  osDesktop: "os-desktop",
   chatHeader: "chat-header",
   chatView: "chat-view",
   composerClearButton: "composer-clear-button",
@@ -24,7 +24,7 @@ export const sessionLifecycleTestIds = {
 export interface SessionLifecycleSelectors {
   agentPageNewSession: Locator;
   agentRow(agentName: string): Locator;
-  appSidebar: Locator;
+  osDesktop: Locator;
   chatHeader: Locator;
   chatView: Locator;
   composerClearButton: Locator;
@@ -45,7 +45,7 @@ export interface SessionLifecycleSelectors {
 }
 
 export const networkOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   channelNameInput: "network-channel-name-input",
   channelHeader: "network-channel-header",
   channelIdentityMix: "network-channel-identity-mix",
@@ -86,7 +86,7 @@ export const networkOperatorTestIds = {
 } as const;
 
 export const automationOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   automationDetailPanel: "automation-detail-panel",
   automationEditorDialog: "automation-editor-dialog",
   automationJobScheduler: "automation-job-scheduler",
@@ -143,7 +143,7 @@ export const automationOperatorTestIds = {
 } as const;
 
 export const bridgeOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   bridgeCreateDialog: "bridge-create-dialog",
   bridgeDetailPanel: "bridge-detail-panel",
   bridgeEditDialog: "bridge-edit-dialog",
@@ -193,7 +193,7 @@ export const bridgeOperatorTestIds = {
 } as const;
 
 export const knowledgeOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   cancelCreateMemory: "cancel-create-memory-btn",
   confirmCreateMemory: "confirm-create-memory-btn",
   confirmDeleteMemory: "confirm-delete-memory-btn",
@@ -244,7 +244,7 @@ export const marketplaceOperatorTestIds = {
 export const sandboxOperatorTestIds = {
   actionResult: "sandbox-page-action-result",
   actionResultDismiss: "sandbox-page-action-result-dismiss",
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   createButton: "sandbox-page-create",
   deleteConfirm: "settings-sandboxes-delete-confirm",
   deleteDialog: "settings-sandboxes-delete",
@@ -269,7 +269,7 @@ export const sandboxOperatorTestIds = {
 } as const;
 
 export interface NetworkOperatorSelectors {
-  appSidebar: Locator;
+  osDesktop: Locator;
   agentOption(agentName: string): Locator;
   channelItem(channelName: string): Locator;
   channelMessage(messageId: string): Locator;
@@ -317,7 +317,7 @@ export interface NetworkOperatorSelectors {
 }
 
 export interface AutomationOperatorSelectors {
-  appSidebar: Locator;
+  osDesktop: Locator;
   automationSuggestionsCard: Locator;
   automationDeleteConfirmTyping: Locator;
   automationDeleteDialog: Locator;
@@ -386,7 +386,7 @@ export interface AutomationOperatorSelectors {
 
 export interface BridgeOperatorSelectors {
   activeRoutesMetric: Locator;
-  appSidebar: Locator;
+  osDesktop: Locator;
   backToList: Locator;
   createBridgeButton: Locator;
   createDialog: Locator;
@@ -447,7 +447,7 @@ export interface BridgeOperatorSelectors {
 }
 
 export interface KnowledgeOperatorSelectors {
-  appSidebar: Locator;
+  osDesktop: Locator;
   cancelCreateMemory: Locator;
   confirmCreateMemory: Locator;
   confirmDeleteMemory: Locator;
@@ -505,7 +505,7 @@ export interface MarketplaceOperatorSelectors {
 export interface SandboxOperatorSelectors {
   actionResult: Locator;
   actionResultDismiss: Locator;
-  appSidebar: Locator;
+  osDesktop: Locator;
   createButton: Locator;
   deleteConfirm: Locator;
   deleteDialog: Locator;
@@ -732,7 +732,7 @@ export interface SettingsOperatorSelectors {
   skills: SettingsSkillsSelectors;
 }
 export const tasksOperatorTestIds = {
-  appSidebar: sessionLifecycleTestIds.appSidebar,
+  osDesktop: sessionLifecycleTestIds.osDesktop,
   createDescription: "task-description-input",
   createEditorSurface: "task-editor-modal",
   createModeAdvanced: "task-mode-advanced",
@@ -807,7 +807,7 @@ const tasksInboxGroupByLane: Record<string, string> = {
 };
 
 export interface TasksOperatorSelectors {
-  appSidebar: Locator;
+  osDesktop: Locator;
   createDescription: Locator;
   createEditorSurface: Locator;
   createPriority(priority: string): Locator;
@@ -906,7 +906,7 @@ export function sessionLifecycleSelectors(
   return {
     agentPageNewSession: page.getByTestId("agent-page-new-session"),
     agentRow: (agentName: string) => page.getByTestId(`agent-fleet-row-link-${agentName}`),
-    appSidebar: page.getByTestId(sessionLifecycleTestIds.appSidebar),
+    osDesktop: page.getByTestId(sessionLifecycleTestIds.osDesktop),
     chatHeader: page.getByTestId(sessionLifecycleTestIds.chatView),
     chatView: page.getByTestId(sessionLifecycleTestIds.chatView),
     composerClearButton: page.getByTestId(sessionLifecycleTestIds.composerClearButton),
@@ -1034,7 +1034,7 @@ export function networkOperatorSelectors(
   page: Pick<Page, "getByTestId" | "locator">
 ): NetworkOperatorSelectors {
   return {
-    appSidebar: page.getByTestId(networkOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(networkOperatorTestIds.osDesktop),
     agentOption: (agentName: string) => page.getByTestId(`network-agent-option-${agentName}`),
     channelItem: (channelName: string) => page.getByTestId(`network-channel-row-${channelName}`),
     channelMessage: (messageId: string) =>
@@ -1089,7 +1089,7 @@ export function knowledgeOperatorSelectors(
   page: Pick<Page, "getByTestId">
 ): KnowledgeOperatorSelectors {
   return {
-    appSidebar: page.getByTestId(knowledgeOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(knowledgeOperatorTestIds.osDesktop),
     cancelCreateMemory: page.getByTestId(knowledgeOperatorTestIds.cancelCreateMemory),
     confirmCreateMemory: page.getByTestId(knowledgeOperatorTestIds.confirmCreateMemory),
     confirmDeleteMemory: page.getByTestId(knowledgeOperatorTestIds.confirmDeleteMemory),
@@ -1156,7 +1156,7 @@ export function sandboxOperatorSelectors(
   return {
     actionResult: page.getByTestId(sandboxOperatorTestIds.actionResult),
     actionResultDismiss: page.getByTestId(sandboxOperatorTestIds.actionResultDismiss),
-    appSidebar: page.getByTestId(sandboxOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(sandboxOperatorTestIds.osDesktop),
     createButton: page.getByTestId(sandboxOperatorTestIds.createButton),
     deleteConfirm: page.getByTestId(sandboxOperatorTestIds.deleteConfirm),
     deleteDialog: page.getByTestId(sandboxOperatorTestIds.deleteDialog),
@@ -1193,7 +1193,7 @@ export function automationOperatorSelectors(
   const editorDialog = page.getByTestId(automationOperatorTestIds.automationEditorDialog);
 
   return {
-    appSidebar: page.getByTestId(automationOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(automationOperatorTestIds.osDesktop),
     automationSuggestionsCard: page.getByTestId(
       automationOperatorTestIds.automationSuggestionsCard
     ),
@@ -1278,7 +1278,7 @@ export function bridgeOperatorSelectors(
 
   return {
     activeRoutesMetric: page.getByTestId(bridgeOperatorTestIds.bridgeMetricActiveRoutes),
-    appSidebar: page.getByTestId(bridgeOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(bridgeOperatorTestIds.osDesktop),
     backToList: breadcrumb.getByRole("link", { exact: true, name: "Bridges" }),
     createBridgeButton: page.getByTestId(bridgeOperatorTestIds.createBridgeButton),
     createDialog: page.getByTestId(bridgeOperatorTestIds.bridgeCreateDialog),
@@ -1470,7 +1470,7 @@ export function tasksOperatorSelectors(
   const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
 
   return {
-    appSidebar: page.getByTestId(tasksOperatorTestIds.appSidebar),
+    osDesktop: page.getByTestId(tasksOperatorTestIds.osDesktop),
     createDescription: page.getByTestId(tasksOperatorTestIds.createDescription),
     createEditorSurface: page.getByTestId(tasksOperatorTestIds.createEditorSurface),
     createModeAdvanced: page.getByTestId(tasksOperatorTestIds.createModeAdvanced),

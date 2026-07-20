@@ -112,11 +112,12 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 - When Paper artboards (design references) conflict with daemon truth, **daemon wins**.
 - Paper governs _composition_; `DESIGN.md` governs _grammar_ (tokens, depth, motion).
+- A design reference is **lossy by nature**: demo data, fixture copy, placeholder brand marks, and simplified or omitted product content are prototype artifacts, never product instructions. Content/data belong to runtime truth, labels/copy to `COPY.md`, marks to the `@agh/ui` brand inventory — record the divergence as an authorized delta (L-032).
 - No invented controls (per-bridge retry/timeout when runtime doesn't support them).
 - No invented metrics (no "pending retry" counts when telemetry doesn't expose them).
 - Observability-only views are allowed (e.g., Network Peers in v1 has no Disconnect/Remove until backend models them).
 
-**Source:** Multiple plans in `.codex/plans/` (automation-bridges-paper-redesign, network-paper-pages, bridge-web-e2e).
+**Source:** Multiple plans in `.codex/plans/` (automation-bridges-paper-redesign, network-paper-pages, bridge-web-e2e); L-032 (os-shell menubar mark).
 
 ---
 

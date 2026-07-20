@@ -1,22 +1,8 @@
-import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
-import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 
-import { Button, Eyebrow } from "@agh/ui";
-
-import {
-  DirectsEmpty,
-  DirectsList,
-  NewDirectDialog,
-  useNetworkChannelDirectsRoute,
-  useNetworkListFiltersContext,
-} from "@/systems/network";
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { preloadNetworkDirectsRoute } from "./-network-preload";
-
-interface DirectDetailParams {
-  directId?: string;
-}
 
 export const Route = createFileRoute("/_app/network/$workspaceId/$channel/directs")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
@@ -28,101 +14,7 @@ export const Route = createFileRoute("/_app/network/$workspaceId/$channel/direct
       },
     },
   }),
-  component: NetworkChannelDirectsRoute,
+  component: createOsRouteSync("network"),
   loader: ({ context, params }) =>
     preloadNetworkDirectsRoute(context.queryClient, params.workspaceId, params.channel),
 });
-
-function NetworkChannelDirectsRoute() {
-  const { workspaceId, channel } = Route.useParams();
-  const detailParams = useParams({ strict: false }) as DirectDetailParams;
-  const route = useNetworkChannelDirectsRoute(workspaceId, channel);
-  const { filteredDirects, directsQuery, isFiltered } = useNetworkListFiltersContext();
-  const [newDirectOpen, setNewDirectOpen] = useState(false);
-
-  if (detailParams.directId) {
-    return (
-      <section
-        aria-label={`Direct room ${detailParams.directId} in #${channel}`}
-        className="flex min-h-0 flex-1 flex-col"
-        data-testid="network-direct-detail-slot"
-      >
-        <Outlet />
-      </section>
-    );
-  }
-
-  const activeSession = route.session;
-  const channelMembers = route.members;
-  const visibleDirects = filteredDirects;
-  const showEmpty = !directsQuery.isLoading && visibleDirects.length === 0;
-  const sessionId = activeSession.session?.sessionId ?? "";
-  const totalDirects = directsQuery.total;
-  const subheaderLabel = isFiltered
-    ? totalDirects === 1
-      ? "1 MATCHING DIRECT ROOM"
-      : `${totalDirects} MATCHING DIRECT ROOMS`
-    : totalDirects === 1
-      ? "1 DIRECT ROOM IN THIS CHANNEL"
-      : `${totalDirects} DIRECT ROOMS IN THIS CHANNEL`;
-
-  return (
-    <section
-      aria-label={`Direct rooms in #${channel}`}
-      className="flex min-h-0 flex-1 flex-col"
-      data-testid="network-directs-tab"
-    >
-      <header
-        className="flex items-center justify-between gap-3 border-b border-line px-5 py-2"
-        data-testid="network-directs-subheader"
-      >
-        <Eyebrow className="text-subtle">{subheaderLabel}</Eyebrow>
-        <Button
-          aria-label="Open new direct room"
-          data-testid="network-directs-new-direct"
-          disabled={!sessionId}
-          onClick={() => setNewDirectOpen(true)}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          <Plus aria-hidden="true" className="size-3" />
-          New direct
-        </Button>
-      </header>
-
-      {showEmpty ? (
-        <div className="flex flex-1 items-center justify-center px-6 py-10">
-          <DirectsEmpty
-            className="max-w-md"
-            filtered={isFiltered}
-            onNewDirect={sessionId ? () => setNewDirectOpen(true) : undefined}
-          />
-        </div>
-      ) : (
-        <DirectsList
-          workspaceId={workspaceId}
-          activeDirectId={null}
-          channel={channel}
-          directs={visibleDirects}
-          hasMore={directsQuery.hasMore}
-          isLoading={directsQuery.isLoading}
-          isLoadingMore={directsQuery.isLoadingMore}
-          members={channelMembers.members}
-          onLoadMore={directsQuery.loadMore}
-          selfSessionId={activeSession.session?.sessionId}
-          total={directsQuery.total}
-        />
-      )}
-
-      <NewDirectDialog
-        workspaceId={workspaceId}
-        channel={channel}
-        onOpenChange={setNewDirectOpen}
-        open={newDirectOpen && Boolean(sessionId)}
-        selfPeerId={activeSession.session?.peerId}
-        sessionId={sessionId}
-      />
-    </section>
-  );
-}

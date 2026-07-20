@@ -50,7 +50,7 @@ test("operator can onboard, create a session, submit work, approve a permission 
   const ui = sessionLifecycleSelectors(appPage);
 
   await useGlobalWorkspaceIfPrompted(ui);
-  await expect(ui.appSidebar).toBeVisible();
+  await expect(ui.osDesktop).toBeVisible();
   await appPage.getByTestId("nav-agents").click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
   await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();

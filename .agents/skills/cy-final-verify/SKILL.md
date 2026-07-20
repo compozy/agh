@@ -160,7 +160,7 @@ When a spec/task names an OpenDesign artifact, HTML mock, screenshot, or other t
 
 1. Resolve the exact reference path, including absolute paths outside the current worktree. If `agh-ui-screenshot` is installed, follow its Visual Contract Mode in full.
 2. Enumerate every required state/viewport. For each one, require a durable bundle containing `reference.png`, `implementation.png`, `side-by-side.png`, `diff.png`, `comparison.json`, and `review.md`.
-3. Open and inspect every pair. A wrong shell, missing/reordered region, materially different geometry or hierarchy, substituted component anatomy, missing state/control, or uncited structural delta is a blocker regardless of green tests or pixel ratio.
+3. Open and inspect every pair. A wrong shell, missing/reordered region, materially different geometry or hierarchy, substituted component anatomy, missing visible state, or uncited visual-language delta is a blocker regardless of green tests or pixel ratio. Content, data, copy, brand-mark, and control-existence divergences are judged against their canonical owners (runtime truth, `COPY.md`, brand inventory) — require the cited authorized difference, not prototype parity.
 4. Run the `agh-ui-screenshot` bundle validator for every row and require exit zero (`PASS` plus `blocking_divergences: 0`). Implementation-only screenshots, filenames, checklist ticks, and “looks close” prose are not parity evidence.
 5. Cite the contract matrix and bundle root in the Verification Report (`Visual contract:` line). If no named visual reference exists, report `n/a — no named visual reference found`.
 

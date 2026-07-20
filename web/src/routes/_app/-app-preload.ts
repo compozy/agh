@@ -37,6 +37,14 @@ export async function preloadHomeRoute(queryClient: QueryClient): Promise<void> 
     return;
   }
 
+  await preloadHomeWorkspace(queryClient, workspaceId);
+}
+
+/** Warm the dashboard projection for an explicitly owned workspace window. */
+export async function preloadHomeWorkspace(
+  queryClient: QueryClient,
+  workspaceId: string
+): Promise<void> {
   await settleRouteQueries([
     queryClient.ensureQueryData(agentsListOptions(workspaceId)),
     queryClient.ensureInfiniteQueryData(

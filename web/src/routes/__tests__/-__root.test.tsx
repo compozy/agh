@@ -53,7 +53,7 @@ const RootNotFoundBoundary: (props: { isNotFound: true; routeId: string }) => Re
 describe("RootComponent", () => {
   it("renders the Outlet inside the shell", () => {
     render(<RootComponent />);
-    expect(within(screen.getByTestId("app-shell")).getByTestId("outlet")).toBeInTheDocument();
+    expect(within(screen.getByTestId("root-shell")).getByTestId("outlet")).toBeInTheDocument();
   });
 
   it("renders a skip-to-content link that targets the app-content main", () => {

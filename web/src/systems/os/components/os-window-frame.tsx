@@ -26,6 +26,8 @@ export interface OsWindowFrameProps extends Omit<React.ComponentProps<"section">
   focused?: boolean;
   /** Traffic-light activation. Omit to render the controls as presentation. */
   onTrafficLight?: (action: OsTrafficLightAction) => void;
+  /** Extra classes on the head `Topbar` (the WM's drag-handle hook). */
+  headClassName?: string;
 }
 
 export function OsWindowFrame({
@@ -33,6 +35,7 @@ export function OsWindowFrame({
   rootCrumb = "agh",
   focused = true,
   onTrafficLight,
+  headClassName,
   className,
   children,
   ...props
@@ -67,7 +70,8 @@ export function OsWindowFrame({
             // is targeted directly; zones use local opacity (explicit-color
             // descendants would ignore a wrapper's inherited color).
             !focused &&
-              "[&_[data-slot=topbar-title]]:text-subtle [&_[data-slot=topbar-breadcrumb]]:opacity-60 [&_[data-slot=topbar-trailing]]:opacity-60"
+              "[&_[data-slot=topbar-title]]:text-subtle [&_[data-slot=topbar-breadcrumb]]:opacity-60 [&_[data-slot=topbar-trailing]]:opacity-60",
+            headClassName
           )}
         />
         <div data-slot="os-window-body" className="min-h-0 flex-1 overflow-auto bg-canvas">

@@ -310,7 +310,7 @@ describe("sandbox operator selectors", () => {
       getByTestId,
     });
 
-    expect(selectors.appSidebar).toBe(`locator:${sandboxOperatorTestIds.appSidebar}`);
+    expect(selectors.osDesktop).toBe(`locator:${sandboxOperatorTestIds.osDesktop}`);
     expect(selectors.navSandbox).toBe(`locator:${sandboxOperatorTestIds.navSandbox}`);
     expect(selectors.shell).toBe(`locator:${sandboxOperatorTestIds.shell}`);
     expect(selectors.total).toBe(`locator:${sandboxOperatorTestIds.total}`);

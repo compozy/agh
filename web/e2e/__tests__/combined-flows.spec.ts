@@ -53,7 +53,7 @@ test("@nightly operator can follow a bridge-created route into the shipped sessi
 
   await useGlobalWorkspaceIfPrompted(bridgeUI);
 
-  await expect(bridgeUI.appSidebar).toBeVisible();
+  await expect(bridgeUI.osDesktop).toBeVisible();
   await bridgeUI.navBridges.click();
   await expect(appPage).toHaveURL(/\/bridges$/);
   await expect(bridgeUI.listPanel).toBeVisible();

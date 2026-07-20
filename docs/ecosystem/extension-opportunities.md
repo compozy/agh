@@ -106,26 +106,36 @@ The baseline describes external messaging bridge transport, not AGH Network chan
 
 The following are intentionally separated from atomic service extensions. Each requires CORE work or a new public contract before the desired author or user experience is truthful.
 
-| ID | Candidate | P | User and outcome | AGH surface | Risk / access | Evidence |
-| --- | --- | --- | --- | --- | --- | --- |
-| PE-001 | Integration surface catalog importer | P0 | Extension authors turn a service domain into a provenance-preserving candidate record instead of rediscovering endpoints and auth from scratch. | CORE+SK | R0/A0 | V:INT · V:AGH · I:AGH |
-| PE-002 | OpenAPI toolset compiler | P0 | Authors generate typed draft tools from a reviewed OpenAPI operation allowlist, then classify mutations before publishing. | CORE+TL+TP | R2/A1 | V:INT · V:OAI · I:AGH |
-| PE-003 | GraphQL schema adapter | P1 | Authors map selected queries and mutations into bounded tools without exposing raw arbitrary GraphQL execution. | CORE+TL+TP | R2/A1 | V:INT · I:AGH |
-| PE-004 | Hosted MCP enrollment and OAuth | P0 | Operators connect a remote MCP endpoint, complete auth, inspect tools, and approve a stable permission snapshot. | CORE | R3/A1 | V:MCP · V:OAI · V:ANTH · I:AGH |
-| PE-005 | CLI adapter and packager | P1 | Authors wrap a version-pinned CLI command set with schemas, exit-code handling, sandboxing, and deterministic output limits. | CORE+TP+TL | R3/A1 | V:INT · P:SKILL-A · I:AGH |
-| PE-006 | OAuth and credential broker | P0 | Operators bind least-privilege accounts, rotate or revoke credentials, and see connection health without exposing secrets to agents. | CORE | R3/A1 | V:INT · V:OAI · V:AGH · I:AGH |
-| PE-007 | Webhook ingress router | P0 | Services deliver authenticated, deduplicated events that can fire workspace-scoped automation triggers with replay protection. | CORE+TP | R2/A1 | P:N8N · V:AGH · I:AGH |
-| PE-008 | Watch-source author kit | P0 | Extension authors implement cursoring, backoff, checkpointing, and bounded polling against the existing loop.watch_source contract. | CORE+WS+SK | R1/A1 | V:AGH · I:AGH |
-| PE-009 | Connector sandbox and egress allowlist | P0 | Operators constrain subprocess, CLI, and contributed-code network access to declared service domains and runtime budgets. | CORE+TP | R3/A0 | V:AGH · P:INT · I:AGH |
-| PE-010 | Tool risk metadata normalizer | P0 | Users receive consistent read-only, open-world, destructive, interaction, and approval labels across generated and hand-authored tools. | CORE+TL | R3/A0 | V:OAI · V:AGH · I:AGH |
-| PE-011 | Signed releases and publisher identity | P0 | Operators verify namespace ownership, immutable artifacts, checksums, publisher identity, and provenance before enablement. | CORE | R3/A0 | V:MCP · V:OAI · V:ANTH · V:AGH · I:AGH |
-| PE-012 | Registry federation and namespace ownership | P1 | Teams discover official, verified, community, workspace, and local packages without collapsing those trust lanes. | CORE | R2/A0 | V:MCP · V:ANTH · V:OAI · I:AGH |
-| PE-013 | Extension conformance harness | P0 | Publishers prove clean install, auth failure, scope denial, pagination, rate limit, idempotency, partial failure, cleanup, and removal behavior. | CORE+TP+TL | R2/A0 | V:OAI · V:AGH · I:AGH |
-| PE-014 | Third-party bridge SDK and marketplace grants | P0 | Messaging bridge authors build and test adapters through a supported SDK, conformance suite, and explicit marketplace permission lane. | CORE+BA | R3/A2 | V:AGH · I:AGH |
-| PE-015 | Permission-scoped secret bindings and health | P0 | Operators bind a secret to one extension permission grant, validate it without disclosure, and distinguish missing, expired, denied, and unhealthy states. | CORE+TP | R3/A1 | V:INT · V:AGH · I:AGH |
-| PE-016 | Transactional dependency resolution and activation | P1 | A bundle resolves required, optional, and one-of extensions; previews permissions; activates atomically; and rolls back owned resources on failure. | CORE+BD | R3/A0 | V:AGH · P:ANTH · P:OAI · I:AGH |
-| PE-017 | Profile-scoped static resource activation | P0 | Bundle authors select only the skills, Loops, hooks, tools, and MCP servers required by one profile without exposing every static resource in the owning extension. | CORE+BD | R3/A0 | V:AGH · I:AGH |
-| PE-018 | Provider and capability contracts | P0 | Bundle authors require a conforming calendar, CRM, work-management, media, or peer capability interface and let operators select a compatible implementation. | CORE+BD | R3/A0 | V:AGH · P:OAI · P:ANTH · I:AGH |
+> **Product decision — 2026-07-20 (binding). Do not implement any row marked `⛔ rejected`.**
+>
+> This list was reviewed and pruned. The accepted direction is: **connectors converge on MCP servers** (authentication handled by the existing MCP OAuth layer) **or subprocess extensions that ship real code and read API keys from the vault.** Under that model there is no need for no-code API import/compilation (a connector author writes code or reuses an MCP server) or for a generic cross-connector OAuth broker (OAuth stays MCP-only, matching every comparable harness). Only **credential/secret liveness health** is worth building as new core work.
+>
+> | Decision | Items | Rationale |
+> | --- | --- | --- |
+> | ✅ **Accepted** | **PE-015 — liveness/health only** | Knowing whether a stored credential is alive (ok / expired / revoked / missing) is real value; the `bind a secret to one permission grant` half of PE-015 is **rejected**. |
+> | ☑️ Already implemented | PE-004, PE-007, PE-010 | Hosted MCP enrollment + OAuth, webhook ingress router, and tool risk metadata already ship today. |
+> | ⛔ **Rejected — do not build** | PE-001, PE-002, PE-003, PE-005, PE-006, PE-008, PE-009, PE-011, PE-012, PE-013, PE-014, PE-016, PE-017, PE-018 | No-code API import/compile, generic OAuth broker, third-party authoring kits, sandbox/egress, signing/registry/conformance, and bundle composition (dependency resolution, profile-scoped resources, capability contracts) are out of scope for the core/engine roadmap. |
+
+| Decision | ID | Candidate | P | User and outcome | AGH surface | Risk / access | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| ⛔ rejected | PE-001 | Integration surface catalog importer | P0 | Extension authors turn a service domain into a provenance-preserving candidate record instead of rediscovering endpoints and auth from scratch. | CORE+SK | R0/A0 | V:INT · V:AGH · I:AGH |
+| ⛔ rejected | PE-002 | OpenAPI toolset compiler | P0 | Authors generate typed draft tools from a reviewed OpenAPI operation allowlist, then classify mutations before publishing. | CORE+TL+TP | R2/A1 | V:INT · V:OAI · I:AGH |
+| ⛔ rejected | PE-003 | GraphQL schema adapter | P1 | Authors map selected queries and mutations into bounded tools without exposing raw arbitrary GraphQL execution. | CORE+TL+TP | R2/A1 | V:INT · I:AGH |
+| ☑️ implemented | PE-004 | Hosted MCP enrollment and OAuth | P0 | Operators connect a remote MCP endpoint, complete auth, inspect tools, and approve a stable permission snapshot. | CORE | R3/A1 | V:MCP · V:OAI · V:ANTH · I:AGH |
+| ⛔ rejected | PE-005 | CLI adapter and packager | P1 | Authors wrap a version-pinned CLI command set with schemas, exit-code handling, sandboxing, and deterministic output limits. | CORE+TP+TL | R3/A1 | V:INT · P:SKILL-A · I:AGH |
+| ⛔ rejected | PE-006 | OAuth and credential broker | P0 | Operators bind least-privilege accounts, rotate or revoke credentials, and see connection health without exposing secrets to agents. | CORE | R3/A1 | V:INT · V:OAI · V:AGH · I:AGH |
+| ☑️ implemented | PE-007 | Webhook ingress router | P0 | Services deliver authenticated, deduplicated events that can fire workspace-scoped automation triggers with replay protection. | CORE+TP | R2/A1 | P:N8N · V:AGH · I:AGH |
+| ⛔ rejected | PE-008 | Watch-source author kit | P0 | Extension authors implement cursoring, backoff, checkpointing, and bounded polling against the existing loop.watch_source contract. | CORE+WS+SK | R1/A1 | V:AGH · I:AGH |
+| ⛔ rejected | PE-009 | Connector sandbox and egress allowlist | P0 | Operators constrain subprocess, CLI, and contributed-code network access to declared service domains and runtime budgets. | CORE+TP | R3/A0 | V:AGH · P:INT · I:AGH |
+| ☑️ implemented | PE-010 | Tool risk metadata normalizer | P0 | Users receive consistent read-only, open-world, destructive, interaction, and approval labels across generated and hand-authored tools. | CORE+TL | R3/A0 | V:OAI · V:AGH · I:AGH |
+| ⛔ rejected | PE-011 | Signed releases and publisher identity | P0 | Operators verify namespace ownership, immutable artifacts, checksums, publisher identity, and provenance before enablement. | CORE | R3/A0 | V:MCP · V:OAI · V:ANTH · V:AGH · I:AGH |
+| ⛔ rejected | PE-012 | Registry federation and namespace ownership | P1 | Teams discover official, verified, community, workspace, and local packages without collapsing those trust lanes. | CORE | R2/A0 | V:MCP · V:ANTH · V:OAI · I:AGH |
+| ⛔ rejected | PE-013 | Extension conformance harness | P0 | Publishers prove clean install, auth failure, scope denial, pagination, rate limit, idempotency, partial failure, cleanup, and removal behavior. | CORE+TP+TL | R2/A0 | V:OAI · V:AGH · I:AGH |
+| ⛔ rejected | PE-014 | Third-party bridge SDK and marketplace grants | P0 | Messaging bridge authors build and test adapters through a supported SDK, conformance suite, and explicit marketplace permission lane. | CORE+BA | R3/A2 | V:AGH · I:AGH |
+| ✅ accepted (health only) | PE-015 | Permission-scoped secret bindings and health | P0 | Operators bind a secret to one extension permission grant, validate it without disclosure, and distinguish missing, expired, denied, and unhealthy states. **Accepted scope: liveness/health only; the secret→permission-grant binding is rejected.** | CORE+TP | R3/A1 | V:INT · V:AGH · I:AGH |
+| ⛔ rejected | PE-016 | Transactional dependency resolution and activation | P1 | A bundle resolves required, optional, and one-of extensions; previews permissions; activates atomically; and rolls back owned resources on failure. | CORE+BD | R3/A0 | V:AGH · P:ANTH · P:OAI · I:AGH |
+| ⛔ rejected | PE-017 | Profile-scoped static resource activation | P0 | Bundle authors select only the skills, Loops, hooks, tools, and MCP servers required by one profile without exposing every static resource in the owning extension. | CORE+BD | R3/A0 | V:AGH · I:AGH |
+| ⛔ rejected | PE-018 | Provider and capability contracts | P0 | Bundle authors require a conforming calendar, CRM, work-management, media, or peer capability interface and let operators select a compatible implementation. | CORE+BD | R3/A0 | V:AGH · P:OAI · P:ANTH · I:AGH |
 
 ## Atomic service and provider catalog
 
@@ -388,8 +398,9 @@ P0 is a portfolio tier, not a direction to build all 75 P0 rows at once. The fir
 
 ### Recommended sequence
 
-1. **Trust and permission foundation:** PE-006, PE-009, PE-010, PE-011, PE-013, and PE-015. These make credential handling, tool review, package provenance, conformance, and failure diagnosis explicit before adding broad write access.
-2. **Authoring and event foundation:** PE-001, PE-002, PE-004, PE-007, PE-008, PE-017, and PE-018. These reduce connector and composition cost while preserving review; none should silently publish every discovered operation.
+1. **Platform-enabling work (superseded by the 2026-07-20 decision above):** the only accepted new core investment is **PE-015 liveness/health only** (credential/secret liveness). PE-004, PE-007, and PE-010 already ship. All other PE rows are **rejected — do not build**. The original sequencing text below is retained only as historical context and is no longer a directive.
+
+   > ~~Trust and permission foundation: PE-006, PE-009, PE-010, PE-011, PE-013, PE-015. Authoring and event foundation: PE-001, PE-002, PE-004, PE-007, PE-008, PE-017, PE-018.~~ Superseded.
 3. **Personal, household, and team core:** PW-001, PW-002, PW-003, PW-006, PW-007, PW-009, PW-010, PW-011, and PW-017. Together they cover email, calendar, files, enterprise knowledge, lightweight databases, both Google and Microsoft audiences, and a self-hosted home-automation gateway.
 4. **Business system anchors:** choose one initial CRM from SR-001 through SR-004, one support desk from CS-001, CS-002, CS-004, or CS-005, Shopify (CP-001), Stripe (CP-007), and one accounting provider from FL-001 or FL-002. Provider choice should follow design-partner access, not catalog popularity alone.
 5. **Visible-output providers:** Zoom or one meeting-record provider, Figma or Canva, Cloudinary, and YouTube make meeting, campaign, creator, and launch bundles produce inspectable results.

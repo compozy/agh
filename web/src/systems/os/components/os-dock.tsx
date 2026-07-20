@@ -34,6 +34,7 @@ function formatBadge(count: number): string {
 }
 
 function DockItem({ item, onSelect }: { item: OsDockItemData; onSelect?: (id: string) => void }) {
+  const state = item.minimized ? "minimized" : item.running ? "running" : "closed";
   const body = (
     <>
       <span
@@ -74,7 +75,13 @@ function DockItem({ item, onSelect }: { item: OsDockItemData; onSelect?: (id: st
 
   if (!onSelect) {
     return (
-      <span data-slot="os-dock-item" data-app={item.id} className={classes} title={item.name}>
+      <span
+        data-slot="os-dock-item"
+        data-app={item.id}
+        data-state={state}
+        className={classes}
+        title={item.name}
+      >
         {body}
       </span>
     );
@@ -84,6 +91,7 @@ function DockItem({ item, onSelect }: { item: OsDockItemData; onSelect?: (id: st
       type="button"
       data-slot="os-dock-item"
       data-app={item.id}
+      data-state={state}
       aria-label={item.name}
       className={classes}
       onClick={() => onSelect(item.id)}
@@ -178,7 +186,7 @@ export function OsDockZone({
   onSelect?: (id: string) => void;
   onNewSession?: () => void;
   className?: string;
-} & Omit<React.ComponentProps<"div">, "children">) {
+} & Omit<React.ComponentProps<"div">, "children" | "onSelect">) {
   return (
     <div
       data-slot="os-dock-zone"

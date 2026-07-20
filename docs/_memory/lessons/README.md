@@ -39,6 +39,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-029](L-029-qa-labs-must-tear-down-processes.md)            | QA labs must tear down processes, not just isolate them                          | Workflow / QA hygiene            |
 | [L-030](L-030-dual-verify-capacity-collapse.md)               | Two concurrent `make verify` runs collapse the machine; serialize the gate       | Workflow / Build tooling         |
 | [L-031](L-031-primitive-reuse-is-a-gate-not-prose.md)         | Primitive reuse is a gate, not prose — shadows of `@agh/ui` exports fail lint    | Frontend / Design system / Process |
+| [L-032](L-032-prototype-fidelity-binds-visual-language-not-content.md) | Prototype fidelity binds visual language, not content                   | Frontend / Design system / Process |
 
 ## How to use
 

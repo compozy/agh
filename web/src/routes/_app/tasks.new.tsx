@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
 import type { TaskTemplateId } from "@/systems/tasks/lib/task-templates";
-import { TaskCreateRoute } from "./-tasks-new-route";
 
 export const Route = createFileRoute("/_app/tasks/new")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -17,5 +17,5 @@ export const Route = createFileRoute("/_app/tasks/new")({
         ? (search.template as TaskTemplateId)
         : undefined,
   }),
-  component: TaskCreateRoute,
+  component: createOsRouteSync("tasks"),
 });

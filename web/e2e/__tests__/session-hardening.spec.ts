@@ -151,12 +151,12 @@ test("first document navigation to a canonical session route loads the app shell
   const ui = sessionLifecycleSelectors(page);
   await expect
     .poll(async () => ({
-      appGridVisible: await page.getByTestId("app-grid").isVisible(),
+      osDesktopVisible: await page.getByTestId("os-desktop").isVisible(),
       chatViewVisible: await ui.chatView.isVisible(),
       sessionRequestObserved: observedSessionRequests.has(sessionRequestPath),
     }))
     .toEqual({
-      appGridVisible: true,
+      osDesktopVisible: true,
       chatViewVisible: true,
       sessionRequestObserved: true,
     });
@@ -583,7 +583,7 @@ test.describe("E2E-010 truthful session cost provenance by auth mode", () => {
 
       await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
       await useGlobalWorkspaceIfPrompted(ui);
-      await expect(ui.appSidebar).toBeVisible();
+      await expect(ui.osDesktop).toBeVisible();
       await appPage.getByTestId(`workspace-avatar-${workspace.id}`).click();
       await expect(appPage.getByTestId(`workspace-avatar-${workspace.id}`)).toHaveAttribute(
         "data-active",

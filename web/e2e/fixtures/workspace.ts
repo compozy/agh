@@ -3,13 +3,13 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import type { BrowserRuntime } from "./runtime";
 
 export interface WorkspaceShellSelectors {
-  appSidebar: Locator;
+  osDesktop: Locator;
   workspaceOnboarding: Locator;
   workspaceUseGlobal: Locator;
 }
 
 interface WorkspaceShell {
-  appSidebar: Locator;
+  osDesktop: Locator;
   firstRunOnboarding: Locator;
   page: Page;
   workspaceOnboarding: Locator;
@@ -31,7 +31,7 @@ export async function useGlobalWorkspaceIfPrompted(input: WorkspaceShellInput): 
   await Promise.race([
     ui.firstRunOnboarding.waitFor({ state: "visible", timeout: 20_000 }).catch(() => null),
     ui.workspaceOnboarding.waitFor({ state: "visible", timeout: 20_000 }).catch(() => null),
-    ui.appSidebar.waitFor({ state: "visible", timeout: 20_000 }).catch(() => null),
+    ui.osDesktop.waitFor({ state: "visible", timeout: 20_000 }).catch(() => null),
   ]);
 
   if (await ui.firstRunOnboarding.isVisible().catch(() => false)) {
@@ -43,13 +43,13 @@ export async function useGlobalWorkspaceIfPrompted(input: WorkspaceShellInput): 
     await expect(ui.workspaceOnboarding).toBeHidden();
   }
 
-  await expect(ui.appSidebar).toBeVisible({ timeout: 20_000 });
+  await expect(ui.osDesktop).toBeVisible({ timeout: 20_000 });
 }
 
 function resolveWorkspaceShell(input: WorkspaceShellInput): WorkspaceShell {
   if (isPage(input)) {
     return {
-      appSidebar: input.getByTestId("app-sidebar"),
+      osDesktop: input.getByTestId("os-desktop"),
       firstRunOnboarding: input.getByTestId("onboarding-wizard"),
       page: input,
       workspaceOnboarding: input.getByTestId("workspace-onboarding"),
@@ -58,9 +58,9 @@ function resolveWorkspaceShell(input: WorkspaceShellInput): WorkspaceShell {
   }
 
   return {
-    appSidebar: input.appSidebar,
-    firstRunOnboarding: input.appSidebar.page().getByTestId("onboarding-wizard"),
-    page: input.appSidebar.page(),
+    osDesktop: input.osDesktop,
+    firstRunOnboarding: input.osDesktop.page().getByTestId("onboarding-wizard"),
+    page: input.osDesktop.page(),
     workspaceOnboarding: input.workspaceOnboarding,
     workspaceUseGlobal: input.workspaceUseGlobal,
   };

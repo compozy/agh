@@ -23,7 +23,7 @@ function buildTestRouter(initialUrl: string) {
     getParentRoute: () => rootRoute,
     id: "_app",
     component: () => (
-      <div data-testid="app-shell">
+      <div data-testid="os-desktop">
         <Outlet />
       </div>
     ),

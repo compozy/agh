@@ -11,8 +11,7 @@ import { cn } from "@/lib/utils";
  * behavior are wired by the shell in Task 04; a control renders as a <button>
  * only when a real callback is supplied, otherwise as truthful presentation.
  *
- * The mark reuses the official `@agh/ui` `Logo` `menubar` variant (OpenDesign
- * `mb-logo` artwork owned by the shared Logo primitive — no local MenuBarMark).
+ * The mark uses the official `@agh/ui` `Logo` `symbol` at menubar chrome size.
  */
 export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   /** Active workspace identity. */
@@ -21,12 +20,20 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   menus?: string[];
   /** Approvals count from the bell aggregator; 0/undefined renders no badge. */
   notifications?: number;
+  /** Non-interactive system status rendered before the approvals bell. */
+  status?: React.ReactNode;
   onLogoClick?: () => void;
   onWorkspaceClick?: () => void;
   onMenuClick?: (menu: string) => void;
   onNotificationsClick?: () => void;
   onCommandClick?: () => void;
   onSettingsClick?: () => void;
+  /** Wraps the workspace trigger in a real popover/menu owner (shell wiring). */
+  renderWorkspaceTrigger?: (trigger: React.ReactElement) => React.ReactNode;
+  /** Wraps one app-menu button in its dropdown owner (shell wiring). */
+  renderMenuTrigger?: (menu: string, trigger: React.ReactElement) => React.ReactNode;
+  /** Wraps the bell in its popover owner (shell wiring). */
+  renderBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
 }
 
 const INTERACTIVE =
@@ -35,10 +42,22 @@ const INTERACTIVE =
 interface ControlProps extends Omit<React.ComponentProps<"button">, "onClick" | "children"> {
   onClick?: () => void;
   children: React.ReactNode;
+  /** Hands the button to an overlay owner (popover/menu trigger `render`). */
+  wrap?: (trigger: React.ReactElement) => React.ReactNode;
 }
 
-/** Renders a <button> when a callback exists, else a non-interactive span. */
-function Control({ onClick, className, children, ...props }: ControlProps) {
+/**
+ * Renders a <button> when a callback or overlay owner exists, else a
+ * non-interactive span (truthful chrome, no dead buttons).
+ */
+function Control({ onClick, wrap, className, children, ...props }: ControlProps) {
+  if (wrap) {
+    return wrap(
+      <button type="button" className={cn(INTERACTIVE, className)} {...props}>
+        {children}
+      </button>
+    );
+  }
   if (!onClick) {
     return (
       <span className={className} {...(props as React.ComponentProps<"span">)}>
@@ -65,12 +84,16 @@ export function OsMenuBar({
   workspace,
   menus = ["Session", "View", "Help"],
   notifications,
+  status,
   onLogoClick,
   onWorkspaceClick,
   onMenuClick,
   onNotificationsClick,
   onCommandClick,
   onSettingsClick,
+  renderWorkspaceTrigger,
+  renderMenuTrigger,
+  renderBellTrigger,
   className,
   ...props
 }: OsMenuBarProps) {
@@ -88,16 +111,17 @@ export function OsMenuBar({
         <Control
           data-slot="os-menubar-logo"
           aria-label="AGH"
-          className="grid size-7 place-items-center rounded-menubar-control text-accent"
+          className="grid size-7 place-items-center rounded-menubar-control"
           onClick={onLogoClick}
         >
-          <Logo variant="menubar" decorative className="size-menubar-logo" />
+          <Logo variant="symbol" decorative className="size-menubar-logo" />
         </Control>
         <Control
           data-slot="os-menubar-workspace"
-          aria-haspopup={onWorkspaceClick ? "true" : undefined}
+          aria-haspopup={onWorkspaceClick || renderWorkspaceTrigger ? "true" : undefined}
           className="flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2"
           onClick={onWorkspaceClick}
+          wrap={renderWorkspaceTrigger}
         >
           <span className="grid size-workspace-avatar place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
             {workspace.monogram}
@@ -112,6 +136,7 @@ export function OsMenuBar({
               data-menu={menu.toLowerCase()}
               className="flex h-7 items-center rounded-md px-2.5 text-small-body text-muted"
               onClick={onMenuClick ? () => onMenuClick(menu) : undefined}
+              wrap={renderMenuTrigger ? trigger => renderMenuTrigger(menu, trigger) : undefined}
             >
               {menu}
             </Control>
@@ -120,12 +145,14 @@ export function OsMenuBar({
       </div>
 
       <div className="flex items-center gap-2">
+        {status}
         <Control
           data-slot="os-menubar-bell"
           aria-label="Approvals"
-          aria-haspopup={onNotificationsClick ? "true" : undefined}
+          aria-haspopup={onNotificationsClick || renderBellTrigger ? "true" : undefined}
           className="relative grid size-7 place-items-center rounded-md text-muted"
           onClick={onNotificationsClick}
+          wrap={renderBellTrigger}
         >
           <Icon as={Bell} size="lg" />
           {notifications ? <NotificationBadge count={notifications} /> : null}

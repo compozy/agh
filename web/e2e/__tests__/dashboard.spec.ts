@@ -462,7 +462,7 @@ async function runCLIJSON(runtime: BrowserRuntime, args: string[]) {
 
 function workspaceShell(page: import("@playwright/test").Page) {
   return {
-    appSidebar: page.getByTestId(sessionLifecycleTestIds.appSidebar),
+    osDesktop: page.getByTestId(sessionLifecycleTestIds.osDesktop),
     workspaceOnboarding: page.getByTestId(sessionLifecycleTestIds.workspaceOnboarding),
     workspaceUseGlobal: page.getByTestId(sessionLifecycleTestIds.workspaceUseGlobal),
   };

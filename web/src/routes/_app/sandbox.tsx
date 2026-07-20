@@ -6,8 +6,8 @@ import {
   type SandboxRouteSearch,
 } from "@/hooks/routes/use-sandbox-page";
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { SandboxPage } from "./-sandbox-page";
 import { preloadSandboxRoute } from "./-settings-preload";
 
 function validateSandboxSearch(search: Record<string, unknown>): SandboxRouteSearch {
@@ -25,9 +25,5 @@ export const Route = createFileRoute("/_app/sandbox")({
   }),
   validateSearch: validateSandboxSearch,
   loader: ({ context }) => preloadSandboxRoute(context.queryClient),
-  component: SandboxRoute,
+  component: createOsRouteSync("sandbox"),
 });
-
-function SandboxRoute() {
-  return <SandboxPage search={Route.useSearch()} />;
-}

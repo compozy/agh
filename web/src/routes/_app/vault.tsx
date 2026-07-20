@@ -6,8 +6,8 @@ import {
   type VaultRouteSearch,
 } from "@/hooks/routes/use-vault-page";
 import { parseListingView } from "@/lib/listing-search";
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { VaultPage } from "./-vault-page";
 import { preloadVaultRoute } from "./-vault-preload";
 
 function validateVaultSearch(search: Record<string, unknown>): VaultRouteSearch {
@@ -26,9 +26,5 @@ export const Route = createFileRoute("/_app/vault")({
   validateSearch: validateVaultSearch,
   loaderDeps: ({ search }) => ({ namespace: search.namespace, prefix: search.q }),
   loader: ({ context, deps }) => preloadVaultRoute(context.queryClient, deps),
-  component: VaultRoute,
+  component: createOsRouteSync("vault"),
 });
-
-function VaultRoute() {
-  return <VaultPage search={Route.useSearch()} />;
-}

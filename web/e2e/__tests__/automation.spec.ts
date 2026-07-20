@@ -55,7 +55,7 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
 
   await useGlobalWorkspaceIfPrompted(automationUI);
 
-  await expect(automationUI.appSidebar).toBeVisible();
+  await expect(automationUI.osDesktop).toBeVisible();
   await expect(automationUI.navJobs).toBeVisible();
   await automationUI.navJobs.click();
 

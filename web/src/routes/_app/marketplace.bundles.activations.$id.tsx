@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { BundleActivationDetail } from "@/systems/extensions";
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/marketplace/bundles/activations/$id")({
@@ -9,9 +9,5 @@ export const Route = createFileRoute("/_app/marketplace/bundles/activations/$id"
       crumb: { label: params.id },
     },
   }),
-  component: BundleActivationDetailRoute,
+  component: createOsRouteSync("marketplace"),
 });
-
-function BundleActivationDetailRoute() {
-  return <BundleActivationDetail id={Route.useParams().id} />;
-}

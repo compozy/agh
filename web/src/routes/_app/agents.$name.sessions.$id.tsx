@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { createOsRouteSync } from "@/systems/os";
 import { sessionReturnWorkspaceIdFromState } from "@/systems/session";
 import { prefetchAgentSessionRoute } from "./-agent-session-route-loader";
-import { SessionPage, SessionRouteLoading } from "./-session-page";
 
 export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
   beforeLoad: ({ params, location }) => ({
@@ -16,12 +16,5 @@ export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
       returnWorkspaceId: context.sessionReturnWorkspaceId,
       preload,
     }),
-  pendingComponent: SessionRouteLoading,
-  component: SessionRoutePage,
+  component: createOsRouteSync("session"),
 });
-
-function SessionRoutePage() {
-  const { name, id } = Route.useParams();
-  const { workspaceId } = Route.useLoaderData();
-  return <SessionPage name={name} id={id} workspaceId={workspaceId} />;
-}

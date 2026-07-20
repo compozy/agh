@@ -2,8 +2,7 @@ import { useId, type ComponentProps, type KeyboardEvent, type RefObject } from "
 
 import type { Popover } from "@agh/ui";
 
-import { noteCommandKFocus } from "./command-k-registry";
-import { useCommandKOwnership } from "./use-command-k-ownership";
+import { useRuntimeJShortcut } from "./use-runtime-j-shortcut";
 import type { TriggerFocus } from "./trigger";
 import type { RuntimeProviderOption, RuntimeSelectorValue } from "./types";
 import type { RuntimeSelectorController } from "./use-runtime-selector";
@@ -26,11 +25,9 @@ export interface UseRuntimeSelectorPopupArgs {
  * refs, provider name/icon resolvers, and the popover open/close + deep-link focus
  * handlers.
  *
- * `⌘K` is a single global shortcut owned by `command-k-registry`: there is exactly
- * ONE `document` listener for all mounted selectors, and it resolves one
- * deterministic owner (open selector → last-focused → sole eligible) instead of
- * letting every instance install a competing per-instance handler. The trigger's
- * `onFocus` marks this selector as the last-focused owner candidate.
+ * `⌘J` is the selector's shortcut (ADR-005 — `⌘K` belongs to the shell
+ * palette): a component-scoped binding that fires only while focus lives in
+ * the selector's composer scope, so several mounted selectors never fight.
  */
 export function useRuntimeSelectorPopup({
   controller,
@@ -50,20 +47,16 @@ export function useRuntimeSelectorPopup({
   const activeDescendant =
     controller.highlightIndex >= 0 ? optionId(controller.highlightIndex) : undefined;
 
-  // Register with the single global ⌘K owner registry (one document listener for
-  // all selectors; deterministic owner resolution — never a per-instance handler).
+  // ⌘J opens this selector while its composer scope owns focus (ADR-005).
   const openModel = () => openWith("model");
-  useCommandKOwnership({
-    id: baseId,
+  useRuntimeJShortcut({
     disabled,
     open,
     triggerRef,
+    popupRef,
     onOpen: openModel,
     onClose: close,
   });
-
-  // Focus entering this trigger makes it the last-focused ⌘K owner candidate.
-  const handleTriggerFocus = () => noteCommandKFocus(baseId);
 
   const providerNames = new Map(providers.map(provider => [provider.id, provider.name]));
   const providerName = (id: string) => providerNames.get(id) ?? id;
@@ -157,8 +150,8 @@ export function useRuntimeSelectorPopup({
       // macOS; Cmd/Ctrl-D is intentionally avoided (browser bookmark conflict).
       if (controller.toggleHighlightedFavorite()) event.preventDefault();
     }
-    // ⌘K while open is handled by the global command-k registry (rule 1: the
-    // open selector owns the shortcut and toggles itself closed).
+    // ⌘J while open is handled by the scoped runtime shortcut (it toggles the
+    // open selector closed); ⌘K belongs to the shell palette.
   };
 
   return {
@@ -172,7 +165,6 @@ export function useRuntimeSelectorPopup({
     finalFocus,
     handleOpenChange,
     handleSegment,
-    handleTriggerFocus,
     resolveInitialFocus,
     handleSearchKeyDown,
   };

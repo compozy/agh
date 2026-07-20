@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { NetworkSettingsPage } from "./-network-settings-page";
 
 export const Route = createFileRoute("/_app/settings/network")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: "Network" } },
   }),
-  component: NetworkSettingsPage,
+  component: createOsRouteSync("settings"),
 });

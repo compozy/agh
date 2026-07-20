@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { ThreadOverlay, useThreadViewMode } from "@/systems/network";
 import { preloadNetworkThreadDetailRoute } from "./-network-preload";
 
 interface ThreadDetailSearch {
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_app/network/$workspaceId/$channel/thread
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: `#${params.channel} · Thread` } },
   }),
-  component: NetworkChannelThreadDetailRoute,
+  component: createOsRouteSync("network"),
   loader: ({ context, params }) =>
     preloadNetworkThreadDetailRoute(
       context.queryClient,
@@ -24,19 +24,3 @@ export const Route = createFileRoute("/_app/network/$workspaceId/$channel/thread
     view: search.view === "full" ? "full" : undefined,
   }),
 });
-
-function NetworkChannelThreadDetailRoute() {
-  const { workspaceId, channel, threadId } = Route.useParams();
-  const search = Route.useSearch();
-  const viewMode = useThreadViewMode();
-  const fullPage = search.view === "full" || viewMode === "fullpage";
-
-  return (
-    <ThreadOverlay
-      workspaceId={workspaceId}
-      channel={channel}
-      fullPage={fullPage}
-      threadId={threadId}
-    />
-  );
-}

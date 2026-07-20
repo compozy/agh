@@ -243,10 +243,7 @@ beforeEach(() => {
   };
 });
 
-import { routeComponent } from "@/test/route-options";
-import { Route } from "../general";
-
-const GeneralSettingsPage = routeComponent(Route);
+import { GeneralSettingsPage } from "../-general-settings-page";
 
 describe("GeneralSettingsPage", () => {
   it("renders a loading indicator while fetching", () => {
