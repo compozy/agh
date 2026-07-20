@@ -24,7 +24,7 @@ env:
   GO_VERSION: "1.26.4"
   NODE_VERSION: "22"
   INITIAL_VERSION: "v0.0.2"
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.22
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.23
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
