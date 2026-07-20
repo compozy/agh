@@ -221,6 +221,8 @@ jobs:
     name: Go (race test, build, boundaries)
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      AGH_GO_TEST_P: "2"
     needs: [changes, preflight]
     if: needs.changes.outputs.relevant == 'true'
     steps:
