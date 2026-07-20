@@ -21,10 +21,9 @@ func TestCatalogMigrationStreams(t *testing.T) {
 	t.Run("Should coexist with global migrations in one database with disjoint ownership", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		sharedPath := filepath.Join(baseDir, storepkg.GlobalDatabaseName)
-		global, err := globaldb.OpenGlobalDB(ctx, sharedPath)
+		global, err := globaldb.OpenGlobalDB(testutil.Context(t), sharedPath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(shared) error = %v", err)
 		}
@@ -33,17 +32,17 @@ func TestCatalogMigrationStreams(t *testing.T) {
 				t.Fatalf("GlobalDB.Close() error = %v", err)
 			}
 		})
-		globalBefore, err := storepkg.Status(ctx, global.DB(), globaldb.MigrationStream())
+		globalBefore, err := storepkg.Status(testutil.Context(t), global.DB(), globaldb.MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(global before memory) error = %v", err)
 		}
 
 		catalog := openCatalogMigrationTestStore(t, sharedPath)
-		memoryStatus, err := storepkg.Status(ctx, catalog.catalog.db, MigrationStream())
+		memoryStatus, err := storepkg.Status(testutil.Context(t), catalog.catalog.db, MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(memory) error = %v", err)
 		}
-		globalAfter, err := storepkg.Status(ctx, global.DB(), globaldb.MigrationStream())
+		globalAfter, err := storepkg.Status(testutil.Context(t), global.DB(), globaldb.MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(global after memory) error = %v", err)
 		}
@@ -60,16 +59,16 @@ func TestCatalogMigrationStreams(t *testing.T) {
 		}
 
 		globalOnlyPath := filepath.Join(baseDir, "global-only.db")
-		globalOnly, err := globaldb.OpenGlobalDB(ctx, globalOnlyPath)
+		globalOnly, err := globaldb.OpenGlobalDB(testutil.Context(t), globalOnlyPath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(global only) error = %v", err)
 		}
-		globalOnlyStatus, err := storepkg.Status(ctx, globalOnly.DB(), globaldb.MigrationStream())
+		globalOnlyStatus, err := storepkg.Status(testutil.Context(t), globalOnly.DB(), globaldb.MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(global only) error = %v", err)
 		}
 		globalTables := catalogDomainTables(t, globalOnly.DB())
-		if err := globalOnly.Close(ctx); err != nil {
+		if err := globalOnly.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("GlobalDB.Close(global only) error = %v", err)
 		}
 		if globalAfter != globalOnlyStatus {
@@ -77,7 +76,7 @@ func TestCatalogMigrationStreams(t *testing.T) {
 		}
 
 		memoryOnly := openCatalogMigrationTestStore(t, filepath.Join(baseDir, "memory-only.db"))
-		memoryOnlyStatus, err := storepkg.Status(ctx, memoryOnly.catalog.db, MigrationStream())
+		memoryOnlyStatus, err := storepkg.Status(testutil.Context(t), memoryOnly.catalog.db, MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(memory only) error = %v", err)
 		}
@@ -95,23 +94,22 @@ func TestCatalogMigrationStreams(t *testing.T) {
 	t.Run("Should produce identical final schema when memory opens before global", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalFirstPath := filepath.Join(baseDir, "global-first.db")
-		globalFirst, err := globaldb.OpenGlobalDB(ctx, globalFirstPath)
+		globalFirst, err := globaldb.OpenGlobalDB(testutil.Context(t), globalFirstPath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(global first) error = %v", err)
 		}
 		globalFirstMemory := openCatalogMigrationTestStore(t, globalFirstPath)
 		globalFirstStatuses := catalogMigrationStatuses(t, globalFirstMemory.catalog.db)
 		globalFirstSchema := catalogSchemaObjects(t, globalFirstMemory.catalog.db)
-		if err := globalFirst.Close(ctx); err != nil {
+		if err := globalFirst.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("GlobalDB.Close(global first) error = %v", err)
 		}
 
 		memoryFirstPath := filepath.Join(baseDir, "memory-first.db")
 		memoryFirst := openCatalogMigrationTestStore(t, memoryFirstPath)
-		globalSecond, err := globaldb.OpenGlobalDB(ctx, memoryFirstPath)
+		globalSecond, err := globaldb.OpenGlobalDB(testutil.Context(t), memoryFirstPath)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(after memory) error = %v", err)
 		}
