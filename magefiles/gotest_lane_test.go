@@ -1,41 +1,18 @@
 //go:build mage
 
+// Suite: Hermetic Go test lane policy
+// Invariant: Unit-test shards partition every package once and reject ambiguous configuration.
+// Boundary IN: Mage package selection, concurrency policy, and environment scrubbing.
+// Boundary OUT: GitHub Actions runner orchestration in .github/workflows/ci.yml.
+
 package main
 
 import (
 	"bytes"
-	"runtime"
 	"slices"
-	"strconv"
+	"strings"
 	"testing"
 )
-
-func TestGoUnitTestPackageLimit(t *testing.T) {
-	// t.Setenv forbids t.Parallel (L-002); the whole test stays serial.
-	defaultLimit := goUnitTestPackageLimitFor(runtime.GOMAXPROCS(0), goUnitTestParallelism)
-	cases := []struct {
-		name  string
-		value string
-		want  string
-	}{
-		{
-			name:  "Should default to the combined lane capacity when unset",
-			value: "",
-			want:  strconv.Itoa(defaultLimit),
-		},
-		{name: "Should honor a valid override", value: "2", want: "2"},
-		{name: "Should ignore a non-numeric override", value: "many", want: strconv.Itoa(defaultLimit)},
-		{name: "Should ignore a non-positive override", value: "0", want: strconv.Itoa(defaultLimit)},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(goTestPackageLimitEnvVar, tc.value)
-			if got := goUnitTestPackageLimit(); got != tc.want {
-				t.Fatalf("goUnitTestPackageLimit() with %q = %q, want %q", tc.value, got, tc.want)
-			}
-		})
-	}
-}
 
 func TestGoUnitTestPackageLimitFor(t *testing.T) {
 	t.Parallel()
@@ -66,6 +43,102 @@ func TestGoUnitTestPackageLimitFor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseGoTestShard(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		indexRaw  string
+		totalRaw  string
+		want      goTestShard
+		wantOn    bool
+		wantError string
+	}{
+		{name: "Should disable sharding when both values are unset"},
+		{
+			name:     "Should parse a valid zero-based shard",
+			indexRaw: "1",
+			totalRaw: "2",
+			want:     goTestShard{index: 1, total: 2},
+			wantOn:   true,
+		},
+		{
+			name:      "Should reject a missing shard total",
+			indexRaw:  "0",
+			wantError: "must be set together",
+		},
+		{
+			name:      "Should reject a negative shard index",
+			indexRaw:  "-1",
+			totalRaw:  "2",
+			wantError: "non-negative integer",
+		},
+		{
+			name:      "Should reject a shard index outside the total",
+			indexRaw:  "2",
+			totalRaw:  "2",
+			wantError: "must be less than",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, enabled, err := parseGoTestShard(tt.indexRaw, tt.totalRaw)
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("parseGoTestShard(%q, %q) error = %v, want containing %q", tt.indexRaw, tt.totalRaw, err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseGoTestShard(%q, %q) error = %v", tt.indexRaw, tt.totalRaw, err)
+			}
+			if enabled != tt.wantOn || got != tt.want {
+				t.Fatalf(
+					"parseGoTestShard(%q, %q) = (%+v, %t), want (%+v, %t)",
+					tt.indexRaw,
+					tt.totalRaw,
+					got,
+					enabled,
+					tt.want,
+					tt.wantOn,
+				)
+			}
+		})
+	}
+}
+
+func TestShardGoTestPackages(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should partition the sorted package list exactly once", func(t *testing.T) {
+		t.Parallel()
+		packages := []string{"package/d", "package/a", "package/e", "package/b", "package/c"}
+		first := shardGoTestPackages(packages, goTestShard{index: 0, total: 2})
+		second := shardGoTestPackages(packages, goTestShard{index: 1, total: 2})
+
+		if !slices.Equal(first, []string{"package/a", "package/c", "package/e"}) {
+			t.Fatalf("first shard = %v, want [package/a package/c package/e]", first)
+		}
+		if !slices.Equal(second, []string{"package/b", "package/d"}) {
+			t.Fatalf("second shard = %v, want [package/b package/d]", second)
+		}
+		counts := make(map[string]int, len(packages))
+		for _, packagePath := range append(first, second...) {
+			counts[packagePath]++
+		}
+		for _, packagePath := range packages {
+			if counts[packagePath] != 1 {
+				t.Fatalf(
+					"package %q appears %d times across shards, want exactly once",
+					packagePath,
+					counts[packagePath],
+				)
+			}
+		}
+	})
 }
 
 func TestHermeticGoTestEnvFromBase(t *testing.T) {

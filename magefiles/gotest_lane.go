@@ -3,9 +3,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"runtime"
 	"slices"
 	"strconv"
@@ -18,8 +20,15 @@ import (
 
 const (
 	goTestPackageLimitEnvVar = "AGH_GO_TEST_P"
+	goTestShardIndexEnvVar   = "AGH_GO_TEST_SHARD_INDEX"
+	goTestShardTotalEnvVar   = "AGH_GO_TEST_SHARD_TOTAL"
 	goUnitTestParallelism    = 4
 )
+
+type goTestShard struct {
+	index int
+	total int
+}
 
 // ambientRuntimeStateEnvVars are the runtime identity vars a QA lab or dev
 // shell may export (bootstrap env block / worktree isolation envelope). Tests
@@ -67,6 +76,94 @@ func goUnitTestPackageLimitFor(effectiveCPU, parallelism int) int {
 		return 1
 	}
 	return limit
+}
+
+func goUnitTestPackages(ctx context.Context) ([]string, error) {
+	shard, enabled, err := parseGoTestShard(
+		os.Getenv(goTestShardIndexEnvVar),
+		os.Getenv(goTestShardTotalEnvVar),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !enabled {
+		return []string{"./..."}, nil
+	}
+
+	cmd := exec.CommandContext(ctx, "go", "list", "./...")
+	cmd.Env = hermeticGoTestEnv(withRaceEnabledEnv(nil))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("list Go unit-test packages: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	packages := strings.Fields(string(output))
+	if len(packages) == 0 {
+		return nil, fmt.Errorf("list Go unit-test packages: go list returned no packages")
+	}
+
+	selected := shardGoTestPackages(packages, shard)
+	if len(selected) == 0 {
+		return nil, fmt.Errorf(
+			"select Go unit-test shard %d/%d: no packages selected from %d packages",
+			shard.index+1,
+			shard.total,
+			len(packages),
+		)
+	}
+	fmt.Printf(
+		"Go unit-test shard %d/%d selected %d of %d packages\n",
+		shard.index+1,
+		shard.total,
+		len(selected),
+		len(packages),
+	)
+	return selected, nil
+}
+
+func parseGoTestShard(indexRaw, totalRaw string) (goTestShard, bool, error) {
+	indexRaw = strings.TrimSpace(indexRaw)
+	totalRaw = strings.TrimSpace(totalRaw)
+	if indexRaw == "" && totalRaw == "" {
+		return goTestShard{}, false, nil
+	}
+	if indexRaw == "" || totalRaw == "" {
+		return goTestShard{}, false, fmt.Errorf(
+			"%s and %s must be set together",
+			goTestShardIndexEnvVar,
+			goTestShardTotalEnvVar,
+		)
+	}
+
+	index, err := strconv.Atoi(indexRaw)
+	if err != nil || index < 0 {
+		return goTestShard{}, false, fmt.Errorf("%s must be a non-negative integer", goTestShardIndexEnvVar)
+	}
+	total, err := strconv.Atoi(totalRaw)
+	if err != nil || total < 1 {
+		return goTestShard{}, false, fmt.Errorf("%s must be a positive integer", goTestShardTotalEnvVar)
+	}
+	if index >= total {
+		return goTestShard{}, false, fmt.Errorf(
+			"%s=%d must be less than %s=%d",
+			goTestShardIndexEnvVar,
+			index,
+			goTestShardTotalEnvVar,
+			total,
+		)
+	}
+	return goTestShard{index: index, total: total}, true, nil
+}
+
+func shardGoTestPackages(packages []string, shard goTestShard) []string {
+	sorted := append([]string(nil), packages...)
+	slices.Sort(sorted)
+	selected := make([]string, 0, (len(sorted)+shard.total-1)/shard.total)
+	for index, packagePath := range sorted {
+		if index%shard.total == shard.index {
+			selected = append(selected, packagePath)
+		}
+	}
+	return selected
 }
 
 func hermeticGoTestEnv(overrides map[string]string) []string {
