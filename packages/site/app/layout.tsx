@@ -14,6 +14,8 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+  // Optical size axis — matches runtime Inter Variable opsz + OpenDesign.
+  axes: ["opsz"],
 });
 
 const playfairDisplay = Playfair_Display({

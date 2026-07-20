@@ -111,12 +111,12 @@ tokens:
       shell-glass-pop: "var(--shell-glass-pop)"
     typography:
       item-title: { size: "0.9375rem", line: "1.375rem" }
-      small-body: { size: "0.8125rem", line: "1.125rem" }
-      badge: { size: "0.625rem", line: "0.75rem" }
+      small-body: { size: "0.78125rem", line: "1.125rem" }
+      badge: { size: "0.65625rem", line: "0.75rem" }
       eyebrow: { size: "0.6875rem", line: "1rem", tracking: "-0.005em" }
       display-2xl: { size: "1.75rem", line: "1" }
       site-lead: { size: "1.1875rem", line: "1.5" }
-      micro: { size: "0.5625rem", line: "0.75rem" }
+      micro: { size: "0.65625rem", line: "0.75rem" }
       inline-code: { size: "0.9em" }
       accent-glyph: { size: "0.85em" }
       ui-title-lg: { size: "1.35rem" }
@@ -501,15 +501,18 @@ new tone map at each feature boundary.
 
 ## 3. Typography and eyebrow contract
 
-Inter Variable is the runtime typeface. JetBrains Mono is reserved for ids,
-code, channel metadata, and fixed-width operational values. The site may bind
-`--font-display` to Playfair Display inside `.site-home` only; runtime and
-shared UI code treat `--font-display` as a reserved alias, not a type-ramp
+Inter Variable (opsz + wght) is the runtime typeface. JetBrains Mono is reserved
+for ids, code, channel metadata, and fixed-width operational values. The site
+may bind `--font-display` to Playfair Display inside `.site-home` only; runtime
+and shared UI code treat `--font-display` as a reserved alias, not a type-ramp
 utility.
 
 The body baseline is set once in `tokens.css`: compact Inter, readable line
-height, and a small negative tracking correction. Components should compose
-from text tokens rather than re-declaring pixel sizes.
+height, optical sizing (`font-optical-sizing: auto`), and a small negative
+tracking correction. UI medium weight is `--font-weight-medium: 510` (maps to
+`font-medium`) — a soft half-step between Regular and classic Medium, matching
+the OpenDesign prototypes. Components should compose from text and tracking
+tokens rather than re-declaring pixel sizes.
 
 The eyebrow contract is intentionally narrow after L-022: one `<Eyebrow>`
 primitive, one `.eyebrow` utility, one Inter uppercase style. Eyebrow is for
@@ -524,12 +527,12 @@ because they are small.
 | Token                     | Size         | Line       | Tracking   |
 | ------------------------- | ------------ | ---------- | ---------- |
 | `--text-item-title`       | `0.9375rem`  | `1.375rem` |            |
-| `--text-small-body`       | `0.8125rem`  | `1.125rem` |            |
-| `--text-badge`            | `0.625rem`   | `0.75rem`  |            |
+| `--text-small-body`       | `0.78125rem` | `1.125rem` |            |
+| `--text-badge`            | `0.65625rem` | `0.75rem`  |            |
 | `--text-eyebrow`          | `0.6875rem`  | `1rem`     | `-0.005em` |
 | `--text-display-2xl`      | `1.75rem`    | `1`        |            |
 | `--text-site-lead`        | `1.1875rem`  | `1.5`      |            |
-| `--text-micro`            | `0.5625rem`  | `0.75rem`  |            |
+| `--text-micro`            | `0.65625rem` | `0.75rem`  |            |
 | `--text-inline-code`      | `0.9em`      |            |            |
 | `--text-accent-glyph`     | `0.85em`     |            |            |
 | `--text-ui-title-lg`      | `1.35rem`    |            |            |

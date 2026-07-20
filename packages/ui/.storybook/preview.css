@@ -1,5 +1,6 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
+/* Inter Variable with opsz+wght — matches OpenDesign rsms Inter optical sizing. */
+@import "@fontsource-variable/inter/opsz.css";
 @import "@fontsource-variable/jetbrains-mono";
 @import "@agh/ui/tokens.css";
 @import "shadcn/tailwind.css";
