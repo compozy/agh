@@ -56,6 +56,9 @@ const bridgeRuntimeEnv = {
     ? { AGH_WEB_DIST_DIR: process.env.AGH_WEB_DIST_DIR }
     : {}),
   ...(process.env.PATH?.trim() ? { PATH: process.env.PATH } : {}),
+  ...(process.env.TMPDIR?.trim() ? { TMPDIR: process.env.TMPDIR } : {}),
+  ...(process.env.TMP?.trim() ? { TMP: process.env.TMP } : {}),
+  ...(process.env.TEMP?.trim() ? { TEMP: process.env.TEMP } : {}),
   ...(process.platform === "win32" && process.env.PATHEXT?.trim()
     ? { PATHEXT: process.env.PATHEXT }
     : {}),
@@ -496,6 +499,7 @@ async function waitForBridgeStatus(
 ): Promise<BridgeDetailResponse> {
   const deadline = Date.now() + 60_000;
   let lastError: Error | null = null;
+  let lastHealth: BridgeDetailResponse["health"] | undefined;
   let lastStatus: string | undefined;
   while (Date.now() < deadline) {
     try {
@@ -503,6 +507,7 @@ async function waitForBridgeStatus(
         `/api/bridges/${encodeURIComponent(bridgeId)}`
       );
       lastError = null;
+      lastHealth = payload.health;
       lastStatus = payload.health.status;
       if (lastStatus === status) {
         return payload;
@@ -515,7 +520,7 @@ async function waitForBridgeStatus(
   throw new Error(
     `bridge ${bridgeId} status is ${lastStatus ?? "unknown"}; expected ${status}${
       lastError ? ` (last error: ${lastError.message})` : ""
-    }`
+    }${lastHealth ? ` (last health: ${JSON.stringify(lastHealth)})` : ""}`
   );
 }
 

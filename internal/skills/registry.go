@@ -50,10 +50,11 @@ type Registry struct {
 
 	globalVersion atomic.Int64
 
-	cfg    RegistryConfig
-	logger *slog.Logger
-	now    func() time.Time
-	events store.EventSummaryStore
+	cfg               RegistryConfig
+	logger            *slog.Logger
+	now               func() time.Time
+	events            store.EventSummaryStore
+	activationContext ActivationContextProvider
 }
 
 type skillToggleScope int
@@ -155,6 +156,10 @@ func (r *Registry) Get(name string) (*Skill, bool) {
 
 // List returns the current global skills sorted by skill name.
 func (r *Registry) List() []*Skill {
+	return r.rawList()
+}
+
+func (r *Registry) rawList() []*Skill {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -205,79 +210,6 @@ func (r *Registry) LoadResource(ctx context.Context, skill *Skill, relativePath 
 		}
 		return ReadSkillResourceContent(skill.Dir, relativePath)
 	}
-}
-
-// ForWorkspace returns the global skill set overlaid with resolver-provided workspace skills.
-func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*Skill, error) {
-	if err := checkRegistryContext(ctx); err != nil {
-		return nil, err
-	}
-
-	if skills, ok := r.resourceBackedWorkspaceSkills(resolved); ok {
-		applyDisabledSkillList(
-			skills,
-			r.workspaceDisabledSkillsSnapshot(
-				workspaceCacheKey(resolved, nil),
-				workspaceConfiguredDisabledSkills(resolved),
-			),
-		)
-		return skills, nil
-	}
-	if skills, ok, err := r.cachedWorkspaceSkillsFromResolved(ctx, resolved); ok || err != nil {
-		return skills, err
-	}
-
-	load, err := r.workspaceLoadFromResolved(ctx, resolved)
-	if err != nil {
-		return nil, err
-	}
-	cacheKey := workspaceCacheKey(resolved, load.paths)
-	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(cacheKey, workspaceConfiguredDisabledSkills(resolved))
-	if len(load.paths) == 0 {
-		skills := r.List()
-		applyDisabledSkillList(skills, workspaceDisabled)
-		return skills, nil
-	}
-
-	if cacheKey == "" {
-		return nil, errors.New("skills: workspace cache key is required")
-	}
-
-	now := r.now()
-	currentGlobalVersion := r.GlobalVersion()
-
-	r.mu.Lock()
-	r.evictExpiredWorkspaceLocked(now)
-
-	if cached := r.wsCache[cacheKey]; cached != nil &&
-		cached.globalVersion == currentGlobalVersion &&
-		filesnap.Equal(cached.snapshots, load.snapshots) {
-		cached.lastAccess = now
-		skills := mergedSkillListWithDisabled(r.globalSkills, cached.skills, workspaceDisabled)
-		r.mu.Unlock()
-		return skills, nil
-	}
-	r.mu.Unlock()
-
-	workspaceSkills, workspaceDiagnostics, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
-	if err != nil {
-		return nil, err
-	}
-
-	r.mu.Lock()
-	skills, shadowEvents := r.refreshWorkspaceCacheLocked(
-		resolved,
-		load,
-		cacheKey,
-		workspaceSkills,
-		workspaceDiagnostics,
-		workspaceDisabled,
-		now,
-	)
-	r.mu.Unlock()
-	r.emitEventSummaries(ctx, shadowEvents)
-
-	return skills, nil
 }
 
 func (r *Registry) refreshWorkspaceCacheLocked(

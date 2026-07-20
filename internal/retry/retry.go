@@ -5,20 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
-	"math/rand"
 	"time"
 )
 
-// Policy configures retry attempts and jittered exponential backoff.
+// Policy configures retry attempts and their delay strategy.
 type Policy struct {
 	MaxAttempts int
-	BaseDelay   time.Duration
-	MaxDelay    time.Duration
-	JitterRatio float64
-	RandFloat64 func() float64
+	Delay       DelayFunc
 	Sleep       func(context.Context, time.Duration) error
-	OnRetry     func(Attempt)
+	OnRetry     func(context.Context, Attempt) error
 }
 
 // Attempt describes one failed attempt that will be retried.
@@ -34,8 +29,6 @@ type ShouldRetry func(error) bool
 
 const (
 	defaultMaxAttempts = 1
-	defaultBaseDelay   = 100 * time.Millisecond
-	defaultMaxDelay    = 30 * time.Second
 )
 
 // Do retries fn until it succeeds, shouldRetry rejects the error, attempts are
@@ -66,6 +59,7 @@ func DoValue[T any](
 	}
 
 	policy = normalizePolicy(policy)
+	var previousDelay time.Duration
 	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return zero, fmt.Errorf("retry: context done before attempt %d: %w", attempt, err)
@@ -82,14 +76,26 @@ func DoValue[T any](
 			return zero, fmt.Errorf("retry: attempt %d failed: %w", attempt, err)
 		}
 
-		delay := Delay(policy, attempt)
+		delay := policy.Delay(DelayInput{
+			Attempt:  attempt,
+			Previous: previousDelay,
+			Err:      err,
+		})
+		delay = max(delay, 0)
+		previousDelay = delay
 		if policy.OnRetry != nil {
-			policy.OnRetry(Attempt{
+			if retryErr := policy.OnRetry(ctx, Attempt{
 				Number:      attempt,
 				MaxAttempts: policy.MaxAttempts,
 				Err:         err,
 				Delay:       delay,
-			})
+			}); retryErr != nil {
+				return zero, fmt.Errorf(
+					"retry: observe attempt %d: %w",
+					attempt,
+					errors.Join(err, retryErr),
+				)
+			}
 		}
 		if err := policy.Sleep(ctx, delay); err != nil {
 			return zero, fmt.Errorf("retry: wait before attempt %d: %w", attempt+1, err)
@@ -97,31 +103,6 @@ func DoValue[T any](
 	}
 
 	return zero, nil
-}
-
-// Delay returns the jittered exponential backoff delay for the attempt number.
-func Delay(policy Policy, attempt int) time.Duration {
-	policy = normalizePolicy(policy)
-	if attempt < 1 {
-		attempt = 1
-	}
-
-	multiplier := math.Pow(2, float64(attempt-1))
-	delay := float64(policy.BaseDelay) * multiplier
-	if delay > float64(policy.MaxDelay) {
-		delay = float64(policy.MaxDelay)
-	}
-	if policy.JitterRatio > 0 {
-		jitterRange := delay * policy.JitterRatio
-		delay += (policy.RandFloat64()*2 - 1) * jitterRange
-	}
-	if delay < 0 {
-		return 0
-	}
-	if delay > float64(policy.MaxDelay) {
-		return policy.MaxDelay
-	}
-	return time.Duration(delay)
 }
 
 // Wait blocks for delay or returns early when ctx is canceled.
@@ -153,20 +134,8 @@ func normalizePolicy(policy Policy) Policy {
 	if policy.MaxAttempts <= 0 {
 		policy.MaxAttempts = defaultMaxAttempts
 	}
-	if policy.BaseDelay <= 0 {
-		policy.BaseDelay = defaultBaseDelay
-	}
-	if policy.MaxDelay <= 0 {
-		policy.MaxDelay = defaultMaxDelay
-	}
-	if policy.MaxDelay < policy.BaseDelay {
-		policy.MaxDelay = policy.BaseDelay
-	}
-	if policy.JitterRatio < 0 {
-		policy.JitterRatio = 0
-	}
-	if policy.RandFloat64 == nil {
-		policy.RandFloat64 = rand.Float64
+	if policy.Delay == nil {
+		policy.Delay = DecorrelatedJitter(DecorrelatedJitterConfig{})
 	}
 	if policy.Sleep == nil {
 		policy.Sleep = Wait

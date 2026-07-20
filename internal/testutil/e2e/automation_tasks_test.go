@@ -190,7 +190,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 
 	var claimRequest aghcontract.AgentTaskClaimNextRequest
 	var startRequest aghcontract.StartTaskRunRequest
-	var completeRequest aghcontract.CompleteTaskRunRequest
+	var completeRequest aghcontract.AgentTaskCompleteRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -303,13 +303,22 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 					SessionID: "sess-1",
 				},
 			})
-		case r.Method == http.MethodPost && r.URL.Path == "/api/task-runs/task-run-1/complete":
+		case r.Method == http.MethodPost && r.URL.Path == "/api/agent/tasks/task-run-1/complete":
 			if err := json.NewDecoder(r.Body).Decode(&completeRequest); err != nil {
 				t.Fatalf("Decode(complete request) error = %v", err)
 			}
-			writeJSON(w, aghcontract.TaskRunResponse{
-				Run: aghcontract.TaskRunPayload{
-					ID:        "task-run-1",
+			if got, want := r.Header.Get(agentidentity.HeaderSessionID), "sess-agent"; got != want {
+				t.Fatalf("complete session header = %q, want %q", got, want)
+			}
+			if got, want := r.Header.Get(agentidentity.HeaderAgent), "worker"; got != want {
+				t.Fatalf("complete agent header = %q, want %q", got, want)
+			}
+			if got, want := r.Header.Get(agentidentity.HeaderWorkspaceID), "ws-1"; got != want {
+				t.Fatalf("complete workspace header = %q, want %q", got, want)
+			}
+			writeJSON(w, aghcontract.AgentTaskLeaseResponse{
+				Lease: aghcontract.TaskRunLeaseSummaryPayload{
+					RunID:     "task-run-1",
 					TaskID:    "task-1",
 					Status:    taskpkg.TaskRunStatusCompleted,
 					SessionID: "sess-1",
@@ -446,11 +455,15 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 		t.Fatalf("started.SessionID = %q, want %q", got, want)
 	}
 
-	completed, err := harness.CompleteTaskRun(context.Background(), "task-run-1", aghcontract.CompleteTaskRunRequest{
-		Result: json.RawMessage(`{"ok":true}`),
-	})
+	completed, err := harness.CompleteClaimedTaskRunForSession(
+		context.Background(),
+		"task-run-1",
+		aghcontract.SessionPayload{ID: "sess-agent", AgentName: "worker", WorkspaceID: "ws-1"},
+		aghcontract.AgentTaskCompleteRequest{
+			Result: json.RawMessage(`{"ok":true}`),
+		})
 	if err != nil {
-		t.Fatalf("CompleteTaskRun() error = %v", err)
+		t.Fatalf("CompleteClaimedTaskRunForSession() error = %v", err)
 	}
 	if got, want := completed.Status, taskpkg.TaskRunStatusCompleted; got != want {
 		t.Fatalf("completed.Status = %q, want %q", got, want)

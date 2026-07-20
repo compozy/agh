@@ -43,14 +43,20 @@ export function automationRequestPayloadForDisplay(value: unknown): unknown {
 export function normalizeAutomationSchedule(
   schedule: CreateAutomationJobRequest["schedule"]
 ): CreateAutomationJobRequest["schedule"] {
-  if (schedule.mode !== "at") {
-    return schedule;
+  if (schedule.mode === "at") {
+    // One-shot fires once at its time; catch-up and grace are recurring-only, so
+    // the request carries just the mode and the RFC-3339 time.
+    return { mode: "at", time: toRfc3339(localInputToDate(schedule.time ?? "")) };
   }
 
-  return {
-    ...schedule,
-    time: toRfc3339(localInputToDate(schedule.time ?? "")),
-  };
+  // Recurring (cron/every): an absent policy stays omitted so the daemon selects
+  // its target-aware default. Grace is sent only as a positive whole number of
+  // seconds — a zero, negative, fractional, or non-finite value is dropped so the
+  // daemon applies its default jitter grace.
+  const grace = schedule.misfire_grace_seconds;
+  const graceSeconds =
+    typeof grace === "number" && Number.isSafeInteger(grace) && grace > 0 ? grace : undefined;
+  return { ...schedule, misfire_grace_seconds: graceSeconds };
 }
 
 type LoopTargetRequest = Pick<

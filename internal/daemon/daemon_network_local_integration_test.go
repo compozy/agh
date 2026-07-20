@@ -23,7 +23,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 	t.Run("Should complete session task and loop orchestration without Network artifacts", func(t *testing.T) {
 		acpmock.RequireDriver(t)
 
-		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			ConfigSeed: e2etest.ConfigSeedOptions{
 				DefaultAgent:    "local-default",
 				DefaultProvider: acpmock.ProviderName,
@@ -34,6 +34,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 				AgentName:    "local-default",
 			}},
 		})
+
 		if !harness.Config.Network.Enabled {
 			t.Fatal("Network.Enabled = false, want enabled daemon with Local default execution")
 		}

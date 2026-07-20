@@ -30,6 +30,8 @@ const (
 
 	claimTokenRandomBytes = 32
 	claimTokenHashPrefix  = "sha256:"
+	// LeaseRecoveryExhaustedReason identifies a run whose shared attempt budget cannot grant another claim.
+	LeaseRecoveryExhaustedReason = "lease_recovery_exhausted"
 )
 
 var defaultCoordinationMessageKinds = []string{
@@ -57,6 +59,8 @@ type ClaimCriteria struct {
 	RequiredCapabilities []string       `json:"required_capabilities,omitempty"`
 	PriorityMin          int            `json:"priority_min,omitempty"`
 	ParticipationChannel string         `json:"participation_channel,omitempty"`
+	// WorkspaceActiveRunCap is trusted Service policy and never caller-controlled wire input.
+	WorkspaceActiveRunCap int `json:"-"`
 	// CallerNetworkParticipation is trusted hook context, never run-selection input.
 	CallerNetworkParticipation *participation.Spec  `json:"-"`
 	Soul                       *SoulClaimProvenance `json:"soul,omitempty"`
@@ -136,9 +140,10 @@ type LeaseFailure struct {
 
 // ExpiredLeaseRecovery captures deterministic recovery of stale task-run leases.
 type ExpiredLeaseRecovery struct {
-	Now    time.Time `json:"now"`
-	Reason string    `json:"reason,omitempty"`
-	Limit  int       `json:"limit,omitempty"`
+	Now    time.Time    `json:"now"`
+	Reason string       `json:"reason,omitempty"`
+	Limit  int          `json:"limit,omitempty"`
+	Actor  ActorContext `json:"-"`
 }
 
 // ExpiredLeaseRecoveryResult records one recovered lease and its previous owner state.
@@ -149,6 +154,7 @@ type ExpiredLeaseRecoveryResult struct {
 	PreviousLeaseUntil     time.Time `json:"previous_lease_until"`
 	PreviousClaimTokenHash string    `json:"previous_claim_token_hash,omitempty"`
 	Reason                 string    `json:"reason,omitempty"`
+	Exhausted              bool      `json:"exhausted,omitempty"`
 }
 
 // SessionLeaseRelease captures a daemon-owned structural release for all active

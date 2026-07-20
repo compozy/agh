@@ -267,6 +267,54 @@ func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {
 	}
 }
 
+func TestDaemonNativeAutomationToolsIntegrationRejectsDaemonLifecycleJob(t *testing.T) {
+	t.Run("Should return the blocked class and persist no job", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		manager := newNativeAutomationIntegrationManager(t, ctx)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Automation: manager,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			ctx,
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsCreate,
+				Input: json.RawMessage(
+					`{"scope":"global","name":"blocked-restart","agent_name":"codex","prompt":"Run agh daemon restart now","schedule":{"mode":"every","interval":"1h"}}`,
+				),
+			},
+		)
+		if err == nil {
+			t.Fatal("Registry.Call(automation_jobs_create) error = nil, want lifecycle command rejection")
+		}
+		if !errors.Is(err, automationpkg.ErrDaemonLifecycleCommandBlocked) {
+			t.Fatalf("Registry.Call(automation_jobs_create) error = %v, want ErrDaemonLifecycleCommandBlocked", err)
+		}
+		var blockedErr *automationpkg.DaemonLifecycleCommandError
+		if !errors.As(err, &blockedErr) {
+			t.Fatalf("Registry.Call(automation_jobs_create) error = %T, want *DaemonLifecycleCommandError", err)
+		}
+		if blockedErr.Class != automationpkg.DaemonLifecycleCommandClassAGHDaemon {
+			t.Fatalf("blocked command class = %q, want %q", blockedErr.Class, automationpkg.DaemonLifecycleCommandClassAGHDaemon)
+		}
+		reason, ok := toolspkg.ReasonOf(err)
+		if !ok || reason != toolspkg.ReasonAutomationValidationFailed {
+			t.Fatalf("Registry.Call(automation_jobs_create) reason = %q, %v, want %q", reason, ok, toolspkg.ReasonAutomationValidationFailed)
+		}
+
+		page, listErr := manager.ListJobs(ctx, automationpkg.JobListQuery{})
+		if listErr != nil {
+			t.Fatalf("manager.ListJobs() error = %v", listErr)
+		}
+		if len(page.Jobs) != 0 {
+			t.Fatalf("manager.ListJobs() jobs = %#v, want no persisted job", page.Jobs)
+		}
+	})
+}
+
 func newNativeAutomationIntegrationManager(t *testing.T, ctx context.Context) *automationpkg.Manager {
 	t.Helper()
 

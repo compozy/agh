@@ -30,7 +30,7 @@ AGH currently maps these top-level fields into the runtime skill model.
 | `name`        | string | yes                             | Trimmed and used as the unique skill identifier. Missing names fail parsing.                                                            |
 | `description` | string | no in code, yes for useful docs | Trimmed and injected into the prompt catalog. Descriptions over 200 runes are truncated in prompts. Missing descriptions log a warning. |
 | `version`     | string | no                              | Stored as metadata and used for marketplace provenance/update comparisons when available.                                               |
-| `metadata`    | object | no                              | Free-form metadata. AGH currently acts on `metadata.agh.mcp_servers` and `metadata.agh.hooks`.                                          |
+| `metadata`    | object | no                              | Free-form metadata. AGH currently acts on `metadata.agh.when`, `metadata.agh.mcp_servers`, and `metadata.agh.hooks`.                    |
 
 Unknown top-level fields are logged as warnings but do not fail parsing. Avoid relying on that
 leniency for portable skills.
@@ -48,9 +48,45 @@ AgentSkills readers.
 
 | Field                      | Type                        | Required | Current behavior                                                                                                          |
 | -------------------------- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `metadata.agh.when`        | activation gate object      | no       | Controls whether the skill is offered in the current prompt catalog. Unknown gate names or malformed values fail parsing. |
 | `metadata.agh.mcp_servers` | array of MCP server objects | no       | Parsed into skill MCP declarations and merged into session startup MCP servers. Malformed entries are warned and skipped. |
 | `metadata.agh.hooks`       | array of hook declarations  | no       | Parsed into skill-sourced hooks. Invalid hook declarations fail skill parsing.                                            |
 | `metadata.agh.memory_tags` | string array                | no       | RFC-only today. The current runtime does not use this field.                                                              |
+
+### `metadata.agh.when`
+
+Activation gates keep a skill out of agent prompt catalogs when its declared runtime requirements
+are not met. They do not disable or hide the skill from management surfaces: `agh skill list`,
+`agh skill info`, the Skills UI, and the HTTP/UDS skill payloads retain the skill with
+`activation.active: false` and structured `activation.reasons`. Explicit `skill view` reads also
+remain available.
+
+```yaml
+metadata:
+  agh:
+    when:
+      platforms: [darwin, linux]
+      requires_tools: [agh__browser_screenshot]
+      requires_capabilities: [browser.operate]
+```
+
+| Gate                    | Match rule | Runtime input                                                                                                                         |
+| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `platforms`             | any        | The current Go operating system (`darwin`, `linux`, or another canonical `runtime.GOOS` value). AGH does not accept platform aliases. |
+| `environments`          | any        | An explicit activation environment context. The current daemon does not provide one, so a non-empty gate fails closed.                |
+| `requires_tools`        | all        | Tool IDs callable for the current workspace, agent, and session. Availability is resolved when the catalog is built.                  |
+| `requires_capabilities` | all        | Capabilities authored on the effective agent. Network or extension capabilities are not merged into this gate.                        |
+
+Different gate families compose with AND: every declared family must pass. Values are trimmed,
+lowercased, deduplicated, and kept in author order. Every gate value must be a non-empty string;
+`when` must be a mapping; and unknown `when` keys are parse errors.
+
+The current inactive reason codes are `platform_mismatch`, `environment_context_unavailable`,
+`environment_mismatch`, `tool_context_unavailable`, `missing_tool`,
+`capability_context_unavailable`, and `missing_capability`. Each reason also identifies its gate,
+missing values, and a human-readable message. Tool availability is late-bound, so the next catalog
+projection automatically offers the skill after its required tools become callable; no daemon
+restart is required.
 
 ### `metadata.agh.mcp_servers`
 
@@ -257,6 +293,7 @@ For marketplace-installed skills, the MCP server above would be blocked until th
 | `missing YAML frontmatter`      | File does not start with `---`.                                                | Add a frontmatter block.                                      |
 | `unterminated YAML frontmatter` | Opening delimiter has no closing delimiter.                                    | Close frontmatter before the Markdown body.                   |
 | `skill name is required`        | `name` is missing or blank.                                                    | Add a non-empty `name`.                                       |
+| `metadata.agh.when` parse error | `when` has an unknown key, non-array value, non-string item, or blank item.    | Use only the four documented gates with non-empty strings.    |
 | MCP server skipped              | One `metadata.agh.mcp_servers` entry is malformed or missing `name`/`command`. | Fix that entry or move the server into `mcp.json`.            |
 | Hook parse failure              | A hook has an unknown field, invalid event, or missing command.                | Use current dot-form hook events and supported hook fields.   |
 | Skill blocked                   | Verification found critical content or marketplace hash verification failed.   | Remove the unsafe content or reinstall the marketplace skill. |

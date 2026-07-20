@@ -34,8 +34,8 @@ export const automationJobFixtures: AutomationJob[] = [
       last_run_at: "2026-04-17T18:10:01Z",
       last_scheduled_at: "2026-04-17T18:10:00Z",
       last_fire_id: "fire_launch_command_digest_001",
-      catch_up_policy: "skip",
-      misfire_grace_seconds: 0,
+      catch_up_policy: "skip_missed",
+      misfire_grace_seconds: 30,
       misfire_count: 0,
       updated_at: "2026-04-17T18:10:01Z",
     },
@@ -150,6 +150,28 @@ export const automationRunFixtures: AutomationRun[] = [
     trigger_id: "trg_support_sla_breach",
     session_id: storySessionIds.support,
     started_at: "2026-04-17T18:04:00Z",
+  },
+];
+
+/** Canceled runs the scheduler recorded as durable skips (never dispatched). */
+export const automationRunSkipFixtures: AutomationRun[] = [
+  {
+    id: "run_launch_command_digest_003",
+    status: "canceled",
+    attempt: 1,
+    job_id: "job_launch_command_digest",
+    fire_id: "fire_launch_command_digest_003",
+    scheduled_at: "2026-04-17T18:20:00Z",
+    metadata: { reason: "self_overlap" },
+  },
+  {
+    id: "run_launch_command_digest_004",
+    status: "canceled",
+    attempt: 1,
+    job_id: "job_launch_command_digest",
+    fire_id: "fire_launch_command_digest_004",
+    scheduled_at: "2026-04-17T18:30:00Z",
+    metadata: { reason: "misfire_grace_exceeded" },
   },
 ];
 

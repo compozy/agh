@@ -5,7 +5,7 @@ import { DETAIL_INSPECTOR_INLINE_BREAKPOINT } from "@agh/ui";
 
 import { SessionLedgerUnavailableError } from "../../adapters/session-api";
 import type { SessionLedgerResponse } from "../../types";
-import { SessionInspector } from "../session-inspector";
+import { SessionInspector, type InspectorUsage } from "../session-inspector";
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
 
@@ -125,6 +125,8 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
           totalTokens: 153_300,
           costUsd: 18.42,
           costCurrency: "USD",
+          costStatus: "actual",
+          costSource: "agent_reported",
           turnCount: 12,
         }}
         memory={{ ledger: null }}
@@ -155,7 +157,13 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
       <SessionInspector
         messages={[]}
         sessionId="sess_123"
-        usage={{ costUsd: 2.5, costCurrency: "EUR", turnCount: 1 }}
+        usage={{
+          costUsd: 2.5,
+          costCurrency: "EUR",
+          costStatus: "actual",
+          costSource: "agent_reported",
+          turnCount: 1,
+        }}
         memory={{ ledger: null }}
       />
     );
@@ -181,6 +189,127 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
     expect(screen.queryByTestId("session-inspector-usage-grid")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-usage-empty")).toHaveTextContent("No usage yet");
     expect(screen.queryByTestId("session-inspector-usage-turns")).not.toBeInTheDocument();
+  });
+
+  it("Should open the usage panel for a classification-only summary with no token counters", () => {
+    render(
+      <SessionInspector
+        messages={[]}
+        sessionId="sess_123"
+        usage={{ costStatus: "included", costSource: "none", turnCount: 0 }}
+        memory={{ ledger: null }}
+      />
+    );
+
+    openUsageTab();
+
+    expect(screen.getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-inspector-usage-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("Included");
+    expect(screen.getByTestId("session-inspector-usage-tokens-in")).toHaveTextContent("—");
+    expect(screen.queryByTestId("session-inspector-usage-turns")).not.toBeInTheDocument();
+  });
+
+  it("Should open the usage panel when only a positive turn count is reported", () => {
+    render(
+      <SessionInspector
+        messages={[]}
+        sessionId="sess_123"
+        usage={{ turnCount: 2 }}
+        memory={{ ledger: null }}
+      />
+    );
+
+    openUsageTab();
+
+    expect(screen.getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-inspector-usage-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("Across 2 turns");
+    expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("—");
+  });
+
+  it("Should keep the empty state when only a statusless cost amount is present", () => {
+    render(
+      <SessionInspector
+        messages={[]}
+        sessionId="sess_123"
+        usage={{ costUsd: 18.42, costCurrency: "USD", turnCount: 0 }}
+        memory={{ ledger: null }}
+      />
+    );
+
+    openUsageTab();
+
+    expect(screen.queryByTestId("session-inspector-usage-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-usage-empty")).toHaveTextContent("No usage yet");
+  });
+});
+
+describe("SessionInspector — Usage tab cost provenance (W4)", () => {
+  function renderUsage(usage: InspectorUsage) {
+    render(
+      <SessionInspector
+        messages={[]}
+        sessionId="sess_123"
+        usage={usage}
+        memory={{ ledger: null }}
+      />
+    );
+    openUsageTab();
+  }
+
+  it("Should render actual cost as measured spend without an estimate glyph", () => {
+    renderUsage({
+      tokensIn: 1_000,
+      costUsd: 18.42,
+      costCurrency: "USD",
+      costStatus: "actual",
+      costSource: "agent_reported",
+      turnCount: 3,
+    });
+    const cell = screen.getByTestId("session-inspector-usage-cost");
+    expect(cell).toHaveTextContent("$18.42");
+    expect(cell).not.toHaveTextContent("≈");
+    expect(cell).toHaveTextContent("Reported by agent");
+  });
+
+  it("Should mark estimated cost with the ≈ cue and source, never as measured spend", () => {
+    renderUsage({
+      tokensIn: 1_000,
+      costUsd: 0.18,
+      costCurrency: "USD",
+      costStatus: "estimated",
+      costSource: "catalog_config",
+      turnCount: 3,
+    });
+    const cell = screen.getByTestId("session-inspector-usage-cost");
+    expect(cell).toHaveTextContent("≈");
+    expect(cell).toHaveTextContent("Estimated");
+    expect(cell).toHaveTextContent("Catalog rate");
+  });
+
+  it("Should render included usage with no monetary amount while tokens stay visible", () => {
+    renderUsage({
+      tokensIn: 128_400,
+      tokensOut: 24_900,
+      totalTokens: 153_300,
+      costStatus: "included",
+      costSource: "none",
+      turnCount: 3,
+    });
+    const cell = screen.getByTestId("session-inspector-usage-cost");
+    expect(cell).toHaveTextContent("Included");
+    expect(cell).not.toHaveTextContent("$");
+    expect(screen.getByTestId("session-inspector-usage-tokens-in")).toHaveTextContent("128,400");
+    expect(screen.getByTestId("session-inspector-usage-total-tokens")).toHaveTextContent("153,300");
+  });
+
+  it("Should render unknown cost with no monetary amount while tokens stay visible", () => {
+    renderUsage({ totalTokens: 153_300, costStatus: "unknown", turnCount: 3 });
+    const cell = screen.getByTestId("session-inspector-usage-cost");
+    expect(cell).toHaveTextContent("Unavailable");
+    expect(cell).not.toHaveTextContent("$");
+    expect(screen.getByTestId("session-inspector-usage-total-tokens")).toHaveTextContent("153,300");
   });
 });
 

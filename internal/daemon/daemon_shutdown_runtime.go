@@ -3,6 +3,9 @@ package daemon
 import "context"
 
 func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTargets, errs *[]error) {
+	if targets.clarify != nil {
+		appendWrappedError(errs, "daemon: close clarification broker", targets.clarify.Close(ctx))
+	}
 	if targets.networkWakeRunner != nil {
 		appendWrappedError(errs, "daemon: shutdown network wake runner", targets.networkWakeRunner.Shutdown(ctx))
 	}
@@ -64,6 +67,7 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	if targets.tasks != nil {
 		appendWrappedError(errs, "daemon: shutdown task runtime", targets.tasks.shutdown(ctx))
 	}
+	targets.runtimeWorkers.shutdown(ctx, errs)
 	if err := d.stopSessions(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)
 	}

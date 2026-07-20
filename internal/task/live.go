@@ -438,6 +438,7 @@ func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 		TaskID:                       run.TaskID,
 		Status:                       run.Status,
 		Attempt:                      int(run.Attempt),
+		RecoveryCount:                int(run.RecoveryCount),
 		PreviousRunID:                run.PreviousRunID,
 		FailureKind:                  run.FailureKind,
 		MaxAttempts:                  maxAttempts,
@@ -538,68 +539,6 @@ func summarizeSessionEvents(events []store.SessionEvent) RunOperationalSummary {
 		summary.ToolCallCount = &count
 	}
 	return summary
-}
-
-func mergeTokenStatsSummary(summary *RunOperationalSummary, stats []store.TokenStats) {
-	if summary == nil {
-		return
-	}
-
-	var (
-		inputTotal  int64
-		outputTotal int64
-		totalTotal  int64
-		costTotal   float64
-		turnCount   int64
-
-		hasInput  bool
-		hasOutput bool
-		hasTotal  bool
-		hasCost   bool
-	)
-
-	for _, stat := range stats {
-		if stat.UpdatedAt.After(summary.LastActivityAt) {
-			summary.LastActivityAt = stat.UpdatedAt
-		}
-		if stat.InputTokens != nil {
-			inputTotal += *stat.InputTokens
-			hasInput = true
-		}
-		if stat.OutputTokens != nil {
-			outputTotal += *stat.OutputTokens
-			hasOutput = true
-		}
-		if stat.TotalTokens != nil {
-			totalTotal += *stat.TotalTokens
-			hasTotal = true
-		}
-		if stat.TotalCost != nil {
-			costTotal += *stat.TotalCost
-			hasCost = true
-		}
-		if stat.CostCurrency != nil && summary.CostCurrency == nil {
-			currency := *stat.CostCurrency
-			summary.CostCurrency = &currency
-		}
-		turnCount += stat.TurnCount
-	}
-
-	if hasInput {
-		summary.InputTokens = &inputTotal
-	}
-	if hasOutput {
-		summary.OutputTokens = &outputTotal
-	}
-	if hasTotal {
-		summary.TotalTokens = &totalTotal
-	}
-	if hasCost {
-		summary.TotalCost = &costTotal
-	}
-	if turnCount > 0 {
-		summary.TurnCount = &turnCount
-	}
 }
 
 func (m *Service) registerTaskSubscriber(taskID string, actor ActorContext) *taskStreamSubscriber {

@@ -4,10 +4,14 @@ package automation
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/jonboulle/clockwork"
 )
 
 func TestSchedulerIntegrationFastScheduleDispatchesThroughDispatcher(t *testing.T) {
@@ -124,6 +128,76 @@ func TestSchedulerIntegrationShutdownCancelsInflightDispatch(t *testing.T) {
 	}
 	if runs[0].EndedAt == nil {
 		t.Fatal("runs[0].EndedAt = nil, want populated")
+	}
+}
+
+func TestSchedulerIntegrationRestartDowntimeRunsCatchUpExactlyOnce(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	dbPath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	db, err := globaldb.OpenGlobalDB(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := db.Close(context.Background()); closeErr != nil {
+			t.Fatalf("Close() error = %v", closeErr)
+		}
+	})
+
+	baseTime := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	missedAt := baseTime.Add(time.Minute)
+	fakeClock := clockwork.NewFakeClockAt(baseTime)
+	job, err := db.CreateJob(ctx, testJob(AutomationScopeGlobal, "restart-catch-up", ""))
+	if err != nil {
+		t.Fatalf("CreateJob() error = %v", err)
+	}
+	job.Schedule = &ScheduleSpec{
+		Mode:                ScheduleModeEvery,
+		Interval:            "1m",
+		CatchUpPolicy:       SchedulerCatchUpPolicyRunOnce,
+		MisfireGraceSeconds: 10 * 60,
+	}
+	job, err = db.UpdateJob(ctx, job)
+	if err != nil {
+		t.Fatalf("UpdateJob() error = %v", err)
+	}
+	if _, err := db.SaveSchedulerState(ctx, SchedulerState{
+		JobID:               job.ID,
+		NextRunAt:           &missedAt,
+		ScheduleHash:        scheduleHash(job.Schedule),
+		CatchUpPolicy:       SchedulerCatchUpPolicyRunOnce,
+		MisfireGraceSeconds: 10 * 60,
+		UpdatedAt:           baseTime,
+	}); err != nil {
+		t.Fatalf("SaveSchedulerState() error = %v", err)
+	}
+
+	fakeClock.Advance(5 * time.Minute)
+	dispatcher := newStubScheduleDispatcher()
+	scheduler := newTestScheduler(
+		t,
+		dispatcher,
+		WithSchedulerClock(fakeClock),
+		WithSchedulerStore(db),
+	)
+	if _, err := scheduler.Register(ctx, job); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if err := scheduler.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+	dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
+	dispatcher.assertDispatchCount(t, 1)
+
+	runs, err := db.ListRuns(ctx, RunQuery{JobID: job.ID})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if got, want := len(runs), 1; got != want {
+		t.Fatalf("len(ListRuns()) = %d, want %d", got, want)
 	}
 }
 

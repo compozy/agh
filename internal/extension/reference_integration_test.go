@@ -11,10 +11,13 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -22,6 +25,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	devcycle "github.com/compozy/agh/extensions/dev-cycle"
 	"github.com/compozy/agh/internal/cli"
 	aghconfig "github.com/compozy/agh/internal/config"
 	daemonpkg "github.com/compozy/agh/internal/daemon"
@@ -71,6 +75,7 @@ type referenceHarness struct {
 	daemonCancel context.CancelFunc
 	daemonErrCh  chan error
 	homePaths    aghconfig.HomePaths
+	httpBaseURL  string
 	logBuffer    *lockedBuffer
 	repoRoot     string
 	workspace    workspacepkg.ResolvedWorkspace
@@ -152,6 +157,14 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 		t.Fatalf("prompt install status = %#v, want active/healthy", promptEnhancer)
 	}
 
+	clarifyTool := harness.installExtension(t, "sdk/examples/clarify-tool")
+	if clarifyTool.Name != "clarify-tool" {
+		t.Fatalf("clarify install name = %q, want clarify-tool", clarifyTool.Name)
+	}
+	if clarifyTool.State != "active" || clarifyTool.Health != "healthy" {
+		t.Fatalf("clarify install status = %#v, want active/healthy", clarifyTool)
+	}
+
 	secretPID := waitForStartedPID(t, harness.secretStartsPath, 2, 10*time.Second)
 	secretHandshake := waitForHandshakeMarker(t, harness.secretHandshakePath, secretPID, 10*time.Second)
 	if secretHandshake.Request.ProtocolVersion != "1" {
@@ -222,6 +235,8 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 	if session.WorkspaceID == "" {
 		t.Fatal("create session workspace id = empty, want resolved workspace")
 	}
+
+	harness.assertClarificationRoundTrip(t, session)
 
 	if _, err := harness.promptSession(t, session.ID, "Summarize the current workspace."); err != nil {
 		t.Fatalf("safe PromptSession() error = %v", err)
@@ -332,9 +347,11 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 
 	command := referenceACPHelperCommand(t)
 	cfg := referenceConfig(t, homePaths, command)
+	harness.httpBaseURL = fmt.Sprintf("http://%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
 	referenceWriteProviderConfig(t, homePaths, acpmock.ProviderName, command)
 	referenceWriteAgentDef(t, homePaths, "coder", command)
 	harness.workspace = referenceSeedWorkspace(t, homePaths, cfg, filepath.Join(t.TempDir(), "workspace"))
+	referenceDisableBundledDevCycle(t, homePaths)
 
 	logger := slog.New(slog.NewTextHandler(harness.logBuffer, nil))
 	daemon, err := daemonpkg.New(
@@ -368,6 +385,28 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	})
 
 	return harness
+}
+
+func referenceDisableBundledDevCycle(t *testing.T, homePaths aghconfig.HomePaths) {
+	t.Helper()
+
+	db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(disable bundled extension) error = %v", err)
+	}
+	defer func() {
+		if err := db.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(disable bundled extension) error = %v", err)
+		}
+	}()
+
+	registry := extensionpkg.NewRegistry(db.DB())
+	if err := devcycle.EnsureManagedInstall(homePaths, registry); err != nil {
+		t.Fatalf("EnsureManagedInstall(dev-cycle) error = %v", err)
+	}
+	if err := registry.Disable(devcycle.Name); err != nil {
+		t.Fatalf("Disable(dev-cycle) error = %v", err)
+	}
 }
 
 func referenceMarkerDir(t *testing.T) string {
@@ -476,6 +515,225 @@ func (h *referenceHarness) createSession(t *testing.T) cli.SessionRecord {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
 	return session
+}
+
+func (h *referenceHarness) assertClarificationRoundTrip(t *testing.T, session cli.SessionRecord) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	view, err := h.client.GetTool(ctx, "ext__clarify_tool__ask", cli.ToolQuery{
+		WorkspaceID: session.WorkspaceID,
+		SessionID:   session.ID,
+		AgentName:   "coder",
+	})
+	cancel()
+	if err != nil {
+		t.Fatalf("GetTool(clarify) error = %v", err)
+	}
+	if !view.Tool.Decision.Callable {
+		t.Fatalf("clarify interactive=%t reasons=%v", view.Tool.Descriptor.RequiresInteraction, view.Tool.Decision.ReasonCodes)
+	}
+
+	choice := 1
+	h.assertOneClarificationRoundTrip(t, session, referenceClarificationCase{
+		input: json.RawMessage(
+			`{"question":" Which release lane? ","choices":[" Stable ","Canary"]}`,
+		),
+		question: "Which release lane?",
+		choices:  []string{"Stable", "Canary"},
+		request:  cli.ClarificationAnswerRequest{ChoiceIndex: &choice},
+		want:     cli.ClarificationAnswerRecord{Choice: &choice},
+	})
+	h.assertOneClarificationRoundTrip(t, session, referenceClarificationCase{
+		input:    json.RawMessage(`{"question":" What deployment label? "}`),
+		question: "What deployment label?",
+		request:  cli.ClarificationAnswerRequest{Text: " canary-42 "},
+		want:     cli.ClarificationAnswerRecord{Text: "canary-42"},
+		viaHTTP:  true,
+	})
+}
+
+type referenceClarificationCase struct {
+	input    json.RawMessage
+	question string
+	choices  []string
+	request  cli.ClarificationAnswerRequest
+	want     cli.ClarificationAnswerRecord
+	viaHTTP  bool
+}
+
+func (h *referenceHarness) assertOneClarificationRoundTrip(
+	t *testing.T,
+	session cli.SessionRecord,
+	testCase referenceClarificationCase,
+) {
+	t.Helper()
+
+	type invokeResult struct {
+		response cli.ToolInvokeResponseRecord
+		err      error
+	}
+	resultCh := make(chan invokeResult, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		response, err := h.client.InvokeTool(ctx, "ext__clarify_tool__ask", cli.ToolInvokeRequest{
+			SessionID: session.ID,
+			Input:     testCase.input,
+		})
+		resultCh <- invokeResult{response: response, err: err}
+	}()
+
+	var pending cli.ClarificationPendingRecord
+	waitForCondition(t, 10*time.Second, "extension clarification pending", func() bool {
+		select {
+		case result := <-resultCh:
+			if result.err != nil {
+				t.Fatalf("InvokeTool(clarify before pending) error = %v", result.err)
+			}
+			t.Fatalf("InvokeTool(clarify before pending) returned %#v", result.response)
+		default:
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		response, err := h.client.ListSessionClarifications(ctx, session.ID)
+		if err != nil || len(response.Clarifications) != 1 {
+			return false
+		}
+		pending = response.Clarifications[0]
+		return true
+	})
+	if pending.SessionID != session.ID || pending.AgentName != "coder" {
+		t.Fatalf("pending clarification scope = %#v, want session %q agent coder", pending, session.ID)
+	}
+	if pending.Question != testCase.question || !slices.Equal(pending.Choices, testCase.choices) {
+		t.Fatalf("pending clarification = %#v, want normalized question and choices", pending)
+	}
+	httpPending := h.listSessionClarificationsHTTP(t, session)
+	if len(httpPending.Clarifications) != 1 || httpPending.Clarifications[0].RequestID != pending.RequestID {
+		t.Fatalf("HTTP pending clarifications = %#v, want request %q", httpPending, pending.RequestID)
+	}
+
+	var answer cli.ClarificationAnswerRecord
+	if testCase.viaHTTP {
+		answer = h.answerSessionClarificationHTTP(t, session, pending.RequestID, testCase.request)
+	} else {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		var err error
+		answer, err = h.client.AnswerSessionClarification(ctx, session.ID, pending.RequestID, testCase.request)
+		cancel()
+		if err != nil {
+			t.Fatalf("AnswerSessionClarification() error = %v", err)
+		}
+	}
+	assertReferenceClarificationAnswer(t, answer, testCase.want)
+
+	select {
+	case result := <-resultCh:
+		if result.err != nil {
+			t.Fatalf("InvokeTool(clarify) error = %v", result.err)
+		}
+		var returned cli.ClarificationAnswerRecord
+		if err := json.Unmarshal(result.response.Result.Structured, &returned); err != nil {
+			t.Fatalf("decode clarification tool result: %v", err)
+		}
+		assertReferenceClarificationAnswer(t, returned, testCase.want)
+	case <-time.After(10 * time.Second):
+		t.Fatal("InvokeTool(clarify) did not resume after answer")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	remaining, err := h.client.ListSessionClarifications(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("ListSessionClarifications(after answer) error = %v", err)
+	}
+	if len(remaining.Clarifications) != 0 {
+		t.Fatalf("pending clarifications after answer = %#v, want empty", remaining.Clarifications)
+	}
+}
+
+func assertReferenceClarificationAnswer(
+	t *testing.T,
+	got cli.ClarificationAnswerRecord,
+	want cli.ClarificationAnswerRecord,
+) {
+	t.Helper()
+	choiceMatches := got.Choice == nil && want.Choice == nil
+	if got.Choice != nil && want.Choice != nil {
+		choiceMatches = *got.Choice == *want.Choice
+	}
+	if !choiceMatches || got.Text != want.Text || got.Fallback != want.Fallback {
+		t.Fatalf("clarification answer = %#v, want %#v", got, want)
+	}
+}
+
+func (h *referenceHarness) listSessionClarificationsHTTP(
+	t *testing.T,
+	session cli.SessionRecord,
+) cli.ClarificationsRecord {
+	t.Helper()
+	path := "/api/workspaces/" + url.PathEscape(session.WorkspaceID) +
+		"/sessions/" + url.PathEscape(session.ID) + "/clarifications"
+	var response cli.ClarificationsRecord
+	h.referenceHTTPJSON(t, http.MethodGet, path, nil, &response)
+	return response
+}
+
+func (h *referenceHarness) answerSessionClarificationHTTP(
+	t *testing.T,
+	session cli.SessionRecord,
+	requestID string,
+	request cli.ClarificationAnswerRequest,
+) cli.ClarificationAnswerRecord {
+	t.Helper()
+	payload, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("json.Marshal(clarification answer) error = %v", err)
+	}
+	path := "/api/workspaces/" + url.PathEscape(session.WorkspaceID) +
+		"/sessions/" + url.PathEscape(session.ID) + "/clarifications/" +
+		url.PathEscape(requestID) + "/answer"
+	var response cli.ClarificationAnswerRecord
+	h.referenceHTTPJSON(t, http.MethodPost, path, payload, &response)
+	return response
+}
+
+func (h *referenceHarness) referenceHTTPJSON(
+	t *testing.T,
+	method string,
+	path string,
+	payload []byte,
+	target any,
+) {
+	t.Helper()
+	body := io.Reader(http.NoBody)
+	if payload != nil {
+		body = bytes.NewReader(payload)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, method, h.httpBaseURL+path, body)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext(%s %s) error = %v", method, path, err)
+	}
+	if payload != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("HTTP %s %s error = %v", method, path, err)
+	}
+	data, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatalf("HTTP %s %s read response error = %v", method, path, err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("HTTP %s %s status = %d, want %d; body=%s", method, path, response.StatusCode, http.StatusOK, data)
+	}
+	if err := json.Unmarshal(data, target); err != nil {
+		t.Fatalf("HTTP %s %s decode response error = %v", method, path, err)
+	}
 }
 
 func (h *referenceHarness) promptSession(
@@ -702,6 +960,15 @@ func buildReferenceArtifacts(t *testing.T, repoRoot string) {
 		"./sdk/examples/secret-guard/bin/secret-guard",
 		"./sdk/examples/secret-guard",
 	)
+	runCommand(
+		t,
+		repoRoot,
+		"go",
+		"build",
+		"-o",
+		"./sdk/examples/clarify-tool/bin/clarify-tool",
+		"./sdk/examples/clarify-tool",
+	)
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@agh/extension-sdk")
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@agh/example-prompt-enhancer")
 }
@@ -827,6 +1094,7 @@ func referenceConfig(t *testing.T, homePaths aghconfig.HomePaths, command string
 	cfg.Defaults.Provider = acpmock.ProviderName
 	cfg.Memory.Enabled = false
 	cfg.Skills.Enabled = false
+	cfg.Extensions.Marketplace.AllowUnverified = true
 	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	return cfg
 }
@@ -906,6 +1174,7 @@ func referenceWriteAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name st
 		"name: " + name,
 		"provider: " + acpmock.ProviderName,
 		"command: " + command,
+		"tools: [ext__clarify_tool__ask]",
 		"---",
 		"You are a coding assistant.",
 		"",

@@ -62,6 +62,12 @@ const fraudSessionsWithFailure: SessionPayload[] = [
   },
 ];
 
+const readyFraudSessions: SessionPayload[] = fraudSessions.length
+  ? fraudSessions.map((session, index) =>
+      index === 0 ? { ...session, name: "Checkout Retry Fencing" } : session
+    )
+  : [{ ...fallbackFraudSession, name: "Checkout Retry Fencing" }];
+
 const meta: Meta<typeof AgentSessionsList> = {
   title: "systems/agent/components/AgentSessionsList",
   component: AgentSessionsList,
@@ -93,9 +99,10 @@ function Frame({ children }: FrameProps) {
 
 /**
  * Default -- table of sessions sorted by last activity with status chips and metadata.
+ * The first row carries a daemon-generated session name (Checkout Retry Fencing).
  */
 export const Default: Story = {
-  args: {},
+  args: { sessions: readyFraudSessions },
   render: args => (
     <Frame>
       <AgentSessionsList {...args} />

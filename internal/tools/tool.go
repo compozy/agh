@@ -243,9 +243,10 @@ type PolicyEvaluator interface {
 	Evaluate(ctx context.Context, scope Scope, d Descriptor) (EffectiveToolDecision, error)
 }
 
-// ResultLimiter applies descriptor result budgets and redaction policy.
-type ResultLimiter interface {
-	Apply(ctx context.Context, d Descriptor, result ToolResult) (ToolResult, error)
+// ResultProcessor sanitizes provider output before hooks and finalizes the public result once afterward.
+type ResultProcessor interface {
+	Sanitize(ctx context.Context, d Descriptor, result ToolResult) (ToolResult, error)
+	Finalize(ctx context.Context, scope Scope, d Descriptor, result ToolResult) (ToolResult, error)
 }
 
 // HookRunner runs typed registry hooks around dispatch.

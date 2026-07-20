@@ -24,6 +24,7 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&fields.loopRunID,
 		&fields.status,
 		&run.Attempt,
+		&run.RecoveryCount,
 		&fields.previousRunID,
 		&fields.failureKind,
 		&fields.claimedByKind,

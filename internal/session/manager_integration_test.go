@@ -32,6 +32,7 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	if err := os.MkdirAll(sessionCWD, 0o755); err != nil {
 		t.Fatalf("MkdirAll(session CWD) error = %v", err)
 	}
+	canonicalSessionCWD := resolveIntegrationWorkspaceRoot(t, sessionCWD)
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 		AgentName: "coder",
 		Name:      "session",
@@ -41,8 +42,8 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if got := h.driver.startCalls[0].Cwd; got != sessionCWD {
-		t.Fatalf("Create() CWD = %q, want %q", got, sessionCWD)
+	if got := h.driver.startCalls[0].Cwd; got != canonicalSessionCWD {
+		t.Fatalf("Create() CWD = %q, want %q", got, canonicalSessionCWD)
 	}
 	firstPrompt, err := h.manager.Prompt(testutil.Context(t), session.ID, "first")
 	if err != nil {
@@ -61,8 +62,8 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)
 	}
-	if got := h.driver.startCalls[1].Cwd; got != sessionCWD {
-		t.Fatalf("Resume() CWD = %q, want persisted %q", got, sessionCWD)
+	if got := h.driver.startCalls[1].Cwd; got != canonicalSessionCWD {
+		t.Fatalf("Resume() CWD = %q, want persisted %q", got, canonicalSessionCWD)
 	}
 
 	secondPrompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "second")

@@ -53,32 +53,6 @@ const (
 	sessionUpdatedAtKey   = "updated_at"
 )
 
-func newSessionCommand(deps commandDeps) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   sessionSessionKey,
-		Short: "Manage AGH sessions",
-	}
-
-	cmd.AddCommand(newSessionCreateCommand(deps))
-	cmd.AddCommand(newSessionListCommand(deps))
-	cmd.AddCommand(newSessionStopCommand(deps))
-	cmd.AddCommand(newSessionRemoveCommand(deps))
-	cmd.AddCommand(newSessionSoulCommand(deps))
-	cmd.AddCommand(newSessionHealthCommand(deps))
-	cmd.AddCommand(newSessionStatusCommand(deps))
-	cmd.AddCommand(newSessionInspectCommand(deps))
-	cmd.AddCommand(newSessionResumeCommand(deps))
-	cmd.AddCommand(newSessionRecapCommand(deps))
-	cmd.AddCommand(newSessionRepairCommand(deps))
-	cmd.AddCommand(newSessionApproveCommand(deps))
-	cmd.AddCommand(newSessionWaitCommand(deps))
-	cmd.AddCommand(newSessionPromptCommand(deps))
-	cmd.AddCommand(newSessionEventsCommand(deps))
-	cmd.AddCommand(newSessionHistoryCommand(deps))
-
-	return cmd
-}
-
 func newSessionStopCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop <id>",

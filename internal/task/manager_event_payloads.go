@@ -154,7 +154,8 @@ type releasedRunPayload struct {
 	CanceledQueuedInputs            int        `json:"canceled_queued_inputs,omitempty"`
 }
 
-type expiredLeasePayload struct {
+// ExpiredLeaseEventPayload is the canonical audit payload for an expired task-run lease.
+type ExpiredLeaseEventPayload struct {
 	PreviousStatus               RunStatus           `json:"previous_status"`
 	Status                       RunStatus           `json:"status"`
 	TaskStatus                   Status              `json:"task_status"`

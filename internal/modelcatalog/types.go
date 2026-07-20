@@ -110,31 +110,34 @@ type RefreshOptions struct {
 
 // ModelRow is one provider/model record contributed by one catalog source.
 type ModelRow struct {
-	ProviderID             string
-	ModelID                string
-	DisplayName            string
-	SourceID               string
-	SourceKind             SourceKind
-	Priority               int
-	Available              *bool
-	Stale                  bool
-	RefreshedAt            time.Time
-	ExpiresAt              time.Time
-	ContextWindow          *int64
-	MaxInputTokens         *int64
-	MaxOutputTokens        *int64
-	SupportsTools          *bool
-	SupportsReasoning      *bool
-	ReasoningEfforts       []ReasoningEffort
-	DefaultReasoningEffort *ReasoningEffort
-	CostInputPerMillion    *float64
-	CostOutputPerMillion   *float64
-	ExplicitlyCurated      bool
-	Deprecated             *bool
-	Hidden                 *bool
-	Featured               *bool
-	ReleaseDate            *string
-	LastError              string
+	ProviderID               string
+	ModelID                  string
+	DisplayName              string
+	SourceID                 string
+	SourceKind               SourceKind
+	Priority                 int
+	Available                *bool
+	Stale                    bool
+	RefreshedAt              time.Time
+	ExpiresAt                time.Time
+	ContextWindow            *int64
+	MaxInputTokens           *int64
+	MaxOutputTokens          *int64
+	SupportsTools            *bool
+	SupportsReasoning        *bool
+	ReasoningEfforts         []ReasoningEffort
+	DefaultReasoningEffort   *ReasoningEffort
+	CostInputPerMillion      *float64
+	CostOutputPerMillion     *float64
+	CostCacheReadPerMillion  *float64
+	CostCacheWritePerMillion *float64
+	CostReasoningPerMillion  *float64
+	ExplicitlyCurated        bool
+	Deprecated               *bool
+	Hidden                   *bool
+	Featured                 *bool
+	ReleaseDate              *string
+	LastError                string
 }
 
 // SourceRef identifies one source participating in a merged catalog projection.
@@ -149,31 +152,39 @@ type SourceRef struct {
 
 // Model is the deterministic merged projection for one provider/model key.
 type Model struct {
-	ProviderID             string
-	ModelID                string
-	DisplayName            string
-	Sources                []SourceRef
-	Available              *bool
-	AvailabilityState      AvailabilityState
-	Stale                  bool
-	RefreshedAt            time.Time
-	ContextWindow          *int64
-	MaxInputTokens         *int64
-	MaxOutputTokens        *int64
-	SupportsTools          *bool
-	SupportsReasoning      *bool
-	ReasoningEfforts       []ReasoningEffort
-	DefaultReasoningEffort *ReasoningEffort
-	CostInputPerMillion    *float64
-	CostOutputPerMillion   *float64
-	ExplicitlyCurated      bool
-	Curated                bool
-	Deprecated             bool
-	Hidden                 bool
-	Featured               bool
-	ReleaseDate            *string
-	ReasoningSource        ReasoningSource
-	LastError              string
+	ProviderID               string
+	ModelID                  string
+	DisplayName              string
+	Sources                  []SourceRef
+	Available                *bool
+	AvailabilityState        AvailabilityState
+	Stale                    bool
+	RefreshedAt              time.Time
+	ContextWindow            *int64
+	MaxInputTokens           *int64
+	MaxOutputTokens          *int64
+	SupportsTools            *bool
+	SupportsReasoning        *bool
+	ReasoningEfforts         []ReasoningEffort
+	DefaultReasoningEffort   *ReasoningEffort
+	CostInputPerMillion      *float64
+	CostOutputPerMillion     *float64
+	CostCacheReadPerMillion  *float64
+	CostCacheWritePerMillion *float64
+	CostReasoningPerMillion  *float64
+	CostInputSource          SourceKind
+	CostOutputSource         SourceKind
+	CostCacheReadSource      SourceKind
+	CostCacheWriteSource     SourceKind
+	CostReasoningSource      SourceKind
+	ExplicitlyCurated        bool
+	Curated                  bool
+	Deprecated               bool
+	Hidden                   bool
+	Featured                 bool
+	ReleaseDate              *string
+	ReasoningSource          ReasoningSource
+	LastError                string
 }
 
 // SourceStatus reports provider-scoped source health and row counts.

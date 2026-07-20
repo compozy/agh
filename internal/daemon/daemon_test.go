@@ -32,6 +32,7 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/doctor"
 	eventspkg "github.com/compozy/agh/internal/events"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
@@ -50,6 +51,7 @@ import (
 	"github.com/compozy/agh/internal/subprocess"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gofrs/flock"
@@ -79,6 +81,118 @@ func TestAcquireLockSucceedsWithoutExistingLock(t *testing.T) {
 	}
 	if got, want := strings.TrimSpace(string(data)), strconvString(os.Getpid()); got != want {
 		t.Fatalf("lock file contents = %q, want %q", got, want)
+	}
+}
+
+func TestRuntimeMemoryMonitor(t *testing.T) {
+	t.Run("Should report baseline periodic and joined shutdown snapshots", func(t *testing.T) {
+		// not parallel: UT-061 compares the process-wide goroutine count around shutdown.
+		baselineGoroutines := runtime.NumGoroutine()
+
+		startedAt := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+		now := startedAt
+		ticker := &runtimeMemoryManualTicker{ticks: make(chan time.Time, 1)}
+		reports := make(chan doctor.RuntimeMemorySnapshot, 3)
+		monitor := newRuntimeMemoryMonitor(
+			time.Minute,
+			startedAt,
+			slog.Default(),
+			func(options *runtimeMemoryMonitorOptions) {
+				options.now = func() time.Time { return now }
+				options.residentMemory = func() (uint64, string, error) { return 8192, "current", nil }
+				options.newTicker = func(time.Duration) runtimeMemoryTicker { return ticker }
+				options.report = func(snapshot doctor.RuntimeMemorySnapshot) { reports <- snapshot }
+			},
+		)
+		if err := monitor.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		baseline := receiveRuntimeMemorySnapshot(t, reports)
+		if baseline.Phase != runtimeMemoryPhaseBaseline || !baseline.Active || baseline.ResidentMemoryBytes != 8192 {
+			t.Fatalf("baseline snapshot = %#v, want active populated baseline", baseline)
+		}
+
+		now = startedAt.Add(time.Minute)
+		ticker.ticks <- now
+		periodic := receiveRuntimeMemorySnapshot(t, reports)
+		if periodic.Phase != runtimeMemoryPhasePeriodic || periodic.UptimeSeconds != 60 || periodic.Goroutines <= 0 {
+			t.Fatalf("periodic snapshot = %#v, want one-minute populated sample", periodic)
+		}
+
+		now = startedAt.Add(2 * time.Minute)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := monitor.Shutdown(shutdownCtx); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		shutdown := receiveRuntimeMemorySnapshot(t, reports)
+		if shutdown.Phase != runtimeMemoryPhaseShutdown || shutdown.Active || shutdown.UptimeSeconds != 120 {
+			t.Fatalf("shutdown snapshot = %#v, want inactive joined snapshot", shutdown)
+		}
+		if !ticker.stopped {
+			t.Fatal("Shutdown() ticker stopped = false, want true")
+		}
+
+		deadline := time.Now().Add(time.Second)
+		for runtime.NumGoroutine() > baselineGoroutines && time.Now().Before(deadline) {
+			runtime.Gosched()
+		}
+		if got := runtime.NumGoroutine(); got > baselineGoroutines {
+			t.Fatalf("goroutines after shutdown = %d, want at most baseline %d", got, baselineGoroutines)
+		}
+	})
+
+	t.Run("Should disable sampling without starting a ticker", func(t *testing.T) {
+		t.Parallel()
+
+		tickerStarted := false
+		monitor := newRuntimeMemoryMonitor(
+			0,
+			time.Now(),
+			slog.Default(),
+			func(options *runtimeMemoryMonitorOptions) {
+				options.newTicker = func(time.Duration) runtimeMemoryTicker {
+					tickerStarted = true
+					return &runtimeMemoryManualTicker{ticks: make(chan time.Time)}
+				}
+			},
+		)
+		if err := monitor.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		if tickerStarted {
+			t.Fatal("Start() created a ticker for interval zero")
+		}
+		snapshot := monitor.RuntimeMemorySnapshot()
+		if snapshot.Enabled || snapshot.Active || snapshot.Phase != runtimeMemoryPhaseDisabled {
+			t.Fatalf("RuntimeMemorySnapshot() = %#v, want deterministic disabled state", snapshot)
+		}
+		if err := monitor.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+}
+
+type runtimeMemoryManualTicker struct {
+	ticks   chan time.Time
+	stopped bool
+}
+
+func (t *runtimeMemoryManualTicker) C() <-chan time.Time { return t.ticks }
+
+func (t *runtimeMemoryManualTicker) Stop() { t.stopped = true }
+
+func receiveRuntimeMemorySnapshot(
+	t *testing.T,
+	reports <-chan doctor.RuntimeMemorySnapshot,
+) doctor.RuntimeMemorySnapshot {
+	t.Helper()
+	select {
+	case snapshot := <-reports:
+		return snapshot
+	case <-time.After(time.Second):
+		t.Fatal("runtime memory snapshot was not reported")
+		return doctor.RuntimeMemorySnapshot{}
 	}
 }
 
@@ -3478,6 +3592,7 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			t.Parallel()
 
 			homePaths := testHomePaths(t)
+			cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
 			cfg := testConfig(t, homePaths)
 			cfg.Memory.Enabled = tc.memoryEnabled
 			cfg.Skills.Enabled = tc.skillsEnabled
@@ -3577,10 +3692,11 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 
 	var capturedDeps SessionManagerDeps
 	var capturedUDSDeps RuntimeDeps
+	sessions := &fakeSessionManager{}
 	d := newTestDaemon(t, homePaths, &cfg)
 	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
 		capturedDeps = deps
-		return &fakeSessionManager{}, nil
+		return sessions, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 		return &fakeObserver{}, nil
@@ -3611,6 +3727,16 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	if capturedDeps.SandboxRegistry == nil {
 		t.Fatal("boot() did not inject the session manager sandbox registry")
 	}
+	if capturedDeps.SessionCompaction != cfg.Session.Compaction {
+		t.Fatalf(
+			"session compaction config = %#v, want %#v",
+			capturedDeps.SessionCompaction,
+			cfg.Session.Compaction,
+		)
+	}
+	if sessions.compactionHandler == nil {
+		t.Fatal("boot() did not bind the checkpoint compaction runtime")
+	}
 	if d.sandboxRegistry == nil {
 		t.Fatal("boot() did not retain the daemon sandbox registry")
 	}
@@ -3635,6 +3761,7 @@ func TestWorkspaceRegistrationRefreshesHookBindings(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
+		cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
 		cfg := testConfig(t, homePaths)
 		cfg.Memory.Enabled = false
 		cfg.Skills.Enabled = false
@@ -5177,10 +5304,19 @@ type fakeSessionManager struct {
 	waitFinalizationsCalls   int
 	shutdownCalls            int
 	shutdownErr              error
+	compactionHandler        session.CompactionHandler
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
 var _ memoryExtractorSessionManager = (*fakeSessionManager)(nil)
+var _ autoTitleSessionManager = (*fakeSessionManager)(nil)
+var _ clarifyEventPublisher = (*fakeSessionManager)(nil)
+
+func (f *fakeSessionManager) SetCompactionHandler(handler session.CompactionHandler) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.compactionHandler = handler
+}
 
 func (f *fakeSessionManager) PrepareWorkspaceRemoval(
 	context.Context,
@@ -5260,6 +5396,9 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 	if workspace == "" {
 		workspace = workspaceID
 	}
+	if workspaceID == "" {
+		workspaceID = workspace
+	}
 	return &session.Session{
 		ID:          sessionID,
 		AgentName:   opts.AgentName,
@@ -5294,6 +5433,23 @@ func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) 
 	f.infos = append(f.infos, child.Info())
 	f.mu.Unlock()
 	return child, nil
+}
+
+func (f *fakeSessionManager) ApplyAutomaticSessionTitle(
+	_ context.Context,
+	id string,
+	title string,
+) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, info := range f.infos {
+		if info == nil || info.ID != id || strings.TrimSpace(info.Name) != "" {
+			continue
+		}
+		info.Name = strings.TrimSpace(title)
+		return true, nil
+	}
+	return false, nil
 }
 
 func (f *fakeSessionManager) List() []*session.Info {
@@ -5402,6 +5558,61 @@ func (f *fakeSessionManager) AppendSessionEventIfAbsent(
 		TurnID: event.SyntheticTurnID, Type: event.Type, AgentName: event.AgentName,
 		Content: string(event.Content), Timestamp: event.CreatedAt,
 	})
+	return nil
+}
+
+func (f *fakeSessionManager) PublishClarifyEvent(
+	_ context.Context,
+	event toolspkg.ClarifyEvent,
+) error {
+	if err := event.Validate(); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("fake session manager: marshal clarification event: %w", err)
+	}
+	turnID := "clarify:" + event.Request.RequestID
+	content, err := transcript.MarshalAgentEvent(acp.AgentEvent{
+		Type:      acp.EventTypeClarify,
+		SessionID: event.Request.SessionID,
+		TurnID:    turnID,
+		RequestID: event.Request.RequestID,
+		Timestamp: event.At.UTC(),
+		Raw:       payload,
+	})
+	if err != nil {
+		return fmt.Errorf("fake session manager: encode clarification event: %w", err)
+	}
+
+	persisted := store.SessionEvent{
+		ID:        event.Request.RequestID + "-" + string(event.Status),
+		SessionID: event.Request.SessionID,
+		TurnID:    turnID,
+		Type:      acp.EventTypeClarify,
+		AgentName: event.Request.AgentName,
+		Content:   content,
+		Timestamp: event.At.UTC(),
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sessionEvents == nil {
+		f.sessionEvents = make(map[string][]store.SessionEvent)
+	}
+	for _, existing := range f.sessionEvents[persisted.SessionID] {
+		if existing.ID != persisted.ID {
+			continue
+		}
+		if existing.TurnID == persisted.TurnID && existing.Type == persisted.Type &&
+			existing.AgentName == persisted.AgentName && existing.Content == persisted.Content &&
+			existing.Timestamp.Equal(persisted.Timestamp) {
+			return nil
+		}
+		return errors.New("fake session manager: clarification event identity collision")
+	}
+	f.nextEventSequence++
+	persisted.Sequence = f.nextEventSequence
+	f.sessionEvents[persisted.SessionID] = append(f.sessionEvents[persisted.SessionID], persisted)
 	return nil
 }
 
@@ -5939,13 +6150,39 @@ type spawnSurface interface {
 	Spawn(context.Context, session.SpawnOpts) (*session.Session, error)
 }
 
+type autoTitleApplySurface interface {
+	ApplyAutomaticSessionTitle(context.Context, string, string) (bool, error)
+}
+
 type nonBindableHarnessSessionManager struct {
 	SessionManager
 	syntheticPrompter syntheticPrompter
 }
 
+func (m nonBindableHarnessSessionManager) PublishClarifyEvent(
+	ctx context.Context,
+	event toolspkg.ClarifyEvent,
+) error {
+	publisher, ok := m.SessionManager.(clarifyEventPublisher)
+	if !ok {
+		return errors.New("non-bindable session manager: clarification publisher is required")
+	}
+	return publisher.PublishClarifyEvent(ctx, event)
+}
+
 type sessionManagerWithoutWorkspaceRemoval struct {
 	SessionManager
+}
+
+func (m sessionManagerWithoutWorkspaceRemoval) PublishClarifyEvent(
+	ctx context.Context,
+	event toolspkg.ClarifyEvent,
+) error {
+	publisher, ok := m.SessionManager.(clarifyEventPublisher)
+	if !ok {
+		return errors.New("session manager without workspace removal: clarification publisher is required")
+	}
+	return publisher.PublishClarifyEvent(ctx, event)
 }
 
 var (
@@ -5956,6 +6193,7 @@ var (
 	_ syntheticPrompter             = (*fakeSessionManager)(nil)
 	_ syntheticPrompter             = nonBindableHarnessSessionManager{}
 	_ spawnSurface                  = nonBindableHarnessSessionManager{}
+	_ autoTitleApplySurface         = nonBindableHarnessSessionManager{}
 )
 
 func (m nonBindableHarnessSessionManager) Spawn(
@@ -5975,6 +6213,18 @@ func (m nonBindableHarnessSessionManager) PromptSynthetic(
 	opts session.SyntheticPromptOpts,
 ) (<-chan acp.AgentEvent, error) {
 	return m.syntheticPrompter.PromptSynthetic(ctx, id, opts)
+}
+
+func (m nonBindableHarnessSessionManager) ApplyAutomaticSessionTitle(
+	ctx context.Context,
+	id string,
+	title string,
+) (bool, error) {
+	applier, ok := m.SessionManager.(autoTitleApplySurface)
+	if !ok {
+		return false, errors.New("daemon test: session manager automatic title surface is required")
+	}
+	return applier.ApplyAutomaticSessionTitle(ctx, id, title)
 }
 
 func (m nonBindableHarnessSessionManager) PrepareWorkspaceRemoval(
@@ -6335,9 +6585,121 @@ type recordingRegistry struct {
 	onListTaskRunsByStatus    func([]taskpkg.RunStatus)
 	mu                        sync.Mutex
 	workspaces                map[string]workspacepkg.Workspace
+	deadEntities              map[store.DeadEntityKey]store.DeadEntity
 	networkAvailability       store.NetworkAvailability
 	networkAvailabilityWrites []bool
 	coordinationSettings      map[string]workspacepkg.CoordinationSetting
+	approvalGrants            map[toolspkg.ApprovalGrantKey]toolspkg.ApprovalGrant
+}
+
+func (r *recordingRegistry) LookupApprovalGrant(
+	_ context.Context,
+	key toolspkg.ApprovalGrantKey,
+) (toolspkg.ApprovalGrant, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	grant, ok := r.approvalGrants[key.Normalize()]
+	return grant, ok, nil
+}
+
+func (r *recordingRegistry) PutApprovalGrant(
+	_ context.Context,
+	grant toolspkg.ApprovalGrant,
+) (toolspkg.ApprovalGrant, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.approvalGrants == nil {
+		r.approvalGrants = make(map[toolspkg.ApprovalGrantKey]toolspkg.ApprovalGrant)
+	}
+	grant = grant.Normalize()
+	if grant.ID == "" {
+		grant.ID = fmt.Sprintf("grant-%d", len(r.approvalGrants)+1)
+	}
+	now := time.Now().UTC()
+	if grant.CreatedAt.IsZero() {
+		grant.CreatedAt = now
+	}
+	if grant.LastUsedAt.IsZero() {
+		grant.LastUsedAt = now
+	}
+	r.approvalGrants[grant.ApprovalGrantKey] = grant
+	return grant, nil
+}
+
+func (r *recordingRegistry) ListApprovalGrants(
+	_ context.Context,
+	workspaceID string,
+) ([]toolspkg.ApprovalGrant, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	grants := make([]toolspkg.ApprovalGrant, 0)
+	for key, grant := range r.approvalGrants {
+		if key.WorkspaceID == workspaceID {
+			grants = append(grants, grant)
+		}
+	}
+	return grants, nil
+}
+
+func (r *recordingRegistry) RevokeApprovalGrant(_ context.Context, workspaceID, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for key, grant := range r.approvalGrants {
+		if key.WorkspaceID == workspaceID && grant.ID == id {
+			delete(r.approvalGrants, key)
+			return nil
+		}
+	}
+	return toolspkg.ErrApprovalGrantNotFound
+}
+
+func (r *recordingRegistry) MarkDeadEntity(_ context.Context, entity store.DeadEntity) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.deadEntities == nil {
+		r.deadEntities = make(map[store.DeadEntityKey]store.DeadEntity)
+	}
+	r.deadEntities[entity.DeadEntityKey] = entity
+	return nil
+}
+
+func (r *recordingRegistry) ClearDeadEntity(
+	_ context.Context,
+	workspaceID string,
+	kind store.DeadEntityKind,
+	entityID string,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.deadEntities, store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID})
+	return nil
+}
+
+func (r *recordingRegistry) FindDeadEntity(
+	_ context.Context,
+	workspaceID string,
+	kind store.DeadEntityKind,
+	entityID string,
+) (store.DeadEntity, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entity, ok := r.deadEntities[store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID}]
+	return entity, ok, nil
+}
+
+func (r *recordingRegistry) ListDeadEntities(
+	_ context.Context,
+	workspaceID string,
+) ([]store.DeadEntity, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entities := make([]store.DeadEntity, 0)
+	for key, entity := range r.deadEntities {
+		if key.WorkspaceID == workspaceID {
+			entities = append(entities, entity)
+		}
+	}
+	return entities, nil
 }
 
 var (
@@ -7195,6 +7557,10 @@ func (r *recordingRegistry) ListTaskEvents(context.Context, taskpkg.EventQuery) 
 	return nil, nil
 }
 
+func (r *recordingRegistry) TaskWakeEventExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
 func (r *recordingRegistry) GetTaskEventRecord(context.Context, string) (taskpkg.EventRecord, error) {
 	return taskpkg.EventRecord{}, taskpkg.ErrTaskEventNotFound
 }
@@ -7307,6 +7673,30 @@ func (f *fakeAutomationManager) Shutdown(context.Context) error {
 	f.status.Running = false
 	f.status.SchedulerRunning = false
 	return f.shutdownErr
+}
+
+func (f *fakeAutomationManager) ListSuggestions(
+	context.Context,
+	string,
+	automationpkg.SuggestionStatus,
+) ([]automationpkg.Suggestion, error) {
+	return nil, nil
+}
+
+func (f *fakeAutomationManager) AcceptSuggestion(
+	context.Context,
+	string,
+	string,
+) (automationpkg.SuggestionAcceptance, error) {
+	return automationpkg.SuggestionAcceptance{}, automationpkg.ErrSuggestionNotFound
+}
+
+func (f *fakeAutomationManager) DismissSuggestion(
+	context.Context,
+	string,
+	string,
+) (automationpkg.Suggestion, error) {
+	return automationpkg.Suggestion{}, automationpkg.ErrSuggestionNotFound
 }
 
 func (f *fakeAutomationManager) Jobs(context.Context) ([]automationpkg.Job, error) {
@@ -8416,9 +8806,7 @@ func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
 	t.Helper()
 
 	databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
-	if err := daemonTestStoreSeed.Clone(databasePath); err != nil {
-		t.Fatalf("daemon store seed Clone() error = %v", err)
-	}
+	cloneDaemonTestStoreSeed(t, databasePath)
 	db, err := globaldb.OpenGlobalDB(testutil.Context(t), databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -8429,6 +8817,14 @@ func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
 		}
 	})
 	return db
+}
+
+func cloneDaemonTestStoreSeed(t *testing.T, databasePath string) {
+	t.Helper()
+
+	if err := daemonTestStoreSeed.Clone(databasePath); err != nil {
+		t.Fatalf("daemon store seed Clone() error = %v", err)
+	}
 }
 
 func installDaemonTestExtension(

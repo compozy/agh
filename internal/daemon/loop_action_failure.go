@@ -21,9 +21,20 @@ type loopActionFailureMetadata struct {
 	Failure    looppkg.ActionFailure `json:"failure"`
 }
 
+type loopActionReasonCodeProvider interface {
+	error
+	loopActionReasonCode() string
+}
+
 func marshalLoopActionFailureMetadata(reason string, cause error) ([]byte, error) {
+	reasonCode := loopActionFailureCode
+	if provider, ok := errors.AsType[loopActionReasonCodeProvider](cause); ok {
+		if provided := strings.TrimSpace(provider.loopActionReasonCode()); provided != "" {
+			reasonCode = provided
+		}
+	}
 	return json.Marshal(loopActionFailureMetadata{
-		ReasonCode: loopActionFailureCode,
+		ReasonCode: reasonCode,
 		Reason:     strings.TrimSpace(reason),
 		Failure:    operatorSafeActionFailure(cause),
 	})

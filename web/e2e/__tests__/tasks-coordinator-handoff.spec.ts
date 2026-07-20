@@ -241,7 +241,7 @@ test("approving an agent-created approval task is the coordinator-handoff bounda
   await tasksUI.navTasks.click();
   await expect(appPage).toHaveURL(/\/tasks$/);
   await tasksUI.modeList.click();
-  await expect(tasksUI.modeList).toHaveAttribute("aria-pressed", "true");
+  await expect(tasksUI.modeList).toHaveAttribute("aria-current", "page");
 
   const approvalTaskRunsBefore = await runtime.requestJSON<{
     runs: Array<{ id: string }>;

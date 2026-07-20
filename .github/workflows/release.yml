@@ -229,9 +229,7 @@ jobs:
         with:
           name: e2e-nightly-artifacts
           path: |
-            web/playwright-report
-            web/test-results
-            web/blob-report
+            .tmp/playwright
             /tmp/agh-e2e-*
           if-no-files-found: ignore
           retention-days: 14

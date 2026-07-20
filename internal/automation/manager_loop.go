@@ -43,11 +43,11 @@ func (m *Manager) defaultSchedulerCatchUpPolicy(
 	job Job,
 ) (SchedulerCatchUpPolicy, error) {
 	if !job.IsLoopTarget() {
-		return SchedulerCatchUpPolicySkip, nil
+		return SchedulerCatchUpPolicySkipMissed, nil
 	}
 	resolver, ok := m.loopStarter.(LoopCatchUpPolicyResolver)
 	if !ok || resolver == nil || job.LoopTarget == nil {
-		return SchedulerCatchUpPolicySkip, nil
+		return SchedulerCatchUpPolicySkipMissed, nil
 	}
 	return resolver.DefaultLoopCatchUpPolicy(ctx, LoopCatchUpPolicyRequest{
 		WorkspaceID: strings.TrimSpace(job.LoopTarget.WorkspaceID),

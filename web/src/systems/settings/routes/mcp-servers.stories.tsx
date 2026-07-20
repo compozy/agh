@@ -90,6 +90,52 @@ export const Matrix: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** Workspace-scoped dead sidecar rendered as unavailable with its redacted daemon diagnostic. */
+export const Unavailable: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/mcp?scope=workspace"),
+    ...storybookMswParameters({
+      settings: [
+        aghApiMock.get("/api/settings/mcp-servers", () =>
+          HttpResponse.json({
+            ...mcpManagementCollectionFixture,
+            mcp_servers: [
+              {
+                name: "postgres",
+                transport: "stdio",
+                command: "npx",
+                args: ["-y", "@modelcontextprotocol/server-postgres"],
+                scope: "workspace",
+                workspace_id: "ws-platform",
+                runtime_status: {
+                  configured: true,
+                  initialized: false,
+                  state: "dead",
+                  probe: "skipped",
+                  tool_count: 0,
+                  reason: "backend_dead",
+                  diagnostic: "process exited during initialize",
+                },
+                source_metadata: {
+                  available_targets: ["workspace-mcp-sidecar"],
+                  effective_source: {
+                    kind: "workspace-mcp-sidecar",
+                    scope: "workspace",
+                    workspace_id: "ws-platform",
+                  },
+                },
+              },
+              ...mcpManagementCollectionFixture.mcp_servers,
+            ],
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 /** selected-needs-login-desktop */
 export const SelectedNeedsLogin: Story = {
   args: {},

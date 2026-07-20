@@ -19,7 +19,23 @@ type whatsappGraphClient struct {
 	apiVersion            string
 	accessToken           string
 	httpClient            *http.Client
+	reportRetry           func(context.Context, bridgesdk.RetryAttempt) error
+	reportRetryFailure    func(error)
 	reportResponseCleanup func(error)
+}
+
+func (c *whatsappGraphClient) ReportRetry(ctx context.Context, attempt bridgesdk.RetryAttempt) {
+	if c == nil || c.reportRetry == nil {
+		if c != nil && c.reportRetryFailure != nil {
+			c.reportRetryFailure(errors.New("whatsapp: retry reporter is required"))
+		}
+		return
+	}
+	if err := c.reportRetry(ctx, attempt); err != nil {
+		if c.reportRetryFailure != nil {
+			c.reportRetryFailure(fmt.Errorf("whatsapp: report retry attempt: %w", err))
+		}
+	}
 }
 
 func (c *whatsappGraphClient) GetPhoneNumber(

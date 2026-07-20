@@ -22,8 +22,10 @@ import {
 import { LoopTargetFields } from "@/systems/loops";
 
 import { useAutomationJobForm, type JobTargetMode } from "../hooks/use-automation-job-form";
+import { catchUpPolicyLabel } from "../lib/automation-formatters";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type {
+  AutomationCatchUpPolicy,
   AutomationFireLimit,
   AutomationRetry,
   AutomationScheduleMode,
@@ -126,12 +128,15 @@ function reliabilityBadge(
   retry: AutomationRetry,
   fireLimit: AutomationFireLimit | undefined,
   enabled: boolean,
-  locked: boolean
+  locked: boolean,
+  catchUpPolicy: AutomationCatchUpPolicy | undefined
 ): string {
   const retryLabel =
     locked || retry.strategy === "none" ? "No retry" : `Backoff ×${retry.max_retries}`;
   const limit = fireLimit ?? { max: 12, window: "1h" };
-  return `${retryLabel} · ${limit.max}/${limit.window} · ${enabled ? "enabled" : "disabled"}`;
+  // Only recurring jobs pass a policy; the default (omitted) stays out of the summary.
+  const catchUp = catchUpPolicy ? ` · ${catchUpPolicyLabel(catchUpPolicy)}` : "";
+  return `${retryLabel} · ${limit.max}/${limit.window}${catchUp} · ${enabled ? "enabled" : "disabled"}`;
 }
 
 export function AutomationJobForm({
@@ -303,16 +308,22 @@ export function AutomationJobForm({
               form.retry,
               draft.fire_limit ?? undefined,
               draft.enabled ?? true,
-              form.output === "task"
+              form.output === "task",
+              form.recurring ? form.catchUpPolicy : undefined
             )}
+            catchUpPolicy={form.catchUpPolicy}
             defaultOpen={form.reliabilityDefaultOpen}
             enabled={draft.enabled ?? true}
             fireLimit={draft.fire_limit ?? undefined}
             locked={form.output === "task"}
+            misfireGraceSeconds={form.misfireGraceSeconds}
             mode={mode}
+            onCatchUpPolicyChange={form.onCatchUpPolicyChange}
             onEnabledChange={form.onEnabledChange}
             onFireLimitChange={form.onFireLimitChange}
+            onMisfireGraceChange={form.onMisfireGraceChange}
             onRetryChange={form.onRetryChange}
+            recurring={form.recurring}
             retry={form.retry}
           />
         </section>

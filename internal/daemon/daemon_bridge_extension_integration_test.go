@@ -64,7 +64,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 			Workspace: e2etest.WorkspaceSeedOptions{Root: workspaceRoot},
 			Env:       env,
 		}
-		first := e2etest.StartRuntimeHarness(t, options)
+		first := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
 
@@ -175,7 +175,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 		}
 		seedCancel()
 
-		restarted := e2etest.StartRuntimeHarness(t, options)
+		restarted := e2etest.StartRuntimeHarness(t, &options)
 		deliveries := extensiontest.WaitForDeliveryMarkers(
 			t,
 			markers,
@@ -254,7 +254,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	delete(env, extensiontest.EnvCrashOncePath)
 	env["AGH_TEST_TELEGRAM_TOKEN"] = "telegram-bot-token"
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultAgent:   bridgeIngressFixtureAgentName,
 			PermissionMode: aghconfig.PermissionModeApproveAll,

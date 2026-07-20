@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  automationRunSkipReason,
   automationScopeTone,
+  automationSkipReasonDetail,
+  automationSkipReasonLabel,
+  automationSkipReasonTone,
   automationSourceLabel,
   automationSourceTone,
   automationStatusTone,
+  catchUpPolicyLabel,
   describeFireLimit,
   describeRetry,
   describeSchedule,
@@ -162,5 +167,55 @@ describe("automation formatter helpers", () => {
         visibleCount: 0,
       })
     ).toBe("0 triggers found");
+  });
+
+  it("labels catch-up policies and never surfaces the removed skip value", () => {
+    expect(catchUpPolicyLabel()).toBe("Default");
+    expect(catchUpPolicyLabel(undefined)).toBe("Default");
+    expect(catchUpPolicyLabel("skip_missed")).toBe("Skip missed");
+    expect(catchUpPolicyLabel("coalesce")).toBe("Coalesce");
+    expect(catchUpPolicyLabel("replay")).toBe("Replay");
+    expect(catchUpPolicyLabel("run_once_on_catchup")).toBe("Run once");
+    expect(catchUpPolicyLabel("skip_missed")).not.toBe("skip");
+  });
+
+  it("recognizes durable skip reasons only on canceled runs and maps label, tone, and detail", () => {
+    expect(
+      automationRunSkipReason({ status: "canceled", metadata: { reason: "self_overlap" } } as never)
+    ).toBe("self_overlap");
+    expect(
+      automationRunSkipReason({
+        status: "canceled",
+        metadata: { reason: "misfire_grace_exceeded" },
+      } as never)
+    ).toBe("misfire_grace_exceeded");
+
+    // A known reason on a non-canceled run is ignored (no invented skip status).
+    expect(
+      automationRunSkipReason({
+        status: "completed",
+        metadata: { reason: "self_overlap" },
+      } as never)
+    ).toBeNull();
+    expect(
+      automationRunSkipReason({
+        status: "running",
+        metadata: { reason: "misfire_grace_exceeded" },
+      } as never)
+    ).toBeNull();
+
+    // Canceled runs without a known reason are not skips either.
+    expect(
+      automationRunSkipReason({ status: "canceled", metadata: { reason: "unknown" } } as never)
+    ).toBeNull();
+    expect(automationRunSkipReason({ status: "canceled", metadata: {} } as never)).toBeNull();
+    expect(automationRunSkipReason({ status: "canceled" } as never)).toBeNull();
+
+    expect(automationSkipReasonLabel("self_overlap")).toBe("Overlap");
+    expect(automationSkipReasonLabel("misfire_grace_exceeded")).toBe("Grace window");
+    expect(automationSkipReasonTone("self_overlap")).toBe("info");
+    expect(automationSkipReasonTone("misfire_grace_exceeded")).toBe("warning");
+    expect(automationSkipReasonDetail("self_overlap")).toContain("previous run");
+    expect(automationSkipReasonDetail("misfire_grace_exceeded")).toContain("grace window");
   });
 });

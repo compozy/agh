@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -795,7 +796,7 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 	})
 }
 
-func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
+func TestObserveHealthPayloadConversions(t *testing.T) {
 	t.Run("Should include runtime activity", func(t *testing.T) {
 		t.Parallel()
 
@@ -921,6 +922,29 @@ func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
 			strings.Contains(probe.Command, "super-secret") ||
 			strings.Contains(probe.Error, "super-secret") {
 			t.Fatalf("AgentProbes[0] = %#v, want trimmed and redacted probe payload", probe)
+		}
+	})
+
+	t.Run("Should encode task run statuses with their public names", func(t *testing.T) {
+		t.Parallel()
+
+		payload := TaskHealthPayloadFromObserve(observepkg.TaskHealth{
+			StuckRuns: []observepkg.StuckTaskRun{{
+				TaskID: "task-1",
+				RunID:  "run-1",
+				Status: taskpkg.TaskRunStatusRunning,
+			}},
+			RunTotals: []observepkg.TaskRunTotal{{
+				Status: taskpkg.TaskRunStatusNeedsAttention,
+				Count:  1,
+			}},
+		})
+
+		if got, want := payload.StuckRuns[0].Status, taskpkg.TaskRunStatusRunning.String(); got != want {
+			t.Fatalf("StuckRuns[0].Status = %q, want %q", got, want)
+		}
+		if got, want := payload.RunTotals[0].Status, taskpkg.TaskRunStatusNeedsAttention.String(); got != want {
+			t.Fatalf("RunTotals[0].Status = %q, want %q", got, want)
 		}
 	})
 }

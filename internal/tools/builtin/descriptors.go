@@ -18,6 +18,9 @@ const (
 func NativeDescriptors() []toolspkg.Descriptor {
 	groups := [][]toolspkg.Descriptor{
 		catalogDescriptors(),
+		toolArtifactDescriptors(),
+		toolApprovalDescriptors(),
+		clarifyDescriptors(),
 		skillDescriptors(),
 		networkDescriptors(),
 		sessionDescriptors(),

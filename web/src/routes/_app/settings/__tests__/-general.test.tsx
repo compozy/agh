@@ -1,6 +1,6 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
-import type { ReactNode } from "react";
+import { createElement, type ReactNode, type SetStateAction } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Envelope = typeof envelope;
@@ -72,6 +72,7 @@ const envelope = {
   },
   config: {
     daemon: {
+      memory_report_interval: "5m",
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
       socket: "/tmp/agh.sock",
     },
@@ -79,6 +80,7 @@ const envelope = {
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" as const },
+    redact: { enabled: true },
     session_timeout: "0s",
   },
   config_paths: {
@@ -170,6 +172,13 @@ vi.mock("@/systems/settings", async importOriginal => {
     SettingsApiError: class SettingsApiError extends Error {},
   };
 });
+
+// The remembered-decisions section owns its own workspace-scoped query/mutation; the
+// page harness has no QueryClientProvider, so stub it to a marker and assert composition.
+vi.mock("@/systems/tool-approvals", () => ({
+  ToolApprovalGrantsSection: () =>
+    createElement("div", { "data-testid": "settings-page-general-tool-approvals" }),
+}));
 
 beforeEach(() => {
   pageState = {
@@ -277,6 +286,60 @@ describe("GeneralSettingsPage", () => {
     expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
       "Run `agh update`."
     );
+  });
+
+  it("composes the remembered-decisions section after the permissions policy", () => {
+    render(<GeneralSettingsPage />);
+
+    const permissions = screen.getByTestId("settings-page-general-permissions-group");
+    const grants = screen.getByTestId("settings-page-general-tool-approvals");
+    expect(grants).toBeInTheDocument();
+    expect(
+      permissions.compareDocumentPosition(grants) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("reads and edits the daemon memory report interval as a duration string", () => {
+    render(<GeneralSettingsPage />);
+
+    const input = screen.getByTestId("settings-page-general-memory-report-interval-input");
+    expect(input).toHaveValue("5m");
+
+    fireEvent.change(input, { target: { value: "10m" } });
+    expect(pageState.setDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the disabled sampling value when the interval is 0s", () => {
+    pageState.draft = structuredClone(envelope.config);
+    pageState.draft.daemon.memory_report_interval = "0s";
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-memory-report-interval-input")).toHaveValue(
+      "0s"
+    );
+  });
+
+  it("reads the secret redaction switch and marks it restart-required", () => {
+    render(<GeneralSettingsPage />);
+
+    const section = screen.getByTestId("settings-page-general-redact");
+    expect(within(section).getByText("Secret redaction heuristics")).toBeInTheDocument();
+    expect(within(section).getByText("restart required")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-general-redact-enabled-switch")).toBeChecked();
+  });
+
+  it("toggles the secret redaction switch through the page draft handler", () => {
+    let nextDraft: Envelope["config"] = envelope.config;
+    pageState.setDraft.mockImplementation((update: SetStateAction<Envelope["config"] | null>) => {
+      const updated = typeof update === "function" ? update(envelope.config) : update;
+      if (updated !== null) nextDraft = updated;
+    });
+    render(<GeneralSettingsPage />);
+
+    fireEvent.click(screen.getByTestId("settings-page-general-redact-enabled-switch"));
+    expect(pageState.setDraft).toHaveBeenCalledTimes(1);
+    expect(nextDraft.redact.enabled).toBe(false);
+    expect(nextDraft.daemon).toEqual(envelope.config.daemon);
   });
 
   it("renders manual guidance and the last refresh error for unsupported update snapshots", () => {

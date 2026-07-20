@@ -8,7 +8,11 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAgent, useAgentCatalog, useAgents } from "@/systems/agent";
-import { useAutomationJobs, useAutomationTriggers } from "@/systems/automation";
+import {
+  useAutomationJobs,
+  useAutomationSuggestions,
+  useAutomationTriggers,
+} from "@/systems/automation";
 import {
   useBridge,
   useBridgeProviders,
@@ -83,6 +87,7 @@ const adapterMocks = vi.hoisted(() => ({
   listAutomationJobs: vi.fn(),
   listAutomationJobRuns: vi.fn(),
   listAutomationTriggerRuns: vi.fn(),
+  listAutomationSuggestions: vi.fn(),
   listAutomationTriggers: vi.fn(),
   listLoopRuns: vi.fn(),
   listLoops: vi.fn(),
@@ -188,6 +193,13 @@ vi.mock("@/systems/automation/adapters/automation-api", async importOriginal => 
   listAutomationJobs: adapterMocks.listAutomationJobs,
   listAutomationTriggerRuns: adapterMocks.listAutomationTriggerRuns,
   listAutomationTriggers: adapterMocks.listAutomationTriggers,
+}));
+
+vi.mock("@/systems/automation/adapters/automation-suggestions-api", async importOriginal => ({
+  ...(await importOriginal<
+    typeof import("@/systems/automation/adapters/automation-suggestions-api")
+  >()),
+  listAutomationSuggestions: adapterMocks.listAutomationSuggestions,
 }));
 
 vi.mock("@/systems/loops/adapters/loops-api", async importOriginal => ({
@@ -475,8 +487,13 @@ const cases: PreloadCase[] = [
           source: "package",
           workspace_id: workspace.id,
         });
+        useAutomationSuggestions(workspace.id, "pending");
       }),
-    requests: [adapterMocks.fetchWorkspaces, adapterMocks.listAutomationJobs],
+    requests: [
+      adapterMocks.fetchWorkspaces,
+      adapterMocks.listAutomationJobs,
+      adapterMocks.listAutomationSuggestions,
+    ],
   },
   {
     name: "triggers → exact filtered infinite catalog options",
@@ -795,6 +812,7 @@ describe("route query preloading", () => {
       jobs: [],
       page: { has_more: false, limit: 50, total: 0 },
     });
+    adapterMocks.listAutomationSuggestions.mockResolvedValue({ suggestions: [] });
     adapterMocks.listAutomationTriggers.mockResolvedValue({
       page: { has_more: false, limit: 50, total: 0 },
       triggers: [],
@@ -885,6 +903,20 @@ describe("route query preloading", () => {
     }
 
     unmount();
+    queryClient.clear();
+  });
+
+  it("Should skip workspace suggestions when the jobs route is globally scoped", async () => {
+    const queryClient = createQueryClient();
+
+    await invokeLoader(JobsRoute, {
+      ...context(queryClient),
+      deps: { scope: "global" as const },
+    });
+
+    expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.fetchWorkspaces).not.toHaveBeenCalled();
+    expect(adapterMocks.listAutomationSuggestions).not.toHaveBeenCalled();
     queryClient.clear();
   });
 

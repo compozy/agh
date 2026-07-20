@@ -985,6 +985,41 @@ func TestActionTimeoutShouldCompleteQuickly(t *testing.T) {
 		}
 	})
 
+	t.Run("Should cancel the bound session when the runtime supplies the deadline", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer cancel()
+
+		binder := &fakeActionSessionBinder{
+			binding:     loop.ActionSessionBinding{SessionID: "sess-runtime-timeout"},
+			blockPrompt: true,
+		}
+		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
+		executor, err := actions.Resolve(ctx, tools.Scope{}, string(dsl.ActionRunAgent))
+		if err != nil {
+			t.Fatalf("Resolve(run-agent) error = %v", err)
+		}
+		_, err = executor.Execute(ctx, dsl.Node{
+			ID:    "agent",
+			Class: dsl.NodeClassAction,
+			Kind:  string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{
+				"agent":  "planner",
+				"prompt": "wait",
+			},
+		}, loop.ActionExecutionInput{})
+		if !errors.Is(err, loop.ErrActionTimeout) {
+			t.Fatalf("Execute() error = %v, want ErrActionTimeout", err)
+		}
+		if got, want := binder.cancelCount(), 1; got != want {
+			t.Fatalf("CancelActionSession() calls = %d, want %d", got, want)
+		}
+		if !binder.cancelHadDeadline() {
+			t.Fatal("CancelActionSession() context had no bounded deadline")
+		}
+	})
+
 	t.Run("Should bound run-loop start by node timeout", func(t *testing.T) {
 		t.Parallel()
 

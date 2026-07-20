@@ -40,6 +40,10 @@ func taskRunDetailBundle(detail *TaskRunDetailRecord) outputBundle {
 				"task_status",
 				"last_event_type",
 				"last_activity_at",
+				"total_cost",
+				"cost_currency",
+				"cost_status",
+				"cost_source",
 			}, []string{
 				detail.Run.ID,
 				detail.Run.TaskID,
@@ -50,6 +54,14 @@ func taskRunDetailBundle(detail *TaskRunDetailRecord) outputBundle {
 				taskStatus,
 				detail.Summary.LastEventType,
 				formatTime(detail.Summary.LastActivityAt),
+				formatCostProvenance(
+					detail.Summary.TotalCost,
+					formatStringPtr(detail.Summary.CostCurrency),
+					detail.Summary.CostStatus,
+				),
+				formatStringPtr(detail.Summary.CostCurrency),
+				string(detail.Summary.CostStatus),
+				string(detail.Summary.CostSource),
 			}), nil
 		},
 	}

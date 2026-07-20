@@ -140,30 +140,38 @@ sources, and extension model sources, then projects them through HTTP, UDS, CLI,
 projection, the Host API, and the web. Active ACP `configOptions` continue to govern model and
 reasoning controls inside a running session.
 
-| Field                                       | Type    | Required                    | Runtime behavior                                                                                                                  |
-| ------------------------------------------- | ------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `models.default`                            | string  | no                          | Default model when an `AGENT.md` omits `model`. Free-form: it does not need to appear in `models.curated`.                        |
-| `models.curated`                            | array   | no                          | Curated entries shown in pickers and projected as `config` rows in the catalog. Not an allowlist.                                 |
-| `models.curated[].id`                       | string  | yes per entry               | Provider model identifier sent to the runtime. Must be unique inside the provider.                                                |
-| `models.curated[].display_name`             | string  | no                          | Optional human label.                                                                                                             |
-| `models.curated[].context_window`           | integer | no                          | Context window in tokens.                                                                                                         |
-| `models.curated[].max_input_tokens`         | integer | no                          | Maximum input tokens.                                                                                                             |
-| `models.curated[].max_output_tokens`        | integer | no                          | Maximum output tokens.                                                                                                            |
-| `models.curated[].supports_tools`           | bool    | no                          | Whether the model supports tool calls.                                                                                            |
-| `models.curated[].supports_reasoning`       | bool    | no                          | Whether the model supports reasoning effort.                                                                                      |
-| `models.curated[].reasoning_efforts`        | array   | no                          | Model-specific subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Blank entries are rejected.                  |
-| `models.curated[].default_reasoning_effort` | string  | no                          | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                                          |
-| `models.curated[].cost_input_per_million`   | number  | no                          | Display-only input cost per million tokens.                                                                                       |
-| `models.curated[].cost_output_per_million`  | number  | no                          | Display-only output cost per million tokens.                                                                                      |
-| `models.curated[].deprecated`               | bool    | no                          | Marks a row deprecated; curated view excludes it. Omit to inherit lower-source metadata; explicit `false` clears it.              |
-| `models.curated[].hidden`                   | bool    | no                          | Operator curation flag; curated view always excludes hidden rows. Omit to inherit; explicit `false` clears it.                    |
-| `models.curated[].featured`                 | bool    | no                          | Promotes a row into the curated candidate set. Omit to inherit; explicit `false` clears a lower-source feature flag.              |
-| `models.curated[].release_date`             | string  | no                          | Optional `YYYY-MM` or `YYYY-MM-DD` release metadata used for ordering.                                                            |
-| `models.reasoning.apply`                    | string  | no                          | `acp_option` applies effort through ACP; `none` exposes no selectable effort strategy.                                            |
-| `models.discovery.enabled`                  | bool    | no                          | Enables the side-effect-free discovery adapter for this provider. Defaults to `false` for providers without a built-in safe path. |
-| `models.discovery.command`                  | string  | required for some providers | Side-effect-free discovery command (mutually exclusive with `endpoint` unless the adapter documents both).                        |
-| `models.discovery.endpoint`                 | string  | required for some providers | Side-effect-free discovery endpoint URL.                                                                                          |
-| `models.discovery.timeout`                  | string  | no                          | Per-discovery timeout duration (defaults to the model catalog timeout).                                                           |
+| Field                                           | Type    | Required                    | Runtime behavior                                                                                                                  |
+| ----------------------------------------------- | ------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `models.default`                                | string  | no                          | Default model when an `AGENT.md` omits `model`. Free-form: it does not need to appear in `models.curated`.                        |
+| `models.curated`                                | array   | no                          | Curated entries shown in pickers and projected as `config` rows in the catalog. Not an allowlist.                                 |
+| `models.curated[].id`                           | string  | yes per entry               | Provider model identifier sent to the runtime. Must be unique inside the provider.                                                |
+| `models.curated[].display_name`                 | string  | no                          | Optional human label.                                                                                                             |
+| `models.curated[].context_window`               | integer | no                          | Context window in tokens.                                                                                                         |
+| `models.curated[].max_input_tokens`             | integer | no                          | Maximum input tokens.                                                                                                             |
+| `models.curated[].max_output_tokens`            | integer | no                          | Maximum output tokens.                                                                                                            |
+| `models.curated[].supports_tools`               | bool    | no                          | Whether the model supports tool calls.                                                                                            |
+| `models.curated[].supports_reasoning`           | bool    | no                          | Whether the model supports reasoning effort.                                                                                      |
+| `models.curated[].reasoning_efforts`            | array   | no                          | Model-specific subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Blank entries are rejected.                  |
+| `models.curated[].default_reasoning_effort`     | string  | no                          | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                                          |
+| `models.curated[].cost_input_per_million`       | number  | no                          | Input rate used for catalog-based usage estimates when the agent reports no actual cost.                                          |
+| `models.curated[].cost_output_per_million`      | number  | no                          | Output rate used for catalog-based usage estimates when the agent reports no actual cost.                                         |
+| `models.curated[].cost_cache_read_per_million`  | number  | no                          | Cache-read rate used only for the cache-read token bucket.                                                                        |
+| `models.curated[].cost_cache_write_per_million` | number  | no                          | Cache-write rate used only for the cache-write token bucket.                                                                      |
+| `models.curated[].cost_reasoning_per_million`   | number  | no                          | Reasoning-token rate used only for the reasoning token bucket.                                                                    |
+| `models.curated[].deprecated`                   | bool    | no                          | Marks a row deprecated; curated view excludes it. Omit to inherit lower-source metadata; explicit `false` clears it.              |
+| `models.curated[].hidden`                       | bool    | no                          | Operator curation flag; curated view always excludes hidden rows. Omit to inherit; explicit `false` clears it.                    |
+| `models.curated[].featured`                     | bool    | no                          | Promotes a row into the curated candidate set. Omit to inherit; explicit `false` clears a lower-source feature flag.              |
+| `models.curated[].release_date`                 | string  | no                          | Optional `YYYY-MM` or `YYYY-MM-DD` release metadata used for ordering.                                                            |
+| `models.reasoning.apply`                        | string  | no                          | `acp_option` applies effort through ACP; `none` exposes no selectable effort strategy.                                            |
+| `models.discovery.enabled`                      | bool    | no                          | Enables the side-effect-free discovery adapter for this provider. Defaults to `false` for providers without a built-in safe path. |
+| `models.discovery.command`                      | string  | required for some providers | Side-effect-free discovery command (mutually exclusive with `endpoint` unless the adapter documents both).                        |
+| `models.discovery.endpoint`                     | string  | required for some providers | Side-effect-free discovery endpoint URL.                                                                                          |
+| `models.discovery.timeout`                      | string  | no                          | Per-discovery timeout duration (defaults to the model catalog timeout).                                                           |
+
+Rate changes apply to subsequent usage updates. AGH does not reprice stored token statistics, and
+an agent-reported actual amount always takes precedence over catalog estimation. Every nonzero
+input, output, cache-read, cache-write, or reasoning bucket requires its own finite, non-negative
+rate. AGH does not substitute input rates for cache tokens or output rates for reasoning tokens.
 
 Provider Settings PUTs distinguish omission from an explicit membership change. If
 `models.curated` is omitted, AGH preserves the server-owned raw membership even when catalog sources

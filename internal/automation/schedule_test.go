@@ -392,7 +392,7 @@ func TestSchedulerReconcilesMissedRunsWithSkipPolicy(t *testing.T) {
 		JobID:         job.ID,
 		NextRunAt:     &missedAt,
 		ScheduleHash:  scheduleHash(job.Schedule),
-		CatchUpPolicy: SchedulerCatchUpPolicySkip,
+		CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
 		UpdatedAt:     missedAt,
 	})
 	if err != nil {
@@ -468,6 +468,62 @@ func TestSchedulerReconcilesMissedRunsWithCoalescePolicy(t *testing.T) {
 	}
 }
 
+func TestSchedulerCoalescesLongCronDowntime(t *testing.T) {
+	t.Run("Should dispatch exactly one catch-up after more than ten thousand missed cron fires", func(t *testing.T) {
+		t.Parallel()
+
+		baseTime := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+		missedAt := baseTime.Add(-20_001 * time.Minute)
+		fakeClock := clockwork.NewFakeClockAt(baseTime)
+		store := newMemorySchedulerStore()
+		job := testJob(AutomationScopeGlobal, "long-cron-coalesce", "")
+		job.Schedule = &ScheduleSpec{
+			Mode:          ScheduleModeCron,
+			Expr:          "* * * * *",
+			CatchUpPolicy: SchedulerCatchUpPolicyCoalesce,
+		}
+		if _, err := store.SaveSchedulerState(context.Background(), SchedulerState{
+			JobID:         job.ID,
+			NextRunAt:     &missedAt,
+			ScheduleHash:  scheduleHash(job.Schedule),
+			CatchUpPolicy: SchedulerCatchUpPolicyCoalesce,
+			UpdatedAt:     missedAt,
+		}); err != nil {
+			t.Fatalf("SaveSchedulerState() error = %v", err)
+		}
+
+		dispatcher := newStubScheduleDispatcher()
+		scheduler := newTestScheduler(
+			t,
+			dispatcher,
+			WithSchedulerClock(fakeClock),
+			WithSchedulerStore(store),
+		)
+		state, err := scheduler.Register(context.Background(), job)
+		if err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		if state.NextRun == nil || !state.NextRun.Equal(baseTime) {
+			t.Fatalf("Register().NextRun = %v, want latest missed fire %s", state.NextRun, baseTime)
+		}
+		if err := scheduler.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+
+		dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+		dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
+		dispatcher.assertDispatchCount(t, 1)
+		stored, err := store.GetSchedulerState(context.Background(), job.ID)
+		if err != nil {
+			t.Fatalf("GetSchedulerState() error = %v", err)
+		}
+		wantNext := baseTime.Add(time.Minute)
+		if stored.NextRunAt == nil || !stored.NextRunAt.Equal(wantNext) {
+			t.Fatalf("NextRunAt = %v, want %s", stored.NextRunAt, wantNext)
+		}
+	})
+}
+
 func TestSchedulerReconcilesMissedRunsWithReplayPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -488,6 +544,11 @@ func TestSchedulerReconcilesMissedRunsWithReplayPolicy(t *testing.T) {
 	}
 
 	dispatcher := newStubScheduleDispatcher()
+	dispatcher.onDispatch = func(req DispatchRequest) {
+		if req.ReservedRun != nil {
+			store.setRunStatus(req.ReservedRun.ID, RunCompleted, fakeClock.Now())
+		}
+	}
 	scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(fakeClock), WithSchedulerStore(store))
 	state, err := scheduler.Register(context.Background(), job)
 	if err != nil {
@@ -519,6 +580,172 @@ func TestSchedulerReconcilesMissedRunsWithReplayPolicy(t *testing.T) {
 				calls[idx].CatchUpPolicy,
 			)
 		}
+	}
+}
+
+func TestSchedulerReconcilesMissedRunOnceWithinGrace(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Date(2026, 4, 10, 12, 5, 0, 0, time.UTC)
+	missedAt := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	fakeClock := clockwork.NewFakeClockAt(baseTime)
+	store := newMemorySchedulerStore()
+	job := testJob(AutomationScopeGlobal, "missed-run-once", "")
+	job.Schedule = &ScheduleSpec{
+		Mode:                ScheduleModeEvery,
+		Interval:            "1m",
+		CatchUpPolicy:       SchedulerCatchUpPolicyRunOnce,
+		MisfireGraceSeconds: 10 * 60,
+	}
+	if _, err := store.SaveSchedulerState(context.Background(), SchedulerState{
+		JobID:               job.ID,
+		NextRunAt:           &missedAt,
+		ScheduleHash:        scheduleHash(job.Schedule),
+		CatchUpPolicy:       SchedulerCatchUpPolicyRunOnce,
+		MisfireGraceSeconds: 10 * 60,
+		UpdatedAt:           missedAt,
+	}); err != nil {
+		t.Fatalf("SaveSchedulerState() error = %v", err)
+	}
+
+	dispatcher := newStubScheduleDispatcher()
+	scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(fakeClock), WithSchedulerStore(store))
+	state, err := scheduler.Register(context.Background(), job)
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if got, want := state.CatchUpPolicy, SchedulerCatchUpPolicyRunOnce; got != want {
+		t.Fatalf("Register().CatchUpPolicy = %q, want %q", got, want)
+	}
+	if got, want := state.MisfireGraceSeconds, 10*60; got != want {
+		t.Fatalf("Register().MisfireGraceSeconds = %d, want %d", got, want)
+	}
+	if err := scheduler.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+	dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
+	dispatcher.assertDispatchCount(t, 1)
+	calls := dispatcher.callSnapshot()
+	if !calls[0].CatchUp || calls[0].CatchUpPolicy != SchedulerCatchUpPolicyRunOnce {
+		t.Fatalf(
+			"Dispatch() catch-up = %v/%q, want true/%q",
+			calls[0].CatchUp,
+			calls[0].CatchUpPolicy,
+			SchedulerCatchUpPolicyRunOnce,
+		)
+	}
+	stored, err := store.GetSchedulerState(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("GetSchedulerState() error = %v", err)
+	}
+	wantNext := baseTime.Add(time.Minute)
+	if stored.NextRunAt == nil || !stored.NextRunAt.Equal(wantNext) {
+		t.Fatalf("NextRunAt = %v, want %s", stored.NextRunAt, wantNext.Format(time.RFC3339))
+	}
+}
+
+func TestSchedulerResetsExplicitReliabilityToTargetDefault(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	fakeClock := clockwork.NewFakeClockAt(baseTime)
+	store := newMemorySchedulerStore()
+	job := testJob(AutomationScopeGlobal, "target-default-reset", "")
+	previousSchedule := &ScheduleSpec{
+		Mode:                ScheduleModeEvery,
+		Interval:            "1m",
+		CatchUpPolicy:       SchedulerCatchUpPolicyReplay,
+		MisfireGraceSeconds: 30,
+	}
+	job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1m"}
+	nextRun := baseTime.Add(time.Minute)
+	if _, err := store.SaveSchedulerState(context.Background(), SchedulerState{
+		JobID:               job.ID,
+		NextRunAt:           &nextRun,
+		ScheduleHash:        scheduleHash(previousSchedule),
+		CatchUpPolicy:       SchedulerCatchUpPolicyReplay,
+		MisfireGraceSeconds: 30,
+		UpdatedAt:           baseTime.Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("SaveSchedulerState() error = %v", err)
+	}
+
+	scheduler := newTestScheduler(
+		t,
+		newStubScheduleDispatcher(),
+		WithSchedulerClock(fakeClock),
+		WithSchedulerStore(store),
+		WithSchedulerCatchUpPolicyResolver(func(context.Context, Job) (SchedulerCatchUpPolicy, error) {
+			return SchedulerCatchUpPolicyCoalesce, nil
+		}),
+	)
+	state, err := scheduler.Register(context.Background(), job)
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if got, want := state.CatchUpPolicy, SchedulerCatchUpPolicyCoalesce; got != want {
+		t.Fatalf("Register().CatchUpPolicy = %q, want target default %q", got, want)
+	}
+	if got := state.MisfireGraceSeconds; got != 0 {
+		t.Fatalf("Register().MisfireGraceSeconds = %d, want daemon jitter default 0", got)
+	}
+}
+
+func TestSchedulerRecordsGraceExceededSkip(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Date(2026, 4, 10, 12, 5, 0, 0, time.UTC)
+	missedAt := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	fakeClock := clockwork.NewFakeClockAt(baseTime)
+	store := newMemorySchedulerStore()
+	job := testJob(AutomationScopeGlobal, "missed-grace-skip", "")
+	job.Schedule = &ScheduleSpec{
+		Mode:                ScheduleModeEvery,
+		Interval:            "1m",
+		CatchUpPolicy:       SchedulerCatchUpPolicySkipMissed,
+		MisfireGraceSeconds: 30,
+	}
+	if _, err := store.SaveSchedulerState(context.Background(), SchedulerState{
+		JobID:               job.ID,
+		NextRunAt:           &missedAt,
+		ScheduleHash:        scheduleHash(job.Schedule),
+		CatchUpPolicy:       SchedulerCatchUpPolicySkipMissed,
+		MisfireGraceSeconds: 30,
+		UpdatedAt:           missedAt,
+	}); err != nil {
+		t.Fatalf("SaveSchedulerState() error = %v", err)
+	}
+
+	dispatcher := newStubScheduleDispatcher()
+	scheduler := newTestScheduler(t, dispatcher, WithSchedulerClock(fakeClock), WithSchedulerStore(store))
+	if _, err := scheduler.Register(context.Background(), job); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	dispatcher.assertDispatchCount(t, 0)
+	runs := store.runsForJob(job.ID)
+	if got, want := len(runs), 1; got != want {
+		t.Fatalf("runsForJob() length = %d, want %d", got, want)
+	}
+	if got, want := runs[0].Status, RunCancelled; got != want {
+		t.Fatalf("skip run status = %q, want %q", got, want)
+	}
+	if got, want := runs[0].Metadata[SchedulerSkipReasonMetadataKey], string(
+		SchedulerSkipReasonGraceExceeded,
+	); got != want {
+		t.Fatalf("skip reason = %#v, want %q", got, want)
+	}
+	state, err := store.GetSchedulerState(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("GetSchedulerState() error = %v", err)
+	}
+	if got, want := state.MisfireCount, 1; got != want {
+		t.Fatalf("MisfireCount = %d, want %d", got, want)
+	}
+	wantNext := baseTime.Add(time.Minute)
+	if state.NextRunAt == nil || !state.NextRunAt.Equal(wantNext) {
+		t.Fatalf("NextRunAt = %v, want %s", state.NextRunAt, wantNext.Format(time.RFC3339))
 	}
 }
 
@@ -619,7 +846,17 @@ func TestSchedulerRestartAfterClaimDoesNotDuplicateAlreadyClaimedFire(t *testing
 	waitForTimers(t, secondClock, 1)
 	secondDispatcher.assertDispatchCount(t, 0)
 	secondClock.Advance(50 * time.Second)
-	secondDispatcher.waitForDispatchCount(t, 1, 2*time.Second)
+	secondDispatcher.assertDispatchCount(t, 0)
+	store.waitForNextRunAt(t, job.ID, baseTime.Add(3*time.Minute), 2*time.Second)
+	skippedRuns := store.runsForJob(job.ID)
+	if got, want := len(skippedRuns), 2; got != want {
+		t.Fatalf("runs after overlap = %d, want %d", got, want)
+	}
+	if got, want := skippedRuns[1].Metadata[SchedulerSkipReasonMetadataKey], string(
+		SchedulerSkipReasonSelfOverlap,
+	); got != want {
+		t.Fatalf("overlap skip reason = %#v, want %q", got, want)
+	}
 
 	cancelDispatch()
 	select {
@@ -630,6 +867,9 @@ func TestSchedulerRestartAfterClaimDoesNotDuplicateAlreadyClaimedFire(t *testing
 	case <-time.After(2 * time.Second):
 		t.Fatal("first executeScheduledJob() did not exit after cancellation")
 	}
+	store.setRunStatus(scheduledRunID(job.ID, fireAt), RunCancelled, secondClock.Now())
+	secondClock.Advance(time.Minute)
+	secondDispatcher.waitForDispatchCount(t, 1, 2*time.Second)
 }
 
 func TestSchedulerDisableAndUnregisterRemoveFutureFires(t *testing.T) {
@@ -1017,7 +1257,7 @@ func (s *memorySchedulerStore) SaveSchedulerState(
 	defer s.mu.Unlock()
 	state.JobID = strings.TrimSpace(state.JobID)
 	if state.CatchUpPolicy == "" {
-		state.CatchUpPolicy = SchedulerCatchUpPolicySkip
+		state.CatchUpPolicy = SchedulerCatchUpPolicySkipMissed
 	}
 	s.states[state.JobID] = cloneSchedulerStateForTest(state)
 	notify(s.stateCh)
@@ -1052,15 +1292,34 @@ func (s *memorySchedulerStore) ClaimScheduledRun(
 	if current.LastFireID == claim.FireID {
 		return SchedulerClaimResult{}, ErrScheduledFireAlreadyClaimed
 	}
+	skipReason := claim.SkipReason
+	if skipReason == "" {
+		for _, run := range s.runs {
+			if run.JobID == claim.JobID && (run.Status == RunScheduled || run.Status == RunRunning) {
+				skipReason = SchedulerSkipReasonSelfOverlap
+				break
+			}
+		}
+	}
+	skipped := skipReason != ""
 	next := current
 	next.JobID = claim.JobID
 	next.NextRunAt = cloneTimePointer(claim.NextRunAt)
-	next.LastRunAt = timePointer(claim.ClaimedAt)
+	if !skipped {
+		next.LastRunAt = timePointer(claim.ClaimedAt)
+	}
 	next.LastScheduledAt = timePointer(claim.ScheduledAt)
 	next.LastFireID = claim.FireID
 	next.ScheduleHash = claim.ScheduleHash
-	next.CatchUpPolicy = schedulerCatchUpPolicyOrDefault(current.CatchUpPolicy, SchedulerCatchUpPolicySkip)
-	if !claim.CatchUp {
+	next.CatchUpPolicy = schedulerCatchUpPolicyOrDefault(claim.CatchUpPolicy, current.CatchUpPolicy)
+	next.MisfireGraceSeconds = claim.MisfireGraceSeconds
+	if claim.CatchUpPolicy == "" && claim.MisfireGraceSeconds == 0 {
+		next.MisfireGraceSeconds = current.MisfireGraceSeconds
+	}
+	if claim.Misfire {
+		next.LastMisfireAt = timePointer(claim.ClaimedAt)
+		next.MisfireCount++
+	} else if !claim.CatchUp {
 		next.LastMisfireAt = nil
 		next.MisfireCount = 0
 	}
@@ -1075,10 +1334,24 @@ func (s *memorySchedulerStore) ClaimScheduledRun(
 		StartedAt:            timePointer(claim.ClaimedAt),
 		NetworkParticipation: cloneParticipationRequest(claim.NetworkParticipation),
 	}
+	if skipped {
+		run.Status = RunCancelled
+		run.EndedAt = timePointer(claim.ClaimedAt)
+		run.Metadata = map[string]any{SchedulerSkipReasonMetadataKey: string(skipReason)}
+	}
 	s.states[claim.JobID] = cloneSchedulerStateForTest(next)
 	s.runs[claim.RunID] = *cloneRun(&run)
 	notify(s.stateCh)
-	return SchedulerClaimResult{State: next, Run: run}, nil
+	return SchedulerClaimResult{State: next, Run: run, Skipped: skipped, SkipReason: skipReason}, nil
+}
+
+func (s *memorySchedulerStore) setRunStatus(runID string, status RunStatus, endedAt time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run := s.runs[strings.TrimSpace(runID)]
+	run.Status = status
+	run.EndedAt = timePointer(endedAt)
+	s.runs[run.ID] = run
 }
 
 func (s *memorySchedulerStore) waitForNextRunAt(

@@ -9,6 +9,10 @@ type ActionUsageReporter interface {
 	ReportActionTokensUsed(tokensUsed int64)
 }
 
+type actionSessionReporter interface {
+	ReportActionSessionBound(sessionID string)
+}
+
 // ActionUsageReporterFunc adapts a function into an ActionUsageReporter.
 type ActionUsageReporterFunc func(tokensUsed int64)
 
@@ -36,4 +40,13 @@ func actionUsageReporterFromContext(ctx context.Context) ActionUsageReporter {
 		return nil
 	}
 	return reporter
+}
+
+func reportActionSessionBound(ctx context.Context, sessionID string) {
+	reporter := actionUsageReporterFromContext(ctx)
+	sessionReporter, ok := reporter.(actionSessionReporter)
+	if !ok {
+		return
+	}
+	sessionReporter.ReportActionSessionBound(sessionID)
 }

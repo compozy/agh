@@ -33,7 +33,7 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	t.Helper()
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
@@ -254,11 +254,12 @@ func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	}
 	stopCancel()
 
-	restarted := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	restarted := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath: harness.BinaryPath,
 		HomePaths:  harness.HomePaths,
 		Workspace:  e2etest.WorkspaceSeedOptions{Root: harness.WorkspaceRoot},
 	})
+
 	notFoundPath := agentDefinitionE2EPath(duplicateName, restarted.WorkspaceRoot)
 	httpNotFound := agentDefinitionE2ERequestError(
 		t,

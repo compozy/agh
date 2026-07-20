@@ -4,6 +4,10 @@ import { Link } from "@tanstack/react-router";
 import { Empty, Eyebrow, Pill, Section, Spinner } from "@agh/ui";
 
 import {
+  automationRunSkipReason,
+  automationSkipReasonDetail,
+  automationSkipReasonLabel,
+  automationSkipReasonTone,
   automationStatusTone,
   formatDateTime,
   formatRunDuration,
@@ -33,8 +37,14 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
   const startedAt = formatDateTime(run.started_at);
   const duration = formatRunDuration(run);
   const statusLabel = runStatusLabel(run);
+  // A durable skip (self-overlap / grace exceeded) is a canceled run that never
+  // dispatched: it keeps the CANCELED status but explains why, and drops the
+  // misleading "pending" hint and started/duration slot.
+  const skipReason = automationRunSkipReason(run);
   const testId = `automation-run-${run.id}`;
-  const ariaLabel = `${statusLabel} run · attempt ${run.attempt} · started ${startedAt} · duration ${duration}`;
+  const ariaLabel = skipReason
+    ? `${statusLabel} run · attempt ${run.attempt} · ${automationSkipReasonDetail(skipReason)}`
+    : `${statusLabel} run · attempt ${run.attempt} · started ${startedAt} · duration ${duration}`;
 
   const body = (
     <>
@@ -44,8 +54,22 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
           <Pill mono tone={tone}>
             {statusLabel}
           </Pill>
+          {skipReason ? (
+            <Pill
+              data-testid="automation-run-skip-reason"
+              mono
+              tone={automationSkipReasonTone(skipReason)}
+            >
+              {automationSkipReasonLabel(skipReason).toUpperCase()}
+            </Pill>
+          ) : null}
           <span className="font-mono text-eyebrow text-subtle">attempt {run.attempt}</span>
         </div>
+        {skipReason ? (
+          <p className="text-xs leading-relaxed text-muted">
+            {automationSkipReasonDetail(skipReason)}
+          </p>
+        ) : null}
         {run.error ? <p className="text-xs leading-relaxed text-danger">{run.error}</p> : null}
         {run.delivery_error ? (
           <p className="text-xs leading-relaxed text-danger">{`Delivery: ${run.delivery_error}`}</p>
@@ -58,13 +82,13 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-        <span className="text-small-body text-muted">{startedAt}</span>
+        {skipReason ? null : <span className="text-small-body text-muted">{startedAt}</span>}
         {run.scheduled_at ? (
           <Eyebrow className="text-subtle">
             {`scheduled ${formatDateTime(run.scheduled_at)}`}
           </Eyebrow>
         ) : null}
-        <span className="font-mono text-eyebrow text-subtle">{duration}</span>
+        {skipReason ? null : <span className="font-mono text-eyebrow text-subtle">{duration}</span>}
       </div>
     </>
   );
@@ -118,12 +142,14 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
       data-testid={testId}
     >
       {body}
-      <span
-        aria-hidden="true"
-        className="ml-2 mt-1 inline-flex shrink-0 items-center font-mono text-eyebrow text-subtle"
-      >
-        pending
-      </span>
+      {skipReason ? null : (
+        <span
+          aria-hidden="true"
+          className="ml-2 mt-1 inline-flex shrink-0 items-center font-mono text-eyebrow text-subtle"
+        >
+          pending
+        </span>
+      )}
     </div>
   );
 }

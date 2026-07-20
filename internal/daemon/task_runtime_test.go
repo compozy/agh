@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,6 +29,390 @@ import (
 	"github.com/compozy/agh/internal/testutil"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
+
+func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 18, 22, 0, 0, 0, time.UTC)
+	taskRecord := taskpkg.Task{
+		ID:          "task-loop-capacity",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: "workspace-loop-capacity",
+	}
+	run := taskpkg.Run{
+		ID:          "run-loop-capacity",
+		TaskID:      taskRecord.ID,
+		WorkspaceID: taskRecord.WorkspaceID,
+		LoopRunID:   "loop-run-capacity",
+		RunKind:     taskpkg.RunKindWorker,
+		Status:      taskpkg.TaskRunStatusQueued,
+		QueuedAt:    now,
+	}
+	manager := &loopActionCapacityTestManager{completed: make(chan taskpkg.LeaseCompletion, 1), run: run}
+	runner := &loopActionCapacityTestRunner{}
+	runtime, err := newLoopActionRuntime(
+		manager,
+		&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+		runner,
+		nil,
+		discardLogger(),
+		func() time.Time { return now },
+		aghconfig.DefaultTaskActionRunTimeout,
+	)
+	if err != nil {
+		t.Fatalf("newLoopActionRuntime() error = %v", err)
+	}
+	runtime.claimRetryInterval = time.Millisecond
+
+	runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+		TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+	})
+
+	select {
+	case completion := <-manager.completed:
+		if completion.RunID != run.ID {
+			t.Fatalf("CompleteRunLease().RunID = %q, want %q", completion.RunID, run.ID)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for deferred loop action to drain")
+	}
+	if got := manager.claimCalls.Load(); got != 2 {
+		t.Fatalf("ClaimNextRun() calls = %d, want 2", got)
+	}
+	if got := runner.executeCalls.Load(); got != 1 {
+		t.Fatalf("ExecuteActionRun() calls = %d, want 1", got)
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := runtime.shutdown(shutdownCtx); err != nil {
+		t.Fatalf("shutdown() error = %v", err)
+	}
+}
+
+func TestLoopActionRuntimeEnforcesActionLiveness(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inherit the configured timeout only when the node omits one", func(t *testing.T) {
+		t.Parallel()
+
+		runner := &loopActionLivenessTestRunner{}
+		runtime := &loopActionRuntime{
+			runner:           runner,
+			actionRunTimeout: 30 * time.Minute,
+		}
+		got, err := runtime.actionTimeoutForRun(context.Background(), taskpkg.Run{})
+		if err != nil {
+			t.Fatalf("actionTimeoutForRun(unset) error = %v", err)
+		}
+		if got != 30*time.Minute {
+			t.Fatalf("actionTimeoutForRun(unset) = %s, want 30m", got)
+		}
+
+		runner.timeout = 45 * time.Second
+		runner.hasTimeout = true
+		got, err = runtime.actionTimeoutForRun(context.Background(), taskpkg.Run{})
+		if err != nil {
+			t.Fatalf("actionTimeoutForRun(explicit) error = %v", err)
+		}
+		if got != runner.timeout {
+			t.Fatalf("actionTimeoutForRun(explicit) = %s, want %s", got, runner.timeout)
+		}
+
+		runner.timeoutErr = fmt.Errorf("invalid node timeout: %w", looppkg.ErrValidation)
+		if _, err := runtime.actionTimeoutForRun(context.Background(), taskpkg.Run{}); !errors.Is(
+			err,
+			looppkg.ErrValidation,
+		) {
+			t.Fatalf("actionTimeoutForRun(invalid explicit) error = %v, want ErrValidation", err)
+		}
+	})
+
+	t.Run("Should fail at the absolute default deadline with cumulative usage", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		runner := &loopActionLivenessTestRunner{tokensUsed: 17}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			runner,
+			nil,
+			discardLogger(),
+			nil,
+			40*time.Millisecond,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		runtime.livenessPollInterval = func(time.Duration) time.Duration { return time.Second }
+
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNodeTimeout, 17)
+	})
+
+	t.Run("Should fail on no progress even while lease heartbeats succeed", func(t *testing.T) {
+		t.Parallel()
+
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		runner := &loopActionLivenessTestRunner{}
+		runtime, err := newLoopActionRuntime(
+			manager,
+			&loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			runner,
+			nil,
+			discardLogger(),
+			nil,
+			200*time.Millisecond,
+		)
+		if err != nil {
+			t.Fatalf("newLoopActionRuntime() error = %v", err)
+		}
+		runtime.heartbeatInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+		runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
+
+		err = runtime.executeQueuedRun(context.Background(), taskRecord, run, loopActionRuntimeReasonEnqueued)
+		assertLoopActionLivenessFailure(t, manager, err, loopActionReasonNoProgress, 0)
+		if manager.heartbeatCalls.Load() == 0 {
+			t.Fatal("HeartbeatRunLease() calls = 0, want successful heartbeats before no-progress failure")
+		}
+	})
+
+	t.Run("Should treat session activity and an active tool as progress truth", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
+		current := base
+		usage := newLoopActionUsageState(func() time.Time { return current })
+		usage.ReportActionSessionBound("sess-active-tool")
+		activityAt := base.Add(time.Minute)
+		runtime := &loopActionRuntime{sessions: loopActionSessionStatusStub{info: &session.Info{
+			Liveness: &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{
+				LastActivityAt: &activityAt,
+				CurrentTool:    "agh__task_read",
+			}},
+		}}}
+
+		activeTool, err := runtime.refreshActionProgress(context.Background(), usage)
+		if err != nil {
+			t.Fatalf("refreshActionProgress() error = %v", err)
+		}
+		if !activeTool {
+			t.Fatal("refreshActionProgress() activeTool = false, want true")
+		}
+		if got := usage.snapshot().progressAt; !got.Equal(activityAt) {
+			t.Fatalf("progressAt = %s, want %s", got, activityAt)
+		}
+
+		current = base.Add(2 * time.Minute)
+		usage.ReportActionTokensUsed(9)
+		snapshot := usage.snapshot()
+		if snapshot.tokensUsed != 9 || !snapshot.progressAt.Equal(current) {
+			t.Fatalf("usage snapshot = %#v, want cumulative tokens and advanced progress", snapshot)
+		}
+	})
+}
+
+func newLoopActionLivenessTestFixture() (
+	*loopActionLivenessTestManager,
+	taskpkg.Task,
+	taskpkg.Run,
+) {
+	now := time.Now().UTC()
+	taskRecord := taskpkg.Task{
+		ID:          "task-loop-liveness",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: "workspace-loop-liveness",
+	}
+	run := taskpkg.Run{
+		ID:          "run-loop-liveness",
+		TaskID:      taskRecord.ID,
+		WorkspaceID: taskRecord.WorkspaceID,
+		LoopRunID:   "loop-run-liveness",
+		RunKind:     taskpkg.RunKindWorker,
+		Status:      taskpkg.TaskRunStatusQueued,
+		QueuedAt:    now,
+	}
+	return &loopActionLivenessTestManager{run: run}, taskRecord, run
+}
+
+func assertLoopActionLivenessFailure(
+	t *testing.T,
+	manager *loopActionLivenessTestManager,
+	err error,
+	wantReason string,
+	wantTokens int64,
+) {
+	t.Helper()
+	var reason loopActionReasonCodeProvider
+	if !errors.As(err, &reason) || reason.loopActionReasonCode() != wantReason {
+		t.Fatalf("executeQueuedRun() error = %v, want reason %q", err, wantReason)
+	}
+	var metadata loopActionFailureMetadata
+	if unmarshalErr := json.Unmarshal(manager.failure.Failure.Metadata, &metadata); unmarshalErr != nil {
+		t.Fatalf("unmarshal failure metadata error = %v", unmarshalErr)
+	}
+	if metadata.ReasonCode != wantReason {
+		t.Fatalf("failure reason code = %q, want %q", metadata.ReasonCode, wantReason)
+	}
+	if manager.failure.TokensUsed != wantTokens {
+		t.Fatalf("failure tokens used = %d, want %d", manager.failure.TokensUsed, wantTokens)
+	}
+}
+
+type loopActionCapacityTestStore struct {
+	taskpkg.Store
+	taskRecord taskpkg.Task
+	run        taskpkg.Run
+}
+
+func (s *loopActionCapacityTestStore) GetTask(context.Context, string) (taskpkg.Task, error) {
+	return s.taskRecord, nil
+}
+
+func (s *loopActionCapacityTestStore) GetTaskRun(context.Context, string) (taskpkg.Run, error) {
+	return s.run, nil
+}
+
+type loopActionCapacityTestManager struct {
+	claimCalls atomic.Int32
+	completed  chan taskpkg.LeaseCompletion
+	run        taskpkg.Run
+}
+
+func (m *loopActionCapacityTestManager) ClaimNextRun(
+	context.Context,
+	taskpkg.ClaimCriteria,
+	taskpkg.ActorContext,
+) (*taskpkg.ClaimResult, error) {
+	if m.claimCalls.Add(1) == 1 {
+		return nil, taskpkg.ErrWorkspaceActiveRunCapReached
+	}
+	claimed := m.run
+	claimed.Status = taskpkg.TaskRunStatusClaimed
+	return &taskpkg.ClaimResult{Run: claimed, ClaimToken: "claim-token"}, nil
+}
+
+func (m *loopActionCapacityTestManager) HeartbeatRunLease(
+	context.Context,
+	taskpkg.LeaseHeartbeat,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	return &m.run, nil
+}
+
+func (m *loopActionCapacityTestManager) CompleteRunLease(
+	_ context.Context,
+	completion taskpkg.LeaseCompletion,
+	_ taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	m.completed <- completion
+	return &m.run, nil
+}
+
+func (m *loopActionCapacityTestManager) FailRunLease(
+	context.Context,
+	taskpkg.LeaseFailure,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	return &m.run, nil
+}
+
+type loopActionCapacityTestRunner struct {
+	executeCalls atomic.Int32
+}
+
+func (r *loopActionCapacityTestRunner) ExecuteActionRun(
+	context.Context,
+	taskpkg.Run,
+	taskpkg.ActorContext,
+) (taskpkg.RunResult, error) {
+	r.executeCalls.Add(1)
+	return taskpkg.RunResult{Value: json.RawMessage(`{"status":"completed"}`)}, nil
+}
+
+func (*loopActionCapacityTestRunner) ActionRunTimeout(
+	context.Context,
+	taskpkg.Run,
+) (time.Duration, bool, error) {
+	return 0, false, nil
+}
+
+type loopActionLivenessTestManager struct {
+	heartbeatCalls atomic.Int32
+	failure        taskpkg.LeaseFailure
+	run            taskpkg.Run
+}
+
+func (m *loopActionLivenessTestManager) ClaimNextRun(
+	_ context.Context,
+	criteria taskpkg.ClaimCriteria,
+	_ taskpkg.ActorContext,
+) (*taskpkg.ClaimResult, error) {
+	claimed := m.run
+	claimed.Status = taskpkg.TaskRunStatusClaimed
+	claimed.SessionID = criteria.ClaimerSessionID
+	claimed.LeaseUntil = criteria.Now.Add(criteria.LeaseDuration)
+	m.run = claimed
+	return &taskpkg.ClaimResult{Run: claimed, ClaimToken: "claim-token"}, nil
+}
+
+func (m *loopActionLivenessTestManager) HeartbeatRunLease(
+	context.Context,
+	taskpkg.LeaseHeartbeat,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	m.heartbeatCalls.Add(1)
+	return &m.run, nil
+}
+
+func (m *loopActionLivenessTestManager) CompleteRunLease(
+	context.Context,
+	taskpkg.LeaseCompletion,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	return &m.run, nil
+}
+
+func (m *loopActionLivenessTestManager) FailRunLease(
+	_ context.Context,
+	failure taskpkg.LeaseFailure,
+	_ taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	m.failure = failure
+	return &m.run, nil
+}
+
+type loopActionLivenessTestRunner struct {
+	timeout    time.Duration
+	hasTimeout bool
+	timeoutErr error
+	tokensUsed int64
+}
+
+func (r *loopActionLivenessTestRunner) ExecuteActionRun(
+	ctx context.Context,
+	_ taskpkg.Run,
+	_ taskpkg.ActorContext,
+) (taskpkg.RunResult, error) {
+	<-ctx.Done()
+	return taskpkg.RunResult{TokensUsed: r.tokensUsed}, ctx.Err()
+}
+
+func (r *loopActionLivenessTestRunner) ActionRunTimeout(
+	context.Context,
+	taskpkg.Run,
+) (time.Duration, bool, error) {
+	return r.timeout, r.hasTimeout, r.timeoutErr
+}
+
+type loopActionSessionStatusStub struct {
+	info *session.Info
+}
+
+func (s loopActionSessionStatusStub) Status(context.Context, string) (*session.Info, error) {
+	return s.info, nil
+}
 
 func seedNonLeasedClaimedRunForDaemonTest(
 	t *testing.T,
@@ -1174,7 +1560,10 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 		homePaths: homePaths,
 	}
 	state := &bootState{
-		cfg:      aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()},
+		cfg: aghconfig.Config{
+			Network: aghconfig.DefaultNetworkConfig(),
+			Task:    aghconfig.DefaultTaskConfig(),
+		},
 		logger:   discardLogger(),
 		registry: db,
 		sessions: &fakeSessionManager{},
@@ -1606,7 +1995,10 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 		homePaths: homePaths,
 	}
 	state := &bootState{
-		cfg:      aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()},
+		cfg: aghconfig.Config{
+			Network: aghconfig.DefaultNetworkConfig(),
+			Task:    aghconfig.DefaultTaskConfig(),
+		},
 		logger:   discardLogger(),
 		registry: db,
 		sessions: sessions,

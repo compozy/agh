@@ -35,12 +35,14 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerVaultRoutes(api, handlers)
 	registerProviderRoutes(api, handlers)
 	registerModelCatalogRoutes(api, handlers)
-	registerHostedMCPRoutes(api, handlers)
+	registerMCPRoutes(api, handlers)
 }
 
 func registerStatusRoutes(api gin.IRouter, handlers *Handlers) {
 	api.GET("/status", handlers.GetStatus)
 	api.GET("/doctor", handlers.GetDoctor)
+	api.POST("/drain", handlers.DrainDaemon)
+	api.POST("/undrain", handlers.UndrainDaemon)
 }
 
 func registerOnboardingRoutes(api gin.IRouter, handlers *Handlers) {
@@ -167,11 +169,22 @@ func registerToolRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.GET("/:session_id/tools", handlers.ListSessionTools)
 		workspaceSessions.POST("/:session_id/tools/search", handlers.SearchSessionTools)
 	}
+	workspaceArtifacts := api.Group("/workspaces/:workspace_id/tool-artifacts")
+	{
+		workspaceArtifacts.GET("/:artifact_id", handlers.ReadToolArtifact)
+	}
 
 	toolsets := api.Group("/toolsets")
 	{
 		toolsets.GET("", handlers.ListToolsets)
 		toolsets.GET("/:id", handlers.GetToolset)
+	}
+
+	approvalGrants := api.Group("/tool-approval-grants")
+	{
+		approvalGrants.PUT("", handlers.SetToolApprovalGrant)
+		approvalGrants.GET("", handlers.ListToolApprovalGrants)
+		approvalGrants.DELETE("/:id", handlers.RevokeToolApprovalGrant)
 	}
 }
 

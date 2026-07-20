@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -421,6 +422,94 @@ func TestLogConfigDefaultsAndValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDaemonMemoryReportIntervalDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose the five minute default", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		if got, want := cfg.Daemon.MemoryReportInterval, 5*time.Minute; got != want {
+			t.Fatalf("DefaultWithHome() Daemon.MemoryReportInterval = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should expose the subprocess health escalation default", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		if got, want := cfg.Daemon.SubprocessHealthEscalationThreshold, 3; got != want {
+			t.Fatalf("DefaultWithHome() threshold = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should allow zero to disable reports", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DaemonConfig{
+			Socket:         "/tmp/agh.sock",
+			ReloadTimeouts: DefaultDaemonReloadTimeoutsConfig(),
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should allow zero to disable subprocess health escalation", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DaemonConfig{
+			Socket:         "/tmp/agh.sock",
+			ReloadTimeouts: DefaultDaemonReloadTimeoutsConfig(),
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should reject a negative interval", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DaemonConfig{
+			Socket:               "/tmp/agh.sock",
+			MemoryReportInterval: -time.Second,
+			ReloadTimeouts:       DefaultDaemonReloadTimeoutsConfig(),
+		}
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("Validate() error = nil, want negative interval rejection")
+		}
+		if !strings.Contains(err.Error(), daemonMemoryReportIntervalPath) {
+			t.Fatalf("Validate() error = %v, want %q", err, daemonMemoryReportIntervalPath)
+		}
+	})
+
+	t.Run("Should reject a negative subprocess health escalation threshold", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DaemonConfig{
+			Socket:                              "/tmp/agh.sock",
+			SubprocessHealthEscalationThreshold: -1,
+			ReloadTimeouts:                      DefaultDaemonReloadTimeoutsConfig(),
+		}
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("Validate() error = nil, want negative threshold rejection")
+		}
+		if !strings.Contains(err.Error(), daemonSubprocessHealthEscalationThresholdPath) {
+			t.Fatalf("Validate() error = %v, want %q", err, daemonSubprocessHealthEscalationThresholdPath)
+		}
+	})
 }
 
 func TestLoadSandboxProfilesFromTOML(t *testing.T) {
@@ -924,8 +1013,17 @@ port = 2123
 	kind = "api_key"
 	required = true
 
+[session]
+auto_title_enabled = false
+
 [session.limits]
 timeout = "20m"
+
+[session.compaction]
+enabled = true
+pressure_threshold = 0.80
+max_attempts_per_turn = 2
+failure_cooldown = "5m"
 
 [skills]
 enabled = true
@@ -951,8 +1049,14 @@ display_name = "Workspace Model"
 reasoning_efforts = ["low", "high"]
 default_reasoning_effort = "high"
 
+[session]
+auto_title_enabled = true
+
 [session.limits]
 timeout = "45m"
+
+[session.compaction]
+pressure_threshold = 0.90
 
 [skills]
 enabled = false
@@ -976,6 +1080,16 @@ base_url = "https://workspace.example.test/api/v1"
 	}
 	if got, want := cfg.Session.Limits.Timeout, 45*time.Minute; got != want {
 		t.Fatalf("Load() Session.Limits.Timeout = %s, want %s", got, want)
+	}
+	if !cfg.Session.AutoTitleEnabled {
+		t.Fatal("Load() Session.AutoTitleEnabled = false, want workspace override true")
+	}
+	if got, want := cfg.Session.Compaction.PressureThreshold, 0.90; got != want {
+		t.Fatalf("Load() Session.Compaction.PressureThreshold = %v, want %v", got, want)
+	}
+	if !cfg.Session.Compaction.Enabled || cfg.Session.Compaction.MaxAttemptsPerTurn != 2 ||
+		cfg.Session.Compaction.FailureCooldown != 5*time.Minute {
+		t.Fatalf("Load() Session.Compaction = %#v, want inherited global guards", cfg.Session.Compaction)
 	}
 
 	claude, err := cfg.ResolveProvider("claude")
@@ -1337,6 +1451,93 @@ func TestSessionLimitsConfigValidateRejectsNegativeTimeout(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "session.limits.timeout") {
 			t.Fatalf("SessionLimitsConfig.Validate() error = %v, want session.limits.timeout context", err)
+		}
+	})
+}
+
+func TestSessionCompactionConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose the pressure compaction defaults", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultSessionCompactionConfig()
+		if !cfg.Enabled || cfg.PressureThreshold != 0.85 || cfg.MaxAttemptsPerTurn != 1 ||
+			cfg.FailureCooldown != 10*time.Minute {
+			t.Fatalf("DefaultSessionCompactionConfig() = %#v", cfg)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("DefaultSessionCompactionConfig().Validate() error = %v", err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(*SessionCompactionConfig)
+		field  string
+	}{
+		{
+			name: "Should reject pressure above one",
+			mutate: func(cfg *SessionCompactionConfig) {
+				cfg.PressureThreshold = 1.01
+			},
+			field: "pressure_threshold",
+		},
+		{
+			name: "Should reject negative pressure",
+			mutate: func(cfg *SessionCompactionConfig) {
+				cfg.PressureThreshold = -0.01
+			},
+			field: "pressure_threshold",
+		},
+		{
+			name: "Should reject NaN pressure",
+			mutate: func(cfg *SessionCompactionConfig) {
+				cfg.PressureThreshold = math.NaN()
+			},
+			field: "pressure_threshold",
+		},
+		{
+			name: "Should reject infinite pressure",
+			mutate: func(cfg *SessionCompactionConfig) {
+				cfg.PressureThreshold = math.Inf(1)
+			},
+			field: "pressure_threshold",
+		},
+		{
+			name: "Should reject a zero attempt cap",
+			mutate: func(cfg *SessionCompactionConfig) {
+				cfg.MaxAttemptsPerTurn = 0
+			},
+			field: "max_attempts_per_turn",
+		},
+		{
+			name: "Should reject a negative failure cooldown",
+			mutate: func(cfg *SessionCompactionConfig) {
+				cfg.FailureCooldown = -time.Second
+			},
+			field: "failure_cooldown",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := DefaultSessionCompactionConfig()
+			tc.mutate(&cfg)
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), "session.compaction."+tc.field) {
+				t.Fatalf("SessionCompactionConfig.Validate() error = %v, want %s context", err, tc.field)
+			}
+		})
+	}
+
+	t.Run("Should accept zero pressure as an explicit disable switch", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultSessionCompactionConfig()
+		cfg.PressureThreshold = 0
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("SessionCompactionConfig.Validate(zero pressure) error = %v", err)
 		}
 	})
 }
@@ -2324,6 +2525,9 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 	}
 	if !cfg.Network.Enabled {
 		t.Fatal("Load() Network.Enabled = false, want true by default")
+	}
+	if !cfg.Session.AutoTitleEnabled {
+		t.Fatal("Load() Session.AutoTitleEnabled = false, want true by default")
 	}
 }
 

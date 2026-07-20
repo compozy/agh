@@ -201,6 +201,39 @@ func TestManagerStartRegistersResourceDefinitionsAtStartup(t *testing.T) {
 	if got, want := registered, 1; got != want {
 		t.Fatalf("len(manager.triggers.registrations) = %d, want %d", got, want)
 	}
+
+	t.Run("Should preserve live runtimes when boot reconciliation repeats the loaded snapshot", func(t *testing.T) {
+		liveScheduler := manager.scheduler
+		liveTriggerEngine := manager.triggers
+
+		jobPlan, err := manager.BuildJobResourceState(h.ctx, []resources.Record[Job]{jobRecord})
+		if err != nil {
+			t.Fatalf("BuildJobResourceState(unchanged) error = %v", err)
+		}
+		if got := jobPlan.OperationCount(); got != 0 {
+			t.Fatalf("unchanged job plan operations = %d, want 0", got)
+		}
+		if err := manager.ApplyJobResourceState(h.ctx, jobPlan); err != nil {
+			t.Fatalf("ApplyJobResourceState(unchanged) error = %v", err)
+		}
+		if manager.scheduler != liveScheduler {
+			t.Fatal("unchanged job projection replaced the live scheduler")
+		}
+
+		triggerPlan, err := manager.BuildTriggerResourceState(h.ctx, []resources.Record[Trigger]{triggerRecord})
+		if err != nil {
+			t.Fatalf("BuildTriggerResourceState(unchanged) error = %v", err)
+		}
+		if got := triggerPlan.OperationCount(); got != 0 {
+			t.Fatalf("unchanged trigger plan operations = %d, want 0", got)
+		}
+		if err := manager.ApplyTriggerResourceState(h.ctx, triggerPlan); err != nil {
+			t.Fatalf("ApplyTriggerResourceState(unchanged) error = %v", err)
+		}
+		if manager.triggers != liveTriggerEngine {
+			t.Fatal("unchanged trigger projection replaced the live trigger engine")
+		}
+	})
 }
 
 func TestManagerResourceListsSearchSortAndPage(t *testing.T) {
@@ -695,6 +728,28 @@ func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 		changedTarget.AgentName = "other-agent"
 		if _, err := manager.UpdateJob(h.ctx, changedTarget); !errors.Is(err, ErrTargetIdentityImmutable) {
 			t.Fatalf("UpdateJob(resource changed target) error = %v, want ErrTargetIdentityImmutable", err)
+		}
+		blockedLifecycle := createdJob
+		blockedLifecycle.Prompt = "Run `agh daemon stop` now."
+		if _, err := manager.UpdateJob(h.ctx, blockedLifecycle); !errors.Is(
+			err,
+			ErrDaemonLifecycleCommandBlocked,
+		) {
+			t.Fatalf(
+				"UpdateJob(resource lifecycle command) error = %v, want ErrDaemonLifecycleCommandBlocked",
+				err,
+			)
+		}
+		jobRecord, err = h.jobStore.Get(h.ctx, h.actor, createdJob.ID)
+		if err != nil {
+			t.Fatalf("jobStore.Get(after blocked update) error = %v", err)
+		}
+		if jobRecord.Spec.Prompt != createdJob.Prompt {
+			t.Fatalf(
+				"job resource prompt after blocked update = %q, want unchanged %q",
+				jobRecord.Spec.Prompt,
+				createdJob.Prompt,
+			)
 		}
 
 		nextJob := createdJob
@@ -1464,6 +1519,9 @@ func defaultAutomationTestConfig() aghconfig.AutomationConfig {
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
+		Suggestions: aghconfig.AutomationSuggestionsConfig{
+			PendingCap: DefaultSuggestionPendingCap,
+		},
 	}
 }
 

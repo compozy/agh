@@ -7,8 +7,10 @@ import (
 
 	"github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/doctor"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/store"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -19,6 +21,7 @@ const (
 
 type handlerConfig struct {
 	sessions           core.SessionManager
+	drainController    core.DaemonDrainController
 	sessionCatalog     core.SessionCatalog
 	tasks              core.TaskService
 	network            core.NetworkService
@@ -35,8 +38,11 @@ type handlerConfig struct {
 	bundles            core.BundleService
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
+	toolArtifacts      toolspkg.ToolArtifactStore
 	toolsets           core.ToolsetRegistry
 	toolApprovals      core.ToolApprovalIssuer
+	approvalGrants     core.ToolApprovalGrantService
+	clarify            toolspkg.ClarifyBroker
 	settings           core.SettingsService
 	settingsRestart    core.SettingsRestartController
 	settingsUpdate     core.SettingsUpdateController
@@ -65,6 +71,8 @@ type handlerConfig struct {
 	memoryExtractor    core.MemoryExtractorService
 	memoryProviders    core.MemoryProviderService
 	memoryLedger       core.MemorySessionLedgerService
+	runtimeMemory      doctor.RuntimeMemorySnapshotSource
+	deadEntities       doctor.DeadEntitySource
 	staticFS           fs.FS
 	homePaths          aghconfig.HomePaths
 	config             aghconfig.Config
@@ -118,6 +126,7 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		MaskInternalErrors:           true,
 		IncludeSessionWorkspaceInSSE: true,
 		Sessions:                     cfg.sessions,
+		DrainController:              cfg.drainController,
 		SessionCatalog:               cfg.sessionCatalog,
 		Tasks:                        cfg.tasks,
 		Network:                      cfg.network,
@@ -135,8 +144,11 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		Bundles:                      cfg.bundles,
 		SupportBundles:               cfg.supportBundles,
 		Tools:                        cfg.tools,
+		ToolArtifacts:                cfg.toolArtifacts,
 		Toolsets:                     cfg.toolsets,
 		ToolApprovals:                cfg.toolApprovals,
+		ApprovalGrants:               cfg.approvalGrants,
+		Clarify:                      cfg.clarify,
 		Settings:                     cfg.settings,
 		SettingsRestart:              cfg.settingsRestart,
 		SettingsUpdate:               cfg.settingsUpdate,
@@ -165,6 +177,8 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		MemoryExtractor:              cfg.memoryExtractor,
 		MemoryProviders:              cfg.memoryProviders,
 		MemorySessionLedger:          cfg.memoryLedger,
+		RuntimeMemory:                cfg.runtimeMemory,
+		DeadEntities:                 cfg.deadEntities,
 		HomePaths:                    cfg.homePaths,
 		Config:                       coreConfig,
 		Logger:                       cfg.logger,

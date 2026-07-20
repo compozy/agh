@@ -30,6 +30,7 @@ const validSkill = {
   description: "A test skill",
   source: "bundled",
   enabled: true,
+  activation: { active: true },
   dir: "/path/to/skill",
 };
 

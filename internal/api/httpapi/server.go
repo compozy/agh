@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -17,8 +16,10 @@ import (
 	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/ginutil"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/doctor"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/store"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -47,6 +48,7 @@ type Server struct {
 	now                func() time.Time
 	pollInterval       time.Duration
 	sessions           core.SessionManager
+	drainController    core.DaemonDrainController
 	sessionCatalog     core.SessionCatalog
 	tasks              core.TaskService
 	network            core.NetworkService
@@ -62,8 +64,11 @@ type Server struct {
 	bundles            core.BundleService
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
+	toolArtifacts      toolspkg.ToolArtifactStore
 	toolsets           core.ToolsetRegistry
 	toolApprovals      core.ToolApprovalIssuer
+	approvalGrants     core.ToolApprovalGrantService
+	clarify            toolspkg.ClarifyBroker
 	settings           core.SettingsService
 	settingsRestart    core.SettingsRestartController
 	settingsUpdate     core.SettingsUpdateController
@@ -92,6 +97,8 @@ type Server struct {
 	memoryExtractor    core.MemoryExtractorService
 	memoryProviders    core.MemoryProviderService
 	memoryLedger       core.MemorySessionLedgerService
+	runtimeMemory      doctor.RuntimeMemorySnapshotSource
+	deadEntities       doctor.DeadEntitySource
 	agentLoader        core.AgentLoader
 	resources          core.ResourceService
 	resourceAuth       []gin.HandlerFunc
@@ -107,89 +114,6 @@ type Server struct {
 	streamCancel context.CancelFunc
 	started      bool
 	actualPort   int
-}
-
-// WithHomePaths overrides the resolved AGH home layout.
-func WithHomePaths(homePaths aghconfig.HomePaths) Option {
-	return func(server *Server) {
-		server.homePaths = homePaths
-		if !server.configSet {
-			server.config = aghconfig.DefaultWithHome(homePaths)
-		}
-	}
-}
-
-// WithConfig overrides the runtime configuration used by the server.
-func WithConfig(cfg *aghconfig.Config) Option {
-	return func(server *Server) {
-		if cfg != nil {
-			server.config = *cfg
-			server.configSet = true
-		}
-	}
-}
-
-// WithHost overrides the HTTP bind host.
-func WithHost(host string) Option {
-	return func(server *Server) {
-		server.host = strings.TrimSpace(host)
-	}
-}
-
-// WithPort overrides the HTTP bind port.
-func WithPort(port int) Option {
-	return func(server *Server) {
-		server.port = port
-	}
-}
-
-// WithLogger injects the server logger.
-func WithLogger(logger *slog.Logger) Option {
-	return func(server *Server) {
-		server.logger = logger
-	}
-}
-
-// WithStartedAt overrides the daemon start time reported by the API.
-func WithStartedAt(startedAt time.Time) Option {
-	return func(server *Server) {
-		server.startedAt = startedAt
-	}
-}
-
-// WithNow overrides the server clock, mainly for tests.
-func WithNow(now func() time.Time) Option {
-	return func(server *Server) {
-		server.now = now
-	}
-}
-
-// WithPollInterval overrides the SSE poll cadence.
-func WithPollInterval(interval time.Duration) Option {
-	return func(server *Server) {
-		server.pollInterval = interval
-	}
-}
-
-// WithSessionManager injects the runtime session manager.
-func WithSessionManager(manager core.SessionManager) Option {
-	return func(server *Server) {
-		server.sessions = manager
-	}
-}
-
-// WithSessionCatalog injects the daemon-owned session catalog.
-func WithSessionCatalog(catalog core.SessionCatalog) Option {
-	return func(server *Server) {
-		server.sessionCatalog = catalog
-	}
-}
-
-// WithTaskService injects the daemon-owned task service.
-func WithTaskService(service core.TaskService) Option {
-	return func(server *Server) {
-		server.tasks = service
-	}
 }
 
 // WithNetworkService injects the runtime network manager.
@@ -241,13 +165,6 @@ func WithToolsetRegistry(registry core.ToolsetRegistry) Option {
 	}
 }
 
-// WithToolApprovalIssuer injects the local approval-token issuer.
-func WithToolApprovalIssuer(issuer core.ToolApprovalIssuer) Option {
-	return func(server *Server) {
-		server.toolApprovals = issuer
-	}
-}
-
 // WithSettingsService injects the daemon-owned settings service.
 func WithSettingsService(service core.SettingsService) Option {
 	return func(server *Server) {
@@ -287,13 +204,6 @@ func WithWorkspaceResolver(workspaces core.WorkspaceService) Option {
 func WithOnboardingStore(store core.OnboardingStore) Option {
 	return func(server *Server) {
 		server.onboarding = store
-	}
-}
-
-// WithMemoryStore injects the memory store surfaced by the daemon.
-func WithMemoryStore(store *memory.Store) Option {
-	return func(server *Server) {
-		server.memoryStore = store
 	}
 }
 
@@ -371,34 +281,6 @@ func WithSessionHealthReader(reader core.SessionHealthReader) Option {
 func WithHeartbeatWakeEventReader(reader core.HeartbeatWakeEventReader) Option {
 	return func(server *Server) {
 		server.wakeEvents = reader
-	}
-}
-
-// WithDreamTrigger injects the dream-consolidation trigger surfaced by the daemon.
-func WithDreamTrigger(trigger core.DreamTrigger) Option {
-	return func(server *Server) {
-		server.dreamTrigger = trigger
-	}
-}
-
-// WithMemoryExtractorService injects the daemon-owned Memory v2 extractor runtime.
-func WithMemoryExtractorService(service core.MemoryExtractorService) Option {
-	return func(server *Server) {
-		server.memoryExtractor = service
-	}
-}
-
-// WithMemoryProviderService injects the daemon-owned MemoryProvider registry service.
-func WithMemoryProviderService(service core.MemoryProviderService) Option {
-	return func(server *Server) {
-		server.memoryProviders = service
-	}
-}
-
-// WithMemorySessionLedgerService injects the daemon-owned session ledger service.
-func WithMemorySessionLedgerService(service core.MemorySessionLedgerService) Option {
-	return func(server *Server) {
-		server.memoryLedger = service
 	}
 }
 
@@ -557,70 +439,6 @@ func (s *Server) ensureEngine() {
 	s.engine.Use(errorMiddleware())
 }
 
-func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
-	return &handlerConfig{
-		sessions:           s.sessions,
-		sessionCatalog:     s.sessionCatalog,
-		tasks:              s.tasks,
-		network:            s.network,
-		networkStore:       s.networkStore,
-		networkUsage:       s.networkUsage,
-		coordination:       s.coordination,
-		observer:           s.observer,
-		schemaStreams:      s.schemaStreams,
-		resources:          s.resources,
-		automation:         s.automation,
-		loops:              s.loops,
-		bridges:            s.bridges,
-		notifications:      s.notifications,
-		bundles:            s.bundles,
-		supportBundles:     s.supportBundles,
-		tools:              s.tools,
-		toolsets:           s.toolsets,
-		toolApprovals:      s.toolApprovals,
-		settings:           s.settings,
-		settingsRestart:    s.settingsRestart,
-		settingsUpdate:     s.settingsUpdate,
-		vault:              s.vault,
-		workspaces:         s.workspaces,
-		onboarding:         s.onboarding,
-		agentCatalog:       s.agentCatalog,
-		agentSync:          s.agentSync,
-		modelCatalog:       s.modelCatalog,
-		marketplaceCatalog: s.marketplaceCatalog,
-		agentContext:       s.agentContext,
-		coordinatorConfig:  s.coordinatorConfig,
-		soulAuthoring:      s.soulAuthoring,
-		soulHistoryPurger:  s.soulHistoryPurger,
-		soulRefresher:      s.soulRefresher,
-		heartbeatAuthor:    s.heartbeatAuthor,
-		heartbeatPurger:    s.heartbeatPurger,
-		heartbeatStatus:    s.heartbeatStatus,
-		heartbeatWake:      s.heartbeatWake,
-		sessionHealth:      s.sessionHealth,
-		wakeEvents:         s.wakeEvents,
-		skillsRegistry:     s.skillsRegistry,
-		skillResources:     s.skillResources,
-		memoryStore:        s.memoryStore,
-		dreamTrigger:       s.dreamTrigger,
-		memoryExtractor:    s.memoryExtractor,
-		memoryProviders:    s.memoryProviders,
-		memoryLedger:       s.memoryLedger,
-		staticFS:           staticFS,
-		homePaths:          s.homePaths,
-		config:             s.config,
-		boundHost:          s.host,
-		logger:             s.logger,
-		startedAt:          s.startedAt,
-		now:                s.now,
-		pollInterval:       s.pollInterval,
-		agentLoader:        s.agentLoader,
-		httpPort:           s.port,
-		resourceAuth:       append([]gin.HandlerFunc(nil), s.resourceAuth...),
-		extensions:         s.extensions,
-	}
-}
-
 // Port reports the effective HTTP port.
 func (s *Server) Port() int {
 	if s == nil {
@@ -753,17 +571,4 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 
 	return errors.Join(errs...)
-}
-
-func waitForServeDone(ctx context.Context, done <-chan struct{}) error {
-	if done == nil {
-		return nil
-	}
-
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("httpapi: wait for serve shutdown: %w", ctx.Err())
-	}
 }

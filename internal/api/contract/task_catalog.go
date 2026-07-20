@@ -50,6 +50,7 @@ type TaskCatalogRunPayload struct {
 	TaskID                       string                 `json:"task_id"`
 	Status                       taskpkg.RunStatus      `json:"status"`
 	Attempt                      int                    `json:"attempt"`
+	RecoveryCount                int                    `json:"recovery_count"`
 	PreviousRunID                string                 `json:"previous_run_id,omitempty"`
 	FailureKind                  string                 `json:"failure_kind,omitempty"`
 	MaxAttempts                  int                    `json:"max_attempts"`
@@ -177,6 +178,7 @@ func TaskCatalogRunPayloadFromSummary(summary *taskpkg.RunSummary) *TaskCatalogR
 		TaskID:                       summary.TaskID,
 		Status:                       summary.Status,
 		Attempt:                      summary.Attempt,
+		RecoveryCount:                summary.RecoveryCount,
 		PreviousRunID:                summary.PreviousRunID,
 		FailureKind:                  summary.FailureKind,
 		MaxAttempts:                  summary.MaxAttempts,

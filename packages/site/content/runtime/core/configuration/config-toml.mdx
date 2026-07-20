@@ -26,59 +26,63 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 
 ## Quick Reference
 
-| Section                              | Purpose                                                                         | Default                                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `[daemon]`                           | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                               |
-| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.    | providers `5s`, MCP `10s`, bridges `30s`                                                         |
-| `[http]`                             | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                                              |
-| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                                             |
-| `[limits]`                           | Daemon-level concurrently running agent cap.                                    | `max_concurrent_agents = 20`                                                                     |
-| `[session.limits]`                   | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                                 |
-| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes                |
-| `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                                   |
-| `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                |
-| `[permissions]`                      | Default permission mode.                                                        | `mode = "approve-all"`                                                                           |
-| `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                                              |
-| `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                                       |
-| `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources                         |
-| `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                         | empty list                                                                                       |
-| `[providers.<name>]`                 | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                                         |
-| `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                   |
-| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                             | AGH `main` catalog, 1 h TTL, 10 s timeout                                                        |
-| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                                        |
-| `[observability]`                    | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                                           |
-| `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                                     |
-| `[log]`                              | Structured log level and daemon-owned rotation.                                 | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                    |
-| `[memory]`                           | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                                      |
-| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                         | hybrid, 300 ms, noop                                                                             |
-| `[memory.controller.llm]`            | Controller LLM tiebreaker.                                                      | enabled, `anthropic/claude-haiku-4`, 250 ms, top_k 5                                             |
-| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                    | 4096 chars, 60 writes/min, all canonical origins                                                 |
-| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                  | top-K 5, raw 50, weighted fusion                                                                 |
-| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                    | 90 days, audit summary on, 64 KiB body cap                                                       |
-| `[memory.extractor]`                 | Post-message extractor and bounded queue.                                       | enabled, post_message mode, capacity 1, coalesce 16                                              |
-| `[memory.dream]`                     | Dreaming runtime, gates, and scoring.                                           | enabled, agent `dreaming-curator`, 24 h, 3 sessions, 30 min ticker                               |
-| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.        | jsonl, `$AGH_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition               |
-| `[memory.daily]`                     | Daily-log retention and rotation.                                               | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                             |
-| `[memory.file]`                      | Curated memory file body limits.                                                | 200 lines, 25 KiB                                                                                |
-| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                           | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                            |
-| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                             | `<workspace>/.agh/workspace.toml`, auto-create on first touch                                    |
-| `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                                    |
-| `[skills.marketplace]`               | Skill registry override.                                                        | unset                                                                                            |
-| `[extensions.marketplace]`           | Extension registry override and side-load policy.                               | registry unset, unverified side-loads disabled                                                   |
-| `[automation]`                       | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                                  |
-| `[[automation.jobs]]`                | Scheduled automation jobs.                                                      | empty list                                                                                       |
-| `[[automation.triggers]]`            | Event-driven automation triggers.                                               | empty list                                                                                       |
-| `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery loops.                              | iteration cap 50, no-progress window 3, gate revisions 10, fan-out 4                             |
-| `[loops.defaults.watch]`             | Global/workspace seed defaults for watch loops.                                 | no iteration cap, no-progress window 2, fan-out 2                                                |
-| `[goals]`                            | Goal defaults and durable session-event relay controls.                         | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                         |
-| `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                           | block recurrence limit 2                                                                         |
-| `[autonomy.coordinator]`             | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 coordinator + 5 sessions per workspace |
-| `[task.orchestration]`               | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5                     |
-| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                   |
-| `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                   |
-| `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                            | agents may force release, force fail, and retry                                                  |
-| `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                   | empty list                                                                                       |
-| `[network]`                          | Network availability, protocol safety, and bounded Live defaults/limits.        | enabled; Local remains the execution default                                                     |
+| Section                              | Purpose                                                                              | Default                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.  | `socket = "$AGH_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
+| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.         | providers `5s`, MCP `10s`, bridges `30s`                                                          |
+| `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                               |
+| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                              |
+| `[limits]`                           | Daemon-level concurrently running agent cap.                                         | `max_concurrent_agents = 20`                                                                      |
+| `[session]`                          | Daemon-owned automatic title generation for unnamed user sessions.                   | `auto_title_enabled = true`                                                                       |
+| `[session.limits]`                   | Session-scoped wall-clock timeout.                                                   | `timeout = "0s"`                                                                                  |
+| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls.      | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes                 |
+| `[session.compaction]`               | Pressure-triggered checkpoint coverage and persisted replay archiving.               | enabled, 85% pressure, 1 attempt per turn, 10-minute failure cooldown                             |
+| `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.              | enabled, 32 KiB body, 2 KiB compact projection                                                    |
+| `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.       | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                 |
+| `[permissions]`                      | Default permission mode.                                                             | `mode = "approve-all"`                                                                            |
+| `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.          | enabled, hosted MCP enabled, 256 KiB result default                                               |
+| `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                             | 30 seconds                                                                                        |
+| `[tools.clarify]`                    | Timeout for one live agent clarification question.                                   | 5 minutes                                                                                         |
+| `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.                | external tools disabled, 120 second approval timeout, no trusted sources                          |
+| `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                              | empty list                                                                                        |
+| `[providers.<name>]`                 | Built-in provider override or custom provider definition.                            | empty map plus built-ins                                                                          |
+| `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                     | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                    |
+| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                  | AGH `main` catalog, 1 h TTL, 10 s timeout                                                         |
+| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                                 | local backend when no profile is selected                                                         |
+| `[observability]`                    | Event summary retention and global byte cap.                                         | enabled, 7 days, 1 GiB                                                                            |
+| `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                       | enabled, 1 MiB segments, 256 MiB per session                                                      |
+| `[log]`                              | Structured log level and daemon-owned rotation.                                      | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                     |
+| `[redact]`                           | Additive secret heuristics for agent-visible content, logs, and persisted events.    | `enabled = true`                                                                                  |
+| `[memory]`                           | Persistent memory runtime and global memory directory.                               | enabled, `$AGH_HOME/memory`                                                                       |
+| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                              | hybrid, 300 ms, noop                                                                              |
+| `[memory.controller.llm]`            | Controller LLM tiebreaker.                                                           | enabled, `anthropic/claude-haiku-4`, 250 ms, top_k 5                                              |
+| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                         | 4096 chars, 60 writes/min, all canonical origins                                                  |
+| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                       | top-K 5, raw 50, weighted fusion                                                                  |
+| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                         | 90 days, audit summary on, 64 KiB body cap                                                        |
+| `[memory.extractor]`                 | Post-message extractor and bounded queue.                                            | enabled, post_message mode, capacity 1, coalesce 16                                               |
+| `[memory.dream]`                     | Dreaming runtime, gates, and scoring.                                                | enabled, agent `dreaming-curator`, 24 h, 3 sessions, 30 min ticker                                |
+| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.             | jsonl, `$AGH_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition                |
+| `[memory.daily]`                     | Daily-log retention and rotation.                                                    | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                              |
+| `[memory.file]`                      | Curated memory body and prompt-index limits.                                         | 200 lines, 25 KiB                                                                                 |
+| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                                | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                             |
+| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                  | `<workspace>/.agh/workspace.toml`, auto-create on first touch                                     |
+| `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.                 | enabled, poll every 3 seconds                                                                     |
+| `[skills.marketplace]`               | Skill registry override.                                                             | unset                                                                                             |
+| `[extensions.marketplace]`           | Extension registry override and side-load policy.                                    | registry unset, unverified side-loads disabled                                                    |
+| `[automation]`                       | Automation scheduler defaults.                                                       | enabled, UTC, 5 concurrent jobs                                                                   |
+| `[[automation.jobs]]`                | Scheduled automation jobs.                                                           | empty list                                                                                        |
+| `[[automation.triggers]]`            | Event-driven automation triggers.                                                    | empty list                                                                                        |
+| `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery loops.                                   | iteration cap 50, no-progress window 3, gate revisions 10, fan-out 4                              |
+| `[loops.defaults.watch]`             | Global/workspace seed defaults for watch loops.                                      | no iteration cap, no-progress window 2, fan-out 2                                                 |
+| `[goals]`                            | Goal defaults and durable session-event relay controls.                              | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                          |
+| `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                | block recurrence limit 2                                                                          |
+| `[autonomy.coordinator]`             | Coordinator session bootstrap for workspace-scoped task runs.                        | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 coordinator + 5 sessions per workspace  |
+| `[task.orchestration]`               | Bounds for active workspace runs, summaries, context, scheduler health, and runtime. | 16 active runs/workspace, 4 KiB summaries, 8 KiB context, prior 5/recent 50 events                |
+| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                      | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                    |
+| `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                               | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                    |
+| `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                                 | agents may force release, force fail, and retry                                                   |
+| `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                        | empty list                                                                                        |
+| `[network]`                          | Network availability, protocol safety, and bounded Live defaults/limits.             | enabled; Local remains the execution default                                                      |
 
 ## Load And Merge Order
 
@@ -106,6 +110,11 @@ global and workspace MCP sidecars for session and runtime resolution.
 [daemon]
 # Path to the Unix domain socket used by AGH CLI commands.
 socket = "~/.agh/daemon.sock"
+# Emit daemon process-memory snapshots every five minutes. Set to "0s" to disable.
+memory_report_interval = "5m"
+# Escalate a task-bound session after three consecutive failed subprocess health checks.
+# Set to 0 to keep status and doctor evidence without changing task-run state.
+subprocess_health_escalation_threshold = 3
 
 [daemon.reload_timeouts]
 # Provider runtime reload budget. Valid range: 1s to 60s.
@@ -132,6 +141,10 @@ sandbox = "local"
 # Positive daemon-wide agent concurrency bound.
 max_concurrent_agents = 20
 
+[session]
+# Generate one durable title after the first assistant response is persisted.
+auto_title_enabled = true
+
 [session.limits]
 # 0 means no configured wall-clock timeout. Use Go durations such as "30m" or "2h".
 timeout = "0s"
@@ -147,6 +160,16 @@ inactivity_warning_after = "15m"
 inactivity_timeout = "30m"
 # Grace period after cooperative prompt cancel before AGH stops the session as timeout.
 timeout_cancel_grace = "30s"
+
+[session.compaction]
+# Disable all pressure-triggered compaction work when false.
+enabled = true
+# Context-used/context-size ratio that admits compaction. 0 also disables admission.
+pressure_threshold = 0.85
+# Maximum failed or successful compaction starts admitted for one triggering turn.
+max_attempts_per_turn = 1
+# Delay before a failed session compaction may be attempted again.
+failure_cooldown = "10m"
 
 [agents.soul]
 # Disabling pauses prompt injection but keeps inspect/validate/write/delete/history/rollback available.
@@ -194,9 +217,21 @@ hosted_mcp_enabled = true
 # Default result cap for tool descriptors that do not set a smaller cap.
 default_max_result_bytes = 262144
 
+[tools.artifacts]
+# Global retained-artifact count ceiling across workspaces.
+max_count = 200
+# Global retained-artifact byte ceiling across workspaces.
+max_bytes = 1073741824
+# Maximum retained-artifact age.
+max_age = "720h"
+
 [tools.hosted_mcp]
 # Non-secret launch correlation nonce lifetime before UDS peer binding.
 bind_nonce_ttl_seconds = 30
+
+[tools.clarify]
+# Maximum wait for an operator answer before the caller receives the fallback sentinel.
+timeout = "5m"
 
 [tools.policy]
 # Valid values: disabled, ask, enabled.
@@ -315,6 +350,11 @@ max_size_mb = 10
 max_backups = 5
 max_age_days = 30
 compress_backups = false
+
+[redact]
+# Detect likely credentials in content before logs, streams, or event storage receive them.
+# Changing this value requires a daemon restart.
+enabled = true
 
 [memory]
 enabled = true
@@ -457,6 +497,9 @@ timezone = "UTC"
 max_concurrent_jobs = 5
 default_fire_limit = { max = 12, window = "1h" }
 
+[automation.suggestions]
+pending_cap = 5
+
 [[automation.jobs]]
 scope = "workspace"
 name = "daily-doc-check"
@@ -555,7 +598,7 @@ max_children = 5
 max_active_sessions_per_workspace = 5
 
 [task.orchestration]
-# Bounds for task summaries, context bundles, scheduler health, and max-runtime watchdog.
+# Bounds for task summaries, context bundles, scheduler health, and runtime watchdogs.
 summary_max_bytes = 4096
 context_body_max_bytes = 8192
 context_prior_attempts = 5
@@ -567,6 +610,10 @@ scheduler_bad_tick_cooldown = "5m"
 default_max_runtime = "0s"
 bridge_notification_timeout = "10s"
 designated_run_max = 5
+# Maximum active worker and coordinator runs per workspace. 0 disables the limit.
+max_active_runs_per_workspace = 16
+# Default wall-clock deadline for action nodes that omit their own timeout.
+action_run_timeout = "30m"
 network_status_queue_size = 64
 network_status_timeout = "5s"
 
@@ -640,9 +687,26 @@ max_coalesce_window = "5s"
 
 ## `[daemon]`
 
-| Field    | Type        | Default                 | Valid values                     | Description                                                |
-| -------- | ----------- | ----------------------- | -------------------------------- | ---------------------------------------------------------- |
-| `socket` | string path | `$AGH_HOME/daemon.sock` | Non-empty path. `~` is expanded. | Unix domain socket used by CLI IPC and the UDS API server. |
+| Field                                    | Type        | Default                 | Valid values                               | Description                                                                                                           |
+| ---------------------------------------- | ----------- | ----------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `socket`                                 | string path | `$AGH_HOME/daemon.sock` | Non-empty path. `~` is expanded.           | Unix domain socket used by CLI IPC and the UDS API server.                                                            |
+| `memory_report_interval`                 | duration    | `5m`                    | `0s` to disable, or any positive duration. | Cadence for daemon process-memory snapshots in logs and `runtime.memory`.                                             |
+| `subprocess_health_escalation_threshold` | integer     | `3`                     | `0` or a positive integer.                 | Failed health checks before AGH moves a task-bound nonterminal run to `needs_attention`; `0` disables the transition. |
+
+The daemon captures a baseline snapshot at startup, periodic snapshots at this cadence, and one
+final snapshot during joined shutdown. Each `[memory]` log record and the `runtime.memory` item from
+`agh doctor -o json` reports Go heap allocation, heap in-use bytes, goroutines, uptime, and resident
+memory when the operating system exposes it. `resident_memory_kind` distinguishes current resident
+memory from the peak value available on macOS. Setting the interval to `0s` starts no sampling
+worker; doctor reports the feature as disabled. Changing this field is restart-required.
+
+`subprocess_health_escalation_threshold` consumes the health verdict exposed by an active ACP
+subprocess. At the configured consecutive-failure count, AGH moves the exact task run bound to that
+session from `queued`, `claimed`, `starting`, or `running` to `needs_attention`. Repeated failed
+verdicts do not emit another transition, and a completed, failed, or canceled run remains terminal.
+An unexpected ACP process exit triggers the same transition immediately when the value is positive.
+Set the field to `0` when you want `agh status` and `agh doctor` evidence without task mutation.
+Changing this field is restart-required.
 
 ## `[http]`
 
@@ -663,6 +727,17 @@ max_coalesce_window = "5s"
 | Field                   | Type    | Default | Valid values      | Description                                                  |
 | ----------------------- | ------- | ------- | ----------------- | ------------------------------------------------------------ |
 | `max_concurrent_agents` | integer | `20`    | Positive integer. | Daemon-wide cap for concurrently running agent subprocesses. |
+
+## `[session]`
+
+| Field                | Type    | Default | Valid values      | Description                                                                                                |
+| -------------------- | ------- | ------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `auto_title_enabled` | boolean | `true`  | `true` or `false` | Starts one bounded title pass for an unnamed user session after its first assistant response is persisted. |
+
+An explicit session name always wins. If generation is disabled or fails, the session remains
+unnamed; AGH does not derive a title from prompt text in the client or during prompt admission.
+The setting is global or workspace desired state, is agent-mutable through `agh config set` and
+the `agh__config_*` native tools, and follows the restart-required `session.*` lifecycle.
 
 ## `[session.limits]`
 
@@ -686,6 +761,26 @@ continues to observe runtime activity or controlled waiting heartbeats.
 | `inactivity_warning_after`    | duration | `15m`   | Zero or positive Go duration. | Idle age before AGH emits one `runtime_warning`. Zero disables the warning.                   |
 | `inactivity_timeout`          | duration | `30m`   | Zero or positive Go duration. | Idle age before AGH cancels the prompt cooperatively. Zero disables inactivity timeout.       |
 | `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration.         | Grace period after timeout cancel before AGH stops the session with stop reason `timeout`.    |
+
+## `[session.compaction]`
+
+`[session.compaction]` bounds daemon-owned compaction of completed persisted turns when an ACP
+usage update reports context pressure. AGH first updates the workspace checkpoint with durable
+sequence coverage, then marks that exact event range archived. Archived rows remain queryable in
+session events and history; only degraded transcript replay excludes them. The triggering turn is
+never included in its own compaction span.
+
+| Field                   | Type     | Default | Valid values            | Description                                                            |
+| ----------------------- | -------- | ------- | ----------------------- | ---------------------------------------------------------------------- |
+| `enabled`               | boolean  | `true`  | `true` or `false`       | Enables pressure-triggered compaction.                                 |
+| `pressure_threshold`    | number   | `0.85`  | `0.0` through `1.0`     | Admission ratio. `0.0` disables admission even when enabled.           |
+| `max_attempts_per_turn` | integer  | `1`     | Positive integer.       | Per-trigger-turn attempt cap, including failed attempts.               |
+| `failure_cooldown`      | duration | `10m`   | Zero or positive value. | Per-session delay after a failed summary, archive, or hook transition. |
+
+These paths are global or workspace desired state and are available through `agh config set` and
+the `agh__config_*` native tools. Structured writes return `lifecycle="restart-required"` and
+`next_action="restart-daemon"`; the running daemon keeps its bound compaction policy until restart.
+Use `agh config apply-history -o json` to inspect the blocked apply record.
 
 ## `[agents.soul]`
 
@@ -756,11 +851,33 @@ invoke` loop through canonical discovery tools.
 | `hosted_mcp_enabled`       | boolean | `true`   | `true` or `false`.      | Allows AGH to expose the local hosted MCP proxy for session-visible tools. |
 | `default_max_result_bytes` | integer | `262144` | `0` through `16777216`. | Result cap used when a descriptor does not specify a smaller limit.        |
 
+## `[tools.artifacts]`
+
+When a post-hook, redacted tool result exceeds its effective result cap, AGH retains the canonical
+JSON envelope and returns a bounded preview plus an opaque artifact URI. Retention is global across
+the daemon, while every read remains bound to the workspace that produced the result. The daemon
+snapshots these settings at boot; config changes require a restart.
+
+| Field       | Type     | Default      | Valid values          | Description                                                             |
+| ----------- | -------- | ------------ | --------------------- | ----------------------------------------------------------------------- |
+| `max_count` | integer  | `200`        | Positive integer.     | Maximum retained oversized tool-result artifacts across the daemon.     |
+| `max_bytes` | integer  | `1073741824` | Positive integer.     | Maximum combined retained bytes across the daemon.                      |
+| `max_age`   | duration | `720h`       | Positive Go duration. | Maximum artifact age before deterministic retention cleanup removes it. |
+
 ## `[tools.hosted_mcp]`
 
 | Field                    | Type    | Default | Valid values               | Description                                                                |
 | ------------------------ | ------- | ------- | -------------------------- | -------------------------------------------------------------------------- |
 | `bind_nonce_ttl_seconds` | integer | `30`    | `1` through `300` seconds. | Lifetime for the non-secret hosted MCP bind nonce before UDS peer binding. |
+
+## `[tools.clarify]`
+
+The daemon snapshots this global setting at boot. A structured config write records desired state
+with `lifecycle="restart-required"`; it does not change a question already waiting for an answer.
+
+| Field     | Type     | Default | Valid values       | Description                                                            |
+| --------- | -------- | ------- | ------------------ | ---------------------------------------------------------------------- |
+| `timeout` | duration | `5m`    | `1s` through `24h` | Maximum wait before AGH returns `{choice:null,text:"",fallback:true}`. |
 
 ## `[tools.policy]`
 
@@ -830,6 +947,15 @@ Agents can read the same redacted status from inside a session through `agh__mcp
 authentication is repaired through the operator login/logout commands above. Auth-blocked MCP
 tools are omitted from callable discovery while status/probe output explains the repair path.
 
+For workspace-scoped servers, five consecutive confirmed permanent discovery failures mark the MCP
+runtime as `dead`. Settings, status, doctor, and `agh__mcp_status` expose the redacted diagnostic;
+last-known tool descriptors remain visible through `agh__tool_info` with reason `backend_dead`
+during the same daemon lifetime instead of disappearing from the catalog. AGH suppresses ordinary
+attempts while the mark is active. After 60 seconds, the next runtime MCP status or discovery access
+may run one recovery probe; a successful probe clears the mark without restarting the daemon.
+Doctor reads the durable mark without starting that probe. Recovery is automatic, so there is no
+manual clear or revive command.
+
 ## `[providers.<name>]`
 
 Provider keys override built-ins with the same name or create a custom provider. Built-ins are
@@ -884,30 +1010,38 @@ UDS, CLI, the OpenAI-compatible projection, the Host API, and the web. Active AC
 continue to govern model and reasoning controls inside a running session, so curated entries are
 metadata, never an allowlist.
 
-| Field                                       | Type    | Default                            | Valid values                                                                           | Description                                                                                                            |
-| ------------------------------------------- | ------- | ---------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `models.default`                            | string  | Built-in default or empty.         | Any non-blank model id.                                                                | Model used when an agent omits `model`; it need not appear in `models.curated`, but the active adapter must accept it. |
-| `models.curated`                            | array   | omitted; no explicit set.          | See entry fields below.                                                                | Curated model entries projected as `config` rows. Not an allowlist; manual model ids stay valid.                       |
-| `models.curated[].id`                       | string  | required per entry.                | Unique provider model id.                                                              | Provider model identifier sent to the runtime.                                                                         |
-| `models.curated[].display_name`             | string  | empty.                             | Any string.                                                                            | Optional human label.                                                                                                  |
-| `models.curated[].context_window`           | integer | empty.                             | Positive integer.                                                                      | Context window in tokens.                                                                                              |
-| `models.curated[].max_input_tokens`         | integer | empty.                             | Positive integer.                                                                      | Maximum input tokens.                                                                                                  |
-| `models.curated[].max_output_tokens`        | integer | empty.                             | Positive integer.                                                                      | Maximum output tokens.                                                                                                 |
-| `models.curated[].supports_tools`           | boolean | empty.                             | `true`, `false`.                                                                       | Whether the model supports tool calls.                                                                                 |
-| `models.curated[].supports_reasoning`       | boolean | empty.                             | `true`, `false`.                                                                       | Whether the model supports reasoning effort.                                                                           |
-| `models.curated[].reasoning_efforts`        | array   | empty.                             | Subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Blanks rejected. | Allowed reasoning levels for this model.                                                                               |
-| `models.curated[].default_reasoning_effort` | string  | empty.                             | Member of `reasoning_efforts` when both are set.                                       | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                               |
-| `models.curated[].cost_input_per_million`   | number  | empty.                             | Non-negative number.                                                                   | Display-only input cost per million tokens.                                                                            |
-| `models.curated[].cost_output_per_million`  | number  | empty.                             | Non-negative number.                                                                   | Display-only output cost per million tokens.                                                                           |
-| `models.curated[].deprecated`               | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Marks a row deprecated; curated view excludes it. Explicit `false` clears lower-source metadata.                       |
-| `models.curated[].hidden`                   | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Operator curation flag; curated view excludes it. Explicit `false` clears a lower-source flag.                         |
-| `models.curated[].featured`                 | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Adds a current row to curated candidates. Explicit `false` clears a lower-source flag.                                 |
-| `models.curated[].release_date`             | string  | empty.                             | `YYYY-MM` or `YYYY-MM-DD`.                                                             | Optional release metadata used for curated ordering; unknown dates stay empty.                                         |
-| `models.reasoning.apply`                    | string  | `none` unless a built-in opts in.  | `acp_option`, `none`.                                                                  | Applies effort through an advertised ACP option or exposes no selectable strategy.                                     |
-| `models.discovery.enabled`                  | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                       | Enables the side-effect-free model discovery adapter for this provider.                                                |
-| `models.discovery.command`                  | string  | empty.                             | Shell-style command string.                                                            | Side-effect-free discovery command. Mutually exclusive with `endpoint` unless the adapter documents both.              |
-| `models.discovery.endpoint`                 | string  | empty.                             | Absolute HTTP(S) URL.                                                                  | Side-effect-free discovery endpoint URL. Mutually exclusive with `command` unless the adapter documents both.          |
-| `models.discovery.timeout`                  | string  | model catalog source timeout.      | Positive duration (`10s`, `45s`, `2m`).                                                | Per-discovery timeout.                                                                                                 |
+| Field                                           | Type    | Default                            | Valid values                                                                           | Description                                                                                                            |
+| ----------------------------------------------- | ------- | ---------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `models.default`                                | string  | Built-in default or empty.         | Any non-blank model id.                                                                | Model used when an agent omits `model`; it need not appear in `models.curated`, but the active adapter must accept it. |
+| `models.curated`                                | array   | omitted; no explicit set.          | See entry fields below.                                                                | Curated model entries projected as `config` rows. Not an allowlist; manual model ids stay valid.                       |
+| `models.curated[].id`                           | string  | required per entry.                | Unique provider model id.                                                              | Provider model identifier sent to the runtime.                                                                         |
+| `models.curated[].display_name`                 | string  | empty.                             | Any string.                                                                            | Optional human label.                                                                                                  |
+| `models.curated[].context_window`               | integer | empty.                             | Positive integer.                                                                      | Context window in tokens.                                                                                              |
+| `models.curated[].max_input_tokens`             | integer | empty.                             | Positive integer.                                                                      | Maximum input tokens.                                                                                                  |
+| `models.curated[].max_output_tokens`            | integer | empty.                             | Positive integer.                                                                      | Maximum output tokens.                                                                                                 |
+| `models.curated[].supports_tools`               | boolean | empty.                             | `true`, `false`.                                                                       | Whether the model supports tool calls.                                                                                 |
+| `models.curated[].supports_reasoning`           | boolean | empty.                             | `true`, `false`.                                                                       | Whether the model supports reasoning effort.                                                                           |
+| `models.curated[].reasoning_efforts`            | array   | empty.                             | Subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Blanks rejected. | Allowed reasoning levels for this model.                                                                               |
+| `models.curated[].default_reasoning_effort`     | string  | empty.                             | Member of `reasoning_efforts` when both are set.                                       | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                               |
+| `models.curated[].cost_input_per_million`       | number  | empty.                             | Non-negative number.                                                                   | Input rate used for catalog-based usage estimates when the agent reports no actual cost.                               |
+| `models.curated[].cost_output_per_million`      | number  | empty.                             | Non-negative number.                                                                   | Output rate used for catalog-based usage estimates when the agent reports no actual cost.                              |
+| `models.curated[].cost_cache_read_per_million`  | number  | empty.                             | Non-negative finite number.                                                            | Cache-read rate used only for the cache-read token bucket.                                                             |
+| `models.curated[].cost_cache_write_per_million` | number  | empty.                             | Non-negative finite number.                                                            | Cache-write rate used only for the cache-write token bucket.                                                           |
+| `models.curated[].cost_reasoning_per_million`   | number  | empty.                             | Non-negative finite number.                                                            | Reasoning-token rate used only for the reasoning token bucket.                                                         |
+| `models.curated[].deprecated`                   | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Marks a row deprecated; curated view excludes it. Explicit `false` clears lower-source metadata.                       |
+| `models.curated[].hidden`                       | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Operator curation flag; curated view excludes it. Explicit `false` clears a lower-source flag.                         |
+| `models.curated[].featured`                     | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Adds a current row to curated candidates. Explicit `false` clears a lower-source flag.                                 |
+| `models.curated[].release_date`                 | string  | empty.                             | `YYYY-MM` or `YYYY-MM-DD`.                                                             | Optional release metadata used for curated ordering; unknown dates stay empty.                                         |
+| `models.reasoning.apply`                        | string  | `none` unless a built-in opts in.  | `acp_option`, `none`.                                                                  | Applies effort through an advertised ACP option or exposes no selectable strategy.                                     |
+| `models.discovery.enabled`                      | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                       | Enables the side-effect-free model discovery adapter for this provider.                                                |
+| `models.discovery.command`                      | string  | empty.                             | Shell-style command string.                                                            | Side-effect-free discovery command. Mutually exclusive with `endpoint` unless the adapter documents both.              |
+| `models.discovery.endpoint`                     | string  | empty.                             | Absolute HTTP(S) URL.                                                                  | Side-effect-free discovery endpoint URL. Mutually exclusive with `command` unless the adapter documents both.          |
+| `models.discovery.timeout`                      | string  | model catalog source timeout.      | Positive duration (`10s`, `45s`, `2m`).                                                | Per-discovery timeout.                                                                                                 |
+
+Rate changes apply to subsequent usage updates and do not reprice persisted token statistics.
+Agent-reported actual cost remains authoritative over catalog estimation. Estimation requires a
+finite, non-negative rate for every nonzero token bucket; missing cache-read, cache-write, or
+reasoning rates do not fall back to input or output rates.
 
 Discovery adapters use the resolved provider auth, env, and home policy. Discovery never creates an
 ACP session; if discovery is unavailable or fails, the catalog records source status and falls back
@@ -1095,6 +1229,27 @@ writer on the next start.
 | `max_age_days`     | integer | `30`    | Zero or positive integer.        | Delete backups older than this many days. `0` disables age retention. |
 | `compress_backups` | boolean | `false` | `true` or `false`                | Compress rotated backups with gzip after rotation.                    |
 
+## `[redact]`
+
+| Field     | Type    | Default | Valid values      | Description                                                                                   |
+| --------- | ------- | ------- | ----------------- | --------------------------------------------------------------------------------------------- |
+| `enabled` | boolean | `true`  | `true` or `false` | Enables additive heuristics for likely credentials in agent-visible content and runtime logs. |
+
+The daemon snapshots this value during boot, so changing `redact.enabled` is restart-required.
+When enabled, AGH redacts matching content before appending it to the global event ledger or a
+session's `events.db`; SSE, history, and replay consume that stored redacted form. Structured
+correlation fields such as session and run IDs, hashes, digests, and fingerprints remain intact.
+
+Disabling the heuristic does not disable exact protections for claim tokens, secret references,
+or secrets registered by the Vault and other runtime subsystems. Those protections remain
+authoritative. The heuristic is an additional defense for unregistered provider keys and similar
+credentials.
+
+Manage the setting through General Settings, `agh config set redact.enabled <true|false> -o json`,
+or the live `agh__config_set` descriptor. These writes return
+`lifecycle="restart-required"` and `next_action="restart-daemon"`; they do not change the running
+process.
+
 ## `[memory]`
 
 The `[memory]` tree is the Memory v2 runtime configuration. Memory v2 is the only memory subsystem;
@@ -1275,10 +1430,10 @@ under `<ledger_root>/<workspace_id>/<session_id>/`. Sessions without a workspace
 
 ## `[memory.file]`
 
-| Field       | Type    | Default | Valid values      | Description                                                       |
-| ----------- | ------- | ------- | ----------------- | ----------------------------------------------------------------- |
-| `max_lines` | integer | `200`   | Positive integer. | Cap for `MEMORY.md` lines included in the frozen prompt snapshot. |
-| `max_bytes` | integer | `25600` | Positive integer. | Cap for `MEMORY.md` bytes included in the frozen prompt snapshot. |
+| Field       | Type    | Default | Valid values      | Description                                                                               |
+| ----------- | ------- | ------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| `max_lines` | integer | `200`   | Positive integer. | Maximum final body lines for controlled writes and `MEMORY.md` lines included in prompts. |
+| `max_bytes` | integer | `25600` | Positive integer. | Maximum final body bytes for controlled writes and `MEMORY.md` bytes included in prompts. |
 
 ## `[memory.provider]`
 
@@ -1342,6 +1497,16 @@ side-load reports `extension_unverified_policy_blocked` and points to `/settings
 | `timezone`            | string  | `UTC`                         | IANA timezone loadable by Go, such as `UTC` or `America/Sao_Paulo`. | Schedule timezone for automation.                                                   |
 | `max_concurrent_jobs` | integer | `5`                           | Positive integer.                                                   | Global automation concurrency cap.                                                  |
 | `default_fire_limit`  | object  | `{ max = 12, window = "1h" }` | `max` positive, `window` positive Go duration.                      | Default rolling fire limit copied into jobs and triggers that omit their own limit. |
+
+## `[automation.suggestions]`
+
+| Field         | Type    | Default | Valid values      | Description                                              |
+| ------------- | ------- | ------- | ----------------- | -------------------------------------------------------- |
+| `pending_cap` | integer | `5`     | Positive integer. | Maximum unresolved suggestions stored for one workspace. |
+
+Changes under `automation.suggestions.*` require a daemon restart. Agents can write the desired
+value with `agh config set automation.suggestions.pending_cap <value>` and inspect the resulting
+restart action through structured config apply history.
 
 ## `[[automation.jobs]]`
 
@@ -1503,29 +1668,36 @@ set.
 
 ## `[task.orchestration]`
 
-`[task.orchestration]` controls bounded task orchestration behavior: run summaries, task context
-bundles, scheduler health telemetry, the spawn-failure circuit breaker, and the per-task max-runtime
-default. The defaults shown below are loaded from `internal/config/task_orchestration.go` and apply
-when neither the global file nor a workspace overlay sets a value.
+`[task.orchestration]` controls bounded task orchestration behavior: active workspace-run capacity,
+action deadlines, run summaries, task context bundles, scheduler health telemetry, the
+spawn-failure circuit breaker, and the per-task max-runtime default. The defaults shown below are loaded from
+`internal/config/task_orchestration.go` and apply when neither the global file nor a workspace
+overlay sets a value.
 
-| Field                          | Type     | Default | Valid values                                                          | Description                                                                                                |
-| ------------------------------ | -------- | ------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `summary_max_bytes`            | integer  | `4096`  | Positive integer.                                                     | Maximum byte size for stored task-run summary fields used by context, web, CLI, and review surfaces.       |
-| `context_body_max_bytes`       | integer  | `8192`  | Positive integer.                                                     | Maximum byte size for the rendered task context bundle attached to `/agent/context`.                       |
-| `context_prior_attempts`       | integer  | `5`     | Zero or positive integer.                                             | Maximum prior-attempt summaries included in the task context bundle.                                       |
-| `context_recent_events`        | integer  | `50`    | Zero or positive integer.                                             | Maximum recent task events included in the task context bundle.                                            |
-| `spawn_failure_limit`          | integer  | `5`     | Positive integer.                                                     | Spawn-failure threshold before the per-task spawn circuit breaker opens.                                   |
-| `scheduler_bad_tick_threshold` | integer  | `6`     | Positive integer.                                                     | Bad-tick count before the scheduler health watchdog flags a degraded scheduler tick.                       |
-| `scheduler_bad_tick_cooldown`  | duration | `5m`    | Positive Go duration with whole-second precision.                     | Cooldown between scheduler bad-tick health emissions.                                                      |
-| `default_max_runtime`          | duration | `0s`    | Zero or positive Go duration up to `24h` with whole-second precision. | Default per-task max-runtime watchdog. Zero disables the default; tasks may still set a per-task override. |
-| `bridge_notification_timeout`  | duration | `10s`   | Positive Go duration with whole-second precision.                     | Timeout budget for bridge task notification delivery.                                                      |
-| `designated_run_max`           | integer  | `5`     | Positive integer up to `5`.                                           | Maximum sibling runs a single designated fan-out request may enqueue.                                      |
-| `network_status_queue_size`    | integer  | `64`    | Positive integer.                                                     | Queue depth for network-origin task status observer events.                                                |
-| `network_status_timeout`       | duration | `5s`    | Positive Go duration with whole-second precision.                     | Per-event timeout for summarizing task run status back to the AGH Network origin thread.                   |
+| Field                           | Type     | Default | Valid values                                                          | Description                                                                                                                                                         |
+| ------------------------------- | -------- | ------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `summary_max_bytes`             | integer  | `4096`  | Positive integer.                                                     | Maximum byte size for stored task-run summary fields used by context, web, CLI, and review surfaces.                                                                |
+| `context_body_max_bytes`        | integer  | `8192`  | Positive integer.                                                     | Maximum byte size for the rendered task context bundle attached to `/agent/context`.                                                                                |
+| `context_prior_attempts`        | integer  | `5`     | Zero or positive integer.                                             | Maximum prior-attempt summaries included in the task context bundle.                                                                                                |
+| `context_recent_events`         | integer  | `50`    | Zero or positive integer.                                             | Maximum recent task events included in the task context bundle.                                                                                                     |
+| `spawn_failure_limit`           | integer  | `5`     | Positive integer.                                                     | Spawn-failure threshold before the per-task spawn circuit breaker opens.                                                                                            |
+| `scheduler_bad_tick_threshold`  | integer  | `6`     | Positive integer.                                                     | Bad-tick count before the scheduler health watchdog flags a degraded scheduler tick.                                                                                |
+| `scheduler_bad_tick_cooldown`   | duration | `5m`    | Positive Go duration with whole-second precision.                     | Cooldown between scheduler bad-tick health emissions.                                                                                                               |
+| `default_max_runtime`           | duration | `0s`    | Zero or positive Go duration up to `24h` with whole-second precision. | Default per-task max-runtime watchdog. Zero disables the default; tasks may still set a per-task override.                                                          |
+| `bridge_notification_timeout`   | duration | `10s`   | Positive Go duration with whole-second precision.                     | Timeout budget for bridge task notification delivery.                                                                                                               |
+| `designated_run_max`            | integer  | `5`     | Positive integer up to `5`.                                           | Maximum sibling runs a single designated fan-out request may enqueue.                                                                                               |
+| `max_active_runs_per_workspace` | integer  | `16`    | Zero or positive integer.                                             | Maximum claimed, starting, or running worker and coordinator runs with live leases per workspace. Zero disables the limit; global and Network wake runs are exempt. |
+| `action_run_timeout`            | duration | `30m`   | Positive Go duration up to `24h` with whole-second precision.         | Wall-clock deadline inherited by action nodes without an explicit timeout. An explicit node timeout remains authoritative.                                          |
+| `network_status_queue_size`     | integer  | `64`    | Positive integer.                                                     | Queue depth for network-origin task status observer events.                                                                                                         |
+| `network_status_timeout`        | duration | `5s`    | Positive Go duration with whole-second precision.                     | Per-event timeout for summarizing task run status back to the AGH Network origin thread.                                                                            |
 
 `[task.orchestration]` keys are agent-mutable through the existing config tool surface
 (`agh config set` and the `agh__config_*` native tools). Workspace overlays apply through the
 existing config loader without any special handling.
+
+Task orchestration writes are restart-required because the task runtime snapshots these bounds at
+daemon boot. Structured config mutation responses report `applied=false`,
+`lifecycle="restart-required"`, and `next_action="restart-daemon"` until the daemon restarts.
 
 Config and hook mutation tools return lifecycle truth in their structured payloads. Writes under
 `hooks.*` and `extensions.*` are persisted as desired state with `applied=false`,

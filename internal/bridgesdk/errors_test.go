@@ -56,6 +56,24 @@ func TestProviderIdentityCheckRecordPreservesSafeErrorTaxonomy(t *testing.T) {
 			wantText:   "temporarily unavailable",
 		},
 		{
+			name: "overloaded",
+			err: &HTTPError{
+				StatusCode: HTTPStatusOverloaded,
+				Message:    "sk-provider-secret overloaded",
+			},
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "temporarily unavailable",
+		},
+		{
+			name: "server error",
+			err: &HTTPError{
+				StatusCode: http.StatusInternalServerError,
+				Message:    "sk-provider-secret server error",
+			},
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "temporarily unavailable",
+		},
+		{
 			name:       "canceled",
 			err:        context.Canceled,
 			wantStatus: bridgepkg.BridgeCheckStatusWarn,
@@ -171,15 +189,68 @@ func TestClassifyErrorMapsRepresentativeProviderFailures(t *testing.T) {
 	}
 }
 
+// Invariant: provider overload and server failures remain distinct from generic transport failures.
+// Owning layer: bridge SDK error classification. Canonical suite: errors_test.go.
+func TestClassifyErrorSeparatesOverloadServerAndTransientFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		err       error
+		wantClass ErrorClass
+	}{
+		{
+			name:      "Should classify 529 as overloaded",
+			err:       &HTTPError{StatusCode: HTTPStatusOverloaded, Message: "provider overloaded"},
+			wantClass: ErrorClassOverloaded,
+		},
+		{
+			name:      "Should classify 500 as a server error",
+			err:       &HTTPError{StatusCode: http.StatusInternalServerError, Message: "server error"},
+			wantClass: ErrorClassServerError,
+		},
+		{
+			name:      "Should classify 502 as a server error",
+			err:       &HTTPError{StatusCode: http.StatusBadGateway, Message: "bad gateway"},
+			wantClass: ErrorClassServerError,
+		},
+		{
+			name:      "Should classify 503 as a server error",
+			err:       &HTTPError{StatusCode: http.StatusServiceUnavailable, Message: "unavailable"},
+			wantClass: ErrorClassServerError,
+		},
+		{
+			name:      "Should keep connection reset transient",
+			err:       errors.New("read tcp: connection reset by peer"),
+			wantClass: ErrorClassTransient,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := ClassifyError(test.err)
+			if got, want := classified.Class, test.wantClass; got != want {
+				t.Fatalf("ClassifyError().Class = %q, want %q", got, want)
+			}
+			if !classified.Recovery().Retry {
+				t.Fatalf("ClassifyError(%q).Recovery().Retry = false, want true", test.name)
+			}
+		})
+	}
+}
+
 func TestRetryDoRetriesRateLimitedFailuresAndSucceeds(t *testing.T) {
 	t.Parallel()
 
 	attempts := 0
 	result, err := RetryDo(context.Background(), RetryConfig{
-		Attempts:  3,
-		MinDelay:  time.Millisecond,
-		MaxDelay:  2 * time.Millisecond,
-		Jitter:    0,
+		Attempts: 3,
+		StandardBackoff: RetryBackoff{
+			BaseDelay: time.Millisecond,
+			MaxDelay:  2 * time.Millisecond,
+		},
 		RandFloat: func() float64 { return 0.5 },
 	}, func(context.Context) (string, error) {
 		attempts++
@@ -218,10 +289,11 @@ func TestRetryDoRetriesRateLimitedFailuresAndSucceeds(t *testing.T) {
 
 		attempts := 0
 		_, err := RetryDo(context.Background(), RetryConfig{
-			Attempts:  3,
-			MinDelay:  time.Millisecond,
-			MaxDelay:  2 * time.Millisecond,
-			Jitter:    0,
+			Attempts: 3,
+			StandardBackoff: RetryBackoff{
+				BaseDelay: time.Millisecond,
+				MaxDelay:  2 * time.Millisecond,
+			},
 			RandFloat: func() float64 { return 0.5 },
 		}, func(context.Context) (string, error) {
 			attempts++
@@ -240,7 +312,11 @@ func TestDefaultRetryConfigAndErrorUnwrapHelpers(t *testing.T) {
 	t.Parallel()
 
 	config := DefaultRetryConfig()
-	if config.Attempts <= 0 || config.MinDelay <= 0 || config.MaxDelay <= 0 {
+	if config.Attempts <= 0 ||
+		config.StandardBackoff.BaseDelay <= 0 ||
+		config.StandardBackoff.MaxDelay <= 0 ||
+		config.OverloadedBackoff.BaseDelay <= config.StandardBackoff.BaseDelay ||
+		config.OverloadedBackoff.MaxDelay <= 0 {
 		t.Fatalf("DefaultRetryConfig() = %#v, want positive retry settings", config)
 	}
 
@@ -332,9 +408,9 @@ func TestClassifyErrorCoversHTTPNetAndStringFallbacks(t *testing.T) {
 			want: ErrorClassTimeout,
 		},
 		{
-			name: "http transient",
+			name: "http server error",
 			err:  &HTTPError{StatusCode: http.StatusServiceUnavailable, Message: "unavailable"},
-			want: ErrorClassTransient,
+			want: ErrorClassServerError,
 		},
 		{
 			name: "http permanent",
@@ -366,9 +442,8 @@ func TestRetryDoStopsOnPermanentErrorAndHonorsContextCancellation(t *testing.T) 
 		t.Parallel()
 
 		_, err := RetryDo(context.Background(), RetryConfig{
-			Attempts: 3,
-			MinDelay: time.Millisecond,
-			MaxDelay: time.Millisecond,
+			Attempts:        3,
+			StandardBackoff: RetryBackoff{BaseDelay: time.Millisecond, MaxDelay: time.Millisecond},
 		}, func(context.Context) (string, error) {
 			return "", &PermanentError{Err: errors.New("bad request")}
 		})
@@ -384,9 +459,8 @@ func TestRetryDoStopsOnPermanentErrorAndHonorsContextCancellation(t *testing.T) 
 		cancel()
 		attempts := 0
 		_, err := RetryDo(canceled, RetryConfig{
-			Attempts: 3,
-			MinDelay: time.Millisecond,
-			MaxDelay: time.Millisecond,
+			Attempts:        3,
+			StandardBackoff: RetryBackoff{BaseDelay: time.Millisecond, MaxDelay: time.Millisecond},
 		}, func(context.Context) (string, error) {
 			attempts++
 			return "", &RateLimitError{Err: errors.New("slow down"), RetryAfter: time.Millisecond}
@@ -422,9 +496,10 @@ func TestRetryDoAppliesDefaultsAndStopsWhenDelayContextCancels(t *testing.T) {
 		onRetry := 0
 		_, err := RetryDo(ctx, RetryConfig{
 			Attempts: 2,
-			OnRetry: func(int, int, ClassifiedError) {
+			OnRetry: func(context.Context, RetryAttempt) error {
 				onRetry++
 				cancel()
+				return nil
 			},
 		}, func(context.Context) (string, error) {
 			attempts++
@@ -442,42 +517,79 @@ func TestRetryDoAppliesDefaultsAndStopsWhenDelayContextCancels(t *testing.T) {
 	})
 }
 
-func TestRetryDelayPrefersRetryAfterAndAppliesBackoff(t *testing.T) {
+func TestRetryDoUsesRetryAfterAndDistinctBackoffProfiles(t *testing.T) {
 	t.Parallel()
 
-	config := RetryConfig{
-		Attempts: 3,
-		MinDelay: 10 * time.Millisecond,
-		MaxDelay: 100 * time.Millisecond,
-		Jitter:   0,
-		RandFloat: func() float64 {
-			return 0.5
-		},
-	}
-
-	for _, tc := range []struct {
-		name     string
-		attempt  int
-		recovery RecoveryDecision
-		want     time.Duration
+	for _, test := range []struct {
+		name      string
+		err       error
+		wantClass ErrorClass
+		wantDelay time.Duration
 	}{
 		{
-			name:     "Should prefer Retry-After",
-			attempt:  1,
-			recovery: RecoveryDecision{RetryAfter: 25 * time.Millisecond},
-			want:     25 * time.Millisecond,
+			name: "Should prefer Retry-After",
+			err: &RateLimitError{
+				Err:        errors.New("rate limited"),
+				RetryAfter: 25 * time.Millisecond,
+			},
+			wantClass: ErrorClassRateLimit,
+			wantDelay: 25 * time.Millisecond,
 		},
 		{
-			name:    "Should apply exponential backoff",
-			attempt: 3,
-			want:    40 * time.Millisecond,
+			name:      "Should use the standard profile for server errors",
+			err:       &HTTPError{StatusCode: http.StatusInternalServerError, Message: "server error"},
+			wantClass: ErrorClassServerError,
+			wantDelay: 10 * time.Millisecond,
+		},
+		{
+			name:      "Should use the distinct overload profile for 529",
+			err:       &HTTPError{StatusCode: HTTPStatusOverloaded, Message: "overloaded"},
+			wantClass: ErrorClassOverloaded,
+			wantDelay: 40 * time.Millisecond,
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := retryDelay(config, tc.attempt, tc.recovery); got != tc.want {
-				t.Fatalf("retryDelay() = %s, want %s", got, tc.want)
+			var (
+				delays   []time.Duration
+				observed []RetryAttempt
+				attempts int
+			)
+			result, err := RetryDo(t.Context(), RetryConfig{
+				Attempts:          2,
+				StandardBackoff:   RetryBackoff{BaseDelay: 10 * time.Millisecond, MaxDelay: time.Second},
+				OverloadedBackoff: RetryBackoff{BaseDelay: 40 * time.Millisecond, MaxDelay: time.Second},
+				RandFloat:         func() float64 { return 0 },
+				Sleep: func(_ context.Context, delay time.Duration) error {
+					delays = append(delays, delay)
+					return nil
+				},
+				OnRetry: func(_ context.Context, attempt RetryAttempt) error {
+					observed = append(observed, attempt)
+					return nil
+				},
+			}, func(context.Context) (string, error) {
+				attempts++
+				if attempts == 1 {
+					return "", test.err
+				}
+				return "ok", nil
+			})
+			if err != nil {
+				t.Fatalf("RetryDo() error = %v", err)
+			}
+			if result != "ok" || attempts != 2 {
+				t.Fatalf("RetryDo() = result:%q attempts:%d, want ok/2", result, attempts)
+			}
+			if len(delays) != 1 || delays[0] != test.wantDelay {
+				t.Fatalf("retry delays = %v, want [%s]", delays, test.wantDelay)
+			}
+			if len(observed) != 1 || observed[0].Classified.Class != test.wantClass {
+				t.Fatalf("retry attempts = %#v, want one %q classification", observed, test.wantClass)
+			}
+			if observed[0].Delay != test.wantDelay {
+				t.Fatalf("retry attempt delay = %s, want %s", observed[0].Delay, test.wantDelay)
 			}
 		})
 	}

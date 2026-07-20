@@ -148,6 +148,7 @@ describe("section reads and updates", () => {
     const body = {
       config: {
         daemon: {
+          memory_report_interval: "10m",
           reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
           socket: "/tmp/next.sock",
         },
@@ -155,6 +156,7 @@ describe("section reads and updates", () => {
         http: { host: "127.0.0.1", port: 2123 },
         limits: { max_concurrent_agents: 4 },
         permissions: { mode: "approve-reads" as const },
+        redact: { enabled: false },
         session_timeout: "45m",
       },
     };

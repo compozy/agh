@@ -93,4 +93,9 @@ export const automationKeys = {
       normalizeText(filters.until),
       normalizeNumber(filters.limit),
     ] as const,
+
+  suggestions: () => [...automationKeys.all, "suggestions"] as const,
+  suggestionLists: () => [...automationKeys.suggestions(), "list"] as const,
+  suggestionList: (workspaceID: string, status: string) =>
+    [...automationKeys.suggestionLists(), workspaceID, status] as const,
 };

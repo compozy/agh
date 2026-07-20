@@ -15,6 +15,7 @@ type Event struct {
 	Type               string `json:"type"`
 	AgentName          string `json:"agent_name"`
 	Content            string `json:"content"`
+	Archived           int64  `json:"archived"`
 	Timestamp          string `json:"timestamp"`
 	TranscriptEntryKey string `json:"transcript_entry_key"`
 }

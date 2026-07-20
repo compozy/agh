@@ -98,7 +98,7 @@ func ProjectAssignedEntry(events []store.SessionEvent, identity EntryIdentity) (
 		if markerText == "" {
 			return nil, nil
 		}
-		message := runtimeMarkerUIMessage(decoded, markerText)
+		message := runtimeMarkerUIMessage(decoded)
 		message.ID = messageID
 		marker := decoded.parsed.Marker.Normalize()
 		return &Entry{

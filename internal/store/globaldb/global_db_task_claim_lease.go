@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
+	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -246,7 +249,8 @@ func (g *TaskRunRepo) RecoverExpiredRunLeases(
 					leaseUntil:     current.LeaseUntil,
 					claimTokenHash: current.ClaimTokenHash,
 				}
-				if err := requeueExpiredLease(ctx, exec, current, snapshot); err != nil {
+				exhausted, err := g.recoverExpiredLeaseWithExecutor(ctx, exec, current, snapshot, normalized)
+				if err != nil {
 					return err
 				}
 				if current.IsTaskAnchored() {
@@ -258,14 +262,24 @@ func (g *TaskRunRepo) RecoverExpiredRunLeases(
 				if err != nil {
 					return err
 				}
-				recovered = append(recovered, taskpkg.ExpiredLeaseRecoveryResult{
-					Run:                    updated,
-					PreviousRunStatus:      snapshot.status,
-					PreviousSessionID:      snapshot.sessionID,
-					PreviousLeaseUntil:     snapshot.leaseUntil,
-					PreviousClaimTokenHash: snapshot.claimTokenHash,
-					Reason:                 normalized.Reason,
-				})
+				result := newExpiredLeaseRecoveryResult(&updated, snapshot, normalized.Reason, exhausted)
+				if current.IsTaskAnchored() {
+					taskRecord, err := g.tasks.getTaskWithExecutor(ctx, exec, current.TaskID)
+					if err != nil {
+						return err
+					}
+					if err := appendExpiredLeaseRecoveryEvents(
+						ctx,
+						exec,
+						&result,
+						taskRecord.Status,
+						normalized.Actor,
+						normalized.Now,
+					); err != nil {
+						return err
+					}
+				}
+				recovered = append(recovered, result)
 			}
 			return nil
 		},
@@ -274,4 +288,73 @@ func (g *TaskRunRepo) RecoverExpiredRunLeases(
 	}
 
 	return recovered, nil
+}
+
+func newExpiredLeaseRecoveryResult(
+	run *taskpkg.Run,
+	snapshot taskRunLeaseSnapshot,
+	reason string,
+	exhausted bool,
+) taskpkg.ExpiredLeaseRecoveryResult {
+	return taskpkg.ExpiredLeaseRecoveryResult{
+		Run:                    *run,
+		PreviousRunStatus:      snapshot.status,
+		PreviousSessionID:      snapshot.sessionID,
+		PreviousLeaseUntil:     snapshot.leaseUntil,
+		PreviousClaimTokenHash: snapshot.claimTokenHash,
+		Reason:                 reason,
+		Exhausted:              exhausted,
+	}
+}
+
+func appendExpiredLeaseRecoveryEvents(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	result *taskpkg.ExpiredLeaseRecoveryResult,
+	taskStatus taskpkg.Status,
+	actor taskpkg.ActorContext,
+	at time.Time,
+) error {
+	actor = expiredLeaseRecoveryActor(actor)
+	if err := appendTaskEventPayloadWithExecutor(
+		ctx,
+		exec,
+		result.Run.TaskID,
+		result.Run.ID,
+		eventspkg.TaskRunLeaseExpired,
+		actor,
+		at,
+		taskpkg.ExpiredLeaseEventPayload{
+			PreviousStatus:               result.PreviousRunStatus,
+			Status:                       result.Run.Status,
+			TaskStatus:                   taskStatus,
+			Reason:                       result.Reason,
+			SessionID:                    result.PreviousSessionID,
+			LeaseUntil:                   result.PreviousLeaseUntil,
+			PreviousTokenHash:            result.PreviousClaimTokenHash,
+			ResolvedNetworkParticipation: participation.CloneSpec(result.Run.NetworkSpecSnapshot()),
+		},
+	); err != nil {
+		return err
+	}
+	if !result.Exhausted {
+		return nil
+	}
+	return appendTaskEventPayloadWithExecutor(
+		ctx,
+		exec,
+		result.Run.TaskID,
+		result.Run.ID,
+		eventspkg.TaskRunNeedsAttention,
+		actor,
+		at,
+		taskpkg.RunNeedsAttentionEventPayload{
+			PreviousStatus:               result.PreviousRunStatus,
+			Status:                       result.Run.Status,
+			SessionID:                    result.PreviousSessionID,
+			Diagnostic:                   result.Run.Error,
+			QueuedAt:                     result.Run.QueuedAt,
+			ResolvedNetworkParticipation: participation.CloneSpec(result.Run.NetworkSpecSnapshot()),
+		},
+	)
 }

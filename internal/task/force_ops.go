@@ -214,6 +214,9 @@ func (m *Service) RetryRun(
 	retry RetryRunRequest,
 	actor ActorContext,
 ) (*RetryRunResult, error) {
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return nil, err
+	}
 	if err := m.requireForceRunAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -285,6 +288,9 @@ func (m *Service) RecoverRun(
 	req RecoverRunRequest,
 	actor ActorContext,
 ) (*RetryRunResult, error) {
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return nil, err
+	}
 	if err := m.requireForceRunAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -299,24 +305,8 @@ func (m *Service) RecoverRun(
 	if err := m.requireForceRunRate(actor, taskRecord.ID); err != nil {
 		return nil, err
 	}
-	if source.Status.Normalize() != TaskRunStatusNeedsAttention {
-		suggested := fmt.Sprintf("agh task inspect %s", source.ID)
-		if source.Status.Normalize() == TaskRunStatusFailed {
-			suggested = fmt.Sprintf("agh task retry %s", source.ID)
-		}
-		return nil, forceRunDiagnosticError(
-			diagnosticcontract.CodeTaskRunNotRecoverable,
-			"Task run cannot be recovered",
-			fmt.Sprintf(
-				"Run %s is %s; only needs_attention runs can be recovered.",
-				source.ID,
-				source.Status.Normalize(),
-			),
-			diagnosticcontract.SeverityError,
-			suggested,
-			map[string]any{runEvidenceIDKey: source.ID, leaseStatusKey: source.Status.Normalize().String()},
-			ErrInvalidStatusTransition,
-		)
+	if err := validateRecoverRunStatus(&source); err != nil {
+		return nil, err
 	}
 	if err := m.requireRetryChainDepth(ctx, source); err != nil {
 		return nil, err

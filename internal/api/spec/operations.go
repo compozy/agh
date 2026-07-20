@@ -5,6 +5,8 @@ import "sort"
 // Operations returns the complete transport-neutral operation registry.
 func Operations() []OperationSpec {
 	ops := cloneOperationSpecs(operationRegistry)
+	ops = append(ops, runtimeStatusOperations()...)
+	ops = append(ops, sessionAdmissionOperations()...)
 	ops = append(ops, agentDefinitionMutationOperations()...)
 	ops = append(ops, agentCatalogOperations()...)
 	ops = append(ops, bridgeOperations()...)
@@ -19,6 +21,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, settingsMCPAuthOperations()...)
 	ops = append(ops, providerOperations()...)
 	ops = append(ops, networkCoordinationOperations()...)
+	ops = applyToolArtifactContract(ops)
 	sort.SliceStable(ops, func(i, j int) bool {
 		if ops[i].Path == ops[j].Path {
 			return ops[i].Method < ops[j].Method

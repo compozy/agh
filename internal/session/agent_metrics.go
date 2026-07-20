@@ -44,7 +44,7 @@ func (m *Manager) AggregateSessionsByAgent(
 		WorkspaceID:         workspaceID,
 		ExcludeIDs:          activeIDs,
 		ExcludeSessionTypes: []string{string(SessionTypeDream)},
-		ExcludeSpawnRoles:   []string{SpawnRoleMemoryExtractor},
+		ExcludeSpawnRoles:   []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("session: aggregate durable sessions by agent: %w", err)

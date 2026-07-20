@@ -16,8 +16,8 @@ The current implementation is intentionally hybrid:
 - `memory_catalog_entries`, `memory_chunks`, and FTS5 indexes are derived projections
 - `memory_recall_signals` and `memory_consolidations` carry live runtime state for dreaming
 - there are three scopes: `global`, `workspace`, and `agent` — agent has two tiers
-- only the **frozen startup snapshot** is injected into prompts; new writes become visible to the
-  next session
+- normal session prompts receive a **frozen startup snapshot** plus the workspace checkpoint;
+  degraded resume replay receives the same checkpoint before persisted transcript context
 
 <OperatorNote>
   Memory v2 is the only memory subsystem. There is no `[memory.v2] enabled` flag and no legacy
@@ -33,6 +33,9 @@ SessionStart[Session starts] --> Snapshot[Frozen snapshot]
 Snapshot --> Recall[Deterministic recall packaging]
 Snapshot --> StartupPrompt[Startup system prompt]
 StartupPrompt --> Agent[Agent works]
+Agent --> SessionStop[Eligible session stops]
+SessionStop --> Checkpoint[Update workspace checkpoint]
+Checkpoint --> Controller
 Agent --> Extractor[Async extractor on session.message_persisted]
 Extractor --> Controller[Write controller]
 Agent --> Tools[CLI / HTTP / UDS / native tools]
@@ -46,9 +49,10 @@ Files --> NextSession[Next session sees the new snapshot]`}
 />
 
 Memory is not streamed into an already-running process. When a session starts, AGH captures a
-**frozen snapshot** of the resolved scopes, packages a recall block, prepends the assembled memory
-section to the agent prompt, and hands that prompt to the ACP subprocess. Writes during the session
-are durable immediately but only become visible to the **next** session via a fresh snapshot.
+**frozen snapshot** of the resolved scopes, packages a recall block, appends the current workspace
+checkpoint, prepends the assembled memory section to the agent prompt, and hands that prompt to the
+ACP subprocess. Writes during the session are durable immediately but only become visible to the
+**next** session via a fresh snapshot.
 
 ## Scopes And Authorities
 
@@ -153,6 +157,7 @@ $AGH_HOME/memory/
 
 <workspace>/.agh/memory/
   MEMORY.md
+  project_checkpoint_summary.md # machine-maintained continuity context
   project_runtime-docs.md
   reference_session-events.md
   _system/
@@ -191,6 +196,47 @@ There is exactly one write path. Controller-bypassing tools are forbidden; provi
 that collide with reserved names are rejected at registration with a `memory.provider.collision`
 event.
 
+### Atomic native-tool batches
+
+`agh__memory_propose` accepts `operations` when an agent needs to change several parts of one
+Memory v2 document as a unit. The batch is closed to three body operations:
+
+| Action    | Required fields       | Effect                                                              |
+| --------- | --------------------- | ------------------------------------------------------------------- |
+| `add`     | `content`             | Appends one Markdown block unless that exact block already exists.  |
+| `replace` | `old_text`, `content` | Replaces `old_text` when it occurs exactly once in the staged body. |
+| `remove`  | `old_text`            | Removes `old_text` when it occurs exactly once in the staged body.  |
+
+Operations run in array order against an in-memory body. A missing or ambiguous `old_text`, an
+invalid operation shape, unsafe content, or an oversized final body rejects the whole batch before
+a decision is written. AGH checks `[memory.file] max_lines` and `max_bytes` only against the final
+body, so one call can remove stale content and add a replacement even when the current file is at
+capacity.
+
+```json
+{
+  "scope": "workspace",
+  "workspace": "01HXJ9YR4Q...",
+  "filename": "project_release.md",
+  "operations": [
+    {
+      "action": "remove",
+      "old_text": "The release still uses the retired deploy path."
+    },
+    {
+      "action": "add",
+      "content": "The release uses the signed artifact deploy path."
+    }
+  ]
+}
+```
+
+The result becomes one controller decision and one Markdown mutation; no earlier operation can
+land by itself. Retrying the same payload returns the existing decision and marks each operation
+`already_applied`. `operations` cannot be mixed with the single-write `operation` or top-level
+`content` fields. Batch support is currently agent-manageable through `agh__memory_propose`; the
+CLI and HTTP/UDS entry-write shapes remain single-document replacements.
+
 ## Frozen Snapshot And Recall
 
 At session start, AGH captures a **frozen snapshot** of the resolved memory context (global,
@@ -201,57 +247,100 @@ workspace, and the agent's two tiers when applicable). The snapshot includes:
   scope shadow, top-K) when a contextual query is available
 - a freshness banner for entries whose age exceeds `memory.recall.freshness.banner_after_days`
 
-The snapshot is captured once per session and **does not** mutate mid-session. Sub-agent sessions
-inherit the parent snapshot read-only. Manual writes during the session land in the WAL and on
-disk, but the running session keeps its captured prompt; the **next** session sees a fresh
-snapshot.
+Snapshots are cached by session boot request and memory generation. Repeating the same assembly
+request without a memory mutation returns byte-identical prefix content. A committed write,
+delete, or reindex advances the shared generation; the next assembly captures the new index once
+and then remains byte-identical at that generation. AGH does not rewrite a system prompt already
+delivered to an ACP subprocess, so a running session keeps that delivered prompt and the **next**
+session receives the new snapshot. Sub-agent sessions inherit the parent snapshot read-only.
 
 `_system/` artifacts are never injected into the prompt by default. Recall skips ledger files,
 extractor inbox/DLQ artifacts, and dreaming output unless the caller explicitly opts in.
+
+## Workspace Checkpoint Continuity
+
+AGH maintains one workspace-scoped `project` memory at
+`<workspace>/.agh/memory/project_checkpoint_summary.md`. After an eligible user, coordinator, or
+dream session stops, the active workspace memory provider receives a bounded transcript projection.
+The bundled local provider updates the previous checkpoint instead of regenerating it from scratch.
+The file keeps the 32 most recent unique source-session IDs in provenance.
+
+Checkpoint writes use the same controller and `memory_decisions` WAL as operator and agent writes.
+Ordinary memory proposals and generated checkpoint summaries reject raw `agh_claim_*` tokens before
+persistence. Malformed, oversized, raw-token-bearing, or failed generations leave the previous
+checkpoint unchanged. Inspect or revert its decisions through the existing surfaces:
+
+```bash
+agh memory show project_checkpoint_summary.md --scope workspace
+agh memory decisions list --filename project_checkpoint_summary.md -o json
+agh memory decisions revert <decision-id>
+```
+
+New sessions receive the complete checkpoint in an `<agh_checkpoint_summary>` block after their
+frozen memory indexes. When ACP session loading is unavailable or its saved provider session is
+missing, degraded resume places that checkpoint before the pruned transcript replay. The block is
+reference-only historical context: it cannot replace the current user request. Workspace identity
+is resolved explicitly on both write and injection paths, so one workspace's checkpoint cannot
+enter another workspace's prompt.
+
+### Pressure compaction coverage
+
+When an ACP usage update reaches `[session.compaction].pressure_threshold`, AGH selects only the
+complete persisted turns before the triggering turn. The active memory provider summarizes that
+sequence span into the workspace checkpoint and records hidden `(workspace, session, from, to)`
+coverage before the session store marks the rows archived. Repeating the same span is idempotent:
+existing coverage prevents duplicate provider work while still allowing an interrupted archive to
+finish.
+
+Archiving is non-destructive. `agh session events` and `agh session history` retain the rows for
+forensics, while degraded replay excludes archived rows so it does not re-inject context already
+covered by the checkpoint. A successful provider `session/load` keeps using provider-owned context.
+If a daemon stops after checkpoint coverage but before archive, the original events remain
+unarchived and readable; AGH never archives first and hopes a later summary succeeds.
 
 ## Operator And Agent Surfaces
 
 Memory is reachable from CLI, HTTP, UDS, and native tools with parity. The Slice 1 verbs are:
 
-| Capability         | CLI                                                            | HTTP / UDS                                                                | Native tool                                             |
-| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------- |
-| List entries       | `agh memory list [--type/--sort/--cursor/--limit]`             | `GET /api/memory?type=&sort=&cursor=&limit=`                              | `agh__memory_list`                                      |
-| Show one entry     | `agh memory show <filename>`                                   | `GET /api/memory/{filename}`                                              | `agh__memory_show`                                      |
-| Search recall      | `agh memory search <query>`                                    | `POST /api/memory/search`                                                 | `agh__memory_search`                                    |
-| Operator write     | `agh memory write`                                             | `POST /api/memory`                                                        | n/a                                                     |
-| Edit               | `agh memory edit <filename>`                                   | `PATCH /api/memory/{filename}`                                            | `agh__memory_propose`                                   |
-| Delete             | `agh memory delete <filename>`                                 | `DELETE /api/memory/{filename}`                                           | `agh__memory_propose`                                   |
-| Agent proposal     | n/a                                                            | controller-backed via `POST /api/memory` / `PATCH /api/memory/{filename}` | `agh__memory_propose`                                   |
-| Ad-hoc note        | n/a                                                            | `POST /api/memory/ad-hoc`                                                 | `agh__memory_note`                                      |
-| Dream trigger      | `agh memory dream trigger`                                     | `POST /api/memory/dreams/trigger`                                         | `agh__memory_dream_trigger`                             |
-| Dream listing      | `agh memory dream show <date-or-run-id>`                       | `GET /api/memory/dreams`, `GET /api/memory/dreams/{dream_id}`             | `agh__memory_dream_list`, `agh__memory_dream_show`      |
-| Dream retry        | `agh memory dream retry <run_id>`                              | `POST /api/memory/dreams/{dream_id}/retry`                                | `agh__memory_dream_retry`                               |
-| Dream status       | `agh memory dream status`                                      | `GET /api/memory/dreams/status`                                           | `agh__memory_dream_status`                              |
-| Decisions list     | `agh memory decisions list [--filename <file>]`                | `GET /api/memory/decisions[?filename=<file>]`                             | `agh__memory_decisions_list`                            |
-| Decision detail    | `agh memory decisions show <id>`                               | `GET /api/memory/decisions/{decision_id}`                                 | `agh__memory_decisions_show`                            |
-| Decision revert    | `agh memory decisions revert <id>`                             | `POST /api/memory/decisions/{decision_id}/revert`                         | `agh__memory_decisions_revert`                          |
-| Recall trace       | `agh memory recall trace <session_id> <turn_seq>`              | `GET /api/memory/recall-traces/{session_id}/{turn_seq}`                   | `agh__memory_recall_trace`                              |
-| History            | `agh memory history`                                           | `GET /api/memory/history`                                                 | `agh__memory_admin_history`                             |
-| Health             | `agh memory health`                                            | `GET /api/memory/health`                                                  | `agh__memory_health`                                    |
-| Config metadata    | n/a                                                            | `GET /api/memory/config`                                                  | n/a                                                     |
-| Reindex            | `agh memory reindex`                                           | `POST /api/memory/reindex`                                                | `agh__memory_reindex`                                   |
-| Promote            | `agh memory promote --from <scope[:tier]> --to <scope[:tier]>` | `POST /api/memory/promote`                                                | `agh__memory_promote`                                   |
-| Reset              | `agh memory reset`                                             | `POST /api/memory/reset`                                                  | `agh__memory_reset`                                     |
-| Reload snapshot    | `agh memory reload`                                            | `POST /api/memory/reload`                                                 | `agh__memory_reload`                                    |
-| Scope inspector    | `agh memory scope-show`                                        | `GET /api/memory/scope-show`                                              | `agh__memory_scope_show`                                |
-| Daily logs         | `agh memory daily ls`                                          | `GET /api/memory/daily`                                                   | `agh__memory_daily_list`                                |
-| Extractor status   | `agh memory extractor status`                                  | `GET /api/memory/extractor/status`                                        | `agh__memory_extractor_status`                          |
-| Extractor failures | `agh memory extractor list-pending`                            | `GET /api/memory/extractor/failures`                                      | `agh__memory_extractor_failures`                        |
-| Extractor replay   | `agh memory extractor replay --session <id>`                   | `POST /api/memory/extractor/retry`                                        | `agh__memory_extractor_retry`                           |
-| Extractor drain    | `agh memory extractor drain`                                   | `POST /api/memory/extractor/drain`                                        | `agh__memory_extractor_drain`                           |
-| Provider list      | `agh memory provider list`                                     | `GET /api/memory/providers`, `GET /api/memory/providers/{provider_name}`  | `agh__memory_provider_list`, `agh__memory_provider_get` |
-| Provider select    | n/a                                                            | `POST /api/memory/providers/select`                                       | `agh__memory_provider_select`                           |
-| Provider enable    | `agh memory provider enable <name>`                            | `POST /api/memory/providers/{provider_name}/enable`                       | `agh__memory_provider_enable`                           |
-| Provider disable   | `agh memory provider disable <name>`                           | `POST /api/memory/providers/{provider_name}/disable`                      | `agh__memory_provider_disable`                          |
-| Session ledger     | n/a                                                            | `GET /api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger`  | `agh__memory_session_ledger`                            |
-| Session replay     | n/a                                                            | `POST /api/workspaces/{workspace_id}/memory/sessions/{session_id}/replay` | `agh__memory_session_replay`                            |
-| Session prune      | n/a                                                            | `POST /api/memory/sessions/prune`                                         | `agh__memory_sessions_prune`                            |
-| Session repair     | n/a                                                            | `POST /api/memory/sessions/repair`                                        | `agh__memory_sessions_repair`                           |
+| Capability         | CLI                                                            | HTTP / UDS                                                                | Native tool                                               |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------- |
+| List entries       | `agh memory list [--type/--sort/--cursor/--limit]`             | `GET /api/memory?type=&sort=&cursor=&limit=`                              | `agh__memory_list`                                        |
+| Show one entry     | `agh memory show <filename>`                                   | `GET /api/memory/{filename}`                                              | `agh__memory_show`                                        |
+| Search recall      | `agh memory search <query>`                                    | `POST /api/memory/search`                                                 | `agh__memory_search`                                      |
+| Operator write     | `agh memory write`                                             | `POST /api/memory`                                                        | n/a                                                       |
+| Edit               | `agh memory edit <filename>`                                   | `PATCH /api/memory/{filename}`                                            | `agh__memory_propose`                                     |
+| Delete             | `agh memory delete <filename>`                                 | `DELETE /api/memory/{filename}`                                           | `agh__memory_propose`                                     |
+| Agent proposal     | n/a                                                            | controller-backed via `POST /api/memory` / `PATCH /api/memory/{filename}` | `agh__memory_propose` (single write or atomic body batch) |
+| Ad-hoc note        | n/a                                                            | `POST /api/memory/ad-hoc`                                                 | `agh__memory_note`                                        |
+| Dream trigger      | `agh memory dream trigger`                                     | `POST /api/memory/dreams/trigger`                                         | `agh__memory_dream_trigger`                               |
+| Dream listing      | `agh memory dream show <date-or-run-id>`                       | `GET /api/memory/dreams`, `GET /api/memory/dreams/{dream_id}`             | `agh__memory_dream_list`, `agh__memory_dream_show`        |
+| Dream retry        | `agh memory dream retry <run_id>`                              | `POST /api/memory/dreams/{dream_id}/retry`                                | `agh__memory_dream_retry`                                 |
+| Dream status       | `agh memory dream status`                                      | `GET /api/memory/dreams/status`                                           | `agh__memory_dream_status`                                |
+| Decisions list     | `agh memory decisions list [--filename <file>]`                | `GET /api/memory/decisions[?filename=<file>]`                             | `agh__memory_decisions_list`                              |
+| Decision detail    | `agh memory decisions show <id>`                               | `GET /api/memory/decisions/{decision_id}`                                 | `agh__memory_decisions_show`                              |
+| Decision revert    | `agh memory decisions revert <id>`                             | `POST /api/memory/decisions/{decision_id}/revert`                         | `agh__memory_decisions_revert`                            |
+| Recall trace       | `agh memory recall trace <session_id> <turn_seq>`              | `GET /api/memory/recall-traces/{session_id}/{turn_seq}`                   | `agh__memory_recall_trace`                                |
+| History            | `agh memory history`                                           | `GET /api/memory/history`                                                 | `agh__memory_admin_history`                               |
+| Health             | `agh memory health`                                            | `GET /api/memory/health`                                                  | `agh__memory_health`                                      |
+| Config metadata    | n/a                                                            | `GET /api/memory/config`                                                  | n/a                                                       |
+| Reindex            | `agh memory reindex`                                           | `POST /api/memory/reindex`                                                | `agh__memory_reindex`                                     |
+| Promote            | `agh memory promote --from <scope[:tier]> --to <scope[:tier]>` | `POST /api/memory/promote`                                                | `agh__memory_promote`                                     |
+| Reset              | `agh memory reset`                                             | `POST /api/memory/reset`                                                  | `agh__memory_reset`                                       |
+| Reload snapshot    | `agh memory reload`                                            | `POST /api/memory/reload`                                                 | `agh__memory_reload`                                      |
+| Scope inspector    | `agh memory scope-show`                                        | `GET /api/memory/scope-show`                                              | `agh__memory_scope_show`                                  |
+| Daily logs         | `agh memory daily ls`                                          | `GET /api/memory/daily`                                                   | `agh__memory_daily_list`                                  |
+| Extractor status   | `agh memory extractor status`                                  | `GET /api/memory/extractor/status`                                        | `agh__memory_extractor_status`                            |
+| Extractor failures | `agh memory extractor list-pending`                            | `GET /api/memory/extractor/failures`                                      | `agh__memory_extractor_failures`                          |
+| Extractor replay   | `agh memory extractor replay --session <id>`                   | `POST /api/memory/extractor/retry`                                        | `agh__memory_extractor_retry`                             |
+| Extractor drain    | `agh memory extractor drain`                                   | `POST /api/memory/extractor/drain`                                        | `agh__memory_extractor_drain`                             |
+| Provider list      | `agh memory provider list`                                     | `GET /api/memory/providers`, `GET /api/memory/providers/{provider_name}`  | `agh__memory_provider_list`, `agh__memory_provider_get`   |
+| Provider select    | n/a                                                            | `POST /api/memory/providers/select`                                       | `agh__memory_provider_select`                             |
+| Provider enable    | `agh memory provider enable <name>`                            | `POST /api/memory/providers/{provider_name}/enable`                       | `agh__memory_provider_enable`                             |
+| Provider disable   | `agh memory provider disable <name>`                           | `POST /api/memory/providers/{provider_name}/disable`                      | `agh__memory_provider_disable`                            |
+| Session ledger     | n/a                                                            | `GET /api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger`  | `agh__memory_session_ledger`                              |
+| Session replay     | n/a                                                            | `POST /api/workspaces/{workspace_id}/memory/sessions/{session_id}/replay` | `agh__memory_session_replay`                              |
+| Session prune      | n/a                                                            | `POST /api/memory/sessions/prune`                                         | `agh__memory_sessions_prune`                              |
+| Session repair     | n/a                                                            | `POST /api/memory/sessions/repair`                                        | `agh__memory_sessions_repair`                             |
 
 Entry writes from agents still route through `agh__memory_propose` and `agh__memory_note`; both go
 through the controller. The operational tools live in the separate `agh__memory_admin` toolset and
@@ -265,9 +354,9 @@ CLI verbs accept `-o json` and `-o jsonl` for structured output. Errors are dete
 
 ## MEMORY.md Indexes
 
-The per-scope `MEMORY.md` is the prompt-safe table of contents. AGH reads it inside the snapshot,
-caps it at `[memory.file] max_lines = 200` and `max_bytes = 25600`, and includes the entries that
-fit. Useful index entries are short and point to one file:
+The per-scope `MEMORY.md` is the prompt-safe table of contents. `[memory.file] max_lines = 200` and
+`max_bytes = 25600` cap both a controller-authored document body and the index content included in
+the snapshot. Useful index entries are short and point to one file:
 
 ```markdown
 - [Review Style](user_review-style.md) — User wants concise review findings with file references first.

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -217,6 +218,117 @@ func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.
 			t.Fatalf("persisted policy tools = %#v, want %#v", got, want)
 		}
 	})
+}
+
+func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing.T) {
+	t.Parallel()
+
+	driverPath := acpmock.RequireDriver(t)
+	fixturePath, err := filepath.Abs(filepath.Join(
+		"..",
+		"testutil",
+		"acpmock",
+		"testdata",
+		"resume_replay_fixture.json",
+	))
+	if err != nil {
+		t.Fatalf("Abs(fixture) error = %v", err)
+	}
+	diagnosticsPath := filepath.Join(t.TempDir(), "resume-replay-diagnostics.jsonl")
+	command := acpmock.BuildCommand(driverPath, fixturePath, "resume-replay", diagnosticsPath)
+
+	h := newHarness(t)
+	h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(driverPath)
+	resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
+	}
+	resolved.Config = h.cfg
+	resolved.Agents = []aghconfig.AgentDef{{
+		Name:     "resume-replay",
+		Provider: acpmock.ProviderName,
+		Command:  command,
+		Prompt:   "You are a deterministic resume replay agent.",
+	}}
+	h.resolver.upsert(&resolved)
+	newRuntimeDriver := func() AgentDriver {
+		return NewACPDriverAdapter(acp.New(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil)))))
+	}
+	h.manager = newManagerWithHarness(t, h, WithDriver(newRuntimeDriver()))
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "resume-replay",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	firstPrompt, err := h.manager.Prompt(
+		testutil.Context(t),
+		session.ID,
+		"Remember that the recovery code is cobalt.",
+	)
+	if err != nil {
+		t.Fatalf("Prompt(before restart) error = %v", err)
+	}
+	collectEvents(t, firstPrompt)
+	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("Stop(before restart) error = %v", err)
+	}
+	eventsBeforeResume := readStoredEvents(t, session)
+	if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown(before manager restart) error = %v", err)
+	}
+	checkpoint := "<agh_checkpoint_summary>\n## Goal\nPreserve the cobalt decision.\n</agh_checkpoint_summary>"
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithDriver(newRuntimeDriver()),
+		WithPromptAssembler(&resumeContextPromptAssembler{checkpoint: checkpoint}),
+	)
+
+	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+	if err != nil {
+		t.Fatalf("Resume(load unsupported) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil &&
+			!errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("Stop(resumed) error = %v", err)
+		}
+	})
+
+	secondPrompt, err := h.manager.Prompt(
+		testutil.Context(t),
+		resumed.ID,
+		"What was the recovery code?",
+	)
+	if err != nil {
+		t.Fatalf("Prompt(after restart) error = %v", err)
+	}
+	secondEvents := collectEvents(t, secondPrompt)
+	if !slices.ContainsFunc(secondEvents, func(event acp.AgentEvent) bool {
+		return event.Type == acp.EventTypeAgentMessage && strings.Contains(event.Text, "cobalt")
+	}) {
+		t.Fatalf("resumed prompt events = %#v, want pre-restart recovery code", secondEvents)
+	}
+
+	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics() error = %v", err)
+	}
+	prompts := acpmock.PromptDiagnostics(acpmock.DiagnosticsForAGHSession(records, resumed.ID))
+	if got, want := len(prompts), 2; got != want {
+		t.Fatalf("resume replay prompt diagnostics = %#v, want %d prompt records", prompts, want)
+	}
+	checkpointIndex := strings.Index(prompts[1].Prompt, "<agh_checkpoint_summary>")
+	replayIndex := strings.Index(prompts[1].Prompt, resumeReplayOpenTag)
+	if checkpointIndex < 0 || replayIndex < 0 || checkpointIndex >= replayIndex {
+		t.Fatalf("resume replay checkpoint ordering invalid:\n%s", prompts[1].Prompt)
+	}
+	assertResumeReplayEqualsPrunedEvents(t, prompts[1].Prompt, eventsBeforeResume)
+	assertContextRebuiltMarkerCount(t, readStoredEvents(t, resumed), 1)
 }
 
 func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.T) {

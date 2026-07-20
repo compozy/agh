@@ -29,6 +29,19 @@ func (m *Service) resolveQueuedRunParticipationWithStore(
 	if err != nil {
 		return participation.Spec{}, err
 	}
+	if strings.TrimSpace(taskRecord.WorkspaceID) == "" {
+		localSpec, resolved, resolveErr := resolveGlobalLocalParticipation(
+			request,
+			requestSource,
+			definition,
+		)
+		if resolveErr != nil {
+			return participation.Spec{}, resolveErr
+		}
+		if resolved {
+			return localSpec, nil
+		}
+	}
 	if m.participationResolver == nil {
 		if request == nil && definition == nil {
 			return participation.Spec{
@@ -61,6 +74,52 @@ func (m *Service) resolveQueuedRunParticipationWithStore(
 		Coordinated: taskRecord.Scope.Normalize() == ScopeWorkspace &&
 			runKind.Normalize() == RunKindWorker && strings.TrimSpace(loopRunID) == "",
 	})
+}
+
+func resolveGlobalLocalParticipation(
+	request *participation.Request,
+	requestSource participation.Source,
+	definition *participation.Request,
+) (participation.Spec, bool, error) {
+	selected := request
+	source := requestSource
+	if !participationRequestHasIntent(selected) {
+		selected = definition
+		source = participation.SourceTaskProfile
+	}
+	if !participationRequestHasIntent(selected) {
+		return participation.LocalSpec(), true, nil
+	}
+
+	normalized, err := participation.NormalizeIntent(*selected)
+	if err != nil {
+		return participation.Spec{}, false, fmt.Errorf("task: validate global participation intent: %w", err)
+	}
+	if normalized.Mode != nil && *normalized.Mode == participation.ModeLive {
+		return participation.Spec{}, false, nil
+	}
+	if selected == request {
+		switch source {
+		case "", participation.SourceExplicitRequest:
+			source = participation.SourceExplicitRequest
+		case participation.SourceAutomationJob:
+		default:
+			return participation.Spec{}, false, fmt.Errorf(
+				"task: network participation request source %q is not allowed",
+				source,
+			)
+		}
+	}
+	return participation.Spec{
+		Version: participation.SpecVersion,
+		Mode:    participation.ModeLocal,
+		Source:  source,
+	}, true, nil
+}
+
+func participationRequestHasIntent(request *participation.Request) bool {
+	return request != nil && (request.Mode != nil || request.ChannelStrategy != nil ||
+		request.ChannelID != nil || request.Bounds != nil)
 }
 
 func (m *Service) observeCommittedRunParticipation(

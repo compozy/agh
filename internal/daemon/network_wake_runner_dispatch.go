@@ -36,10 +36,14 @@ func makeNetworkWakePending(
 ) []networkWakePending {
 	pending := make([]networkWakePending, 0, len(notifications))
 	for _, notification := range notifications {
+		deadline := notification.ReadyAt.UTC()
+		if deadline.IsZero() {
+			deadline = readyAt
+		}
 		pending = append(pending, networkWakePending{
 			notification: notification,
 			key:          networkWakeDispatchKey(notification),
-			readyAt:      readyAt,
+			readyAt:      deadline,
 		})
 	}
 	return pending
@@ -94,11 +98,12 @@ func (r *networkWakeRunner) run(
 			return nil
 		case notification := <-r.notifications:
 			stopNetworkWakeRetryTimer(retryTimer)
-			addNetworkWakePending(&pending, known, networkWakePending{
-				notification: notification,
-				key:          networkWakeDispatchKey(notification),
-				readyAt:      r.now().UTC(),
-			})
+			for _, item := range makeNetworkWakePending(
+				[]store.CommittedNetworkNotification{notification},
+				r.now().UTC(),
+			) {
+				addNetworkWakePending(&pending, known, item)
+			}
 		case result := <-results:
 			stopNetworkWakeRetryTimer(retryTimer)
 			delete(activeKeys, result.pending.key)

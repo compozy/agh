@@ -2,7 +2,9 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -121,6 +123,8 @@ type TokenStats struct {
 	TotalTokens  *int64
 	TotalCost    *float64
 	CostCurrency *string
+	CostStatus   string
+	CostSource   string
 	TurnCount    int64
 	UpdatedAt    time.Time
 }
@@ -134,6 +138,8 @@ type TokenStatsUpdate struct {
 	TotalTokens  *int64
 	CostAmount   *float64
 	CostCurrency *string
+	CostStatus   string
+	CostSource   string
 	Turns        int64
 	UpdatedAt    time.Time
 }
@@ -146,7 +152,49 @@ func (u TokenStatsUpdate) Validate() error {
 	if err := requireField(u.AgentName, "token stats agent name"); err != nil {
 		return err
 	}
+	return validateTokenStatsCost(u)
+}
+
+func validateTokenStatsCost(update TokenStatsUpdate) error {
+	status := strings.TrimSpace(update.CostStatus)
+	source := strings.TrimSpace(update.CostSource)
+	switch status {
+	case tokenCostStatusActual:
+		if source != tokenCostSourceAgentReported ||
+			!validTokenStatsMoney(update.CostAmount, update.CostCurrency) {
+			return errors.New(
+				"store: actual token cost requires agent_reported amount and currency; " +
+					"amount must be finite and non-negative",
+			)
+		}
+	case tokenCostStatusEstimated:
+		if source != tokenCostSourceCatalogConfig &&
+			source != tokenCostSourceModelsDev && source != tokenCostSourceBuiltin {
+			return errors.New("store: estimated token cost requires a catalog source")
+		}
+		if !validTokenStatsMoney(update.CostAmount, update.CostCurrency) {
+			return errors.New(
+				"store: estimated token cost requires amount and currency; " +
+					"amount must be finite and non-negative",
+			)
+		}
+	case tokenCostStatusIncluded:
+		if source != tokenCostSourceNone || update.CostAmount != nil || update.CostCurrency != nil {
+			return errors.New("store: included token cost cannot carry amount or currency")
+		}
+	case tokenCostStatusUnknown:
+		if source != tokenCostSourceNone || update.CostAmount != nil || update.CostCurrency != nil {
+			return errors.New("store: unknown token cost cannot carry amount or currency")
+		}
+	default:
+		return fmt.Errorf("store: invalid token cost status %q", update.CostStatus)
+	}
 	return nil
+}
+
+func validTokenStatsMoney(amount *float64, currency *string) bool {
+	return amount != nil && *amount >= 0 && !math.IsNaN(*amount) && !math.IsInf(*amount, 0) &&
+		currency != nil && strings.TrimSpace(*currency) != ""
 }
 
 // TokenStatsQuery filters token aggregation lookups.

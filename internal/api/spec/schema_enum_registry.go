@@ -19,6 +19,7 @@ import (
 )
 
 var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
+	reflect.TypeFor[contract.DrainState]():                       drainStateValues(),
 	reflect.TypeFor[automationpkg.Scope]():                       automationScopeValues(),
 	reflect.TypeFor[automationpkg.JobSource]():                   automationSourceValues(),
 	reflect.TypeFor[automationpkg.ScheduleMode]():                automationScheduleModeValues(),
@@ -70,6 +71,7 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[contract.HeartbeatWakeResult]():              contract.HeartbeatWakeResultValues(),
 	reflect.TypeFor[contract.HeartbeatWakeReason]():              contract.HeartbeatWakeReasonValues(),
 	reflect.TypeFor[contract.SkillDiagnosticState]():             skillDiagnosticStateValues(),
+	reflect.TypeFor[contract.SkillActivationReasonCode]():        skillActivationReasonCodeValues(),
 	reflect.TypeFor[contract.SkillVerificationStatus]():          skillVerificationStatusValues(),
 	reflect.TypeFor[contract.BridgeSendTestStatus]():             contract.BridgeSendTestStatusValues(),
 	reflect.TypeFor[hooks.HookEvent]():                           hookEventValues(),
@@ -127,6 +129,8 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[bridgepkg.DeliveryMode]():             deliveryModeValues(),
 	reflect.TypeFor[modelcatalog.ReasoningEffort]():       modelcatalog.ReasoningEffortValues(),
 	reflect.TypeFor[modelcatalog.ReasoningSource]():       modelcatalog.ReasoningSourceValues(),
+	reflect.TypeFor[modelcatalog.CostStatus]():            modelcatalog.CostStatusValues(),
+	reflect.TypeFor[modelcatalog.CostSource]():            modelcatalog.CostSourceValues(),
 	reflect.TypeFor[session.Type]():                       sessionTypeValues(),
 	reflect.TypeFor[session.State]():                      sessionStateValues(),
 	reflect.TypeFor[store.StopReason]():                   stopReasonValues(),
@@ -137,9 +141,23 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[tools.ReasonCode]():                   toolReasonCodeValues(),
 	reflect.TypeFor[tools.ErrorCode]():                    toolErrorCodeValues(),
 	reflect.TypeFor[tools.ToolCallEventKind]():            toolCallEventKindValues(),
+	reflect.TypeFor[tools.ApprovalGrantDecision]():        toolApprovalGrantDecisionValues(),
+	reflect.TypeFor[tools.ApprovalGrantManagementScope](): toolApprovalGrantManagementScopeValues(),
 	reflect.TypeFor[extensionprotocol.HostAPIMethod]():    hostAPIMethodValues(),
 	reflect.TypeFor[participation.Mode]():                 participationModeValues(),
 	reflect.TypeFor[participation.ChannelStrategy]():      participationChannelStrategyValues(),
 	reflect.TypeFor[participation.Source]():               participationSourceValues(),
 	reflect.TypeFor[participation.OwnerKind]():            participationOwnerKindValues(),
 })
+
+func drainStateValues() []string {
+	return []string{string(contract.DrainStateActive), string(contract.DrainStateDraining)}
+}
+
+func toolApprovalGrantDecisionValues() []string {
+	return []string{string(tools.ApprovalGrantAllow), string(tools.ApprovalGrantReject)}
+}
+
+func toolApprovalGrantManagementScopeValues() []string {
+	return []string{string(tools.ApprovalGrantScopeAgent), string(tools.ApprovalGrantScopeTool)}
+}

@@ -8,15 +8,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/store"
+	sessionschema "github.com/compozy/agh/internal/store/sessiondb/schema"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/transcript"
 )
@@ -148,6 +151,77 @@ func TestSessionDBAppendEventIfAbsent(t *testing.T) {
 		}
 		if len(stored) != 1 || stored[0].Content != event.Content {
 			t.Fatalf("stored events = %#v, want one original event", stored)
+		}
+	})
+}
+
+func TestSessionDBArchivesEventRangesWithoutDeletingHistory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should archive one idempotent range while preserving history", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-archive-range")
+		for index, turnID := range []string{"turn-1", "turn-1", "turn-2"} {
+			if err := sessionDB.Record(ctx, SessionEvent{
+				TurnID:    turnID,
+				Type:      acp.EventTypeDone,
+				AgentName: "coder",
+				Content:   fmt.Sprintf(`{"index":%d}`, index),
+			}); err != nil {
+				t.Fatalf("Record(%d) error = %v", index, err)
+			}
+		}
+
+		result, err := sessionDB.ArchiveEvents(ctx, store.EventArchiveRequest{
+			FromSequence: 1,
+			ToSequence:   2,
+		})
+		if err != nil {
+			t.Fatalf("ArchiveEvents() error = %v", err)
+		}
+		if result.ArchivedCount != 2 {
+			t.Fatalf("ArchiveEvents().ArchivedCount = %d, want 2", result.ArchivedCount)
+		}
+		repeated, err := sessionDB.ArchiveEvents(ctx, store.EventArchiveRequest{
+			FromSequence: 1,
+			ToSequence:   2,
+		})
+		if err != nil {
+			t.Fatalf("ArchiveEvents(repeated) error = %v", err)
+		}
+		if repeated.ArchivedCount != 0 {
+			t.Fatalf("ArchiveEvents(repeated).ArchivedCount = %d, want 0", repeated.ArchivedCount)
+		}
+
+		all, err := sessionDB.Query(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("Query(all) error = %v", err)
+		}
+		if len(all) != 3 || !all[0].Archived || !all[1].Archived || all[2].Archived {
+			t.Fatalf("Query(all) = %#v, want two archived rows and one live row", all)
+		}
+		live, err := sessionDB.Query(ctx, EventQuery{Archive: store.EventArchiveUnarchived})
+		if err != nil {
+			t.Fatalf("Query(unarchived) error = %v", err)
+		}
+		if len(live) != 1 || live[0].Sequence != 3 {
+			t.Fatalf("Query(unarchived) = %#v, want only sequence 3", live)
+		}
+		archived, err := sessionDB.Query(ctx, EventQuery{Archive: store.EventArchiveArchived})
+		if err != nil {
+			t.Fatalf("Query(archived) error = %v", err)
+		}
+		if len(archived) != 2 || archived[0].Sequence != 1 || archived[1].Sequence != 2 {
+			t.Fatalf("Query(archived) = %#v, want sequences 1 and 2", archived)
+		}
+		history, err := sessionDB.History(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("History(all) error = %v", err)
+		}
+		if len(history) != 2 || len(history[0].Events) != 2 || len(history[1].Events) != 1 {
+			t.Fatalf("History(all) = %#v, want every archived and live row", history)
 		}
 	})
 }
@@ -320,8 +394,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 1 || firstStatus.AppliedCount != 1 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 1", firstStatus)
+		if firstStatus.Version != 2 || firstStatus.AppliedCount != 2 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 2", firstStatus)
 		}
 		assertUniqueIndex(t, first.db, "events", "idx_events_sequence")
 		event := SessionEvent{
@@ -364,6 +438,80 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 			t.Fatalf("events after reopen = %#v, want preserved event %#v", events, event)
 		}
 	})
+
+	t.Run("Should upgrade the recorded baseline prefix without archiving existing rows", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		db, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatalf("sql.Open() error = %v", err)
+		}
+		if err := store.Apply(ctx, db, previousSessionMigrationStream(t)); err != nil {
+			t.Fatalf("Apply(previous session stream) error = %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `
+			INSERT INTO events (
+				id, sequence, turn_id, type, agent_name, content, timestamp, transcript_entry_key
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			"event-before-archive-column",
+			1,
+			"turn-before-archive-column",
+			acp.EventTypeDone,
+			"coder",
+			`{"type":"done"}`,
+			store.FormatTimestamp(time.Date(2026, 7, 15, 9, 0, 0, 0, time.UTC)),
+			"",
+		); err != nil {
+			t.Fatalf("insert baseline event error = %v", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(previous stream) error = %v", err)
+		}
+
+		upgraded, err := OpenSessionDB(ctx, "sess-prefix-upgrade", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close(upgraded) error = %v", err)
+			}
+		})
+		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(upgraded) error = %v", err)
+		}
+		if status.Version != 2 || status.AppliedCount != 2 {
+			t.Fatalf("Status(upgraded) = %#v, want version/applied count 2", status)
+		}
+		events, err := upgraded.Query(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("Query(upgraded) error = %v", err)
+		}
+		if len(events) != 1 || events[0].ID != "event-before-archive-column" || events[0].Archived {
+			t.Fatalf("Query(upgraded) = %#v, want preserved unarchived baseline row", events)
+		}
+	})
+}
+
+func previousSessionMigrationStream(t *testing.T) store.MigrationStream {
+	t.Helper()
+
+	const baselineAtlasSum = "h1:xcXDJKI/zrIp6qX1fIBm1Ey1BRZMDZnaNAw2z8+yW9A=\n" +
+		"00001_baseline.sql h1:bXOy48LeBzy7PLWzCXQW/1CdBi+3LQtUySjgT8uUN0E=\n"
+	baseline, err := fs.ReadFile(sessionschema.Files, "migrations/00001_baseline.sql")
+	if err != nil {
+		t.Fatalf("read recorded session baseline: %v", err)
+	}
+	stream := MigrationStream()
+	stream.FS = fstest.MapFS{
+		"00001_baseline.sql": &fstest.MapFile{Data: baseline},
+		"atlas.sum":          &fstest.MapFile{Data: []byte(baselineAtlasSum)},
+	}
+	stream.Dir = "."
+	return stream
 }
 
 func TestSessionDBTranscriptProjection(t *testing.T) {
@@ -1652,25 +1800,25 @@ func TestSessionDBWriteFailureReturnsError(t *testing.T) {
 
 		sessionDB := openTestSessionDB(t, "sess-full")
 
-		var pageCount int
-		if err := sessionDB.db.QueryRowContext(testutil.Context(t), "PRAGMA page_count").Scan(&pageCount); err != nil {
-			t.Fatalf("QueryRowContext(page_count) error = %v", err)
-		}
 		if _, err := sessionDB.db.ExecContext(
 			testutil.Context(t),
-			fmt.Sprintf("PRAGMA max_page_count = %d", pageCount),
+			`CREATE TRIGGER reject_session_event_insert
+			 BEFORE INSERT ON events
+			 BEGIN
+			   SELECT RAISE(FAIL, 'injected session event write failure');
+			 END`,
 		); err != nil {
-			t.Fatalf("ExecContext(max_page_count) error = %v", err)
+			t.Fatalf("ExecContext(create failure trigger) error = %v", err)
 		}
 
 		err := sessionDB.Record(testutil.Context(t), SessionEvent{
 			TurnID:    "turn-disk-full",
 			Type:      "agent_message",
 			AgentName: "coder",
-			Content:   strings.Repeat("x", 1<<20),
+			Content:   "write must fail",
 		})
-		if err == nil {
-			t.Fatal("Record() error = nil, want non-nil")
+		if err == nil || !strings.Contains(err.Error(), "injected session event write failure") {
+			t.Fatalf("Record() error = %v, want injected write failure", err)
 		}
 
 		events, queryErr := sessionDB.Query(testutil.Context(t), EventQuery{})

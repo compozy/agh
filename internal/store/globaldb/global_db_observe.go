@@ -8,9 +8,12 @@ import (
 	"strings"
 
 	eventspkg "github.com/compozy/agh/internal/events"
+	"github.com/compozy/agh/internal/redact"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
+
+const eventSummaryContentPayloadKey = "payload"
 
 // WriteEventSummary stores a lightweight cross-session summary entry.
 func (g *ObserveRepo) WriteEventSummary(ctx context.Context, summary store.EventSummary) error {
@@ -20,6 +23,7 @@ func (g *ObserveRepo) WriteEventSummary(ctx context.Context, summary store.Event
 	if err := g.populateEventSummaryProjections(ctx, &summary); err != nil {
 		return err
 	}
+	redactEventSummary(&summary)
 	if err := summary.Validate(); err != nil {
 		return err
 	}
@@ -46,6 +50,22 @@ func (g *ObserveRepo) WriteEventSummary(ctx context.Context, summary store.Event
 		return fmt.Errorf("store: insert event summary: %w", err)
 	}
 	return nil
+}
+
+func redactEventSummary(summary *store.EventSummary) {
+	if summary == nil {
+		return
+	}
+	summary.Summary = redact.String(summary.Summary)
+	if len(summary.Content) == 0 {
+		return
+	}
+	engine := redact.New(redact.Options{Disabled: !redact.Enabled()})
+	summary.Content = engine.RedactJSON(summary.Content, []string{
+		"body", "command", "content", "description", "detail", watchEventsContentErrorKey,
+		"message", "output", eventSummaryContentPayloadKey, loopRunEventPayloadKeyReason, "result", "stderr", "stdout",
+		loopRunEventPayloadKeySummary, loopRunEventPayloadKeyText, loopRunEventPayloadKeyTitle,
+	})
 }
 
 // ListEventSummaries returns global event summaries filtered by the supplied options.

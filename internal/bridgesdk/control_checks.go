@@ -34,7 +34,7 @@ func ProviderIdentityCheckRecord(err error, secretBindings ...string) bridgepkg.
 		return providerIdentityWarning(
 			"The provider identity check timed out. Check provider connectivity, then run bridge verification again.",
 		)
-	case ErrorClassTransient:
+	case ErrorClassOverloaded, ErrorClassServerError, ErrorClassTransient:
 		return providerIdentityWarning(
 			"The provider identity service is temporarily unavailable. Run bridge verification again.",
 		)

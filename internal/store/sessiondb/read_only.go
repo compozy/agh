@@ -411,6 +411,7 @@ func (s *ReadOnlySessionDB) scanSessionEvent(scanner rowScanner) (store.SessionE
 		&event.Type,
 		&event.AgentName,
 		&event.Content,
+		&event.Archived,
 		&timestamp,
 	); err != nil {
 		return store.SessionEvent{}, fmt.Errorf("store: scan read-only session event: %w", err)

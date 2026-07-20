@@ -1472,6 +1472,9 @@ func TestUpdateSettingsGeneralRejectsInvalidPayload(t *testing.T) {
 			"daemon": map[string]any{
 				"socket": "/tmp/agh.sock",
 			},
+			"redact": map[string]any{
+				"enabled": true,
+			},
 		},
 	})
 
@@ -1487,6 +1490,60 @@ func TestUpdateSettingsGeneralRejectsInvalidPayload(t *testing.T) {
 	decodeJSON(t, resp.Body.Bytes(), &payload)
 	if !strings.Contains(payload.Error, "general.config.session_timeout") {
 		t.Fatalf("payload.Error = %q, want section-specific context", payload.Error)
+	}
+}
+
+func TestUpdateSettingsGeneralRequiresRedactionGatePresence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		redact  any
+		wantErr string
+	}{
+		{
+			name:    "Should reject an omitted redact section",
+			wantErr: "general.config.redact is required",
+		},
+		{
+			name:    "Should reject an omitted enabled field",
+			redact:  map[string]any{},
+			wantErr: "general.config.redact.enabled is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			config := map[string]any{
+				"defaults":        map[string]any{"agent": "coder"},
+				"limits":          map[string]any{"max_concurrent_agents": 2},
+				"permissions":     map[string]any{"mode": "approve-reads"},
+				"session_timeout": "30m",
+				"http":            map[string]any{"host": "127.0.0.1", "port": 2123},
+				"daemon":          map[string]any{"socket": "/tmp/agh.sock"},
+			}
+			if tt.redact != nil {
+				config["redact"] = tt.redact
+			}
+			body := mustJSON(t, map[string]any{"config": config})
+
+			resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", body)
+			if got, want := resp.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+			}
+			if service.UpdateSectionCalls != 0 {
+				t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+			}
+			var payload contract.ErrorPayload
+			decodeJSON(t, resp.Body.Bytes(), &payload)
+			if !strings.Contains(payload.Error, tt.wantErr) {
+				t.Fatalf("payload.Error = %q, want substring %q", payload.Error, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -1957,6 +2014,11 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 	t.Parallel()
 
 	readOnly := true
+	inputRate := 1.0
+	outputRate := 2.0
+	cacheReadRate := 0.5
+	cacheWriteRate := 3.0
+	reasoningRate := 4.0
 	tests := []struct {
 		name           string
 		method         string
@@ -1981,6 +2043,14 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				testutil.DecodeJSONResponse(t, resp, &payload)
 				if len(payload.Providers) != 1 || payload.Providers[0].Name != "openai" {
 					t.Fatalf("providers payload = %#v, want openai provider", payload)
+				}
+				model := payload.Providers[0].Settings.Models.Curated[0]
+				if model.CostInputPerMillion == nil || *model.CostInputPerMillion != inputRate ||
+					model.CostOutputPerMillion == nil || *model.CostOutputPerMillion != outputRate ||
+					model.CostCacheReadPerMillion == nil || *model.CostCacheReadPerMillion != cacheReadRate ||
+					model.CostCacheWritePerMillion == nil || *model.CostCacheWritePerMillion != cacheWriteRate ||
+					model.CostReasoningPerMillion == nil || *model.CostReasoningPerMillion != reasoningRate {
+					t.Fatalf("providers payload five-rate pricing = %#v", model)
 				}
 			},
 		},
@@ -2054,11 +2124,16 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 						Default: "gpt-5.4",
 						Curated: []contract.SettingsProviderModelPayload{
 							{
-								ID:                     "gpt-5.4",
-								DisplayName:            "GPT-5.4",
-								SupportsReasoning:      new(true),
-								ReasoningEfforts:       []contract.ReasoningEffort{"low", "high"},
-								DefaultReasoningEffort: "high",
+								ID:                       "gpt-5.4",
+								DisplayName:              "GPT-5.4",
+								SupportsReasoning:        new(true),
+								ReasoningEfforts:         []contract.ReasoningEffort{"low", "high"},
+								DefaultReasoningEffort:   "high",
+								CostInputPerMillion:      new(1.0),
+								CostOutputPerMillion:     new(2.0),
+								CostCacheReadPerMillion:  new(0.5),
+								CostCacheWritePerMillion: new(3.0),
+								CostReasoningPerMillion:  new(4.0),
 							},
 							{ID: "gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"},
 						},
@@ -2098,6 +2173,13 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				}
 				if got, want := model.DefaultReasoningEffort, "high"; got != want {
 					t.Fatalf("Provider.Models.Curated[0].DefaultReasoningEffort = %q, want %q", got, want)
+				}
+				if model.CostInputPerMillion == nil || *model.CostInputPerMillion != 1 ||
+					model.CostOutputPerMillion == nil || *model.CostOutputPerMillion != 2 ||
+					model.CostCacheReadPerMillion == nil || *model.CostCacheReadPerMillion != 0.5 ||
+					model.CostCacheWritePerMillion == nil || *model.CostCacheWritePerMillion != 3 ||
+					model.CostReasoningPerMillion == nil || *model.CostReasoningPerMillion != 4 {
+					t.Fatalf("Provider.Models.Curated[0] five-rate pricing = %#v", model)
 				}
 				curation := service.LastPutCollectionRequest.ProviderModelCuration
 				if curation == nil || curation.ProviderID != "openai" || curation.ModelID != "gpt-5.4" {
@@ -2183,6 +2265,14 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 									Command: "codex",
 									Models: aghconfig.ProviderModelsConfig{
 										Default: "gpt-5.4",
+										Curated: []aghconfig.ProviderModelConfig{{
+											ID:                       "gpt-5.4",
+											CostInputPerMillion:      &inputRate,
+											CostOutputPerMillion:     &outputRate,
+											CostCacheReadPerMillion:  &cacheReadRate,
+											CostCacheWritePerMillion: &cacheWriteRate,
+											CostReasoningPerMillion:  &reasoningRate,
+										}},
 									},
 									CredentialSlots: []aghconfig.ProviderCredentialSlot{
 										{

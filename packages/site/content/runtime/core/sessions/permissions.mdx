@@ -137,9 +137,15 @@ AGH resolves the request as `reject-once`.
 
 ### What `allow-always` and `reject-always` mean
 
-AGH does not maintain its own daemon-side allowlist for those decisions. It picks the closest ACP
-option offered by the agent and returns that selected option. The agent runtime owns the long-lived
-meaning of "always".
+For a generic ACP permission request, AGH picks the closest option offered by the agent and returns
+it. The agent runtime owns the long-lived meaning of "always" for that request.
+
+Native tools routed through AGH's approval gateway have an additional daemon-owned contract.
+Selecting `allow-always` or `reject-always` stores an exact workspace + agent + tool + input-digest
+decision. The next matching invocation uses that decision before prompting, and the decision
+survives daemon restart. Operators and agents can inspect or revoke these records through Web,
+`agh tool approvals`, HTTP/UDS, or the `agh__tool_approvals_*` native tools. This does not change ACP
+subprocess permissions or sandbox policy. See [Policy and Invocation](/runtime/core/tools/policy-and-invocation#remembered-native-tool-decisions).
 
 ## Permission events
 
@@ -185,6 +191,31 @@ Interactive approval is exposed differently across AGH transports today:
 
 That means browser-facing clients, UDS clients, and the local CLI all drive the same approval
 surface today.
+
+## Clarification questions are not approvals
+
+`agh__clarify` lets an active managed session ask one bounded question and wait for an operator.
+It is a read-only, non-destructive tool with its own live broker; it does not reuse permission
+requests, approval decisions, or remembered native-tool grants. One session can have at most one
+pending clarification.
+
+The question may offer up to four unique choices or accept free text. The HTTP/UDS wire uses a
+zero-based `choice_index`; the CLI presents one-based choice numbers:
+
+```bash
+agh session clarify pending <session-id> -o json
+agh session clarify answer <session-id> <request-id> --choice 1 -o json
+agh session clarify answer <session-id> <request-id> --text "Use staging" -o json
+```
+
+HTTP and UDS use the same workspace-scoped routes:
+
+- `GET /api/workspaces/:workspace_id/sessions/:session_id/clarifications`
+- `POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer`
+
+The live pending list is exact daemon truth. Durable `clarify` events preserve the pending,
+resolved, timed-out, and canceled transitions for timeline and audit. Timeout returns exactly
+`{"choice":null,"text":"","fallback":true}`; stopping the session or daemon cancels the wait.
 
 ## Practical configuration example
 

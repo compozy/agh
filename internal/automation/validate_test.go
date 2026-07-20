@@ -26,8 +26,10 @@ func TestScheduleSpecValidate(t *testing.T) {
 		{
 			name: "every valid",
 			spec: ScheduleSpec{
-				Mode:     ScheduleModeEvery,
-				Interval: "30m",
+				Mode:                ScheduleModeEvery,
+				Interval:            "30m",
+				CatchUpPolicy:       SchedulerCatchUpPolicyRunOnce,
+				MisfireGraceSeconds: 300,
 			},
 		},
 		{
@@ -94,6 +96,42 @@ func TestScheduleSpecValidate(t *testing.T) {
 				Time: "tomorrow",
 			},
 			wantErr: "schedule.time",
+		},
+		{
+			name: "Should reject catch up policy for one-shot schedule",
+			spec: ScheduleSpec{
+				Mode:          ScheduleModeAt,
+				Time:          "2026-04-15T15:00:00Z",
+				CatchUpPolicy: SchedulerCatchUpPolicyRunOnce,
+			},
+			wantErr: "schedule.catch_up_policy",
+		},
+		{
+			name: "Should reject misfire grace for one-shot schedule",
+			spec: ScheduleSpec{
+				Mode:                ScheduleModeAt,
+				Time:                "2026-04-15T15:00:00Z",
+				MisfireGraceSeconds: 60,
+			},
+			wantErr: "schedule.misfire_grace_seconds",
+		},
+		{
+			name: "catch up policy invalid",
+			spec: ScheduleSpec{
+				Mode:          ScheduleModeEvery,
+				Interval:      "30m",
+				CatchUpPolicy: SchedulerCatchUpPolicy("burst"),
+			},
+			wantErr: "schedule.catch_up_policy",
+		},
+		{
+			name: "misfire grace negative",
+			spec: ScheduleSpec{
+				Mode:                ScheduleModeEvery,
+				Interval:            "30m",
+				MisfireGraceSeconds: -1,
+			},
+			wantErr: "schedule.misfire_grace_seconds",
 		},
 	}
 

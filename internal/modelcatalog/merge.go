@@ -79,12 +79,7 @@ func mergeModelGroup(rows []ModelRow, opts MergeOptions) Model {
 		if model.DefaultReasoningEffort == nil {
 			model.DefaultReasoningEffort = row.DefaultReasoningEffort
 		}
-		if model.CostInputPerMillion == nil {
-			model.CostInputPerMillion = row.CostInputPerMillion
-		}
-		if model.CostOutputPerMillion == nil {
-			model.CostOutputPerMillion = row.CostOutputPerMillion
-		}
+		mergeModelCosts(&model, row)
 		if model.ReleaseDate == nil {
 			model.ReleaseDate = cloneStringPtr(row.ReleaseDate)
 		}
@@ -99,6 +94,47 @@ func mergeModelGroup(rows []ModelRow, opts MergeOptions) Model {
 	applyAvailability(&model, rows)
 	applyEffectiveReasoningProfile(&model, rows, opts)
 	return model
+}
+
+func mergeModelCosts(model *Model, row ModelRow) {
+	mergeModelCost(
+		&model.CostInputPerMillion,
+		&model.CostInputSource,
+		row.CostInputPerMillion,
+		row.SourceKind,
+	)
+	mergeModelCost(
+		&model.CostOutputPerMillion,
+		&model.CostOutputSource,
+		row.CostOutputPerMillion,
+		row.SourceKind,
+	)
+	mergeModelCost(
+		&model.CostCacheReadPerMillion,
+		&model.CostCacheReadSource,
+		row.CostCacheReadPerMillion,
+		row.SourceKind,
+	)
+	mergeModelCost(
+		&model.CostCacheWritePerMillion,
+		&model.CostCacheWriteSource,
+		row.CostCacheWritePerMillion,
+		row.SourceKind,
+	)
+	mergeModelCost(
+		&model.CostReasoningPerMillion,
+		&model.CostReasoningSource,
+		row.CostReasoningPerMillion,
+		row.SourceKind,
+	)
+}
+
+func mergeModelCost(value **float64, source *SourceKind, rowValue *float64, rowSource SourceKind) {
+	if *value != nil || rowValue == nil {
+		return
+	}
+	*value = rowValue
+	*source = rowSource
 }
 
 func applyAvailability(model *Model, rows []ModelRow) {

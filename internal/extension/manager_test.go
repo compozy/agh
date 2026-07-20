@@ -937,6 +937,103 @@ func TestManagerReloadValidatesAndRestarts(t *testing.T) {
 			t.Fatalf("Statuses()[0].PID = %d, want %d after reload restart", got, want)
 		}
 	})
+
+	t.Run("Should serialize overlapping reloads", func(t *testing.T) {
+		t.Parallel()
+
+		withDaemonVersion(t, "0.5.0")
+		env := newRegistryTestEnv(t)
+		fixture := createManagerTestExtension(t, managerTestManifest("ext-reload-serialized", managerManifestOptions{
+			command:      "fake-extension",
+			capabilities: []string{"memory.backend"},
+			actions:      []string{"sessions/list"},
+			security:     []string{"session.read"},
+		}), nil)
+		installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+		secondInitializeStarted := make(chan struct{})
+		releaseSecondInitialize := make(chan struct{})
+		var releaseOnce sync.Once
+		t.Cleanup(func() {
+			releaseOnce.Do(func() { close(releaseSecondInitialize) })
+		})
+
+		firstProc := newFakeProcess(301)
+		secondProc := newFakeProcess(302)
+		secondProc.initHook = func() {
+			close(secondInitializeStarted)
+			<-releaseSecondInitialize
+		}
+		thirdProc := newFakeProcess(303)
+		launcher := &fakeLauncher{queue: []*fakeProcess{firstProc, secondProc, thirdProc}}
+		thirdLaunchStarted := make(chan struct{})
+		var thirdLaunchOnce sync.Once
+		launch := func(ctx context.Context, cfg subprocess.LaunchConfig) (processHandle, error) {
+			process, err := launcher.launch(ctx, cfg)
+			if launcher.launchCount() >= 3 {
+				thirdLaunchOnce.Do(func() { close(thirdLaunchStarted) })
+			}
+			return process, err
+		}
+
+		manager := NewManager(
+			env.registry,
+			withProcessLauncher(launch),
+			withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
+		)
+		if err := manager.Start(testutil.Context(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t)); err != nil {
+				t.Fatalf("Stop() cleanup error = %v", err)
+			}
+		})
+
+		firstReloadErr := make(chan error, 1)
+		go func() {
+			firstReloadErr <- manager.Reload(testutil.Context(t))
+		}()
+		select {
+		case <-secondInitializeStarted:
+		case <-time.After(time.Second):
+			t.Fatal("first Reload() did not reach the second process initialization")
+		}
+
+		secondReloadStarted := make(chan struct{})
+		secondReloadErr := make(chan error, 1)
+		go func() {
+			close(secondReloadStarted)
+			secondReloadErr <- manager.Reload(testutil.Context(t))
+		}()
+		<-secondReloadStarted
+
+		select {
+		case <-thirdLaunchStarted:
+			t.Fatal("overlapping Reload() launched a third process before the first reload completed")
+		case <-time.After(100 * time.Millisecond):
+		}
+
+		releaseOnce.Do(func() { close(releaseSecondInitialize) })
+		for index, errCh := range []<-chan error{firstReloadErr, secondReloadErr} {
+			select {
+			case err := <-errCh:
+				if err != nil {
+					t.Fatalf("Reload() call %d error = %v", index+1, err)
+				}
+			case <-time.After(time.Second):
+				t.Fatalf("Reload() call %d did not complete", index+1)
+			}
+		}
+
+		statuses := manager.Statuses()
+		if got, want := len(statuses), 1; got != want {
+			t.Fatalf("len(Statuses()) = %d, want %d", got, want)
+		}
+		if got, want := statuses[0].PID, 303; got != want {
+			t.Fatalf("Statuses()[0].PID = %d, want %d after serialized reloads", got, want)
+		}
+	})
 }
 
 func TestManagerHelperPathsAndAccessors(t *testing.T) {

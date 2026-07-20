@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	automationmodel "github.com/compozy/agh/internal/automation/model"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
@@ -111,6 +112,9 @@ id = "custom-model"
 reasoning_efforts = ["low", "max"]
 hidden = false
 release_date = "2026-07-10"
+cost_cache_read_per_million = 0.5
+cost_cache_write_per_million = 6
+cost_reasoning_per_million = 30
 `)
 		service := testService(t, homePaths, Dependencies{})
 
@@ -121,6 +125,9 @@ release_date = "2026-07-10"
 		provider := first.Providers["custom"]
 		provider.Models.Curated[0].ReasoningEfforts[0] = "mutated"
 		*provider.Models.Curated[0].Hidden = true
+		*provider.Models.Curated[0].CostCacheReadPerMillion = 99
+		*provider.Models.Curated[0].CostCacheWritePerMillion = 99
+		*provider.Models.Curated[0].CostReasoningPerMillion = 99
 		*provider.Models.Discovery.Enabled = false
 		*provider.SessionMCP = false
 
@@ -137,6 +144,14 @@ release_date = "2026-07-10"
 		}
 		if provider.Models.Curated[0].Hidden == nil || *provider.Models.Curated[0].Hidden {
 			t.Fatalf("second hidden = %#v, want explicit false", provider.Models.Curated[0].Hidden)
+		}
+		if provider.Models.Curated[0].CostCacheReadPerMillion == nil ||
+			*provider.Models.Curated[0].CostCacheReadPerMillion != 0.5 ||
+			provider.Models.Curated[0].CostCacheWritePerMillion == nil ||
+			*provider.Models.Curated[0].CostCacheWritePerMillion != 6 ||
+			provider.Models.Curated[0].CostReasoningPerMillion == nil ||
+			*provider.Models.Curated[0].CostReasoningPerMillion != 30 {
+			t.Fatalf("second five-rate pricing = %#v, want immutable snapshot", provider.Models.Curated[0])
 		}
 		if provider.Models.Discovery.Enabled == nil || !*provider.Models.Discovery.Enabled {
 			t.Fatalf("second discovery enabled = %#v, want true", provider.Models.Discovery.Enabled)
@@ -444,6 +459,33 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should project five-rate catalog metadata through provider settings", func(t *testing.T) {
+		t.Parallel()
+
+		service, _, _, _ := providerModelCurationTestService(t)
+		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		provider := mustFindProviderItem(t, envelope.Providers, "codex")
+		var model *aghconfig.ProviderModelConfig
+		for index := range provider.Settings.Models.Curated {
+			if provider.Settings.Models.Curated[index].ID == "gpt-5.6-sol" {
+				model = &provider.Settings.Models.Curated[index]
+				break
+			}
+		}
+		if model == nil || model.CostInputPerMillion == nil || *model.CostInputPerMillion != 5 ||
+			model.CostOutputPerMillion == nil || *model.CostOutputPerMillion != 30 ||
+			model.CostCacheReadPerMillion == nil || *model.CostCacheReadPerMillion != 0.5 ||
+			model.CostCacheWritePerMillion == nil || *model.CostCacheWritePerMillion != 6 ||
+			model.CostReasoningPerMillion == nil || *model.CostReasoningPerMillion != 30 {
+			t.Fatalf("provider settings five-rate catalog metadata = %#v", model)
+		}
+	})
+
 	t.Run("Should skip an unchanged builtin projection without applying runtime config", func(t *testing.T) {
 		t.Parallel()
 
@@ -641,7 +683,7 @@ func TestConfigApplyServiceAppliesExtensionSideLoadPolicyLive(t *testing.T) {
 	})
 }
 
-func TestReloadChangedPathsSeparatesProviderModelsFromRestartRequiredFields(t *testing.T) {
+func TestReloadChangedPaths(t *testing.T) {
 	t.Parallel()
 
 	baseProvider := aghconfig.ProviderConfig{
@@ -700,6 +742,23 @@ func TestReloadChangedPathsSeparatesProviderModelsFromRestartRequiredFields(t *t
 		}
 		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
 			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should emit the restart-required automation suggestion cap path", func(t *testing.T) {
+		t.Parallel()
+
+		current := &aghconfig.Config{}
+		current.Automation.Suggestions.PendingCap = automationmodel.DefaultSuggestionPendingCap
+		desired := *current
+		desired.Automation.Suggestions.PendingCap = automationmodel.DefaultSuggestionPendingCap + 1
+
+		want := []string{"automation.suggestions.pending_cap"}
+		if got := reloadChangedPaths(current, &desired); !slices.Equal(got, want) {
+			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(current, &desired); got != lifecycle.RestartRequired {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.RestartRequired)
 		}
 	})
 }
@@ -772,6 +831,9 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 			`reasoning_efforts =`,
 			`cost_input_per_million =`,
 			`cost_output_per_million =`,
+			`cost_cache_read_per_million =`,
+			`cost_cache_write_per_million =`,
+			`cost_reasoning_per_million =`,
 			`release_date =`,
 		} {
 			if strings.Contains(curatedTable, forbidden) {
@@ -824,6 +886,9 @@ featured = true
 			`display_name = "GPT-5.6 Sol"`,
 			`max_output_tokens = 128000`,
 			`cost_input_per_million = 5`,
+			`cost_cache_read_per_million = 0.5`,
+			`cost_cache_write_per_million = 6`,
+			`cost_reasoning_per_million = 30`,
 			`release_date = "2026-06-26"`,
 		} {
 			if strings.Contains(configText, forbidden) {
@@ -1393,6 +1458,9 @@ func providerModelCurationTestService(
 	supportsTools := true
 	costInput := 5.0
 	costOutput := 30.0
+	costCacheRead := 0.5
+	costCacheWrite := 6.0
+	costReasoning := 30.0
 	releaseDate := "2026-06-26"
 	catalog := &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
 		"codex": {
@@ -1408,15 +1476,18 @@ func providerModelCurationTestService(
 					modelcatalog.ReasoningEffortXHigh,
 					modelcatalog.ReasoningEffortMax,
 				},
-				DefaultReasoningEffort: &defaultEffort,
-				ContextWindow:          &contextWindow,
-				MaxOutputTokens:        &maxOutputTokens,
-				SupportsTools:          &supportsTools,
-				CostInputPerMillion:    &costInput,
-				CostOutputPerMillion:   &costOutput,
-				Featured:               true,
-				Curated:                true,
-				ReleaseDate:            &releaseDate,
+				DefaultReasoningEffort:   &defaultEffort,
+				ContextWindow:            &contextWindow,
+				MaxOutputTokens:          &maxOutputTokens,
+				SupportsTools:            &supportsTools,
+				CostInputPerMillion:      &costInput,
+				CostOutputPerMillion:     &costOutput,
+				CostCacheReadPerMillion:  &costCacheRead,
+				CostCacheWritePerMillion: &costCacheWrite,
+				CostReasoningPerMillion:  &costReasoning,
+				Featured:                 true,
+				Curated:                  true,
+				ReleaseDate:              &releaseDate,
 			},
 		},
 	}}

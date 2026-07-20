@@ -32,10 +32,6 @@ UPDATE loop_runs
 SET last_progress_at = CASE
       WHEN last_progress_at < CAST(sqlc.arg(terminal_at) AS TEXT) THEN CAST(sqlc.arg(terminal_at) AS TEXT)
       ELSE last_progress_at
-    END,
-    consecutive_failures = CASE
-      WHEN CAST(sqlc.arg(failure_delta) AS INTEGER) = 1 THEN consecutive_failures + 1
-      ELSE 0
     END
 WHERE id = sqlc.arg(id);
 
@@ -103,7 +99,19 @@ LIMIT sqlc.arg(result_limit);
 UPDATE task_runs
 SET status = sqlc.arg(queued_status), claimed_by_kind = NULL, claimed_by_ref = NULL, session_id = NULL,
     claim_token = NULL, claim_token_hash = NULL, lease_until = NULL, heartbeat_at = NULL,
-    claimed_at = NULL, started_at = NULL, ended_at = NULL, error = NULL, result_json = NULL
+    claimed_at = NULL, started_at = NULL, ended_at = NULL, error = NULL, result_json = NULL,
+    recovery_count = recovery_count + sqlc.arg(recovery_increment)
+WHERE id = sqlc.arg(id)
+  AND status = sqlc.arg(previous_status)
+  AND COALESCE(session_id, '') = sqlc.arg(session_id)
+  AND claim_token_hash = sqlc.arg(claim_token_hash)
+  AND lease_until = sqlc.arg(lease_until);
+
+-- name: ExhaustExpiredTaskRunLease :execrows
+UPDATE task_runs
+SET status = sqlc.arg(needs_attention_status), claimed_by_kind = NULL, claimed_by_ref = NULL,
+    session_id = NULL, claim_token = NULL, claim_token_hash = NULL, lease_until = NULL,
+    heartbeat_at = NULL, ended_at = sqlc.arg(ended_at), error = sqlc.arg(error), result_json = NULL
 WHERE id = sqlc.arg(id)
   AND status = sqlc.arg(previous_status)
   AND COALESCE(session_id, '') = sqlc.arg(session_id)
@@ -135,5 +143,13 @@ SELECT metadata_json FROM task_runs WHERE id = sqlc.arg(id);
 SELECT COUNT(1)
 FROM task_runs
 WHERE session_id = sqlc.arg(session_id)
+  AND status IN (sqlc.arg(claimed_status), sqlc.arg(starting_status), sqlc.arg(running_status))
+  AND (lease_until IS NULL OR lease_until > sqlc.arg(now));
+
+-- name: CountActiveTaskRunLeasesForWorkspace :one
+SELECT COUNT(1)
+FROM task_runs
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND run_kind IN ('worker', 'coordinator')
   AND status IN (sqlc.arg(claimed_status), sqlc.arg(starting_status), sqlc.arg(running_status))
   AND (lease_until IS NULL OR lease_until > sqlc.arg(now));

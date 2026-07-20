@@ -260,6 +260,19 @@ Important current provide surfaces:
 | `bridge.adapter` | `bridges/deliver`, `bridges/targets/snapshot`    |
 | `model.source`   | `models/list`                                    |
 
+### Clarification from extension tools
+
+A persistent tool-provider extension may declare `clarify/ask` in `actions.requires` and call it
+only while handling an active daemon-issued `tools/call`. The Go SDK keeps the opaque invocation
+authority internal and exposes
+`ToolRequest.AskClarification(ctx, ClarifyQuestion{Question: "...", Choices: []string{"..."}})`.
+The call blocks until the session operator answers, the configured timeout returns the fallback
+sentinel, or the active tool call is canceled.
+
+The daemon binds each invocation to the extension and active session, derives workspace and agent
+scope itself, and removes the binding when the tool call finishes. Extension code supplies only the
+question and optional choices; it cannot select another session or forge invocation authority.
+
 `bridge.adapter` extensions must also declare bridge metadata:
 
 ```toml

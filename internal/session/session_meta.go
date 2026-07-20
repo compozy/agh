@@ -26,6 +26,7 @@ func (s *Session) Meta() store.SessionMeta {
 		ReasoningEffort:      s.ReasoningEffort,
 		EffectivePermissions: s.EffectivePermissions,
 		WorkspaceID:          s.WorkspaceID,
+		CWD:                  s.CWD,
 		NetworkParticipation: participation.CloneSpec(s.NetworkParticipation),
 		SessionType:          string(normalizeSessionType(s.Type)),
 		Lineage:              store.NormalizeSessionLineage(s.ID, s.Lineage),

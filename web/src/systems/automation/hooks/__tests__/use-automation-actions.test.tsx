@@ -12,6 +12,10 @@ import {
   useUpdateAutomationJob,
   useUpdateAutomationTrigger,
 } from "@/systems/automation/hooks/use-automation-actions";
+import {
+  useAcceptAutomationSuggestion,
+  useDismissAutomationSuggestion,
+} from "@/systems/automation/hooks/use-automation-suggestion-actions";
 
 vi.mock("@/systems/automation/adapters/automation-api", () => ({
   createAutomationJob: vi.fn(),
@@ -23,6 +27,11 @@ vi.mock("@/systems/automation/adapters/automation-api", () => ({
   deleteAutomationTrigger: vi.fn(),
 }));
 
+vi.mock("@/systems/automation/adapters/automation-suggestions-api", () => ({
+  acceptAutomationSuggestion: vi.fn(),
+  dismissAutomationSuggestion: vi.fn(),
+}));
+
 import {
   createAutomationJob,
   createAutomationTrigger,
@@ -32,6 +41,10 @@ import {
   updateAutomationJob,
   updateAutomationTrigger,
 } from "@/systems/automation/adapters/automation-api";
+import {
+  acceptAutomationSuggestion,
+  dismissAutomationSuggestion,
+} from "@/systems/automation/adapters/automation-suggestions-api";
 
 function createWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
@@ -279,6 +292,71 @@ describe("automation mutation hooks", () => {
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
       queryKey: ["automation", "triggers", "runs", "trg_1", "", "", "", ""],
+    });
+  });
+
+  it("invalidates the exact pending suggestions list and job lists after acceptance", async () => {
+    vi.mocked(acceptAutomationSuggestion).mockResolvedValue({} as never);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useAcceptAutomationSuggestion("ws_alpha"), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({ suggestionID: "suggestion_1" });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(acceptAutomationSuggestion).toHaveBeenCalledWith("ws_alpha", "suggestion_1");
+    expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
+      exact: true,
+      queryKey: ["automation", "suggestions", "list", "ws_alpha", "pending"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["automation", "jobs", "list"],
+    });
+  });
+
+  it("keeps suggestion and job caches untouched when acceptance fails", async () => {
+    vi.mocked(acceptAutomationSuggestion).mockRejectedValue(new Error("accept failed"));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useAcceptAutomationSuggestion("ws_alpha"), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({ suggestionID: "suggestion_1" });
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it("invalidates only the exact pending suggestions list after dismissal", async () => {
+    vi.mocked(dismissAutomationSuggestion).mockResolvedValue({} as never);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useDismissAutomationSuggestion("ws_alpha"), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({ suggestionID: "suggestion_1" });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(invalidateSpy).toHaveBeenCalledOnce();
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      exact: true,
+      queryKey: ["automation", "suggestions", "list", "ws_alpha", "pending"],
     });
   });
 });

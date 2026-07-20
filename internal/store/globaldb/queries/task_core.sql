@@ -76,7 +76,7 @@ SELECT id FROM tasks WHERE tasks.id = sqlc.arg(task_id);
 
 -- name: InsertTaskRun :exec
 INSERT INTO task_runs (
-  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
   network_spec_json, network_mode, network_channel, network_source, designation_group_id,
   claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
@@ -86,7 +86,7 @@ INSERT INTO task_runs (
   network_wake_id, network_target_session_id, network_owner_key
 ) VALUES (
   sqlc.arg(id), sqlc.narg(task_id), sqlc.narg(workspace_id), sqlc.arg(run_kind), sqlc.narg(loop_run_id), sqlc.arg(status),
-  sqlc.arg(attempt), sqlc.narg(previous_run_id), sqlc.arg(failure_kind), sqlc.narg(claimed_by_kind),
+  sqlc.arg(attempt), sqlc.arg(recovery_count), sqlc.narg(previous_run_id), sqlc.arg(failure_kind), sqlc.narg(claimed_by_kind),
   sqlc.narg(claimed_by_ref), sqlc.narg(session_id), sqlc.arg(origin_kind), sqlc.arg(origin_ref),
   sqlc.narg(idempotency_key), sqlc.arg(network_spec_json), sqlc.arg(network_mode),
   sqlc.narg(network_channel), sqlc.arg(network_source), sqlc.arg(designation_group_id),
@@ -108,6 +108,7 @@ SET task_id = sqlc.narg(task_id),
     loop_run_id = sqlc.narg(loop_run_id),
     status = sqlc.arg(status),
     attempt = sqlc.arg(attempt),
+    recovery_count = sqlc.arg(recovery_count),
     previous_run_id = sqlc.narg(previous_run_id),
     failure_kind = sqlc.arg(failure_kind),
     claimed_by_kind = sqlc.narg(claimed_by_kind),
@@ -150,7 +151,7 @@ WHERE id = sqlc.arg(id);
 
 -- name: GetTaskRun :one
 SELECT
-  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
   network_spec_json, network_mode, network_channel, network_source, designation_group_id,
   '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
@@ -169,7 +170,7 @@ WHERE session_id = sqlc.arg(session_id)
 
 -- name: ListTaskRunsByStatus :many
 SELECT
-  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
+  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
   network_spec_json, network_mode, network_channel, network_source, designation_group_id,
   '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,

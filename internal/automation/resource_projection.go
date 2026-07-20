@@ -11,56 +11,6 @@ import (
 	"github.com/compozy/agh/internal/vault"
 )
 
-type jobResourceProjectionPlan struct {
-	revision   int64
-	operations int
-	jobs       []Job
-	scheduler  *Scheduler
-}
-
-func (p *jobResourceProjectionPlan) Kind() resources.ResourceKind {
-	return JobResourceKind
-}
-
-func (p *jobResourceProjectionPlan) Revision() int64 {
-	if p == nil {
-		return 0
-	}
-	return p.revision
-}
-
-func (p *jobResourceProjectionPlan) OperationCount() int {
-	if p == nil {
-		return 0
-	}
-	return p.operations
-}
-
-type triggerResourceProjectionPlan struct {
-	revision   int64
-	operations int
-	triggers   []Trigger
-	engine     *TriggerEngine
-}
-
-func (p *triggerResourceProjectionPlan) Kind() resources.ResourceKind {
-	return TriggerResourceKind
-}
-
-func (p *triggerResourceProjectionPlan) Revision() int64 {
-	if p == nil {
-		return 0
-	}
-	return p.revision
-}
-
-func (p *triggerResourceProjectionPlan) OperationCount() int {
-	if p == nil {
-		return 0
-	}
-	return p.operations
-}
-
 // BuildJobResourceState builds the next scheduler plan from canonical automation.job records.
 func (m *Manager) BuildJobResourceState(
 	ctx context.Context,
@@ -91,6 +41,13 @@ func (m *Manager) BuildJobResourceState(
 	if err != nil {
 		return nil, err
 	}
+	if m.jobResourceStateMatches(revision, jobs) {
+		return &jobResourceProjectionPlan{
+			revision:  revision,
+			jobs:      cloneJobs(jobs),
+			unchanged: true,
+		}, nil
+	}
 
 	scheduler, err := m.buildSchedulerRuntime(ctx)
 	if err != nil {
@@ -120,6 +77,15 @@ func (m *Manager) ApplyJobResourceState(ctx context.Context, plan resources.Proj
 	typed, ok := plan.(*jobResourceProjectionPlan)
 	if !ok {
 		return fmt.Errorf("automation: job resource plan has type %T", plan)
+	}
+	if typed.unchanged {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !m.jobResourceStateMatches(typed.revision, typed.jobs) {
+			return errors.New("automation: unchanged job resource plan no longer matches live state")
+		}
+		return nil
 	}
 	if typed.scheduler == nil {
 		return errors.New("automation: job resource plan scheduler is required")
@@ -197,6 +163,13 @@ func (m *Manager) BuildTriggerResourceState(
 	if err != nil {
 		return nil, err
 	}
+	if m.triggerResourceStateMatches(revision, triggers) {
+		return &triggerResourceProjectionPlan{
+			revision:  revision,
+			triggers:  cloneTriggers(triggers),
+			unchanged: true,
+		}, nil
+	}
 
 	engine, err := m.buildTriggerRuntime(ctx)
 	if err != nil {
@@ -226,6 +199,15 @@ func (m *Manager) ApplyTriggerResourceState(ctx context.Context, plan resources.
 	typed, ok := plan.(*triggerResourceProjectionPlan)
 	if !ok {
 		return fmt.Errorf("automation: trigger resource plan has type %T", plan)
+	}
+	if typed.unchanged {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !m.triggerResourceStateMatches(typed.revision, typed.triggers) {
+			return errors.New("automation: unchanged trigger resource plan no longer matches live state")
+		}
+		return nil
 	}
 	if typed.engine == nil {
 		return errors.New("automation: trigger resource plan engine is required")
@@ -293,30 +275,12 @@ func (m *Manager) resourceActorForSource(source JobSource) resources.MutationAct
 	return actor
 }
 
-func (m *Manager) createJobResource(ctx context.Context, job Job) (Job, error) {
-	next := cloneJob(job)
-	if next.Source == "" {
-		next.Source = JobSourceDynamic
-	}
-	if next.Source != JobSourceDynamic {
-		return Job{}, ErrDefinitionReadOnly
-	}
-	if strings.TrimSpace(next.ID) == "" {
-		next.ID = store.NewID("job")
-	}
-	next.CreatedAt = m.now().UTC()
-	next.UpdatedAt = next.CreatedAt
-	if err := next.Validate("job"); err != nil {
-		return Job{}, err
-	}
-	if err := m.validateJobLoopTarget(ctx, next); err != nil {
-		return Job{}, err
-	}
+func (m *Manager) createPreparedJobResource(ctx context.Context, prepared Job) (Job, error) {
 	created, err := m.jobResources.Put(ctx, m.resourceActorForSource(JobSourceDynamic), resources.Draft[Job]{
-		ID:              next.ID,
-		Scope:           ResourceScopeForAutomation(next.Scope, next.WorkspaceID),
+		ID:              prepared.ID,
+		Scope:           ResourceScopeForAutomation(prepared.Scope, prepared.WorkspaceID),
 		ExpectedVersion: 0,
-		Spec:            next,
+		Spec:            prepared,
 	})
 	if err != nil {
 		return Job{}, err
@@ -332,7 +296,7 @@ func (m *Manager) createJobResource(ctx context.Context, job Job) (Job, error) {
 		}
 		return Job{}, err
 	}
-	return m.effectiveJob(ctx, next.ID)
+	return m.effectiveJob(ctx, prepared.ID)
 }
 
 func (m *Manager) updateJobResource(ctx context.Context, job Job) (Job, error) {
@@ -352,10 +316,7 @@ func (m *Manager) updateJobResource(ctx context.Context, job Job) (Job, error) {
 	if err := ValidateImmutableJobTarget(current.Spec, next); err != nil {
 		return Job{}, err
 	}
-	if err := next.Validate("job"); err != nil {
-		return Job{}, err
-	}
-	if err := m.validateJobLoopTarget(ctx, next); err != nil {
+	if err := m.validateJobDefinition(ctx, next); err != nil {
 		return Job{}, err
 	}
 	updated, err := m.jobResources.Put(ctx, currentResourceActor(current.Source, m.resourceActor), resources.Draft[Job]{

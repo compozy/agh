@@ -111,8 +111,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 	t.Run("Should persist an encrypted secret and resolve it in the MCP executor", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		t.Cleanup(cancel)
+		ctx := t.Context()
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
 		store := newSettingsIntegrationVaultStore()

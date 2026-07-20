@@ -117,6 +117,22 @@ type JobResponse struct {
 	Job JobPayload `json:"job"`
 }
 
+// AutomationSuggestionsResponse wraps an exact-workspace suggestion list.
+type AutomationSuggestionsResponse struct {
+	Suggestions []AutomationSuggestionPayload `json:"suggestions"`
+}
+
+// AutomationSuggestionResponse wraps one resolved automation suggestion.
+type AutomationSuggestionResponse struct {
+	Suggestion AutomationSuggestionPayload `json:"suggestion"`
+}
+
+// AutomationSuggestionAcceptanceResponse wraps an accepted suggestion and its Job.
+type AutomationSuggestionAcceptanceResponse struct {
+	Suggestion AutomationSuggestionPayload `json:"suggestion"`
+	Job        JobPayload                  `json:"job"`
+}
+
 // TriggersResponse wraps the shared automation trigger list payload.
 type TriggersResponse struct {
 	Triggers []TriggerPayload         `json:"triggers"`

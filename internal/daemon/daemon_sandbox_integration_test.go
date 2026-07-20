@@ -395,7 +395,7 @@ func startSandboxRuntimeHarness(
 	t.Helper()
 	helperCommand := daemonSandboxHelperCommand(t)
 
-	return e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		Env: map[string]string{
 			daemonSandboxHelperEnvKey:         "1",
 			daemonSandboxHelperScenarioEnvKey: scenario,
@@ -426,6 +426,7 @@ func startSandboxRuntimeHarness(
 			},
 		},
 	})
+
 }
 
 func mustRunSandboxScenarioSession(

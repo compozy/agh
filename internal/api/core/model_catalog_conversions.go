@@ -47,10 +47,13 @@ func ProviderModelPayloadFromModel(model modelcatalog.Model) contract.ProviderMo
 		ReasoningSource:        model.ReasoningSource,
 		LastError:              modelcatalog.RedactString(model.LastError),
 	}
-	if model.CostInputPerMillion != nil || model.CostOutputPerMillion != nil {
+	if modelCatalogHasCost(model) {
 		payload.Cost = &contract.ModelCatalogCostPayload{
-			InputPerMillion:  model.CostInputPerMillion,
-			OutputPerMillion: model.CostOutputPerMillion,
+			InputPerMillion:      model.CostInputPerMillion,
+			OutputPerMillion:     model.CostOutputPerMillion,
+			CacheReadPerMillion:  model.CostCacheReadPerMillion,
+			CacheWritePerMillion: model.CostCacheWritePerMillion,
+			ReasoningPerMillion:  model.CostReasoningPerMillion,
 		}
 	}
 	return payload
@@ -133,13 +136,24 @@ func OpenAIModelPayloadFromModel(model modelcatalog.Model) contract.OpenAIModelP
 }
 
 func costPayloadFromModel(model modelcatalog.Model) *contract.ModelCatalogCostPayload {
-	if model.CostInputPerMillion == nil && model.CostOutputPerMillion == nil {
+	if !modelCatalogHasCost(model) {
 		return nil
 	}
 	return &contract.ModelCatalogCostPayload{
-		InputPerMillion:  model.CostInputPerMillion,
-		OutputPerMillion: model.CostOutputPerMillion,
+		InputPerMillion:      model.CostInputPerMillion,
+		OutputPerMillion:     model.CostOutputPerMillion,
+		CacheReadPerMillion:  model.CostCacheReadPerMillion,
+		CacheWritePerMillion: model.CostCacheWritePerMillion,
+		ReasoningPerMillion:  model.CostReasoningPerMillion,
 	}
+}
+
+func modelCatalogHasCost(model modelcatalog.Model) bool {
+	return model.CostInputPerMillion != nil ||
+		model.CostOutputPerMillion != nil ||
+		model.CostCacheReadPerMillion != nil ||
+		model.CostCacheWritePerMillion != nil ||
+		model.CostReasoningPerMillion != nil
 }
 
 func sourceIDsFromRefs(refs []modelcatalog.SourceRef) []string {

@@ -17,9 +17,11 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/ginutil"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/doctor"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/store"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -63,6 +65,7 @@ type Server struct {
 	now                func() time.Time
 	pollInterval       time.Duration
 	sessions           core.SessionManager
+	drainController    core.DaemonDrainController
 	sessionCatalog     core.SessionCatalog
 	tasks              core.TaskService
 	network            core.NetworkService
@@ -79,8 +82,11 @@ type Server struct {
 	bundles            core.BundleService
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
+	toolArtifacts      toolspkg.ToolArtifactStore
 	toolsets           core.ToolsetRegistry
 	toolApprovals      core.ToolApprovalIssuer
+	approvalGrants     core.ToolApprovalGrantService
+	clarify            toolspkg.ClarifyBroker
 	settings           core.SettingsService
 	settingsRestart    core.SettingsRestartController
 	settingsUpdate     core.SettingsUpdateController
@@ -109,9 +115,12 @@ type Server struct {
 	memoryExtractor    core.MemoryExtractorService
 	memoryProviders    core.MemoryProviderService
 	memoryLedger       core.MemorySessionLedgerService
+	runtimeMemory      doctor.RuntimeMemorySnapshotSource
+	deadEntities       doctor.DeadEntitySource
 	agentLoader        core.AgentLoader
 	extensions         ExtensionService
 	hostedMCP          *mcppkg.HostedService
+	mcpHostAPI         mcppkg.HostAPIInvoker
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -128,82 +137,7 @@ type Handlers struct {
 	*core.BaseHandlers
 	Extensions ExtensionService
 	HostedMCP  *mcppkg.HostedService
-}
-
-// WithHomePaths overrides the resolved AGH home layout.
-func WithHomePaths(homePaths aghconfig.HomePaths) Option {
-	return func(server *Server) {
-		server.homePaths = homePaths
-		if !server.configSet {
-			server.config = aghconfig.DefaultWithHome(homePaths)
-		}
-	}
-}
-
-// WithConfig overrides the runtime configuration used by the server.
-func WithConfig(cfg *aghconfig.Config) Option {
-	return func(server *Server) {
-		if cfg != nil {
-			server.config = *cfg
-			server.configSet = true
-		}
-	}
-}
-
-// WithSocketPath overrides the Unix socket path served by the API.
-func WithSocketPath(path string) Option {
-	return func(server *Server) {
-		server.socketPath = strings.TrimSpace(path)
-	}
-}
-
-// WithLogger injects the server logger.
-func WithLogger(logger *slog.Logger) Option {
-	return func(server *Server) {
-		server.logger = logger
-	}
-}
-
-// WithStartedAt overrides the daemon start time reported by the API.
-func WithStartedAt(startedAt time.Time) Option {
-	return func(server *Server) {
-		server.startedAt = startedAt
-	}
-}
-
-// WithNow overrides the server clock, mainly for tests.
-func WithNow(now func() time.Time) Option {
-	return func(server *Server) {
-		server.now = now
-	}
-}
-
-// WithPollInterval overrides the SSE poll cadence.
-func WithPollInterval(interval time.Duration) Option {
-	return func(server *Server) {
-		server.pollInterval = interval
-	}
-}
-
-// WithSessionManager injects the runtime session manager.
-func WithSessionManager(manager core.SessionManager) Option {
-	return func(server *Server) {
-		server.sessions = manager
-	}
-}
-
-// WithSessionCatalog injects the daemon-owned session catalog.
-func WithSessionCatalog(catalog core.SessionCatalog) Option {
-	return func(server *Server) {
-		server.sessionCatalog = catalog
-	}
-}
-
-// WithTaskService injects the daemon-owned task service.
-func WithTaskService(service core.TaskService) Option {
-	return func(server *Server) {
-		server.tasks = service
-	}
+	MCPHostAPI mcppkg.HostAPIInvoker
 }
 
 // WithResourceService injects the shared operator-facing desired-state resource service.
@@ -255,13 +189,6 @@ func WithToolsetRegistry(registry core.ToolsetRegistry) Option {
 	}
 }
 
-// WithToolApprovalIssuer injects the local approval-token issuer.
-func WithToolApprovalIssuer(issuer core.ToolApprovalIssuer) Option {
-	return func(server *Server) {
-		server.toolApprovals = issuer
-	}
-}
-
 // WithSettingsService injects the daemon-owned settings service.
 func WithSettingsService(service core.SettingsService) Option {
 	return func(server *Server) {
@@ -301,13 +228,6 @@ func WithWorkspaceResolver(workspaces core.WorkspaceService) Option {
 func WithOnboardingStore(store core.OnboardingStore) Option {
 	return func(server *Server) {
 		server.onboarding = store
-	}
-}
-
-// WithMemoryStore injects the memory store surfaced by the daemon.
-func WithMemoryStore(store *memory.Store) Option {
-	return func(server *Server) {
-		server.memoryStore = store
 	}
 }
 
@@ -388,52 +308,10 @@ func WithCoordinatorConfig(resolver core.CoordinatorConfigResolver) Option {
 	}
 }
 
-// WithDreamTrigger injects the dream-consolidation trigger surfaced by the daemon.
-func WithDreamTrigger(trigger core.DreamTrigger) Option {
-	return func(server *Server) {
-		server.dreamTrigger = trigger
-	}
-}
-
-// WithMemoryExtractorService injects the daemon-owned Memory v2 extractor runtime.
-func WithMemoryExtractorService(service core.MemoryExtractorService) Option {
-	return func(server *Server) {
-		server.memoryExtractor = service
-	}
-}
-
-// WithMemoryProviderService injects the daemon-owned MemoryProvider registry service.
-func WithMemoryProviderService(service core.MemoryProviderService) Option {
-	return func(server *Server) {
-		server.memoryProviders = service
-	}
-}
-
-// WithMemorySessionLedgerService injects the daemon-owned session ledger service.
-func WithMemorySessionLedgerService(service core.MemorySessionLedgerService) Option {
-	return func(server *Server) {
-		server.memoryLedger = service
-	}
-}
-
 // WithAgentLoader overrides agent definition loading.
 func WithAgentLoader(loader core.AgentLoader) Option {
 	return func(server *Server) {
 		server.agentLoader = loader
-	}
-}
-
-// WithExtensionService injects daemon-backed extension management handlers.
-func WithExtensionService(service ExtensionService) Option {
-	return func(server *Server) {
-		server.extensions = service
-	}
-}
-
-// WithHostedMCP injects the hosted AGH MCP session exposure service.
-func WithHostedMCP(service *mcppkg.HostedService) Option {
-	return func(server *Server) {
-		server.hostedMCP = service
 	}
 }
 
@@ -563,67 +441,6 @@ func (s *Server) ensureEngine() {
 
 	s.engine = ginutil.NewEngine()
 	s.engine.Use(gin.Recovery())
-}
-
-func (s *Server) handlerConfig() *handlerConfig {
-	return &handlerConfig{
-		sessions:           s.sessions,
-		sessionCatalog:     s.sessionCatalog,
-		tasks:              s.tasks,
-		network:            s.network,
-		networkStore:       s.networkStore,
-		networkUsage:       s.networkUsage,
-		coordination:       s.coordination,
-		observer:           s.observer,
-		schemaStreams:      s.schemaStreams,
-		resources:          s.resources,
-		automation:         s.automation,
-		loops:              s.loops,
-		bridges:            s.bridges,
-		notifications:      s.notifications,
-		bundles:            s.bundles,
-		supportBundles:     s.supportBundles,
-		tools:              s.tools,
-		toolsets:           s.toolsets,
-		toolApprovals:      s.toolApprovals,
-		settings:           s.settings,
-		settingsRestart:    s.settingsRestart,
-		settingsUpdate:     s.settingsUpdate,
-		vault:              s.vault,
-		workspaces:         s.workspaces,
-		onboarding:         s.onboarding,
-		agentCatalog:       s.agentCatalog,
-		agentSync:          s.agentSync,
-		modelCatalog:       s.modelCatalog,
-		marketplaceCatalog: s.marketplaceCatalog,
-		agentContext:       s.agentContext,
-		soulAuthoring:      s.soulAuthoring,
-		soulHistoryPurger:  s.soulHistoryPurger,
-		soulRefresher:      s.soulRefresher,
-		heartbeatAuthor:    s.heartbeatAuthor,
-		heartbeatPurger:    s.heartbeatPurger,
-		heartbeatStatus:    s.heartbeatStatus,
-		heartbeatWake:      s.heartbeatWake,
-		sessionHealth:      s.sessionHealth,
-		wakeEvents:         s.wakeEvents,
-		coordinatorConfig:  s.coordinatorConfig,
-		skillsRegistry:     s.skillsRegistry,
-		skillResources:     s.skillResources,
-		memoryStore:        s.memoryStore,
-		dreamTrigger:       s.dreamTrigger,
-		memoryExtractor:    s.memoryExtractor,
-		memoryProviders:    s.memoryProviders,
-		memoryLedger:       s.memoryLedger,
-		homePaths:          s.homePaths,
-		config:             s.config,
-		logger:             s.logger,
-		startedAt:          s.startedAt,
-		now:                s.now,
-		pollInterval:       s.pollInterval,
-		agentLoader:        s.agentLoader,
-		extensions:         s.extensions,
-		hostedMCP:          s.hostedMCP,
-	}
 }
 
 // Path reports the served Unix domain socket path.
@@ -827,19 +644,6 @@ func removeSocketPath(path string) error {
 	return nil
 }
 
-func waitForServeDone(ctx context.Context, done <-chan struct{}) error {
-	if done == nil {
-		return nil
-	}
-
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("udsapi: wait for serve shutdown: %w", ctx.Err())
-	}
-}
-
 func newHandlers(cfg *handlerConfig) *Handlers {
 	if cfg == nil {
 		cfg = &handlerConfig{}
@@ -855,6 +659,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			MaskInternalErrors:           false,
 			IncludeSessionWorkspaceInSSE: true,
 			Sessions:                     cfg.sessions,
+			DrainController:              cfg.drainController,
 			SessionCatalog:               cfg.sessionCatalog,
 			Tasks:                        cfg.tasks,
 			Network:                      cfg.network,
@@ -872,8 +677,11 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Bundles:                      cfg.bundles,
 			SupportBundles:               cfg.supportBundles,
 			Tools:                        cfg.tools,
+			ToolArtifacts:                cfg.toolArtifacts,
 			Toolsets:                     cfg.toolsets,
 			ToolApprovals:                cfg.toolApprovals,
+			ApprovalGrants:               cfg.approvalGrants,
+			Clarify:                      cfg.clarify,
 			Settings:                     cfg.settings,
 			SettingsRestart:              cfg.settingsRestart,
 			SettingsUpdate:               cfg.settingsUpdate,
@@ -902,6 +710,8 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			MemoryExtractor:              cfg.memoryExtractor,
 			MemoryProviders:              cfg.memoryProviders,
 			MemorySessionLedger:          cfg.memoryLedger,
+			RuntimeMemory:                cfg.runtimeMemory,
+			DeadEntities:                 cfg.deadEntities,
 			HomePaths:                    cfg.homePaths,
 			Config:                       cfg.config,
 			Logger:                       cfg.logger,
@@ -912,6 +722,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		}),
 		Extensions: cfg.extensions,
 		HostedMCP:  cfg.hostedMCP,
+		MCPHostAPI: cfg.mcpHostAPI,
 	}
 }
 

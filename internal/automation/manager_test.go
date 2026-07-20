@@ -986,6 +986,162 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 	}
 }
 
+func TestManagerCreateJobRejectsDaemonLifecycleCommands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		prompt          string
+		taskDescription string
+		wantClass       DaemonLifecycleCommandClass
+	}{
+		{
+			name:      "Should reject the AGH daemon restart command",
+			prompt:    "Run `agh daemon restart` now.",
+			wantClass: DaemonLifecycleCommandClassAGHDaemon,
+		},
+		{
+			name:      "Should reject the AGH daemon stop command after persistent flags",
+			prompt:    "Run `agh --output json daemon stop` now.",
+			wantClass: DaemonLifecycleCommandClassAGHDaemon,
+		},
+		{
+			name:      "Should reject a process kill targeting AGH",
+			prompt:    "Execute `pkill -f agh` if the daemon is unresponsive.",
+			wantClass: DaemonLifecycleCommandClassProcessSignal,
+		},
+		{
+			name:      "Should reject a systemd restart targeting AGH",
+			prompt:    "Execute `systemctl restart agh` after the report.",
+			wantClass: DaemonLifecycleCommandClassServiceManager,
+		},
+		{
+			name:      "Should reject a launchd restart targeting AGH",
+			prompt:    "Execute `launchctl kickstart -k gui/$UID/com.compozy.agh` after the report.",
+			wantClass: DaemonLifecycleCommandClassServiceManager,
+		},
+		{
+			name:            "Should reject a direct task description that restarts AGH",
+			prompt:          "",
+			taskDescription: "Run `service agh restart` to recover the daemon.",
+			wantClass:       DaemonLifecycleCommandClassServiceManager,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newManagerHarness(t)
+			manager := h.newManager(t, aghconfig.AutomationConfig{
+				Enabled:           true,
+				Timezone:          DefaultTimezone,
+				MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+				DefaultFireLimit:  DefaultFireLimitConfig(),
+			})
+			if err := manager.Start(h.ctx); err != nil {
+				t.Fatalf("manager.Start() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := manager.Shutdown(testutil.Context(t)); err != nil {
+					t.Errorf("manager.Shutdown() error = %v", err)
+				}
+			})
+
+			job := testJob(AutomationScopeWorkspace, "blocked-lifecycle", h.workspace.ID)
+			job.Prompt = tt.prompt
+			if tt.taskDescription != "" {
+				job.Task = &JobTaskConfig{Description: tt.taskDescription}
+			}
+			_, err := manager.CreateJob(h.ctx, job)
+			if err == nil {
+				t.Fatal("manager.CreateJob() error = nil, want lifecycle command rejection")
+			}
+			if !errors.Is(err, ErrDaemonLifecycleCommandBlocked) {
+				t.Fatalf("manager.CreateJob() error = %v, want ErrDaemonLifecycleCommandBlocked", err)
+			}
+			var blockedErr *DaemonLifecycleCommandError
+			if !errors.As(err, &blockedErr) {
+				t.Fatalf("manager.CreateJob() error = %T, want *DaemonLifecycleCommandError", err)
+			}
+			if blockedErr.Class != tt.wantClass {
+				t.Fatalf("manager.CreateJob() blocked class = %q, want %q", blockedErr.Class, tt.wantClass)
+			}
+
+			page, err := manager.ListJobs(h.ctx, JobListQuery{
+				Scope:       AutomationScopeWorkspace,
+				WorkspaceID: h.workspace.ID,
+			})
+			if err != nil {
+				t.Fatalf("manager.ListJobs() error = %v", err)
+			}
+			if len(page.Jobs) != 0 {
+				t.Fatalf("manager.ListJobs() jobs = %#v, want no persisted job", page.Jobs)
+			}
+		})
+	}
+
+	t.Run("Should accept lifecycle prose in non-command fields", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerHarness(t)
+		manager := h.newManager(t, aghconfig.AutomationConfig{
+			Enabled:           true,
+			Timezone:          DefaultTimezone,
+			MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+			DefaultFireLimit:  DefaultFireLimitConfig(),
+		})
+		if err := manager.Start(h.ctx); err != nil {
+			t.Fatalf("manager.Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("manager.Shutdown() error = %v", err)
+			}
+		})
+
+		job := testJob(AutomationScopeWorkspace, "Review agh daemon restart behavior", h.workspace.ID)
+		job.Prompt = "Summarize the supervisor lifecycle design."
+		if _, err := manager.CreateJob(h.ctx, job); err != nil {
+			t.Fatalf("manager.CreateJob(prose) error = %v", err)
+		}
+	})
+}
+
+func TestManagerUpdateJobRejectsDaemonLifecycleCommands(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	})
+
+	created, err := manager.CreateJob(
+		h.ctx,
+		testJob(AutomationScopeWorkspace, "safe-before-blocked-update", h.workspace.ID),
+	)
+	if err != nil {
+		t.Fatalf("manager.CreateJob() error = %v", err)
+	}
+
+	blocked := created
+	blocked.Prompt = "Run `agh daemon stop` now."
+	if _, err := manager.UpdateJob(h.ctx, blocked); !errors.Is(err, ErrDaemonLifecycleCommandBlocked) {
+		t.Fatalf("manager.UpdateJob() error = %v, want ErrDaemonLifecycleCommandBlocked", err)
+	}
+
+	stored, err := manager.GetJob(h.ctx, created.ID)
+	if err != nil {
+		t.Fatalf("manager.GetJob() error = %v", err)
+	}
+	if stored.Prompt != created.Prompt {
+		t.Fatalf("stored job prompt = %q, want unchanged %q", stored.Prompt, created.Prompt)
+	}
+}
+
 func TestManagerDynamicLoopTargetCRUDValidatesLoopStarter(t *testing.T) {
 	t.Parallel()
 

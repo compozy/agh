@@ -18,6 +18,7 @@ import {
   automationScopeLabel,
   automationSourceLabel,
   automationStatusTone,
+  catchUpPolicyLabel,
   describeSchedule,
   formatDate,
   formatDateTime,
@@ -219,7 +220,7 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
           <div>
             <Eyebrow className="text-muted">Catch-up</Eyebrow>
             <p className="mt-1 font-mono text-xs text-muted">
-              {scheduler.catch_up_policy ?? "skip"}
+              {catchUpPolicyLabel(scheduler.catch_up_policy)}
             </p>
           </div>
           <div>

@@ -170,7 +170,7 @@ test("operator manages a local sandbox profile and binds it to real session exec
   expect(updatedWorkspace.sandbox_ref).toBe(sandboxProfileName);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(sandboxUI.profileUsage(sandboxProfileName)).toContainText("1 workspace");
+  await expect(sandboxUI.profileUsage(sandboxProfileName)).toContainText(/1\s*workspace/);
   await sandboxUI.deleteProfile(sandboxProfileName).click();
   await expect(sandboxUI.deleteDialog).toBeVisible();
   await expect(sandboxUI.deleteUsage).toContainText("1 workspace currently reference this profile");

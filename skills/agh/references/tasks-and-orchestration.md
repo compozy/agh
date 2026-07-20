@@ -26,6 +26,11 @@ Use `agh task inspect <id> -o json` before changing orchestration state when the
 
 Use inspection to read task/run health, ownership, queue status, actor context, and suggested next action. Do not replace inspection with channel messages or UI state.
 
+`agh task run show <run-id> -o json` includes the operational token/cost summary. Apply the status
+semantics in `runtime-operations.md`'s Usage cost truth section: estimates remain projections,
+`included`/`unknown` carry no amount, and incompatible aggregate provenance suppresses only money,
+not token totals.
+
 ## Task Pause, Resume, And Force Recovery
 
 `agh task pause <task-id> --reason <reason>` pauses new runs for one task while current claims finish. `agh task resume <task-id>` re-enables scheduler claims for that task. A pause reason is required and should name the operational cause, not a prompt-level preference.
@@ -113,6 +118,21 @@ When a run includes a designation, follow only your own `designation.brief`; do 
 assignments into your scope.
 
 Use `agh task next --run-id <run-id> -o json` when the runtime assigns a specific queued run. It uses the same session-bound lease path as unfiltered `agh task next`.
+
+Workspace-scoped worker and coordinator claims are bounded by
+`task.orchestration.max_active_runs_per_workspace` (default `16`; `0` disables). When capacity is
+full, the run stays queued: `agh task next --wait -o json` keeps polling, while a non-waiting native
+claim returns the typed reason `autonomy_workspace_capacity`. Wait for capacity instead of releasing
+an unrelated lease. Global task runs and Network wake runs do not consume this workspace limit.
+
+Action nodes without an explicit timeout inherit `task.orchestration.action_run_timeout` (default
+`30m`). The daemon cancels a bound action session and fails the leased run with `node_timeout` at the
+absolute deadline, or `no_progress` when neither cumulative usage nor session activity advances.
+An active tool suspends only the idle check, never the absolute deadline. Recovered expired leases
+increment the run's `recovery_count`; once `attempt + recovery_count` reaches `max_attempts`, the run
+and task move to `needs_attention` with `lease_recovery_exhausted` instead of reclaiming forever.
+Inspect the run before retrying; changing the default through `agh config set` requires a daemon
+restart.
 
 ## Reviewer Loop
 

@@ -61,7 +61,7 @@ FROM transcript_entries
 WHERE message_id = CAST(sqlc.arg(message_id) AS TEXT) AND entry_key <> sqlc.arg(entry_key);
 
 -- name: ListEventsForTranscriptEntry :many
-SELECT id, sequence, turn_id, type, agent_name, content, timestamp
+SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
 FROM events
 WHERE transcript_entry_key = sqlc.arg(transcript_entry_key)
 ORDER BY sequence ASC;

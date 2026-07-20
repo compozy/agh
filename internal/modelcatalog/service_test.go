@@ -162,6 +162,46 @@ func TestMergeRows(t *testing.T) {
 		if model.CostInputPerMillion == nil || *model.CostInputPerMillion != costInput {
 			t.Fatalf("CostInputPerMillion = %v, want %f", model.CostInputPerMillion, costInput)
 		}
+		if model.CostInputSource != SourceKindModelsDev {
+			t.Fatalf("CostInputSource = %q, want %q", model.CostInputSource, SourceKindModelsDev)
+		}
+	})
+
+	t.Run("Should merge five prices with independent field provenance", func(t *testing.T) {
+		t.Parallel()
+
+		configInput := 1.0
+		configCacheWrite := 3.0
+		catalogOutput := 2.0
+		catalogCacheRead := 0.5
+		catalogReasoning := 4.0
+		model := requireSingleModel(t, mergeTestRows([]ModelRow{
+			testRow("config", SourceKindConfig, PriorityConfig, "codex", "gpt-5.4", testTime(0), func(row *ModelRow) {
+				row.CostInputPerMillion = &configInput
+				row.CostCacheWritePerMillion = &configCacheWrite
+			}),
+			testRow(
+				"models_dev",
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"codex",
+				"gpt-5.4",
+				testTime(0),
+				func(row *ModelRow) {
+					row.CostOutputPerMillion = &catalogOutput
+					row.CostCacheReadPerMillion = &catalogCacheRead
+					row.CostReasoningPerMillion = &catalogReasoning
+				},
+			),
+		}))
+
+		if model.CostInputPerMillion != &configInput || model.CostInputSource != SourceKindConfig ||
+			model.CostCacheWritePerMillion != &configCacheWrite || model.CostCacheWriteSource != SourceKindConfig ||
+			model.CostOutputPerMillion != &catalogOutput || model.CostOutputSource != SourceKindModelsDev ||
+			model.CostCacheReadPerMillion != &catalogCacheRead || model.CostCacheReadSource != SourceKindModelsDev ||
+			model.CostReasoningPerMillion != &catalogReasoning || model.CostReasoningSource != SourceKindModelsDev {
+			t.Fatalf("merged five-rate provenance = %#v, want independent config/catalog sources", model)
+		}
 	})
 
 	t.Run("Should keep stale metadata flag when fresh availability wins", func(t *testing.T) {

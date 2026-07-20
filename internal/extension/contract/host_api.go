@@ -631,13 +631,6 @@ type MemoryRecallEntry struct {
 	Score   float64 `json:"score"`
 }
 
-// SkillSummary is the lightweight host-visible skill listing shape.
-type SkillSummary struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	Source      string `json:"source"`
-}
-
 // ObserveHealth is the host-visible daemon health payload.
 type ObserveHealth = observepkg.Health
 
@@ -1108,5 +1101,5 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 
 // HostAPIMethodSpecs returns the canonical Host API method registry in wire order.
 func HostAPIMethodSpecs() []HostAPIMethodSpec {
-	return append([]HostAPIMethodSpec(nil), hostAPIMethodSpecs...)
+	return append(append([]HostAPIMethodSpec(nil), hostAPIMethodSpecs...), clarifyHostAPIMethodSpec())
 }

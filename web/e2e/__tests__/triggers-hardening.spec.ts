@@ -277,11 +277,11 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   expect(await triggerRunCount(runtime, updated.id)).toBe(1);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
-  await ui.itemLink(updated.id).click();
+  await expect(ui.detailPanel).toContainText(editedName, { timeout: 20_000 });
   await expect(ui.run(firstRun.id)).toBeVisible();
   await expect(ui.runSessionLink(firstRun.id)).toBeVisible();
 
+  await ui.detailOverflow.click();
   await ui.toggleAutomationButton.click();
   await expect
     .poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled)
@@ -297,6 +297,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   expect(disabledDelivery.body).toMatch(/not registered|not found/i);
   expect(await triggerRunCount(runtime, updated.id)).toBe(1);
 
+  await ui.detailOverflow.click();
   await ui.toggleAutomationButton.click();
   await expect.poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled).toBe(true);
   const reenabledDelivery = await deliverWebhook(runtime, {
@@ -317,8 +318,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   expect(await triggerRunCount(runtime, updated.id)).toBe(2);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
-  await ui.itemLink(updated.id).click();
+  await expect(ui.detailPanel).toContainText(editedName, { timeout: 20_000 });
   await expect(ui.run(reenabledRun.id)).toBeVisible();
   await expect(ui.runSessionLink(reenabledRun.id)).toBeVisible();
 
@@ -356,7 +356,6 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
     automation_detail_overflow_visible: true,
     automation_run_count: expect.any(Number),
     automation_run_history_visible: true,
-    automation_scope_filter: "all",
     automation_selected_item: editedName,
     automation_session_link_count: 2,
     automation_view_visible: true,
@@ -454,8 +453,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   expect(failureMessage).toMatch(/peer disconnected before response|internal error/i);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
-  await ui.itemLink(trigger.id).click();
+  await expect(ui.detailPanel).toContainText(trigger.name, { timeout: 20_000 });
   await expect(ui.run(failedRun.id)).toBeVisible();
   await expect(ui.run(failedRun.id)).toContainText("FAILED");
   await expect(ui.run(failedRun.id)).toContainText(
@@ -544,8 +542,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
   expect(await triggerRunCount(runtime, trigger.id)).toBe(2);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
-  await ui.itemLink(trigger.id).click();
+  await expect(ui.detailPanel).toContainText(trigger.name, { timeout: 20_000 });
   await expect(ui.run(acceptedRun.id)).toBeVisible();
   const limitedRun = (await listTriggerRuns(runtime, trigger.id)).find(
     run => run.id !== acceptedRun.id

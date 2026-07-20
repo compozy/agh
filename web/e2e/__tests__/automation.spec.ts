@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+import type { AutomationJob, AutomationSuggestion } from "@/systems/automation";
 import { automationOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
 import {
   browserAutomationOperatorFlowScenario,
@@ -194,4 +195,73 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
   );
 
   await browserArtifacts.captureScreenshot("automation-linked-session", appPage);
+});
+
+test("operator can accept and dismiss workspace suggestions through the real daemon", async ({
+  appPage,
+  runtime,
+}) => {
+  const automationUI = automationOperatorSelectors(appPage);
+
+  await useGlobalWorkspaceIfPrompted(automationUI);
+  const workspaces = await runtime.requestJSON<{
+    workspaces: Array<{ id: string }>;
+  }>("/api/workspaces");
+  const workspaceID = workspaces.workspaces[0]?.id;
+  if (!workspaceID) {
+    throw new Error("Expected the browser Automation scenario to have an active workspace.");
+  }
+
+  const suggestionPath = `/api/workspaces/${encodeURIComponent(workspaceID)}/automation/suggestions`;
+  const initial = await runtime.requestJSON<{ suggestions: AutomationSuggestion[] }>(
+    `${suggestionPath}?status=pending`
+  );
+  expect(initial.suggestions).toHaveLength(4);
+
+  const acceptTarget = initial.suggestions.find(
+    suggestion => suggestion.payload.name === "Daily workspace briefing"
+  );
+  const dismissTarget = initial.suggestions.find(
+    suggestion => suggestion.payload.name === "Weekday standup draft"
+  );
+  if (!acceptTarget || !dismissTarget) {
+    throw new Error("Expected the deterministic starter suggestion catalog.");
+  }
+
+  await automationUI.navJobs.click();
+  await expect(appPage).toHaveURL(/\/jobs$/);
+  await expect(automationUI.automationSuggestionsCard).toBeVisible();
+
+  const acceptedRow = automationUI.suggestion(acceptTarget.id);
+  await expect(acceptedRow).toContainText(acceptTarget.payload.prompt);
+  await acceptedRow.getByRole("button", { name: "Create job" }).click();
+
+  await expect(acceptedRow).toBeHidden();
+  await expect(automationUI.item(acceptTarget.payload.id)).toBeVisible();
+  const acceptedJob = await runtime.requestJSON<{ job: AutomationJob }>(
+    `/api/automation/jobs/${encodeURIComponent(acceptTarget.payload.id)}`
+  );
+  expect(acceptedJob.job).toMatchObject({
+    enabled: true,
+    id: acceptTarget.payload.id,
+    workspace_id: workspaceID,
+  });
+
+  const dismissedRow = automationUI.suggestion(dismissTarget.id);
+  await dismissedRow.getByRole("button", { name: "Dismiss" }).click();
+  await expect(dismissedRow).toBeHidden();
+
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(automationUI.jobsShell).toBeVisible();
+  await expect(automationUI.suggestion(acceptTarget.id)).toBeHidden();
+  await expect(automationUI.suggestion(dismissTarget.id)).toBeHidden();
+
+  const accepted = await runtime.requestJSON<{ suggestions: AutomationSuggestion[] }>(
+    `${suggestionPath}?status=accepted`
+  );
+  const dismissed = await runtime.requestJSON<{ suggestions: AutomationSuggestion[] }>(
+    `${suggestionPath}?status=dismissed`
+  );
+  expect(accepted.suggestions.map(suggestion => suggestion.id)).toContain(acceptTarget.id);
+  expect(dismissed.suggestions.map(suggestion => suggestion.id)).toContain(dismissTarget.id);
 });

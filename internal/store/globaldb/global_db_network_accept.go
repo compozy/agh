@@ -125,6 +125,7 @@ func (g *NetworkRepo) admitAcceptedNetworkWakes(
 				RecipientSessionID: input.RecipientSessionID,
 				TaskRunID:          decision.reservation.TaskRunID,
 				AcceptanceSeq:      acceptanceSeq,
+				ReadyAt:            decision.reservation.CoalesceUntil,
 			})
 		}
 		if decision.skip != nil {

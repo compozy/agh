@@ -19,6 +19,7 @@ type promptRequest struct {
 	turnSource      TurnSource
 	meta            acp.PromptMeta
 	deliveryCtx     context.Context
+	prepareDelivery PromptDeliveryPreparer
 	inputRecorded   bool
 }
 

@@ -17,6 +17,7 @@ func TaskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *contract.Tas
 		TaskID:                       summary.TaskID,
 		Status:                       summary.Status,
 		Attempt:                      summary.Attempt,
+		RecoveryCount:                summary.RecoveryCount,
 		PreviousRunID:                summary.PreviousRunID,
 		FailureKind:                  summary.FailureKind,
 		MaxAttempts:                  summary.MaxAttempts,

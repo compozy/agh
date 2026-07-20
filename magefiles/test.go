@@ -12,10 +12,18 @@ import (
 
 // Test runs unit tests only (no integration tag).
 func Test() error {
-	return runGotestsum(context.Background(), nil,
+	ctx := context.Background()
+	packages, err := goUnitTestPackages(ctx)
+	if err != nil {
+		return err
+	}
+	args := []string{
 		"--format", "pkgname", "--", "-race", "-p", goUnitTestPackageLimit(),
-		"-parallel="+strconv.Itoa(goUnitTestParallelism),
-		"-timeout", goUnitTestTimeout, "./...")
+		"-parallel=" + strconv.Itoa(goUnitTestParallelism),
+		"-timeout", goUnitTestTimeout,
+	}
+	args = append(args, packages...)
+	return runGotestsum(ctx, nil, args...)
 }
 
 // TestIntegration runs all tests including integration tests.

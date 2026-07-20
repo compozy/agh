@@ -11,11 +11,14 @@ import (
 	"github.com/compozy/agh/internal/task"
 )
 
+const circuitBreakerReasonCode = "circuit_breaker"
+
 func (r *CoordinatorRunner) terminalForFailedGeneration(
 	ctx context.Context,
 	run Run,
 	generation int,
 	noProgressWindow int,
+	graph dsl.Graph,
 	outputs []GenerationOutput,
 	failed GenerationOutput,
 ) (*task.CoordinatorTerminal, error) {
@@ -26,19 +29,32 @@ func (r *CoordinatorRunner) terminalForFailedGeneration(
 	if stalled != nil {
 		return stalled, nil
 	}
-	terminal := failedOutputTerminal(run, failed)
+	terminal := failedOutputTerminal(failed)
+	if terminal.Status != string(StatusFailed) {
+		return &terminal, nil
+	}
+	history, err := r.generationFailureHistory(
+		ctx,
+		run.ID,
+		generation,
+		outputs,
+		LoopFailureBreakerLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if perNodeFailureLimitReached(history) ||
+		(run.IterationCap <= 0 && graphHasWatchSource(graph) && failedGenerationLimitReached(history)) {
+		breaker := circuitBreakerTerminal()
+		return &breaker, nil
+	}
 	return &terminal, nil
 }
 
-func failedOutputTerminal(run Run, output GenerationOutput) task.CoordinatorTerminal {
+func failedOutputTerminal(output GenerationOutput) task.CoordinatorTerminal {
 	status := StatusFailed
 	cause := TransitionCauseContract
 	reasonCode := "node_failed"
-	if run.ConsecutiveFailures >= LoopFailureBreakerLimit {
-		status = StatusStalled
-		cause = TransitionCauseNoProgress
-		reasonCode = "circuit_breaker"
-	}
 	if explicitDependencyBlocker(output.OutputRef) {
 		status = StatusBlocked
 		cause = TransitionCauseContract
@@ -48,6 +64,102 @@ func failedOutputTerminal(run Run, output GenerationOutput) task.CoordinatorTerm
 		Status:     string(status),
 		Cause:      string(cause),
 		ReasonCode: reasonCode,
+	}
+}
+
+func (r *CoordinatorRunner) generationFailureHistory(
+	ctx context.Context,
+	runID RunID,
+	generation int,
+	current []GenerationOutput,
+	limit int,
+) ([][]GenerationOutput, error) {
+	if generation <= 0 || limit <= 0 {
+		return nil, nil
+	}
+	history := make([][]GenerationOutput, 0, limit)
+	history = append(history, current)
+	for offset := 1; offset < limit; offset++ {
+		previousGeneration := generation - offset
+		if previousGeneration <= 0 {
+			break
+		}
+		previous, err := r.outputs.ListGenerationOutputs(ctx, runID, previousGeneration)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"loop: list generation %d outputs for failure breaker: %w",
+				previousGeneration,
+				err,
+			)
+		}
+		history = append(history, previous)
+	}
+	return history, nil
+}
+
+func perNodeFailureLimitReached(history [][]GenerationOutput) bool {
+	if len(history) < LoopFailureBreakerLimit {
+		return false
+	}
+	failing := failedNodeIDs(history[0])
+	for _, outputs := range history[1:LoopFailureBreakerLimit] {
+		previous := failedNodeIDs(outputs)
+		for nodeID := range failing {
+			if _, ok := previous[nodeID]; !ok {
+				delete(failing, nodeID)
+			}
+		}
+		if len(failing) == 0 {
+			return false
+		}
+	}
+	return len(failing) > 0
+}
+
+func failedGenerationLimitReached(history [][]GenerationOutput) bool {
+	if len(history) < LoopFailureBreakerLimit {
+		return false
+	}
+	for _, outputs := range history[:LoopFailureBreakerLimit] {
+		if len(failedNodeIDs(outputs)) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func failedNodeIDs(outputs []GenerationOutput) map[string]struct{} {
+	failed := make(map[string]struct{})
+	for _, output := range outputs {
+		if output.Status != generationOutputFailed {
+			continue
+		}
+		nodeID := strings.TrimSpace(output.NodeID)
+		if nodeID != "" {
+			failed[nodeID] = struct{}{}
+		}
+	}
+	return failed
+}
+
+func graphHasWatchSource(graph dsl.Graph) bool {
+	for _, node := range graph.Nodes {
+		if node.Class != dsl.NodeClassSource {
+			continue
+		}
+		switch dsl.SourceKind(node.Kind) {
+		case dsl.SourceWatchSource, dsl.SourceWatchEvents:
+			return true
+		}
+	}
+	return false
+}
+
+func circuitBreakerTerminal() task.CoordinatorTerminal {
+	return task.CoordinatorTerminal{
+		Status:     string(StatusStalled),
+		Cause:      string(TransitionCauseNoProgress),
+		ReasonCode: circuitBreakerReasonCode,
 	}
 }
 

@@ -9,24 +9,28 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
+const transcriptStdoutFieldKey = "stdout"
+
+var structuralRedactor = redactpkg.New(redactpkg.Options{Disabled: true})
+
 // RedactAgentEvent removes displayable secret material before an ACP event is
 // stored, replayed, or streamed to a caller.
 func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted := event
 	redacted.Text = redactDisplayString(event.Text)
 	redacted.Title = redactDisplayString(event.Title)
-	redacted.ToolCallID = redactDisplayString(event.ToolCallID)
+	redacted.ToolCallID = redactStructuralString(event.ToolCallID)
 	redacted = redacted.WithToolDetail(
-		redactDisplayString(event.ToolName()),
+		redactStructuralString(event.ToolName()),
 		redactRawMessage(event.ToolInput()),
 		event.ToolError(),
 		redactDisplayString(event.ToolErrorDetail()),
-	)
-	redacted.StopReason = redactDisplayString(event.StopReason)
-	redacted.PromptStopReason = acp.PromptStopReason(redactDisplayString(string(event.PromptStopReason)))
-	redacted.Action = redactDisplayString(event.Action)
-	redacted.Resource = redactDisplayString(event.Resource)
-	redacted.Decision = redactDisplayString(event.Decision)
+	).WithToolKind(redactStructuralString(event.ToolKind()))
+	redacted.StopReason = redactStructuralString(event.StopReason)
+	redacted.PromptStopReason = acp.PromptStopReason(redactStructuralString(string(event.PromptStopReason)))
+	redacted.Action = redactStructuralString(event.Action)
+	redacted.Resource = redactStructuralString(event.Resource)
+	redacted.Decision = redactStructuralString(event.Decision)
 	redacted.Error = redactDisplayString(event.Error)
 	redacted.Failure = redactSessionFailure(event.Failure)
 	redacted.Synthetic = redactPromptSyntheticMeta(event.Synthetic)
@@ -46,15 +50,15 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	payload.Text = redactDisplayString(payload.Text)
 	payload.AuthoredText = redactDisplayString(payload.AuthoredText)
 	payload.Title = redactDisplayString(payload.Title)
-	payload.ToolName = redactDisplayString(payload.ToolName)
-	payload.ToolCallID = redactDisplayString(payload.ToolCallID)
+	payload.ToolName = redactStructuralString(payload.ToolName)
+	payload.ToolCallID = redactStructuralString(payload.ToolCallID)
 	payload.ToolInput = redactRawMessage(payload.ToolInput)
 	payload.ToolResult = redactTranscriptToolResult(payload.ToolResult)
-	payload.StopReason = redactDisplayString(payload.StopReason)
-	payload.PromptStopReason = acp.PromptStopReason(redactDisplayString(string(payload.PromptStopReason)))
-	payload.Action = redactDisplayString(payload.Action)
-	payload.Resource = redactDisplayString(payload.Resource)
-	payload.Decision = redactDisplayString(payload.Decision)
+	payload.StopReason = redactStructuralString(payload.StopReason)
+	payload.PromptStopReason = acp.PromptStopReason(redactStructuralString(string(payload.PromptStopReason)))
+	payload.Action = redactStructuralString(payload.Action)
+	payload.Resource = redactStructuralString(payload.Resource)
+	payload.Decision = redactStructuralString(payload.Decision)
 	payload.Error = redactDisplayString(payload.Error)
 	payload.Failure = redactSessionFailure(payload.Failure)
 	payload.Synthetic = redactPromptSyntheticMeta(payload.Synthetic)
@@ -65,13 +69,13 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 
 func redactTranscriptEvent(parsed event) event {
 	parsed.Text = redactDisplayString(parsed.Text)
-	parsed.StopReason = redactDisplayString(parsed.StopReason)
+	parsed.StopReason = redactStructuralString(parsed.StopReason)
 	parsed.Error = redactDisplayString(parsed.Error)
 	parsed.Failure = redactSessionFailure(parsed.Failure)
 	parsed.Runtime = redactRuntimeActivity(parsed.Runtime)
 	parsed.Marker = redactMarker(parsed.Marker)
-	parsed.ToolCallID = redactDisplayString(parsed.ToolCallID)
-	parsed.ToolName = redactDisplayString(parsed.ToolName)
+	parsed.ToolCallID = redactStructuralString(parsed.ToolCallID)
+	parsed.ToolName = redactStructuralString(parsed.ToolName)
 	parsed.ToolInput = redactRawMessage(parsed.ToolInput)
 	parsed.ToolResult = redactTranscriptToolResult(parsed.ToolResult)
 	return parsed
@@ -92,7 +96,7 @@ func redactTranscriptToolResult(result *ToolResult) *ToolResult {
 	redacted := cloneToolResult(result)
 	redacted.Stdout = redactDisplayString(redacted.Stdout)
 	redacted.Stderr = redactDisplayString(redacted.Stderr)
-	redacted.FilePath = redactDisplayString(redacted.FilePath)
+	redacted.FilePath = redactStructuralString(redacted.FilePath)
 	redacted.Content = redactDisplayString(redacted.Content)
 	redacted.StructuredPatch = redactRawMessage(redacted.StructuredPatch)
 	redacted.Error = redactDisplayString(redacted.Error)
@@ -106,7 +110,7 @@ func redactSessionFailure(failure *store.SessionFailure) *store.SessionFailure {
 	}
 	redacted := failure.Normalize()
 	redacted.Summary = redactDisplayString(redacted.Summary)
-	redacted.CrashBundlePath = redactDisplayString(redacted.CrashBundlePath)
+	redacted.CrashBundlePath = redactStructuralString(redacted.CrashBundlePath)
 	return &redacted
 }
 
@@ -115,13 +119,13 @@ func redactPromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSynthet
 		return nil
 	}
 	redacted := meta.Normalize()
-	redacted.TaskID = redactDisplayString(redacted.TaskID)
-	redacted.TaskRunID = redactDisplayString(redacted.TaskRunID)
-	redacted.WorkflowID = redactDisplayString(redacted.WorkflowID)
-	redacted.CoordinatorSessionID = redactDisplayString(redacted.CoordinatorSessionID)
+	redacted.TaskID = redactStructuralString(redacted.TaskID)
+	redacted.TaskRunID = redactStructuralString(redacted.TaskRunID)
+	redacted.WorkflowID = redactStructuralString(redacted.WorkflowID)
+	redacted.CoordinatorSessionID = redactStructuralString(redacted.CoordinatorSessionID)
 	redacted.Reason = redactDisplayString(redacted.Reason)
 	redacted.Summary = redactDisplayString(redacted.Summary)
-	redacted.WakeEventID = redactDisplayString(redacted.WakeEventID)
+	redacted.WakeEventID = redactStructuralString(redacted.WakeEventID)
 	redacted.Goal = redactGoalPromptMeta(redacted.Goal)
 	return &redacted
 }
@@ -131,9 +135,9 @@ func redactGoalPromptMeta(meta *acp.GoalPromptMeta) *acp.GoalPromptMeta {
 	if redacted == nil {
 		return nil
 	}
-	redacted.RunID = redactDisplayString(redacted.RunID)
-	redacted.NodeID = redactDisplayString(redacted.NodeID)
-	redacted.PromptID = redactDisplayString(redacted.PromptID)
+	redacted.RunID = redactStructuralString(redacted.RunID)
+	redacted.NodeID = redactStructuralString(redacted.NodeID)
+	redacted.PromptID = redactStructuralString(redacted.PromptID)
 	return redacted
 }
 
@@ -142,12 +146,12 @@ func redactRuntimeActivity(activity *acp.RuntimeActivity) *acp.RuntimeActivity {
 	if redacted == nil {
 		return nil
 	}
-	redacted.TurnID = redactDisplayString(redacted.TurnID)
-	redacted.TurnSource = redactDisplayString(redacted.TurnSource)
-	redacted.LastActivityKind = redactDisplayString(redacted.LastActivityKind)
+	redacted.TurnID = redactStructuralString(redacted.TurnID)
+	redacted.TurnSource = redactStructuralString(redacted.TurnSource)
+	redacted.LastActivityKind = redactStructuralString(redacted.LastActivityKind)
 	redacted.LastActivityDetail = redactDisplayString(redacted.LastActivityDetail)
-	redacted.CurrentTool = redactDisplayString(redacted.CurrentTool)
-	redacted.ToolCallID = redactDisplayString(redacted.ToolCallID)
+	redacted.CurrentTool = redactStructuralString(redacted.CurrentTool)
+	redacted.ToolCallID = redactStructuralString(redacted.ToolCallID)
 	return redacted
 }
 
@@ -155,16 +159,9 @@ func redactRawMessage(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return nil
 	}
-	var value any
-	if err := json.Unmarshal(raw, &value); err == nil {
-		changed, redactedValue := redactJSONDisplayValue(value)
-		if !changed {
-			return acp.CloneRawMessage(raw)
-		}
-		data, err := json.Marshal(redactedValue)
-		if err == nil {
-			return json.RawMessage(data)
-		}
+	if json.Valid(raw) {
+		engine := redactpkg.New(redactpkg.Options{Disabled: !redactpkg.Enabled()})
+		return acp.CloneRawMessage(engine.RedactJSON(raw, displayJSONFields))
 	}
 	redacted := diagnostics.Redact(string(raw))
 	if json.Valid([]byte(redacted)) {
@@ -173,45 +170,17 @@ func redactRawMessage(raw json.RawMessage) json.RawMessage {
 	return rawMessageFromValue(redacted)
 }
 
-func redactJSONDisplayValue(value any) (bool, any) {
-	switch typed := value.(type) {
-	case map[string]any:
-		changed := false
-		for key, child := range typed {
-			if sensitiveDisplayJSONField(key) {
-				typed[key] = "[REDACTED]"
-				changed = true
-				continue
-			}
-			childChanged, redactedChild := redactJSONDisplayValue(child)
-			if childChanged {
-				typed[key] = redactedChild
-				changed = true
-			}
-		}
-		return changed, typed
-	case []any:
-		changed := false
-		for i, child := range typed {
-			childChanged, redactedChild := redactJSONDisplayValue(child)
-			if childChanged {
-				typed[i] = redactedChild
-				changed = true
-			}
-		}
-		return changed, typed
-	case string:
-		redacted := redactDisplayString(typed)
-		return redacted != typed, redacted
-	default:
-		return false, value
-	}
-}
-
-func sensitiveDisplayJSONField(key string) bool {
-	return redactpkg.IsSensitiveKey(key)
+var displayJSONFields = []string{
+	"", "authored_text", "body", "command", "content", "description", "detail", "error",
+	"message", "output", "payload", "raw_input", "raw_output", "reason",
+	"result", "stderr", transcriptStdoutFieldKey, "summary", "text", "title", "tool_input",
+	"tool_result",
 }
 
 func redactDisplayString(value string) string {
 	return diagnostics.Redact(value)
+}
+
+func redactStructuralString(value string) string {
+	return structuralRedactor.RedactString(value)
 }

@@ -175,6 +175,9 @@ func enrichRowFromProviderModel(row *ModelRow, model aghconfig.ProviderModelConf
 	row.SupportsReasoning = model.SupportsReasoning
 	row.CostInputPerMillion = model.CostInputPerMillion
 	row.CostOutputPerMillion = model.CostOutputPerMillion
+	row.CostCacheReadPerMillion = model.CostCacheReadPerMillion
+	row.CostCacheWritePerMillion = model.CostCacheWritePerMillion
+	row.CostReasoningPerMillion = model.CostReasoningPerMillion
 	row.Deprecated = cloneBoolPtr(model.Deprecated)
 	row.Hidden = cloneBoolPtr(model.Hidden)
 	row.Featured = cloneBoolPtr(model.Featured)

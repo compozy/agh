@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SkillPayload } from "@/systems/skill";
 import type { MarketplaceListing, MCPInstallResponse } from "../../types";
 import { marketplaceDetails, marketplaceKindFixture, marketplaceListings } from "../../mocks";
 import { MarketplaceCard } from "../marketplace-card";
@@ -22,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   marketError: null as Error | null,
   mcpError: null as Error | null,
   marketLoading: false,
-  skills: [] as unknown[],
+  skills: [] as SkillPayload[],
   skillsWorkspace: vi.fn(),
   extensions: [] as unknown[],
   activations: [] as unknown[],
@@ -356,11 +357,12 @@ describe("MarketplaceKindPage", () => {
   it("Should hydrate the complete catalog before rendering Installed update state", () => {
     mocks.skills = [
       {
+        activation: { active: true },
         description: "QA lab bootstrap",
         dir: "/tmp/skills/qa-bootstrap",
         enabled: true,
         name: "qa-bootstrap",
-        provenance: { slug: "agh/qa-bootstrap" },
+        provenance: { precedence_tier: "workspace", slug: "agh/qa-bootstrap" },
         source: "workspace",
         version: "2.0.0",
       },
@@ -394,11 +396,12 @@ describe("MarketplaceKindPage", () => {
     const user = userEvent.setup();
     mocks.skills = [
       {
+        activation: { active: true },
         description: "QA lab bootstrap",
         dir: "/tmp/skills/qa-bootstrap",
         enabled: true,
         name: "qa-bootstrap",
-        provenance: { slug: "agh/qa-bootstrap" },
+        provenance: { precedence_tier: "workspace", slug: "agh/qa-bootstrap" },
         source: "workspace",
         version: "2.0.0",
       },
@@ -796,6 +799,17 @@ describe("MarketplaceKindPage", () => {
     mocks.activeWorkspaceId = null;
     mocks.skills = [
       {
+        activation: {
+          active: false,
+          reasons: [
+            {
+              gate: "requires_tools",
+              code: "missing_tool",
+              missing: ["agh__browser_screenshot"],
+              message: "gate requires_tools unmet: agh__browser_screenshot",
+            },
+          ],
+        },
         description: "Global skill",
         dir: "/tmp/skills/global-review",
         enabled: true,
@@ -807,7 +821,9 @@ describe("MarketplaceKindPage", () => {
     renderKindPage("skill", { tab: "installed" });
 
     expect(mocks.skillsWorkspace).toHaveBeenLastCalledWith("");
-    expect(screen.getByTestId("marketplace-installed-card-global-review")).toBeInTheDocument();
+    const card = screen.getByTestId("marketplace-installed-card-global-review");
+    expect(card).toHaveTextContent("Inactive");
+    expect(card).toHaveTextContent("Missing tool: agh__browser_screenshot");
   });
 
   it("Should derive installed update state from later catalog pages", () => {
@@ -826,11 +842,12 @@ describe("MarketplaceKindPage", () => {
     ];
     mocks.skills = [
       {
+        activation: { active: true },
         description: "QA lab bootstrap",
         dir: "/tmp/skills/qa-bootstrap",
         enabled: true,
         name: "qa-bootstrap",
-        provenance: { slug: "agh/qa-bootstrap" },
+        provenance: { precedence_tier: "workspace", slug: "agh/qa-bootstrap" },
         source: "workspace",
         version: "2.0.0",
       },
@@ -852,11 +869,12 @@ describe("MarketplaceKindPage", () => {
     ];
     mocks.skills = [
       {
+        activation: { active: true },
         description: "QA lab bootstrap",
         dir: "/tmp/skills/qa-bootstrap",
         enabled: true,
         name: "qa-bootstrap",
-        provenance: { slug: "agh/qa-bootstrap" },
+        provenance: { precedence_tier: "workspace", slug: "agh/qa-bootstrap" },
         source: "workspace",
         version: "2.0.0",
       },
@@ -873,6 +891,7 @@ describe("MarketplaceKindPage", () => {
   it("Should match installed skills by metadata tag", () => {
     mocks.skills = [
       {
+        activation: { active: true },
         description: "Review production changes",
         dir: "/tmp/skills/reviewer",
         enabled: true,
@@ -891,6 +910,7 @@ describe("MarketplaceKindPage", () => {
     const user = userEvent.setup();
     mocks.skills = [
       {
+        activation: { active: true },
         description: "Bundled skill",
         dir: "/tmp/skills/bundled-skill",
         enabled: true,

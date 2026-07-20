@@ -48,7 +48,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "b9dc8056e9370f9b46fa11b931909c958d6b914385e0a99522fd292906943cce",
+    "input_schema_digest": "5181f25d922ee9cfb4dd33032b45193a55d1edf78510fa2e0fbebd05d73be69f",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -152,7 +152,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "4e929138c2161ec73289a5ebeb9f6198bfc02856ad46b478fd2dab8d57873d2e",
+    "input_schema_digest": "d6440dd9b91d4eddf475c88f889e377385a7093eb7b7829d8a0ef04da84514b1",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -179,6 +179,45 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "a323c36739cd68c8c8b8be47ba9f6e441a4db6c9e6d1036d66087bde86f1ec2f",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "agh__automation_suggestions_accept",
+    "native_name": "automation_suggestions_accept",
+    "toolsets": [
+      "agh__automation"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a22b9f2020f009c517101f0e64cc180e83607c8f3ad1f471924217cb61fa6a8d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "agh__automation_suggestions_dismiss",
+    "native_name": "automation_suggestions_dismiss",
+    "toolsets": [
+      "agh__automation"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "a22b9f2020f009c517101f0e64cc180e83607c8f3ad1f471924217cb61fa6a8d",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "agh__automation_suggestions_list",
+    "native_name": "automation_suggestions_list",
+    "toolsets": [
+      "agh__automation"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "4d9b5cb0fc77297afcbaa7ce9743338a711cb746d7917ced3181ff0d24d8e6ae",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -390,6 +429,19 @@
     "required_capabilities": [
       "bundles.read"
     ]
+  },
+  {
+    "tool_id": "agh__clarify",
+    "native_name": "clarify",
+    "toolsets": [
+      "agh__clarify"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d3fc8dbc692d79635a47d83e5aefc1de78dc7881fa979dfb2d1e2cd143fc4080",
+    "output_schema_digest": "64171711abe36c366e04ff318f6424d525ba2b1a53db625f6a73adc0f4753bf3"
   },
   {
     "tool_id": "agh__config_diff",
@@ -1197,7 +1249,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "45bac885354878acc1e4f3a366fd7efde5394f491a2ec7367e78b98f825d431f",
+    "input_schema_digest": "4f0bcbe703de259dd7f3f9fe2c3aae6a9a6209d483a652b2d36c25111c2544bd",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2265,6 +2317,59 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "dc26481c6e9c9a64a57287487816d0641409335903a22f261c15e1a2c3fdc6a5",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "agh__tool_approvals_list",
+    "native_name": "tool_approvals_list",
+    "toolsets": [
+      "agh__tool_approvals"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "55b8bea717ff1230f4a36dada0b18022df5b9d49d516792bccf4f29c0126bdff",
+    "output_schema_digest": "3d750b2dc16b309abb31cea95ce64c346c916c0b3487b4f26bcd6b9bf753b132"
+  },
+  {
+    "tool_id": "agh__tool_approvals_revoke",
+    "native_name": "tool_approvals_revoke",
+    "toolsets": [
+      "agh__tool_approvals"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "7c1d95c93ebc31a382c2e7717a2da69e601f07ae721e7f457e6108f3b7b3916f",
+    "output_schema_digest": "776165c33f7f9f762cc0905864e8aa1dd3e54b5405201216633c71ac7fa785d1"
+  },
+  {
+    "tool_id": "agh__tool_approvals_set",
+    "native_name": "tool_approvals_set",
+    "toolsets": [
+      "agh__tool_approvals"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "3a42e16a53d49d6a480c0fa6b009f555a1e31aa12439c6a96d58e2dcbfa45058",
+    "output_schema_digest": "4ebe51593c78a5ca95b966ffada02c6db31c8208b830e052f6b20073e32ec083"
+  },
+  {
+    "tool_id": "agh__tool_artifact_read",
+    "native_name": "tool_artifact_read",
+    "toolsets": [
+      "agh__bootstrap",
+      "agh__tool_artifacts"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ec03f93ab0a10581f28dc6712edf27c2c0cbf5f113f01b7d9650f5265a1b6c42",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

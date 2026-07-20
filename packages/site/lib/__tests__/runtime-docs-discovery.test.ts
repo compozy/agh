@@ -73,7 +73,18 @@ describe("runtime docs discovery", () => {
     expect(coreMeta.pages).toContain("resources");
     expect(coreMeta.pages).toContain("tools");
     expect(resourcesMeta.pages).toEqual(["index", "bundles"]);
-    expect(toolsMeta.pages).toEqual(["index", "toolsets", "policy-and-invocation"]);
+    expect(toolsMeta.pages).toEqual([
+      "index",
+      "toolsets",
+      "policy-and-invocation",
+      "result-artifacts",
+    ]);
+    for (const page of resourcesMeta.pages) {
+      expect(runtimePageExists("core", "resources", `${page}.mdx`)).toBe(true);
+    }
+    for (const page of toolsMeta.pages) {
+      expect(runtimePageExists("core", "tools", `${page}.mdx`)).toBe(true);
+    }
   });
 
   it("keeps Memory v2 narrative pages reachable from core memory meta", () => {

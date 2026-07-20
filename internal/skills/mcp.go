@@ -8,7 +8,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 )
 
-// MCPResolver collects and resolves MCP server declarations from active skills.
+// MCPResolver collects and resolves MCP server declarations from enabled skills.
 type MCPResolver struct {
 	allowedMarketplace []string
 	logger             *slog.Logger
@@ -26,7 +26,7 @@ func NewMCPResolver(cfg aghconfig.SkillsConfig, logger *slog.Logger) *MCPResolve
 	}
 }
 
-// Resolve returns MCP servers from active skills after trust-tier filtering.
+// Resolve returns MCP servers from enabled skills after trust-tier filtering.
 // When multiple declarations share the same trimmed server name, the later
 // skill in source-precedence order replaces the earlier one ("last wins").
 // The caller then passes the result through aghconfig.MergeMCPServers, which

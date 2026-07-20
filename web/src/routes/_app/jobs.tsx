@@ -17,6 +17,7 @@ import type { TopbarRouteContext } from "@/types/topbar";
 import {
   AutomationEditorDialog,
   AutomationJobsCatalog,
+  AutomationSuggestionsPanel,
   AutomationListFilters,
   parseAutomationEnabled,
   parseAutomationScope,
@@ -61,11 +62,11 @@ export const Route = createFileRoute("/_app/jobs")({
 
 function JobsPage() {
   const search = Route.useSearch();
+  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
   const page = useAutomationJobsPage(
     search.create === "loop" && search.loop ? { loop: search.loop } : {},
     search
   );
-  const { activeWorkspace } = useActiveWorkspace();
 
   // Publish null while a child route is mounted: a non-null slot from this
   // parent would steal the detail route's publish (layout effects run child
@@ -148,6 +149,10 @@ function JobsPage() {
           }
           title="Jobs"
         />
+
+        {activeWorkspaceId && search.scope !== "global" ? (
+          <AutomationSuggestionsPanel key={activeWorkspaceId} workspaceID={activeWorkspaceId} />
+        ) : null}
 
         <ListingToolbar>
           <ListingToolbar.Leading>

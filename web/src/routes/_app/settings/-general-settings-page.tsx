@@ -12,6 +12,7 @@ import {
   type SettingsUpdateStatus,
   SettingsPageHead,
 } from "@/systems/settings";
+import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
 import {
   Button,
   Eyebrow,
@@ -25,6 +26,8 @@ import {
   Spinner,
   StatusLine,
 } from "@agh/ui";
+
+import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
 
 const PERMISSION_MODES = ["deny-all", "approve-reads", "approve-all"] as const;
 type PermissionMode = (typeof PERMISSION_MODES)[number];
@@ -158,12 +161,15 @@ export function GeneralSettingsPage() {
       <SoftwareUpdateSection update={update} />
       <DefaultsSection draft={draft} setDraft={setDraft} />
       <PermissionsSection draft={draft} setDraft={setDraft} />
+      <ToolApprovalGrantsSection />
       <SessionSection
         draft={draft}
         setDraft={setDraft}
         timeoutError={validationErrors.sessionTimeout ?? undefined}
         onTimeoutValidityChange={setValidationError("sessionTimeout")}
       />
+      <DaemonSection draft={draft} setDraft={setDraft} />
+      <RedactionSection draft={draft} setDraft={setDraft} />
     </PageShell>
   );
 }

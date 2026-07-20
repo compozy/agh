@@ -2,8 +2,18 @@ import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/
 
 export type AutomationJobsListResponse = OperationResponse<"listAutomationJobs", 200>;
 export type AutomationTriggersListResponse = OperationResponse<"listAutomationTriggers", 200>;
+export type AutomationSuggestionsListResponse = OperationResponse<"listAutomationSuggestions", 200>;
+export type AutomationSuggestionAcceptanceResponse = OperationResponse<
+  "acceptAutomationSuggestion",
+  200
+>;
+export type AutomationSuggestionDismissalResponse = OperationResponse<
+  "dismissAutomationSuggestion",
+  200
+>;
 export type AutomationJob = AutomationJobsListResponse["jobs"][number];
 export type AutomationTrigger = AutomationTriggersListResponse["triggers"][number];
+export type AutomationSuggestion = AutomationSuggestionsListResponse["suggestions"][number];
 export type AutomationRun = OperationResponse<"getAutomationRun", 200>["run"];
 export type AutomationSchedulerState = NonNullable<AutomationJob["scheduler"]>;
 
@@ -13,6 +23,9 @@ export type AutomationJobStableFilter = Omit<AutomationJobListFilter, "cursor">;
 export type AutomationTriggerStableFilter = Omit<AutomationTriggerListFilter, "cursor">;
 export type AutomationRunListFilter = OperationQuery<"listAutomationRuns">;
 export type AutomationRunHistoryFilter = OperationQuery<"listAutomationJobRuns">;
+export type AutomationSuggestionStatus = NonNullable<
+  OperationQuery<"listAutomationSuggestions">["status"]
+>;
 
 export type CreateAutomationJobRequest = OperationRequestBody<"createAutomationJob">;
 export type UpdateAutomationJobRequest = OperationRequestBody<"updateAutomationJob">;
@@ -24,6 +37,7 @@ export type AutomationSource = AutomationJob["source"];
 export type AutomationRunStatus = AutomationRun["status"];
 export type AutomationSchedule = NonNullable<AutomationJob["schedule"]>;
 export type AutomationScheduleMode = AutomationSchedule["mode"];
+export type AutomationCatchUpPolicy = NonNullable<AutomationSchedule["catch_up_policy"]>;
 export type AutomationRetry = AutomationJob["retry"];
 export type AutomationFireLimit = AutomationJob["fire_limit"];
 export type AutomationTriggerFilter = NonNullable<AutomationTrigger["filter"]>;

@@ -14,9 +14,13 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.memoryStore = state.memoryStore
 	d.memoryProviderRegistry = state.memoryProviderRegistry
 	d.memoryExtractor = state.memoryExtractor
+	d.runtimeWorkers = state.runtimeWorkers
 	d.localMemoryProvider = nil
 	if state.localMemoryProvider != nil {
-		d.localMemoryProvider = state.localMemoryProvider
+		d.localMemoryProvider = checkpointMemoryShutdowner{
+			runtime:  state.checkpointRuntime,
+			provider: state.localMemoryProvider,
+		}
 	}
 	d.modelCatalog = state.modelCatalog
 	d.marketplace = state.marketplace
@@ -29,6 +33,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.network = state.network
 	d.networkWakeRunner = state.networkWakeRunner
 	d.toolRegistry = state.toolRegistry
+	d.clarify = state.clarify
 	d.hooks = state.hooks
 	d.extensions = state.currentExtensionRuntime()
 	d.bridges = state.bridges

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/admission"
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/testutil"
@@ -136,6 +137,7 @@ func TestStatusForTaskError(t *testing.T) {
 		{name: "task not found", err: taskpkg.ErrTaskNotFound, want: http.StatusNotFound},
 		{name: "workspace missing", err: workspacepkg.ErrWorkspaceNotFound, want: http.StatusNotFound},
 		{name: "invalid transition", err: taskpkg.ErrInvalidStatusTransition, want: http.StatusConflict},
+		{name: "daemon draining", err: admission.ErrDraining, want: http.StatusServiceUnavailable},
 	}
 
 	for _, tc := range testCases {

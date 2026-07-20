@@ -42,6 +42,11 @@ Higher-priority non-empty fields win; lower-priority sources fill missing fields
 fresher `refreshed_at`, then ascending `source_id`. `models.dev` and `builtin` rows can enrich
 metadata but never prove account-level availability.
 
+Input, output, cache-read, cache-write, and reasoning prices merge independently and retain the
+source of the winning field. A cost estimate is available only when every nonzero usage bucket has
+its own finite, non-negative rate and all active rates have compatible provenance. Rates are never
+inferred between buckets.
+
 ## Merged availability
 
 The merged projection exposes both nullable `available` and string `availability_state` so stale
@@ -168,7 +173,9 @@ remain authoritative when a session starts.
 | Claude   | `claude-haiku-4-5-20251001` | —                 | 200,000 / 64,000    | 1 / 5                     | none seeded; ACP live may advertise a set |
 
 GPT-5.6 seeds carry release date `2026-06-26`; Claude Fable 5 carries `2026-06-09`. Unknown release
-dates remain absent rather than being inferred.
+dates remain absent rather than being inferred. The seed table lists only input/output rates; an
+active cache-read, cache-write, or reasoning bucket remains unpriced unless another catalog source
+provides that bucket's explicit rate.
 
 Source status payloads carry `source_id`, `provider_id`, `source_kind`, `refresh_state`
 (`idle | refreshing | succeeded | failed`), `last_refresh`, `next_refresh`, `last_success`,
@@ -235,7 +242,8 @@ or the web for refreshes.
         "reasoning_efforts": ["none", "low", "medium", "high", "xhigh", "max"],
         "default_reasoning_effort": "medium",
         "context_window": 1050000,
-        "max_output_tokens": 128000
+        "max_output_tokens": 128000,
+        "cost": { "input_per_million": 5, "output_per_million": 30 }
       }
     }
   ]
@@ -330,9 +338,10 @@ Marketplace extensions are limited to read-oriented grants by policy, so a marke
 can declare `model.read` and read the projection but must request `model.write` explicitly to
 trigger refresh, and refresh grants stay subject to the marketplace policy review.
 
-Extension source rows can carry `deprecated`, `hidden`, `featured`, and nullable `release_date`
-metadata. They are always validated through `internal/modelcatalog`; invalid dates or other malformed
-rows produce a recorded source status (with redacted error) instead of corrupting the projection.
+Extension source rows can carry `deprecated`, `hidden`, `featured`, nullable `release_date`, and
+independent input/output/cache-read/cache-write/reasoning rates. They are always validated through
+`internal/modelcatalog`; non-finite or negative rates, invalid dates, and other malformed rows produce
+a recorded source status (with redacted error) instead of corrupting the projection.
 
 ## Refresh lifetime and serialization
 

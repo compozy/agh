@@ -28,7 +28,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		acpmock.RequireDriver(t)
 
 		fixturePath := mockFixturePath(t, "network_collaboration_fixture.json")
-		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			EnableNetwork: true,
 			MockAgents: []e2etest.MockAgentSpec{
 				{
@@ -489,7 +489,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		acpmock.RequireDriver(t)
 
 		fixturePath := mockFixturePath(t, "network_collaboration_fixture.json")
-		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			EnableNetwork: true,
 			MockAgents: []e2etest.MockAgentSpec{
 				{
@@ -770,7 +770,7 @@ func TestDaemonE2ENetworkWakeCancellationWithMockAgent(t *testing.T) {
 		acpmock.RequireDriver(t)
 
 		fixturePath := mockFixturePath(t, "network_cancel_fixture.json")
-		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			EnableNetwork: true,
 			MockAgents: []e2etest.MockAgentSpec{
 				{

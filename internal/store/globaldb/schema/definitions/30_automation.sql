@@ -53,6 +53,22 @@ CREATE TABLE automation_jobs (
 		)
 	);
 
+CREATE TABLE automation_suggestions (
+		id           TEXT PRIMARY KEY,
+		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+		source       TEXT NOT NULL CHECK (source IN ('catalog', 'usage', 'integration')),
+		dedup_key    TEXT NOT NULL,
+		status       TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'dismissed')),
+		payload      TEXT NOT NULL CHECK (json_valid(payload) AND json_type(payload) = 'object'),
+		created_at   TEXT NOT NULL,
+		resolved_at  TEXT,
+		UNIQUE (workspace_id, dedup_key),
+		CHECK (
+			(status = 'pending' AND resolved_at IS NULL) OR
+			(status IN ('accepted', 'dismissed') AND resolved_at IS NOT NULL)
+		)
+	);
+
 CREATE TABLE automation_runs (
 		id         TEXT PRIMARY KEY,
 		job_id     TEXT,
@@ -78,8 +94,8 @@ CREATE TABLE "automation_scheduler_state" (
 			last_scheduled_at            TEXT,
 			last_fire_id                 TEXT NOT NULL DEFAULT '',
 			schedule_hash                TEXT NOT NULL DEFAULT '',
-			catch_up_policy              TEXT NOT NULL DEFAULT 'skip'
-				CHECK (catch_up_policy IN ('skip', 'coalesce', 'replay')),
+			catch_up_policy              TEXT NOT NULL DEFAULT 'skip_missed'
+				CHECK (catch_up_policy IN ('skip_missed', 'coalesce', 'replay', 'run_once_on_catchup')),
 			misfire_grace_seconds        INTEGER NOT NULL DEFAULT 0
 				CHECK (misfire_grace_seconds >= 0),
 			consecutive_resume_failures  INTEGER NOT NULL DEFAULT 0
@@ -196,6 +212,9 @@ CREATE INDEX idx_automation_scheduler_misfire
 
 CREATE INDEX idx_automation_scheduler_next_run
 			ON automation_scheduler_state(next_run_at);
+
+CREATE INDEX idx_automation_suggestions_workspace_status
+			ON automation_suggestions(workspace_id, status, created_at, id);
 
 CREATE INDEX idx_automation_trigger_catalog_order
 			ON automation_trigger_catalog_entries(source_rank, name, trigger_id);

@@ -367,7 +367,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPut,
-		"http://unix/api/resources/bundle.activation/demo",
+		"http://unix/api/resources/integration.fixture/demo",
 		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 		nil,
 	)
@@ -394,7 +394,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPut,
-		"http://unix/api/resources/bundle.activation/demo",
+		"http://unix/api/resources/integration.fixture/demo",
 		[]byte(
 			fmt.Sprintf(
 				`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"enabled":false}}`,
@@ -421,7 +421,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/resources/bundle.activation/demo",
+		"http://unix/api/resources/integration.fixture/demo",
 		nil,
 		nil,
 	)
@@ -440,7 +440,7 @@ func TestUDSResourceCRUDRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/resources/bundle.activation?scope_kind=global",
+		"http://unix/api/resources/integration.fixture?scope_kind=global",
 		nil,
 		nil,
 	)
@@ -597,7 +597,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		t,
 		runtime.client,
 		http.MethodPut,
-		"http://unix/api/resources/bundle.activation/demo",
+		"http://unix/api/resources/integration.fixture/demo",
 		[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
 		nil,
 	)
@@ -618,7 +618,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		t,
 		runtime.client,
 		http.MethodPut,
-		"http://unix/api/resources/bundle.activation/demo",
+		"http://unix/api/resources/integration.fixture/demo",
 		[]byte(
 			fmt.Sprintf(
 				`{"scope":{"kind":"global"},"expected_version":%d,"spec":{"enabled":false}}`,
@@ -639,7 +639,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		t,
 		runtime.client,
 		http.MethodDelete,
-		"http://unix/api/resources/bundle.activation/demo",
+		"http://unix/api/resources/integration.fixture/demo",
 		[]byte(fmt.Sprintf(`{"expected_version":%d}`, created.Record.Version)),
 		nil,
 	)
@@ -659,7 +659,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		t,
 		runtime.client,
 		http.MethodDelete,
-		"http://unix/api/resources/bundle.activation/demo",
+		"http://unix/api/resources/integration.fixture/demo",
 		[]byte(fmt.Sprintf(`{"expected_version":%d}`, updated.Record.Version)),
 		nil,
 	)
@@ -679,7 +679,7 @@ func TestUDSDeleteResourceRejectsStaleVersionAndRequiresCurrentVersion(t *testin
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/resources/bundle.activation/demo",
+		"http://unix/api/resources/integration.fixture/demo",
 		nil,
 		nil,
 	)
@@ -3132,10 +3132,21 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	}
 	fanout.notifiers = append(fanout.notifiers, observer)
 
-	memoryStore := memory.NewStore(homePaths.MemoryDir)
+	memoryStore := memory.NewStore(
+		homePaths.MemoryDir,
+		memory.WithCatalogDatabasePath(homePaths.DatabaseFile),
+	)
 	if err := memoryStore.EnsureDirs(); err != nil {
 		t.Fatalf("memoryStore.EnsureDirs() error = %v", err)
 	}
+	if err := memoryStore.OpenCatalog(context.Background()); err != nil {
+		t.Fatalf("memoryStore.OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := memoryStore.CloseCatalog(context.Background()); err != nil {
+			t.Fatalf("memoryStore.CloseCatalog() error = %v", err)
+		}
+	})
 	bridgeService := newIntegrationBridgeService(registry)
 	dreamTrigger := &integrationDreamTrigger{
 		enabled:   true,

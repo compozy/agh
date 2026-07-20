@@ -4,7 +4,6 @@ package events
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 )
 
@@ -30,24 +29,25 @@ type Metadata struct {
 }
 
 const (
-	ACPUserMessage      = "user_message"
-	ACPSyntheticReentry = "synthetic_reentry"
-	ACPAgentMessage     = "agent_message"
-	ACPThought          = "thought"
-	ACPToolCall         = "tool_call"
-	ACPToolResult       = "tool_result"
-	ACPPlan             = "plan"
-	ACPPermission       = "permission"
-	ACPUsage            = "usage"
-	ACPSystem           = "system"
-	ACPRuntimeProgress  = "runtime_progress"
-	ACPRuntimeWarning   = "runtime_warning"
-	ACPDone             = "done"
-	ACPError            = "error"
-	SessionStopped      = "session_stopped"
-	SessionUnhealthy    = "session.unhealthy"
-	SessionHung         = "session.hung"
-	SessionRecovered    = "session.recovered"
+	ACPUserMessage         = "user_message"
+	ACPSyntheticReentry    = "synthetic_reentry"
+	ACPAgentMessage        = "agent_message"
+	ACPThought             = "thought"
+	ACPToolCall            = "tool_call"
+	ACPToolResult          = "tool_result"
+	ACPPlan                = "plan"
+	ACPPermission          = "permission"
+	ACPUsage               = "usage"
+	ACPSystem              = "system"
+	ACPRuntimeProgress     = "runtime_progress"
+	ACPRuntimeWarning      = "runtime_warning"
+	ACPDone                = "done"
+	ACPError               = "error"
+	SessionStopped         = "session_stopped"
+	SessionUnhealthy       = "session.unhealthy"
+	SessionHung            = "session.hung"
+	SessionRecovered       = "session.recovered"
+	SessionCompactionFired = "session.compaction_fired"
 
 	TaskCreated                          = "task.created"
 	TaskUpdated                          = "task.updated"
@@ -160,6 +160,9 @@ const (
 	SchedulerDrainStarted   = "scheduler.drain_started"
 	SchedulerDrainCompleted = "scheduler.drain_completed"
 
+	AutomationSuggestionAccepted  = "automation.suggestion.accepted"
+	AutomationSuggestionDismissed = "automation.suggestion.dismissed"
+
 	TranscriptMarkerCreated       = "transcript_marker.created"
 	TranscriptMarkerRedacted      = "transcript_marker.redacted"
 	SessionTranscriptCacheRebuilt = "session_transcript_cache_rebuilt"
@@ -167,11 +170,13 @@ const (
 	SessionStreamSubscribed       = "session_stream_subscribed"
 	SessionStreamOverflowFallback = "session_stream_overflow_fallback"
 
-	ToolCallStarted     = "tool.call_started"
-	ToolCallCompleted   = "tool.call_completed"
-	ToolCallFailed      = "tool.call_failed"
-	ToolCallDenied      = "tool.call_denied"
-	ToolResultTruncated = "tool.result_truncated"
+	ToolCallStarted          = "tool.call_started"
+	ToolCallCompleted        = "tool.call_completed"
+	ToolCallFailed           = "tool.call_failed"
+	ToolCallDenied           = "tool.call_denied"
+	ToolResultTruncated      = "tool.result_truncated"
+	ToolApprovalGrantPut     = "tool.approval_grant_put"
+	ToolApprovalGrantRevoked = "tool.approval_grant_revoked"
 
 	ProviderAuthRequired          = "provider.auth_required"
 	ProviderAuthRecovered         = "provider.auth_recovered"
@@ -179,6 +184,9 @@ const (
 	ProviderPermissionDenied      = "provider.permission_denied"
 	ProviderUnavailable           = "provider.unavailable"
 	ProviderModelCatalogRefreshed = "provider.model_catalog_refreshed"
+
+	DeadEntityMarked  = "reliability.dead_entity_marked"
+	DeadEntityCleared = "reliability.dead_entity_cleared"
 
 	BridgeNotificationSuppressed = "bridge_notification_suppressed"
 	NetworkPeerJoined            = "network.peer.joined"
@@ -209,6 +217,7 @@ var baseRegistryEntries = []Metadata{
 	notify(warning(SessionUnhealthy, "session", ComponentSession)),
 	notify(warning(SessionHung, "session", ComponentSession)),
 	notify(success(SessionRecovered, "session", ComponentSession)),
+	info(SessionCompactionFired, "session", ComponentSession),
 
 	info(TaskCreated, "task", ComponentTask),
 	info(TaskUpdated, "task", ComponentTask),
@@ -316,6 +325,8 @@ var baseRegistryEntries = []Metadata{
 	global(info(SchedulerResumed, "scheduler", ComponentScheduler)),
 	global(info(SchedulerDrainStarted, "scheduler", ComponentScheduler)),
 	global(success(SchedulerDrainCompleted, "scheduler", ComponentScheduler)),
+	global(success(AutomationSuggestionAccepted, "automation.suggestion", ComponentAutomation)),
+	global(info(AutomationSuggestionDismissed, "automation.suggestion", ComponentAutomation)),
 
 	info(TranscriptMarkerCreated, "transcript_marker", ComponentTranscript),
 	warning(TranscriptMarkerRedacted, "transcript_marker", ComponentTranscript),
@@ -329,6 +340,8 @@ var baseRegistryEntries = []Metadata{
 	notify(global(failure(ToolCallFailed, "tool", ComponentTools))),
 	notify(global(warning(ToolCallDenied, "tool", ComponentTools))),
 	notify(global(warning(ToolResultTruncated, "tool", ComponentTools))),
+	global(success(ToolApprovalGrantPut, "tool.approval_grant", ComponentTools)),
+	global(warning(ToolApprovalGrantRevoked, "tool.approval_grant", ComponentTools)),
 
 	notify(global(warning(ProviderAuthRequired, "provider", ComponentProvider))),
 	global(success(ProviderAuthRecovered, "provider", ComponentProvider)),
@@ -345,6 +358,8 @@ var baseRegistryEntries = []Metadata{
 	global(success(ExtensionEnabled, "extension", ComponentExtension)),
 	global(warning(ExtensionDisabled, "extension", ComponentExtension)),
 	global(info(ExtensionDigestVerify, "extension.digest", ComponentExtension)),
+	global(warning(DeadEntityMarked, "reliability.dead_entity", ComponentReliability)),
+	global(success(DeadEntityCleared, "reliability.dead_entity", ComponentReliability)),
 
 	global(success(NotificationPresetCreated, "notification.preset", ComponentNotification)),
 	global(info(NotificationPresetUpdated, "notification.preset", ComponentNotification)),
@@ -356,45 +371,6 @@ var baseRegistryEntries = []Metadata{
 }
 
 var registryByName = mustBuildRegistry(registryEntries)
-
-// All returns all canonical registry entries sorted by event name.
-func All() []Metadata {
-	entries := append([]Metadata(nil), registryEntries...)
-	slices.SortFunc(entries, func(a Metadata, b Metadata) int {
-		return strings.Compare(a.Name, b.Name)
-	})
-	return entries
-}
-
-// Lookup returns metadata for a canonical event name.
-func Lookup(name string) (Metadata, bool) {
-	meta, ok := registryByName[strings.TrimSpace(name)]
-	return meta, ok
-}
-
-// ComponentFor returns the registered component for an event name.
-func ComponentFor(name string) string {
-	meta, ok := Lookup(name)
-	if !ok {
-		return ""
-	}
-	return meta.Component
-}
-
-// OutcomeFor returns the registered outcome for an event name, defaulting to info.
-func OutcomeFor(name string) Outcome {
-	meta, ok := Lookup(name)
-	if !ok {
-		return OutcomeInfo
-	}
-	return meta.Outcome
-}
-
-// AllowsGlobalScope reports whether a summary event may be emitted without a session.
-func AllowsGlobalScope(name string) bool {
-	meta, ok := Lookup(name)
-	return ok && meta.GlobalScope
-}
 
 // ValidatePublicName rejects deleted or unsupported public event families.
 func ValidatePublicName(name string) error {
@@ -432,41 +408,6 @@ func ValidComponent(component string) bool {
 	return false
 }
 
-// NamesForComponent returns canonical event names registered for component.
-func NamesForComponent(component string) []string {
-	component = strings.TrimSpace(component)
-	if component == "" {
-		return nil
-	}
-	names := make([]string, 0)
-	for _, meta := range registryEntries {
-		if meta.Component == component {
-			names = append(names, meta.Name)
-		}
-	}
-	slices.Sort(names)
-	return names
-}
-
-// NamesForOutcomes returns canonical event names matching any requested outcome.
-func NamesForOutcomes(outcomes ...Outcome) []string {
-	if len(outcomes) == 0 {
-		return nil
-	}
-	allowed := make(map[Outcome]struct{}, len(outcomes))
-	for _, outcome := range outcomes {
-		allowed[outcome] = struct{}{}
-	}
-	names := make([]string, 0)
-	for _, meta := range registryEntries {
-		if _, ok := allowed[meta.Outcome]; ok {
-			names = append(names, meta.Name)
-		}
-	}
-	slices.Sort(names)
-	return names
-}
-
 func mustBuildRegistry(entries []Metadata) map[string]Metadata {
 	registry := make(map[string]Metadata, len(entries))
 	for _, entry := range entries {
@@ -492,40 +433,4 @@ func mustBuildRegistry(entries []Metadata) map[string]Metadata {
 		registry[name] = entry
 	}
 	return registry
-}
-
-func info(name string, family string, component string) Metadata {
-	return metadata(name, family, component, OutcomeInfo)
-}
-
-func success(name string, family string, component string) Metadata {
-	return metadata(name, family, component, OutcomeSuccess)
-}
-
-func failure(name string, family string, component string) Metadata {
-	return metadata(name, family, component, OutcomeFailure)
-}
-
-func warning(name string, family string, component string) Metadata {
-	return metadata(name, family, component, OutcomeWarning)
-}
-
-func metadata(name string, family string, component string, outcome Outcome) Metadata {
-	return Metadata{
-		Name:        name,
-		Family:      family,
-		Component:   component,
-		Outcome:     outcome,
-		EmitsToLogs: true,
-	}
-}
-
-func notify(entry Metadata) Metadata {
-	entry.NotificationEligible = true
-	return entry
-}
-
-func global(entry Metadata) Metadata {
-	entry.GlobalScope = true
-	return entry
 }

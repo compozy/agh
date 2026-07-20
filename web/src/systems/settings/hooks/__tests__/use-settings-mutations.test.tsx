@@ -113,6 +113,7 @@ describe("useUpdateSettingsGeneral", () => {
       await result.current.mutateAsync({
         config: {
           daemon: {
+            memory_report_interval: "5m",
             reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
             socket: "/tmp/a.sock",
           },
@@ -120,6 +121,7 @@ describe("useUpdateSettingsGeneral", () => {
           http: { host: "127.0.0.1", port: 2123 },
           limits: { max_concurrent_agents: 4 },
           permissions: { mode: "approve-reads" as const },
+          redact: { enabled: true },
           session_timeout: "30m",
         },
       });

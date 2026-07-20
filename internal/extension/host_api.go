@@ -134,6 +134,7 @@ type HostAPIHandler struct {
 	now              func() time.Time
 	rateLimit        int
 	rateBurst        int
+	clarify          *hostAPIClarifyRuntime
 
 	bridgeIngestDedupTTL  time.Duration
 	bridgeCleanupInterval time.Duration
@@ -545,87 +546,6 @@ func normalizeHostAPIHandlerDefaults(handler *HostAPIHandler) {
 	}
 }
 
-func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc {
-	handlers := map[string]hostAPIMethodFunc{
-		hostAPIAutomationJobsPath:                                      handler.handleAutomationJobs,
-		hostAPIAutomationJobsGetPath:                                   handler.handleAutomationJobsGet,
-		hostAPIAutomationJobsCreatePath:                                handler.handleAutomationJobsCreate,
-		hostAPIAutomationJobsUpdatePath:                                handler.handleAutomationJobsUpdate,
-		hostAPIAutomationJobsDeletePath:                                handler.handleAutomationJobsDelete,
-		hostAPIAutomationJobsTriggerPath:                               handler.handleAutomationJobsTrigger,
-		hostAPIAutomationJobsRunsPath:                                  handler.handleAutomationJobsRuns,
-		hostAPIAutomationTriggersPath:                                  handler.handleAutomationTriggers,
-		hostAPIAutomationTriggersGetPath:                               handler.handleAutomationTriggersGet,
-		hostAPIAutomationTriggersCreatePath:                            handler.handleAutomationTriggersCreate,
-		hostAPIAutomationTriggersUpdatePath:                            handler.handleAutomationTriggersUpdate,
-		hostAPIAutomationTriggersDeletePath:                            handler.handleAutomationTriggersDelete,
-		hostAPIAutomationTriggersRunsPath:                              handler.handleAutomationTriggersRuns,
-		hostAPIAutomationTriggersFirePath:                              handler.handleAutomationTriggersFire,
-		hostAPIAutomationRunsPath:                                      handler.handleAutomationRuns,
-		string(extensioncontract.HostAPIMethodTasks):                   handler.handleTasks,
-		string(extensioncontract.HostAPIMethodTasksGet):                handler.handleTasksGet,
-		string(extensioncontract.HostAPIMethodTasksTimeline):           handler.handleTasksTimeline,
-		string(extensioncontract.HostAPIMethodTasksTree):               handler.handleTasksTree,
-		string(extensioncontract.HostAPIMethodTasksDashboard):          handler.handleTasksDashboard,
-		string(extensioncontract.HostAPIMethodTasksInbox):              handler.handleTasksInbox,
-		string(extensioncontract.HostAPIMethodTasksCreate):             handler.handleTasksCreate,
-		string(extensioncontract.HostAPIMethodTasksUpdate):             handler.handleTasksUpdate,
-		string(extensioncontract.HostAPIMethodTasksCancel):             handler.handleTasksCancel,
-		string(extensioncontract.HostAPIMethodTasksRuns):               handler.handleTasksRuns,
-		string(extensioncontract.HostAPIMethodTasksRunsGet):            handler.handleTasksRunsGet,
-		string(extensioncontract.HostAPIMethodTasksRunsEnqueue):        handler.handleTasksRunsEnqueue,
-		string(extensioncontract.HostAPIMethodTasksRunsStart):          handler.handleTasksRunsStart,
-		string(extensioncontract.HostAPIMethodTasksRunsAttachSession):  handler.handleTasksRunsAttachSession,
-		string(extensioncontract.HostAPIMethodTasksRunsComplete):       handler.handleTasksRunsComplete,
-		string(extensioncontract.HostAPIMethodTasksRunsFail):           handler.handleTasksRunsFail,
-		string(extensioncontract.HostAPIMethodTasksRunsCancel):         handler.handleTasksRunsCancel,
-		hostAPIResourcesListPath:                                       handler.handleResourcesList,
-		hostAPIResourcesGetPath:                                        handler.handleResourcesGet,
-		hostAPIResourcesSnapshotPath:                                   handler.handleResourcesSnapshot,
-		hostAPIBridgesInstancesListPath:                                handler.handleBridgesInstancesList,
-		hostAPIBridgesInstancesGetPath:                                 handler.handleBridgesInstancesGet,
-		hostAPIBridgesInstancesReportStatePath:                         handler.handleBridgesInstancesReportState,
-		hostAPIBridgesMessagesIngestPath:                               handler.handleBridgesMessagesIngest,
-		hostAPISandboxExecPath:                                         handler.handleSandboxExec,
-		hostAPISandboxInfoPath:                                         handler.handleSandboxInfo,
-		hostAPISandboxListPath:                                         handler.handleSandboxList,
-		hostAPIMemoryForgetPath:                                        handler.handleMemoryForget,
-		hostAPIMemoryRecallPath:                                        handler.handleMemoryRecall,
-		hostAPIMemoryStorePath:                                         handler.handleMemoryStore,
-		hostAPIListLogsPath:                                            handler.handleListLogs,
-		hostAPIObserveHealthPath:                                       handler.handleObserveHealth,
-		string(extensioncontract.HostAPIMethodModelsList):              handler.handleModelsList,
-		string(extensioncontract.HostAPIMethodModelsRefresh):           handler.handleModelsRefresh,
-		string(extensioncontract.HostAPIMethodModelsStatus):            handler.handleModelsStatus,
-		string(extensioncontract.HostAPIMethodAgentsSoulGet):           handler.handleAgentsSoulGet,
-		string(extensioncontract.HostAPIMethodAgentsSoulValidate):      handler.handleAgentsSoulValidate,
-		string(extensioncontract.HostAPIMethodAgentsSoulPut):           handler.handleAgentsSoulPut,
-		string(extensioncontract.HostAPIMethodAgentsSoulDelete):        handler.handleAgentsSoulDelete,
-		string(extensioncontract.HostAPIMethodAgentsSoulHistory):       handler.handleAgentsSoulHistory,
-		string(extensioncontract.HostAPIMethodAgentsSoulRollback):      handler.handleAgentsSoulRollback,
-		string(extensioncontract.HostAPIMethodAgentsHeartbeatGet):      handler.handleAgentsHeartbeatGet,
-		string(extensioncontract.HostAPIMethodAgentsHeartbeatValidate): handler.handleAgentsHeartbeatValidate,
-		string(extensioncontract.HostAPIMethodAgentsHeartbeatPut):      handler.handleAgentsHeartbeatPut,
-		string(extensioncontract.HostAPIMethodAgentsHeartbeatDelete):   handler.handleAgentsHeartbeatDelete,
-		string(extensioncontract.HostAPIMethodAgentsHeartbeatHistory):  handler.handleAgentsHeartbeatHistory,
-		string(extensioncontract.HostAPIMethodAgentsHeartbeatRollback): handler.handleAgentsHeartbeatRollback,
-		string(extensioncontract.HostAPIMethodAgentsHeartbeatStatus):   handler.handleAgentsHeartbeatStatus,
-		string(extensioncontract.HostAPIMethodAgentsHeartbeatWake):     handler.handleAgentsHeartbeatWake,
-		hostAPISessionsCreatePath:                                      handler.handleSessionsCreate,
-		hostAPISessionsEventsPath:                                      handler.handleSessionsEvents,
-		string(extensioncontract.HostAPIMethodSessionsSoulRefresh):     handler.handleSessionsSoulRefresh,
-		string(extensioncontract.HostAPIMethodSessionsHealthGet):       handler.handleSessionsHealthGet,
-		hostAPISessionsListPath:                                        handler.handleSessionsList,
-		hostAPISessionsPromptPath:                                      handler.handleSessionsPrompt,
-		hostAPISessionsStatusPath:                                      handler.handleSessionsStatus,
-		string(extensioncontract.HostAPIMethodSessionsStatusGet):       handler.handleSessionsStatusGet,
-		hostAPISessionsStopPath:                                        handler.handleSessionsStop,
-		hostAPISkillsListPath:                                          handler.handleSkillsList,
-	}
-	registerHostAPINetworkMethodHandlers(handler, handlers)
-	return handlers
-}
-
 // Handle dispatches one Host API request for the named extension.
 func (h *HostAPIHandler) Handle(
 	ctx context.Context,
@@ -860,7 +780,7 @@ func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMes
 			if resolveErr != nil {
 				return nil, resolveErr
 			}
-			filterWorkspaceID, resolveErr = hostAPIResolvedWorkspaceID(&resolved)
+			filterWorkspaceID, resolveErr = hostAPIResolvedWorkspaceRegistrationID(&resolved)
 			if resolveErr != nil {
 				return nil, resolveErr
 			}
@@ -1166,7 +1086,7 @@ func (h *HostAPIHandler) resolveSandboxWorkspaceFilter(
 	if err != nil {
 		return "", "", err
 	}
-	workspaceID, err := hostAPIResolvedWorkspaceID(&resolved)
+	workspaceID, err := hostAPIResolvedWorkspaceRegistrationID(&resolved)
 	if err != nil {
 		return "", "", err
 	}
@@ -1329,56 +1249,6 @@ func (h *HostAPIHandler) handleListLogs(ctx context.Context, raw json.RawMessage
 		})
 	}
 
-	return result, nil
-}
-
-func (h *HostAPIHandler) handleSkillsList(ctx context.Context, raw json.RawMessage) (any, error) {
-	if h.skills == nil {
-		return nil, errors.New("extension: skills registry is not configured")
-	}
-
-	var params hostAPISkillsListParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
-		return nil, err
-	}
-
-	var (
-		skills []*skillspkg.Skill
-		err    error
-	)
-	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
-		if h.workspaces == nil {
-			return nil, errors.New("extension: workspace resolver is not configured")
-		}
-		resolved, resolveErr := h.workspaces.Resolve(ctx, workspaceRef)
-		if resolveErr != nil {
-			return nil, resolveErr
-		}
-		if agentName := strings.TrimSpace(params.ForAgent); agentName != "" {
-			skills, err = h.skills.ForAgent(ctx, &resolved, agentName)
-		} else {
-			skills, err = h.skills.ForWorkspace(ctx, &resolved)
-		}
-	} else if agentName := strings.TrimSpace(params.ForAgent); agentName != "" {
-		skills, err = h.skills.ForAgent(ctx, nil, agentName)
-	} else {
-		skills = h.skills.List()
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]hostAPISkillSummary, 0, len(skills))
-	for _, skill := range skills {
-		if skill == nil {
-			continue
-		}
-		result = append(result, hostAPISkillSummary{
-			Name:        skill.Meta.Name,
-			Description: skill.Meta.Description,
-			Source:      skillspkg.SkillSourceName(skill.Source),
-		})
-	}
 	return result, nil
 }
 
@@ -1720,8 +1590,9 @@ func (h *HostAPIHandler) handleAutomationRuns(ctx context.Context, raw json.RawM
 }
 
 type hostAPIPromptSubmission struct {
-	TurnID     string
-	SeedEvents []bridgepkg.DeliveryProjectionEvent
+	TurnID             string
+	SeedEvents         []bridgepkg.DeliveryProjectionEvent
+	DeliveryRegistered bool
 }
 
 func (h *HostAPIHandler) submitPrompt(
@@ -1866,7 +1737,7 @@ func (h *HostAPIHandler) recallMemory(
 	query string,
 	selection hostAPIMemoryRecallSelection,
 ) (memcontract.Packaged, error) {
-	workspaceID, err := h.resolveWorkspaceID(ctx, selection.Workspace)
+	workspaceID, err := h.resolveStableWorkspaceID(ctx, selection.Workspace)
 	if err != nil {
 		return memcontract.Packaged{}, err
 	}
@@ -1968,46 +1839,6 @@ func (h *HostAPIHandler) memoryStoreFor(
 	}
 }
 
-func (h *HostAPIHandler) resolveWorkspaceRoot(ctx context.Context, rawWorkspace string) (string, error) {
-	if strings.TrimSpace(rawWorkspace) == "" {
-		return "", nil
-	}
-	if h.workspaces == nil {
-		return "", invalidParamsRPCError(errors.New("workspace resolver is not configured"))
-	}
-	resolved, err := h.workspaces.Resolve(ctx, rawWorkspace)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(resolved.RootDir), nil
-}
-
-func (h *HostAPIHandler) resolveWorkspaceID(ctx context.Context, rawWorkspace string) (string, error) {
-	trimmed := strings.TrimSpace(rawWorkspace)
-	if trimmed == "" {
-		return "", nil
-	}
-	if h.workspaces == nil {
-		return trimmed, nil
-	}
-	resolved, err := h.workspaces.Resolve(ctx, trimmed)
-	if err != nil {
-		return "", err
-	}
-	return hostAPIResolvedWorkspaceID(&resolved)
-}
-
-func (h *HostAPIHandler) resolveRequiredWorkspaceID(ctx context.Context, rawWorkspace string) (string, error) {
-	workspaceID, err := h.resolveWorkspaceID(ctx, rawWorkspace)
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(workspaceID) == "" {
-		return "", invalidParamsRPCError(errors.New("workspace_id is required"))
-	}
-	return strings.TrimSpace(workspaceID), nil
-}
-
 func (h *HostAPIHandler) requireHostAPISessionWorkspace(
 	ctx context.Context,
 	workspaceRef string,
@@ -2068,18 +1899,7 @@ func (h *HostAPIHandler) resolveAutomationWorkspaceID(ctx context.Context, rawWo
 	if err != nil {
 		return "", err
 	}
-	return hostAPIResolvedWorkspaceID(&resolved)
-}
-
-func hostAPIResolvedWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
-	if resolved == nil {
-		return "", errors.New("extension: resolved workspace is required")
-	}
-	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
-	if workspaceID == "" {
-		return "", errors.New("extension: resolved workspace_id is empty")
-	}
-	return workspaceID, nil
+	return hostAPIResolvedWorkspaceRegistrationID(&resolved)
 }
 
 func (h *HostAPIHandler) jobFromCreateParams(

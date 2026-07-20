@@ -467,7 +467,8 @@ func TestManagerAggregateSessionsByAgent(t *testing.T) {
 		if catalog.lastAgentMetricsQuery.WorkspaceID != h.workspaceID ||
 			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeIDs, active.ID) ||
 			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSessionTypes, string(SessionTypeDream)) ||
-			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSpawnRoles, SpawnRoleMemoryExtractor) {
+			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSpawnRoles, SpawnRoleMemoryExtractor) ||
+			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSpawnRoles, SpawnRoleAutoTitle) {
 			t.Fatalf(
 				"AggregateSessionsByAgent() query = %#v, want workspace and live/internal exclusions",
 				catalog.lastAgentMetricsQuery,
@@ -519,7 +520,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		}
 	})
 
-	t.Run("Should hide daemon-owned memory sessions before the page cut", func(t *testing.T) {
+	t.Run("Should hide daemon-owned internal sessions before the page cut", func(t *testing.T) {
 		t.Parallel()
 
 		dream := *base
@@ -527,10 +528,12 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		if sessionMatchesListQuery(&dream, ListQuery{}, now) {
 			t.Fatal("sessionMatchesListQuery(dream) = true, want false")
 		}
-		extractor := *base
-		extractor.Lineage = &store.SessionLineage{SpawnRole: SpawnRoleMemoryExtractor}
-		if sessionMatchesListQuery(&extractor, ListQuery{}, now) {
-			t.Fatal("sessionMatchesListQuery(memory extractor) = true, want false")
+		for _, role := range []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle} {
+			internal := *base
+			internal.Lineage = &store.SessionLineage{SpawnRole: role}
+			if sessionMatchesListQuery(&internal, ListQuery{}, now) {
+				t.Fatalf("sessionMatchesListQuery(%s) = true, want false", role)
+			}
 		}
 	})
 

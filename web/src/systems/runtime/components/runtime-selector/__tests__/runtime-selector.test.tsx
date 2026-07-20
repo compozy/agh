@@ -1345,7 +1345,7 @@ describe("RuntimeSelector provider rail filtering", () => {
 // ---------------------------------------------------------------------------
 
 describe("RuntimeSelector row chips", () => {
-  it("Should render context, cost, tools and level chips from truthful model metadata", async () => {
+  it("Should render context, all five cost rates, tools and levels from truthful metadata", async () => {
     const user = userEvent.setup();
     renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
@@ -1355,6 +1355,9 @@ describe("RuntimeSelector row chips", () => {
           context_window: 1_050_000,
           cost_input: 5,
           cost_output: 30,
+          cost_cache_read: 0.5,
+          cost_cache_write: 8,
+          cost_reasoning: 40,
           supports_tools: true,
           efforts: ["low", "medium", "high"],
         }),
@@ -1364,9 +1367,35 @@ describe("RuntimeSelector row chips", () => {
     await openVia(user, "model");
     const richRow = row("rich");
     expect(richRow).toHaveTextContent("1.05M");
-    expect(richRow).toHaveTextContent("$5/30");
+    expect(richRow).toHaveTextContent("input $5/M");
+    expect(richRow).toHaveTextContent("output $30/M");
+    expect(richRow).toHaveTextContent("cache read $0.5/M");
+    expect(richRow).toHaveTextContent("cache write $8/M");
+    expect(richRow).toHaveTextContent("reasoning $40/M");
     expect(richRow).toHaveTextContent("tools");
     expect(richRow).toHaveTextContent("3 levels");
+  });
+
+  it("Should render only explicitly present cost rates without borrowing another bucket", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      models: [
+        model("partial-cost", {
+          name: "Partial cost",
+          cost_input: 5,
+          cost_cache_read: 0,
+        }),
+      ],
+    });
+
+    await openVia(user, "model");
+    const partialRow = row("partial-cost");
+    expect(partialRow).toHaveTextContent("input $5/M");
+    expect(partialRow).toHaveTextContent("cache read $0/M");
+    expect(partialRow).not.toHaveTextContent("output $");
+    expect(partialRow).not.toHaveTextContent("cache write $");
+    expect(partialRow).not.toHaveTextContent("reasoning $");
   });
 
   it("Should render a 'reasoning' chip when a model supports reasoning without selectable levels", async () => {

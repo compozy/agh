@@ -96,6 +96,13 @@ type SessionManager interface {
 	InputQueueSummary(ctx context.Context, id string) (session.InputQueueSummary, error)
 }
 
+// DaemonDrainController owns daemon-global new-work admission state.
+type DaemonDrainController interface {
+	Drain(ctx context.Context) error
+	Undrain(ctx context.Context) error
+	DrainState() contract.DrainState
+}
+
 // SessionPageManager is the bounded public catalog capability implemented by
 // the runtime manager without widening internal full-snapshot consumers.
 type SessionPageManager interface {
@@ -391,11 +398,31 @@ type ToolApprovalIssuer interface {
 		ctx context.Context,
 		scope toolspkg.Scope,
 		req toolspkg.ApprovalRequest,
-	) (toolspkg.ApprovalGrant, error)
+	) (toolspkg.ApprovalTokenGrant, error)
+}
+
+// ToolApprovalGrantService manages workspace-scoped remembered native-tool approval decisions.
+type ToolApprovalGrantService interface {
+	toolspkg.ApprovalGrantStore
 }
 
 // AutomationManager exposes automation state and control surfaces to the API layer.
 type AutomationManager interface {
+	ListSuggestions(
+		ctx context.Context,
+		workspaceRef string,
+		status automationpkg.SuggestionStatus,
+	) ([]automationpkg.Suggestion, error)
+	AcceptSuggestion(
+		ctx context.Context,
+		workspaceRef string,
+		suggestionID string,
+	) (automationpkg.SuggestionAcceptance, error)
+	DismissSuggestion(
+		ctx context.Context,
+		workspaceRef string,
+		suggestionID string,
+	) (automationpkg.Suggestion, error)
 	ListJobs(ctx context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error)
 	Jobs(ctx context.Context) ([]automationpkg.Job, error)
 	GetJob(ctx context.Context, id string) (automationpkg.Job, error)

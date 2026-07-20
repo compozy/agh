@@ -157,17 +157,8 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 	var claim AgentTaskNextRecord
 
 	// Intentionally serial: each subtest advances the same historical run lifecycle.
-	t.Run("Should keep the channel historical before restart", func(t *testing.T) {
-		record := readCLIHistoricalChannel(t, h.deps, "alpha", channel)
-		if got, want := record.PeerCount, 0; got != want {
-			t.Fatalf("record.PeerCount = %d, want %d", got, want)
-		}
-		if record.PresenceCount < 1 {
-			t.Fatalf("record.PresenceCount = %d, want at least 1", record.PresenceCount)
-		}
-		if record.HistoricalParticipantCount < 1 {
-			t.Fatalf("record.HistoricalParticipantCount = %d, want at least 1", record.HistoricalParticipantCount)
-		}
+	t.Run("Should keep stopped participation historical without listing an active channel", func(t *testing.T) {
+		assertCLIHistoricalChannelNotActive(t, h.deps, "alpha", channel)
 	})
 
 	t.Run("Should reclaim the historical run after daemon restart", func(t *testing.T) {

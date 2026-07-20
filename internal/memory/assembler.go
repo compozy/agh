@@ -38,7 +38,10 @@ type Assembler struct {
 	snapshots *SnapshotService
 }
 
-var _ session.PromptProvider = (*Assembler)(nil)
+var (
+	_ session.PromptProvider        = (*Assembler)(nil)
+	_ session.ResumeContextProvider = (*Assembler)(nil)
+)
 
 // NewAssembler constructs a prompt assembler for the provided store.
 func NewAssembler(store *Store, opts ...AssemblerOption) *Assembler {
@@ -89,7 +92,11 @@ func (a *Assembler) PromptSection(ctx context.Context, workspace *workspacepkg.R
 	if err != nil {
 		return "", err
 	}
-	return snapshot.Section, nil
+	checkpoint, err := a.checkpointSummarySection(ctx, workspaceRootFromResolved(workspace))
+	if err != nil {
+		return "", err
+	}
+	return joinAssemblerSections(snapshot.Section, checkpoint), nil
 }
 
 // PromptStartupSection renders memory using durable startup metadata.
@@ -112,7 +119,26 @@ func (a *Assembler) PromptStartupSection(
 	if err != nil {
 		return "", err
 	}
-	return snapshot.Section, nil
+	checkpoint, err := a.checkpointSummarySection(
+		ctx,
+		firstAssemblerValue(startup.Workspace, workspaceRootFromResolved(workspace)),
+	)
+	if err != nil {
+		return "", err
+	}
+	return joinAssemblerSections(snapshot.Section, checkpoint), nil
+}
+
+// ResumeContextSection returns only the durable checkpoint needed beside a
+// degraded transcript replay.
+func (a *Assembler) ResumeContextSection(
+	ctx context.Context,
+	startup session.StartupPromptContext,
+) (string, error) {
+	if a == nil {
+		return "", nil
+	}
+	return a.checkpointSummaryResumeSection(ctx, startup.Workspace, startup.SessionID)
 }
 
 // Assemble renders the dual-scope memory context ahead of the agent system prompt.
@@ -170,4 +196,48 @@ func firstAssemblerValue(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func (a *Assembler) checkpointSummarySection(ctx context.Context, workspaceRoot string) (string, error) {
+	if err := contextErr(ctx); err != nil {
+		return "", err
+	}
+	root := strings.TrimSpace(workspaceRoot)
+	if a == nil || a.store == nil || root == "" {
+		return "", nil
+	}
+	body, _, err := loadCheckpointSummary(a.store.ForWorkspace(root))
+	if err != nil {
+		return "", err
+	}
+	return renderCheckpointSummarySection(body), nil
+}
+
+func (a *Assembler) checkpointSummaryResumeSection(
+	ctx context.Context,
+	workspaceRoot string,
+	sessionID string,
+) (string, error) {
+	if err := contextErr(ctx); err != nil {
+		return "", err
+	}
+	root := strings.TrimSpace(workspaceRoot)
+	if a == nil || a.store == nil || root == "" {
+		return "", nil
+	}
+	state, err := loadCheckpointSummaryState(a.store.ForWorkspace(root))
+	if err != nil {
+		return "", err
+	}
+	return renderCheckpointSummaryResumeSection(state, sessionID), nil
+}
+
+func joinAssemblerSections(sections ...string) string {
+	nonEmpty := make([]string, 0, len(sections))
+	for _, section := range sections {
+		if trimmed := strings.TrimSpace(section); trimmed != "" {
+			nonEmpty = append(nonEmpty, trimmed)
+		}
+	}
+	return strings.Join(nonEmpty, "\n\n")
 }

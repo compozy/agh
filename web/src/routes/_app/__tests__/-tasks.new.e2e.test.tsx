@@ -399,6 +399,7 @@ function taskCreateHandlers(): HttpHandler[] {
       taskRuns = [run, ...taskRuns];
       const activeRun: NonNullable<TaskListItem["active_run"]> = {
         attempt: run.attempt,
+        recovery_count: run.recovery_count,
         claimed_by: run.claimed_by,
         resolved_network_participation: run.resolved_network_participation,
         error: run.error,

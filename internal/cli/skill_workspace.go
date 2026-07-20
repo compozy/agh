@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -60,7 +59,10 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps, agentName st
 			return skillCommandContext{}, fmt.Errorf("cli: load agent skills: %w", err)
 		}
 	} else {
-		skillList = registry.List()
+		skillList, err = registry.ForWorkspace(ctx, nil)
+		if err != nil {
+			return skillCommandContext{}, fmt.Errorf("cli: load global skills: %w", err)
+		}
 	}
 
 	return skillCommandContext{
@@ -135,90 +137,6 @@ func resolveSkillCommandScope(
 	}
 	scope.useDaemon = scope.query.Workspace != "" || scope.query.ForAgent != ""
 	return scope, nil
-}
-
-func skillListItems(allSkills []*skills.Skill, sourceFilter string) ([]skillListItem, error) {
-	filter, err := normalizeSkillSourceFilter(sourceFilter)
-	if err != nil {
-		return nil, err
-	}
-
-	items := make([]skillListItem, 0, len(allSkills))
-	for _, skill := range allSkills {
-		if skill == nil {
-			continue
-		}
-
-		source := skillSourceLabel(skill.Source)
-		if filter != "" && source != filter {
-			continue
-		}
-
-		items = append(items, skillListItem{
-			Name:        skill.Meta.Name,
-			Description: skill.Meta.Description,
-			Source:      source,
-			Enabled:     skill.Enabled,
-		})
-	}
-
-	return items, nil
-}
-
-func skillListItemsFromRecords(records []SkillRecord, sourceFilter string) ([]skillListItem, error) {
-	filter, err := normalizeSkillSourceFilter(sourceFilter)
-	if err != nil {
-		return nil, err
-	}
-
-	items := make([]skillListItem, 0, len(records))
-	for _, record := range records {
-		source := strings.TrimSpace(record.Source)
-		if filter != "" && source != filter {
-			continue
-		}
-
-		items = append(items, skillListItem{
-			Name:        record.Name,
-			Description: record.Description,
-			Source:      source,
-			Enabled:     record.Enabled,
-		})
-	}
-
-	return items, nil
-}
-
-func skillInfoItemFromRecord(record SkillRecord) skillInfoItem {
-	return skillInfoItem{
-		Name:        record.Name,
-		Description: record.Description,
-		Version:     record.Version,
-		Source:      strings.TrimSpace(record.Source),
-		Path:        record.Dir,
-		Enabled:     record.Enabled,
-		Metadata:    cloneMetadata(record.Metadata),
-		Provenance:  record.Provenance,
-	}
-}
-
-func skillInfoItemFromSkill(skill *skills.Skill, resources []string, now time.Time) skillInfoItem {
-	item := skillInfoItem{
-		Name:        skill.Meta.Name,
-		Description: skill.Meta.Description,
-		Version:     skill.Meta.Version,
-		Source:      skillSourceLabel(skill.Source),
-		Path:        skill.FilePath,
-		Enabled:     skill.Enabled,
-		Metadata:    cloneMetadata(skill.Meta.Metadata),
-		Resources:   resources,
-	}
-	shadows, ok := skills.ShadowsForSkill(skill, now)
-	if ok {
-		provenance := skillProvenanceRecordFromSkill(skill, shadows)
-		item.Provenance = &provenance
-	}
-	return item
 }
 
 func skillShadowsRecordFromDomain(snapshot skills.SkillShadows) SkillShadowsRecord {

@@ -130,39 +130,18 @@ func (g *AutomationRepo) ClaimScheduledRun(
 		)
 	}
 
-	nextState := automation.SchedulerState{
-		JobID:                     normalized.JobID,
-		NextRunAt:                 cloneTimePointer(normalized.NextRunAt),
-		LastRunAt:                 automationTimePointer(normalized.ClaimedAt),
-		LastScheduledAt:           automationTimePointer(normalized.ScheduledAt),
-		LastFireID:                normalized.FireID,
-		ScheduleHash:              normalized.ScheduleHash,
-		CatchUpPolicy:             schedulerCatchUpPolicyOrDefault(existing.CatchUpPolicy),
-		MisfireGraceSeconds:       existing.MisfireGraceSeconds,
-		ConsecutiveResumeFailures: 0,
-		UpdatedAt:                 normalized.ClaimedAt,
+	skipReason, activeRunID, err := schedulerClaimSkipTx(ctx, tx, normalized)
+	if err != nil {
+		return automation.SchedulerClaimResult{}, err
 	}
-	if normalized.CatchUp {
-		nextState.LastMisfireAt = cloneTimePointer(existing.LastMisfireAt)
-		nextState.MisfireCount = existing.MisfireCount
-	}
-	if nextState.MisfireGraceSeconds < 0 {
-		nextState.MisfireGraceSeconds = 0
-	}
+	skipped := skipReason != ""
+	nextState := schedulerStateAfterClaim(existing, normalized, skipped)
 	if err := upsertSchedulerStateTx(ctx, tx, nextState); err != nil {
 		return automation.SchedulerClaimResult{}, err
 	}
 
-	run := automation.Run{
-		ID:                   normalized.RunID,
-		JobID:                normalized.JobID,
-		FireID:               normalized.FireID,
-		Status:               automation.RunScheduled,
-		Attempt:              1,
-		ScheduledAt:          automationTimePointer(normalized.ScheduledAt),
-		StartedAt:            automationTimePointer(normalized.ClaimedAt),
-		NetworkParticipation: participation.CloneRequest(normalized.NetworkParticipation),
-	}
+	run := scheduledRunAfterClaim(normalized, skipReason, activeRunID)
+	run.NetworkParticipation = participation.CloneRequest(normalized.NetworkParticipation)
 	if err := insertAutomationRunTx(ctx, tx, run); err != nil {
 		return automation.SchedulerClaimResult{}, err
 	}
@@ -173,6 +152,8 @@ func (g *AutomationRepo) ClaimScheduledRun(
 
 	result.State = nextState
 	result.Run = run
+	result.Skipped = skipped
+	result.SkipReason = skipReason
 	return result, nil
 }
 
@@ -298,9 +279,128 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 	return nil
 }
 
+func activeAutomationRunIDTx(ctx context.Context, tx *sql.Tx, jobID string) (string, error) {
+	var runID string
+	err := tx.QueryRowContext(
+		ctx,
+		`SELECT id
+		 FROM automation_runs
+		 WHERE job_id = ? AND status IN ('scheduled', 'running')
+		 ORDER BY started_at DESC, id DESC
+		 LIMIT 1`,
+		jobID,
+	).Scan(&runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("store: query active automation run for job %q: %w", jobID, err)
+	}
+	return strings.TrimSpace(runID), nil
+}
+
+func schedulerClaimSkipTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	claim automation.SchedulerClaim,
+) (automation.SchedulerSkipReason, string, error) {
+	if claim.SkipReason != "" {
+		return claim.SkipReason, "", nil
+	}
+	activeRunID, err := activeAutomationRunIDTx(ctx, tx, claim.JobID)
+	if err != nil {
+		return "", "", err
+	}
+	if activeRunID == "" {
+		return "", "", nil
+	}
+	return automation.SchedulerSkipReasonSelfOverlap, activeRunID, nil
+}
+
+func schedulerStateAfterClaim(
+	existing automation.SchedulerState,
+	claim automation.SchedulerClaim,
+	skipped bool,
+) automation.SchedulerState {
+	catchUpPolicy := claim.CatchUpPolicy
+	if catchUpPolicy == "" {
+		catchUpPolicy = schedulerCatchUpPolicyOrDefault(existing.CatchUpPolicy)
+	}
+	misfireGraceSeconds := claim.MisfireGraceSeconds
+	if claim.CatchUpPolicy == "" && misfireGraceSeconds == 0 {
+		misfireGraceSeconds = existing.MisfireGraceSeconds
+	}
+	state := automation.SchedulerState{
+		JobID:                     claim.JobID,
+		NextRunAt:                 cloneTimePointer(claim.NextRunAt),
+		LastRunAt:                 cloneTimePointer(existing.LastRunAt),
+		LastScheduledAt:           automationTimePointer(claim.ScheduledAt),
+		LastFireID:                claim.FireID,
+		ScheduleHash:              claim.ScheduleHash,
+		CatchUpPolicy:             catchUpPolicy,
+		MisfireGraceSeconds:       misfireGraceSeconds,
+		ConsecutiveResumeFailures: 0,
+		UpdatedAt:                 claim.ClaimedAt,
+	}
+	if !skipped {
+		state.LastRunAt = automationTimePointer(claim.ClaimedAt)
+	}
+	if claim.Misfire {
+		state.LastMisfireAt = automationTimePointer(claim.ClaimedAt)
+		state.MisfireCount = existing.MisfireCount + 1
+	} else if claim.CatchUp {
+		state.LastMisfireAt = cloneTimePointer(existing.LastMisfireAt)
+		state.MisfireCount = existing.MisfireCount
+	}
+	return state
+}
+
+func scheduledRunAfterClaim(
+	claim automation.SchedulerClaim,
+	skipReason automation.SchedulerSkipReason,
+	activeRunID string,
+) automation.Run {
+	run := automation.Run{
+		ID:          claim.RunID,
+		JobID:       claim.JobID,
+		FireID:      claim.FireID,
+		Status:      automation.RunScheduled,
+		Attempt:     1,
+		ScheduledAt: automationTimePointer(claim.ScheduledAt),
+		StartedAt:   automationTimePointer(claim.ClaimedAt),
+	}
+	if skipReason != "" {
+		run.Status = automation.RunCancelled
+		run.EndedAt = automationTimePointer(claim.ClaimedAt)
+		run.Metadata = schedulerSkipMetadata(claim, skipReason, activeRunID)
+	}
+	return run
+}
+
+func schedulerSkipMetadata(
+	claim automation.SchedulerClaim,
+	reason automation.SchedulerSkipReason,
+	activeRunID string,
+) map[string]any {
+	metadata := map[string]any{
+		automation.SchedulerSkipReasonMetadataKey: string(reason),
+		"scheduled_at": claim.ScheduledAt.UTC().Format(time.RFC3339Nano),
+	}
+	if claim.CatchUpPolicy != "" {
+		metadata["catch_up_policy"] = string(claim.CatchUpPolicy)
+	}
+	if claim.MisfireGraceSeconds > 0 {
+		metadata["misfire_grace_seconds"] = claim.MisfireGraceSeconds
+	}
+	if activeRunID != "" {
+		metadata["active_run_id"] = activeRunID
+	}
+	return metadata
+}
+
 func schedulerCatchUpPolicyOrDefault(policy automation.SchedulerCatchUpPolicy) automation.SchedulerCatchUpPolicy {
 	if policy == "" {
-		return automation.SchedulerCatchUpPolicySkip
+		return automation.SchedulerCatchUpPolicySkipMissed
 	}
 	return policy
 }

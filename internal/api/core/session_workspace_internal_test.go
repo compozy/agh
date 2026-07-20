@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/admission"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/diagnosticcontract"
 	"github.com/compozy/agh/internal/diagnostics"
@@ -180,6 +181,9 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 
 	if got := statusForSessionError(session.ErrSessionNotFound); got != http.StatusNotFound {
 		t.Fatalf("statusForSessionError(session missing) = %d, want %d", got, http.StatusNotFound)
+	}
+	if got := statusForSessionError(admission.ErrDraining); got != http.StatusServiceUnavailable {
+		t.Fatalf("statusForSessionError(draining) = %d, want %d", got, http.StatusServiceUnavailable)
 	}
 	if got := statusForSessionError(os.ErrNotExist); got != http.StatusNotFound {
 		t.Fatalf("statusForSessionError(os not exist) = %d, want %d", got, http.StatusNotFound)

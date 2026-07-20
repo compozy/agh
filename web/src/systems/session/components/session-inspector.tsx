@@ -19,9 +19,11 @@ import { formatMessageTimestamp } from "../lib/format-timestamp";
 import { SessionLedgerUnavailableError } from "../adapters/session-api";
 import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
+import { describeCost, type CostSource, type CostStatus } from "@/lib/cost-provenance";
 import {
   deriveFileReads,
   deriveTraceEvents,
+  hasReportableUsage,
   TRACE_LIMIT_DEFAULT,
   type InspectorFileEntry,
   type InspectorTraceEvent,
@@ -46,6 +48,14 @@ export interface InspectorUsage {
   costUsd?: number;
   /** ISO-4217 currency code for `costUsd`; defaults to USD formatting when empty. */
   costCurrency?: string;
+  /**
+   * Cost provenance from the daemon usage summary. `estimated` renders with an
+   * explicit cue and never as measured spend; `included`/`unknown` render no
+   * monetary amount; an absent status renders no cost.
+   */
+  costStatus?: CostStatus;
+  /** Provenance source backing `costStatus`; surfaced for actual/estimated. */
+  costSource?: CostSource;
   /** Number of turns the aggregate spans; shown as a caption when > 0. */
   turnCount?: number;
 }
@@ -138,34 +148,6 @@ const TRACE_KIND_LABEL: Record<InspectorTraceKind, string> = {
 function formatNumber(value?: number): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   return value.toLocaleString();
-}
-
-const currencyFormatters = new Map<string, Intl.NumberFormat>();
-
-function currencyFormatter(currency: string, digits: number): Intl.NumberFormat {
-  const key = `${currency}:${digits}`;
-  const cached = currencyFormatters.get(key);
-  if (cached) return cached;
-  const formatter = Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-  currencyFormatters.set(key, formatter);
-  return formatter;
-}
-
-function formatCost(value?: number, currency?: string): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  const code = normalizedCurrencyCode(currency);
-  const digits = Math.abs(value) < 1 ? 3 : 2;
-  return currencyFormatter(code, digits).format(value);
-}
-
-function normalizedCurrencyCode(currency?: string): string {
-  const code = currency?.trim().toUpperCase();
-  return code && /^[A-Z]{3}$/.test(code) ? code : "USD";
 }
 
 interface InspectorTabRendererProps {
@@ -387,14 +369,14 @@ interface UsageSectionProps {
 }
 
 function UsageSection({ usage }: UsageSectionProps) {
-  const hasUsage =
-    usage !== null &&
-    usage !== undefined &&
-    (usage.tokensIn !== undefined ||
-      usage.tokensOut !== undefined ||
-      usage.totalTokens !== undefined ||
-      usage.costUsd !== undefined);
+  const cost = describeCost({
+    status: usage?.costStatus,
+    source: usage?.costSource,
+    amount: usage?.costUsd,
+    currency: usage?.costCurrency,
+  });
   const turnCount = usage?.turnCount ?? 0;
+  const hasUsage = usage != null && hasReportableUsage(usage, cost);
 
   return (
     <div data-testid="session-inspector-usage" className="flex min-h-full flex-col gap-3">
@@ -417,13 +399,14 @@ function UsageSection({ usage }: UsageSectionProps) {
               label="Total tokens"
               value={formatNumber(usage?.totalTokens)}
               data-testid="session-inspector-usage-total-tokens"
-              className="p-3"
+              className="col-span-2 p-3"
             />
             <Metric
               label="Total cost"
-              value={formatCost(usage?.costUsd, usage?.costCurrency)}
+              value={cost.value}
+              subtext={cost.note ?? undefined}
               data-testid="session-inspector-usage-cost"
-              className="p-3"
+              className="col-span-2 p-3"
             />
           </div>
           {turnCount > 0 ? (

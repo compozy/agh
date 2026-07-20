@@ -17,6 +17,7 @@ import { handlers as settingsHandlers } from "@/systems/settings/mocks";
 import { handlers as skillHandlers } from "@/systems/skill/mocks";
 import { handlers as schedulerHandlers } from "@/systems/scheduler/mocks";
 import { handlers as tasksHandlers } from "@/systems/tasks/mocks";
+import { handlers as toolApprovalsHandlers } from "@/systems/tool-approvals/mocks";
 import { handlers as vaultHandlers } from "@/systems/vault/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 
@@ -40,6 +41,7 @@ export type StorybookHandlerGroupName =
   | "skill"
   | "scheduler"
   | "tasks"
+  | "tool-approvals"
   | "vault"
   | "workspace";
 
@@ -65,6 +67,7 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   skill: skillHandlers,
   scheduler: schedulerHandlers,
   tasks: tasksHandlers,
+  "tool-approvals": toolApprovalsHandlers,
   vault: vaultHandlers,
   workspace: workspaceHandlers,
   guard: [

@@ -1986,6 +1986,13 @@ func TestClassifyTeamsHTTPErrorAndHelpers(t *testing.T) {
 		t.Fatalf("classifyTeamsHTTPError(auth) = %T, want *AuthError", auth)
 	}
 
+	serverErr := classifyTeamsHTTPError(http.StatusInternalServerError, "", "upstream failed")
+	var serverHTTPError *bridgesdk.HTTPError
+	if !errors.As(serverErr, &serverHTTPError) ||
+		bridgesdk.ClassifyError(serverErr).Class != bridgesdk.ErrorClassServerError {
+		t.Fatalf("classifyTeamsHTTPError(500) = %#v, want server_error HTTPError", serverErr)
+	}
+
 	if !looksLikeTeamsUserID("29:user-1") {
 		t.Fatal("looksLikeTeamsUserID(29:user-1) = false, want true")
 	}

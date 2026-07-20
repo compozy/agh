@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -32,6 +33,8 @@ type toolApprovalBridge struct {
 	sessions  func() sessionPermissionRequester
 	timeout   time.Duration
 	approvals toolspkg.ApprovalTokenConsumer
+	grants    toolspkg.ApprovalGrantStore
+	logger    *slog.Logger
 }
 
 var _ toolspkg.ApprovalBridge = (*toolApprovalBridge)(nil)
@@ -39,13 +42,20 @@ var _ toolspkg.ApprovalBridge = (*toolApprovalBridge)(nil)
 func newToolApprovalBridge(
 	sessions func() sessionPermissionRequester,
 	timeout time.Duration,
-	approvals ...toolspkg.ApprovalTokenConsumer,
+	approvals toolspkg.ApprovalTokenConsumer,
+	grants toolspkg.ApprovalGrantStore,
+	logger *slog.Logger,
 ) *toolApprovalBridge {
-	bridge := &toolApprovalBridge{sessions: sessions, timeout: timeout}
-	if len(approvals) > 0 {
-		bridge.approvals = approvals[0]
+	if logger == nil {
+		logger = slog.Default()
 	}
-	return bridge
+	return &toolApprovalBridge{
+		sessions:  sessions,
+		timeout:   timeout,
+		approvals: approvals,
+		grants:    grants,
+		logger:    logger,
+	}
 }
 
 func (b *toolApprovalBridge) RequestToolApproval(
@@ -56,6 +66,9 @@ func (b *toolApprovalBridge) RequestToolApproval(
 ) error {
 	toolID := toolApprovalID(call, view)
 	if handled, err := b.consumeLocalToolApproval(ctx, scope, call); handled {
+		return err
+	}
+	if handled, err := b.consumeDurableToolApproval(ctx, scope, call, toolID); handled {
 		return err
 	}
 	if b == nil || b.sessions == nil {
@@ -89,7 +102,7 @@ func (b *toolApprovalBridge) RequestToolApproval(
 	if err != nil {
 		return err
 	}
-	return toolApprovalOutcome(toolID, response.Outcome)
+	return b.applyToolApprovalOutcome(ctx, scope, call, toolID, response.Outcome)
 }
 
 func (b *toolApprovalBridge) requestSessionToolApproval(
@@ -174,23 +187,6 @@ func toolApprovalDescriptor(call toolspkg.CallRequest, view *toolspkg.ToolView) 
 		return view.Descriptor
 	}
 	return toolspkg.Descriptor{ID: call.ToolID}
-}
-
-func toolApprovalOutcome(id toolspkg.ToolID, outcome acpsdk.RequestPermissionOutcome) error {
-	if err := outcome.Validate(); err != nil {
-		return toolApprovalError(id, "tool approval returned no outcome", toolspkg.ReasonApprovalUnreachable)
-	}
-	if outcome.Selected != nil {
-		switch outcome.Selected.OptionId {
-		case toolApprovalAllowOnceID, toolApprovalAllowAlwaysID:
-			return nil
-		case toolApprovalRejectOnceID, toolApprovalRejectAlwaysID:
-			return toolApprovalError(id, "tool approval was rejected", toolspkg.ReasonApprovalRequired)
-		default:
-			return toolApprovalError(id, "tool approval selected an unknown option", toolspkg.ReasonApprovalUnreachable)
-		}
-	}
-	return toolApprovalError(id, "tool approval was canceled", toolspkg.ReasonApprovalCanceled)
 }
 
 func toolApprovalOptions() []acpsdk.PermissionOption {

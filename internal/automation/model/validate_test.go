@@ -86,7 +86,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 	valid := SchedulerState{
 		JobID:         "job-daily",
-		CatchUpPolicy: SchedulerCatchUpPolicySkip,
+		CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
 		UpdatedAt:     now,
 	}
 	tests := []struct {
@@ -115,9 +115,17 @@ func TestSchedulerStateValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "Should accept run once catch up policy",
+			state: SchedulerState{
+				JobID:         "job-run-once",
+				CatchUpPolicy: SchedulerCatchUpPolicyRunOnce,
+				UpdatedAt:     now,
+			},
+		},
+		{
 			name: "Should reject missing job id",
 			state: SchedulerState{
-				CatchUpPolicy: SchedulerCatchUpPolicySkip,
+				CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
 				UpdatedAt:     now,
 			},
 			wantErr: "job_id",
@@ -135,7 +143,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 			name: "Should reject negative misfire grace",
 			state: SchedulerState{
 				JobID:               "job-daily",
-				CatchUpPolicy:       SchedulerCatchUpPolicySkip,
+				CatchUpPolicy:       SchedulerCatchUpPolicySkipMissed,
 				MisfireGraceSeconds: -1,
 				UpdatedAt:           now,
 			},
@@ -145,7 +153,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 			name: "Should reject negative resume failures",
 			state: SchedulerState{
 				JobID:                     "job-daily",
-				CatchUpPolicy:             SchedulerCatchUpPolicySkip,
+				CatchUpPolicy:             SchedulerCatchUpPolicySkipMissed,
 				ConsecutiveResumeFailures: -1,
 				UpdatedAt:                 now,
 			},
@@ -155,7 +163,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 			name: "Should reject negative misfire count",
 			state: SchedulerState{
 				JobID:         "job-daily",
-				CatchUpPolicy: SchedulerCatchUpPolicySkip,
+				CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
 				MisfireCount:  -1,
 				UpdatedAt:     now,
 			},
@@ -165,7 +173,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 			name: "Should reject missing updated time",
 			state: SchedulerState{
 				JobID:         "job-daily",
-				CatchUpPolicy: SchedulerCatchUpPolicySkip,
+				CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
 			},
 			wantErr: "updated_at",
 		},

@@ -35,13 +35,14 @@ func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "multi_agent_fixture.json"),
 			FixtureAgent: "alpha",
 			AgentName:    "mock-alpha",
 		}},
 	})
+
 	registration, ok := harness.MockAgentRegistration("mock-alpha")
 	if !ok {
 		t.Fatal("MockAgentRegistration(mock-alpha) = missing, want present")
@@ -124,7 +125,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		})
 	}
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
 			for _, providerName := range []string{"claude", "codex"} {
 				provider := cfg.Providers[providerName]
@@ -135,6 +136,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		}},
 		MockAgents: specs,
 	})
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	// not parallel: subtests share one runtime harness and per-agent diagnostics files.
@@ -467,7 +469,7 @@ func TestDaemonE2EMockAgentsRemainIsolated(t *testing.T) {
 	t.Parallel()
 
 	fixturePath := mockFixturePath(t, "multi_agent_fixture.json")
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{
 			{
 				FixturePath:  fixturePath,
@@ -481,6 +483,7 @@ func TestDaemonE2EMockAgentsRemainIsolated(t *testing.T) {
 			},
 		},
 	})
+
 	alphaReg, ok := harness.MockAgentRegistration("mock-alpha")
 	if !ok {
 		t.Fatal("MockAgentRegistration(mock-alpha) = missing, want present")
@@ -544,7 +547,7 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 
 	fixturePath := mockFixturePath(t, "tool_permission_fixture.json")
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{
 			{
 				FixturePath:  fixturePath,
@@ -553,6 +556,7 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 			},
 		},
 	})
+
 	registration, ok := harness.MockAgentRegistration("mock-golden")
 	if !ok {
 		t.Fatal("MockAgentRegistration(mock-golden) = missing, want present")
@@ -635,7 +639,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 	t.Run("Should project and call a non-bootstrap native tool over hosted MCP stdio", func(t *testing.T) {
 		t.Parallel()
 
-		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			EnableNetwork: true,
 			MockAgents: []e2etest.MockAgentSpec{
 				{
@@ -645,6 +649,7 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 				},
 			},
 		})
+
 		registration, ok := harness.MockAgentRegistration("mock-hosted-native")
 		if !ok {
 			t.Fatal("MockAgentRegistration(mock-hosted-native) = missing, want present")
@@ -752,13 +757,14 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 	t.Run("Should round trip provider model curation across CLI HTTP and hosted native tools", func(t *testing.T) {
 		t.Parallel()
 
-		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			MockAgents: []e2etest.MockAgentSpec{{
 				FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
 				FixtureAgent: "hosted-native",
 				AgentName:    "mock-provider-models",
 			}},
 		})
+
 		registration, ok := harness.MockAgentRegistration("mock-provider-models")
 		if !ok {
 			t.Fatal("MockAgentRegistration(mock-provider-models) = missing, want present")
@@ -920,13 +926,14 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  mockFixturePath(t, "task_wake_creator_fixture.json"),
 			FixtureAgent: "wake-creator",
 			AgentName:    "mock-wake-creator",
 		}},
 	})
+
 	registration, ok := harness.MockAgentRegistration("mock-wake-creator")
 	if !ok {
 		t.Fatal("MockAgentRegistration(mock-wake-creator) = missing, want present")

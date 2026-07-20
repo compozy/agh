@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/diagnostics"
 	taskpkg "github.com/compozy/agh/internal/task"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 const (
@@ -38,6 +39,9 @@ type ToolInvokeRequest = contract.ToolInvokeRequest
 // ToolInvokeResponseRecord is the shared registry invoke response.
 type ToolInvokeResponseRecord = contract.ToolInvokeResponse
 
+// ToolArtifactPageRecord is one exact page from a retained oversized tool result.
+type ToolArtifactPageRecord = contract.ToolArtifactPageResponse
+
 // ToolsetRecord is the shared toolset projection payload.
 type ToolsetRecord = contract.ToolsetPayload
 
@@ -50,11 +54,42 @@ type ToolsetResponseRecord = contract.ToolsetResponse
 // ToolErrorResponseRecord is the shared structured tool error response.
 type ToolErrorResponseRecord = contract.ToolErrorResponse
 
+// ToolApprovalRequest captures one local approval-token mint request.
+type ToolApprovalRequest = contract.ToolApprovalRequest
+
+// ToolApprovalRecord is the shared tool approval payload.
+type ToolApprovalRecord = contract.ToolApprovalPayload
+
 // ToolQuery captures operator scope filters for registry and toolset commands.
 type ToolQuery struct {
 	WorkspaceID string
 	SessionID   string
 	AgentName   string
+}
+
+// ToolClient is the CLI transport surface for registry tools and retained results.
+type ToolClient interface {
+	ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error)
+	SearchTools(ctx context.Context, request ToolSearchRequest) (ToolsResponseRecord, error)
+	GetTool(ctx context.Context, id string, query ToolQuery) (ToolResponseRecord, error)
+	CreateToolApproval(ctx context.Context, id string, request ToolApprovalRequest) (ToolApprovalRecord, error)
+	SetToolApprovalGrant(
+		ctx context.Context,
+		workspaceID string,
+		request ToolApprovalGrantSetRequest,
+	) (ToolApprovalGrantRecord, error)
+	ListToolApprovalGrants(ctx context.Context, workspaceID string) (ToolApprovalGrantListRecord, error)
+	RevokeToolApprovalGrant(ctx context.Context, workspaceID string, id string) error
+	InvokeTool(ctx context.Context, id string, request ToolInvokeRequest) (ToolInvokeResponseRecord, error)
+	ReadToolArtifact(
+		ctx context.Context,
+		workspaceID string,
+		artifactURI string,
+		offset int64,
+		limit int64,
+	) (ToolArtifactPageRecord, error)
+	ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error)
+	GetToolset(ctx context.Context, id string, query ToolQuery) (ToolsetResponseRecord, error)
 }
 
 type toolAPIError struct {
@@ -98,6 +133,15 @@ func (e *toolAPIError) Response() ToolErrorResponseRecord {
 		return ToolErrorResponseRecord{}
 	}
 	return sanitizeToolErrorResponse(e.response)
+}
+
+// PartialToolResult exposes the safe bounded result to transport adapters such as hosted MCP.
+func (e *toolAPIError) PartialToolResult() *toolspkg.ToolResult {
+	if e == nil || e.response.Error.PartialResult == nil {
+		return nil
+	}
+	partial := sanitizeToolResult(*e.response.Error.PartialResult)
+	return &partial
 }
 
 func (c *unixSocketClient) ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error) {
@@ -173,6 +217,33 @@ func (c *unixSocketClient) InvokeTool(
 	return sanitizeToolInvokeResponse(response), nil
 }
 
+func (c *unixSocketClient) ReadToolArtifact(
+	ctx context.Context,
+	workspaceID string,
+	artifactURI string,
+	offset int64,
+	limit int64,
+) (ToolArtifactPageRecord, error) {
+	artifactID, err := toolspkg.ParseToolArtifactURI(artifactURI)
+	if err != nil {
+		return ToolArtifactPageRecord{}, fmt.Errorf("cli: parse tool artifact URI: %w", err)
+	}
+	values := url.Values{}
+	if offset != 0 {
+		values.Set("offset", fmt.Sprintf("%d", offset))
+	}
+	if limit != 0 {
+		values.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	path := "/api/workspaces/" + url.PathEscape(strings.TrimSpace(workspaceID)) +
+		"/tool-artifacts/" + url.PathEscape(artifactID)
+	var response ToolArtifactPageRecord
+	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
+		return ToolArtifactPageRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error) {
 	var response ToolsetsResponseRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/toolsets", toolValues(query), nil, &response); err != nil {
@@ -213,19 +284,28 @@ func sanitizeToolErrorResponse(response ToolErrorResponseRecord) ToolErrorRespon
 	if len(response.Error.Details) > 0 {
 		response.Error.Details = nil
 	}
+	if response.Error.PartialResult != nil {
+		partial := sanitizeToolResult(*response.Error.PartialResult)
+		response.Error.PartialResult = &partial
+	}
 	return response
 }
 
 func sanitizeToolInvokeResponse(response ToolInvokeResponseRecord) ToolInvokeResponseRecord {
-	response.Result.Preview = redactToolDiagnostic(response.Result.Preview)
-	response.Result.Structured = redactToolRawJSON(response.Result.Structured)
-	response.Result.Metadata = redactToolMetadata(response.Result.Metadata)
-	for i := range response.Result.Content {
-		response.Result.Content[i].Text = redactToolDiagnostic(response.Result.Content[i].Text)
-		response.Result.Content[i].Data = redactToolRawJSON(response.Result.Content[i].Data)
-		response.Result.Content[i].Metadata = redactToolMetadata(response.Result.Content[i].Metadata)
-	}
+	response.Result = sanitizeToolResult(response.Result)
 	return response
+}
+
+func sanitizeToolResult(result toolspkg.ToolResult) toolspkg.ToolResult {
+	result.Preview = redactToolDiagnostic(result.Preview)
+	result.Structured = redactToolRawJSON(result.Structured)
+	result.Metadata = redactToolMetadata(result.Metadata)
+	for i := range result.Content {
+		result.Content[i].Text = redactToolDiagnostic(result.Content[i].Text)
+		result.Content[i].Data = redactToolRawJSON(result.Content[i].Data)
+		result.Content[i].Metadata = redactToolMetadata(result.Content[i].Metadata)
+	}
+	return result
 }
 
 func redactToolRawJSON(raw json.RawMessage) json.RawMessage {

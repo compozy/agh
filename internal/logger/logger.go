@@ -112,7 +112,15 @@ func New(opts ...Option) (*slog.Logger, func() error, error) {
 		Level: level,
 	})
 
-	return slog.New(handler), closeFn, nil
+	return slog.New(newRedactingHandler(handler)), closeFn, nil
+}
+
+// WithRedaction wraps an injected logger with the process-snapshotted redaction engine.
+func WithRedaction(log *slog.Logger) *slog.Logger {
+	if log == nil {
+		return nil
+	}
+	return slog.New(newRedactingHandler(log.Handler()))
 }
 
 func openFileSink(path string, rotation FileRotationConfig, enabled bool) (io.WriteCloser, error) {

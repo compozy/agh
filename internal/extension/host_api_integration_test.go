@@ -703,10 +703,20 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle(tasks) error = %v", err)
 	}
-	var listed []apicontract.TaskSummaryPayload
-	decodeResult(t, listResult, &listed)
+	var listedPage apicontract.TasksResponse
+	decodeResult(t, listResult, &listedPage)
+	listed := listedPage.Tasks
 	if got, want := len(listed), 1; got != want {
 		t.Fatalf("len(tasks workspace-only) = %d, want %d", got, want)
+	}
+	if got, want := listedPage.Page.Total, 3; got != want {
+		t.Fatalf("tasks workspace-only page.total = %d, want %d", got, want)
+	}
+	if got, want := listedPage.Page.Limit, 1; got != want {
+		t.Fatalf("tasks workspace-only page.limit = %d, want %d", got, want)
+	}
+	if !listedPage.Page.HasMore || listedPage.Page.NextCursor == "" {
+		t.Fatalf("tasks workspace-only page = %#v, want bounded continuation", listedPage.Page)
 	}
 	if listed[0].Draft {
 		t.Fatalf("tasks workspace-only[0] = %#v, want non-draft item", listed[0])

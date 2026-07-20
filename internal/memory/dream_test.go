@@ -322,13 +322,14 @@ func TestServiceRunDreamSignalGateBlocksWhenNoUnpromotedSignals(t *testing.T) {
 		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 		env := newDreamSeedEnv(t, now)
 		lock := &stubLock{
+			releaseAt: now,
 			tryAcquireFn: func() (time.Time, bool, error) {
 				return now.Add(-48 * time.Hour), true, nil
 			},
 		}
 		service := NewService(
 			WithMemoryStore(env.baseStore),
-			WithMinHours(0),
+			WithMinHours(24),
 			WithMinSessions(0),
 			WithDreamGateConfig(DreamGateConfig{MinCandidates: 1, MinRecallCount: 2, MinScore: 0.75}),
 			withLock(lock),
@@ -352,6 +353,22 @@ func TestServiceRunDreamSignalGateBlocksWhenNoUnpromotedSignals(t *testing.T) {
 		}
 		if len(lock.rollbackCalls) != 0 {
 			t.Fatalf("rollback calls = %d, want 0", len(lock.rollbackCalls))
+		}
+
+		shouldRun, err := service.ShouldRun()
+		if err != nil {
+			t.Fatalf("ShouldRun(during cooldown) error = %v", err)
+		}
+		if shouldRun {
+			t.Fatal("ShouldRun(during cooldown) = true, want false after sub-threshold run")
+		}
+		now = now.Add(24 * time.Hour)
+		shouldRun, err = service.ShouldRun()
+		if err != nil {
+			t.Fatalf("ShouldRun(after cooldown) error = %v", err)
+		}
+		if !shouldRun {
+			t.Fatal("ShouldRun(after cooldown) = false, want true")
 		}
 	})
 }
@@ -507,6 +524,18 @@ func TestServiceRunDreamFailureWritesDLQAndDoesNotMarkPromoted(t *testing.T) {
 			t.Fatalf("Run() error = %v, want spawnErr", err)
 		}
 		assertDreamPromotedCount(t, env.workspaceStore, 0)
+		candidates, candidateErr := env.workspaceStore.dreamCandidates(
+			testutil.Context(t),
+			env.workspaceID,
+			DreamGateConfig{MinCandidates: 5, MinRecallCount: 2, MinScore: 0.75},
+			now,
+		)
+		if candidateErr != nil {
+			t.Fatalf("dreamCandidates(after provider failure) error = %v", candidateErr)
+		}
+		if len(candidates) != 5 {
+			t.Fatalf("dream candidates after provider failure = %d, want 5 intact", len(candidates))
+		}
 		assertDreamConsolidationStatus(t, env.workspaceStore, "failed", 0)
 		assertDreamEventCount(t, env.workspaceStore, memoryEventDreamFailed, 1)
 		failures := globDreamFailures(t, env.workspaceRoot)
@@ -1117,6 +1146,7 @@ func TestServiceRunSerializesConcurrentCalls(t *testing.T) {
 type stubLock struct {
 	lastConsolidatedAt time.Time
 	tryAcquireFn       func() (time.Time, bool, error)
+	releaseAt          time.Time
 	releaseErr         error
 	rollbackErr        error
 
@@ -1139,6 +1169,9 @@ func (s *stubLock) TryAcquire() (time.Time, bool, error) {
 
 func (s *stubLock) Release() error {
 	s.releaseCalls++
+	if !s.releaseAt.IsZero() {
+		s.lastConsolidatedAt = s.releaseAt
+	}
 	return s.releaseErr
 }
 

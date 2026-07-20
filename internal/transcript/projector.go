@@ -183,7 +183,7 @@ func (p *Projector) newIdentity(decoded *decodedStoredEvent, kind EntryKind) Ent
 		logicalID = inputMessageID(decoded, UIRoleSystem)
 		baseID = logicalID
 	case EntryKindMarker:
-		message := runtimeMarkerUIMessage(decoded, transcriptMarkerText(decoded.parsed))
+		message := runtimeMarkerUIMessage(decoded)
 		logicalID = message.ID
 		baseID = message.ID
 	default:

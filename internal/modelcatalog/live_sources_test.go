@@ -696,7 +696,7 @@ func TestLiveProviderParsingHelpers(t *testing.T) {
 		rows, err := parseLiveModelPayload(
 			"custom",
 			[]byte(
-				`{"model-a":{"display_name":"Model A","supports_tools":true},`+
+				`{"model-a":{"display_name":"Model A","supports_tools":true,"pricing":{"cache_read":0.0000005,"cache_write":0.000003,"reasoning":0.000004}},`+
 					`"model-b":{`+
 					`"name":"Model B",`+
 					`"reasoning_efforts":["minimal","unknown","high"],`+
@@ -713,6 +713,11 @@ func TestLiveProviderParsingHelpers(t *testing.T) {
 		}
 		if rows[0].SupportsTools == nil || !*rows[0].SupportsTools {
 			t.Fatalf("SupportsTools = %v, want true", rows[0].SupportsTools)
+		}
+		if rows[0].CostCacheReadPerMillion == nil || *rows[0].CostCacheReadPerMillion != 0.5 ||
+			rows[0].CostCacheWritePerMillion == nil || *rows[0].CostCacheWritePerMillion != 3 ||
+			rows[0].CostReasoningPerMillion == nil || *rows[0].CostReasoningPerMillion != 4 {
+			t.Fatalf("live five-rate pricing = %#v, want cache-read 0.5/cache-write 3/reasoning 4", rows[0])
 		}
 		if !slices.Equal(rows[1].ReasoningEfforts, []ReasoningEffort{ReasoningEffortMinimal, ReasoningEffortHigh}) {
 			t.Fatalf("ReasoningEfforts = %#v, want minimal/high", rows[1].ReasoningEfforts)

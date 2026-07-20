@@ -300,6 +300,10 @@ func (fakeStore) ListTaskEvents(context.Context, taskpkg.EventQuery) ([]taskpkg.
 	return []taskpkg.Event{{ID: "evt-1", TaskID: "task-1", EventType: "task.created"}}, nil
 }
 
+func (fakeStore) TaskWakeEventExists(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
 func (fakeStore) GetTaskEventRecord(context.Context, string) (taskpkg.EventRecord, error) {
 	return taskpkg.EventRecord{
 		Sequence: 1,

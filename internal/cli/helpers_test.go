@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -22,6 +23,8 @@ type stubClient struct {
 	statusFn                           func(context.Context) (StatusRecord, error)
 	doctorFn                           func(context.Context, DoctorQuery) (DoctorRecord, error)
 	daemonStatusFn                     func(context.Context) (DaemonStatus, error)
+	drainFn                            func(context.Context) (DrainStatusRecord, error)
+	undrainFn                          func(context.Context) (DrainStatusRecord, error)
 	triggerSettingsRestartFn           func(context.Context) (SettingsRestartActionRecord, error)
 	getSettingsRestartStatusFn         func(context.Context, string) (SettingsRestartStatusRecord, error)
 	createSupportBundleFn              func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
@@ -83,60 +86,68 @@ type stubClient struct {
 		SettingsMCPAuthTarget,
 		SettingsMCPAuthBeginRequest,
 	) (SettingsMCPAuthBeginRecord, error)
-	exchangeSettingsMCPAuthFn   func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
-	logoutSettingsMCPAuthFn     func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
-	installExtensionFn          func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
-	updateExtensionFn           func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
-	removeExtensionFn           func(context.Context, string) (ManagedExtensionRemoveRecord, error)
-	enableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
-	disableExtensionFn          func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusFn           func(context.Context, string) (ExtensionRecord, error)
-	extensionProvenanceFn       func(context.Context, string) (ExtensionProvenanceRecord, error)
-	listBundleCatalogFn         func(context.Context) ([]BundleCatalogRecord, error)
-	previewBundleActivationFn   func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
-	activateBundleFn            func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
-	listBundleActivationsFn     func(context.Context) ([]BundleActivationRecord, error)
-	getBundleActivationFn       func(context.Context, string) (BundleActivationRecord, error)
-	updateBundleActivationFn    func(context.Context, string, UpdateBundleActivationRequest) (BundleActivationRecord, error)
-	deactivateBundleFn          func(context.Context, string) error
-	bundleNetworkSettingsFn     func(context.Context) (BundleNetworkSettingsRecord, error)
-	listBridgesFn               func(context.Context, BridgeListQuery) (BridgeListRecord, error)
-	createBridgeFn              func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
-	getBridgeFn                 func(context.Context, string) (BridgeRecord, error)
-	updateBridgeFn              func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
-	enableBridgeFn              func(context.Context, string) (BridgeRecord, error)
-	disableBridgeFn             func(context.Context, string) (BridgeRecord, error)
-	restartBridgeFn             func(context.Context, string) (BridgeRecord, error)
-	bridgeRoutesFn              func(context.Context, string) ([]BridgeRouteRecord, error)
-	bridgeTargetsFn             func(context.Context, string, string, int) (BridgeTargetsRecord, error)
-	resolveBridgeTargetFn       func(context.Context, string, string) (BridgeResolveTargetRecord, error)
-	listNotificationPresetsFn   func(context.Context, NotificationPresetQuery) (NotificationPresetListRecord, error)
-	getNotificationPresetFn     func(context.Context, string) (NotificationPresetRecord, error)
-	createNotificationPresetFn  func(context.Context, CreateNotificationPresetRequest) (NotificationPresetRecord, error)
-	updateNotificationPresetFn  func(context.Context, string, UpdateNotificationPresetRequest) (NotificationPresetRecord, error)
-	deleteNotificationPresetFn  func(context.Context, string) error
-	listBridgeSecretBindingsFn  func(context.Context, string) ([]BridgeSecretBindingRecord, error)
-	putBridgeSecretBindingFn    func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
-	deleteBridgeSecretBindingFn func(context.Context, string, string) error
-	testBridgeDeliveryFn        func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
-	slackBridgeManifestFn       func(context.Context, string) (SlackManifestRecord, error)
-	verifyBridgeFn              func(context.Context, string) (BridgeVerifyRecord, error)
-	sendBridgeTestFn            func(context.Context, string, BridgeSendTestRequest) (BridgeSendTestRecord, error)
-	registerBridgeWebhookFn     func(context.Context, string) (BridgeWebhookRegistrationRecord, error)
-	listSessionsFn              func(context.Context, SessionListQuery) ([]SessionRecord, error)
-	listSessionPageFn           func(context.Context, SessionListQuery) (SessionListPage, error)
-	createSessionFn             func(context.Context, CreateSessionRequest) (SessionRecord, error)
-	getSessionFn                func(context.Context, string) (SessionRecord, error)
-	getSessionHealthFn          func(context.Context, string) (SessionHealthRecord, error)
-	getSessionStatusFn          func(context.Context, string) (SessionStatusRecord, error)
-	inspectSessionFn            func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
-	refreshSessionSoulFn        func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
-	stopSessionFn               func(context.Context, string) error
-	deleteSessionFn             func(context.Context, string) error
-	resumeSessionFn             func(context.Context, string) (SessionRecord, error)
-	sessionRecapFn              func(context.Context, string, int) (SessionRecapRecord, error)
-	repairSessionFn             func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
-	approveSessionFn            func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
+	exchangeSettingsMCPAuthFn    func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
+	logoutSettingsMCPAuthFn      func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
+	installExtensionFn           func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	updateExtensionFn            func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
+	removeExtensionFn            func(context.Context, string) (ManagedExtensionRemoveRecord, error)
+	enableExtensionFn            func(context.Context, string) (ExtensionRecord, error)
+	disableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusFn            func(context.Context, string) (ExtensionRecord, error)
+	extensionProvenanceFn        func(context.Context, string) (ExtensionProvenanceRecord, error)
+	listBundleCatalogFn          func(context.Context) ([]BundleCatalogRecord, error)
+	previewBundleActivationFn    func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
+	activateBundleFn             func(context.Context, ActivateBundleRequest) (BundleActivationRecord, error)
+	listBundleActivationsFn      func(context.Context) ([]BundleActivationRecord, error)
+	getBundleActivationFn        func(context.Context, string) (BundleActivationRecord, error)
+	updateBundleActivationFn     func(context.Context, string, UpdateBundleActivationRequest) (BundleActivationRecord, error)
+	deactivateBundleFn           func(context.Context, string) error
+	bundleNetworkSettingsFn      func(context.Context) (BundleNetworkSettingsRecord, error)
+	listBridgesFn                func(context.Context, BridgeListQuery) (BridgeListRecord, error)
+	createBridgeFn               func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
+	getBridgeFn                  func(context.Context, string) (BridgeRecord, error)
+	updateBridgeFn               func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
+	enableBridgeFn               func(context.Context, string) (BridgeRecord, error)
+	disableBridgeFn              func(context.Context, string) (BridgeRecord, error)
+	restartBridgeFn              func(context.Context, string) (BridgeRecord, error)
+	bridgeRoutesFn               func(context.Context, string) ([]BridgeRouteRecord, error)
+	bridgeTargetsFn              func(context.Context, string, string, int) (BridgeTargetsRecord, error)
+	resolveBridgeTargetFn        func(context.Context, string, string) (BridgeResolveTargetRecord, error)
+	listNotificationPresetsFn    func(context.Context, NotificationPresetQuery) (NotificationPresetListRecord, error)
+	getNotificationPresetFn      func(context.Context, string) (NotificationPresetRecord, error)
+	createNotificationPresetFn   func(context.Context, CreateNotificationPresetRequest) (NotificationPresetRecord, error)
+	updateNotificationPresetFn   func(context.Context, string, UpdateNotificationPresetRequest) (NotificationPresetRecord, error)
+	deleteNotificationPresetFn   func(context.Context, string) error
+	listBridgeSecretBindingsFn   func(context.Context, string) ([]BridgeSecretBindingRecord, error)
+	putBridgeSecretBindingFn     func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
+	deleteBridgeSecretBindingFn  func(context.Context, string, string) error
+	testBridgeDeliveryFn         func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
+	slackBridgeManifestFn        func(context.Context, string) (SlackManifestRecord, error)
+	verifyBridgeFn               func(context.Context, string) (BridgeVerifyRecord, error)
+	sendBridgeTestFn             func(context.Context, string, BridgeSendTestRequest) (BridgeSendTestRecord, error)
+	registerBridgeWebhookFn      func(context.Context, string) (BridgeWebhookRegistrationRecord, error)
+	listSessionsFn               func(context.Context, SessionListQuery) ([]SessionRecord, error)
+	listSessionPageFn            func(context.Context, SessionListQuery) (SessionListPage, error)
+	createSessionFn              func(context.Context, CreateSessionRequest) (SessionRecord, error)
+	getSessionFn                 func(context.Context, string) (SessionRecord, error)
+	getSessionHealthFn           func(context.Context, string) (SessionHealthRecord, error)
+	getSessionStatusFn           func(context.Context, string) (SessionStatusRecord, error)
+	getSessionUsageFn            func(context.Context, string) (SessionUsageRecord, error)
+	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
+	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
+	stopSessionFn                func(context.Context, string) error
+	deleteSessionFn              func(context.Context, string) error
+	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
+	sessionRecapFn               func(context.Context, string, int) (SessionRecapRecord, error)
+	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
+	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
+	listSessionClarificationsFn  func(context.Context, string) (ClarificationsRecord, error)
+	answerSessionClarificationFn func(
+		context.Context,
+		string,
+		string,
+		ClarificationAnswerRequest,
+	) (ClarificationAnswerRecord, error)
 	promptSessionFn             func(context.Context, string, string) ([]AgentEventRecord, error)
 	sendSessionPromptFn         func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
 	steerSessionPromptFn        func(context.Context, string, string) (SessionPromptRecord, error)
@@ -232,7 +243,11 @@ type stubClient struct {
 	searchToolsFn                 func(context.Context, ToolSearchRequest) (ToolsResponseRecord, error)
 	getToolFn                     func(context.Context, string, ToolQuery) (ToolResponseRecord, error)
 	createToolApprovalFn          func(context.Context, string, ToolApprovalRequest) (ToolApprovalRecord, error)
+	setToolApprovalGrantFn        func(context.Context, string, ToolApprovalGrantSetRequest) (ToolApprovalGrantRecord, error)
+	listToolApprovalGrantsFn      func(context.Context, string) (ToolApprovalGrantListRecord, error)
+	revokeToolApprovalGrantFn     func(context.Context, string, string) error
 	invokeToolFn                  func(context.Context, string, ToolInvokeRequest) (ToolInvokeResponseRecord, error)
+	readToolArtifactFn            func(context.Context, string, string, int64, int64) (ToolArtifactPageRecord, error)
 	listToolsetsFn                func(context.Context, ToolQuery) (ToolsetsResponseRecord, error)
 	getToolsetFn                  func(context.Context, string, ToolQuery) (ToolsetResponseRecord, error)
 	hookCatalogFn                 func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
@@ -273,30 +288,45 @@ type stubClient struct {
 	enableMemoryProviderFn        func(context.Context, string, MemoryProviderLifecycleRequest) (MemoryProviderLifecycleRecord, error)
 	disableMemoryProviderFn       func(context.Context, string, MemoryProviderLifecycleRequest) (MemoryProviderLifecycleRecord, error)
 	createMemoryAdhocNoteFn       func(context.Context, MemoryAdhocNoteRequest) (MemoryAdhocNoteRecord, error)
-	listAutomationJobsFn          func(context.Context, AutomationJobQuery) (AutomationJobListRecord, error)
-	createAutomationJobFn         func(context.Context, AutomationJobCreateRequest) (JobRecord, error)
-	getAutomationJobFn            func(context.Context, string) (JobRecord, error)
-	updateAutomationJobFn         func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error)
-	deleteAutomationJobFn         func(context.Context, string) error
-	triggerAutomationJobFn        func(context.Context, string) (RunRecord, error)
-	automationJobRunsFn           func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
-	listAutomationTriggersFn      func(context.Context, AutomationTriggerQuery) (AutomationTriggerListRecord, error)
-	createAutomationTriggerFn     func(context.Context, AutomationTriggerCreateRequest) (TriggerRecord, error)
-	getAutomationTriggerFn        func(context.Context, string) (TriggerRecord, error)
-	updateAutomationTriggerFn     func(context.Context, string, AutomationTriggerUpdateRequest) (TriggerRecord, error)
-	deleteAutomationTriggerFn     func(context.Context, string) error
-	automationTriggerRunsFn       func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
-	listAutomationRunsFn          func(context.Context, AutomationRunQuery) ([]RunRecord, error)
-	getAutomationRunFn            func(context.Context, string) (RunRecord, error)
-	listTasksFn                   func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error)
-	createTaskFn                  func(context.Context, CreateTaskRequest) (TaskRecord, error)
-	createTaskAsAgentFn           func(context.Context, CreateTaskRequest, agentidentity.Credentials) (TaskRecord, error)
-	getTaskFn                     func(context.Context, string) (TaskDetailRecord, error)
-	inspectTaskFn                 func(context.Context, string) (TaskInspectRecord, error)
-	inspectRunFn                  func(context.Context, string) (TaskInspectRecord, error)
-	updateTaskFn                  func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
-	blockTaskFn                   func(context.Context, string, CreateTaskBlockRequest) (TaskBlockRecord, error)
-	blockTaskAsAgentFn            func(
+	listAutomationSuggestionsFn   func(
+		context.Context,
+		string,
+		automationpkg.SuggestionStatus,
+	) (AutomationSuggestionListRecord, error)
+	acceptAutomationSuggestionFn func(
+		context.Context,
+		string,
+		string,
+	) (AutomationSuggestionAcceptanceRecord, error)
+	dismissAutomationSuggestionFn func(
+		context.Context,
+		string,
+		string,
+	) (AutomationSuggestionRecord, error)
+	listAutomationJobsFn      func(context.Context, AutomationJobQuery) (AutomationJobListRecord, error)
+	createAutomationJobFn     func(context.Context, AutomationJobCreateRequest) (JobRecord, error)
+	getAutomationJobFn        func(context.Context, string) (JobRecord, error)
+	updateAutomationJobFn     func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error)
+	deleteAutomationJobFn     func(context.Context, string) error
+	triggerAutomationJobFn    func(context.Context, string) (RunRecord, error)
+	automationJobRunsFn       func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
+	listAutomationTriggersFn  func(context.Context, AutomationTriggerQuery) (AutomationTriggerListRecord, error)
+	createAutomationTriggerFn func(context.Context, AutomationTriggerCreateRequest) (TriggerRecord, error)
+	getAutomationTriggerFn    func(context.Context, string) (TriggerRecord, error)
+	updateAutomationTriggerFn func(context.Context, string, AutomationTriggerUpdateRequest) (TriggerRecord, error)
+	deleteAutomationTriggerFn func(context.Context, string) error
+	automationTriggerRunsFn   func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
+	listAutomationRunsFn      func(context.Context, AutomationRunQuery) ([]RunRecord, error)
+	getAutomationRunFn        func(context.Context, string) (RunRecord, error)
+	listTasksFn               func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error)
+	createTaskFn              func(context.Context, CreateTaskRequest) (TaskRecord, error)
+	createTaskAsAgentFn       func(context.Context, CreateTaskRequest, agentidentity.Credentials) (TaskRecord, error)
+	getTaskFn                 func(context.Context, string) (TaskDetailRecord, error)
+	inspectTaskFn             func(context.Context, string) (TaskInspectRecord, error)
+	inspectRunFn              func(context.Context, string) (TaskInspectRecord, error)
+	updateTaskFn              func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
+	blockTaskFn               func(context.Context, string, CreateTaskBlockRequest) (TaskBlockRecord, error)
+	blockTaskAsAgentFn        func(
 		context.Context,
 		string,
 		CreateTaskBlockRequest,
@@ -417,6 +447,20 @@ func (s *stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
 		return s.daemonStatusFn(ctx)
 	}
 	return DaemonStatus{}, errors.New("unexpected DaemonStatus call")
+}
+
+func (s *stubClient) Drain(ctx context.Context) (DrainStatusRecord, error) {
+	if s.drainFn != nil {
+		return s.drainFn(ctx)
+	}
+	return DrainStatusRecord{}, errors.New("unexpected Drain call")
+}
+
+func (s *stubClient) Undrain(ctx context.Context) (DrainStatusRecord, error) {
+	if s.undrainFn != nil {
+		return s.undrainFn(ctx)
+	}
+	return DrainStatusRecord{}, errors.New("unexpected Undrain call")
 }
 
 func (s *stubClient) TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error) {
@@ -1346,6 +1390,13 @@ func (s *stubClient) GetSessionStatus(ctx context.Context, id string) (SessionSt
 	return SessionStatusRecord{}, errors.New("unexpected GetSessionStatus call")
 }
 
+func (s *stubClient) GetSessionUsage(ctx context.Context, id string) (SessionUsageRecord, error) {
+	if s.getSessionUsageFn != nil {
+		return s.getSessionUsageFn(ctx, id)
+	}
+	return SessionUsageRecord{}, errors.New("unexpected GetSessionUsage call")
+}
+
 func (s *stubClient) InspectSession(
 	ctx context.Context,
 	id string,
@@ -1416,6 +1467,28 @@ func (s *stubClient) ApproveSession(
 		return s.approveSessionFn(ctx, id, request)
 	}
 	return SessionApprovalRecord{}, errors.New("unexpected ApproveSession call")
+}
+
+func (s *stubClient) ListSessionClarifications(
+	ctx context.Context,
+	sessionID string,
+) (ClarificationsRecord, error) {
+	if s.listSessionClarificationsFn != nil {
+		return s.listSessionClarificationsFn(ctx, sessionID)
+	}
+	return ClarificationsRecord{}, errors.New("unexpected ListSessionClarifications call")
+}
+
+func (s *stubClient) AnswerSessionClarification(
+	ctx context.Context,
+	sessionID string,
+	requestID string,
+	request ClarificationAnswerRequest,
+) (ClarificationAnswerRecord, error) {
+	if s.answerSessionClarificationFn != nil {
+		return s.answerSessionClarificationFn(ctx, sessionID, requestID, request)
+	}
+	return ClarificationAnswerRecord{}, errors.New("unexpected AnswerSessionClarification call")
 }
 
 func (s *stubClient) PromptSession(
@@ -2100,6 +2173,34 @@ func (s *stubClient) CreateToolApproval(
 	return ToolApprovalRecord{}, errors.New("unexpected CreateToolApproval call")
 }
 
+func (s *stubClient) SetToolApprovalGrant(
+	ctx context.Context,
+	workspaceID string,
+	request ToolApprovalGrantSetRequest,
+) (ToolApprovalGrantRecord, error) {
+	if s.setToolApprovalGrantFn != nil {
+		return s.setToolApprovalGrantFn(ctx, workspaceID, request)
+	}
+	return ToolApprovalGrantRecord{}, errors.New("unexpected SetToolApprovalGrant call")
+}
+
+func (s *stubClient) ListToolApprovalGrants(
+	ctx context.Context,
+	workspaceID string,
+) (ToolApprovalGrantListRecord, error) {
+	if s.listToolApprovalGrantsFn != nil {
+		return s.listToolApprovalGrantsFn(ctx, workspaceID)
+	}
+	return ToolApprovalGrantListRecord{}, errors.New("unexpected ListToolApprovalGrants call")
+}
+
+func (s *stubClient) RevokeToolApprovalGrant(ctx context.Context, workspaceID string, id string) error {
+	if s.revokeToolApprovalGrantFn != nil {
+		return s.revokeToolApprovalGrantFn(ctx, workspaceID, id)
+	}
+	return errors.New("unexpected RevokeToolApprovalGrant call")
+}
+
 func (s *stubClient) InvokeTool(
 	ctx context.Context,
 	id string,
@@ -2109,6 +2210,19 @@ func (s *stubClient) InvokeTool(
 		return s.invokeToolFn(ctx, id, request)
 	}
 	return ToolInvokeResponseRecord{}, errors.New("unexpected InvokeTool call")
+}
+
+func (s *stubClient) ReadToolArtifact(
+	ctx context.Context,
+	workspaceID string,
+	artifactURI string,
+	offset int64,
+	limit int64,
+) (ToolArtifactPageRecord, error) {
+	if s.readToolArtifactFn != nil {
+		return s.readToolArtifactFn(ctx, workspaceID, artifactURI, offset, limit)
+	}
+	return ToolArtifactPageRecord{}, errors.New("unexpected ReadToolArtifact call")
 }
 
 func (s *stubClient) ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error) {
@@ -2479,6 +2593,39 @@ func (s *stubClient) CreateMemoryAdhocNote(
 		return s.createMemoryAdhocNoteFn(ctx, request)
 	}
 	return MemoryAdhocNoteRecord{}, errors.New("unexpected CreateMemoryAdhocNote call")
+}
+
+func (s *stubClient) ListAutomationSuggestions(
+	ctx context.Context,
+	workspaceID string,
+	status automationpkg.SuggestionStatus,
+) (AutomationSuggestionListRecord, error) {
+	if s.listAutomationSuggestionsFn != nil {
+		return s.listAutomationSuggestionsFn(ctx, workspaceID, status)
+	}
+	return AutomationSuggestionListRecord{}, errors.New("unexpected ListAutomationSuggestions call")
+}
+
+func (s *stubClient) AcceptAutomationSuggestion(
+	ctx context.Context,
+	workspaceID string,
+	suggestionID string,
+) (AutomationSuggestionAcceptanceRecord, error) {
+	if s.acceptAutomationSuggestionFn != nil {
+		return s.acceptAutomationSuggestionFn(ctx, workspaceID, suggestionID)
+	}
+	return AutomationSuggestionAcceptanceRecord{}, errors.New("unexpected AcceptAutomationSuggestion call")
+}
+
+func (s *stubClient) DismissAutomationSuggestion(
+	ctx context.Context,
+	workspaceID string,
+	suggestionID string,
+) (AutomationSuggestionRecord, error) {
+	if s.dismissAutomationSuggestionFn != nil {
+		return s.dismissAutomationSuggestionFn(ctx, workspaceID, suggestionID)
+	}
+	return AutomationSuggestionRecord{}, errors.New("unexpected DismissAutomationSuggestion call")
 }
 
 func (s *stubClient) ListAutomationJobs(

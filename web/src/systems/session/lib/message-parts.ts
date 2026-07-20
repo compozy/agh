@@ -5,6 +5,7 @@ import type {
   AgentEventPayload,
   PermissionDecision,
   PermissionRequest,
+  ToolArtifactRef,
   ToolUseResult,
 } from "../types";
 
@@ -64,6 +65,81 @@ export function isAgentEventPayload(value: unknown): value is AgentEventPayload 
   return isRecord(value) && typeof value.type === "string";
 }
 
+function artifactRefFromValue(value: unknown): ToolArtifactRef | null {
+  if (!isRecord(value) || typeof value.uri !== "string") return null;
+  return {
+    uri: value.uri,
+    name: typeof value.name === "string" ? value.name : undefined,
+    mime_type: typeof value.mime_type === "string" ? value.mime_type : undefined,
+    bytes: typeof value.bytes === "number" ? value.bytes : undefined,
+    sha256: typeof value.sha256 === "string" ? value.sha256 : undefined,
+  };
+}
+
+function artifactRefsFromValue(value: unknown): ToolArtifactRef[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const artifacts = value.flatMap(candidate => {
+    const artifact = artifactRefFromValue(candidate);
+    return artifact ? [artifact] : [];
+  });
+  return artifacts.length > 0 ? artifacts : undefined;
+}
+
+function firstTextContent(value: unknown): string | undefined {
+  if (!Array.isArray(value)) return undefined;
+  for (const candidate of value) {
+    if (!isRecord(candidate)) continue;
+    if (typeof candidate.text === "string") return candidate.text;
+    if (isRecord(candidate.content) && typeof candidate.content.text === "string") {
+      return candidate.content.text;
+    }
+  }
+  return undefined;
+}
+
+interface ToolResultEnvelope {
+  preview?: string;
+  truncated?: boolean;
+  artifacts?: ToolArtifactRef[];
+}
+
+function envelopeFromRecord(value: Record<string, unknown>): ToolResultEnvelope | null {
+  const artifacts = artifactRefsFromValue(value.artifacts);
+  const preview =
+    typeof value.preview === "string" ? value.preview : firstTextContent(value.content);
+  const truncated = value.truncated === true || artifacts !== undefined;
+  if (preview === undefined && !truncated && artifacts === undefined) return null;
+  return { preview, truncated, artifacts };
+}
+
+function envelopeFromMetadata(value: Record<string, unknown>): ToolResultEnvelope | null {
+  const metadata = isRecord(value._meta) ? value._meta : undefined;
+  const artifacts = artifactRefsFromValue(metadata?.["agh/artifacts"]);
+  if (!artifacts) return null;
+  return {
+    preview: firstTextContent(value.content),
+    truncated: true,
+    artifacts,
+  };
+}
+
+function envelopeAtLevel(value: Record<string, unknown>): ToolResultEnvelope | null {
+  return envelopeFromRecord(value) ?? envelopeFromMetadata(value);
+}
+
+/** Preserve the frozen oversized-result fields across direct ToolResult and ACP/MCP wrappers. */
+function toolResultEnvelope(value: Record<string, unknown>): ToolResultEnvelope {
+  const direct = envelopeAtLevel(value);
+  if (direct) return direct;
+
+  for (const candidate of [value.rawOutput, value.raw_output]) {
+    if (!isRecord(candidate)) continue;
+    const nested = envelopeAtLevel(candidate);
+    if (nested) return nested;
+  }
+  return {};
+}
+
 /**
  * Normalize a raw tool result payload into a `ToolUseResult`. Consolidates the
  * shape handling both render paths need (assistant-ui toolkit + derive layer):
@@ -74,7 +150,7 @@ export function resolveToolResult(result: unknown): ToolUseResult | undefined {
   if (result === undefined || result === null) return undefined;
   if (isAgentEventPayload(result)) return parseToolUseResult(result);
   if (typeof result === "string") return { content: result };
-  if (isRecord(result)) return { rawOutput: result };
+  if (isRecord(result)) return { rawOutput: result, ...toolResultEnvelope(result) };
   return { content: String(result) };
 }
 
@@ -100,6 +176,9 @@ function toolResultHasError(result: ToolUseResult): boolean {
  */
 export function toolResultIsEmpty(result: ToolUseResult | undefined): boolean {
   if (!result) return true;
+  if (result.truncated === true) return false;
+  if (nonEmptyString(result.preview)) return false;
+  if (Array.isArray(result.artifacts) && result.artifacts.length > 0) return false;
   if (nonEmptyString(result.content)) return false;
   if (nonEmptyString(result.stdout)) return false;
   if (nonEmptyString(result.stderr)) return false;
@@ -187,6 +266,7 @@ export function parseToolUseResult(event: AgentEventPayload): ToolUseResult {
           : undefined,
       error: typeof event.raw.error === "string" ? event.raw.error : event.error,
       rawOutput: event.raw,
+      ...toolResultEnvelope(event.raw),
     };
   }
 

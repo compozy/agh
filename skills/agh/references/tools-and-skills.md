@@ -5,6 +5,7 @@
 - Tool-first operating model
 - Discovery loop
 - Tool presentation metadata
+- Oversized tool results
 - Marketplace discovery
 - Skill loading
 - Bundled skill resources
@@ -37,6 +38,20 @@ lineage explicitly narrows it. Use `agh__tool_search` and `agh__tool_info` to di
 denied tools; use `agh__tool_list` when you need only the currently callable set.
 
 For skills, resolve canonical `agh__skill_search`/`agh__skill_view`, then call returned references. Use CLI fallback only when denied, absent, or explicitly requested.
+
+## Oversized Tool Results
+
+A truncated tool result can carry a bounded `preview` and an opaque
+`agh://tool-artifacts/art_<sha256>` reference. Keep using the preview for immediate context, then
+resolve canonical `agh__tool_artifact_read` and page the exact retained result with the returned
+tool reference. Pass the artifact URI unchanged; continue from `next_offset` until `eof`.
+
+The artifact is readable only from its owning workspace. Missing, expired, and foreign-workspace
+references share the same not-found result, so do not infer whether another workspace owns one.
+Operator fallback is `agh tool artifact read <artifact-uri> --workspace <workspace> [--offset N]
+[-o json]`; human output writes the exact page bytes, while structured output carries base64 bytes
+and paging metadata. A `result_persistence_failed` tool error preserves a bounded partial result but
+does not promise a durable artifact; inspect the partial result and do not fabricate or retry a URI.
 
 ## Tool Presentation Metadata
 
@@ -131,18 +146,22 @@ per-extension native search tool.
 
 ## Skill Loading
 
-The prompt catalog lists skill names and descriptions, not full bodies. Load the full body on demand:
+Catalogs carry names and descriptions only. Resolve canonical skill search/view through the active
+harness; CLI uses `agh skill view agh` or
+`agh skill view agh --file references/network.md` for a resource.
 
-    agh skill view agh
+Repeated `<current-available-skills>` or `<agh-situation-context>` sections may be `unchanged`.
+Reuse the latest full section for that ACP session and workspace; live surfaces remain authoritative.
 
-Inside a tool-capable session, resolve the equivalent skill search/view tools through the active harness.
-For resource files inside daemon-managed AGH sessions, use the returned skill view reference with the resource path. The CLI resource form is for local operator mode where skill resolution reads directly from the filesystem:
+`metadata.agh.when` offers a skill only when every gate family passes. `platforms` and
+`environments` match any value; `requires_tools` and `requires_capabilities` require all values.
+Platform means canonical Go OS, tools come from the callable session projection, and capabilities
+come from the effective authored agent. Environment gates fail closed because the daemon
+provides no environment context.
 
-    agh skill view agh --file references/network.md
-
-When a session receives repeated prompts with the same resolved skill catalog, AGH may replace the full `<current-available-skills>` block with a compact unchanged marker. Treat the previous full block in that session as current until AGH sends a later full catalog block.
-
-AGH may also compact repeated `<agh-situation-context>` JSON sections with `"unchanged":true` markers. Reuse the previous full section for the same ACP session and workspace; call live AGH tools or context endpoints when you need an exact current value instead of prompt context.
+Inactive skills stay manageable and readable with structured reasons but are absent from catalogs.
+Keep administrative `enabled` separate from runtime `activation.active`.
+Tool-gated skills re-evaluate on the next projection without a daemon restart.
 
 ## Bundled Skill Resources
 

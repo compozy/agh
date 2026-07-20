@@ -238,7 +238,12 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "token stats update valid",
 			validate: func() error {
-				return (TokenStatsUpdate{SessionID: "sess-1", AgentName: "coder"}).Validate()
+				return (TokenStatsUpdate{
+					SessionID:  "sess-1",
+					AgentName:  "coder",
+					CostStatus: "unknown",
+					CostSource: "none",
+				}).Validate()
 			},
 		},
 		{

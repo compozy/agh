@@ -2,7 +2,9 @@ package cli
 
 import (
 	"strconv"
+	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
 	registrypkg "github.com/compozy/agh/internal/registry"
 )
 
@@ -15,6 +17,8 @@ const (
 	skillOutputActionValue       = "Action"
 	skillOutputDescriptionValue  = "Description"
 	skillOutputEnabledValue      = "Enabled"
+	skillOutputActiveValue       = "Active"
+	skillOutputInactiveValue     = "Inactive reason"
 	skillOutputPathValue         = "Path"
 	skillOutputStatusValue       = "Status"
 	skillOutputValueValue        = "Value"
@@ -22,6 +26,8 @@ const (
 	skillOutputCurrentVersionKey = "current_version"
 	skillOutputDescriptionKey    = "description"
 	skillOutputEnabledKey        = "enabled"
+	skillOutputActiveKey         = "active"
+	skillOutputInactiveKey       = "inactive_reason"
 	skillOutputPathKey           = "path"
 	skillOutputStatusKey         = "status"
 	skillOutputValueKey          = "value"
@@ -77,15 +83,31 @@ func skillListBundle(items []skillListItem) outputBundle {
 		items,
 		items,
 		"Skills",
-		[]string{automationNameValue, skillOutputDescriptionValue, authoredContextSourceValue, skillOutputEnabledValue},
+		[]string{
+			automationNameValue,
+			skillOutputDescriptionValue,
+			authoredContextSourceValue,
+			skillOutputEnabledValue,
+			skillOutputActiveValue,
+			skillOutputInactiveValue,
+		},
 		"skills",
-		[]string{automationNameKey, skillOutputDescriptionKey, automationSourceKey, skillOutputEnabledKey},
+		[]string{
+			automationNameKey,
+			skillOutputDescriptionKey,
+			automationSourceKey,
+			skillOutputEnabledKey,
+			skillOutputActiveKey,
+			skillOutputInactiveKey,
+		},
 		func(item skillListItem) []string {
 			return []string{
 				stringOrDash(item.Name),
 				stringOrDash(item.Description),
 				stringOrDash(item.Source),
 				strconv.FormatBool(item.Enabled),
+				strconv.FormatBool(item.Activation.Active),
+				stringOrDash(skillInactiveReason(item.Activation)),
 			}
 		},
 		func(item skillListItem) []string {
@@ -94,6 +116,8 @@ func skillListBundle(items []skillListItem) outputBundle {
 				item.Description,
 				item.Source,
 				strconv.FormatBool(item.Enabled),
+				strconv.FormatBool(item.Activation.Active),
+				skillInactiveReason(item.Activation),
 			}
 		},
 	)
@@ -122,6 +146,8 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 				{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
 				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
 				{Label: skillOutputEnabledValue, Value: strconv.FormatBool(item.Enabled)},
+				{Label: skillOutputActiveValue, Value: strconv.FormatBool(item.Activation.Active)},
+				{Label: skillOutputInactiveValue, Value: stringOrDash(skillInactiveReason(item.Activation))},
 			})
 			provenanceRows := skillProvenanceRows(item.Provenance)
 			provenance := renderHumanTable("Provenance", []string{"Field", skillOutputValueValue}, provenanceRows)
@@ -161,6 +187,8 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 						automationSourceKey,
 						skillOutputPathKey,
 						skillOutputEnabledKey,
+						skillOutputActiveKey,
+						skillOutputInactiveKey,
 					},
 					[]string{
 						item.Name,
@@ -169,6 +197,8 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 						item.Source,
 						item.Path,
 						strconv.FormatBool(item.Enabled),
+						strconv.FormatBool(item.Activation.Active),
+						skillInactiveReason(item.Activation),
 					},
 				),
 				renderToonArray(
@@ -181,6 +211,19 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 			), nil
 		},
 	}
+}
+
+func skillInactiveReason(activation contract.SkillActivationPayload) string {
+	if activation.Active || len(activation.Reasons) == 0 {
+		return ""
+	}
+	messages := make([]string, 0, len(activation.Reasons))
+	for _, reason := range activation.Reasons {
+		if message := strings.TrimSpace(reason.Message); message != "" {
+			messages = append(messages, message)
+		}
+	}
+	return strings.Join(messages, "; ")
 }
 
 func skillProvenanceRows(provenance *SkillProvenanceRecord) [][]string {

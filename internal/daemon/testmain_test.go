@@ -9,6 +9,8 @@ import (
 	"github.com/compozy/agh/internal/testutil/storeseed"
 )
 
+const deadEntityMCPHelperEnv = "AGH_TEST_DEAD_ENTITY_MCP_HELPER"
+
 var daemonTestStoreSeed *storeseed.Seed
 
 func TestMain(m *testing.M) {
@@ -43,6 +45,7 @@ func isDaemonTestHelperProcess() bool {
 		"AGH_TEST_DAEMON_ENV_HELPER",
 		"AGH_TEST_DAEMON_EXTENSION_HELPER",
 		"AGH_TEST_DAEMON_SESSION_STOP_HELPER",
+		deadEntityMCPHelperEnv,
 		"AGH_TEST_NIGHTLY_COMBINED_HELPER",
 	} {
 		if os.Getenv(name) == "1" {

@@ -1575,7 +1575,7 @@ func networkWorkBundle(work NetworkWorkRecord) outputBundle {
 					networkDirectIDKey,
 					"opened_session_id",
 					"target_session_id",
-					networkStateKey,
+					stateKey,
 					networkOpenedAtKey,
 					networkLastActivityAtKey,
 					"terminal_at",

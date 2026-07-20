@@ -73,6 +73,58 @@ base_url = "https://registry.example.test/api/v1"
 	}
 }
 
+func TestApplyConfigOverlayFileAppliesDaemonRuntimeHealthSettings(t *testing.T) {
+	t.Run("Should apply daemon runtime health settings", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(
+			t,
+			overlayPath,
+			"[daemon]\nmemory_report_interval = \"0s\"\nsubprocess_health_escalation_threshold = 7\n",
+		)
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		if got := cfg.Daemon.MemoryReportInterval; got != 0 {
+			t.Fatalf("ApplyConfigOverlayFile() Daemon.MemoryReportInterval = %s, want disabled", got)
+		}
+		if got, want := cfg.Daemon.SubprocessHealthEscalationThreshold, 7; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() threshold = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestApplyConfigOverlayFileAppliesRedactionSnapshotSetting(t *testing.T) {
+	t.Run("Should default redaction on and apply an explicit disabled overlay", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		if !cfg.Redact.Enabled {
+			t.Fatal("DefaultWithHome().Redact.Enabled = false, want secure default true")
+		}
+
+		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, overlayPath, "[redact]\nenabled = false\n")
+		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		if cfg.Redact.Enabled {
+			t.Fatal("ApplyConfigOverlayFile() Redact.Enabled = true, want false")
+		}
+	})
+}
+
 func TestApplyConfigOverlayFileLeavesMarketplaceDefaultsWhenOverlayOmitsFields(t *testing.T) {
 	t.Run("ShouldLeaveMarketplaceDefaultsWhenOverlayOmitsFields", func(t *testing.T) {
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))

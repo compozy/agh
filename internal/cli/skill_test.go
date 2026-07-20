@@ -701,7 +701,7 @@ func TestSkillCommandsWorkWithoutDaemonAndSupportToonOutput(t *testing.T) {
 		{args: []string{"skill", "view", "toon-skill", "-o", "toon"}, contains: `<skill_content name="toon-skill">`},
 		{
 			args:     []string{"skill", "inspect", "toon-skill", "-o", "toon"},
-			contains: "skill{name,description,version,source,path,enabled}:",
+			contains: "skill{name,description,version,source,path,enabled,active,inactive_reason}:",
 		},
 		{
 			args:     []string{"skill", "create", "toon-created", "-o", "toon"},

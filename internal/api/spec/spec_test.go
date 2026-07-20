@@ -35,6 +35,45 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		check func(t *testing.T, doc *openapi3.T)
 	}{
 		{
+			name: "ShouldDescribeDaemonDrainAndAdmissionContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				for _, target := range []struct {
+					path string
+				}{
+					{path: "/api/drain"},
+					{path: "/api/undrain"},
+				} {
+					operation := operationFor(t, doc, target.path, http.MethodPost)
+					response := jsonResponseSchema(t, operation, http.StatusOK)
+					assertRequired(t, response, "state")
+					assertEnumValues(
+						t,
+						propertySchema(t, response, "state"),
+						string(contract.DrainStateActive),
+						string(contract.DrainStateDraining),
+					)
+					assertResponseStatus(t, operation, http.StatusServiceUnavailable)
+				}
+
+				admissionOperations := []struct {
+					path   string
+					method string
+				}{
+					{path: specSessionsPath, method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/clear", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt", method: http.MethodPost},
+					{path: "/api/tasks/{id}/runs", method: http.MethodPost},
+					{path: specAgentTaskClaimNextPath, method: http.MethodPost},
+				}
+				for _, target := range admissionOperations {
+					operation := operationFor(t, doc, target.path, target.method)
+					assertResponseStatus(t, operation, http.StatusServiceUnavailable)
+				}
+			},
+		},
+		{
 			name: "ShouldDescribeBoundedLoopCatalogContract",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
@@ -622,6 +661,26 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeClarificationAnswerWithoutCallerOwnedScope",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				answer := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications/{request_id}/answer",
+					"POST",
+				)
+				request := jsonRequestSchema(t, answer)
+				assertNotRequired(t, request, "workspace_id", "agent_name", "fallback")
+				response := jsonResponseSchema(t, answer, 200)
+				assertRequired(t, response, "choice", "text", "fallback")
+				assertResponseStatus(t, answer, 400)
+				assertResponseStatus(t, answer, 404)
+				assertResponseStatus(t, answer, 409)
+			},
+		},
+		{
 			name: "ShouldDescribeMemoryV2PublicContractAndHardCuts",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
@@ -786,6 +845,58 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeConsentFirstAutomationSuggestionOperations",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				list := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/automation/suggestions",
+					"GET",
+				)
+				if list.OperationID != "listAutomationSuggestions" {
+					t.Fatalf("list operation id = %q, want listAutomationSuggestions", list.OperationID)
+				}
+				assertParameter(t, list, "workspace_id", openapi3.ParameterInPath, true)
+				assertEnumValues(
+					t,
+					parameterSchema(t, list, "status", openapi3.ParameterInQuery),
+					"accepted",
+					"dismissed",
+					"pending",
+				)
+				listSchema := jsonResponseSchema(t, list, 200)
+				assertRequired(t, listSchema, "suggestions")
+
+				accept := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/accept",
+					"POST",
+				)
+				if accept.OperationID != "acceptAutomationSuggestion" {
+					t.Fatalf("accept operation id = %q, want acceptAutomationSuggestion", accept.OperationID)
+				}
+				assertParameter(t, accept, "workspace_id", openapi3.ParameterInPath, true)
+				assertParameter(t, accept, "suggestion_id", openapi3.ParameterInPath, true)
+				assertRequired(t, jsonResponseSchema(t, accept, 200), "suggestion", "job")
+
+				dismiss := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss",
+					"POST",
+				)
+				if dismiss.OperationID != "dismissAutomationSuggestion" {
+					t.Fatalf("dismiss operation id = %q, want dismissAutomationSuggestion", dismiss.OperationID)
+				}
+				assertParameter(t, dismiss, "workspace_id", openapi3.ParameterInPath, true)
+				assertParameter(t, dismiss, "suggestion_id", openapi3.ParameterInPath, true)
+				assertRequired(t, jsonResponseSchema(t, dismiss, 200), "suggestion")
+			},
+		},
+		{
 			name: "ShouldDescribeWebhookHeadersAndAutomationRunEnums",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
@@ -820,6 +931,22 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, listSkills, "for_agent", openapi3.ParameterInQuery, false)
 				listSkillsSchema := jsonResponseSchema(t, listSkills, 200)
 				skillSchema := propertySchema(t, listSkillsSchema, "skills").Items.Value
+				assertRequired(t, skillSchema, "activation")
+				activationSchema := propertySchema(t, skillSchema, "activation")
+				assertRequired(t, activationSchema, "active")
+				activationReasonSchema := propertySchema(t, activationSchema, "reasons").Items.Value
+				assertRequired(t, activationReasonSchema, "gate", "code", "message")
+				assertEnumValues(
+					t,
+					propertySchema(t, activationReasonSchema, "code"),
+					"capability_context_unavailable",
+					"environment_context_unavailable",
+					"environment_mismatch",
+					"missing_capability",
+					"missing_tool",
+					"platform_mismatch",
+					"tool_context_unavailable",
+				)
 				provenanceSchema := propertySchema(t, skillSchema, "provenance")
 				assertRequired(t, provenanceSchema, "precedence_tier")
 				shadowEntrySchema := propertySchema(t, provenanceSchema, "shadowed_by").Items.Value
@@ -829,6 +956,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertEnumValues(
 					t,
 					propertySchema(t, skillDiagnosticsSchema, "state"),
+					"inactive",
 					"shadowed",
 					"valid",
 					"verification_failed",
@@ -1202,6 +1330,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				invoke := operationFor(t, doc, "/api/tools/{id}/invoke", "POST")
 				assertResponseStatus(t, invoke, 202)
+				assertResponseStatus(t, invoke, 507)
 				invokeRequest := jsonRequestSchema(t, invoke)
 				assertRequired(t, invokeRequest, "input")
 				assertNotRequired(t, invokeRequest, "approval_token", "session_id", "workspace_id")
@@ -1220,10 +1349,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"tool_denied",
 					"tool_invalid_input",
 					"tool_not_found",
+					"tool_result_persistence_failed",
 					"tool_result_too_large",
 					"tool_timed_out",
 					"tool_unavailable",
 				)
+				persistenceError := jsonResponseSchema(t, invoke, 507)
+				persistencePayload := propertySchema(t, persistenceError, "error")
+				assertRequired(t, persistencePayload, "code", "message")
+				assertNotRequired(t, persistencePayload, "partial_result")
 
 				approval := operationFor(t, doc, "/api/tools/{id}/approvals", "POST")
 				approvalSchema := jsonResponseSchema(t, approval, 201)
@@ -1260,6 +1394,35 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertNotRequired(t, sessionSearchRequest, "limit", "workspace_id", "session_id", "agent_name")
 				sessionSearchSchema := jsonResponseSchema(t, sessionSearch, 200)
 				assertRequired(t, sessionSearchSchema, "tools")
+
+				artifactRead := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}",
+					"GET",
+				)
+				assertTagsContain(t, artifactRead, "tools")
+				assertParameter(t, artifactRead, "workspace_id", openapi3.ParameterInPath, true)
+				assertParameter(t, artifactRead, "artifact_id", openapi3.ParameterInPath, true)
+				assertParameter(t, artifactRead, "offset", openapi3.ParameterInQuery, false)
+				assertParameter(t, artifactRead, "limit", openapi3.ParameterInQuery, false)
+				artifactPage := jsonResponseSchema(t, artifactRead, 200)
+				assertRequired(
+					t,
+					artifactPage,
+					"artifact",
+					"offset",
+					"bytes",
+					"total_bytes",
+					"data_base64",
+					"next_offset",
+					"eof",
+				)
+				assertRequired(t, propertySchema(t, artifactPage, "artifact"), "uri")
+				assertResponseStatus(t, artifactRead, 400)
+				assertResponseStatus(t, artifactRead, 404)
+				assertResponseStatus(t, artifactRead, 502)
+				assertResponseStatus(t, artifactRead, 503)
 
 				toolsets := operationFor(t, doc, "/api/toolsets", "GET")
 				assertTagsContain(t, toolsets, "toolsets")
@@ -2214,7 +2377,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "TaskBlockKind", typ: taskpkg.BlockKindNeedsInput},
 		{name: "TaskBlockedSource", typ: taskpkg.BlockedSourceBlock},
 		{name: "TaskRuntimeMode", typ: taskpkg.RuntimeModeDefault},
-		{name: "AutomationSchedulerCatchUpPolicy", typ: automationpkg.SchedulerCatchUpPolicySkip},
+		{name: "AutomationSchedulerCatchUpPolicy", typ: automationpkg.SchedulerCatchUpPolicySkipMissed},
 		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},
@@ -2579,7 +2742,7 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 		{
 			name: "automation scheduler catch-up policy values",
 			got:  automationSchedulerCatchUpPolicyValues(),
-			want: []string{"skip", "coalesce", "replay"},
+			want: []string{"skip_missed", "coalesce", "replay", "run_once_on_catchup"},
 		},
 		{
 			name: "loop run status values",

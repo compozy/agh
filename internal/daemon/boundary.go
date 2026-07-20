@@ -15,6 +15,7 @@ import (
 
 const (
 	boundaryTrueKey = "true"
+	boundaryYesKey  = "yes"
 )
 
 const moduleImportPath = "github.com/compozy/agh"
@@ -58,7 +59,7 @@ func (d *Daemon) shouldVerifyBoundaries() bool {
 		envGetter = os.Getenv
 	}
 	value := strings.ToLower(strings.TrimSpace(envGetter("AGH_DEV_VERIFY_BOUNDARIES")))
-	return value == "1" || value == boundaryTrueKey || value == "yes"
+	return value == "1" || value == boundaryTrueKey || value == boundaryYesKey
 }
 
 func verifyImportBoundaries(root string) ([]error, error) {

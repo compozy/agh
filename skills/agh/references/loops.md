@@ -141,6 +141,10 @@ exhausted budget up to success.
 - `stalled` — no progress: the no-progress window elapsed, the failure circuit breaker tripped, the
   blocker-ID signature repeated, or a watched source went silent.
 
+Failure streaks are evaluated per node across generations, so a healthy sibling cannot reset a
+failing node's breaker. An unbounded watch run also stalls after consecutive failed generations;
+healthy waiting ticks remain `watching`.
+
 **Live (5):** `queued` (deferred start under `concurrency: queue`), `running`, `watching` (dormant
 watch tick), `needs-approval` (parked on a human gate — a live pause, not terminal), `paused`
 (operator paused at a boundary). `ready` and `awaiting_child` are node-level, never run states.
@@ -223,7 +227,8 @@ fixer creates the local fix commit before the loop's push node runs; `auto_commi
 without pushing.
 
 Scheduled watch Loops default to `catch_up_policy: coalesce`; other scheduled Loops default to
-`skip`. Explicit schedule policies are `skip`, `coalesce`, and `replay`. Catch-up starts carry
+`skip_missed`. Explicit recurring schedule policies are `skip_missed`, `coalesce`, `replay`, and
+`run_once_on_catchup`. Catch-up starts carry
 structured metadata (`scheduled_at`, `original_due_at`, `catch_up`, `catch_up_policy`) on the
 automation run.
 

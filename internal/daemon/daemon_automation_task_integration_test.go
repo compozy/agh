@@ -401,7 +401,7 @@ func startAutomationTaskHarness(
 ) *e2etest.RuntimeHarness {
 	t.Helper()
 
-	return e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultAgent: automationTaskFixtureAgentName,
 		},
@@ -411,6 +411,7 @@ func startAutomationTaskHarness(
 			AgentName:    automationTaskFixtureAgentName,
 		}},
 	})
+
 }
 
 func mustReadSessionMeta(

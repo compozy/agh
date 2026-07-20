@@ -283,6 +283,7 @@ func inspectRunSummaryFromRun(run Run, asOf time.Time) InspectRunSummary {
 		PreviousRunID:           inspectPreviousRunID(run),
 		QueuedAt:                run.QueuedAt,
 		Attempt:                 int(run.Attempt),
+		RecoveryCount:           int(run.RecoveryCount),
 	}
 }
 

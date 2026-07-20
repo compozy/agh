@@ -24,6 +24,8 @@ type Skill struct {
 	Dir                    string
 	FilePath               string
 	Enabled                bool
+	ActivationGates        ActivationGates
+	Activation             SkillActivation
 	MCPServers             []MCPServerDecl
 	Hooks                  []hookspkg.HookDecl
 	Provenance             *Provenance
@@ -31,6 +33,52 @@ type Skill struct {
 	InstalledFromBundle    string
 	InstalledFromExtension string
 	Diagnostics            SkillDiagnostics
+}
+
+// ActivationGates declares offer-time constraints from metadata.agh.when.
+type ActivationGates struct {
+	Platforms            []string `json:"platforms,omitempty"             yaml:"platforms,omitempty"`
+	Environments         []string `json:"environments,omitempty"          yaml:"environments,omitempty"`
+	RequiresTools        []string `json:"requires_tools,omitempty"        yaml:"requires_tools,omitempty"`
+	RequiresCapabilities []string `json:"requires_capabilities,omitempty" yaml:"requires_capabilities,omitempty"`
+}
+
+// ActivationGate identifies one supported metadata.agh.when family.
+type ActivationGate string
+
+const (
+	ActivationGatePlatforms            ActivationGate = "platforms"
+	ActivationGateEnvironments         ActivationGate = "environments"
+	ActivationGateRequiresTools        ActivationGate = "requires_tools"
+	ActivationGateRequiresCapabilities ActivationGate = "requires_capabilities"
+)
+
+// ActivationReasonCode identifies why an enabled skill is not currently offered.
+type ActivationReasonCode string
+
+const (
+	ActivationReasonPlatformMismatch              ActivationReasonCode = "platform_mismatch"
+	ActivationReasonEnvironmentContextUnavailable ActivationReasonCode = "environment_context_unavailable"
+	ActivationReasonEnvironmentMismatch           ActivationReasonCode = "environment_mismatch"
+	ActivationReasonToolContextUnavailable        ActivationReasonCode = "tool_context_unavailable"
+	ActivationReasonMissingTool                   ActivationReasonCode = "missing_tool"
+	ActivationReasonCapabilityContextUnavailable  ActivationReasonCode = "capability_context_unavailable"
+	ActivationReasonMissingCapability             ActivationReasonCode = "missing_capability"
+)
+
+// ActivationReason is one deterministic unmet activation gate.
+type ActivationReason struct {
+	Gate    ActivationGate
+	Code    ActivationReasonCode
+	Missing []string
+	Message string
+}
+
+// SkillActivation is the latest offer-time evaluation for one resolved skill.
+type SkillActivation struct {
+	Active    bool
+	Evaluated bool
+	Reasons   []ActivationReason
 }
 
 // SkillSource identifies where a skill was loaded from.
@@ -95,6 +143,8 @@ const (
 	SkillDiagnosticStateShadowed SkillDiagnosticState = "shadowed"
 	// SkillDiagnosticStateVerificationFailed reports a definition rejected by provenance or content verification.
 	SkillDiagnosticStateVerificationFailed SkillDiagnosticState = "verification_failed"
+	// SkillDiagnosticStateInactive reports a valid enabled definition withheld by activation gates.
+	SkillDiagnosticStateInactive SkillDiagnosticState = "inactive"
 )
 
 // SkillVerificationStatus describes the verifier outcome for one skill definition.
@@ -160,6 +210,7 @@ type SkillDiagnostic struct {
 	VerificationStatus SkillVerificationStatus
 	Warnings           []Warning
 	Failure            *SkillVerificationFailure
+	ActivationReasons  []ActivationReason
 }
 
 // RegistryConfig controls how the registry discovers global skills.

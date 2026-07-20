@@ -25,7 +25,7 @@ func TestDaemonE2ENetworkLiveBoundsCoalesceDepthAndBudget(t *testing.T) {
 	t.Run("Should preserve every message while bounding coalesced and exhausted wakes", func(t *testing.T) {
 		acpmock.RequireDriver(t)
 
-		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 			EnableNetwork: true,
 			ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
 				cfg.Network.Live.Defaults.MaxWakes = 2

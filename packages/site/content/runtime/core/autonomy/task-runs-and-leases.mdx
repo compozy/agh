@@ -52,6 +52,12 @@ The MVP lease contract is intentionally narrow:
 | Expiry recovery              | Expired leases are recovered by boot recovery or scheduler sweeps through the task service.                             |
 | Stale holders fail           | A stale heartbeat or late complete after recovery fails explicitly; it does not extend or overwrite a newer claim.      |
 
+Each expired-lease recovery increments the run's durable `recovery_count`. AGH exhausts the run
+when `attempt + recovery_count >= max_attempts`; otherwise it returns the run to the queue. An
+exhausted recovery emits `task.run.lease_recovery_exhausted` and moves the run to
+`needs_attention`. Recovery state and its canonical events commit atomically, so a failed event
+append cannot leave the run advanced without matching history.
+
 ## Heartbeat
 
 Use heartbeat when work is still active and the session still owns the run.
@@ -370,6 +376,22 @@ agh__task_run_complete  { "run_id": "run-123", "result": { "summary": "spawned 2
 ```
 
 `created_task_ids` means "tasks I created this run" — do not list tasks created by other sessions.
+
+### Run usage and cost
+
+`agh task run show <run-id> -o json` and the task-run detail API include an operational summary with
+token totals plus `total_cost`, `cost_currency`, `cost_status`, and `cost_source`.
+
+- `actual` is agent-reported cost.
+- `estimated` is a catalog-rate projection and remains labeled as estimated.
+- `included` means the native provider owns subscription billing; no amount is shown.
+- `unknown` means AGH cannot make one compatible monetary claim; no amount is shown.
+
+Task-run aggregation never mixes reported and estimated amounts. If currency, status, or source
+differs across contributing rows, the monetary summary becomes `unknown`/`none` while token totals
+remain available. Treat `included` as a subscription classification, not a confirmed account balance.
+Estimated rows require independent finite, non-negative rates for every nonzero input, output,
+cache-read, cache-write, and reasoning bucket; missing bucket rates never fall back to another rate.
 
 ### Block and escalation events
 

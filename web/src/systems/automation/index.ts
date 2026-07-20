@@ -11,6 +11,11 @@ export type {
   AutomationRunHistoryFilter,
   AutomationRunListFilter,
   AutomationRunStatus,
+  AutomationSuggestion,
+  AutomationSuggestionAcceptanceResponse,
+  AutomationSuggestionDismissalResponse,
+  AutomationSuggestionsListResponse,
+  AutomationSuggestionStatus,
   AutomationSchedule,
   AutomationScheduleMode,
   AutomationSchedulerState,
@@ -46,6 +51,11 @@ export {
   updateAutomationJob,
   updateAutomationTrigger,
 } from "./adapters/automation-api";
+export {
+  acceptAutomationSuggestion,
+  dismissAutomationSuggestion,
+  listAutomationSuggestions,
+} from "./adapters/automation-suggestions-api";
 
 // Query infrastructure
 export { automationKeys } from "./lib/query-keys";
@@ -58,6 +68,7 @@ export {
   automationJobRunsOptions,
   automationJobsListOptions,
   automationRunsListOptions,
+  automationSuggestionsListOptions,
   automationTriggerDetailOptions,
   automationTriggerRunsOptions,
   automationTriggersListOptions,
@@ -138,6 +149,11 @@ export {
   useUpdateAutomationTrigger,
 } from "./hooks/use-automation-actions";
 export { useAutomationJobEditor, useAutomationTriggerEditor } from "./hooks/use-automation-editor";
+export {
+  useAcceptAutomationSuggestion,
+  useDismissAutomationSuggestion,
+} from "./hooks/use-automation-suggestion-actions";
+export { useAutomationSuggestions } from "./hooks/use-automation-suggestions";
 
 // Components
 export { AutomationDetailPanel } from "./components/automation-detail-panel";
@@ -147,4 +163,10 @@ export { AutomationListFilters } from "./components/automation-list-filters";
 export { AutomationJobsCatalog } from "./components/automation-jobs-catalog";
 export { AutomationTriggersCatalog } from "./components/automation-triggers-catalog";
 export { AutomationRunHistory } from "./components/automation-run-history";
+export {
+  AutomationSuggestionsCard,
+  type AutomationSuggestionsCardProps,
+  type AutomationSuggestionPendingAction,
+} from "./components/automation-suggestions-card";
+export { AutomationSuggestionsPanel } from "./components/automation-suggestions-panel";
 export { AutomationTriggerForm } from "./components/automation-trigger-form";

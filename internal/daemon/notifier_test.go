@@ -331,6 +331,46 @@ func TestHooksNotifierLifecycleForwarding(t *testing.T) {
 	})
 }
 
+func TestHooksNotifierSubprocessHealthRuntimeForwarding(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward health and the full stopped session to the late-bound runtime", func(t *testing.T) {
+		t.Parallel()
+
+		healthRuntime := &recordingSubprocessHealthRuntime{}
+		notifier := newHooksNotifier(discardLogger(), nil)
+		notifier.setRuntime(&fakeHookRuntime{}, &recordingNotifier{})
+		notifier.setSubprocessHealthRuntime(healthRuntime)
+		observation := session.SubprocessHealthSnapshot{
+			SessionID:   "sess-health",
+			WorkspaceID: "ws-health",
+			AgentName:   "worker",
+		}
+		stopped := &session.Session{
+			ID:          observation.SessionID,
+			WorkspaceID: observation.WorkspaceID,
+			AgentName:   observation.AgentName,
+			State:       session.StateStopped,
+		}
+
+		notifier.OnSubprocessHealth(testutil.Context(t), observation)
+		notifier.OnSessionStopped(testutil.Context(t), stopped)
+
+		if got, want := len(healthRuntime.observations), 1; got != want {
+			t.Fatalf("health observation calls = %d, want %d", got, want)
+		}
+		if got := healthRuntime.observations[0].SessionID; got != observation.SessionID {
+			t.Fatalf("health observation session_id = %q, want %q", got, observation.SessionID)
+		}
+		if got, want := len(healthRuntime.stopped), 1; got != want {
+			t.Fatalf("stopped session calls = %d, want %d", got, want)
+		}
+		if healthRuntime.stopped[0] != stopped {
+			t.Fatal("stopped session was projected, want the full runtime session pointer")
+		}
+	})
+}
+
 func TestHooksNotifierEmitsGlobalHookDispatchSummariesForAutonomyHooks(t *testing.T) {
 	t.Parallel()
 
@@ -769,13 +809,14 @@ func (o *recordingEventRecordWatchObserver) OnEventPostRecord(
 func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should drive observer dream and extractor callbacks", func(t *testing.T) {
+	t.Run("Should drive observer dream extractor and automatic title callbacks", func(t *testing.T) {
 		t.Parallel()
 
 		observer := &spyLifecycleObserver{}
 		dream := &spyDreamRuntime{}
 		extractor := newSpyMessagePersistedObserver()
-		decls, executors := daemonNativeHooks(observer, dream, extractor)
+		title := newSpyMessagePersistedObserver()
+		decls, executors := daemonNativeHooks(observer, dream, extractor, title)
 		hooks := hookspkg.NewHooks(
 			hookspkg.WithLogger(discardLogger()),
 			hookspkg.WithNativeDeclarations(decls),
@@ -844,6 +885,10 @@ func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {
 		gotMessage := extractor.wait(t)
 		if gotMessage.SessionID != sess.ID || gotMessage.MessageID != "msg-1" {
 			t.Fatalf("extractor payload = %#v, want session/message ids", gotMessage)
+		}
+		gotTitleMessage := title.wait(t)
+		if gotTitleMessage.SessionID != sess.ID || gotTitleMessage.MessageID != "msg-1" {
+			t.Fatalf("automatic title payload = %#v, want session/message ids", gotTitleMessage)
 		}
 	})
 }
@@ -1657,6 +1702,25 @@ func (r *recordingLoopTerminalObserver) OnLoopTerminal(
 type spyLifecycleObserver struct {
 	created []*session.Session
 	stopped []*session.Session
+}
+
+type recordingSubprocessHealthRuntime struct {
+	observations []session.SubprocessHealthSnapshot
+	stopped      []*session.Session
+}
+
+func (r *recordingSubprocessHealthRuntime) OnSubprocessHealth(
+	_ context.Context,
+	observation session.SubprocessHealthSnapshot,
+) {
+	r.observations = append(r.observations, observation)
+}
+
+func (r *recordingSubprocessHealthRuntime) OnSessionStopped(
+	_ context.Context,
+	stopped *session.Session,
+) {
+	r.stopped = append(r.stopped, stopped)
 }
 
 func (s *spyLifecycleObserver) OnSessionCreated(_ context.Context, sess *session.Session) {

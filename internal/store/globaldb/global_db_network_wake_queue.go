@@ -31,7 +31,7 @@ func (g *NetworkRepo) ListQueuedNetworkWakes(
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT run.workspace_id, run.network_target_session_id, run.id,
-			COALESCE(MAX(disposition.acceptance_seq), 0)
+			COALESCE(MAX(disposition.acceptance_seq), 0), wake.coalesce_until
 		 FROM task_runs AS run
 		 JOIN network_live_wakes AS wake
 			ON wake.workspace_id = run.workspace_id
@@ -44,7 +44,8 @@ func (g *NetworkRepo) ListQueuedNetworkWakes(
 			AND disposition.message_id = source.envelope_id
 			AND disposition.recipient_session_id = run.network_target_session_id
 		 WHERE run.run_kind = ? AND run.status = ? AND wake.state = 'open'
-		 GROUP BY run.workspace_id, run.network_target_session_id, run.id, run.queued_at
+		 GROUP BY run.workspace_id, run.network_target_session_id, run.id,
+			wake.coalesce_until, run.queued_at
 		 ORDER BY run.queued_at ASC, run.id ASC
 		 LIMIT ?`,
 		taskpkg.RunKindNetworkWake.String(),
@@ -67,13 +68,19 @@ func (g *NetworkRepo) ListQueuedNetworkWakes(
 	notifications = make([]store.CommittedNetworkNotification, 0)
 	for rows.Next() {
 		var notification store.CommittedNetworkNotification
+		var readyAtRaw string
 		if err := rows.Scan(
 			&notification.WorkspaceID,
 			&notification.RecipientSessionID,
 			&notification.TaskRunID,
 			&notification.AcceptanceSeq,
+			&readyAtRaw,
 		); err != nil {
 			return nil, fmt.Errorf("store: scan queued network wake: %w", err)
+		}
+		notification.ReadyAt, err = store.ParseTimestamp(readyAtRaw)
+		if err != nil {
+			return nil, fmt.Errorf("store: parse queued network wake ready_at: %w", err)
 		}
 		notifications = append(notifications, notification)
 	}

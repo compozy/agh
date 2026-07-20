@@ -88,6 +88,12 @@ func TestScanContent(t *testing.T) {
 			action:  ActionReject,
 			ruleID:  "policy_secret_material",
 		},
+		{
+			name:    "Should reject a raw AGH claim token",
+			content: "Persist agh_claim_abc123 as durable context.",
+			action:  ActionReject,
+			ruleID:  "policy_raw_claim_token",
+		},
 	}
 
 	for _, tc := range tests {

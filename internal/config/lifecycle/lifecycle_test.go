@@ -49,6 +49,30 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify daemon memory reports as restart required",
+			path:          "daemon.memory_report_interval",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
+			name:          "Should classify subprocess health escalation as restart required",
+			path:          "daemon.subprocess_health_escalation_threshold",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
+			name:          "Should classify clarification timeout as restart required",
+			path:          "tools.clarify.timeout",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
+			name:          "Should classify tool artifact retention as restart required",
+			path:          "tools.artifacts.max_age",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
 			name:          "Should classify marketplace catalog changes as live",
 			path:          "marketplace.catalog.timeout",
 			wantLifecycle: Live,
@@ -67,8 +91,20 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
+			name:          "Should classify redaction changes as restart required",
+			path:          "redact.enabled",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
 			name:          "Should classify Goal config as restart required",
 			path:          "goals.context_nudge_ratio",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
+			name:          "Should classify task orchestration config as restart required",
+			path:          "task.orchestration.max_active_runs_per_workspace",
 			wantLifecycle: RestartRequired,
 			wantDiffClass: DiffClassRestartRequired,
 		},

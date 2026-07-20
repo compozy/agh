@@ -35,7 +35,6 @@ func loopRunInsertParams(
 		ActiveHumanCriteriaJson: string(run.ActiveHumanCriteria),
 		BudgetApprovalSeq:       int64(run.BudgetApprovalSeq),
 		StartMetadataJson:       string(metadataJSON),
-		ConsecutiveFailures:     int64(run.ConsecutiveFailures),
 		IterationCap:            int64(run.IterationCap),
 		BudgetTokens:            int64(run.BudgetTokens),
 		BudgetWallSec:           int64(run.BudgetWallSec),
@@ -74,8 +73,8 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 		run: looppkg.Run{
 			LoopName: row.LoopName, Generation: int(row.Generation), DefinitionVersion: int(row.DefinitionVersion),
 			DefinitionDigest: row.DefinitionDigest, ActiveGateID: looppkg.NodeID(row.ActiveGateID),
-			BudgetApprovalSeq: int(row.BudgetApprovalSeq), ConsecutiveFailures: int(row.ConsecutiveFailures),
-			BudgetTokens: int(row.BudgetTokens), BudgetWallSec: int(row.BudgetWallSec), TokensUsed: row.TokensUsed,
+			BudgetApprovalSeq: int(row.BudgetApprovalSeq),
+			BudgetTokens:      int(row.BudgetTokens), BudgetWallSec: int(row.BudgetWallSec), TokensUsed: row.TokensUsed,
 			IterationCap: int(row.IterationCap), GoalContextNudgeRatio: row.GoalContextNudgeRatio,
 		},
 		runID: row.ID, workspaceID: row.WorkspaceID, status: row.Status, reattempt: row.ReattemptStrategy,

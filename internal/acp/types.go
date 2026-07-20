@@ -31,6 +31,8 @@ const (
 	EventTypePlan = "plan"
 	// EventTypePermission is emitted when the daemon applies a permission decision.
 	EventTypePermission = "permission"
+	// EventTypeClarify is emitted for daemon-owned clarification lifecycle transitions.
+	EventTypeClarify = "clarify"
 	// EventTypeUsage is emitted when unstable usage metadata is reported.
 	EventTypeUsage = "usage"
 	// EventTypeSystem is emitted for system-level ACP updates.

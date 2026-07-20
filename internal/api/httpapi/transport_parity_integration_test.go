@@ -38,7 +38,7 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  transportMockFixturePath(t, "permission_env_fixture.json"),
 			FixtureAgent: "approver",
@@ -126,13 +126,14 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  transportMockFixturePath(t, "automation_task_fixture.json"),
 			FixtureAgent: "automation-runner",
 			AgentName:    transportAutomationAgent,
 		}},
 	})
+
 	registration, ok := runtimeHarness.MockAgentRegistration(transportAutomationAgent)
 	if !ok {
 		t.Fatalf("MockAgentRegistration(%q) not found", transportAutomationAgent)
@@ -275,7 +276,7 @@ func TestHTTPTransportWebhookIngressUsesSharedRuntimeHarness(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultAgent: transportAutomationAgent,
 		},
@@ -322,7 +323,7 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		MockAgents: []e2etest.MockAgentSpec{{
 			FixturePath:  transportMockFixturePath(t, "driver_fault_fixture.json"),
 			FixtureAgent: "faulty",
@@ -387,7 +388,7 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 
 	clients, err := runtimeHarness.TransportClients()
 	if err != nil {

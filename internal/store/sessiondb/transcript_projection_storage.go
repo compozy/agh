@@ -243,6 +243,7 @@ func loadAssignedEvents(
 			row.Type,
 			row.AgentName,
 			row.Content,
+			row.Archived,
 			row.Timestamp,
 			sessionID,
 		)

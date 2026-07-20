@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -203,6 +204,160 @@ func TestBuildCatalogExcludesDisabledSkills(t *testing.T) {
 		}
 		if !strings.Contains(got, `name="enabled"`) {
 			t.Fatalf("BuildCatalog() missing enabled skill: %q", got)
+		}
+	})
+}
+
+func TestBuildCatalogHonorsActivationGates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep inactive skills listable while excluding their advertised tokens", func(t *testing.T) {
+		t.Parallel()
+
+		gated := &Skill{
+			Meta:    SkillMeta{Name: "linux-only", Description: "Linux-only instructions"},
+			Enabled: true,
+			ActivationGates: ActivationGates{
+				Platforms: []string{"linux"},
+			},
+		}
+		evaluateSkillActivation(gated, ActivationContext{Platform: "darwin"})
+		ungated := &Skill{
+			Meta:       SkillMeta{Name: "portable", Description: "Portable instructions"},
+			Enabled:    true,
+			Activation: SkillActivation{Active: true},
+		}
+
+		catalog := BuildCatalog([]*Skill{gated, ungated})
+		if strings.Contains(catalog, "linux-only") {
+			t.Fatalf("BuildCatalog() = %q, want gated skill tokens excluded", catalog)
+		}
+		if !strings.Contains(catalog, "portable") {
+			t.Fatalf("BuildCatalog() = %q, want ungated skill advertised", catalog)
+		}
+		if gated.Activation.Active {
+			t.Fatalf("gated.Activation = %#v, want inactive", gated.Activation)
+		}
+		if got, want := gated.Activation.Reasons[0].Gate, ActivationGatePlatforms; got != want {
+			t.Fatalf("gated reason = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should activate required tools on the next evaluation", func(t *testing.T) {
+		t.Parallel()
+
+		skill := &Skill{
+			Meta:    SkillMeta{Name: "tool-gated", Description: "Needs a tool"},
+			Enabled: true,
+			ActivationGates: ActivationGates{
+				RequiresTools: []string{"agh__skill_view"},
+			},
+		}
+		evaluateSkillActivation(skill, ActivationContext{Platform: "linux"})
+		if skill.Activation.Active {
+			t.Fatalf("first Activation = %#v, want inactive", skill.Activation)
+		}
+
+		evaluateSkillActivation(skill, ActivationContext{
+			Platform: "linux",
+			Tools:    []string{"agh__skill_view"},
+		})
+		if !skill.Activation.Active || len(skill.Activation.Reasons) != 0 {
+			t.Fatalf("second Activation = %#v, want active", skill.Activation)
+		}
+	})
+
+	t.Run("Should preserve ungated catalog behavior after evaluation", func(t *testing.T) {
+		t.Parallel()
+
+		skill := &Skill{
+			Meta:    SkillMeta{Name: "portable", Description: "Runs without activation gates"},
+			Enabled: true,
+		}
+		before := BuildCatalog([]*Skill{skill})
+
+		providerCalled := false
+		registry := &Registry{activationContext: func(
+			context.Context,
+			ActivationTarget,
+		) (ActivationContext, error) {
+			providerCalled = true
+			return ActivationContext{}, nil
+		}}
+		if _, err := registry.projectSkillActivation(t.Context(), []*Skill{skill}, ActivationTarget{}); err != nil {
+			t.Fatalf("projectSkillActivation() error = %v", err)
+		}
+		after := BuildCatalog([]*Skill{skill})
+
+		if before != after {
+			t.Fatalf("ungated catalog changed after evaluation\nbefore=%q\nafter=%q", before, after)
+		}
+		if !skill.Activation.Active || len(skill.Activation.Reasons) != 0 {
+			t.Fatalf("Activation = %#v, want active without reasons", skill.Activation)
+		}
+		if providerCalled {
+			t.Fatal("ungated projection called activation context provider")
+		}
+	})
+
+	t.Run("Should compose gate families with AND and values with their declared cardinality", func(t *testing.T) {
+		t.Parallel()
+
+		skill := &Skill{
+			Meta:    SkillMeta{Name: "composed", Description: "Exercises every gate family"},
+			Enabled: true,
+			ActivationGates: ActivationGates{
+				Platforms:            []string{"linux", "darwin"},
+				Environments:         []string{"container", "ci"},
+				RequiresTools:        []string{"agh__skill_view", "agh__skill_list"},
+				RequiresCapabilities: []string{"review.code", "test.run"},
+			},
+		}
+		evaluateSkillActivation(skill, ActivationContext{
+			Platform:     "darwin",
+			Environments: []string{"ci"},
+			Tools:        []string{"agh__skill_list", "agh__skill_view"},
+			Capabilities: []string{"test.run", "review.code"},
+		})
+		if !skill.Activation.Active {
+			t.Fatalf("Activation = %#v, want OR platform/environment and all required values active", skill.Activation)
+		}
+
+		evaluateSkillActivation(skill, ActivationContext{
+			Platform:     "darwin",
+			Environments: []string{"ci"},
+			Tools:        []string{"agh__skill_view"},
+			Capabilities: []string{"review.code"},
+		})
+		if skill.Activation.Active {
+			t.Fatalf("Activation = %#v, want missing tool and capability inactive", skill.Activation)
+		}
+		wantGates := []ActivationGate{ActivationGateRequiresTools, ActivationGateRequiresCapabilities}
+		gotGates := make([]ActivationGate, 0, len(skill.Activation.Reasons))
+		for _, reason := range skill.Activation.Reasons {
+			gotGates = append(gotGates, reason.Gate)
+		}
+		if !slices.Equal(gotGates, wantGates) {
+			t.Fatalf("reason gates = %#v, want stable %#v", gotGates, wantGates)
+		}
+	})
+
+	t.Run("Should fail an environment gate closed without an authoritative context", func(t *testing.T) {
+		t.Parallel()
+
+		skill := &Skill{
+			Meta:    SkillMeta{Name: "container-only", Description: "Requires environment context"},
+			Enabled: true,
+			ActivationGates: ActivationGates{
+				Environments: []string{"container"},
+			},
+		}
+		evaluateSkillActivation(skill, ActivationContext{Platform: "linux"})
+		if skill.Activation.Active || len(skill.Activation.Reasons) != 1 {
+			t.Fatalf("Activation = %#v, want one fail-closed reason", skill.Activation)
+		}
+		if got, want := skill.Activation.Reasons[0].Code, ActivationReasonEnvironmentContextUnavailable; got != want {
+			t.Fatalf("reason code = %q, want %q", got, want)
 		}
 	})
 }

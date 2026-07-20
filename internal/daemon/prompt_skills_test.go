@@ -2,7 +2,11 @@ package daemon
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/compozy/agh/internal/session"
@@ -165,6 +169,77 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			t.Fatalf("third prompt = %q, want original prompt preserved", third)
 		}
 	})
+
+	t.Run("Should activate a tool-gated skill on the next prompt without restart", func(t *testing.T) {
+		t.Parallel()
+
+		userDir := t.TempDir()
+		skillDir := filepath.Join(userDir, "tool-gated")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
+		content := strings.Join([]string{
+			"---",
+			"name: tool-gated",
+			"description: Needs the canonical skill tool.",
+			"metadata:",
+			"  agh:",
+			"    when:",
+			"      requires_tools: [agh__skill_view]",
+			"---",
+			"body",
+		}, "\n")
+		if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		var toolAvailable atomic.Bool
+		registry := skillspkg.NewRegistry(
+			skillspkg.RegistryConfig{UserSkillsDir: userDir},
+			skillspkg.WithActivationContextProvider(func(
+				_ context.Context,
+				target skillspkg.ActivationTarget,
+			) (skillspkg.ActivationContext, error) {
+				if target.SessionID != "sess-tool-gate" {
+					return skillspkg.ActivationContext{}, fmt.Errorf("session id = %q", target.SessionID)
+				}
+				tools := make([]string, 0)
+				if toolAvailable.Load() {
+					tools = append(tools, "agh__skill_view")
+				}
+				return skillspkg.ActivationContext{Platform: "linux", Tools: tools}, nil
+			}),
+		)
+		if err := registry.LoadAll(t.Context()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/tmp/ws-1"},
+		}}
+		augmenter := newSkillsCatalogAugmenter(registry, func() promptSkillsWorkspaceResolver { return resolver })
+		sess := newPromptSkillsSession("sess-tool-gate")
+		sess.AgentName = "coordinator"
+
+		first, err := augmenter(t.Context(), sess, "first")
+		if err != nil {
+			t.Fatalf("augmenter(first) error = %v", err)
+		}
+		if strings.Contains(first, "tool-gated") {
+			t.Fatalf("first prompt = %q, want inactive skill omitted", first)
+		}
+
+		toolAvailable.Store(true)
+		second, err := augmenter(t.Context(), sess, "second")
+		if err != nil {
+			t.Fatalf("augmenter(second) error = %v", err)
+		}
+		if !strings.Contains(second, `name="tool-gated"`) {
+			t.Fatalf("second prompt = %q, want active skill advertised", second)
+		}
+		if len(second) <= len(first) {
+			t.Fatalf("prompt bytes inactive=%d active=%d, want measured catalog growth", len(first), len(second))
+		}
+	})
 }
 
 func BenchmarkSkillsCatalogAugmenterCatalogReplayModes(b *testing.B) {
@@ -254,10 +329,11 @@ func (s *stubPromptSkillsRegistry) ForWorkspace(
 	return nil, nil
 }
 
-func (s *stubPromptSkillsRegistry) ForAgent(
+func (s *stubPromptSkillsRegistry) ForAgentSession(
 	_ context.Context,
 	_ *workspacepkg.ResolvedWorkspace,
 	agentName string,
+	_ string,
 ) ([]*skillspkg.Skill, error) {
 	if s == nil {
 		return nil, nil

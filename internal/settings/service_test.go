@@ -464,7 +464,11 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 			Permissions:    aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveReads},
 			SessionTimeout: 45 * time.Minute,
 			HTTP:           aghconfig.HTTPConfig{Host: "127.0.0.1", Port: 9001},
-			Daemon:         aghconfig.DaemonConfig{Socket: "/tmp/agh.sock"},
+			Daemon: aghconfig.DaemonConfig{
+				Socket:               "/tmp/agh.sock",
+				MemoryReportInterval: aghconfig.DefaultDaemonMemoryReportInterval,
+			},
+			Redact: aghconfig.RedactConfig{Enabled: false},
 		},
 	})
 	if err != nil {
@@ -479,6 +483,43 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 	if got, want := result.WriteTarget, WriteTargetGlobalConfig; got != want {
 		t.Fatalf("general write target = %q, want %q", got, want)
 	}
+	contents := readFile(t, homePaths.ConfigFile)
+	if !strings.Contains(contents, "[redact]") || !strings.Contains(contents, "enabled = false") {
+		t.Fatalf("config contents missing disabled redaction gate:\n%s", contents)
+	}
+}
+
+func TestUpdateSectionGeneralMemoryReportIntervalRequiresRestart(t *testing.T) {
+	t.Run("Should require a restart when disabling memory reports", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		envelope, err := service.GetSection(ctx, SectionRequest{Section: SectionGeneral})
+		if err != nil {
+			t.Fatalf("GetSection(general) error = %v", err)
+		}
+		desired := envelope.General.Settings
+		desired.Daemon.MemoryReportInterval = 0
+
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionGeneral},
+			General:        &desired,
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection(memory report interval) error = %v", err)
+		}
+		if result.Behavior != MutationBehaviorRestartRequired || !result.RestartRequired ||
+			result.Lifecycle != lifecycle.RestartRequired {
+			t.Fatalf("UpdateSection(memory report interval) result = %#v, want daemon restart", result)
+		}
+		contents := readFile(t, homePaths.ConfigFile)
+		if !strings.Contains(contents, `memory_report_interval = "0s"`) {
+			t.Fatalf("config contents missing disabled memory interval:\n%s", contents)
+		}
+	})
 }
 
 func TestUpdateSectionSkillsAppliesDisabledSkillsNow(t *testing.T) {
@@ -4307,7 +4348,11 @@ func TestUpdateSectionNoChangesReturnsWarning(t *testing.T) {
 			Permissions:    aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveReads},
 			SessionTimeout: 45 * time.Minute,
 			HTTP:           aghconfig.HTTPConfig{Host: "127.0.0.1", Port: 9001},
-			Daemon:         aghconfig.DaemonConfig{Socket: "/tmp/agh.sock"},
+			Daemon: aghconfig.DaemonConfig{
+				Socket:               "/tmp/agh.sock",
+				MemoryReportInterval: aghconfig.DefaultDaemonMemoryReportInterval,
+			},
+			Redact: aghconfig.RedactConfig{Enabled: true},
 		},
 	})
 	if err != nil {

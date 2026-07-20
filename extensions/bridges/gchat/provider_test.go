@@ -2420,9 +2420,10 @@ func testGChatTransportAndClassificationHelpers(t *testing.T) {
 			classifyGChatHTTPError(http.StatusTooManyRequests, "9", ""),
 		)
 	}
-	if _, ok := classifyGChatHTTPError(http.StatusServiceUnavailable, "", "").(*bridgesdk.TransientError); !ok {
+	if serverErr, ok := classifyGChatHTTPError(http.StatusServiceUnavailable, "", "").(*bridgesdk.HTTPError); !ok ||
+		bridgesdk.ClassifyError(serverErr).Class != bridgesdk.ErrorClassServerError {
 		t.Fatalf(
-			"classifyGChatHTTPError(503) = %T, want *bridgesdk.TransientError",
+			"classifyGChatHTTPError(503) = %#v, want server_error HTTPError",
 			classifyGChatHTTPError(http.StatusServiceUnavailable, "", ""),
 		)
 	}

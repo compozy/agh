@@ -59,6 +59,8 @@ export function useSessionDetailPage({
         totalTokens: usage.total_tokens ?? undefined,
         costUsd: usage.total_cost ?? undefined,
         costCurrency: usage.cost_currency || undefined,
+        costStatus: usage.cost_status ?? undefined,
+        costSource: usage.cost_source ?? undefined,
         turnCount: usage.turn_count,
       }
     : null;

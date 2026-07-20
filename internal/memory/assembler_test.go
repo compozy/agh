@@ -197,6 +197,51 @@ func TestAssemblerPromptSection(t *testing.T) {
 	})
 }
 
+func TestAssemblerCheckpointSummaryIsolation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should never inject a workspace checkpoint into another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		env := newAssemblerTestEnv(t)
+		workspaceA := env.workspace
+		workspaceB := filepath.Join(filepath.Dir(workspaceA), "workspace-b")
+		if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspace-b) error = %v", err)
+		}
+		document, err := renderCheckpointSummaryDocument(
+			checkpointSummaryFixture("Workspace A retains the cobalt decision."),
+			checkpointSummaryHeader(time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC), nil),
+		)
+		if err != nil {
+			t.Fatalf("renderCheckpointSummaryDocument() error = %v", err)
+		}
+		if err := env.store.ForWorkspace(workspaceA).Write(
+			memcontract.ScopeWorkspace,
+			CheckpointSummaryFilename,
+			document,
+		); err != nil {
+			t.Fatalf("Write(workspace A checkpoint) error = %v", err)
+		}
+
+		sectionA, err := env.assembler.PromptSection(context.Background(), resolvedWorkspacePtr(workspaceA))
+		if err != nil {
+			t.Fatalf("PromptSection(workspace A) error = %v", err)
+		}
+		sectionB, err := env.assembler.PromptSection(context.Background(), resolvedWorkspacePtr(workspaceB))
+		if err != nil {
+			t.Fatalf("PromptSection(workspace B) error = %v", err)
+		}
+		if !strings.Contains(sectionA, "<agh_checkpoint_summary>") ||
+			!strings.Contains(sectionA, "cobalt decision") {
+			t.Fatalf("workspace A section missing checkpoint summary:\n%s", sectionA)
+		}
+		if strings.Contains(sectionB, "cobalt decision") || strings.Contains(sectionB, "<agh_checkpoint_summary>") {
+			t.Fatalf("workspace B section leaked workspace A checkpoint:\n%s", sectionB)
+		}
+	})
+}
+
 func TestAssemblerAssembleRegressionMatchesPromptSectionAndBasePrompt(t *testing.T) {
 	t.Parallel()
 
@@ -243,6 +288,66 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		}
 		if !strings.Contains(second.Section, "new note") {
 			t.Fatalf("second snapshot missing recaptured memory: %s", second.Section)
+		}
+	})
+
+	t.Run("Should keep one session prefix byte stable until a committed memory write", func(t *testing.T) {
+		t.Parallel()
+
+		env := newAssemblerTestEnv(t)
+		env.writeGlobalIndex(t, "- [Original](global.md) - stable prefix note")
+		service := NewSnapshotService(env.store, WithSnapshotClock(fixedSnapshotNow))
+		request := PromptSnapshotRequest{SessionID: "sess-prefix-stability"}
+
+		hashes := make([]string, 0, 6)
+		var initialGeneration uint64
+		for turn := range 3 {
+			snapshot, err := service.Capture(context.Background(), request)
+			if err != nil {
+				t.Fatalf("Capture(before write, turn %d) error = %v", turn+1, err)
+			}
+			if turn == 0 {
+				initialGeneration = snapshot.Generation
+			}
+			hashes = append(hashes, hashText(snapshot.Section))
+		}
+
+		if err := env.store.Write(
+			memcontract.ScopeGlobal,
+			"user_prefix_change.md",
+			mustMemoryContent(t, testMemoryMeta{
+				Name:        "Prefix Change",
+				Description: "Committed memory revision",
+				Type:        memcontract.TypeUser,
+			}, "Remember the committed prefix transition.\n"),
+		); err != nil {
+			t.Fatalf("Store.Write(prefix mutation) error = %v", err)
+		}
+
+		for turn := range 3 {
+			snapshot, err := service.Capture(context.Background(), request)
+			if err != nil {
+				t.Fatalf("Capture(after write, turn %d) error = %v", turn+1, err)
+			}
+			if snapshot.Generation != initialGeneration+1 {
+				t.Fatalf(
+					"Capture(after write, turn %d).Generation = %d, want %d",
+					turn+1,
+					snapshot.Generation,
+					initialGeneration+1,
+				)
+			}
+			hashes = append(hashes, hashText(snapshot.Section))
+		}
+
+		transitions := 0
+		for index := 1; index < len(hashes); index++ {
+			if hashes[index] != hashes[index-1] {
+				transitions++
+			}
+		}
+		if transitions != 1 {
+			t.Fatalf("prefix hashes = %#v, want exactly one transition", hashes)
 		}
 	})
 

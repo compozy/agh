@@ -366,7 +366,7 @@ func (g *TaskRunRepo) recoverTaskRunWithExecutor(
 	return g.insertRetryTaskRun(ctx, exec, args, failed, taskRecord, nextAttempt)
 }
 
-// MarkTaskRunNeedsAttention transitions one queued run to needs_attention via a status CAS.
+// MarkTaskRunNeedsAttention transitions one nonterminal run to needs_attention via a status CAS.
 func (g *TaskRunRepo) MarkTaskRunNeedsAttention(
 	ctx context.Context,
 	runID string,
@@ -391,13 +391,16 @@ func (g *TaskRunRepo) MarkTaskRunNeedsAttention(
 					Error:                nullableTaskString(strings.TrimSpace(diagnostic)),
 					ID:                   id,
 					QueuedStatus:         taskpkg.TaskRunStatusQueued.String(),
+					ClaimedStatus:        taskpkg.TaskRunStatusClaimed.String(),
+					StartingStatus:       taskpkg.TaskRunStatusStarting.String(),
+					RunningStatus:        taskpkg.TaskRunStatusRunning.String(),
 				},
 			)
 			if err != nil {
 				return fmt.Errorf("store: mark task run needs attention: %w", err)
 			}
 			if affected == 0 {
-				return fmt.Errorf("%w: task run %q is not queued", taskpkg.ErrInvalidStatusTransition, id)
+				return fmt.Errorf("%w: task run %q is not nonterminal", taskpkg.ErrInvalidStatusTransition, id)
 			}
 			updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, id)
 			if err != nil {

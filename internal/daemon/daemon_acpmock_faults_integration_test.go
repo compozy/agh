@@ -13,7 +13,9 @@ import (
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 )
@@ -43,6 +45,117 @@ func TestDaemonE2EACPmockCrashMidStreamProjectsRuntimeFailure(t *testing.T) {
 			"partial before crash",
 			false,
 		)
+	})
+}
+
+func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
+	acpmock.RequireDriver(t)
+
+	t.Run("Should expose a crashed task session as needs attention across status surfaces", func(t *testing.T) {
+		t.Parallel()
+
+		harness := startFaultyMockHarness(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		taskRecord := createFaultyProfiledTask(t, ctx, harness)
+		run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID, "")
+		claimant := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-claimant")
+		var claimResponse aghcontract.AgentTaskClaimResponse
+		agentUDSJSON(
+			t,
+			ctx,
+			harness,
+			claimant,
+			http.MethodPost,
+			"/api/agent/tasks/claim-next",
+			aghcontract.AgentTaskClaimNextRequest{
+				RunID:        run.ID,
+				WorkspaceID:  harness.WorkspaceID,
+				LeaseSeconds: 30,
+			},
+			&claimResponse,
+		)
+		claimed := claimResponse.Claim.Run
+		if got, want := claimed.Status.Normalize(), taskpkg.TaskRunStatusClaimed; got != want {
+			t.Fatalf("claimed run status = %q, want %q", got, want)
+		}
+		started, err := harness.StartTaskRun(ctx, run.ID, aghcontract.StartTaskRunRequest{})
+		if err != nil {
+			t.Fatalf("StartTaskRun(%q) error = %v", run.ID, err)
+		}
+		if got, want := started.Status.Normalize(), taskpkg.TaskRunStatusRunning; got != want {
+			t.Fatalf("started run status = %q, want %q", got, want)
+		}
+		if strings.TrimSpace(started.SessionID) == "" {
+			t.Fatal("started run session_id = empty, want task-bound session")
+		}
+
+		stream, err := harness.PromptSessionHTTP(ctx, started.SessionID, "trigger crash mid-stream")
+		if err != nil {
+			t.Fatalf("PromptSessionHTTP() error = %v", err)
+		}
+		if !sseStreamContainsEvent(stream, "error") {
+			t.Fatalf("prompt stream = %#v, want error event after process exit", stream)
+		}
+
+		waitForRuntimeCondition(t, "crashed task run needs attention", 10*time.Second, func() bool {
+			runs, listErr := harness.ListTaskRuns(ctx, taskRecord.ID, nil)
+			if listErr != nil {
+				return false
+			}
+			current, ok := findTaskRunPayload(runs, run.ID)
+			return ok && current.Status.Normalize() == taskpkg.TaskRunStatusNeedsAttention
+		})
+
+		sessionInfo, err := harness.GetSession(ctx, started.SessionID)
+		if err != nil {
+			t.Fatalf("GetSession(%q) error = %v", started.SessionID, err)
+		}
+		if got, want := sessionInfo.StopReason, store.StopAgentCrashed; got != want {
+			t.Fatalf("task session stop reason = %q, want %q", got, want)
+		}
+
+		detail, err := harness.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(%q) error = %v", taskRecord.ID, err)
+		}
+		if got := countTaskEvents(detail.Events, eventspkg.TaskRunNeedsAttention, run.ID); got != 1 {
+			t.Fatalf("needs-attention event count = %d, want 1; events=%#v", got, detail.Events)
+		}
+
+		statusPath := "/api/status?workspace=" + url.QueryEscape(harness.WorkspaceRoot)
+		var httpStatus aghcontract.StatusPayload
+		if err := harness.HTTPJSON(ctx, http.MethodGet, statusPath, nil, &httpStatus); err != nil {
+			t.Fatalf("HTTP status error = %v", err)
+		}
+		var udsStatus aghcontract.StatusPayload
+		if err := harness.UDSJSON(ctx, http.MethodGet, statusPath, nil, &udsStatus); err != nil {
+			t.Fatalf("UDS status error = %v", err)
+		}
+		var cliStatus aghcontract.StatusPayload
+		if err := harness.CLI.RunJSON(ctx, &cliStatus, "status", "-o", "json"); err != nil {
+			t.Fatalf("CLI JSON status error = %v", err)
+		}
+		for surface, status := range map[string]aghcontract.StatusPayload{
+			"HTTP": httpStatus,
+			"UDS":  udsStatus,
+			"CLI":  cliStatus,
+		} {
+			if got := taskRunTotal(status.Tasks, taskpkg.TaskRunStatusNeedsAttention); got != 1 {
+				t.Fatalf("%s needs_attention total = %d, want 1; totals=%#v", surface, got, status.Tasks.RunTotals)
+			}
+		}
+
+		stdout, stderr, err := harness.CLI.Run(ctx, "status")
+		if err != nil {
+			t.Fatalf("CLI human status error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+		}
+		if !strings.Contains(stdout, "Subprocess Health") ||
+			!strings.Contains(stdout, "Needs Attention") ||
+			!strings.Contains(stdout, "1 task runs") {
+			t.Fatalf("CLI human status = %q, want subprocess and needs-attention summaries", stdout)
+		}
 	})
 }
 
@@ -198,7 +311,21 @@ func startFaultyMockSession(
 ) (*e2etest.RuntimeHarness, aghcontract.SessionPayload) {
 	t.Helper()
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+	harness := startFaultyMockHarness(t, mutateConfig...)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	session := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-session")
+	return harness, session
+}
+
+func startFaultyMockHarness(
+	t testing.TB,
+	mutateConfig ...func(*aghconfig.Config),
+) *e2etest.RuntimeHarness {
+	t.Helper()
+
+	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			Mutate: func(cfg *aghconfig.Config) {
 				for _, mutate := range mutateConfig {
@@ -215,10 +342,60 @@ func startFaultyMockSession(
 		}},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	session := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-session")
-	return harness, session
+}
+
+func createFaultyProfiledTask(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) aghcontract.TaskPayload {
+	t.Helper()
+
+	var response aghcontract.TaskResponse
+	request := aghcontract.CreateTaskRequest{
+		Scope:     taskpkg.ScopeWorkspace,
+		Workspace: harness.WorkspaceID,
+		Title:     "Escalate crashed task subprocess",
+	}
+	if err := harness.UDSJSON(ctx, http.MethodPost, "/api/tasks", request, &response); err != nil {
+		t.Fatalf("UDS create faulty-profiled task error = %v", err)
+	}
+
+	profileRequest := aghcontract.SetTaskExecutionProfileRequest{
+		Worker: taskpkg.WorkerProfile{
+			Mode:      taskpkg.WorkerModeSelect,
+			AgentName: faultyMockAgentName,
+		},
+	}
+	var profileResponse aghcontract.TaskExecutionProfileResponse
+	profilePath := "/api/tasks/" + url.PathEscape(response.Task.ID) + "/execution-profile"
+	if err := harness.UDSJSON(ctx, http.MethodPut, profilePath, profileRequest, &profileResponse); err != nil {
+		t.Fatalf("UDS set faulty task execution profile error = %v", err)
+	}
+	if got, want := profileResponse.Profile.Worker.AgentName, faultyMockAgentName; got != want {
+		t.Fatalf("stored worker agent = %q, want %q", got, want)
+	}
+	return response.Task
+}
+
+func countTaskEvents(events []aghcontract.TaskEventPayload, eventType string, runID string) int {
+	count := 0
+	for _, event := range events {
+		if event.EventType == eventType && event.RunID == runID {
+			count++
+		}
+	}
+	return count
+}
+
+func taskRunTotal(health aghcontract.TaskHealthPayload, status taskpkg.RunStatus) int {
+	total := 0
+	for _, row := range health.RunTotals {
+		if row.Status == status.String() {
+			total += row.Count
+		}
+	}
+	return total
 }
 
 func assertFaultPromptProjection(

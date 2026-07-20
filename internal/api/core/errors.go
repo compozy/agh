@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/compozy/agh/internal/admission"
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
@@ -77,6 +78,9 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 	if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxBytesErr != nil {
 		status = http.StatusRequestEntityTooLarge
 		err = ErrRequestBodyTooLarge
+		maskInternalErrors = false
+	}
+	if errors.Is(err, admission.ErrDraining) {
 		maskInternalErrors = false
 	}
 	return normalizedErrorStatus{
@@ -327,6 +331,8 @@ func StatusForAutomationError(err error) int {
 		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, ErrAutomationValidation):
 		return http.StatusBadRequest
+	case errors.Is(err, automationpkg.ErrDaemonLifecycleCommandBlocked):
+		return http.StatusBadRequest
 	case errors.Is(err, automationpkg.ErrListCursorInvalid):
 		return http.StatusBadRequest
 	case errors.Is(err, looppkg.ErrValidation):
@@ -336,14 +342,18 @@ func StatusForAutomationError(err error) int {
 	case errors.Is(err, automationpkg.ErrWebhookEndpointInvalid):
 		return http.StatusBadRequest
 	case errors.Is(err, automationpkg.ErrJobNotFound),
+		errors.Is(err, automationpkg.ErrSuggestionNotFound),
 		errors.Is(err, automationpkg.ErrTriggerNotFound),
 		errors.Is(err, automationpkg.ErrRunNotFound),
 		errors.Is(err, automationpkg.ErrWebhookTriggerNotRegistered),
 		errors.Is(err, automationpkg.ErrJobOverlayNotFound),
 		errors.Is(err, automationpkg.ErrTriggerOverlayNotFound),
+		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, looppkg.ErrDefinitionNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, automationpkg.ErrJobNameTaken),
+		errors.Is(err, automationpkg.ErrSuggestionResolved),
+		errors.Is(err, automationpkg.ErrSuggestionPendingCap),
 		errors.Is(err, automationpkg.ErrTriggerNameTaken),
 		errors.Is(err, automationpkg.ErrTriggerWebhookIDTaken),
 		errors.Is(err, automationpkg.ErrConcurrencyLimitReached),

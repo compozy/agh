@@ -191,6 +191,12 @@ func callHostedTool(
 		Input:      rawInput,
 	})
 	if err != nil {
+		if partial, ok, partialErr := hostedToolPartialErrorResult(err); ok {
+			if partialErr != nil {
+				return sdkmcp.NewToolResultError(hostedToolErrorMessage(partialErr)), nil
+			}
+			return partial, nil
+		}
 		return sdkmcp.NewToolResultError(hostedToolErrorMessage(err)), nil
 	}
 	return hostedToolResult(response.Result)
@@ -291,7 +297,7 @@ func rawArguments(args any) (json.RawMessage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mcp: marshal hosted MCP arguments: %w", err)
 	}
-	if len(payload) == 0 || string(payload) == "null" {
+	if len(payload) == 0 || string(payload) == jsonNullLiteral {
 		return json.RawMessage(`{}`), nil
 	}
 	return json.RawMessage(payload), nil
@@ -318,14 +324,12 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 		var structured any
 		if err := json.Unmarshal(result.Structured, &structured); err == nil {
 			converted := sdkmcp.NewToolResultStructured(structured, hostedResultFallback(result))
-			converted.IsError = isError
-			return converted, nil
+			return finishHostedToolResult(converted, result, isError)
 		}
 	}
 	if len(result.Content) == 0 {
 		converted := sdkmcp.NewToolResultText(hostedResultFallback(result))
-		converted.IsError = isError
-		return converted, nil
+		return finishHostedToolResult(converted, result, isError)
 	}
 	content := make([]sdkmcp.Content, 0, len(result.Content))
 	for _, block := range result.Content {
@@ -339,10 +343,67 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 	}
 	if len(content) == 0 {
 		converted := sdkmcp.NewToolResultText(hostedResultFallback(result))
-		converted.IsError = isError
+		return finishHostedToolResult(converted, result, isError)
+	}
+	return finishHostedToolResult(&sdkmcp.CallToolResult{Content: content}, result, isError)
+}
+
+func finishHostedToolResult(
+	converted *sdkmcp.CallToolResult,
+	result tools.ToolResult,
+	isError bool,
+) (*sdkmcp.CallToolResult, error) {
+	if converted == nil {
+		return nil, errors.New("mcp: hosted tool result is required")
+	}
+	converted.IsError = isError
+	if len(result.Artifacts) == 0 {
 		return converted, nil
 	}
-	return &sdkmcp.CallToolResult{Content: content, IsError: isError}, nil
+	payload := struct {
+		Artifacts []tools.ArtifactRef `json:"artifacts"`
+		ReadTool  tools.ToolID        `json:"read_tool"`
+	}{
+		Artifacts: append([]tools.ArtifactRef(nil), result.Artifacts...),
+		ReadTool:  tools.ToolIDToolArtifactRead,
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("mcp: encode hosted tool artifact references: %w", err)
+	}
+	converted.Content = append(converted.Content, sdkmcp.NewTextContent(string(encoded)))
+	converted.Meta = sdkmcp.NewMetaFromMap(map[string]any{
+		"agh/artifacts": payload.Artifacts,
+		"agh/readTool":  payload.ReadTool,
+	})
+	return converted, nil
+}
+
+type hostedPartialResultError interface {
+	error
+	PartialToolResult() *tools.ToolResult
+}
+
+func hostedToolPartialErrorResult(err error) (*sdkmcp.CallToolResult, bool, error) {
+	if err == nil {
+		return nil, false, nil
+	}
+	var partial *tools.ToolResult
+	if toolErr, ok := errors.AsType[*tools.ToolError](err); ok {
+		partial = toolErr.PartialResult
+	} else if carrier, ok := errors.AsType[hostedPartialResultError](err); ok {
+		partial = carrier.PartialToolResult()
+	}
+	if partial == nil {
+		return nil, false, nil
+	}
+	converted, convertErr := hostedToolResult(*partial)
+	if convertErr != nil {
+		return nil, true, convertErr
+	}
+	converted.IsError = true
+	converted.Content = append(converted.Content, sdkmcp.NewTextContent(hostedToolErrorMessage(err)))
+	return converted, true, nil
 }
 
 func hostedToolResultIsError(result tools.ToolResult) (bool, error) {

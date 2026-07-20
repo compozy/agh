@@ -61,6 +61,7 @@ const (
 	CodeConfigValidated               = diagnosticcontract.CodeConfigValidated
 	CodeCursorConflict                = diagnosticcontract.CodeCursorConflict
 	CodeDaemonHealthUnavailable       = diagnosticcontract.CodeDaemonHealthUnavailable
+	CodeDaemonDraining                = diagnosticcontract.CodeDaemonDraining
 	CodeDaemonStateSuspect            = diagnosticcontract.CodeDaemonStateSuspect
 	CodeDaemonStatusOK                = diagnosticcontract.CodeDaemonStatusOK
 	CodeDaemonUnavailable             = diagnosticcontract.CodeDaemonUnavailable
@@ -71,6 +72,7 @@ const (
 	CodeExtensionUpdateCleanupFailed  = diagnosticcontract.CodeExtensionUpdateCleanupFailed
 	CodeExtensionInUse                = diagnosticcontract.CodeExtensionInUse
 	CodeExtensionNotFound             = diagnosticcontract.CodeExtensionNotFound
+	CodeExtensionRuntimeUnavailable   = diagnosticcontract.CodeExtensionRuntimeUnavailable
 	CodeFlagNotApplicable             = diagnosticcontract.CodeFlagNotApplicable
 	CodeForbiddenOperatorAction       = diagnosticcontract.CodeForbiddenOperatorAction
 	CodeForceOpRateLimited            = diagnosticcontract.CodeForceOpRateLimited

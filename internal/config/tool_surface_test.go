@@ -27,6 +27,41 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueInt,
 		},
 		{
+			name: "Should allow automatic title enablement mutation",
+			path: "session.auto_title_enabled",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow redaction enablement mutation",
+			path: "redact.enabled",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow automation suggestion pending cap mutation",
+			path: "automation.suggestions.pending_cap",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow session compaction enablement mutation",
+			path: "session.compaction.enabled",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow session compaction pressure mutation",
+			path: "session.compaction.pressure_threshold",
+			kind: ConfigValueFloat,
+		},
+		{
+			name: "Should allow session compaction attempt cap mutation",
+			path: "session.compaction.max_attempts_per_turn",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow session compaction cooldown mutation",
+			path: "session.compaction.failure_cooldown",
+			kind: ConfigValueDuration,
+		},
+		{
 			name: "Should allow soul enabled mutation",
 			path: "agents.soul.enabled",
 			kind: ConfigValueBool,
@@ -139,6 +174,16 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		{
 			name: "Should allow task orchestration runtime watchdog mutation",
 			path: "task.orchestration.default_max_runtime",
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow task orchestration workspace active run cap mutation",
+			path: "task.orchestration.max_active_runs_per_workspace",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow task orchestration action deadline mutation",
+			path: "task.orchestration.action_run_timeout",
 			kind: ConfigValueDuration,
 		},
 		{
@@ -260,6 +305,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			name: "Should allow Marketplace catalog timeout mutation",
 			path: "marketplace.catalog.timeout",
 			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow subprocess health escalation threshold mutation",
+			path: "daemon.subprocess_health_escalation_threshold",
+			kind: ConfigValueInt,
 		},
 		{
 			name:   "Should reject daemon socket trust root",

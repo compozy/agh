@@ -152,6 +152,8 @@ func cloneSkill(skill *Skill) *Skill {
 
 	clone := *skill
 	clone.Meta = cloneSkillMeta(skill.Meta)
+	clone.ActivationGates = cloneActivationGates(skill.ActivationGates)
+	clone.Activation = cloneSkillActivation(skill.Activation)
 	clone.MCPServers = cloneMCPServerDecls(skill.MCPServers)
 	if len(skill.Hooks) > 0 {
 		clone.Hooks = make([]hookspkg.HookDecl, 0, len(skill.Hooks))

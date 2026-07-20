@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/vault"
-	cron "github.com/robfig/cron/v3"
 )
 
 const (
@@ -22,8 +21,6 @@ const (
 	defaultFireLimitWindow = "1h"
 	webhookIDPrefix        = "wbh_"
 )
-
-var standardCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
 // DefaultRetryConfig returns the default retry policy for automation definitions.
 func DefaultRetryConfig() RetryConfig {
@@ -97,16 +94,36 @@ func (s RunStatus) Validate(path string) error {
 // Validate ensures the scheduler catch-up policy is supported.
 func (p SchedulerCatchUpPolicy) Validate(path string) error {
 	switch p {
-	case SchedulerCatchUpPolicySkip, SchedulerCatchUpPolicyCoalesce, SchedulerCatchUpPolicyReplay:
+	case SchedulerCatchUpPolicySkipMissed,
+		SchedulerCatchUpPolicyCoalesce,
+		SchedulerCatchUpPolicyReplay,
+		SchedulerCatchUpPolicyRunOnce:
 		return nil
 	default:
 		return fmt.Errorf(
-			"%s must be one of %q, %q, or %q: %q",
+			"%s must be one of %q, %q, %q, or %q: %q",
 			path,
-			SchedulerCatchUpPolicySkip,
+			SchedulerCatchUpPolicySkipMissed,
 			SchedulerCatchUpPolicyCoalesce,
 			SchedulerCatchUpPolicyReplay,
+			SchedulerCatchUpPolicyRunOnce,
 			p,
+		)
+	}
+}
+
+// Validate ensures the scheduler skip reason is supported.
+func (r SchedulerSkipReason) Validate(path string) error {
+	switch r {
+	case SchedulerSkipReasonGraceExceeded, SchedulerSkipReasonSelfOverlap:
+		return nil
+	default:
+		return fmt.Errorf(
+			"%s must be one of %q or %q: %q",
+			path,
+			SchedulerSkipReasonGraceExceeded,
+			SchedulerSkipReasonSelfOverlap,
+			r,
 		)
 	}
 }
@@ -172,61 +189,6 @@ func ValidateScopeBinding(scope Scope, workspaceBinding string, path string, wor
 	case AutomationScopeWorkspace:
 		if strings.TrimSpace(workspaceBinding) == "" {
 			return fmt.Errorf("%s is required when %s is %q", workspacePath, scopePath, AutomationScopeWorkspace)
-		}
-	}
-
-	return nil
-}
-
-// Validate ensures the schedule spec matches the selected mode and has a valid expression payload.
-func (s ScheduleSpec) Validate(path string) error {
-	if err := s.Mode.Validate(nestedPath(path, "mode")); err != nil {
-		return err
-	}
-
-	switch s.Mode {
-	case ScheduleModeCron:
-		if strings.TrimSpace(s.Expr) == "" {
-			return errors.New(nestedPath(path, "expr") + " is required when schedule.mode is \"cron\"")
-		}
-		if strings.TrimSpace(s.Interval) != "" {
-			return errors.New(nestedPath(path, "interval") + " must be empty when schedule.mode is \"cron\"")
-		}
-		if strings.TrimSpace(s.Time) != "" {
-			return errors.New(nestedPath(path, "time") + " must be empty when schedule.mode is \"cron\"")
-		}
-		if _, err := standardCronParser.Parse(strings.TrimSpace(s.Expr)); err != nil {
-			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "expr"), err)
-		}
-	case ScheduleModeEvery:
-		if strings.TrimSpace(s.Interval) == "" {
-			return errors.New(nestedPath(path, "interval") + " is required when schedule.mode is \"every\"")
-		}
-		if strings.TrimSpace(s.Expr) != "" {
-			return errors.New(nestedPath(path, "expr") + " must be empty when schedule.mode is \"every\"")
-		}
-		if strings.TrimSpace(s.Time) != "" {
-			return errors.New(nestedPath(path, "time") + " must be empty when schedule.mode is \"every\"")
-		}
-		interval, err := time.ParseDuration(strings.TrimSpace(s.Interval))
-		if err != nil {
-			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "interval"), err)
-		}
-		if interval <= 0 {
-			return fmt.Errorf("%s must be positive: %s", nestedPath(path, "interval"), interval)
-		}
-	case ScheduleModeAt:
-		if strings.TrimSpace(s.Time) == "" {
-			return errors.New(nestedPath(path, "time") + " is required when schedule.mode is \"at\"")
-		}
-		if strings.TrimSpace(s.Expr) != "" {
-			return errors.New(nestedPath(path, "expr") + " must be empty when schedule.mode is \"at\"")
-		}
-		if strings.TrimSpace(s.Interval) != "" {
-			return errors.New(nestedPath(path, "interval") + " must be empty when schedule.mode is \"at\"")
-		}
-		if _, err := time.Parse(time.RFC3339, strings.TrimSpace(s.Time)); err != nil {
-			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "time"), err)
 		}
 	}
 
@@ -387,6 +349,23 @@ func (c SchedulerClaim) Validate(path string) error {
 	if c.NetworkParticipation != nil {
 		if _, err := participation.NormalizeIntent(*c.NetworkParticipation); err != nil {
 			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "network_participation"), err)
+		}
+	}
+	if c.CatchUpPolicy != "" {
+		if err := c.CatchUpPolicy.Validate(nestedPath(path, "catch_up_policy")); err != nil {
+			return err
+		}
+	}
+	if c.MisfireGraceSeconds < 0 {
+		return fmt.Errorf(
+			"%s must be zero or positive: %d",
+			nestedPath(path, "misfire_grace_seconds"),
+			c.MisfireGraceSeconds,
+		)
+	}
+	if c.SkipReason != "" {
+		if err := c.SkipReason.Validate(nestedPath(path, "skip_reason")); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -8,8 +8,12 @@ const Marker = "[REDACTED]"
 
 const protectedMarker = "__AGH_REDACTED"
 
-// String removes canonical and runtime-registered secret shapes from text.
+// String removes canonical, heuristic, and runtime-registered secret shapes from text.
 func String(value string) string {
+	return processRedactor().RedactString(value)
+}
+
+func exactRedactString(value string) string {
 	if strings.TrimSpace(value) == "" {
 		return strings.TrimSpace(value)
 	}
@@ -18,9 +22,6 @@ func String(value string) string {
 	redacted = bearerTokenPattern.ReplaceAllString(redacted, "Bearer "+Marker)
 	redacted = ClaimTokens(redacted)
 	redacted = urlUserinfoPattern.ReplaceAllString(redacted, "${1}"+Marker+"@")
-	for _, pattern := range providerTokenPatterns {
-		redacted = pattern.ReplaceAllString(redacted, Marker)
-	}
 	redacted = quotedAssignmentPattern.ReplaceAllStringFunc(redacted, redactQuotedAssignment)
 	redacted = assignmentPattern.ReplaceAllStringFunc(redacted, redactAssignment)
 	redacted = shellFlagPattern.ReplaceAllStringFunc(redacted, redactShellFlag)

@@ -46,6 +46,8 @@ type DaemonClient interface {
 	Status(ctx context.Context) (StatusRecord, error)
 	Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error)
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
+	Drain(ctx context.Context) (DrainStatusRecord, error)
+	Undrain(ctx context.Context) (DrainStatusRecord, error)
 	TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error)
 	GetSettingsRestartStatus(ctx context.Context, operationID string) (SettingsRestartStatusRecord, error)
 	CreateSupportBundle(ctx context.Context, request CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
@@ -170,33 +172,7 @@ type DaemonClient interface {
 		request UpdateNotificationPresetRequest,
 	) (NotificationPresetRecord, error)
 	DeleteNotificationPreset(ctx context.Context, name string) error
-	ListSessions(ctx context.Context, query SessionListQuery) (SessionListPage, error)
-	CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error)
-	GetSession(ctx context.Context, id string) (SessionRecord, error)
-	GetSessionHealth(ctx context.Context, id string) (SessionHealthRecord, error)
-	GetSessionStatus(ctx context.Context, id string) (SessionStatusRecord, error)
-	InspectSession(ctx context.Context, id string, query SessionInspectQuery) (SessionInspectRecord, error)
-	RefreshSessionSoul(ctx context.Context, id string, request SessionSoulRefreshRequest) (AgentSoulRecord, error)
-	StopSession(ctx context.Context, id string) error
-	DeleteSession(ctx context.Context, id string) error
-	ResumeSession(ctx context.Context, id string) (SessionRecord, error)
-	SessionRecap(ctx context.Context, id string, limit int) (SessionRecapRecord, error)
-	RepairSession(ctx context.Context, id string, query SessionRepairQuery) (SessionRepairRecord, error)
-	ApproveSession(ctx context.Context, id string, request SessionApprovalRequest) (SessionApprovalRecord, error)
-	PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error)
-	SendSessionPrompt(ctx context.Context, id string, request SessionPromptRequest) (SessionPromptRecord, error)
-	SteerSessionPrompt(ctx context.Context, id string, text string) (SessionPromptRecord, error)
-	CancelQueuedSessionPrompt(ctx context.Context, id string, queueEntryID string) (SessionPromptRecord, error)
-	StreamPromptSession(ctx context.Context, id string, message string, handler SSEHandler) error
-	SessionEvents(ctx context.Context, id string, query SessionEventQuery) ([]SessionEventRecord, error)
-	StreamSessionEvents(
-		ctx context.Context,
-		id string,
-		query SessionEventQuery,
-		lastEventID string,
-		handler SSEHandler,
-	) error
-	SessionHistory(ctx context.Context, id string, query SessionEventQuery) ([]TurnHistoryRecord, error)
+	sessionClientAPI
 	CreateWorkspace(ctx context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error)
 	ListWorkspaces(ctx context.Context) ([]WorkspaceRecord, error)
 	GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error)
@@ -281,13 +257,7 @@ type DaemonClient interface {
 		request SkillMarketplaceUpdateRequest,
 	) ([]SkillMarketplaceUpdateRecord, error)
 	RemoveSkillMarketplace(ctx context.Context, name string) (SkillMarketplaceRemoveRecord, error)
-	ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error)
-	SearchTools(ctx context.Context, request ToolSearchRequest) (ToolsResponseRecord, error)
-	GetTool(ctx context.Context, id string, query ToolQuery) (ToolResponseRecord, error)
-	CreateToolApproval(ctx context.Context, id string, request ToolApprovalRequest) (ToolApprovalRecord, error)
-	InvokeTool(ctx context.Context, id string, request ToolInvokeRequest) (ToolInvokeResponseRecord, error)
-	ListToolsets(ctx context.Context, query ToolQuery) (ToolsetsResponseRecord, error)
-	GetToolset(ctx context.Context, id string, query ToolQuery) (ToolsetResponseRecord, error)
+	ToolClient
 	HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error)
 	HookRuns(ctx context.Context, workspaceRef string, query HookRunsQuery) ([]HookRunRecord, error)
 	HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error)
@@ -341,25 +311,7 @@ type DaemonClient interface {
 		request MemoryProviderLifecycleRequest,
 	) (MemoryProviderLifecycleRecord, error)
 	CreateMemoryAdhocNote(ctx context.Context, request MemoryAdhocNoteRequest) (MemoryAdhocNoteRecord, error)
-	ListAutomationJobs(ctx context.Context, query AutomationJobQuery) (AutomationJobListRecord, error)
-	CreateAutomationJob(ctx context.Context, request AutomationJobCreateRequest) (JobRecord, error)
-	GetAutomationJob(ctx context.Context, id string) (JobRecord, error)
-	UpdateAutomationJob(ctx context.Context, id string, request AutomationJobUpdateRequest) (JobRecord, error)
-	DeleteAutomationJob(ctx context.Context, id string) error
-	TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error)
-	AutomationJobRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error)
-	ListAutomationTriggers(ctx context.Context, query AutomationTriggerQuery) (AutomationTriggerListRecord, error)
-	CreateAutomationTrigger(ctx context.Context, request AutomationTriggerCreateRequest) (TriggerRecord, error)
-	GetAutomationTrigger(ctx context.Context, id string) (TriggerRecord, error)
-	UpdateAutomationTrigger(
-		ctx context.Context,
-		id string,
-		request AutomationTriggerUpdateRequest,
-	) (TriggerRecord, error)
-	DeleteAutomationTrigger(ctx context.Context, id string) error
-	AutomationTriggerRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error)
-	ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error)
-	GetAutomationRun(ctx context.Context, id string) (RunRecord, error)
+	automationClientAPI
 	ListTasks(ctx context.Context, query TaskListQuery) (TaskListRecord, error)
 	CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error)
 	CreateTaskAsAgent(
@@ -1208,6 +1160,9 @@ type DoctorQuery struct {
 // DaemonStatus is the shared daemon status payload.
 type DaemonStatus = contract.DaemonStatusPayload
 
+// DrainStatusRecord is the shared daemon admission-state payload.
+type DrainStatusRecord = contract.DrainStatusResponse
+
 // SettingsRestartActionRecord is the shared restart action response payload.
 type SettingsRestartActionRecord = contract.RestartActionResponse
 
@@ -1461,12 +1416,6 @@ type ResourceListQuery struct {
 	Limit      int
 }
 
-// ToolApprovalRequest captures one local approval-token mint request.
-type ToolApprovalRequest = contract.ToolApprovalRequest
-
-// ToolApprovalRecord is the shared tool approval payload.
-type ToolApprovalRecord = contract.ToolApprovalPayload
-
 // SSEEvent is one parsed server-sent event frame.
 type SSEEvent = sse.Event
 type SSEHandler = sse.Handler
@@ -1501,48 +1450,6 @@ func NewClient(socketPath string) (DaemonClient, error) {
 		httpClient:   &http.Client{Transport: transport, Timeout: defaultUnixSocketClientTimeout},
 		streamClient: &http.Client{Transport: transport},
 	}, nil
-}
-
-func (c *unixSocketClient) Status(ctx context.Context) (StatusRecord, error) {
-	var response StatusRecord
-	if err := c.doJSON(ctx, http.MethodGet, "/api/status", nil, nil, &response); err != nil {
-		return StatusRecord{}, err
-	}
-	return response, nil
-}
-
-func (c *unixSocketClient) Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error) {
-	var response DoctorRecord
-	if err := c.doJSON(ctx, http.MethodGet, "/api/doctor", doctorQueryValues(query), nil, &response); err != nil {
-		return DoctorRecord{}, err
-	}
-	return response, nil
-}
-
-func doctorQueryValues(query DoctorQuery) url.Values {
-	values := url.Values{}
-	for _, value := range query.Only {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			values.Add("only", trimmed)
-		}
-	}
-	for _, value := range query.Exclude {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			values.Add("exclude", trimmed)
-		}
-	}
-	if query.Quiet {
-		values.Set("quiet", "true")
-	}
-	return values
-}
-
-func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
-	status, err := c.Status(ctx)
-	if err != nil {
-		return DaemonStatus{}, err
-	}
-	return status.Daemon, nil
 }
 
 func (c *unixSocketClient) TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error) {

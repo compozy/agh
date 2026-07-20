@@ -22,6 +22,7 @@ type ArtifactRef struct {
 	Name     string `json:"name,omitempty"`
 	MIMEType string `json:"mime_type,omitempty"`
 	Bytes    int64  `json:"bytes,omitempty"`
+	SHA256   string `json:"sha256,omitempty"`
 }
 
 // Redaction records a redaction applied before a result crosses surfaces.

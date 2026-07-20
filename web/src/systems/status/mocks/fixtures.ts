@@ -143,6 +143,12 @@ export const statusFixture: StatusPayload = {
       failed: 0,
     },
   },
+  subprocess_health: {
+    status: "ok",
+    monitored: 0,
+    healthy: 0,
+    unhealthy: 0,
+  },
   bridges: daemonHealthFixture.bridges,
   skills: {
     runtime_available: true,

@@ -21,6 +21,7 @@ type canonicalEventPayload struct {
 	AuthoredText      string                           `json:"authored_text,omitempty"`
 	Title             string                           `json:"title,omitempty"`
 	ToolName          string                           `json:"tool_name,omitempty"`
+	ToolKind          string                           `json:"tool_kind,omitempty"`
 	ToolCallID        string                           `json:"tool_call_id,omitempty"`
 	ToolInput         json.RawMessage                  `json:"tool_input,omitempty"`
 	ToolResult        *ToolResult                      `json:"tool_result,omitempty"`

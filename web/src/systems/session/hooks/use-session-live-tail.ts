@@ -45,6 +45,7 @@ import type {
   TranscriptSnapshotPayload,
 } from "../types";
 import {
+  entriesContainClarifyEvent,
   numberFromEventID,
   parseSessionStreamPayload,
   terminalFailureMessage,
@@ -248,6 +249,11 @@ export function useSessionLiveTail({
     const invalidateSessionSurfaces = () => {
       void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId);
     };
+    const invalidateClarifications = () =>
+      void queryClient.invalidateQueries({
+        queryKey: sessionKeys.clarifications(workspaceId, sessionId),
+        exact: true,
+      });
     const scheduleSurfaceRefresh = () => {
       if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
       reloadTimerRef.current = setTimeout(() => {
@@ -354,6 +360,7 @@ export function useSessionLiveTail({
         });
       });
       invalidateSessionSurfaces();
+      if (entriesContainClarifyEvent(payload.entries)) invalidateClarifications();
     };
 
     const applyDelta = (event: MessageEvent) => {
@@ -373,6 +380,7 @@ export function useSessionLiveTail({
         });
       });
       scheduleSurfaceRefresh();
+      if (entriesContainClarifyEvent(payload.entries)) invalidateClarifications();
     };
 
     const handleTerminalEvent = (event: MessageEvent) => {

@@ -93,6 +93,10 @@ CREATE TABLE token_stats (
 		total_tokens  INTEGER,
 		total_cost    REAL,
 		cost_currency TEXT,
+		cost_status   TEXT NOT NULL DEFAULT 'unknown'
+			CHECK (cost_status IN ('actual', 'estimated', 'included', 'unknown')),
+		cost_source   TEXT NOT NULL DEFAULT 'none'
+			CHECK (cost_source IN ('agent_reported', 'catalog_config', 'models_dev', 'builtin', 'none')),
 		turn_count    INTEGER NOT NULL DEFAULT 0,
 		updated_at    TEXT NOT NULL
 	);

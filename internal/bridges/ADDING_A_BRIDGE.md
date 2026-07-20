@@ -98,6 +98,11 @@ validated `AGH_BRIDGE_*` environment seam for trusted sovereign or fake-server d
   checkpoint and no-redelivery behavior. Progress loses only the indeterminate bubble.
 - Use typed auth, rate-limit, timeout, transient, and permanent errors only while the remote commit
   outcome is still known to match that classification.
+- Preserve the original HTTP status in `HTTPError`: 529 is `overloaded`; 500, 502, and 503 are
+  `server_error`; connection reset remains `transient`. Preserve a positive `Retry-After` exactly.
+- Route first-party outbound retries through `bridgesdk.RetryDo`. The shared `internal/retry` runner
+  owns decorrelated jitter and the attempt loop; provider-local retry/backoff helpers are forbidden.
+  This does not apply to delegated ACP agents or durable automation scheduling.
 
 ### Control, targets, and public surfaces
 

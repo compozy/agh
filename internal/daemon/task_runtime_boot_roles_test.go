@@ -72,6 +72,7 @@ func runBootWiredCoordinatorTerminalStatus(t *testing.T, status string) error {
 		aghconfig.TaskRecoveryConfig{},
 		aghconfig.SchedulerConfig{},
 		0,
+		0,
 	)
 	options = append(options, taskpkg.WithManagerNow(func() time.Time { return now }))
 	manager, err := taskpkg.NewManager(options...)

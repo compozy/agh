@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
@@ -335,7 +336,15 @@ func TestObserverSessionSnapshotRequiresContext(t *testing.T) {
 		{
 			name: "Should panic when building an observed session snapshot with nil context",
 			call: func(observer *Observer) {
-				observer.observedSessionSnapshot(nilContext(), "sess-nil-context", "coder", observerWorkspaceID, nil)
+				observer.observedSessionSnapshot(
+					nilContext(),
+					"sess-nil-context",
+					"coder",
+					"",
+					"",
+					observerWorkspaceID,
+					nil,
+				)
 			},
 		},
 	}
@@ -493,6 +502,153 @@ func TestOnAgentEventUpdatesTokenStatsWithNullableValues(t *testing.T) {
 	if stats[0].TurnCount != 1 {
 		t.Fatalf("TurnCount = %d, want 1", stats[0].TurnCount)
 	}
+}
+
+// Suite: observer token-cost projection
+// Invariant: agent cost wins, native CLI is included, and silent bound-secret usage estimates fail closed.
+// Boundary IN: one normalized ACP usage event plus the session auth/catalog snapshot.
+// Boundary OUT: store aggregation and public task/session rollups.
+func TestOnAgentEventProjectsTruthfulCostProvenance(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist agent reported cost without consulting the catalog", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &stubCostCatalog{}
+		h := newHarness(t)
+		h.observer.costCatalog = catalog
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeNativeCLI)
+		sess := newSession("sess-cost-actual", session.StateActive, h.workspace, h.now)
+		sess.Model = "claude-test"
+		h.observeSessionCreated(t, sess)
+
+		amount := 0.25
+		currency := "USD"
+		h.recordUsage(t, sess.ID, &acp.TokenUsage{CostAmount: &amount, CostCurrency: &currency})
+
+		stat := h.singleTokenStat(t, sess.ID)
+		if stat.TotalCost == nil || *stat.TotalCost != amount ||
+			stat.CostCurrency == nil || *stat.CostCurrency != currency ||
+			stat.CostStatus != "actual" || stat.CostSource != "agent_reported" {
+			t.Fatalf("actual cost stat = %#v, want agent_reported USD %.2f", stat, amount)
+		}
+		if catalog.calls != 0 {
+			t.Fatalf("catalog calls = %d, want zero for agent-reported cost", catalog.calls)
+		}
+	})
+
+	t.Run("Should preserve usage as unknown when agent reported cost has no currency", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &stubCostCatalog{}
+		h := newHarness(t)
+		h.observer.costCatalog = catalog
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeBoundSecret)
+		sess := newSession("sess-cost-actual-missing-currency", session.StateActive, h.workspace, h.now)
+		sess.Model = "claude-test"
+		h.observeSessionCreated(t, sess)
+		amount := 0.25
+		total := int64(42)
+
+		h.recordUsage(t, sess.ID, &acp.TokenUsage{TotalTokens: &total, CostAmount: &amount})
+
+		stat := h.singleTokenStat(t, sess.ID)
+		if stat.TotalTokens == nil || *stat.TotalTokens != total || stat.TotalCost != nil ||
+			stat.CostCurrency != nil || stat.CostStatus != "unknown" || stat.CostSource != "none" {
+			t.Fatalf("malformed actual cost stat = %#v, want tokens with unknown/none cost", stat)
+		}
+		if catalog.calls != 0 {
+			t.Fatalf("catalog calls = %d, want zero when an actual amount was reported", catalog.calls)
+		}
+	})
+
+	t.Run("Should estimate silent bound secret usage from the merged catalog", func(t *testing.T) {
+		t.Parallel()
+
+		inputRate := 1.0
+		outputRate := 4.0
+		catalog := &stubCostCatalog{models: []modelcatalog.Model{{
+			ProviderID:           "claude",
+			ModelID:              "claude-test",
+			CostInputPerMillion:  &inputRate,
+			CostOutputPerMillion: &outputRate,
+			CostInputSource:      modelcatalog.SourceKindConfig,
+			CostOutputSource:     modelcatalog.SourceKindConfig,
+		}}}
+		h := newHarness(t)
+		h.observer.costCatalog = catalog
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeBoundSecret)
+		sess := newSession("sess-cost-estimated", session.StateActive, h.workspace, h.now)
+		sess.Model = "claude-test"
+		h.observeSessionCreated(t, sess)
+		input := int64(1_000_000)
+		output := int64(1_000_000)
+
+		h.recordUsage(t, sess.ID, &acp.TokenUsage{InputTokens: &input, OutputTokens: &output})
+
+		stat := h.singleTokenStat(t, sess.ID)
+		if stat.TotalCost == nil || *stat.TotalCost != 5 ||
+			stat.CostCurrency == nil || *stat.CostCurrency != "USD" ||
+			stat.CostStatus != "estimated" || stat.CostSource != "catalog_config" {
+			t.Fatalf("estimated cost stat = %#v, want catalog_config USD 5", stat)
+		}
+		if catalog.calls != 1 || catalog.options.ProviderID != "claude" ||
+			!catalog.options.SkipRefreshIfEmpty || !catalog.options.IncludeAll || !catalog.options.IncludeStale {
+			t.Fatalf(
+				"catalog lookup = calls %d options %#v, want one non-refreshing complete lookup",
+				catalog.calls,
+				catalog.options,
+			)
+		}
+	})
+
+	t.Run("Should persist unknown when the merged model has no usable rates", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &stubCostCatalog{models: []modelcatalog.Model{{
+			ProviderID: "claude",
+			ModelID:    "claude-test",
+		}}}
+		h := newHarness(t)
+		h.observer.costCatalog = catalog
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeBoundSecret)
+		sess := newSession("sess-cost-unknown", session.StateActive, h.workspace, h.now)
+		sess.Model = "claude-test"
+		h.observeSessionCreated(t, sess)
+		output := int64(50)
+
+		h.recordUsage(t, sess.ID, &acp.TokenUsage{OutputTokens: &output})
+
+		stat := h.singleTokenStat(t, sess.ID)
+		if stat.TotalCost != nil || stat.CostCurrency != nil ||
+			stat.CostStatus != "unknown" || stat.CostSource != "none" {
+			t.Fatalf("missing-rate cost stat = %#v, want unknown/none", stat)
+		}
+	})
+
+	t.Run("Should mark silent native CLI usage as included without consulting rates", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &stubCostCatalog{}
+		h := newHarness(t)
+		h.observer.costCatalog = catalog
+		h.observer.resolveProviderAuth = fixedProviderAuthMode(aghconfig.ProviderAuthModeNativeCLI)
+		sess := newSession("sess-cost-included", session.StateActive, h.workspace, h.now)
+		sess.Model = "claude-test"
+		h.observeSessionCreated(t, sess)
+		output := int64(50)
+
+		h.recordUsage(t, sess.ID, &acp.TokenUsage{OutputTokens: &output})
+
+		stat := h.singleTokenStat(t, sess.ID)
+		if stat.TotalCost != nil || stat.CostCurrency != nil ||
+			stat.CostStatus != "included" || stat.CostSource != "none" {
+			t.Fatalf("native CLI cost stat = %#v, want included/none", stat)
+		}
+		if catalog.calls != 0 {
+			t.Fatalf("catalog calls = %d, want zero for native CLI usage", catalog.calls)
+		}
+	})
 }
 
 func TestOnAgentEventWritesPermissionLog(t *testing.T) {
@@ -1046,6 +1202,28 @@ type stubMemoryEventSource struct {
 	query      store.EventSummaryQuery
 }
 
+type stubCostCatalog struct {
+	models  []modelcatalog.Model
+	err     error
+	calls   int
+	options modelcatalog.ListOptions
+}
+
+func (s *stubCostCatalog) ListModels(
+	_ context.Context,
+	options modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	s.calls++
+	s.options = options
+	return append([]modelcatalog.Model(nil), s.models...), s.err
+}
+
+func fixedProviderAuthMode(mode aghconfig.ProviderAuthMode) ProviderAuthModeResolver {
+	return func(context.Context, string, string, string, string) (aghconfig.ProviderAuthMode, error) {
+		return mode, nil
+	}
+}
+
 func (r listSessionsFailingRegistry) ListSessions(
 	context.Context,
 	store.SessionListQuery,
@@ -1218,6 +1396,33 @@ func (h *harness) recordEvent(t *testing.T, sessionID string, eventType string, 
 		Timestamp: timestamp,
 		Text:      text,
 	})
+}
+
+func (h *harness) recordUsage(t *testing.T, sessionID string, usage *acp.TokenUsage) {
+	t.Helper()
+
+	h.observer.OnAgentEvent(testutil.Context(t), sessionID, acp.AgentEvent{
+		Type:      "done",
+		TurnID:    "turn-" + sessionID,
+		Timestamp: h.now.Add(time.Minute),
+		Usage:     usage,
+	})
+}
+
+func (h *harness) singleTokenStat(t *testing.T, sessionID string) store.TokenStats {
+	t.Helper()
+
+	stats, err := h.observer.QueryTokenStats(
+		testutil.Context(t),
+		store.TokenStatsQuery{SessionID: sessionID},
+	)
+	if err != nil {
+		t.Fatalf("QueryTokenStats(%q) error = %v", sessionID, err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("len(QueryTokenStats(%q)) = %d, want 1: %#v", sessionID, len(stats), stats)
+	}
+	return stats[0]
 }
 
 func newSession(id string, state session.State, workspace string, now time.Time) *session.Session {

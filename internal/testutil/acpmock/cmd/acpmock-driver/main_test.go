@@ -36,6 +36,31 @@ func TestNetworkEnvironmentNames(t *testing.T) {
 	})
 }
 
+func TestPromptResponseUsagePreservesExplicitZeroTotal(t *testing.T) {
+	t.Parallel()
+
+	fixture, err := acpmock.ParseFixture([]byte(`{
+		"version": 2,
+		"agents": [{
+			"name": "usage-agent",
+			"provider": "claude",
+			"turns": [{
+				"match": {"turn_source": "user", "user_text": "measure"},
+				"steps": [{"kind": "assistant", "text": "measured"}],
+				"usage": {"input_tokens": 10, "output_tokens": 2, "total_tokens": 0}
+			}]
+		}]
+	}`))
+	if err != nil {
+		t.Fatalf("ParseFixture() error = %v", err)
+	}
+
+	usage := promptResponseUsage(fixture.Agents[0].Turns[0])
+	if usage == nil || usage.TotalTokens != 0 {
+		t.Fatalf("promptResponseUsage().TotalTokens = %v, want explicit zero", usage)
+	}
+}
+
 func TestExtractPromptTextPreservesAugmentedPromptDiagnostics(t *testing.T) {
 	t.Parallel()
 
@@ -61,6 +86,46 @@ func TestExtractPromptTextPreservesAugmentedPromptDiagnostics(t *testing.T) {
 			t.Fatalf("extractPromptText() = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestMockAgentInitializeAdvertisesFixtureLoadCapability(t *testing.T) {
+	t.Parallel()
+
+	loadUnsupported := false
+	tests := []struct {
+		name    string
+		fixture acpmock.AgentFixture
+		want    bool
+	}{
+		{
+			name:    "Should preserve load support for existing fixtures",
+			fixture: acpmock.AgentFixture{Name: "default-load"},
+			want:    true,
+		},
+		{
+			name: "Should advertise missing load support when the fixture disables it",
+			fixture: acpmock.AgentFixture{
+				Name:        "no-load",
+				LoadSession: &loadUnsupported,
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			agent := &mockAgent{agent: tc.fixture}
+			response, err := agent.Initialize(context.Background(), acpsdk.InitializeRequest{})
+			if err != nil {
+				t.Fatalf("Initialize() error = %v", err)
+			}
+			if got := response.AgentCapabilities.LoadSession; got != tc.want {
+				t.Fatalf("Initialize().AgentCapabilities.LoadSession = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestExtractPromptTextPreservesAugmentedPromptWithoutNestedMessageMarker(t *testing.T) {

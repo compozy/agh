@@ -28,6 +28,8 @@ type Name string
 const (
 	// NameDecide loads the write-controller tiebreaker prompt.
 	NameDecide Name = "decide"
+	// NameCheckpointSummary loads the workspace checkpoint update prompt.
+	NameCheckpointSummary Name = "checkpoint_summary"
 	// NameDream loads the dreaming curator prompt.
 	NameDream Name = "dream"
 	// NameExtract loads the turn extractor prompt.
@@ -138,19 +140,21 @@ func (r Registry) filename(name Name, version string) (string, error) {
 
 func defaultAssetIndex() map[Name]map[string]string {
 	return map[Name]map[string]string{
-		NameDecide:        {VersionV1: "decide.v1.tmpl"},
-		NameDream:         {VersionV1: "dream.v1.tmpl"},
-		NameExtract:       {VersionV1: "extract.v1.tmpl"},
-		NameWhatNotToSave: {VersionV1: "what_not_to_save.v1.md"},
+		NameCheckpointSummary: {VersionV1: "checkpoint_summary.v1.tmpl"},
+		NameDecide:            {VersionV1: "decide.v1.tmpl"},
+		NameDream:             {VersionV1: "dream.v1.tmpl"},
+		NameExtract:           {VersionV1: "extract.v1.tmpl"},
+		NameWhatNotToSave:     {VersionV1: "what_not_to_save.v1.md"},
 	}
 }
 
 func defaultLatestIndex() map[Name]string {
 	return map[Name]string{
-		NameDecide:        VersionV1,
-		NameDream:         VersionV1,
-		NameExtract:       VersionV1,
-		NameWhatNotToSave: VersionV1,
+		NameCheckpointSummary: VersionV1,
+		NameDecide:            VersionV1,
+		NameDream:             VersionV1,
+		NameExtract:           VersionV1,
+		NameWhatNotToSave:     VersionV1,
 	}
 }
 

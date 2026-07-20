@@ -30,8 +30,14 @@ type AgentFixture struct {
 	ReasoningEffort string                       `json:"reasoning_effort,omitempty"`
 	Permissions     string                       `json:"permissions,omitempty"`
 	Prompt          string                       `json:"prompt,omitempty"`
+	LoadSession     *bool                        `json:"load_session,omitempty"`
 	ConfigOptions   []SessionConfigOptionFixture `json:"config_options,omitempty"`
 	Turns           []TurnFixture                `json:"turns"`
+}
+
+// SupportsLoadSession reports the fixture's advertised ACP session/load capability.
+func (a AgentFixture) SupportsLoadSession() bool {
+	return a.LoadSession == nil || *a.LoadSession
 }
 
 // SessionConfigOptionFixture describes one deterministic ACP session config select option.
@@ -59,8 +65,9 @@ type TurnFixture struct {
 
 // TurnUsage scripts deterministic aggregate token usage for one ACP prompt response.
 type TurnUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens  int  `json:"input_tokens"`
+	OutputTokens int  `json:"output_tokens"`
+	TotalTokens  *int `json:"total_tokens,omitempty"`
 }
 
 // TurnMatch routes a prompt to a turn fixture using stable prompt fields.

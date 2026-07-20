@@ -31,3 +31,7 @@ QA impact 2026-07-18: the post-install toast action now opens the canonical sing
 QA impact 2026-07-18: when two installed definitions share one `catalog_entry`, detail status and
 authorization resolve the exact `installed_name` before catalog identity. Verify the other install
 cannot supply the displayed runtime/auth state or receive the authorization request.
+
+QA impact 2026-07-19: while installed-detail OAuth authorization is awaiting confirmation, the
+workspace- or global-scoped MCP projection polls at the dedicated authorization cadence and reports
+success only after the refreshed status is authenticated with a token present.

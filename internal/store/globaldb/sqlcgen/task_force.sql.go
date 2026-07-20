@@ -204,7 +204,13 @@ func (q *Queries) ListTaskRunIDsForTask(ctx context.Context, taskID sql.NullStri
 const markTaskRunNeedsAttention = `-- name: MarkTaskRunNeedsAttention :execrows
 UPDATE task_runs
 SET status = ?1, error = ?2
-WHERE id = ?3 AND status = ?4
+WHERE id = ?3
+  AND status IN (
+    ?4,
+    ?5,
+    ?6,
+    ?7
+  )
 `
 
 type MarkTaskRunNeedsAttentionParams struct {
@@ -212,6 +218,9 @@ type MarkTaskRunNeedsAttentionParams struct {
 	Error                sql.NullString `json:"error"`
 	ID                   string         `json:"id"`
 	QueuedStatus         string         `json:"queued_status"`
+	ClaimedStatus        string         `json:"claimed_status"`
+	StartingStatus       string         `json:"starting_status"`
+	RunningStatus        string         `json:"running_status"`
 }
 
 func (q *Queries) MarkTaskRunNeedsAttention(ctx context.Context, arg MarkTaskRunNeedsAttentionParams) (int64, error) {
@@ -220,6 +229,9 @@ func (q *Queries) MarkTaskRunNeedsAttention(ctx context.Context, arg MarkTaskRun
 		arg.Error,
 		arg.ID,
 		arg.QueuedStatus,
+		arg.ClaimedStatus,
+		arg.StartingStatus,
+		arg.RunningStatus,
 	)
 	if err != nil {
 		return 0, err

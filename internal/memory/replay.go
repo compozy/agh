@@ -41,6 +41,8 @@ func (s *Store) ReplayPendingDecisions(ctx context.Context) (ReplayResult, error
 	if s == nil || s.catalog == nil {
 		return ReplayResult{}, nil
 	}
+	unlock := s.lockControllerDecisions()
+	defer unlock()
 	db, err := s.catalog.ensureDB(ctx)
 	if err != nil {
 		return ReplayResult{}, err

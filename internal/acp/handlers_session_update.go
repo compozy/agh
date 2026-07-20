@@ -2,6 +2,7 @@ package acp
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -12,7 +13,7 @@ func translateSessionUpdate(
 	notification acpsdk.SessionNotification,
 	rawUpdate json.RawMessage,
 	turnID string,
-) AgentEvent {
+) (AgentEvent, error) {
 	event := AgentEvent{
 		SessionID: string(notification.SessionId),
 		TurnID:    turnID,
@@ -35,8 +36,25 @@ func translateSessionUpdate(
 		event.Type = EventTypeToolCall
 		event.Title = toolCall.Title
 		event.ToolCallID = string(toolCall.ToolCallId)
+		if err := attachToolUpdatePayload(
+			&event,
+			toolCall.Title,
+			&toolCall.Kind,
+			toolCall.RawInput,
+			&toolCall.Status,
+		); err != nil {
+			return AgentEvent{}, err
+		}
 	case notification.Update.ToolCallUpdate != nil:
-		translateToolCallUpdate(&event, notification.Update.ToolCallUpdate)
+		update := notification.Update.ToolCallUpdate
+		translateToolCallUpdate(&event, update)
+		title := ""
+		if update.Title != nil {
+			title = *update.Title
+		}
+		if err := attachToolUpdatePayload(&event, title, update.Kind, update.RawInput, update.Status); err != nil {
+			return AgentEvent{}, err
+		}
 	case notification.Update.Plan != nil:
 		event.Type = EventTypePlan
 	case notification.Update.AvailableCommandsUpdate != nil:
@@ -55,7 +73,31 @@ func translateSessionUpdate(
 		event.Type = EventTypeSystem
 	}
 
-	return event
+	return event, nil
+}
+
+func attachToolUpdatePayload(
+	event *AgentEvent,
+	title string,
+	kind *acpsdk.ToolKind,
+	rawInput any,
+	status *acpsdk.ToolCallStatus,
+) error {
+	toolKind := ""
+	if kind != nil {
+		toolKind = strings.TrimSpace(string(*kind))
+	}
+	var input json.RawMessage
+	if rawInput != nil {
+		encoded, err := json.Marshal(rawInput)
+		if err != nil {
+			return fmt.Errorf("acp: encode tool raw input: %w", err)
+		}
+		input = encoded
+	}
+	failed := status != nil && *status == acpsdk.ToolCallStatusFailed
+	*event = event.WithTool(strings.TrimSpace(title), input, failed).WithToolKind(toolKind)
+	return nil
 }
 
 func translateToolCallUpdate(event *AgentEvent, update *acpsdk.SessionToolCallUpdate) {

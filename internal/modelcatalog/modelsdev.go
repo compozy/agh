@@ -294,8 +294,11 @@ type modelsDevLimit struct {
 }
 
 type modelsDevCost struct {
-	Input  *float64 `json:"input"`
-	Output *float64 `json:"output"`
+	Input      *float64 `json:"input"`
+	Output     *float64 `json:"output"`
+	CacheRead  *float64 `json:"cache_read"`
+	CacheWrite *float64 `json:"cache_write"`
+	Reasoning  *float64 `json:"reasoning"`
 }
 
 func modelsDevRow(providerID string, modelKey string, raw modelsDevRawModel, now time.Time) (ModelRow, bool) {
@@ -311,22 +314,25 @@ func modelsDevRow(providerID string, modelKey string, raw modelsDevRawModel, now
 		releaseDate = nil
 	}
 	row := ModelRow{
-		ProviderID:           providerID,
-		ModelID:              modelID,
-		DisplayName:          strings.TrimSpace(raw.Name),
-		SourceID:             SourceIDModelsDev,
-		SourceKind:           SourceKindModelsDev,
-		Priority:             PriorityModelsDev,
-		RefreshedAt:          now,
-		ContextWindow:        firstInt64(raw.Limit.Context, raw.ContextWindow),
-		MaxInputTokens:       firstInt64(raw.Limit.Input, raw.MaxInputTokens),
-		MaxOutputTokens:      firstInt64(raw.Limit.Output, raw.MaxOutputTokens),
-		SupportsTools:        firstBool(raw.ToolCall, raw.SupportsTools, raw.SupportsToolsLegacy),
-		SupportsReasoning:    firstBool(raw.Reasoning, raw.SupportsReasoning, raw.SupportsReasoningLegacy),
-		CostInputPerMillion:  firstFloat64(raw.Cost.Input, raw.Pricing.Input),
-		CostOutputPerMillion: firstFloat64(raw.Cost.Output, raw.Pricing.Output),
-		Deprecated:           modelsDevDeprecated(raw.Status),
-		ReleaseDate:          releaseDate,
+		ProviderID:               providerID,
+		ModelID:                  modelID,
+		DisplayName:              strings.TrimSpace(raw.Name),
+		SourceID:                 SourceIDModelsDev,
+		SourceKind:               SourceKindModelsDev,
+		Priority:                 PriorityModelsDev,
+		RefreshedAt:              now,
+		ContextWindow:            firstInt64(raw.Limit.Context, raw.ContextWindow),
+		MaxInputTokens:           firstInt64(raw.Limit.Input, raw.MaxInputTokens),
+		MaxOutputTokens:          firstInt64(raw.Limit.Output, raw.MaxOutputTokens),
+		SupportsTools:            firstBool(raw.ToolCall, raw.SupportsTools, raw.SupportsToolsLegacy),
+		SupportsReasoning:        firstBool(raw.Reasoning, raw.SupportsReasoning, raw.SupportsReasoningLegacy),
+		CostInputPerMillion:      firstFloat64(raw.Cost.Input, raw.Pricing.Input),
+		CostOutputPerMillion:     firstFloat64(raw.Cost.Output, raw.Pricing.Output),
+		CostCacheReadPerMillion:  firstFloat64(raw.Cost.CacheRead, raw.Pricing.CacheRead),
+		CostCacheWritePerMillion: firstFloat64(raw.Cost.CacheWrite, raw.Pricing.CacheWrite),
+		CostReasoningPerMillion:  firstFloat64(raw.Cost.Reasoning, raw.Pricing.Reasoning),
+		Deprecated:               modelsDevDeprecated(raw.Status),
+		ReleaseDate:              releaseDate,
 	}
 	return row, true
 }
@@ -411,6 +417,9 @@ func cloneModelRows(rows []ModelRow) []ModelRow {
 		cloned[index].DefaultReasoningEffort = cloneModelRowPointer(row.DefaultReasoningEffort)
 		cloned[index].CostInputPerMillion = cloneModelRowPointer(row.CostInputPerMillion)
 		cloned[index].CostOutputPerMillion = cloneModelRowPointer(row.CostOutputPerMillion)
+		cloned[index].CostCacheReadPerMillion = cloneModelRowPointer(row.CostCacheReadPerMillion)
+		cloned[index].CostCacheWritePerMillion = cloneModelRowPointer(row.CostCacheWritePerMillion)
+		cloned[index].CostReasoningPerMillion = cloneModelRowPointer(row.CostReasoningPerMillion)
 		cloned[index].Deprecated = cloneModelRowPointer(row.Deprecated)
 		cloned[index].Hidden = cloneModelRowPointer(row.Hidden)
 		cloned[index].Featured = cloneModelRowPointer(row.Featured)

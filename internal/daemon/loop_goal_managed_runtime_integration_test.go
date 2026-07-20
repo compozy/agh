@@ -22,6 +22,14 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
+	t.Run("Should terminalize a wedged action and advance the Loop through the real scheduler", func(t *testing.T) {
+		testLoopActionLivenessIntegration(t)
+	})
+
+	t.Run("Should stall after one node fails across generations despite a successful sibling", func(t *testing.T) {
+		testLoopFailureBreakerIntegration(t)
+	})
+
 	t.Run("Should create a run-owned session when origin participation differs from the Loop Run", func(t *testing.T) {
 		fixture := newLoopGoalManagedRuntimeFixture(t, "origin-participation", nil, withoutInitialGoalBinding())
 		originParticipation := daemonTestLiveParticipation(

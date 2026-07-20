@@ -60,6 +60,8 @@ function buildRun(overrides: Partial<TaskRunDetailView> = {}): TaskRunDetailView
       turn_count: 6,
       total_cost: 0.18,
       cost_currency: "USD",
+      cost_status: "actual",
+      cost_source: "agent_reported",
     },
     session: {
       session_id: "sess_jf8d21",
@@ -71,6 +73,21 @@ function buildRun(overrides: Partial<TaskRunDetailView> = {}): TaskRunDetailView
     },
     ...overrides,
   } as unknown as TaskRunDetailView;
+}
+
+/** Builds a run summary carrying a specific cost provenance for the cost stories. */
+function costSummary(overrides: Record<string, unknown>) {
+  return {
+    last_activity_at: "2026-04-11T14:40:45Z",
+    last_event_type: "task.run_progress",
+    tool_call_count: 4,
+    input_tokens: 14281,
+    output_tokens: 3046,
+    total_tokens: 17327,
+    turn_count: 6,
+    cost_currency: "USD",
+    ...overrides,
+  };
 }
 
 const sampleEvents: TaskTimelineItem[] = [
@@ -355,6 +372,54 @@ export const NetworkWake: Story = {
       } as Partial<TaskRunDetailView>)}
     />
   ),
+};
+
+/**
+ * Estimated run cost: a catalog projection surfaced with the ≈ cue and an
+ * "Est. cost" lead so it never reads as measured spend.
+ */
+export const EstimatedCost: Story = {
+  render: () => (
+    <DetailSurface
+      isLive={false}
+      run={buildRun({
+        summary: costSummary({
+          total_cost: 0.42,
+          cost_status: "estimated",
+          cost_source: "catalog_config",
+        }),
+      } as Partial<TaskRunDetailView>)}
+    />
+  ),
+};
+
+/** Subscription-included run cost: "Included" with no monetary amount. */
+export const IncludedCost: Story = {
+  render: () => (
+    <DetailSurface
+      isLive={false}
+      run={buildRun({
+        summary: costSummary({ total_cost: null, cost_status: "included", cost_source: "none" }),
+      } as Partial<TaskRunDetailView>)}
+    />
+  ),
+};
+
+/** Unknown run cost: "Unavailable" with no monetary amount. */
+export const UnknownCost: Story = {
+  render: () => (
+    <DetailSurface
+      isLive={false}
+      run={buildRun({
+        summary: costSummary({ total_cost: null, cost_status: "unknown" }),
+      } as Partial<TaskRunDetailView>)}
+    />
+  ),
+};
+
+export const Empty: Story = {
+  name: "Empty",
+  render: () => <DetailSurface isLive={false} items={[]} run={buildRun()} />,
 };
 
 /** Queued task run waiting to be claimed. */

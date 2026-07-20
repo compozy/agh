@@ -48,6 +48,8 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[memcontract.Scope]():                            memoryScopeValues(),
 	reflect.TypeFor[modelcatalog.ReasoningEffort]():                 modelcatalog.ReasoningEffortValues(),
 	reflect.TypeFor[modelcatalog.ReasoningSource]():                 modelcatalog.ReasoningSourceValues(),
+	reflect.TypeFor[modelcatalog.CostStatus]():                      modelcatalog.CostStatusValues(),
+	reflect.TypeFor[modelcatalog.CostSource]():                      modelcatalog.CostSourceValues(),
 	reflect.TypeFor[participation.Mode]():                           participationModeValues(),
 	reflect.TypeFor[participation.ChannelStrategy]():                participationChannelStrategyValues(),
 	reflect.TypeFor[participation.Source]():                         participationSourceValues(),

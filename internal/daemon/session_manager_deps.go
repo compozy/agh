@@ -3,6 +3,7 @@ package daemon
 import (
 	"log/slog"
 
+	"github.com/compozy/agh/internal/admission"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/modelcatalog"
@@ -23,6 +24,7 @@ type SessionManagerDeps struct {
 	PromptAssembler       session.PromptAssembler
 	StartupPromptOverlay  session.StartupPromptOverlay
 	PromptInputAugmenter  session.PromptInputAugmenter
+	WorkAdmission         admission.Checker
 	MemoryStore           *memory.Store
 	LedgerMaterializer    session.LedgerMaterializer
 	AgentResolver         session.AgentResolver
@@ -34,6 +36,7 @@ type SessionManagerDeps struct {
 	SandboxRegistry       *sandbox.Registry
 	SessionSupervision    aghconfig.SessionSupervisionConfig
 	SessionBusyInput      aghconfig.SessionBusyInputConfig
+	SessionCompaction     aghconfig.SessionCompactionConfig
 	SessionInputQueue     store.SessionInputQueueStore
 	SessionHealthConfig   aghconfig.HeartbeatConfig
 	SessionCatalog        store.SessionCatalog
@@ -65,6 +68,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		PromptAssembler:      state.promptAssembler,
 		StartupPromptOverlay: state.startupOverlay,
 		PromptInputAugmenter: state.promptAugmenter,
+		WorkAdmission:        &d.admission,
 		MemoryStore:          state.memoryStore,
 		LedgerMaterializer:   state.ledgerMaterializer,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
@@ -79,6 +83,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SandboxRegistry:       state.sandboxRegistry,
 		SessionSupervision:    state.cfg.Session.Supervision,
 		SessionBusyInput:      state.cfg.Session.BusyInput,
+		SessionCompaction:     state.cfg.Session.Compaction,
 		SessionInputQueue:     sessionInputQueueStoreDependency(state.registry),
 		SessionHealthConfig:   state.cfg.Agents.Heartbeat,
 		SessionCatalog:        state.registry,

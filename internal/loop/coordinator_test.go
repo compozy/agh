@@ -1552,7 +1552,7 @@ func TestCoordinatorRunnerShouldResetStallWhenBlockingIssueSignatureChanges(t *t
 			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
 				1: {{
 					Generation: 1,
-					NodeID:     "load",
+					NodeID:     "agent",
 					Status:     generationOutputFailed,
 					OutputRef:  `{"blocking_issues":[{"id":"old-blocker"}]}`,
 				}},
@@ -1583,16 +1583,15 @@ func TestCoordinatorRunnerShouldResetStallWhenBlockingIssueSignatureChanges(t *t
 }
 
 func TestCoordinatorRunnerShouldTripCircuitBreakerAsStalled(t *testing.T) {
-	t.Run("Should trip circuit breaker as stalled", func(t *testing.T) {
+	t.Run("Should preserve a failing node streak across sibling success", func(t *testing.T) {
 		t.Parallel()
 
 		loopRun := Run{
-			ID:                  "looprun-circuit-breaker",
-			WorkspaceID:         "ws-1",
-			LoopName:            "delivery",
-			Status:              StatusRunning,
-			Generation:          1,
-			ConsecutiveFailures: LoopFailureBreakerLimit,
+			ID:          "looprun-circuit-breaker",
+			WorkspaceID: "ws-1",
+			LoopName:    "delivery",
+			Status:      StatusRunning,
+			Generation:  2,
 		}
 		coordinatorRun := task.Run{
 			ID:        "run-coordinator-circuit-breaker",
@@ -1601,41 +1600,133 @@ func TestCoordinatorRunnerShouldTripCircuitBreakerAsStalled(t *testing.T) {
 			LoopRunID: string(loopRun.ID),
 			Status:    task.TaskRunStatusClaimed,
 		}
-		rootRun := task.Run{
-			ID:        coordinatorNodeRunID(loopRun.ID, 1, "load", 0),
-			TaskID:    coordinatorNodeTaskID(loopRun.ID, 1, "load", 0),
-			RunKind:   task.RunKindWorker,
-			LoopRunID: string(loopRun.ID),
-			Status:    task.TaskRunStatusFailed,
-			Error:     `{"reason_code":"tool_failed"}`,
-		}
-		runner := newCoordinatorRunnerForTest(t, loopRun, coordinatorRun, map[string]task.Run{
-			coordinatorRun.ID: coordinatorRun,
-			rootRun.ID:        rootRun,
-		}, coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
-			Generation: 1,
-			NodeID:     "load",
-			Status:     generationOutputRunning,
-			TaskRunID:  rootRun.ID,
-		}}}})
+		graph := dsl.Graph{Nodes: []dsl.Node{
+			{ID: "a_failing", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "z_healthy", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		}}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
+				1: {
+					{Generation: 1, NodeID: "a_failing", Status: generationOutputFailed},
+					{Generation: 1, NodeID: "z_healthy", Status: generationOutputSucceeded},
+				},
+				2: {
+					{Generation: 2, NodeID: "a_failing", Status: generationOutputFailed},
+					{Generation: 2, NodeID: "z_healthy", Status: generationOutputSucceeded},
+				},
+			}},
+			dsl.Definition{Graph: graph},
+		)
 
 		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
-		if plan.Terminal == nil {
-			t.Fatal("Terminal = nil, want stalled")
+		assertCircuitBreakerTerminal(t, plan.Terminal)
+	})
+
+	t.Run("Should backstop an unbounded watch after consecutive failed generations", func(t *testing.T) {
+		t.Parallel()
+
+		loopRun := Run{
+			ID: "looprun-watch-breaker", WorkspaceID: "ws-1", LoopName: "watch",
+			Status: StatusRunning, Generation: 2, IterationCap: 0,
 		}
-		if got, want := plan.Terminal.Status, string(StatusStalled); got != want {
-			t.Fatalf("terminal status = %q, want %q", got, want)
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-watch-breaker", TaskID: "task-coordinator-watch-breaker",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed,
 		}
-		if got, want := plan.Terminal.Cause, string(TransitionCauseNoProgress); got != want {
-			t.Fatalf("terminal cause = %q, want %q", got, want)
+		graph := dsl.Graph{Nodes: []dsl.Node{
+			{ID: "watch", Class: dsl.NodeClassSource, Kind: string(dsl.SourceWatchSource)},
+			{ID: "fail_a", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "fail_b", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		}}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{
+				1: {
+					{Generation: 1, NodeID: "watch", Status: generationOutputSucceeded},
+					{Generation: 1, NodeID: "fail_a", Status: generationOutputFailed},
+					{Generation: 1, NodeID: "fail_b", Status: generationOutputSucceeded},
+				},
+				2: {
+					{Generation: 2, NodeID: "watch", Status: generationOutputSucceeded},
+					{Generation: 2, NodeID: "fail_a", Status: generationOutputSucceeded},
+					{Generation: 2, NodeID: "fail_b", Status: generationOutputFailed},
+				},
+			}},
+			dsl.Definition{Graph: graph},
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
 		}
-		if got, want := plan.Terminal.ReasonCode, "circuit_breaker"; got != want {
-			t.Fatalf("reason_code = %q, want %q", got, want)
+		assertCircuitBreakerTerminal(t, plan.Terminal)
+	})
+
+	t.Run("Should never trip for healthy generations", func(t *testing.T) {
+		t.Parallel()
+
+		loopRun := Run{
+			ID: "looprun-healthy-breaker", WorkspaceID: "ws-1", LoopName: "delivery",
+			Status: StatusRunning, Generation: 2,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-healthy-breaker", TaskID: "task-coordinator-healthy-breaker",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed,
+		}
+		graph := dsl.Graph{Nodes: []dsl.Node{
+			{ID: "a", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "b", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		}}
+		healthy := []GenerationOutput{
+			{NodeID: "a", Status: generationOutputSucceeded},
+			{NodeID: "b", Status: generationOutputSucceeded},
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: healthy, 2: healthy}},
+			dsl.Definition{Graph: graph},
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Terminal != nil && plan.Terminal.ReasonCode == circuitBreakerReasonCode {
+			t.Fatalf("Terminal = %#v, want no circuit breaker", plan.Terminal)
 		}
 	})
+}
+
+func assertCircuitBreakerTerminal(t *testing.T, terminal *task.CoordinatorTerminal) {
+	t.Helper()
+
+	if terminal == nil {
+		t.Fatal("Terminal = nil, want stalled")
+	}
+	if got, want := terminal.Status, string(StatusStalled); got != want {
+		t.Fatalf("terminal status = %q, want %q", got, want)
+	}
+	if got, want := terminal.Cause, string(TransitionCauseNoProgress); got != want {
+		t.Fatalf("terminal cause = %q, want %q", got, want)
+	}
+	if got, want := terminal.ReasonCode, circuitBreakerReasonCode; got != want {
+		t.Fatalf("reason_code = %q, want %q", got, want)
+	}
 }
 
 func TestCoordinatorRunnerShouldTreatZeroTokenBudgetAsUnlimited(t *testing.T) {

@@ -60,7 +60,7 @@ that created it; restart from the first page when any filter changes. See the ge
 | `prompt`                     | Agent targets without `task` | Prompt submitted to the agent when the job fires. Must be empty for Loop targets.                                      |
 | `task`                       | No                           | Materializes Task-backed work for an Agent target. Must be empty for Loop targets.                                     |
 | `loop_target`                | Loop targets                 | Selects `workspace_id`, `loop_name`, and static `inputs`. Scheduled jobs reject `input_mapping`.                       |
-| `schedule`                   | Yes                          | One of `cron`, `every`, or `at`.                                                                                       |
+| `schedule`                   | Yes                          | One of `cron`, `every`, or `at`; recurring schedules may set catch-up policy and misfire grace.                        |
 | `enabled`                    | No                           | Defaults to `true` for parsed config definitions. Disabled jobs stay stored but are not registered with the scheduler. |
 | `retry`                      | No                           | Defaults to `{ strategy = "none" }`.                                                                                   |
 | `fire_limit`                 | No                           | Defaults to `max = 12`, `window = "1h"` unless the automation default is changed.                                      |
@@ -100,6 +100,19 @@ same request contract. The `agh automation jobs create|update` flags currently a
 targets. The CLI can still list, inspect, enable, disable, trigger, and delete Loop-target jobs
 created through a native tool or transport API.
 
+## Daemon lifecycle protection
+
+Dynamic job creation and updates reject command-shaped instructions that would restart, stop, or
+kill the AGH daemon. The guard covers Agent prompts and Task descriptions before AGH writes the
+job, including update payloads and resource-applied definitions. It classifies direct
+`agh daemon restart|stop` commands, process signals targeting `agh`, and `systemctl`, `launchctl`,
+or `service` lifecycle commands targeting AGH.
+
+The rejection names one stable class: `agh_daemon`, `process_signal`, or `service_manager`. The
+same error reaches CLI, HTTP/UDS, and `agh__automation_jobs_create|update`. There is no bypass.
+Remove the daemon lifecycle command and retry the write. Human-readable fields remain ordinary
+prose, so a job name such as `Review agh daemon restart behavior` is valid.
+
 ## Schedule modes
 
 Each schedule mode accepts exactly the fields it needs. Supplying fields from another mode is a
@@ -132,15 +145,34 @@ from the next cursor and does not dispatch the already claimed fire again.
 Catch-up policy controls what AGH does when the durable cursor points to one or more fire times
 that passed while the daemon was down.
 
-| Policy     | Behavior on boot                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------ |
-| `skip`     | Records the missed fire as a misfire and advances the cursor to the next future fire.            |
-| `coalesce` | Dispatches one catch-up fire for the most recent missed instant, then continues from that point. |
-| `replay`   | Dispatches each missed instant in chronological order until the cursor catches up.               |
+| Policy                | Behavior on boot                                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `skip_missed`         | Dispatches the latest missed fire within grace; beyond grace, records a canceled skip and advances to the next future fire. |
+| `coalesce`            | Dispatches one catch-up fire for the most recent missed instant, then continues from that point.                            |
+| `replay`              | Dispatches each missed instant in chronological order until the cursor catches up.                                          |
+| `run_once_on_catchup` | Dispatches the most recent missed instant exactly once, then advances to the next future fire.                              |
 
-Non-Loop scheduled jobs default to `skip`. Loop-target jobs are classified by their Loop
+Omit `catch_up_policy` to use the target-aware default. Non-Loop scheduled jobs default to
+`skip_missed`. Loop-target jobs are classified by their Loop
 definition: Loops with a `watch-source` node default to `coalesce` so a restart processes one
-fresh observation instead of replaying every missed poll; other Loop-target jobs default to `skip`.
+fresh observation instead of replaying every missed poll; other Loop-target jobs default to
+`skip_missed`.
+
+`misfire_grace_seconds` applies to `skip_missed`. A positive value sets the maximum lateness that
+still dispatches one missed fire. Zero or omission uses the daemon's one-second scheduler-jitter
+grace. The field is valid only for recurring `cron` and `every` schedules.
+
+When `agh automation jobs update --schedule` changes one recurring schedule to another, AGH
+preserves its current `catch_up_policy` and `misfire_grace_seconds` unless the matching flags are
+also supplied. An explicit reliability flag wins over the preserved value. Switching to a one-time
+`at` schedule removes recurring-only reliability fields.
+
+If the same job still has an automation run in `scheduled` or `running` when the next fire is due,
+AGH records the new occurrence as `canceled` with metadata reason `self_overlap`, advances the
+cursor, and evaluates the following cycle normally. A `skip_missed` fire beyond grace uses reason
+`misfire_grace_exceeded`. Both reasons remain visible in run history. Loop-target jobs become
+`delegated` after a Loop starts; the Loop's own concurrency policy governs later overlap.
+
 When a catch-up Loop start is accepted, the created `loop_run.start_metadata` includes the
 automation run id, scheduled instant, catch-up flag, catch-up policy, and original due instant. If a
 catch-up start hits Loop concurrency `forbid`, AGH records the rejected automation run with
@@ -174,6 +206,8 @@ agh automation jobs create \
   --scope workspace \
   --workspace /Users/you/src/checkout-api \
   --schedule "0 9 * * 1-5" \
+  --catch-up-policy run_once_on_catchup \
+  --misfire-grace-seconds 120 \
   --agent reviewer \
   --prompt "Review the current worktree and write a risk report."
 ```

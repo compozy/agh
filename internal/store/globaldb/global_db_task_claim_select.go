@@ -44,6 +44,48 @@ func (g *TaskRunRepo) ensureClaimerHasNoActiveLease(
 	return nil
 }
 
+func (g *TaskRunRepo) ensureWorkspaceActiveRunCapacity(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID string,
+	criteria taskpkg.ClaimCriteria,
+) error {
+	if criteria.WorkspaceActiveRunCap == 0 {
+		return nil
+	}
+	candidate, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
+	if err != nil {
+		return err
+	}
+	workspaceID := strings.TrimSpace(candidate.WorkspaceID)
+	if workspaceID == "" || candidate.IsNetworkWake() {
+		return nil
+	}
+	count, err := sqlcgen.New(exec).CountActiveTaskRunLeasesForWorkspace(
+		ctx,
+		sqlcgen.CountActiveTaskRunLeasesForWorkspaceParams{
+			WorkspaceID:    sql.NullString{String: workspaceID, Valid: true},
+			ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
+			StartingStatus: taskpkg.TaskRunStatusStarting.String(),
+			RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
+			Now:            nullableTaskTime(criteria.Now),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("store: count active task-run leases for workspace %q: %w", workspaceID, err)
+	}
+	if count >= int64(criteria.WorkspaceActiveRunCap) {
+		return fmt.Errorf(
+			"%w: workspace %q has %d active runs (limit %d)",
+			taskpkg.ErrWorkspaceActiveRunCapReached,
+			workspaceID,
+			count,
+			criteria.WorkspaceActiveRunCap,
+		)
+	}
+	return nil
+}
+
 func (g *TaskRunRepo) selectClaimableRunID(
 	ctx context.Context,
 	exec taskSQLExecutor,

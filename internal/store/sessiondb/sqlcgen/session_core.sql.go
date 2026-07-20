@@ -21,6 +21,27 @@ func (q *Queries) AdvanceTranscriptProjectionGeneration(ctx context.Context) err
 	return err
 }
 
+const archiveEventRange = `-- name: ArchiveEventRange :execrows
+UPDATE events
+SET archived = 1
+WHERE archived = 0
+  AND sequence >= ?1
+  AND sequence <= ?2
+`
+
+type ArchiveEventRangeParams struct {
+	FromSequence int64 `json:"from_sequence"`
+	ToSequence   int64 `json:"to_sequence"`
+}
+
+func (q *Queries) ArchiveEventRange(ctx context.Context, arg ArchiveEventRangeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, archiveEventRange, arg.FromSequence, arg.ToSequence)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const clearEvents = `-- name: ClearEvents :exec
 DELETE FROM events
 `
@@ -67,7 +88,7 @@ func (q *Queries) ClearTranscriptToolRoutes(ctx context.Context) error {
 }
 
 const getEventByID = `-- name: GetEventByID :one
-SELECT id, sequence, turn_id, type, agent_name, content, timestamp
+SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
 FROM events
 WHERE id = ?1
 `
@@ -79,6 +100,7 @@ type GetEventByIDRow struct {
 	Type      string `json:"type"`
 	AgentName string `json:"agent_name"`
 	Content   string `json:"content"`
+	Archived  int64  `json:"archived"`
 	Timestamp string `json:"timestamp"`
 }
 
@@ -92,6 +114,7 @@ func (q *Queries) GetEventByID(ctx context.Context, id string) (GetEventByIDRow,
 		&i.Type,
 		&i.AgentName,
 		&i.Content,
+		&i.Archived,
 		&i.Timestamp,
 	)
 	return i, err
@@ -110,11 +133,11 @@ func (q *Queries) InitializeTranscriptProjectionState(ctx context.Context, proje
 
 const insertEvent = `-- name: InsertEvent :exec
 INSERT INTO events (
-    id, sequence, turn_id, type, agent_name, content, timestamp, transcript_entry_key
+    id, sequence, turn_id, type, agent_name, content, archived, timestamp, transcript_entry_key
 ) VALUES (
     ?1, ?2, ?3, ?4,
-    ?5, ?6, ?7,
-    ?8
+    ?5, ?6, ?7, ?8,
+    ?9
 )
 `
 
@@ -125,6 +148,7 @@ type InsertEventParams struct {
 	Type               string `json:"type"`
 	AgentName          string `json:"agent_name"`
 	Content            string `json:"content"`
+	Archived           int64  `json:"archived"`
 	Timestamp          string `json:"timestamp"`
 	TranscriptEntryKey string `json:"transcript_entry_key"`
 }
@@ -137,6 +161,7 @@ func (q *Queries) InsertEvent(ctx context.Context, arg InsertEventParams) error 
 		arg.Type,
 		arg.AgentName,
 		arg.Content,
+		arg.Archived,
 		arg.Timestamp,
 		arg.TranscriptEntryKey,
 	)

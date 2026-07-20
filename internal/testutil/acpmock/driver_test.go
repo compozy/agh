@@ -575,6 +575,70 @@ func TestDriverControlBlockUntilCancelReturnsCanceledStopReason(t *testing.T) {
 	}
 }
 
+func TestDriverSurfacesPromptTokenUsage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should surface fixture prompt-response token usage as a done-event payload", func(t *testing.T) {
+		t.Parallel()
+
+		driverPath, err := DefaultDriverPath()
+		if err != nil {
+			t.Fatalf("DefaultDriverPath() error = %v", err)
+		}
+		fixturePath, err := filepath.Abs(filepath.Join("testdata", "cost_provenance_fixture.json"))
+		if err != nil {
+			t.Fatalf("filepath.Abs(fixture) error = %v", err)
+		}
+		command := BuildCommand(
+			driverPath,
+			fixturePath,
+			"cost-provenance-agent",
+			filepath.Join(t.TempDir(), "cost-diagnostics.jsonl"),
+		)
+
+		driver := acp.New()
+		proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+			AgentName:   "cost-provenance-agent",
+			Command:     command,
+			Cwd:         t.TempDir(),
+			Permissions: aghconfig.PermissionModeApproveReads,
+		})
+		if err != nil {
+			t.Fatalf("driver.Start() error = %v", err)
+		}
+		defer stopDriverProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+			TurnID:  "turn-cost-provenance",
+			Message: "Summarize the cost provenance run",
+			Meta:    acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		})
+		if err != nil {
+			t.Fatalf("driver.Prompt() error = %v", err)
+		}
+
+		events := collectPromptEvents(t, eventsCh, nil)
+		var usage *acp.TokenUsage
+		for i := range events {
+			if events[i].Type == acp.EventTypeDone && events[i].Usage != nil {
+				usage = events[i].Usage
+			}
+		}
+		if usage == nil {
+			t.Fatalf("no done event carried usage; events = %#v", events)
+		}
+		if usage.InputTokens == nil || *usage.InputTokens != 128400 {
+			t.Fatalf("Usage.InputTokens = %v, want 128400", usage.InputTokens)
+		}
+		if usage.OutputTokens == nil || *usage.OutputTokens != 24900 {
+			t.Fatalf("Usage.OutputTokens = %v, want 24900", usage.OutputTokens)
+		}
+		if usage.TotalTokens == nil || *usage.TotalTokens != 153300 {
+			t.Fatalf("Usage.TotalTokens = %v, want 153300", usage.TotalTokens)
+		}
+	})
+}
+
 func TestDriverCancelNotification(t *testing.T) {
 	t.Parallel()
 

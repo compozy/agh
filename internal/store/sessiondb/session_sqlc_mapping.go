@@ -56,6 +56,7 @@ func sessionEventFromSQLC(
 	eventType string,
 	agentName string,
 	content string,
+	archived int64,
 	timestampRaw string,
 	sessionID string,
 ) (store.SessionEvent, error) {
@@ -74,6 +75,7 @@ func sessionEventFromSQLC(
 		Type:      eventType,
 		AgentName: agentName,
 		Content:   content,
+		Archived:  archived != 0,
 		Timestamp: timestamp,
 	}, nil
 }

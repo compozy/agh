@@ -794,7 +794,7 @@ func (h *HostAPIHandler) resolveTaskWorkspaceID(ctx context.Context, workspaceRe
 		}
 		return "", err
 	}
-	return hostAPIResolvedWorkspaceID(&resolved)
+	return hostAPIResolvedWorkspaceRegistrationID(&resolved)
 }
 
 func validateTaskChannel(path string, channel string) error {
@@ -1051,22 +1051,6 @@ func taskRunSessionPayloadFromSession(session *taskpkg.RunSessionRef) *apicontra
 		State:       session.State,
 		CreatedAt:   session.CreatedAt,
 		UpdatedAt:   session.UpdatedAt,
-	}
-}
-
-func taskRunOperationalSummaryPayloadFromSummary(
-	summary taskpkg.RunOperationalSummary,
-) apicontract.TaskRunOperationalSummaryPayload {
-	return apicontract.TaskRunOperationalSummaryPayload{
-		LastActivityAt: summary.LastActivityAt,
-		LastEventType:  summary.LastEventType,
-		ToolCallCount:  summary.ToolCallCount,
-		TurnCount:      summary.TurnCount,
-		InputTokens:    summary.InputTokens,
-		OutputTokens:   summary.OutputTokens,
-		TotalTokens:    summary.TotalTokens,
-		TotalCost:      summary.TotalCost,
-		CostCurrency:   summary.CostCurrency,
 	}
 }
 

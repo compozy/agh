@@ -24,6 +24,8 @@ var (
 	ErrToolInvalidInput = errors.New("tools: invalid tool input")
 	// ErrToolResultTooLarge reports result budget overflow.
 	ErrToolResultTooLarge = errors.New("tools: tool result too large")
+	// ErrToolResultPersistence reports oversized result offload failure.
+	ErrToolResultPersistence = errors.New("tools: tool result persistence failed")
 	// ErrToolBackendFailed reports a backend adapter failure.
 	ErrToolBackendFailed = errors.New("tools: backend failed")
 	// ErrToolCanceled reports call cancellation.
@@ -50,6 +52,8 @@ const (
 	ErrorCodeInvalidInput ErrorCode = "tool_invalid_input"
 	// ErrorCodeResultTooLarge maps to ErrToolResultTooLarge.
 	ErrorCodeResultTooLarge ErrorCode = "tool_result_too_large"
+	// ErrorCodeResultPersistenceFailed maps to ErrToolResultPersistence.
+	ErrorCodeResultPersistenceFailed ErrorCode = "tool_result_persistence_failed"
 	// ErrorCodeBackendFailed maps to ErrToolBackendFailed.
 	ErrorCodeBackendFailed ErrorCode = "tool_backend_failed"
 	// ErrorCodeCanceled maps to ErrToolCanceled.
@@ -64,12 +68,24 @@ const (
 
 // ToolError carries stable reason codes with a wrapped cause.
 type ToolError struct {
-	Code        ErrorCode        `json:"code"`
-	ToolID      ToolID           `json:"tool_id,omitempty"`
-	Message     string           `json:"message"`
-	ReasonCodes []ReasonCode     `json:"reason_codes,omitempty"`
-	Operator    *OperatorFailure `json:"operator,omitempty"`
-	Err         error            `json:"-"`
+	Code          ErrorCode        `json:"code"`
+	ToolID        ToolID           `json:"tool_id,omitempty"`
+	Message       string           `json:"message"`
+	ReasonCodes   []ReasonCode     `json:"reason_codes,omitempty"`
+	Operator      *OperatorFailure `json:"operator,omitempty"`
+	PartialResult *ToolResult      `json:"partial_result,omitempty"`
+	Err           error            `json:"-"`
+}
+
+// WithPartialResult returns a cloned error carrying a redacted bounded result preview.
+func (e *ToolError) WithPartialResult(result ToolResult) *ToolError {
+	if e == nil {
+		return nil
+	}
+	cloned := *e
+	partial := cloneToolResult(result)
+	cloned.PartialResult = &partial
+	return &cloned
 }
 
 // Error returns the public error message.

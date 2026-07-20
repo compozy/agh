@@ -46,6 +46,11 @@ export {
   skillSourceTone,
   type SkillRecentCall,
 } from "./lib/skill-formatters";
+export {
+  SkillActivationPill,
+  SkillActivationReasons,
+  SkillActivationSection,
+} from "./components/skill-activation-status";
 
 // Hooks
 export { useSkill, useSkillContent, useSkillShadows, useSkills } from "./hooks/use-skills";

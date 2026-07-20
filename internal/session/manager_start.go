@@ -93,6 +93,8 @@ func resumeSessionCWD(meta store.SessionMeta, workspaceRoot string) (string, err
 	requested := workspaceRoot
 	if meta.CreationProfile != nil {
 		requested = strings.TrimSpace(meta.CreationProfile.CWD)
+	} else if cwd := strings.TrimSpace(meta.CWD); cwd != "" {
+		requested = cwd
 	}
 	return ResolveSessionCWD(workspaceRoot, requested)
 }
@@ -152,6 +154,9 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	if err != nil {
 		return nil, fmt.Errorf("session: start %s agent process for %q: %w", spec.startAction, spec.sessionID, err)
 	}
+	if err := m.persistResumeReplayMarker(ctx, spec, session); err != nil {
+		return nil, err
+	}
 
 	if err := m.activateAndWatch(
 		ctx,
@@ -166,61 +171,11 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		return nil, fmt.Errorf("session: activate %s session %q: %w", spec.startAction, spec.sessionID, err)
 	}
 	m.observeCommittedParticipation(ctx, spec.participationObservation)
+	if spec.resumeReplay {
+		m.stageResumeReplay(spec.sessionID, spec.resumeReplayBlock)
+	}
 
 	return session, nil
-}
-
-func (m *Manager) prepareSessionLaunch(
-	ctx context.Context,
-	spec *sessionStartSpec,
-	session *Session,
-	runtime *sessionStartRuntime,
-) (acp.StartOpts, error) {
-	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
-	startOpts, err := m.prepareProviderForStart(ctx, session, runtime.agent, startOpts)
-	if err != nil {
-		return acp.StartOpts{}, m.failSessionStart(
-			ctx,
-			spec,
-			session,
-			"session provider startup failed",
-			err,
-		)
-	}
-	startOpts, err = m.prepareSandboxForStart(ctx, spec, session, startOpts)
-	if err != nil {
-		return acp.StartOpts{}, m.failSessionStart(
-			ctx,
-			spec,
-			session,
-			"session sandbox startup failed",
-			err,
-		)
-	}
-	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
-	if err != nil {
-		return acp.StartOpts{}, m.failSessionStart(ctx, spec, session, "session pre-start hook failed", err)
-	}
-	session.EffectivePermissions = strings.TrimSpace(string(startOpts.Permissions))
-	if err := finalizeStartCreationIdentityIfEnabled(spec, session); err != nil {
-		return acp.StartOpts{}, m.failSessionStart(
-			ctx,
-			spec,
-			session,
-			"session creation identity changed",
-			err,
-		)
-	}
-	if err := m.persistSessionMetadataOnly(session); err != nil {
-		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)
-		return acp.StartOpts{}, fmt.Errorf(
-			"session: persist %s metadata for %q: %w",
-			spec.startAction,
-			spec.sessionID,
-			err,
-		)
-	}
-	return startOpts, nil
 }
 
 func (m *Manager) prepareSessionStartRuntimeAndIdentity(

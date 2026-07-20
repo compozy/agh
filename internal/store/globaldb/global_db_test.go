@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -173,6 +174,11 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
 			"provider",
 			"outcome",
+		})
+		assertTableHasColumns(t, globalDB.db, "model_catalog_rows", []string{
+			"cost_cache_read_per_million",
+			"cost_cache_write_per_million",
+			"cost_reasoning_per_million",
 		})
 		for _, absent := range []string{"schema_migrations", "memory_events", "goose_db_version_memory"} {
 			exists, err := tableExists(testutil.Context(t), globalDB.db, absent)
@@ -802,9 +808,9 @@ func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
 	}
 
 	for _, update := range []TokenStatsUpdate{
-		{SessionID: "sess-retention", AgentName: "coder-old", Turns: 1, UpdatedAt: old},
-		{SessionID: "sess-retention", AgentName: "coder-boundary", Turns: 1, UpdatedAt: boundary},
-		{SessionID: "sess-retention", AgentName: "coder-fresh", Turns: 1, UpdatedAt: fresh},
+		{SessionID: "sess-retention", AgentName: "coder-old", CostStatus: "unknown", CostSource: "none", Turns: 1, UpdatedAt: old},
+		{SessionID: "sess-retention", AgentName: "coder-boundary", CostStatus: "unknown", CostSource: "none", Turns: 1, UpdatedAt: boundary},
+		{SessionID: "sess-retention", AgentName: "coder-fresh", CostStatus: "unknown", CostSource: "none", Turns: 1, UpdatedAt: fresh},
 	} {
 		if err := globalDB.UpdateTokenStats(ctx, update); err != nil {
 			t.Fatalf("UpdateTokenStats(%q) error = %v", update.AgentName, err)
@@ -2471,6 +2477,8 @@ func TestGlobalDBUpdateTokenStatsAggregation(t *testing.T) {
 		TotalTokens:  &totalA,
 		CostAmount:   &costA,
 		CostCurrency: &currency,
+		CostStatus:   "actual",
+		CostSource:   "agent_reported",
 		Turns:        1,
 	}); err != nil {
 		t.Fatalf("UpdateTokenStats() error = %v", err)
@@ -2486,6 +2494,8 @@ func TestGlobalDBUpdateTokenStatsAggregation(t *testing.T) {
 		TotalTokens:  &totalB,
 		CostAmount:   &costB,
 		CostCurrency: &currency,
+		CostStatus:   "actual",
+		CostSource:   "agent_reported",
 		Turns:        1,
 	}); err != nil {
 		t.Fatalf("UpdateTokenStats() error = %v", err)
@@ -2513,8 +2523,72 @@ func TestGlobalDBUpdateTokenStatsAggregation(t *testing.T) {
 	if stats[0].CostCurrency == nil || *stats[0].CostCurrency != "USD" {
 		t.Fatalf("CostCurrency = %#v, want USD", stats[0].CostCurrency)
 	}
+	if stats[0].CostStatus != "actual" || stats[0].CostSource != "agent_reported" {
+		t.Fatalf("cost provenance = %q/%q, want actual/agent_reported", stats[0].CostStatus, stats[0].CostSource)
+	}
 	if stats[0].TurnCount != 2 {
 		t.Fatalf("TurnCount = %d, want 2", stats[0].TurnCount)
+	}
+
+	outputC := int64(1)
+	totalC := int64(1)
+	costC := 0.05
+	if err := globalDB.UpdateTokenStats(testutil.Context(t), TokenStatsUpdate{
+		SessionID:    "sess-stats",
+		AgentName:    "coder",
+		OutputTokens: &outputC,
+		TotalTokens:  &totalC,
+		CostAmount:   &costC,
+		CostCurrency: &currency,
+		CostStatus:   "estimated",
+		CostSource:   "catalog_config",
+		Turns:        1,
+	}); err != nil {
+		t.Fatalf("UpdateTokenStats(conflicting provenance) error = %v", err)
+	}
+	stats, err = globalDB.ListTokenStats(testutil.Context(t), TokenStatsQuery{SessionID: "sess-stats"})
+	if err != nil {
+		t.Fatalf("ListTokenStats(after provenance conflict) error = %v", err)
+	}
+	if stats[0].TotalTokens == nil || *stats[0].TotalTokens != 36 || stats[0].TurnCount != 3 {
+		t.Fatalf("token aggregate after provenance conflict = %#v, want 36 tokens over 3 turns", stats[0])
+	}
+	if stats[0].TotalCost != nil || stats[0].CostCurrency != nil ||
+		stats[0].CostStatus != "unknown" || stats[0].CostSource != "none" {
+		t.Fatalf("cost aggregate after provenance conflict = %#v, want fail-closed unknown/none", stats[0])
+	}
+
+	registerSessionForGlobalTests(t, globalDB, "sess-stats-overflow")
+	oneToken := int64(1)
+	maxCost := math.MaxFloat64
+	for range 2 {
+		if err := globalDB.UpdateTokenStats(testutil.Context(t), TokenStatsUpdate{
+			SessionID:    "sess-stats-overflow",
+			AgentName:    "coder",
+			TotalTokens:  &oneToken,
+			CostAmount:   &maxCost,
+			CostCurrency: &currency,
+			CostStatus:   "actual",
+			CostSource:   "agent_reported",
+			Turns:        1,
+		}); err != nil {
+			t.Fatalf("UpdateTokenStats(overflow) error = %v", err)
+		}
+	}
+	overflowStats, err := globalDB.ListTokenStats(
+		testutil.Context(t),
+		TokenStatsQuery{SessionID: "sess-stats-overflow"},
+	)
+	if err != nil {
+		t.Fatalf("ListTokenStats(after overflow) error = %v", err)
+	}
+	if len(overflowStats) != 1 || overflowStats[0].TotalTokens == nil ||
+		*overflowStats[0].TotalTokens != 2 || overflowStats[0].TurnCount != 2 {
+		t.Fatalf("token aggregate after overflow = %#v, want 2 tokens over 2 turns", overflowStats)
+	}
+	if overflowStats[0].TotalCost != nil || overflowStats[0].CostCurrency != nil ||
+		overflowStats[0].CostStatus != "unknown" || overflowStats[0].CostSource != "none" {
+		t.Fatalf("cost aggregate after overflow = %#v, want fail-closed unknown/none", overflowStats[0])
 	}
 }
 
@@ -2529,6 +2603,8 @@ func TestGlobalDBUpdateTokenStatsKeepsPerAgentRows(t *testing.T) {
 		SessionID:   "sess-multi-agent",
 		AgentName:   "coder",
 		InputTokens: &input,
+		CostStatus:  "unknown",
+		CostSource:  "none",
 	}); err != nil {
 		t.Fatalf("UpdateTokenStats(coder) error = %v", err)
 	}
@@ -2536,6 +2612,8 @@ func TestGlobalDBUpdateTokenStatsKeepsPerAgentRows(t *testing.T) {
 		SessionID:   "sess-multi-agent",
 		AgentName:   "reviewer",
 		InputTokens: &input,
+		CostStatus:  "unknown",
+		CostSource:  "none",
 	}); err != nil {
 		t.Fatalf("UpdateTokenStats(reviewer) error = %v", err)
 	}

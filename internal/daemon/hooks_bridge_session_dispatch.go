@@ -31,6 +31,21 @@ func (n *hooksNotifier) OnSessionStopped(ctx context.Context, sess *session.Sess
 	if agentEventNotify != nil {
 		agentEventNotify.OnSessionStopped(ctx, sess)
 	}
+	if runtime := n.subprocessHealthNotifier(); runtime != nil {
+		runtime.OnSessionStopped(ctx, sess)
+	}
+}
+
+// OnSessionFinalizing forwards the recorder-open lifecycle phase to observers that must append
+// terminal evidence before the session ledger is materialized.
+func (n *hooksNotifier) OnSessionFinalizing(ctx context.Context, sess *session.Session) {
+	if sess == nil {
+		return
+	}
+	_, agentEventNotify := n.runtime()
+	if finalizer, ok := agentEventNotify.(sessionFinalizationObserver); ok {
+		finalizer.OnSessionFinalizing(ctx, sess)
+	}
 }
 
 func (n *hooksNotifier) DispatchSessionPreCreate(

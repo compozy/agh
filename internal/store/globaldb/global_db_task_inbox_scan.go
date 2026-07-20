@@ -26,6 +26,7 @@ type taskInboxScanFields struct {
 	runWorkspaceID           sql.NullString
 	runStatus                sql.NullString
 	runAttempt               sql.NullInt64
+	runRecoveryCount         sql.NullInt64
 	runPreviousRunID         sql.NullString
 	runFailureKind           sql.NullString
 	runClaimedByKind         sql.NullString
@@ -124,6 +125,7 @@ func scanTaskInboxFields(
 		&fields.runWorkspaceID,
 		&fields.runStatus,
 		&fields.runAttempt,
+		&fields.runRecoveryCount,
 		&fields.runPreviousRunID,
 		&fields.runFailureKind,
 		&fields.runClaimedByKind,
@@ -159,6 +161,7 @@ func taskInboxRunScanFields(fields *taskInboxScanFields) taskCatalogScanFields {
 		activeRunWorkspaceID:     fields.runWorkspaceID,
 		activeRunStatus:          fields.runStatus,
 		activeRunAttempt:         fields.runAttempt,
+		activeRunRecoveryCount:   fields.runRecoveryCount,
 		activeRunPreviousRunID:   fields.runPreviousRunID,
 		activeRunFailureKind:     fields.runFailureKind,
 		activeRunClaimedByKind:   fields.runClaimedByKind,

@@ -60,6 +60,7 @@ func (s *Store) writeRaw(
 	}
 	info, err := os.Stat(path)
 	if err != nil {
+		s.recordCommittedMutation()
 		return fmt.Errorf("memory: stat written file %q: %w", path, err)
 	}
 	header.Filename = filepath.Base(path)
@@ -74,8 +75,10 @@ func (s *Store) writeRaw(
 		syncErr,
 		emitEvent,
 	); err != nil {
+		s.recordCommittedMutation()
 		return err
 	}
+	s.recordCommittedMutation()
 	if emitEvent {
 		s.logMutationEvent("write", normalizedScope, filepath.Base(path))
 	}
@@ -137,6 +140,7 @@ func (s *Store) deleteRaw(ctx context.Context, scope memcontract.Scope, filename
 		if err := fileutil.AtomicRemoveFile(path); err != nil {
 			return fmt.Errorf("memory: delete %q: %w", path, err)
 		}
+		s.recordCommittedMutation()
 		return nil
 	}
 	catalogWasDirty, err := s.prepareCatalogSourceMutation(normalizedScope)
@@ -160,8 +164,10 @@ func (s *Store) deleteRaw(ctx context.Context, scope memcontract.Scope, filename
 		syncErr,
 		emitEvent,
 	); err != nil {
+		s.recordCommittedMutation()
 		return err
 	}
+	s.recordCommittedMutation()
 	if emitEvent {
 		s.logMutationEvent("delete", normalizedScope, filepath.Base(path))
 	}

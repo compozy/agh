@@ -112,7 +112,7 @@ func (s *automationLoopStarter) DefaultLoopCatchUpPolicy(
 			return automationpkg.SchedulerCatchUpPolicyCoalesce, nil
 		}
 	}
-	return automationpkg.SchedulerCatchUpPolicySkip, nil
+	return automationpkg.SchedulerCatchUpPolicySkipMissed, nil
 }
 
 func (s *automationLoopStarter) StartLoop(

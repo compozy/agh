@@ -44,6 +44,9 @@ type sessionStartSpec struct {
 	cleanupSessionDir        bool
 	includePromptUpdatedAt   bool
 	preserveStopReason       bool
+	resumeReplay             bool
+	resumeReplayBlock        string
+	resumeReplayMessageCount int
 	clearEventStoreOnOpen    bool
 	createdAt                time.Time
 	acpSessionID             string

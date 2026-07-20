@@ -34,17 +34,6 @@ func (e FileError) Unwrap() error {
 	return e.Err
 }
 
-type daemonOverlay struct {
-	Socket         *string                     `toml:"socket"`
-	ReloadTimeouts daemonReloadTimeoutsOverlay `toml:"reload_timeouts"`
-}
-
-type daemonReloadTimeoutsOverlay struct {
-	Providers *time.Duration `toml:"providers"`
-	MCP       *time.Duration `toml:"mcp"`
-	Bridges   *time.Duration `toml:"bridges"`
-}
-
 type httpOverlay struct {
 	Host *string `toml:"host"`
 	Port *int    `toml:"port"`
@@ -87,9 +76,11 @@ type limitsOverlay struct {
 }
 
 type sessionOverlay struct {
-	Limits      sessionLimitsOverlay      `toml:"limits"`
-	Supervision sessionSupervisionOverlay `toml:"supervision"`
-	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
+	AutoTitleEnabled *bool                     `toml:"auto_title_enabled"`
+	Limits           sessionLimitsOverlay      `toml:"limits"`
+	Supervision      sessionSupervisionOverlay `toml:"supervision"`
+	BusyInput        sessionBusyInputOverlay   `toml:"busy_input"`
+	Compaction       sessionCompactionOverlay  `toml:"compaction"`
 }
 
 type sessionLimitsOverlay struct {
@@ -109,6 +100,13 @@ type sessionBusyInputOverlay struct {
 	DefaultMode  *string `toml:"default_mode"`
 	QueueCap     *int    `toml:"queue_cap"`
 	MaxTextBytes *int    `toml:"max_text_bytes"`
+}
+
+type sessionCompactionOverlay struct {
+	Enabled            *bool          `toml:"enabled"`
+	PressureThreshold  *float64       `toml:"pressure_threshold"`
+	MaxAttemptsPerTurn *int           `toml:"max_attempts_per_turn"`
+	FailureCooldown    *time.Duration `toml:"failure_cooldown"`
 }
 
 type permissionsOverlay struct {
@@ -205,14 +203,6 @@ type observabilityTranscriptsOverlay struct {
 	Enabled            *bool  `toml:"enabled"`
 	SegmentBytes       *int   `toml:"segment_bytes"`
 	MaxBytesPerSession *int64 `toml:"max_bytes_per_session"`
-}
-
-type logOverlay struct {
-	Level           *string `toml:"level"`
-	MaxSizeMB       *int    `toml:"max_size_mb"`
-	MaxBackups      *int    `toml:"max_backups"`
-	MaxAgeDays      *int    `toml:"max_age_days"`
-	CompressBackups *bool   `toml:"compress_backups"`
 }
 
 type memoryOverlay struct {
@@ -400,73 +390,6 @@ type extensionsRateLimitOverlay struct {
 	Queue    *int           `toml:"queue"`
 }
 
-type toolsOverlay struct {
-	Enabled               *bool                 `toml:"enabled"`
-	HostedMCPEnabled      *bool                 `toml:"hosted_mcp_enabled"`
-	DefaultMaxResultBytes *int64                `toml:"default_max_result_bytes"`
-	HostedMCP             toolsHostedMCPOverlay `toml:"hosted_mcp"`
-	Policy                toolsPolicyOverlay    `toml:"policy"`
-}
-
-type toolsHostedMCPOverlay struct {
-	BindNonceTTLSeconds *int `toml:"bind_nonce_ttl_seconds"`
-}
-
-type toolsPolicyOverlay struct {
-	ExternalDefault        *ToolsExternalDefault `toml:"external_default"`
-	ApprovalTimeoutSeconds *int                  `toml:"approval_timeout_seconds"`
-	TrustedSources         *[]string             `toml:"trusted_sources"`
-}
-
-type taskOverlay struct {
-	Orchestration taskOrchestrationOverlay `toml:"orchestration"`
-	Recovery      taskRecoveryOverlay      `toml:"recovery"`
-}
-
-type taskRecoveryOverlay struct {
-	AllowAgentForce *bool `toml:"allow_agent_force"`
-}
-
-type taskOrchestrationOverlay struct {
-	SummaryMaxBytes           *int                            `toml:"summary_max_bytes"`
-	ContextBodyMaxBytes       *int                            `toml:"context_body_max_bytes"`
-	ContextPriorAttempts      *int                            `toml:"context_prior_attempts"`
-	ContextRecentEvents       *int                            `toml:"context_recent_events"`
-	SpawnFailureLimit         *int                            `toml:"spawn_failure_limit"`
-	SchedulerBadTickThreshold *int                            `toml:"scheduler_bad_tick_threshold"`
-	SchedulerBadTickCooldown  *time.Duration                  `toml:"scheduler_bad_tick_cooldown"`
-	DefaultMaxRuntime         *time.Duration                  `toml:"default_max_runtime"`
-	BridgeNotificationTimeout *time.Duration                  `toml:"bridge_notification_timeout"`
-	DesignatedRunMax          *int                            `toml:"designated_run_max"`
-	NetworkStatusQueueSize    *int                            `toml:"network_status_queue_size"`
-	NetworkStatusTimeout      *time.Duration                  `toml:"network_status_timeout"`
-	Profile                   taskOrchestrationProfileOverlay `toml:"profile"`
-	Review                    taskOrchestrationReviewOverlay  `toml:"review"`
-}
-
-type taskOrchestrationProfileOverlay struct {
-	DefaultCoordinatorMode    *string `toml:"default_coordinator_mode"`
-	DefaultWorkerMode         *string `toml:"default_worker_mode"`
-	DefaultSandboxMode        *string `toml:"default_sandbox_mode"`
-	AllowTaskProviderOverride *bool   `toml:"allow_task_provider_override"`
-	AllowTaskSandboxNone      *bool   `toml:"allow_task_sandbox_none"`
-}
-
-type taskOrchestrationReviewOverlay struct {
-	DefaultPolicy             *string        `toml:"default_policy"`
-	MaxRounds                 *int           `toml:"max_rounds"`
-	MaxReviewAttempts         *int           `toml:"max_review_attempts"`
-	Timeout                   *time.Duration `toml:"timeout"`
-	RapidTerminalWindow       *time.Duration `toml:"rapid_terminal_window"`
-	RapidTerminalLimit        *int           `toml:"rapid_terminal_limit"`
-	MissingWorkMaxItems       *int           `toml:"missing_work_max_items"`
-	MissingWorkItemMaxBytes   *int           `toml:"missing_work_item_max_bytes"`
-	ReasonMaxBytes            *int           `toml:"reason_max_bytes"`
-	ReviewTextMaxBytes        *int           `toml:"review_text_max_bytes"`
-	NextRoundGuidanceMaxBytes *int           `toml:"next_round_guidance_max_bytes"`
-	FailurePolicy             *string        `toml:"failure_policy"`
-}
-
 type autonomyOverlay struct {
 	BlockRecurrenceLimit *int               `toml:"block_recurrence_limit"`
 	Coordinator          coordinatorOverlay `toml:"coordinator"`
@@ -589,25 +512,6 @@ func rejectRemovedProviderModelKeys(source string, keys []burnttoml.Key) error {
 	return nil
 }
 
-func (o daemonOverlay) Apply(dst *DaemonConfig) {
-	if o.Socket != nil {
-		dst.Socket = *o.Socket
-	}
-	o.ReloadTimeouts.Apply(&dst.ReloadTimeouts)
-}
-
-func (o daemonReloadTimeoutsOverlay) Apply(dst *DaemonReloadTimeoutsConfig) {
-	if o.Providers != nil {
-		dst.Providers = *o.Providers
-	}
-	if o.MCP != nil {
-		dst.MCP = *o.MCP
-	}
-	if o.Bridges != nil {
-		dst.Bridges = *o.Bridges
-	}
-}
-
 func (o httpOverlay) Apply(dst *HTTPConfig) {
 	if o.Host != nil {
 		dst.Host = *o.Host
@@ -688,51 +592,6 @@ func (o heartbeatOverlay) Apply(dst *HeartbeatConfig) {
 func (o limitsOverlay) Apply(dst *LimitsConfig) {
 	if o.MaxConcurrentAgents != nil {
 		dst.MaxConcurrentAgents = *o.MaxConcurrentAgents
-	}
-}
-
-func (o sessionOverlay) Apply(dst *SessionConfig) {
-	o.Limits.Apply(&dst.Limits)
-	o.Supervision.Apply(&dst.Supervision)
-	o.BusyInput.Apply(&dst.BusyInput)
-}
-
-func (o sessionLimitsOverlay) Apply(dst *SessionLimitsConfig) {
-	if o.Timeout != nil {
-		dst.Timeout = *o.Timeout
-	}
-}
-
-func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
-	if o.ActivityHeartbeatInterval != nil {
-		dst.ActivityHeartbeatInterval = *o.ActivityHeartbeatInterval
-	}
-	if o.ProgressNotifyInterval != nil {
-		dst.ProgressNotifyInterval = *o.ProgressNotifyInterval
-	}
-	if o.PromptDeadline != nil {
-		dst.PromptDeadline = *o.PromptDeadline
-	}
-	if o.InactivityWarningAfter != nil {
-		dst.InactivityWarningAfter = *o.InactivityWarningAfter
-	}
-	if o.InactivityTimeout != nil {
-		dst.InactivityTimeout = *o.InactivityTimeout
-	}
-	if o.TimeoutCancelGrace != nil {
-		dst.TimeoutCancelGrace = *o.TimeoutCancelGrace
-	}
-}
-
-func (o sessionBusyInputOverlay) Apply(dst *SessionBusyInputConfig) {
-	if o.DefaultMode != nil {
-		dst.DefaultMode = *o.DefaultMode
-	}
-	if o.QueueCap != nil {
-		dst.QueueCap = *o.QueueCap
-	}
-	if o.MaxTextBytes != nil {
-		dst.MaxTextBytes = *o.MaxTextBytes
 	}
 }
 
@@ -941,24 +800,6 @@ func (o observabilityTranscriptsOverlay) Apply(dst *ObservabilityTranscriptConfi
 	}
 	if o.MaxBytesPerSession != nil {
 		dst.MaxBytesPerSession = *o.MaxBytesPerSession
-	}
-}
-
-func (o logOverlay) Apply(dst *LogConfig) {
-	if o.Level != nil {
-		dst.Level = *o.Level
-	}
-	if o.MaxSizeMB != nil {
-		dst.MaxSizeMB = *o.MaxSizeMB
-	}
-	if o.MaxBackups != nil {
-		dst.MaxBackups = *o.MaxBackups
-	}
-	if o.MaxAgeDays != nil {
-		dst.MaxAgeDays = *o.MaxAgeDays
-	}
-	if o.CompressBackups != nil {
-		dst.CompressBackups = *o.CompressBackups
 	}
 }
 
@@ -1322,147 +1163,6 @@ func (o extensionsRateLimitOverlay) Apply(dst *ExtensionsResourceRateLimitConfig
 	}
 	if o.Queue != nil {
 		dst.Queue = *o.Queue
-	}
-}
-
-func (o toolsOverlay) Apply(dst *ToolsConfig) {
-	if o.Enabled != nil {
-		dst.Enabled = *o.Enabled
-	}
-	if o.HostedMCPEnabled != nil {
-		dst.HostedMCPEnabled = *o.HostedMCPEnabled
-	}
-	if o.DefaultMaxResultBytes != nil {
-		dst.DefaultMaxResultBytes = *o.DefaultMaxResultBytes
-	}
-	o.HostedMCP.Apply(&dst.HostedMCP)
-	o.Policy.Apply(&dst.Policy)
-}
-
-func (o toolsHostedMCPOverlay) Apply(dst *ToolsHostedMCPConfig) {
-	if o.BindNonceTTLSeconds != nil {
-		dst.BindNonceTTLSeconds = *o.BindNonceTTLSeconds
-	}
-}
-
-func (o toolsPolicyOverlay) Apply(dst *ToolsPolicyConfig) {
-	if o.ExternalDefault != nil {
-		dst.ExternalDefault = *o.ExternalDefault
-	}
-	if o.ApprovalTimeoutSeconds != nil {
-		dst.ApprovalTimeoutSeconds = *o.ApprovalTimeoutSeconds
-	}
-	if o.TrustedSources != nil {
-		dst.TrustedSources = append([]string(nil), (*o.TrustedSources)...)
-	}
-}
-
-func (o taskOverlay) Apply(dst *TaskConfig) {
-	o.Orchestration.Apply(&dst.Orchestration)
-	o.Recovery.Apply(&dst.Recovery)
-}
-
-func (o taskRecoveryOverlay) Apply(dst *TaskRecoveryConfig) {
-	if o.AllowAgentForce != nil {
-		dst.AllowAgentForce = *o.AllowAgentForce
-	}
-}
-
-func (o taskOrchestrationOverlay) Apply(dst *TaskOrchestrationConfig) {
-	if o.SummaryMaxBytes != nil {
-		dst.SummaryMaxBytes = *o.SummaryMaxBytes
-	}
-	if o.ContextBodyMaxBytes != nil {
-		dst.ContextBodyMaxBytes = *o.ContextBodyMaxBytes
-	}
-	if o.ContextPriorAttempts != nil {
-		dst.ContextPriorAttempts = *o.ContextPriorAttempts
-	}
-	if o.ContextRecentEvents != nil {
-		dst.ContextRecentEvents = *o.ContextRecentEvents
-	}
-	if o.SpawnFailureLimit != nil {
-		dst.SpawnFailureLimit = *o.SpawnFailureLimit
-	}
-	if o.SchedulerBadTickThreshold != nil {
-		dst.SchedulerBadTickThreshold = *o.SchedulerBadTickThreshold
-	}
-	if o.SchedulerBadTickCooldown != nil {
-		dst.SchedulerBadTickCooldown = *o.SchedulerBadTickCooldown
-	}
-	if o.DefaultMaxRuntime != nil {
-		dst.DefaultMaxRuntime = *o.DefaultMaxRuntime
-	}
-	if o.BridgeNotificationTimeout != nil {
-		dst.BridgeNotificationTimeout = *o.BridgeNotificationTimeout
-	}
-	if o.DesignatedRunMax != nil {
-		dst.DesignatedRunMax = *o.DesignatedRunMax
-	}
-	if o.NetworkStatusQueueSize != nil {
-		dst.NetworkStatusQueueSize = *o.NetworkStatusQueueSize
-	}
-	if o.NetworkStatusTimeout != nil {
-		dst.NetworkStatusTimeout = *o.NetworkStatusTimeout
-	}
-	o.Profile.Apply(&dst.Profile)
-	o.Review.Apply(&dst.Review)
-}
-
-func (o taskOrchestrationProfileOverlay) Apply(dst *TaskOrchestrationProfileConfig) {
-	if o.DefaultCoordinatorMode != nil {
-		dst.DefaultCoordinatorMode = *o.DefaultCoordinatorMode
-	}
-	if o.DefaultWorkerMode != nil {
-		dst.DefaultWorkerMode = *o.DefaultWorkerMode
-	}
-	if o.DefaultSandboxMode != nil {
-		dst.DefaultSandboxMode = *o.DefaultSandboxMode
-	}
-	if o.AllowTaskProviderOverride != nil {
-		dst.AllowTaskProviderOverride = *o.AllowTaskProviderOverride
-	}
-	if o.AllowTaskSandboxNone != nil {
-		dst.AllowTaskSandboxNone = *o.AllowTaskSandboxNone
-	}
-}
-
-func (o taskOrchestrationReviewOverlay) Apply(dst *TaskOrchestrationReviewConfig) {
-	if o.DefaultPolicy != nil {
-		dst.DefaultPolicy = *o.DefaultPolicy
-	}
-	if o.MaxRounds != nil {
-		dst.MaxRounds = *o.MaxRounds
-	}
-	if o.MaxReviewAttempts != nil {
-		dst.MaxReviewAttempts = *o.MaxReviewAttempts
-	}
-	if o.Timeout != nil {
-		dst.Timeout = *o.Timeout
-	}
-	if o.RapidTerminalWindow != nil {
-		dst.RapidTerminalWindow = *o.RapidTerminalWindow
-	}
-	if o.RapidTerminalLimit != nil {
-		dst.RapidTerminalLimit = *o.RapidTerminalLimit
-	}
-	if o.MissingWorkMaxItems != nil {
-		dst.MissingWorkMaxItems = *o.MissingWorkMaxItems
-	}
-	if o.MissingWorkItemMaxBytes != nil {
-		dst.MissingWorkItemMaxBytes = *o.MissingWorkItemMaxBytes
-	}
-	if o.ReasonMaxBytes != nil {
-		dst.ReasonMaxBytes = *o.ReasonMaxBytes
-	}
-	if o.ReviewTextMaxBytes != nil {
-		dst.ReviewTextMaxBytes = *o.ReviewTextMaxBytes
-	}
-	if o.NextRoundGuidanceMaxBytes != nil {
-		dst.NextRoundGuidanceMaxBytes = *o.NextRoundGuidanceMaxBytes
-	}
-	if o.FailurePolicy != nil {
-		dst.FailurePolicy = *o.FailurePolicy
 	}
 }
 

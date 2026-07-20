@@ -77,6 +77,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			TaskID:                       "task-1",
 			Status:                       taskpkg.TaskRunStatusRunning,
 			Attempt:                      2,
+			RecoveryCount:                1,
 			MaxAttempts:                  4,
 			SessionID:                    "sess-1",
 			ResolvedNetworkParticipation: &liveSpec,
@@ -108,9 +109,15 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		t.Fatalf("TaskSummaryPayloadFromSummary() = %#v", summaryPayload)
 	}
 	if summaryPayload.ActiveRun.ClaimTokenHash != summary.ActiveRun.ClaimTokenHash ||
+		summaryPayload.ActiveRun.RecoveryCount != summary.ActiveRun.RecoveryCount ||
 		summaryPayload.ActiveRun.DesignationGroupID != summary.ActiveRun.DesignationGroupID ||
 		summaryPayload.ActiveRun.Designation == nil {
 		t.Fatalf("TaskSummaryPayloadFromSummary() rich active run = %#v", summaryPayload.ActiveRun)
+	}
+	catalogPayload := contract.TaskCatalogItemPayloadFromSummary(&summary)
+	if catalogPayload.ActiveRun == nil ||
+		catalogPayload.ActiveRun.RecoveryCount != summary.ActiveRun.RecoveryCount {
+		t.Fatalf("TaskCatalogItemPayloadFromSummary() active run = %#v", catalogPayload.ActiveRun)
 	}
 
 	detailPayload := core.TaskDetailPayloadFromView(&taskpkg.View{
@@ -185,12 +192,16 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			ToolCallCount:  &toolCalls,
 			TotalCost:      &totalCost,
 			CostCurrency:   &currency,
+			CostStatus:     "estimated",
+			CostSource:     "catalog_config",
 		},
 	})
 	if runDetailPayload.Session == nil ||
 		runDetailPayload.Session.AgentName != "coder" ||
 		runDetailPayload.Summary.ToolCallCount == nil ||
 		*runDetailPayload.Summary.ToolCallCount != 3 ||
+		runDetailPayload.Summary.CostStatus != "estimated" ||
+		runDetailPayload.Summary.CostSource != "catalog_config" ||
 		runDetailPayload.Task.Priority != taskpkg.PriorityHigh ||
 		runDetailPayload.Task.LatestEventSeq != 19 ||
 		runDetailPayload.Run.DesignationGroupID != "designation-group" ||

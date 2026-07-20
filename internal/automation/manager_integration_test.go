@@ -12,7 +12,85 @@ import (
 	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/jonboulle/clockwork"
 )
+
+func TestManagerIntegrationAcceptedSuggestionDispatchesThroughScheduler(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerResourceHarness(t)
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2026, 7, 20, 7, 59, 0, 0, time.UTC))
+	manager := h.newManager(
+		t,
+		integrationAutomationConfig(),
+		WithResourceDefinitions(h.jobStore, h.triggerStore, h.actor, nil),
+		WithManagerNow(fakeClock.Now),
+		WithDispatcherOptions(WithDispatcherNow(fakeClock.Now)),
+		WithSchedulerOptions(WithSchedulerClock(fakeClock)),
+	)
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	suggestions, err := manager.ListSuggestions(
+		h.ctx,
+		h.workspace.ID,
+		SuggestionStatusPending,
+	)
+	if err != nil {
+		t.Fatalf("manager.ListSuggestions() error = %v", err)
+	}
+	var daily Suggestion
+	for _, suggestion := range suggestions {
+		if suggestion.Payload.Name == "Daily workspace briefing" {
+			daily = suggestion
+			break
+		}
+	}
+	if daily.ID == "" {
+		t.Fatalf("manager.ListSuggestions() = %#v, want daily workspace briefing", suggestions)
+	}
+	accepted, err := manager.AcceptSuggestion(h.ctx, h.workspace.ID, daily.ID)
+	if err != nil {
+		t.Fatalf("manager.AcceptSuggestion() error = %v", err)
+	}
+	if got, want := accepted.Job.ID, suggestionJobID(daily.WorkspaceID, daily.DedupKey); got != want {
+		t.Fatalf("accepted Job ID = %q, want %q", got, want)
+	}
+	state, err := manager.schedulerSnapshot().State(accepted.Job.ID)
+	if err != nil {
+		t.Fatalf("scheduler.State() error = %v", err)
+	}
+	wantNextRun := time.Date(2026, 7, 20, 8, 0, 0, 0, time.UTC)
+	if state.NextRun == nil || !state.NextRun.Equal(wantNextRun) {
+		t.Fatalf("scheduler.State().NextRun = %v, want %v", state.NextRun, wantNextRun)
+	}
+
+	waitForTimers(t, fakeClock, 1)
+	fakeClock.Advance(time.Minute)
+	waitUntil(t, 2*time.Second, 25*time.Millisecond, func() bool {
+		runs, listErr := h.db.ListRuns(h.ctx, RunQuery{JobID: accepted.Job.ID})
+		if listErr != nil {
+			t.Fatalf("ListRuns() error = %v", listErr)
+		}
+		return len(runs) == 1
+	})
+	runs, err := h.db.ListRuns(h.ctx, RunQuery{JobID: accepted.Job.ID})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if got, want := runs[0].Status, RunCompleted; got != want {
+		t.Fatalf("ListRuns()[0].Status = %q, want %q; run = %#v", got, want, runs[0])
+	}
+	if got := len(h.sessions.creator.promptCalls()); got != 1 {
+		t.Fatalf("len(Prompt calls) = %d, want 1", got)
+	}
+}
 
 func TestManagerIntegrationDirectTaskBackedJobDelegatesIntoTaskDomain(t *testing.T) {
 	t.Parallel()
@@ -240,6 +318,7 @@ func TestManagerIntegrationAutomationSessionCanCreateTaskWithAutomationOrigin(t 
 	h := newManagerHarness(t)
 	h.sessions = newManagerSessionStub(sessionAttemptPlan{
 		sessionID:     "sess-automation-agent",
+		workspaceID:   h.workspace.ID,
 		promptStarted: promptStarted,
 		promptRelease: promptRelease,
 	})
@@ -546,5 +625,8 @@ func integrationAutomationConfig() aghconfig.AutomationConfig {
 		Timezone:          DefaultTimezone,
 		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
 		DefaultFireLimit:  DefaultFireLimitConfig(),
+		Suggestions: aghconfig.AutomationSuggestionsConfig{
+			PendingCap: DefaultSuggestionPendingCap,
+		},
 	}
 }

@@ -17,6 +17,7 @@ import {
 import { createElement, useState } from "react";
 
 import { deriveMCPManagementFilter } from "@/systems/settings";
+import { SkillActivationPill, SkillActivationReasons } from "@/systems/skill";
 
 import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-page";
 import { marketplaceMCPInstalledStatus } from "../lib/mcp-installed-status";
@@ -313,6 +314,13 @@ function InstalledCardHead({
           {entry.description}
         </CatalogCard.Description>
       ) : null}
+      {item.skill && !item.skill.activation.active ? (
+        <SkillActivationReasons
+          data-testid={`skill-card-activation-reasons-${item.skill.name}`}
+          density="compact"
+          reasons={item.skill.activation.reasons ?? []}
+        />
+      ) : null}
     </>
   );
 }
@@ -328,6 +336,13 @@ function InstalledPills({
   return (
     <>
       {item.viaBundle ? <Pill mono>{`via ${item.viaBundle}`}</Pill> : null}
+      {item.skill ? (
+        <SkillActivationPill
+          active={item.skill.activation.active}
+          data-testid={`skill-card-activation-status-${item.skill.name}`}
+          mono
+        />
+      ) : null}
       {mcpStatus ? (
         <Pill mono tone={mcpStatus.tone}>
           {mcpStatus.label}

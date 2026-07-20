@@ -20,7 +20,7 @@ type RuntimeRegistry struct {
 	toolsets              ToolsetCatalog
 	hooks                 HookRunner
 	approvalBridge        ApprovalBridge
-	limiter               ResultLimiter
+	processor             ResultProcessor
 	events                ToolEventSink
 	defaultMaxResultBytes int64
 	sensitiveFields       []string
@@ -97,10 +97,10 @@ func WithApprovalBridge(bridge ApprovalBridge) RegistryOption {
 	}
 }
 
-// WithResultLimiter wires result budget and redaction enforcement.
-func WithResultLimiter(limiter ResultLimiter) RegistryOption {
+// WithResultProcessor wires result redaction, offload, and budget enforcement.
+func WithResultProcessor(processor ResultProcessor) RegistryOption {
 	return func(registry *RuntimeRegistry) {
-		registry.limiter = limiter
+		registry.processor = processor
 	}
 }
 

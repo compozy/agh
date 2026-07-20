@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/agh/internal/admission"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/network/participation"
@@ -102,6 +103,14 @@ type Manager struct {
 	managedInputMu     sync.Mutex
 	managedInputLeases map[string]managedInputLease
 	goalCommandMu      sync.RWMutex
+	resumeReplayMu     sync.Mutex
+	resumeReplays      map[string]string
+	interruptSalvageMu sync.Mutex
+	interruptSalvages  map[string]interruptedPromptSalvage
+	compactionMu       sync.Mutex
+	compactions        map[string]*sessionCompactionState
+	compactionWG       sync.WaitGroup
+	compactionClosing  bool
 
 	syntheticMu           sync.Mutex
 	syntheticQueues       map[string][]queuedSyntheticPrompt
@@ -125,6 +134,7 @@ type Manager struct {
 	inputQueue                   *inputqueue.Service
 	inputQueueStore              store.SessionInputQueueStore
 	managedInputLifecycle        ManagedInputLifecycle
+	workAdmission                admission.Checker
 	goalCommandHandler           GoalCommandHandler
 	startupOverlay               StartupPromptOverlay
 	hooks                        HookSet
@@ -152,6 +162,8 @@ type Manager struct {
 	assembler                    PromptAssembler
 	supervision                  aghconfig.SessionSupervisionConfig
 	busyInput                    aghconfig.SessionBusyInputConfig
+	compaction                   aghconfig.SessionCompactionConfig
+	compactionHandler            CompactionHandler
 	sessionHealthStaleAfter      time.Duration
 	lifecycleCtx                 context.Context
 	now                          func() time.Time

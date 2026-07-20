@@ -68,6 +68,8 @@ func (s *Store) ProposeWrite(
 	if ctx == nil {
 		return DecisionApplyResult{}, errors.New("memory: propose write context is required")
 	}
+	unlock := s.lockControllerDecisions()
+	defer unlock()
 	normalizedScope := scope.Normalize()
 	base, err := cleanFilename(filename)
 	if err != nil {
@@ -104,7 +106,7 @@ func (s *Store) ProposeWrite(
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}
-	return s.ApplyDecision(ctx, decision)
+	return s.applyDecision(ctx, decision)
 }
 
 // ProposeDelete decides and applies a controller-backed memory delete.
@@ -117,6 +119,8 @@ func (s *Store) ProposeDelete(
 	if ctx == nil {
 		return DecisionApplyResult{}, errors.New("memory: propose delete context is required")
 	}
+	unlock := s.lockControllerDecisions()
+	defer unlock()
 	normalizedScope := scope.Normalize()
 	base, err := cleanFilename(filename)
 	if err != nil {
@@ -146,7 +150,7 @@ func (s *Store) ProposeDelete(
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}
-	return s.ApplyDecision(ctx, decision)
+	return s.applyDecision(ctx, decision)
 }
 
 // ProposeCandidate decides and applies one already-structured memory candidate.
@@ -160,6 +164,8 @@ func (s *Store) ProposeCandidate(
 	if s == nil {
 		return memcontract.Decision{}, errors.New("memory: store is required")
 	}
+	unlock := s.lockControllerDecisions()
+	defer unlock()
 	normalized := candidate
 	normalized.Scope = normalized.Scope.Normalize()
 	if normalized.Scope == "" && normalized.Frontmatter.Type.Normalize() != "" {
@@ -187,40 +193,21 @@ func (s *Store) ProposeCandidate(
 	if err != nil {
 		return memcontract.Decision{}, err
 	}
-	result, err := s.ApplyDecision(ctx, decision)
+	result, err := s.applyDecision(ctx, decision)
 	if err != nil {
 		return memcontract.Decision{}, err
 	}
 	return result.Decision, nil
 }
 
-func (s *Store) parseControlledWrite(
-	scope memcontract.Scope,
-	filename string,
-	content []byte,
-) (string, memcontract.Header, error) {
-	var header memcontract.Header
-	body, err := parseFrontmatter(content, &header)
-	if err != nil {
-		return "", memcontract.Header{}, fmt.Errorf(
-			"memory: parse frontmatter %q: %w",
-			filename,
-			fmt.Errorf("%w: %v", ErrValidation, err),
-		)
-	}
-	completedHeader, err := s.completeHeaderForScope(scope, header)
-	if err != nil {
-		return "", memcontract.Header{}, err
-	}
-	completedHeader.Filename = filename
-	if err := completedHeader.Validate(); err != nil {
-		return "", memcontract.Header{}, wrapValidationError("validate frontmatter", filename, err)
-	}
-	return strings.TrimSpace(body), completedHeader, nil
-}
-
 // ApplyDecision persists the Decision WAL row before applying the corresponding file mutation.
 func (s *Store) ApplyDecision(ctx context.Context, decision memcontract.Decision) (DecisionApplyResult, error) {
+	unlock := s.lockControllerDecisions()
+	defer unlock()
+	return s.applyDecision(ctx, decision)
+}
+
+func (s *Store) applyDecision(ctx context.Context, decision memcontract.Decision) (DecisionApplyResult, error) {
 	if ctx == nil {
 		return DecisionApplyResult{}, errors.New("memory: apply decision context is required")
 	}
@@ -290,6 +277,8 @@ func (s *Store) RevertDecision(ctx context.Context, id string) (DecisionRevertRe
 	if ctx == nil {
 		return DecisionRevertResult{}, errors.New("memory: revert decision context is required")
 	}
+	unlock := s.lockControllerDecisions()
+	defer unlock()
 	if err := s.ensureDecisionCatalog(ctx); err != nil {
 		return DecisionRevertResult{}, err
 	}
@@ -305,28 +294,12 @@ func (s *Store) RevertDecision(ctx context.Context, id string) (DecisionRevertRe
 	reverted := false
 	switch decision.Op {
 	case memcontract.OpAdd:
-		if err := target.ensureCurrentHashRequired(decision); err != nil {
-			return DecisionRevertResult{}, err
-		}
-		if err := target.deleteRaw(ctx, decisionScope(decision.Decision), decision.TargetFilename, false); err != nil &&
-			!errors.Is(err, os.ErrNotExist) {
+		if err := target.revertAddDecision(ctx, decision); err != nil {
 			return DecisionRevertResult{}, err
 		}
 		reverted = true
 	case memcontract.OpUpdate:
-		if strings.TrimSpace(decision.PriorContent) == "" {
-			return DecisionRevertResult{}, fmt.Errorf("memory: decision %q has no prior_content", decision.ID)
-		}
-		if err := target.ensureCurrentHashRequired(decision); err != nil {
-			return DecisionRevertResult{}, err
-		}
-		if err := target.writeRaw(
-			ctx,
-			decisionScope(decision.Decision),
-			decision.TargetFilename,
-			[]byte(decision.PriorContent),
-			false,
-		); err != nil {
+		if err := target.revertUpdateDecision(ctx, decision); err != nil {
 			return DecisionRevertResult{}, err
 		}
 		reverted = true

@@ -21,7 +21,7 @@ const (
 	modelCatalogCurateSegment    = "curate"
 	modelCatalogRefreshSegment   = "refresh"
 	modelCatalogSourcesSegment   = "sources"
-	modelCatalogStatusSegment    = "status"
+	statusKey                    = "status"
 )
 
 var errModelCatalogRouteNotFound = errors.New("model catalog route not found")
@@ -76,7 +76,7 @@ func (h *BaseHandlers) dispatchModelCatalogGET(c *gin.Context, parts []string) {
 	switch {
 	case len(parts) == 1 && parts[0] == modelCatalogModelsSegment:
 		h.listProviderModels(c, "")
-	case len(parts) == 2 && parts[0] == modelCatalogSourcesSegment && parts[1] == modelCatalogStatusSegment:
+	case len(parts) == 2 && parts[0] == modelCatalogSourcesSegment && parts[1] == statusKey:
 		h.providerModelStatus(c, "")
 	case len(parts) == 3 &&
 		parts[0] == modelCatalogProvidersSegment &&
@@ -85,7 +85,7 @@ func (h *BaseHandlers) dispatchModelCatalogGET(c *gin.Context, parts []string) {
 	case len(parts) == 4 &&
 		parts[0] == modelCatalogProvidersSegment &&
 		parts[2] == modelCatalogModelsSegment &&
-		parts[3] == modelCatalogStatusSegment:
+		parts[3] == statusKey:
 		h.providerModelStatus(c, parts[1])
 	default:
 		RespondError(c, http.StatusNotFound, errModelCatalogRouteNotFound, h.MaskInternalErrors)

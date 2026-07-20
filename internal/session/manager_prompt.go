@@ -28,6 +28,8 @@ type promptPumpLoopState struct {
 	activity            *promptActivitySupervisor
 	turnEnded           bool
 	sourceProbeRequired bool
+	fileMutations       fileMutationVerifier
+	fileMutationMarked  bool
 }
 
 func (s *promptPumpLoopState) active() bool {
@@ -95,116 +97,11 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 	if err != nil {
 		return nil, err
 	}
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return nil, err
+	}
 
 	return m.submitPromptRequest(ctx, req)
-}
-
-func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts PromptOpts) (promptRequest, error) {
-	if ctx == nil {
-		return promptRequest{}, errors.New("session: prompt context is required")
-	}
-
-	target := strings.TrimSpace(id)
-	if target == "" {
-		return promptRequest{}, errors.New("session: session id is required")
-	}
-
-	message := strings.TrimSpace(opts.Message)
-	if message == "" {
-		return promptRequest{}, errors.New("session: prompt message is required")
-	}
-
-	turnSource := normalizeTurnSource(opts.TurnSource)
-	if turnSource == "" {
-		return promptRequest{}, fmt.Errorf(
-			"session: invalid turn source %q",
-			strings.TrimSpace(string(opts.TurnSource)),
-		)
-	}
-
-	meta, err := normalizePromptMeta(turnSource, opts.PromptMeta, promptSubmissionPathUserFacing)
-	if err != nil {
-		return promptRequest{}, err
-	}
-
-	return promptRequest{
-		turnID:          m.newPromptTurnID(),
-		target:          target,
-		message:         message,
-		authoredMessage: message,
-		turnSource:      turnSource,
-		meta:            meta,
-		deliveryCtx:     opts.DeliveryContext,
-	}, nil
-}
-
-func normalizePromptMeta(
-	turnSource TurnSource,
-	meta acp.PromptMeta,
-	path promptSubmissionPath,
-) (acp.PromptMeta, error) {
-	normalized := meta.Normalize()
-	if normalized.TurnSource == "" {
-		normalized.TurnSource = string(turnSource)
-	}
-	if normalized.TurnSource != string(turnSource) {
-		return acp.PromptMeta{}, fmt.Errorf(
-			"session: prompt turn source %q does not match metadata turn_source %q",
-			turnSource,
-			normalized.TurnSource,
-		)
-	}
-	if turnSource == TurnSourceSynthetic {
-		if path != promptSubmissionPathSynthetic {
-			return acp.PromptMeta{}, errors.New(
-				"session: synthetic prompt turns require the dedicated synthetic submission path",
-			)
-		}
-		if normalized.Synthetic == nil {
-			return acp.PromptMeta{}, errors.New(
-				"session: synthetic prompt turns require synthetic metadata",
-			)
-		}
-	}
-	if turnSource == TurnSourceUser && normalized.Network != nil {
-		return acp.PromptMeta{}, errors.New("session: user prompt metadata cannot include network fields")
-	}
-	if err := normalized.Validate(); err != nil {
-		return acp.PromptMeta{}, err
-	}
-	return normalized, nil
-}
-
-func (m *Manager) newPromptTurnID() string {
-	if m == nil || m.newTurnID == nil {
-		return newID("turn")
-	}
-
-	turnID := strings.TrimSpace(m.newTurnID())
-	if turnID == "" {
-		return newID("turn")
-	}
-	return turnID
-}
-
-func (m *Manager) lookupPromptSession(ctx context.Context, target string) (*Session, error) {
-	session, err := m.lookup(target)
-	if err == nil {
-		return session, nil
-	}
-	if !errors.Is(err, ErrSessionNotFound) {
-		return nil, err
-	}
-
-	meta, metaErr := m.readMetaWithContext(ctx, target)
-	switch {
-	case metaErr == nil:
-		return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)
-	case errors.Is(metaErr, ErrSessionNotFound):
-		return nil, err
-	default:
-		return nil, metaErr
-	}
 }
 
 // CancelPrompt cancels prompt setup/execution for a known session.
@@ -242,7 +139,7 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 			turnID,
 			transcript.MarkerPromptCancel,
 			"Prompt canceled by operator.",
-			map[string]any{"source": "cancel_prompt"},
+			map[string]any{transcriptMarkerEvidenceSourceKey: "cancel_prompt"},
 		)
 		return nil
 	}
@@ -266,7 +163,7 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 		turnID,
 		transcript.MarkerPromptCancel,
 		"Prompt canceled by operator.",
-		map[string]any{"source": "cancel_prompt"},
+		map[string]any{transcriptMarkerEvidenceSourceKey: "cancel_prompt"},
 	)
 	return nil
 }
@@ -651,37 +548,14 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
 		return fmt.Errorf("session: record prompt event: %w", err)
 	}
+	loop.fileMutations.Observe(normalized)
+	m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, normalized)
 	m.notifyManagedPromptEvent(ctx, session, turnState, normalized)
+	m.scheduleCompactionFromUsage(session, normalized)
 	if kind, summary, evidence, ok := promptTranscriptMarker(normalized); ok {
 		m.emitTranscriptMarker(ctx, session, turnState.turnID, kind, summary, evidence)
 	}
 	return nil
-}
-
-func (m *Manager) emitTranscriptMarker(
-	ctx context.Context,
-	session *Session,
-	turnID string,
-	kind string,
-	summary string,
-	evidence map[string]any,
-) {
-	marker, err := transcript.NewMarker(kind, summary, m.now(), evidence)
-	if err != nil {
-		m.sessionLogger(session).Warn("session: build transcript marker failed", "kind", kind, "error", err)
-		return
-	}
-	event, err := marker.AgentEvent("", turnID)
-	if err != nil {
-		m.sessionLogger(session).Warn("session: convert transcript marker failed", "kind", kind, "error", err)
-		return
-	}
-	normalized := transcript.RedactAgentEvent(m.normalizeEvent(session, turnID, event))
-	if err := m.recordEvent(ctx, session, normalized); err != nil {
-		m.sessionLogger(session).Warn("session: record transcript marker failed", "kind", kind, "error", err)
-		return
-	}
-	m.notifyAgentEvent(ctx, session, normalized)
 }
 
 func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]any, bool) {
@@ -833,19 +707,6 @@ func ackPromptPumpRuntimeEvent(loop *promptPumpLoopState, normalized acp.AgentEv
 	if runtimeEvent && loop.activity != nil {
 		loop.activity.ackPromptDeadlineWarning(normalized)
 	}
-}
-
-func (m *Manager) finishPromptTurnIfNeeded(
-	ctx context.Context,
-	turnState *promptTurnDispatchState,
-	loop *promptPumpLoopState,
-	normalized acp.AgentEvent,
-) bool {
-	if !isPromptTerminalEvent(normalized.Type) {
-		return false
-	}
-	m.dispatchTurnEnd(ctx, turnState, normalized.Timestamp)
-	return loop.turnEndedShouldReturn()
 }
 
 func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.AgentEvent) acp.AgentEvent {

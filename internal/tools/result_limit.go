@@ -22,24 +22,30 @@ const (
 
 const redactedJSONValue = "[REDACTED]"
 
-// DefaultResultLimiter applies descriptor/default byte caps and secret redaction.
-type DefaultResultLimiter struct {
+// DefaultResultProcessor applies secret redaction and descriptor/default byte caps.
+type DefaultResultProcessor struct {
 	defaultMaxBytes int64
+	artifacts       ToolArtifactStore
 	sensitiveFields []string
 }
 
-var _ ResultLimiter = (*DefaultResultLimiter)(nil)
+var _ ResultProcessor = (*DefaultResultProcessor)(nil)
 
-// NewResultLimiter builds the default registry result limiter.
-func NewResultLimiter(defaultMaxBytes int64, sensitiveFields ...string) *DefaultResultLimiter {
-	return &DefaultResultLimiter{
+// NewResultProcessor builds the default registry result processor.
+func NewResultProcessor(
+	defaultMaxBytes int64,
+	artifacts ToolArtifactStore,
+	sensitiveFields ...string,
+) *DefaultResultProcessor {
+	return &DefaultResultProcessor{
 		defaultMaxBytes: defaultMaxBytes,
+		artifacts:       artifacts,
 		sensitiveFields: normalizeSensitiveFields(sensitiveFields),
 	}
 }
 
-// Apply redacts sensitive fields, computes byte size, and truncates deterministically.
-func (l *DefaultResultLimiter) Apply(ctx context.Context, d Descriptor, result ToolResult) (ToolResult, error) {
+// Sanitize redacts sensitive fields before a result reaches post-call hooks.
+func (l *DefaultResultProcessor) Sanitize(ctx context.Context, d Descriptor, result ToolResult) (ToolResult, error) {
 	if err := contextErr(ctx, d.ID); err != nil {
 		return ToolResult{}, err
 	}
@@ -52,20 +58,13 @@ func (l *DefaultResultLimiter) Apply(ctx context.Context, d Descriptor, result T
 	if err := refreshResultEnvelopeBytes(&limited); err != nil {
 		return ToolResult{}, resultLimiterRejection(d.ID, err)
 	}
-	maxBytes := l.maxBytes(d)
-	if maxBytes >= 0 && limited.Bytes > maxBytes {
-		limited, err = truncateToolResult(limited, maxBytes)
-		if err != nil {
-			return ToolResult{}, resultLimiterRejection(d.ID, err)
-		}
-	}
-	if err := limited.Validate(maxBytes); err != nil {
+	if err := limited.Validate(-1); err != nil {
 		return ToolResult{}, resultLimiterRejection(d.ID, err)
 	}
 	return limited, nil
 }
 
-func resultLimiterRejection(id ToolID, err error) error {
+func resultLimiterRejection(id ToolID, err error) *ToolError {
 	reason, ok := ReasonOf(err)
 	if !ok {
 		reason = ReasonResultBudgetExceeded
@@ -79,7 +78,7 @@ func resultLimiterRejection(id ToolID, err error) error {
 	)
 }
 
-func (l *DefaultResultLimiter) maxBytes(d Descriptor) int64 {
+func (l *DefaultResultProcessor) maxBytes(d Descriptor) int64 {
 	switch {
 	case d.MaxResultBytes > 0:
 		return d.MaxResultBytes
@@ -291,7 +290,11 @@ func refreshResultEnvelopeBytes(result *ToolResult) error {
 	return nil
 }
 
-func truncateToolResult(result ToolResult, maxBytes int64) (ToolResult, error) {
+func truncateToolResult(
+	result ToolResult,
+	maxBytes int64,
+	artifacts []ArtifactRef,
+) (ToolResult, error) {
 	originalBytes := result.Bytes
 	if maxBytes < 0 {
 		return result, nil
@@ -311,7 +314,7 @@ func truncateToolResult(result ToolResult, maxBytes int64) (ToolResult, error) {
 	}
 	result.Structured = nil
 	result.Preview = preview
-	result.Artifacts = nil
+	result.Artifacts = append([]ArtifactRef(nil), artifacts...)
 	result.Truncated = true
 	if err := refreshResultEnvelopeBytes(&result); err != nil {
 		return ToolResult{}, err

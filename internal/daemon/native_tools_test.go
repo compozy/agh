@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -57,6 +58,33 @@ type nativeSessionPageHealthManager struct {
 	healthByID  map[string]heartbeat.SessionHealth
 	healthCalls int
 	healthInfos []*session.Info
+}
+
+type nativeClarifyBrokerStub struct{}
+
+func (nativeClarifyBrokerStub) Ask(
+	context.Context,
+	toolspkg.Scope,
+	toolspkg.ClarifyQuestion,
+) (toolspkg.ClarifyAnswer, error) {
+	choice := 0
+	return toolspkg.ClarifyAnswer{Choice: &choice}, nil
+}
+
+func (nativeClarifyBrokerStub) Pending(
+	context.Context,
+	toolspkg.Scope,
+) ([]toolspkg.ClarifyPending, error) {
+	return nil, nil
+}
+
+func (nativeClarifyBrokerStub) Answer(
+	context.Context,
+	toolspkg.Scope,
+	string,
+	toolspkg.ClarifyAnswerRequest,
+) (toolspkg.ClarifyAnswer, error) {
+	return toolspkg.ClarifyAnswer{}, errors.New("native clarify broker stub: unexpected Answer call")
 }
 
 func (m *nativeSessionPageHealthManager) SessionHealthForPage(
@@ -130,6 +158,100 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should page retained tool results only within the caller workspace", func(t *testing.T) {
+		t.Parallel()
+
+		store := openDaemonTestToolArtifactStore(t)
+		ref, err := store.Put(t.Context(), "workspace-a", []byte("abcdefgh"))
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			ToolArtifacts: store,
+		}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-a"}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDToolArtifactRead,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"artifact_uri":%q,"offset":2,"limit":3}`,
+				ref.URI,
+			)),
+		})
+		if err != nil {
+			t.Fatalf("Call(tool artifact read) error = %v", err)
+		}
+		var page toolspkg.ToolArtifactPage
+		if err := json.Unmarshal(result.Structured, &page); err != nil {
+			t.Fatalf("json.Unmarshal(page) error = %v", err)
+		}
+		if page.Offset != 2 || page.Bytes != 3 || page.NextOffset != 5 || page.EOF {
+			t.Fatalf("page = %#v, want bounded middle page", page)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+		if err != nil {
+			t.Fatalf("DecodeString() error = %v", err)
+		}
+		if got, want := string(decoded), "cde"; got != want {
+			t.Fatalf("page bytes = %q, want %q", got, want)
+		}
+
+		_, err = registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-b"}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDToolArtifactRead,
+			Input:  json.RawMessage(fmt.Sprintf(`{"artifact_uri":%q}`, ref.URI)),
+		})
+		if !errors.Is(err, toolspkg.ErrToolNotFound) {
+			t.Fatalf("Call(foreign workspace) error = %v, want indistinguishable not found", err)
+		}
+
+		_, err = registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-a"}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDToolArtifactRead,
+			Input:  json.RawMessage(fmt.Sprintf(`{"artifact_uri":%q,"offset":9}`, ref.URI)),
+		})
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+			t.Fatalf("Call(offset beyond end) error = %v, want invalid input", err)
+		}
+	})
+
+	t.Run("Should project clarification after its boot-scoped broker becomes available", func(t *testing.T) {
+		t.Parallel()
+
+		var broker toolspkg.ClarifyBroker
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Clarify: func() toolspkg.ClarifyBroker { return broker },
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "session-clarify", WorkspaceID: "ws-clarify", AgentName: "general"}
+
+		views, err := registry.List(t.Context(), scope)
+		if err != nil {
+			t.Fatalf("List(before clarify broker) error = %v", err)
+		}
+		if slices.ContainsFunc(views, func(view toolspkg.ToolView) bool {
+			return view.Descriptor.ID == toolspkg.ToolIDClarify
+		}) {
+			t.Fatal("List(before clarify broker) exposed agh__clarify")
+		}
+
+		broker = nativeClarifyBrokerStub{}
+		views, err = registry.List(t.Context(), scope)
+		if err != nil {
+			t.Fatalf("List(after clarify broker) error = %v", err)
+		}
+		if !slices.ContainsFunc(views, func(view toolspkg.ToolView) bool {
+			return view.Descriptor.ID == toolspkg.ToolIDClarify
+		}) {
+			t.Fatal("List(after clarify broker) missing agh__clarify")
+		}
+
+		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDClarify,
+			Input:  json.RawMessage(`{"question":"Deploy?","choices":["Staging","Production"]}`),
+		})
+		if err != nil {
+			t.Fatalf("Call(agh__clarify) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"choice":0`))
+	})
 
 	t.Run("Should redact every canonical secret shape from network results", func(t *testing.T) {
 		t.Parallel()
@@ -1557,6 +1679,32 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, goalResult, []byte(`"restart-required"`))
 
+		capacityResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input: json.RawMessage(
+					`{"path":"task.orchestration.max_active_runs_per_workspace","value":8}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set task workspace capacity) error = %v", err)
+		}
+		cfg, err = aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after task workspace capacity) error = %v", err)
+		}
+		if cfg.Task.Orchestration.MaxActiveRunsPerWorkspace != 8 {
+			t.Fatalf(
+				"Task.Orchestration.MaxActiveRunsPerWorkspace = %d, want 8",
+				cfg.Task.Orchestration.MaxActiveRunsPerWorkspace,
+			)
+		}
+		requireNativeStructuredContains(t, capacityResult, []byte(`"restart-required"`))
+		requireNativeStructuredContains(t, capacityResult, []byte(`"next_action":"restart-daemon"`))
+
 		marketplaceResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
@@ -2801,6 +2949,35 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if !slices.Equal(tasks.lastCompletion.CreatedTaskIDs, []string{"task-child"}) {
 			t.Fatalf("completion created task ids = %#v, want task-child", tasks.lastCompletion.CreatedTaskIDs)
+		}
+	})
+
+	t.Run("Should project workspace capacity as a typed autonomy conflict", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &nativeTaskManager{claimErr: taskpkg.ErrWorkspaceActiveRunCapReached}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-1", AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunClaimNext,
+				Input:  json.RawMessage(`{}`),
+			},
+		)
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) ||
+			toolErr.Code != toolspkg.ErrorCodeConflict ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonAutonomyWorkspaceCapacity) ||
+			!errors.Is(err, taskpkg.ErrWorkspaceActiveRunCapReached) ||
+			!errors.Is(err, toolspkg.ErrToolConflict) {
+			t.Fatalf("Registry.Call(task_run_claim_next) error = %#v, want workspace capacity conflict", err)
+		}
+		if tasks.claimNextCalls != 1 {
+			t.Fatalf("ClaimNextRun() calls = %d, want 1", tasks.claimNextCalls)
 		}
 	})
 
@@ -4961,6 +5138,18 @@ func TestDaemonNativeTools(t *testing.T) {
 			[]byte(`workspace::`+stableWorkspaceID+`::workspace.md::chunk:0001`),
 		)
 		requireNativeStructuredExcludes(t, searchResult, []byte(rawClaim))
+		if err := memoryStore.ForWorkspace(workspaceRoot).Write(
+			memcontract.ScopeWorkspace,
+			"batch.md",
+			nativeMemoryDocument(
+				"Batch",
+				"Atomic batch fixture",
+				memcontract.TypeProject,
+				"batch source body",
+			),
+		); err != nil {
+			t.Fatalf("Write(batch memory) error = %v", err)
+		}
 
 		proposeResult, err := registry.Call(
 			t.Context(),
@@ -4977,6 +5166,41 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, proposeResult, []byte(`"decision"`))
 		requireNativeStructuredContains(t, proposeResult, []byte(`"applied":true`))
+
+		batchResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryPropose,
+				Input: json.RawMessage(
+					`{"scope":"workspace","workspace":"` + stableWorkspaceID +
+						`","filename":"batch.md","operations":[` +
+						`{"action":"replace","old_text":"batch source body","content":"workspace batch memory body"},` +
+						`{"action":"add","content":"Batch-added workspace fact."}]}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_propose batch) error = %v", err)
+		}
+		requireNativeStructuredContains(t, batchResult, []byte(`"operations"`))
+		requireNativeStructuredContains(t, batchResult, []byte(`"action":"replace"`))
+		requireNativeStructuredContains(t, batchResult, []byte(`"action":"add"`))
+		requireNativeStructuredContains(t, batchResult, []byte(`"applied":true`))
+		workspaceBatchBytes, err := memoryStore.ForWorkspace(workspaceRoot).Read(
+			memcontract.ScopeWorkspace,
+			"batch.md",
+		)
+		if err != nil {
+			t.Fatalf("Store.Read(workspace batch) error = %v", err)
+		}
+		if !bytes.Contains(workspaceBatchBytes, []byte("workspace batch memory body")) ||
+			!bytes.Contains(workspaceBatchBytes, []byte("Batch-added workspace fact.")) {
+			t.Fatalf("workspace batch bytes = %q, want both committed operations", workspaceBatchBytes)
+		}
+		if bytes.Contains(workspaceBatchBytes, []byte("batch source body")) {
+			t.Fatalf("workspace batch bytes = %q, want replaced source text", workspaceBatchBytes)
+		}
 
 		noteResult, err := registry.Call(
 			t.Context(),
@@ -5014,6 +5238,19 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
 			t.Fatalf("Registry.Call(memory_propose invalid op) error = %v, want ErrToolInvalidInput", err)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryPropose,
+				Input: json.RawMessage(
+					`{"filename":"mixed.md","content":"single","operations":[{"action":"add","content":"batch"}]}`,
+				),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(memory_propose mixed shape) error = %v, want ErrToolInvalidInput", err)
 		}
 	})
 
@@ -6390,6 +6627,19 @@ func TestDaemonNativeTools(t *testing.T) {
 	})
 }
 
+func openDaemonTestToolArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtifactStore {
+	t.Helper()
+	store, err := toolspkg.OpenFilesystemToolArtifactStore(
+		t.Context(),
+		filepath.Join(t.TempDir(), "tool-artifacts"),
+		toolspkg.ToolArtifactRetention{MaxCount: 10, MaxBytes: 1 << 20, MaxAge: time.Hour},
+	)
+	if err != nil {
+		t.Fatalf("OpenFilesystemToolArtifactStore() error = %v", err)
+	}
+	return store
+}
+
 func TestDaemonBootToolRegistry(t *testing.T) {
 	t.Parallel()
 
@@ -6401,6 +6651,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 		skillsRegistry := newLoadedNativeSkillRegistry(t)
 		state := &bootState{
 			cfg:            cfg,
+			registry:       &recordingRegistry{},
 			skillsRegistry: skillsRegistry,
 			deps: RuntimeDeps{
 				SkillsRegistry: skillsRegistry,
@@ -6408,11 +6659,19 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 				Tasks:          &nativeTaskManager{},
 			},
 		}
-		daemon := &Daemon{}
+		daemon := &Daemon{homePaths: homePaths}
 
-		if err := daemon.bootToolRegistry(t.Context(), state); err != nil {
+		cleanup := &bootCleanup{}
+		if err := daemon.bootToolRegistry(t.Context(), state, cleanup); err != nil {
 			t.Fatalf("bootToolRegistry() error = %v", err)
 		}
+		t.Cleanup(func() {
+			var cleanupErr error
+			cleanup.run(t.Context(), &cleanupErr)
+			if cleanupErr != nil {
+				t.Errorf("boot cleanup error = %v", cleanupErr)
+			}
+		})
 		if state.toolRegistry == nil || state.deps.ToolRegistry == nil {
 			t.Fatalf(
 				"tool registry wiring = state:%#v deps:%#v, want both populated",
@@ -8252,6 +8511,7 @@ type nativeTaskManager struct {
 	lastClaimCriteria       taskpkg.ClaimCriteria
 	lastClaimActor          taskpkg.ActorContext
 	claimResult             *taskpkg.ClaimResult
+	claimErr                error
 	lookupCalls             int
 	lastLookupSessionID     string
 	lastLookupRunID         string
@@ -8561,6 +8821,9 @@ func (m *nativeTaskManager) ClaimNextRun(
 	m.claimNextCalls++
 	m.lastClaimCriteria = criteria
 	m.lastClaimActor = actor
+	if m.claimErr != nil {
+		return nil, m.claimErr
+	}
 	if m.claimResult != nil {
 		result := *m.claimResult
 		return &result, nil

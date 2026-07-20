@@ -2730,9 +2730,9 @@ func TestClassifySlackAPIErrorAndDeleteMessage(t *testing.T) {
 	}
 
 	transientErr := classifySlackAPIError(http.StatusServiceUnavailable, "service_unavailable", 0)
-	var typedTransientErr *bridgesdk.TransientError
-	if !errors.As(transientErr, &typedTransientErr) {
-		t.Fatalf("transientErr type = %T, want *bridgesdk.TransientError", transientErr)
+	var typedServerErr *bridgesdk.HTTPError
+	if !errors.As(transientErr, &typedServerErr) || typedServerErr.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("transientErr = %#v, want HTTP 503", transientErr)
 	}
 
 	permanentErr := classifySlackAPIError(0, "unknown_problem", 0)
@@ -2809,6 +2809,68 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retry one overloaded response through the shared overload profile", func(t *testing.T) {
+		t.Parallel()
+
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if attempts.Add(1) == 1 {
+				w.WriteHeader(bridgesdk.HTTPStatusOverloaded)
+				writeSlackAPIResponse(t, w, map[string]any{"ok": false, "error": "provider_overloaded"})
+				return
+			}
+			writeSlackAPIResponse(t, w, map[string]any{"channel": "C1", "ts": "1775866808.200000"})
+		}))
+		defer server.Close()
+
+		client := &slackBotClient{
+			baseURL:    server.URL,
+			botToken:   "xoxb",
+			httpClient: &http.Client{Timeout: time.Second},
+		}
+		var (
+			delays   []time.Duration
+			observed []bridgesdk.RetryAttempt
+		)
+		result, err := bridgesdk.RetryDo(t.Context(), bridgesdk.RetryConfig{
+			Attempts: 2,
+			StandardBackoff: bridgesdk.RetryBackoff{
+				BaseDelay: 10 * time.Millisecond,
+				MaxDelay:  time.Second,
+			},
+			OverloadedBackoff: bridgesdk.RetryBackoff{
+				BaseDelay: 40 * time.Millisecond,
+				MaxDelay:  time.Second,
+			},
+			RandFloat: func() float64 { return 0 },
+			Sleep: func(_ context.Context, delay time.Duration) error {
+				delays = append(delays, delay)
+				return nil
+			},
+			OnRetry: func(_ context.Context, attempt bridgesdk.RetryAttempt) error {
+				observed = append(observed, attempt)
+				return nil
+			},
+		}, func(ctx context.Context) (*slackPostedMessage, error) {
+			return client.PostMessage(ctx, slackPostMessageRequest{Channel: "C1", Text: "hello"})
+		})
+		if err != nil {
+			t.Fatalf("RetryDo(overloaded) error = %v", err)
+		}
+		if result == nil || result.TS != "1775866808.200000" {
+			t.Fatalf("RetryDo(overloaded) result = %#v, want successful Slack message", result)
+		}
+		if got, want := attempts.Load(), int32(2); got != want {
+			t.Fatalf("HTTP attempts = %d, want %d", got, want)
+		}
+		if len(delays) != 1 || delays[0] != 40*time.Millisecond {
+			t.Fatalf("retry delays = %v, want [40ms]", delays)
+		}
+		if len(observed) != 1 || observed[0].Classified.Class != bridgesdk.ErrorClassOverloaded {
+			t.Fatalf("retry observations = %#v, want one overloaded classification", observed)
+		}
+	})
+
 	t.Run("Should preserve rate limit classification for a non-JSON error response", func(t *testing.T) {
 		t.Parallel()
 
@@ -2840,7 +2902,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		}
 	})
 
-	t.Run("Should bound retries for a transient response with a partial body", func(t *testing.T) {
+	t.Run("Should bound retries for a server response with a partial body", func(t *testing.T) {
 		t.Parallel()
 
 		var attempts atomic.Int32
@@ -2850,7 +2912,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 			w.Header().Set("Content-Length", strconv.Itoa(len(partialBody)+1))
 			w.WriteHeader(http.StatusInternalServerError)
 			if _, err := w.Write(partialBody); err != nil {
-				t.Errorf("write partial transient response: %v", err)
+				t.Errorf("write partial server response: %v", err)
 			}
 		}))
 		defer server.Close()
@@ -2861,22 +2923,26 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 			httpClient: &http.Client{Timeout: time.Second},
 		}
 		retryConfig := bridgesdk.DefaultRetryConfig()
-		retryConfig.MinDelay = time.Nanosecond
-		retryConfig.MaxDelay = time.Nanosecond
-		retryConfig.Jitter = 0
+		retryConfig.StandardBackoff = bridgesdk.RetryBackoff{
+			BaseDelay: time.Nanosecond,
+			MaxDelay:  time.Nanosecond,
+		}
 		retryConfig.RandFloat = func() float64 { return 0.5 }
 		_, err := bridgesdk.RetryDo(t.Context(), retryConfig, func(ctx context.Context) (*slackPostedMessage, error) {
 			return client.PostMessage(ctx, slackPostMessageRequest{Channel: "C1", Text: "hello"})
 		})
-		var transientErr *bridgesdk.TransientError
-		if !errors.As(err, &transientErr) {
-			t.Fatalf("partial 500 error type = %T %v, want TransientError", err, err)
+		var httpErr *bridgesdk.HTTPError
+		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusInternalServerError {
+			t.Fatalf("partial 500 error = %T %v, want HTTPError status 500", err, err)
+		}
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassServerError; got != want {
+			t.Fatalf("partial 500 class = %q, want %q", got, want)
 		}
 		if !errors.Is(err, io.ErrUnexpectedEOF) {
 			t.Fatalf("partial 500 error = %T %v, want preserved unexpected EOF", err, err)
 		}
 		if got, want := attempts.Load(), int32(retryConfig.Attempts); got != want {
-			t.Fatalf("transient attempts = %d, want %d", got, want)
+			t.Fatalf("server-error attempts = %d, want %d", got, want)
 		}
 	})
 

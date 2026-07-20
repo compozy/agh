@@ -50,6 +50,8 @@ type runtimeContext struct {
 
 type installWizardRunner func(context.Context, installWizardInput) (installWizardSelection, error)
 
+type mcpServeRunner func(context.Context, mcpServeOptions) error
+
 type commandDeps struct {
 	loadConfig                  func() (aghconfig.Config, error)
 	loadSkillRegistrySources    skillRegistrySourceLoader
@@ -79,6 +81,7 @@ type commandDeps struct {
 	runProviderAuthCommand      providerAuthCommandRunner
 	runProviderAuthLoginCommand providerAuthCommandRunner
 	inputIsTerminal             func(io.Reader) bool
+	runMCPServe                 mcpServeRunner
 }
 
 // NewRootCommand constructs the AGH v1 CLI command tree.
@@ -117,6 +120,8 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newUninstallCommand(deps))
 	cmd.AddCommand(newStatusCommand(deps))
 	cmd.AddCommand(newDoctorCommand(deps))
+	cmd.AddCommand(newDrainCommand(deps))
+	cmd.AddCommand(newUndrainCommand(deps))
 	cmd.AddCommand(newOnboardingCommand(deps))
 	cmd.AddCommand(newDaemonCommand(deps))
 	cmd.AddCommand(newNetworkCommand(deps))
@@ -348,6 +353,11 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	}
 	if d.newClient == nil {
 		d.newClient = NewClient
+	}
+	if d.runMCPServe == nil {
+		d.runMCPServe = func(ctx context.Context, opts mcpServeOptions) error {
+			return runMCPServe(ctx, d, opts)
+		}
 	}
 	d = d.withProviderAuthDefaults()
 	if d.newDaemon == nil {

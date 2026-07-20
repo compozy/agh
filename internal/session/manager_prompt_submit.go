@@ -37,11 +37,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	message string,
 	turnState *promptTurnDispatchState,
 ) (<-chan acp.AgentEvent, error) {
-	if err := m.ensureAutomaticSessionTitle(ctx, session, req.authoredMessage); err != nil {
-		return nil, err
-	}
 	session.setCurrentTurnID(req.turnID)
 	session.setCurrentTurnSource(turnState.turnSource)
+	session.setCurrentPromptMessage(req.authoredMessage)
 	session.setCurrentPromptMeta(req.meta)
 	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx, turnState.managed != nil)
 	session.setCurrentPromptCancel(cancelPromptExecution)
@@ -51,6 +49,7 @@ func (m *Manager) submitPromptInReservedSlot(
 			cancelPromptExecution()
 			session.clearCurrentTurnID()
 			session.clearCurrentTurnSource()
+			session.clearCurrentPromptMessage()
 			session.clearCurrentPromptMeta()
 			session.clearCurrentPromptCancel()
 		}
@@ -64,6 +63,8 @@ func (m *Manager) submitPromptInReservedSlot(
 	if err != nil {
 		return nil, err
 	}
+	replayBlock := m.pendingResumeReplay(session.ID)
+	dispatchMessage = promptWithResumeReplay(replayBlock, dispatchMessage)
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
 		return nil, err
 	}
@@ -84,13 +85,14 @@ func (m *Manager) submitPromptInReservedSlot(
 	}
 	if turnState.managed != nil {
 		if err := m.recordManagedDriverAttached(ctx, turnState.managed, req.turnID); err != nil {
-			cancelPromptExecution()
-			activity.stop()
-			activity.finish(m.now())
-			go drainPromptSource(source)
+			m.abortPromptBeforePump(cancelPromptExecution, activity, source)
 			return nil, err
 		}
 	}
+	if err := m.preparePromptDelivery(ctx, session, req, cancelPromptExecution, activity, source); err != nil {
+		return nil, err
+	}
+	m.consumeResumeReplay(session.ID, replayBlock)
 
 	clearTurnSource = false
 	lifecycleCtx := m.fallbackLifecycleContext()
@@ -107,6 +109,35 @@ func (m *Manager) submitPromptInReservedSlot(
 		activity,
 		cancelPromptExecution,
 	), nil
+}
+
+func (m *Manager) preparePromptDelivery(
+	ctx context.Context,
+	session *Session,
+	req promptRequest,
+	cancelPromptExecution context.CancelFunc,
+	activity *promptActivitySupervisor,
+	source <-chan acp.AgentEvent,
+) error {
+	if req.prepareDelivery == nil {
+		return nil
+	}
+	if err := req.prepareDelivery(ctx, PromptDelivery{SessionID: session.ID, TurnID: req.turnID}); err != nil {
+		m.abortPromptBeforePump(cancelPromptExecution, activity, source)
+		return fmt.Errorf("session: prepare prompt delivery for %q: %w", req.target, err)
+	}
+	return nil
+}
+
+func (m *Manager) abortPromptBeforePump(
+	cancelPromptExecution context.CancelFunc,
+	activity *promptActivitySupervisor,
+	source <-chan acp.AgentEvent,
+) {
+	cancelPromptExecution()
+	activity.stop()
+	activity.finish(m.now())
+	go drainPromptSource(source)
 }
 
 func (m *Manager) startPromptPump(

@@ -192,6 +192,7 @@ type RunStore interface {
 	RetryTaskRun(ctx context.Context, retry RetryRunMutation) (RetryRunResult, error)
 	RecoverTaskRun(ctx context.Context, mutation RecoverRunMutation) (RetryRunResult, error)
 	MarkTaskRunNeedsAttention(ctx context.Context, runID string, diagnostic string) (Run, error)
+	// RecoverExpiredRunLeases commits each run mutation with its canonical recovery events.
 	RecoverExpiredRunLeases(ctx context.Context, recovery ExpiredLeaseRecovery) ([]ExpiredLeaseRecoveryResult, error)
 	ReserveQueuedRun(ctx context.Context, reservation QueueRunReservation) (Task, Run, bool, error)
 }
@@ -200,6 +201,7 @@ type RunStore interface {
 type EventStore interface {
 	CreateTaskEvent(ctx context.Context, event Event) error
 	ListTaskEvents(ctx context.Context, query EventQuery) ([]Event, error)
+	TaskWakeEventExists(ctx context.Context, taskID string, wakeEventID string) (bool, error)
 }
 
 // EventSequenceStore is the persistence surface for stable task event sequencing used by live reads.

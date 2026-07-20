@@ -624,7 +624,7 @@ func httpTranscriptHasToolPart(message transcript.UIMessage) bool {
 }
 
 func TestHTTPResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testing.T) {
-	runtime := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
+	runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
 
 	putResp := mustHTTPRequest(
 		t,
@@ -3404,10 +3404,21 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	}
 	fanout.notifiers = append(fanout.notifiers, observer)
 
-	memoryStore := memory.NewStore(homePaths.MemoryDir)
+	memoryStore := memory.NewStore(
+		homePaths.MemoryDir,
+		memory.WithCatalogDatabasePath(homePaths.DatabaseFile),
+	)
 	if err := memoryStore.EnsureDirs(); err != nil {
 		t.Fatalf("memoryStore.EnsureDirs() error = %v", err)
 	}
+	if err := memoryStore.OpenCatalog(t.Context()); err != nil {
+		t.Fatalf("memoryStore.OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := memoryStore.CloseCatalog(context.Background()); err != nil {
+			t.Fatalf("memoryStore.CloseCatalog() error = %v", err)
+		}
+	})
 	dreamTrigger := &integrationDreamTrigger{
 		enabled:   true,
 		triggered: true,

@@ -8,6 +8,21 @@ import (
 )
 
 type StubAutomationManager struct {
+	ListSuggestionsFn func(
+		context.Context,
+		string,
+		automationpkg.SuggestionStatus,
+	) ([]automationpkg.Suggestion, error)
+	AcceptSuggestionFn func(
+		context.Context,
+		string,
+		string,
+	) (automationpkg.SuggestionAcceptance, error)
+	DismissSuggestionFn func(
+		context.Context,
+		string,
+		string,
+	) (automationpkg.Suggestion, error)
 	ListJobsFn      func(context.Context, automationpkg.JobListQuery) (automationpkg.JobListPage, error)
 	JobsFn          func(context.Context) ([]automationpkg.Job, error)
 	GetJobFn        func(context.Context, string) (automationpkg.Job, error)
@@ -36,6 +51,39 @@ type StubAutomationManager struct {
 	SetJobEnabledFn     func(context.Context, string, bool) (automationpkg.Job, error)
 	SetTriggerEnabledFn func(context.Context, string, bool) (automationpkg.Trigger, error)
 	HandleWebhookFn     func(context.Context, automationpkg.WebhookRequest) (automationpkg.TriggerResult, error)
+}
+
+func (s StubAutomationManager) ListSuggestions(
+	ctx context.Context,
+	workspaceRef string,
+	status automationpkg.SuggestionStatus,
+) ([]automationpkg.Suggestion, error) {
+	if s.ListSuggestionsFn != nil {
+		return s.ListSuggestionsFn(ctx, workspaceRef, status)
+	}
+	return nil, nil
+}
+
+func (s StubAutomationManager) AcceptSuggestion(
+	ctx context.Context,
+	workspaceRef string,
+	suggestionID string,
+) (automationpkg.SuggestionAcceptance, error) {
+	if s.AcceptSuggestionFn != nil {
+		return s.AcceptSuggestionFn(ctx, workspaceRef, suggestionID)
+	}
+	return automationpkg.SuggestionAcceptance{}, automationpkg.ErrSuggestionNotFound
+}
+
+func (s StubAutomationManager) DismissSuggestion(
+	ctx context.Context,
+	workspaceRef string,
+	suggestionID string,
+) (automationpkg.Suggestion, error) {
+	if s.DismissSuggestionFn != nil {
+		return s.DismissSuggestionFn(ctx, workspaceRef, suggestionID)
+	}
+	return automationpkg.Suggestion{}, automationpkg.ErrSuggestionNotFound
 }
 
 func (s StubAutomationManager) ListJobs(

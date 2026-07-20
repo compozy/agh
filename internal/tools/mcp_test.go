@@ -7,6 +7,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/compozy/agh/internal/deadentity"
+	"github.com/compozy/agh/internal/store"
 )
 
 func TestShouldCanonicalizeMCPToolIDs(t *testing.T) {
@@ -315,6 +319,248 @@ func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 	})
 }
 
+func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) {
+	t.Run("Should Retain Dead MCP Descriptors Until Opportunistic Recovery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		clock := &mcpReliabilityTestClock{now: time.Date(2026, 7, 15, 18, 0, 0, 0, time.UTC)}
+		deadStore := newMCPReliabilityStore()
+		deadService := deadentity.New(deadStore, deadentity.WithClock(clock.Now))
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		source := SourceRef{
+			Kind:          SourceMCP,
+			Owner:         "github",
+			RawServerName: "github",
+			Scope:         mcpSourceScopeWorkspace,
+			WorkspaceID:   "ws-dead-mcp",
+		}
+		scope := Scope{Operator: true, WorkspaceID: source.WorkspaceID}
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{source}, nil
+			}),
+			executor,
+			executor,
+			WithMCPDeadEntityService(deadService),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPProvider() error = %v", err)
+		}
+		if descriptors, err := provider.List(ctx, scope); err != nil || len(descriptors) != 1 {
+			t.Fatalf("provider.List(initial) = %#v, %v, want one descriptor", descriptors, err)
+		}
+
+		executor.setListError(NewToolError(
+			ErrorCodeUnavailable,
+			"mcp__github__lookup",
+			"mcp server configuration is invalid",
+			ErrToolUnavailable,
+			ReasonMCPUnreachable,
+		))
+		for attempt := 1; attempt <= deadentity.DefaultPermanentFailureThreshold; attempt++ {
+			descriptors, err := provider.List(ctx, scope)
+			if err != nil {
+				t.Fatalf("provider.List(failure %d) error = %v", attempt, err)
+			}
+			if len(descriptors) != 1 {
+				t.Fatalf("provider.List(failure %d) = %#v, want cached descriptor", attempt, descriptors)
+			}
+		}
+		marked := deadStore.Marked()
+		if len(marked) != 1 || marked[0].WorkspaceID != source.WorkspaceID || marked[0].EntityID != "github" {
+			t.Fatalf("dead marks = %#v, want workspace-scoped github sidecar", marked)
+		}
+
+		handle, found, err := provider.Resolve(ctx, scope, "mcp__github__lookup")
+		if err != nil {
+			t.Fatalf("provider.Resolve(dead) error = %v", err)
+		}
+		if !found {
+			t.Fatal("provider.Resolve(dead) found = false, want cached handle")
+		}
+		availability := handle.Availability(ctx, scope)
+		if availability.Executable || !hasAnyReason(availability.ReasonCodes, ReasonBackendDead) {
+			t.Fatalf("dead handle availability = %#v, want backend_dead", availability)
+		}
+
+		clock.Advance(deadentity.DefaultRecoveryInterval)
+		executor.setListError(nil)
+		descriptors, err := provider.List(ctx, scope)
+		if err != nil {
+			t.Fatalf("provider.List(recovery) error = %v", err)
+		}
+		if len(descriptors) != 1 {
+			t.Fatalf("provider.List(recovery) = %#v, want rediscovered descriptor", descriptors)
+		}
+		handle, found, err = provider.Resolve(ctx, scope, "mcp__github__lookup")
+		if err != nil || !found {
+			t.Fatalf("provider.Resolve(recovered) = %v, %t, %v", handle, found, err)
+		}
+		if availability = handle.Availability(ctx, scope); !availability.Executable {
+			t.Fatalf("recovered handle availability = %#v, want executable", availability)
+		}
+		if got := deadStore.Clears(); got != 1 {
+			t.Fatalf("dead mark clears = %d, want one", got)
+		}
+	})
+
+	t.Run("Should Never Persist Global MCP Sources", func(t *testing.T) {
+		t.Parallel()
+
+		deadStore := newMCPReliabilityStore()
+		deadService := deadentity.New(deadStore)
+		executor := newFakeMCPExecutor(nil)
+		executor.setListError(NewToolError(
+			ErrorCodeUnavailable,
+			"",
+			"mcp server is unavailable",
+			ErrToolUnavailable,
+			ReasonMCPUnreachable,
+		))
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{{
+					Kind:          SourceMCP,
+					Owner:         "global",
+					RawServerName: "global",
+					Scope:         mcpSourceScopeGlobal,
+				}}, nil
+			}),
+			executor,
+			executor,
+			WithMCPDeadEntityService(deadService),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPProvider() error = %v", err)
+		}
+		for attempt := 1; attempt <= deadentity.DefaultPermanentFailureThreshold+1; attempt++ {
+			if _, err := provider.List(context.Background(), Scope{Operator: true}); err != nil {
+				t.Fatalf("provider.List(global failure %d) error = %v", attempt, err)
+			}
+		}
+		if got := len(deadStore.Marked()); got != 0 {
+			t.Fatalf("global source marks = %d, want zero", got)
+		}
+	})
+
+	t.Run("Should Drop Cached Descriptors After A Workspace Source Is Removed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		deadService := deadentity.New(newMCPReliabilityStore())
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		source := SourceRef{
+			Kind:          SourceMCP,
+			Owner:         "removed",
+			RawServerName: "removed",
+			Scope:         mcpSourceScopeWorkspace,
+			WorkspaceID:   "ws-cache-bound",
+		}
+		scope := Scope{Operator: true, WorkspaceID: source.WorkspaceID}
+		active := []SourceRef{source}
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return append([]SourceRef(nil), active...), nil
+			}),
+			executor,
+			executor,
+			WithMCPDeadEntityService(deadService),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPProvider() error = %v", err)
+		}
+		if descriptors, err := provider.List(ctx, scope); err != nil || len(descriptors) != 1 {
+			t.Fatalf("provider.List(initial) = %#v, %v, want one descriptor", descriptors, err)
+		}
+
+		active = nil
+		if descriptors, err := provider.List(ctx, scope); err != nil || len(descriptors) != 0 {
+			t.Fatalf("provider.List(removed) = %#v, %v, want empty", descriptors, err)
+		}
+		executor.setListError(NewToolError(
+			ErrorCodeUnavailable,
+			"",
+			"removed sidecar is unreachable",
+			ErrToolUnavailable,
+			ReasonMCPUnreachable,
+		))
+		active = []SourceRef{source}
+		descriptors, err := provider.List(ctx, scope)
+		if err != nil {
+			t.Fatalf("provider.List(re-added failure) error = %v", err)
+		}
+		if len(descriptors) != 0 {
+			t.Fatalf("provider.List(re-added failure) = %#v, want no stale cached descriptors", descriptors)
+		}
+	})
+
+	t.Run("Should isolate cached descriptors across workspace projections", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		deadService := deadentity.New(newMCPReliabilityStore())
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		sources := []SourceRef{
+			{
+				Kind:          SourceMCP,
+				Owner:         "github",
+				RawServerName: "github",
+				Scope:         mcpSourceScopeWorkspace,
+				WorkspaceID:   "ws-cache-a",
+			},
+			{
+				Kind:          SourceMCP,
+				Owner:         "linear",
+				RawServerName: "linear",
+				Scope:         mcpSourceScopeWorkspace,
+				WorkspaceID:   "ws-cache-b",
+			},
+		}
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return append([]SourceRef(nil), sources...), nil
+			}),
+			executor,
+			executor,
+			WithMCPDeadEntityService(deadService),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPProvider() error = %v", err)
+		}
+		for _, workspaceID := range []string{"ws-cache-a", "ws-cache-b"} {
+			descriptors, err := provider.List(ctx, Scope{Operator: true, WorkspaceID: workspaceID})
+			if err != nil || len(descriptors) != 1 {
+				t.Fatalf("provider.List(%s) = %#v, %v, want one descriptor", workspaceID, descriptors, err)
+			}
+		}
+
+		executor.setListError(NewToolError(
+			ErrorCodeUnavailable,
+			"mcp__github__lookup",
+			"github sidecar is unreachable",
+			ErrToolUnavailable,
+			ReasonMCPUnreachable,
+		))
+		descriptors, err := provider.List(ctx, Scope{Operator: true, WorkspaceID: "ws-cache-a"})
+		if err != nil {
+			t.Fatalf("provider.List(workspace A failure) error = %v", err)
+		}
+		if len(descriptors) != 1 {
+			t.Fatalf("provider.List(workspace A failure) = %#v, want workspace A cached descriptor", descriptors)
+		}
+	})
+}
+
 func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 	t.Run("Should Project Only Global And Current Workspace Sources", func(t *testing.T) {
 		t.Parallel()
@@ -503,6 +749,12 @@ func (f *fakeMCPExecutor) ListTools(_ context.Context, source SourceRef) ([]MCPT
 	return out, nil
 }
 
+func (f *fakeMCPExecutor) setListError(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.listErr = err
+}
+
 func (f *fakeMCPExecutor) CallTool(
 	_ context.Context,
 	_ SourceRef,
@@ -578,4 +830,92 @@ func newMCPRegistry(t *testing.T, provider Provider) *RuntimeRegistry {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
 	return registry
+}
+
+type mcpReliabilityStore struct {
+	mu       sync.Mutex
+	entities map[store.DeadEntityKey]store.DeadEntity
+	marked   []store.DeadEntity
+	clears   int
+}
+
+func newMCPReliabilityStore() *mcpReliabilityStore {
+	return &mcpReliabilityStore{entities: make(map[store.DeadEntityKey]store.DeadEntity)}
+}
+
+func (s *mcpReliabilityStore) MarkDeadEntity(_ context.Context, entity store.DeadEntity) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entities[entity.DeadEntityKey] = entity
+	s.marked = append(s.marked, entity)
+	return nil
+}
+
+func (s *mcpReliabilityStore) ClearDeadEntity(
+	_ context.Context,
+	workspaceID string,
+	kind store.DeadEntityKind,
+	entityID string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clears++
+	delete(s.entities, store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID})
+	return nil
+}
+
+func (s *mcpReliabilityStore) FindDeadEntity(
+	_ context.Context,
+	workspaceID string,
+	kind store.DeadEntityKind,
+	entityID string,
+) (store.DeadEntity, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entity, ok := s.entities[store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID}]
+	return entity, ok, nil
+}
+
+func (s *mcpReliabilityStore) ListDeadEntities(
+	_ context.Context,
+	workspaceID string,
+) ([]store.DeadEntity, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entities := make([]store.DeadEntity, 0)
+	for key, entity := range s.entities {
+		if key.WorkspaceID == workspaceID {
+			entities = append(entities, entity)
+		}
+	}
+	return entities, nil
+}
+
+func (s *mcpReliabilityStore) Marked() []store.DeadEntity {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]store.DeadEntity(nil), s.marked...)
+}
+
+func (s *mcpReliabilityStore) Clears() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.clears
+}
+
+type mcpReliabilityTestClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *mcpReliabilityTestClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *mcpReliabilityTestClock) Advance(delta time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(delta)
 }

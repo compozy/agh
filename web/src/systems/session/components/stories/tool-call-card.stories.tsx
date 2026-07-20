@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+import { HttpResponse } from "msw";
 
 import { CenteredSurface } from "@/storybook/story-layout";
+import { storybookMswParameters } from "@/storybook/msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 import {
   bashToolMessageFixture,
   errorToolMessageFixture,
@@ -11,6 +15,7 @@ import {
 } from "@/systems/session/mocks";
 import type { UIMessage } from "@/systems/session/types";
 
+import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
 import { SessionToolCallRow } from "../tool-call-card";
 
 const meta: Meta<typeof SessionToolCallRow> = {
@@ -101,11 +106,107 @@ const emptyToolMessageFixture: UIMessage = {
   timestamp: Date.parse("2026-04-17T16:09:30Z"),
 };
 
+const artifactID = `art_${"d".repeat(64)}`;
+const artifactURI = `agh://tool-artifacts/${artifactID}`;
+const retainedResult = JSON.stringify(
+  {
+    content: [
+      {
+        type: "text",
+        text: "Release verification completed across runtime, Web, and documentation surfaces.",
+      },
+    ],
+    structured: {
+      checkpoint: "iteration-043",
+      status: "verified",
+      evidence: ["make verify", "Storybook capture", "workspace isolation"],
+    },
+    truncated: false,
+  },
+  null,
+  2
+);
+const retainedResultBytes = new TextEncoder().encode(retainedResult);
+const retainedPageBytes = 160;
+const retainedResultPreview =
+  "Release verification completed across runtime, Web, and documentation surfaces…";
+
+function base64Bytes(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return globalThis.btoa(binary);
+}
+
+const artifactHandler = aghApiMock.get(
+  "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}",
+  ({ request }) => {
+    const offset = Number(new URL(request.url).searchParams.get("offset") ?? "0");
+    const chunk = retainedResultBytes.slice(offset, offset + retainedPageBytes);
+    const nextOffset = offset + chunk.byteLength;
+    return HttpResponse.json({
+      artifact: {
+        uri: artifactURI,
+        name: "tool-result.json",
+        mime_type: "application/vnd.agh.tool-result+json",
+        bytes: retainedResultBytes.byteLength,
+        sha256: "d".repeat(64),
+      },
+      offset,
+      bytes: chunk.byteLength,
+      total_bytes: retainedResultBytes.byteLength,
+      data_base64: base64Bytes(chunk),
+      next_offset: nextOffset,
+      eof: nextOffset === retainedResultBytes.byteLength,
+    });
+  }
+);
+
+const unavailableArtifactHandler = aghApiMock.get(
+  "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}",
+  () =>
+    HttpResponse.json(
+      { error: { code: "tool_not_found", message: "tool artifact not found" } },
+      { status: 404 }
+    )
+);
+
+const truncatedToolMessageFixture: UIMessage = {
+  id: "tool_retained_result",
+  role: "tool_result",
+  content: "",
+  toolName: "agh__memory_recall",
+  toolInput: { query: "release verification evidence" },
+  toolResult: {
+    preview: retainedResultPreview,
+    truncated: true,
+    artifacts: [
+      {
+        uri: artifactURI,
+        name: "tool-result.json",
+        mime_type: "application/vnd.agh.tool-result+json",
+        bytes: retainedResultBytes.byteLength,
+        sha256: "d".repeat(64),
+      },
+    ],
+  },
+  timestamp: Date.parse("2026-07-19T04:32:00Z"),
+};
+
 function SessionToolCallRowFrame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
       <div className="w-full max-w-3xl">{children}</div>
     </CenteredSurface>
+  );
+}
+
+function ArtifactResultStory() {
+  return (
+    <SessionRuntimeRenderProvider sessionId="session-release" workspaceId="ws-release">
+      <SessionToolCallRowFrame>
+        <SessionToolCallRow message={truncatedToolMessageFixture} defaultExpanded />
+      </SessionToolCallRowFrame>
+    </SessionRuntimeRenderProvider>
   );
 }
 
@@ -217,4 +318,78 @@ export const MixedToolBatch: Story = {
       </div>
     </SessionToolCallRowFrame>
   ),
+};
+
+/** A bounded preview keeps the operator oriented before any retained bytes are requested. */
+export const TruncatedResultPreview: Story = {
+  args: {},
+  parameters: {
+    layout: "fullscreen",
+  },
+  render: () => <ArtifactResultStory />,
+};
+
+/** The retained JSON opens inline and keeps the next bounded page behind an explicit action. */
+export const TruncatedResultOpened: Story = {
+  args: {},
+  parameters: {
+    ...storybookMswParameters({ session: [artifactHandler] }),
+    layout: "fullscreen",
+  },
+  render: () => <ArtifactResultStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Open full result" }));
+    const loadMore = await canvas.findByRole("button", { name: "Load more" });
+    await expect(loadMore).toBeVisible();
+    loadMore.scrollIntoView({ block: "nearest" });
+  },
+};
+
+/** The final page proves the viewer assembles the complete retained JSON before decoding it. */
+export const TruncatedResultLoadedTail: Story = {
+  args: {},
+  parameters: {
+    ...storybookMswParameters({ session: [artifactHandler] }),
+    layout: "fullscreen",
+  },
+  render: () => <ArtifactResultStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Open full result" }));
+    for (let page = 0; page < 2; page += 1) {
+      const loadMore = await canvas.findByRole("button", { name: "Load more" });
+      await waitFor(() => expect(loadMore).toBeEnabled());
+      await userEvent.click(loadMore);
+    }
+    await waitFor(() =>
+      expect(canvas.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument()
+    );
+    await expect(canvas.getByTestId("full-tool-result")).toHaveTextContent("workspace isolation");
+    canvas
+      .getByText(`${retainedResultBytes.byteLength} of ${retainedResultBytes.byteLength} bytes`)
+      .scrollIntoView({ block: "nearest" });
+  },
+};
+
+/** Expired and missing references share one terminal state while the bounded preview remains. */
+export const TruncatedResultUnavailable: Story = {
+  args: {},
+  parameters: {
+    ...storybookMswParameters({ session: [unavailableArtifactHandler] }),
+    layout: "fullscreen",
+  },
+  render: () => <ArtifactResultStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Open full result" }));
+    await expect(await canvas.findByText("Full result unavailable")).toBeVisible();
+    const unavailableMessage = canvas.getByText("This retained result is no longer available");
+    await expect(unavailableMessage).toBeVisible();
+    await expect(canvas.getByText(retainedResultPreview)).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: "Retry full result" })
+    ).not.toBeInTheDocument();
+    unavailableMessage.scrollIntoView({ block: "nearest" });
+  },
 };

@@ -61,6 +61,7 @@ test("operator cancels a running task run and sees matching HTTP, UDS, CLI, and 
   const runPath = `/tasks/${encodeURIComponent(seeded.runningTask.id)}/runs/${encodeURIComponent(seeded.runningRun.id)}`;
   await appPage.goto(runtime.url(runPath), { waitUntil: "domcontentloaded" });
   await expect(ui.runDetailContent).toBeVisible();
+  await ui.runDetailOverflow.click();
   await expect(ui.runDetailCancel).toBeVisible();
 
   const cancelResponsePromise = appPage.waitForResponse(
@@ -590,6 +591,7 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
       { waitUntil: "domcontentloaded" }
     );
     await expect(ui.runDetailContent).toBeVisible();
+    await ui.runDetailOverflow.click();
     await expect(ui.runDetailCancel).toBeVisible();
     await browserArtifacts.captureScreenshot(`tasks-responsive-${viewport.name}`, appPage);
   }

@@ -64,11 +64,16 @@ func taskRunFromGenerated(row *sqlcgen.GetTaskRunRow) (taskpkg.Run, error) {
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
+	recoveryCount, err := taskAttemptFromInt64(row.RecoveryCount)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
 	run := taskpkg.Run{
-		ID:          row.ID,
-		TaskID:      taskNullStringValue(row.TaskID),
-		WorkspaceID: taskNullStringValue(row.WorkspaceID),
-		Attempt:     attempt,
+		ID:            row.ID,
+		TaskID:        taskNullStringValue(row.TaskID),
+		WorkspaceID:   taskNullStringValue(row.WorkspaceID),
+		Attempt:       attempt,
+		RecoveryCount: recoveryCount,
 		Origin: taskpkg.Origin{
 			Ref: row.OriginRef,
 		},
@@ -123,12 +128,17 @@ func taskRunFromStatusGenerated(row *sqlcgen.ListTaskRunsByStatusRow) (taskpkg.R
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
+	recoveryCount, err := taskAttemptFromInt64(row.RecoveryCount)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
 	run := taskpkg.Run{
-		ID:          row.ID,
-		TaskID:      taskNullStringValue(row.TaskID),
-		WorkspaceID: taskNullStringValue(row.WorkspaceID),
-		Attempt:     attempt,
-		Origin:      taskpkg.Origin{Ref: row.OriginRef},
+		ID:            row.ID,
+		TaskID:        taskNullStringValue(row.TaskID),
+		WorkspaceID:   taskNullStringValue(row.WorkspaceID),
+		Attempt:       attempt,
+		RecoveryCount: recoveryCount,
+		Origin:        taskpkg.Origin{Ref: row.OriginRef},
 	}
 	fields := taskRunScanFields{
 		status:                 row.Status,
@@ -267,6 +277,7 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		LoopRunID:              nullableTaskString(run.LoopRunID),
 		Status:                 run.Status.String(),
 		Attempt:                int64(run.Attempt),
+		RecoveryCount:          int64(run.RecoveryCount),
 		PreviousRunID:          nullableTaskString(run.PreviousRunID),
 		FailureKind:            strings.TrimSpace(run.FailureKind),
 		ClaimedByKind:          nullableTaskActorKind(run.ClaimedBy),
@@ -319,6 +330,7 @@ func updateTaskRunParams(run taskpkg.Run) (sqlcgen.UpdateTaskRunParams, error) {
 		LoopRunID:              insert.LoopRunID,
 		Status:                 insert.Status,
 		Attempt:                insert.Attempt,
+		RecoveryCount:          insert.RecoveryCount,
 		PreviousRunID:          insert.PreviousRunID,
 		FailureKind:            insert.FailureKind,
 		ClaimedByKind:          insert.ClaimedByKind,

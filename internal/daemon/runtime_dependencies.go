@@ -2,11 +2,8 @@ package daemon
 
 import (
 	"context"
-	"time"
 
 	"github.com/compozy/agh/internal/api/core"
-	"github.com/compozy/agh/internal/memory"
-	"github.com/compozy/agh/internal/memory/consolidation"
 )
 
 func (d *Daemon) runtimeDeps(
@@ -14,34 +11,18 @@ func (d *Daemon) runtimeDeps(
 	state *bootState,
 	sessions SessionManager,
 ) RuntimeDeps {
-	if state != nil && state.dreamSvc != nil {
-		lockPath := memory.ConsolidationLockPath(state.globalMemoryDir)
-		state.dreamRuntime = consolidation.NewRuntime(
-			state.cfg.Memory.Dream.Enabled,
-			state.dreamSvc,
-			consolidation.NewSessionSpawner(
-				sessions,
-				state.workspaceResolver,
-				&state.cfg,
-			),
-			state.cfg.Memory.Dream.CheckInterval,
-			state.logger,
-			func() (time.Time, error) {
-				return memory.NewConsolidationLock(lockPath).LastConsolidatedAt()
-			},
-		)
-	}
+	initializeDreamRuntime(state, sessions)
 	authoredContext := authoredContextRuntimeDeps(ctx, state, sessions)
 	var memoryProviders core.MemoryProviderService
 	if state.memoryProviderRegistry != nil {
 		memoryProviders = daemonMemoryProviderService{registry: state.memoryProviderRegistry}
 	}
-
 	return RuntimeDeps{
 		Config:              state.cfg,
 		HomePaths:           d.homePaths,
 		Logger:              state.logger,
 		Sessions:            sessions,
+		DrainController:     d,
 		Bridges:             state.bridges,
 		Notifications:       state.notificationPresets,
 		Registry:            state.registry,
@@ -50,6 +31,8 @@ func (d *Daemon) runtimeDeps(
 		MemoryExtractor:     state.memoryExtractor,
 		MemoryProviders:     memoryProviders,
 		MemorySessionLedger: newDaemonMemorySessionLedgerService(state, d.now),
+		RuntimeMemory:       state.runtimeWorkers.runtimeMemory,
+		DeadEntities:        state.deadEntities,
 		WorkspaceResolver:   state.workspaceResolver,
 		WorkspaceService:    state.workspaceResolver,
 		ModelCatalog:        state.modelCatalog,
@@ -81,7 +64,10 @@ func (d *Daemon) runtimeDeps(
 		ToolRegistry:   state.toolRegistry,
 		Toolsets:       state.toolsets,
 		ToolApprovals:  state.toolApprovals,
+		ApprovalGrants: state.deps.ApprovalGrants,
+		Clarify:        state.clarify,
 		HostedMCP:      state.hostedMCP,
+		MCPHostAPI:     newMCPHostAPIRuntimeInvoker(state.currentExtensionRuntime),
 		DreamTrigger:   dreamTriggerFromRuntime(state.dreamRuntime),
 		Vault:          state.providerVault,
 		StartedAt:      state.startedAt,

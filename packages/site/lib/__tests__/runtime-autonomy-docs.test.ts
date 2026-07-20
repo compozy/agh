@@ -144,6 +144,8 @@ describe("runtime autonomy docs", () => {
       "default_sandbox_mode",
       "allow_task_provider_override",
       "allow_task_sandbox_none",
+      "max_active_runs_per_workspace",
+      'lifecycle="restart-required"',
       "Profile validation runs in `task.Service` when a profile is created or updated",
       "Workspace overlays may tighten or relax",
       "agh config set",

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/testutil"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	skillbundled "github.com/compozy/agh/skills"
 )
@@ -178,6 +179,52 @@ func TestComposedAssemblerAssemble(t *testing.T) {
 		got := assemblePrompt(t, assembler, testPromptAgent("Base prompt."), t.TempDir())
 		if got != "Base prompt." {
 			t.Fatalf("Assemble() = %q, want %q", got, "Base prompt.")
+		}
+	})
+}
+
+func TestComposedAssemblerResumeContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should delegate selected resume sections in descriptor order", func(t *testing.T) {
+		t.Parallel()
+
+		first := &resumeContextPromptProvider{section: "<checkpoint>first</checkpoint>"}
+		second := &resumeContextPromptProvider{section: "<recovery>second</recovery>"}
+		assembler := NewComposedAssembler(WithPromptSectionDescriptors(
+			PromptSectionDescriptor{
+				Name:     "second",
+				Position: PromptSectionPositionAppend,
+				Order:    20,
+				Provider: second,
+			},
+			PromptSectionDescriptor{
+				Name:     "first",
+				Position: PromptSectionPositionPrepend,
+				Order:    10,
+				Provider: first,
+			},
+		))
+		startup := session.StartupPromptContext{
+			SessionID:   "sess-alpha",
+			WorkspaceID: "ws-alpha",
+			Workspace:   "/workspace/alpha",
+		}
+		got, err := assembler.ResumeContextSection(testutil.Context(t), startup)
+		if err != nil {
+			t.Fatalf("ResumeContextSection() error = %v", err)
+		}
+		want := "<checkpoint>first</checkpoint>\n\n<recovery>second</recovery>"
+		if got != want {
+			t.Fatalf("ResumeContextSection() = %q, want %q", got, want)
+		}
+		if first.startup != startup || second.startup != startup {
+			t.Fatalf(
+				"ResumeContextSection() contexts = (%#v, %#v), want %#v",
+				first.startup,
+				second.startup,
+				startup,
+			)
 		}
 	})
 }
@@ -611,6 +658,26 @@ type staticPromptProvider string
 
 func (p staticPromptProvider) PromptSection(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
 	return string(p), nil
+}
+
+type resumeContextPromptProvider struct {
+	section string
+	startup session.StartupPromptContext
+}
+
+func (p *resumeContextPromptProvider) PromptSection(
+	context.Context,
+	*workspacepkg.ResolvedWorkspace,
+) (string, error) {
+	return "", nil
+}
+
+func (p *resumeContextPromptProvider) ResumeContextSection(
+	_ context.Context,
+	startup session.StartupPromptContext,
+) (string, error) {
+	p.startup = startup
+	return p.section, nil
 }
 
 type composedAssemblerMemoryEnv struct {

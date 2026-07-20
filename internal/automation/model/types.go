@@ -90,13 +90,27 @@ const (
 type SchedulerCatchUpPolicy string
 
 const (
-	// SchedulerCatchUpPolicySkip records missed fires as misfires and advances
-	// to the next future cursor without dispatching stale work.
-	SchedulerCatchUpPolicySkip SchedulerCatchUpPolicy = "skip"
+	// SchedulerCatchUpPolicySkipMissed dispatches the latest missed fire within
+	// grace and otherwise advances after recording a durable skip.
+	SchedulerCatchUpPolicySkipMissed SchedulerCatchUpPolicy = "skip_missed"
 	// SchedulerCatchUpPolicyCoalesce dispatches one fire for the most recent missed instant.
 	SchedulerCatchUpPolicyCoalesce SchedulerCatchUpPolicy = "coalesce"
 	// SchedulerCatchUpPolicyReplay dispatches missed instants chronologically.
 	SchedulerCatchUpPolicyReplay SchedulerCatchUpPolicy = "replay"
+	// SchedulerCatchUpPolicyRunOnce dispatches only the latest missed instant.
+	SchedulerCatchUpPolicyRunOnce SchedulerCatchUpPolicy = "run_once_on_catchup"
+)
+
+// SchedulerSkipReason identifies why a scheduled fire advanced without dispatch.
+type SchedulerSkipReason string
+
+const (
+	// SchedulerSkipReasonGraceExceeded reports a missed fire outside its grace window.
+	SchedulerSkipReasonGraceExceeded SchedulerSkipReason = "misfire_grace_exceeded"
+	// SchedulerSkipReasonSelfOverlap reports that the same job still has an active prior run.
+	SchedulerSkipReasonSelfOverlap SchedulerSkipReason = "self_overlap"
+	// SchedulerSkipReasonMetadataKey is the automation-run metadata key for durable skip evidence.
+	SchedulerSkipReasonMetadataKey = "reason"
 )
 
 // ActivationSource identifies which ingress path produced an activation envelope.
@@ -156,10 +170,12 @@ type Job struct {
 
 // ScheduleSpec describes how a job should be scheduled.
 type ScheduleSpec struct {
-	Mode     ScheduleMode `json:"mode"               toml:"mode"`
-	Expr     string       `json:"expr,omitempty"     toml:"expr,omitempty"`
-	Interval string       `json:"interval,omitempty" toml:"interval,omitempty"`
-	Time     string       `json:"time,omitempty"     toml:"time,omitempty"`
+	Mode                ScheduleMode           `json:"mode"                            toml:"mode"`
+	Expr                string                 `json:"expr,omitempty"                  toml:"expr,omitempty"`
+	Interval            string                 `json:"interval,omitempty"              toml:"interval,omitempty"`
+	Time                string                 `json:"time,omitempty"                  toml:"time,omitempty"`
+	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"       toml:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty" toml:"misfire_grace_seconds,omitempty"`
 }
 
 // Trigger is the canonical event-driven automation definition used by runtime and storage layers.
@@ -255,13 +271,19 @@ type SchedulerClaim struct {
 	NextRunAt            *time.Time
 	ClaimedAt            time.Time
 	ScheduleHash         string
+	CatchUpPolicy        SchedulerCatchUpPolicy
+	MisfireGraceSeconds  int
 	CatchUp              bool
+	Misfire              bool
+	SkipReason           SchedulerSkipReason
 	NetworkParticipation *participation.Request
 }
 
 // SchedulerClaimResult reports the state and pre-created run for one claimed
 // scheduled fire.
 type SchedulerClaimResult struct {
-	State SchedulerState
-	Run   Run
+	State      SchedulerState
+	Run        Run
+	Skipped    bool
+	SkipReason SchedulerSkipReason
 }

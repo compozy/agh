@@ -20,6 +20,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -917,6 +918,130 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 	}
 }
 
+func TestAutomationSuggestionHandlersPreserveWorkspaceAndStructuredParity(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+	suggestion := automationpkg.Suggestion{
+		ID:          "suggestion-1",
+		WorkspaceID: "workspace-1",
+		Source:      automationpkg.SuggestionSourceCatalog,
+		DedupKey:    "catalog:v1:daily-workspace-briefing",
+		Status:      automationpkg.SuggestionStatusPending,
+		Payload: automationpkg.Job{
+			ID:          "job-suggestion-1",
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			Name:        "Daily workspace briefing",
+			TargetKind:  automationpkg.TargetKindAgent,
+			AgentName:   "general",
+			WorkspaceID: "workspace-1",
+			Prompt:      "Review the workspace.",
+			Schedule: &automationpkg.ScheduleSpec{
+				Mode: automationpkg.ScheduleModeCron,
+				Expr: "0 8 * * *",
+			},
+			Enabled:   true,
+			Retry:     automationpkg.DefaultRetryConfig(),
+			FireLimit: automationpkg.DefaultFireLimitConfig(),
+			Source:    automationpkg.JobSourceDynamic,
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		},
+		CreatedAt: createdAt,
+	}
+	automation := stubAutomationManager{
+		ListSuggestionsFn: func(
+			_ context.Context,
+			workspaceRef string,
+			status automationpkg.SuggestionStatus,
+		) ([]automationpkg.Suggestion, error) {
+			if workspaceRef != suggestion.WorkspaceID || status != automationpkg.SuggestionStatusPending {
+				t.Fatalf("ListSuggestions(%q, %q), want workspace-1/pending", workspaceRef, status)
+			}
+			return []automationpkg.Suggestion{suggestion}, nil
+		},
+		AcceptSuggestionFn: func(
+			_ context.Context,
+			workspaceRef string,
+			suggestionID string,
+		) (automationpkg.SuggestionAcceptance, error) {
+			if workspaceRef != suggestion.WorkspaceID || suggestionID != suggestion.ID {
+				t.Fatalf("AcceptSuggestion(%q, %q), want workspace-1/suggestion-1", workspaceRef, suggestionID)
+			}
+			accepted := suggestion
+			accepted.Status = automationpkg.SuggestionStatusAccepted
+			accepted.ResolvedAt = &createdAt
+			return automationpkg.SuggestionAcceptance{Suggestion: accepted, Job: suggestion.Payload}, nil
+		},
+		DismissSuggestionFn: func(
+			_ context.Context,
+			workspaceRef string,
+			suggestionID string,
+		) (automationpkg.Suggestion, error) {
+			if workspaceRef != suggestion.WorkspaceID || suggestionID != suggestion.ID {
+				t.Fatalf("DismissSuggestion(%q, %q), want workspace-1/suggestion-1", workspaceRef, suggestionID)
+			}
+			dismissed := suggestion
+			dismissed.Status = automationpkg.SuggestionStatusDismissed
+			dismissed.ResolvedAt = &createdAt
+			return dismissed, nil
+		},
+	}
+	router := newAutomationCoreTestRouter(t, automation)
+
+	listed := performAutomationCoreRequest(
+		t,
+		router,
+		http.MethodGet,
+		"/workspaces/workspace-1/automation/suggestions?status=pending",
+		nil,
+		nil,
+	)
+	if listed.Code != http.StatusOK {
+		t.Fatalf("list suggestions status = %d, body=%s", listed.Code, listed.Body.String())
+	}
+	var listResponse contract.AutomationSuggestionsResponse
+	decodeAutomationCoreJSON(t, listed, &listResponse)
+	if len(listResponse.Suggestions) != 1 || listResponse.Suggestions[0].ID != suggestion.ID {
+		t.Fatalf("list suggestions response = %#v, want suggestion-1", listResponse)
+	}
+
+	accepted := performAutomationCoreRequest(
+		t,
+		router,
+		http.MethodPost,
+		"/workspaces/workspace-1/automation/suggestions/suggestion-1/accept",
+		nil,
+		nil,
+	)
+	if accepted.Code != http.StatusOK {
+		t.Fatalf("accept suggestion status = %d, body=%s", accepted.Code, accepted.Body.String())
+	}
+	var acceptResponse contract.AutomationSuggestionAcceptanceResponse
+	decodeAutomationCoreJSON(t, accepted, &acceptResponse)
+	if acceptResponse.Suggestion.Status != automationpkg.SuggestionStatusAccepted ||
+		acceptResponse.Job.ID != suggestion.Payload.ID {
+		t.Fatalf("accept suggestion response = %#v, want accepted suggestion and Job", acceptResponse)
+	}
+
+	dismissed := performAutomationCoreRequest(
+		t,
+		router,
+		http.MethodPost,
+		"/workspaces/workspace-1/automation/suggestions/suggestion-1/dismiss",
+		nil,
+		nil,
+	)
+	if dismissed.Code != http.StatusOK {
+		t.Fatalf("dismiss suggestion status = %d, body=%s", dismissed.Code, dismissed.Body.String())
+	}
+	var dismissResponse contract.AutomationSuggestionResponse
+	decodeAutomationCoreJSON(t, dismissed, &dismissResponse)
+	if dismissResponse.Suggestion.Status != automationpkg.SuggestionStatusDismissed {
+		t.Fatalf("dismiss suggestion response = %#v, want dismissed", dismissResponse)
+	}
+}
+
 func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 	t.Parallel()
 
@@ -934,7 +1059,7 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 		LastRun:             &lastRun,
 		LastScheduledAt:     &lastScheduled,
 		LastFireID:          "fire-previous",
-		CatchUpPolicy:       automationpkg.SchedulerCatchUpPolicySkip,
+		CatchUpPolicy:       automationpkg.SchedulerCatchUpPolicySkipMissed,
 		MisfireGraceSeconds: 30,
 		LastMisfireAt:       &lastMisfire,
 		MisfireCount:        2,
@@ -944,7 +1069,7 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 			LastRunAt:                 &lastRun,
 			LastScheduledAt:           &lastScheduled,
 			LastFireID:                "fire-previous",
-			CatchUpPolicy:             automationpkg.SchedulerCatchUpPolicySkip,
+			CatchUpPolicy:             automationpkg.SchedulerCatchUpPolicySkipMissed,
 			MisfireGraceSeconds:       30,
 			ConsecutiveResumeFailures: 1,
 			LastMisfireAt:             &lastMisfire,
@@ -966,7 +1091,7 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 		if exposedScheduler.JobID != schedulerState.JobID ||
 			!exposedScheduler.Registered ||
 			exposedScheduler.LastFireID != schedulerState.LastFireID ||
-			exposedScheduler.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicySkip ||
+			exposedScheduler.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicySkipMissed ||
 			exposedScheduler.MisfireCount != 2 ||
 			exposedScheduler.ConsecutiveResumeFailures != 1 ||
 			exposedScheduler.UpdatedAt == nil ||
@@ -1324,6 +1449,9 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		if status := StatusForAutomationError(automationpkg.ErrJobOverlayNotFound); status != http.StatusNotFound {
 			t.Fatalf("StatusForAutomationError(job overlay not found) = %d, want %d", status, http.StatusNotFound)
 		}
+		if status := StatusForAutomationError(workspacepkg.ErrWorkspaceNotFound); status != http.StatusNotFound {
+			t.Fatalf("StatusForAutomationError(workspace not found) = %d, want %d", status, http.StatusNotFound)
+		}
 		if status := StatusForAutomationError(automationpkg.ErrFireLimitReached); status != http.StatusConflict {
 			t.Fatalf("StatusForAutomationError(conflict) = %d, want %d", status, http.StatusConflict)
 		}
@@ -1383,6 +1511,11 @@ func TestStatusForAutomationErrorMapsAdditionalSentinels(t *testing.T) {
 			want: http.StatusBadRequest,
 		},
 		{
+			name: "Should map blocked daemon lifecycle commands to bad request",
+			err:  automationpkg.ErrDaemonLifecycleCommandBlocked,
+			want: http.StatusBadRequest,
+		},
+		{
 			name: "Should map read-only definitions to conflict",
 			err:  automationpkg.ErrDefinitionReadOnly,
 			want: http.StatusConflict,
@@ -1398,6 +1531,44 @@ func TestStatusForAutomationErrorMapsAdditionalSentinels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateAutomationJobReturnsBlockedLifecycleClass(t *testing.T) {
+	t.Run("Should return the blocked lifecycle class in the shared transport error", func(t *testing.T) {
+		t.Parallel()
+
+		blockedErr := &automationpkg.DaemonLifecycleCommandError{
+			Class: automationpkg.DaemonLifecycleCommandClassAGHDaemon,
+		}
+		router := newAutomationCoreTestRouter(t, stubAutomationManager{
+			CreateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
+				return automationpkg.Job{}, blockedErr
+			},
+		})
+		response := performAutomationCoreRequest(
+			t,
+			router,
+			http.MethodPost,
+			"/automation/jobs",
+			[]byte(`{
+				"scope":"global",
+				"name":"blocked-restart",
+				"agent_name":"codex",
+				"prompt":"Run agh daemon restart now",
+				"schedule":{"mode":"every","interval":"1h"}
+			}`),
+			nil,
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+		}
+
+		var payload contract.ErrorPayload
+		decodeAutomationCoreJSON(t, response, &payload)
+		if payload.Error != blockedErr.Error() {
+			t.Fatalf("error = %q, want %q", payload.Error, blockedErr.Error())
+		}
+	})
 }
 
 func TestWebhookRequestValidationRejectsBodiesThatExceedTheConfiguredLimit(t *testing.T) {
@@ -1501,6 +1672,15 @@ func newAutomationCoreTestRouter(t *testing.T, automation stubAutomationManager)
 	engine.GET("/automation/triggers/:id/runs", handlers.AutomationTriggerRuns)
 	engine.GET("/automation/runs", handlers.ListAutomationRuns)
 	engine.GET("/automation/runs/:id", handlers.GetAutomationRun)
+	engine.GET("/workspaces/:workspace_id/automation/suggestions", handlers.ListAutomationSuggestions)
+	engine.POST(
+		"/workspaces/:workspace_id/automation/suggestions/:suggestion_id/accept",
+		handlers.AcceptAutomationSuggestion,
+	)
+	engine.POST(
+		"/workspaces/:workspace_id/automation/suggestions/:suggestion_id/dismiss",
+		handlers.DismissAutomationSuggestion,
+	)
 	engine.POST("/webhooks/global/:endpoint", handlers.DeliverGlobalWebhook)
 	engine.POST("/webhooks/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
 	return engine
@@ -1541,6 +1721,21 @@ func decodeAutomationCoreJSON(t *testing.T, recorder *httptest.ResponseRecorder,
 }
 
 type stubAutomationManager struct {
+	ListSuggestionsFn func(
+		context.Context,
+		string,
+		automationpkg.SuggestionStatus,
+	) ([]automationpkg.Suggestion, error)
+	AcceptSuggestionFn func(
+		context.Context,
+		string,
+		string,
+	) (automationpkg.SuggestionAcceptance, error)
+	DismissSuggestionFn func(
+		context.Context,
+		string,
+		string,
+	) (automationpkg.Suggestion, error)
 	ListJobsFn          func(context.Context, automationpkg.JobListQuery) (automationpkg.JobListPage, error)
 	GetJobFn            func(context.Context, string) (automationpkg.Job, error)
 	CreateJobFn         func(context.Context, automationpkg.Job) (automationpkg.Job, error)
@@ -1558,6 +1753,39 @@ type stubAutomationManager struct {
 	SetJobEnabledFn     func(context.Context, string, bool) (automationpkg.Job, error)
 	SetTriggerEnabledFn func(context.Context, string, bool) (automationpkg.Trigger, error)
 	HandleWebhookFn     func(context.Context, automationpkg.WebhookRequest) (automationpkg.TriggerResult, error)
+}
+
+func (s stubAutomationManager) ListSuggestions(
+	ctx context.Context,
+	workspaceRef string,
+	status automationpkg.SuggestionStatus,
+) ([]automationpkg.Suggestion, error) {
+	if s.ListSuggestionsFn == nil {
+		return nil, nil
+	}
+	return s.ListSuggestionsFn(ctx, workspaceRef, status)
+}
+
+func (s stubAutomationManager) AcceptSuggestion(
+	ctx context.Context,
+	workspaceRef string,
+	suggestionID string,
+) (automationpkg.SuggestionAcceptance, error) {
+	if s.AcceptSuggestionFn == nil {
+		return automationpkg.SuggestionAcceptance{}, automationpkg.ErrSuggestionNotFound
+	}
+	return s.AcceptSuggestionFn(ctx, workspaceRef, suggestionID)
+}
+
+func (s stubAutomationManager) DismissSuggestion(
+	ctx context.Context,
+	workspaceRef string,
+	suggestionID string,
+) (automationpkg.Suggestion, error) {
+	if s.DismissSuggestionFn == nil {
+		return automationpkg.Suggestion{}, automationpkg.ErrSuggestionNotFound
+	}
+	return s.DismissSuggestionFn(ctx, workspaceRef, suggestionID)
 }
 
 func (s stubAutomationManager) ListJobs(

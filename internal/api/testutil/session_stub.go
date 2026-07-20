@@ -114,7 +114,7 @@ func (s StubSessionManager) AggregateSessionsByAgent(
 		if info == nil || info.WorkspaceID != workspaceID || info.Type == session.SessionTypeDream {
 			continue
 		}
-		if info.Lineage != nil && info.Lineage.SpawnRole == session.SpawnRoleMemoryExtractor {
+		if info.Lineage != nil && session.IsInternalSpawnRole(info.Lineage.SpawnRole) {
 			continue
 		}
 		agentName := aghconfig.NormalizeAgentName(info.AgentName)

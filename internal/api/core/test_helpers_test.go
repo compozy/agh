@@ -349,6 +349,8 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/logs/stream", handlers.StreamLogs)
 	engine.GET("/status", handlers.GetStatus)
 	engine.GET("/doctor", handlers.GetDoctor)
+	engine.POST("/drain", handlers.DrainDaemon)
+	engine.POST("/undrain", handlers.UndrainDaemon)
 	engine.GET("/automation/jobs", handlers.ListAutomationJobs)
 	engine.POST("/automation/jobs", handlers.CreateAutomationJob)
 	engine.GET("/automation/jobs/:id", handlers.GetAutomationJob)

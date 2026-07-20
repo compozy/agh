@@ -396,6 +396,78 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should defer revocation until a creating judge can bind", func(t *testing.T) {
+		t.Parallel()
+
+		createStarted := make(chan struct{})
+		createReleased := make(chan struct{})
+		createCanceled := make(chan struct{})
+		sessions := &loopActionBinderSessionManager{
+			sessionID:      "sess-loop-judge-creating",
+			createStarted:  createStarted,
+			createReleased: createReleased,
+			createCanceled: createCanceled,
+		}
+		runner := loopJudgeRunnerForTest(t, sessions)
+		runner.executions = newLoopJudgeExecutionRegistry()
+		req := loopJudgeRequestForTest()
+		req.CorrelationID = "judge-attempt-creating"
+
+		judgeDone := make(chan error, 1)
+		go func() {
+			_, err := runner.Judge(context.Background(), req)
+			judgeDone <- err
+		}()
+		select {
+		case <-createStarted:
+		case <-time.After(5 * time.Second):
+			t.Fatal("judge creation did not start")
+		}
+
+		revokeDone := make(chan error, 1)
+		go func() {
+			revokeDone <- runner.revokeExecution(context.Background(), req.CorrelationID)
+		}()
+		waitForCondition(t, "judge revocation recorded before bind", func() bool {
+			runner.executions.mu.Lock()
+			defer runner.executions.mu.Unlock()
+			execution := runner.executions.active[req.CorrelationID]
+			return execution != nil && execution.revoked
+		})
+		select {
+		case <-createCanceled:
+			t.Fatal("judge creation context canceled before the session could bind")
+		default:
+		}
+
+		close(createReleased)
+		select {
+		case err := <-revokeDone:
+			if err != nil {
+				t.Fatalf("revokeExecution() error = %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("judge revocation did not join after creation completed")
+		}
+		select {
+		case err := <-judgeDone:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("Judge() error = %v, want context.Canceled", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("judge execution did not finish after deferred revocation")
+		}
+		if got := sessions.cancelCount(); got != 0 {
+			t.Fatalf("CancelPrompt call count = %d, want 0 before prompt start", got)
+		}
+		if got := sessions.stopCount(); got != 1 {
+			t.Fatalf("Stop call count = %d, want 1 durable cleanup", got)
+		}
+		if sessions.stopObservedCanceledContext() {
+			t.Fatal("Stop context was canceled, want detached cleanup context")
+		}
+	})
+
 	t.Run("Should surface judge cleanup failure to the revoker", func(t *testing.T) {
 		t.Parallel()
 
@@ -623,6 +695,9 @@ type loopActionBinderSessionManager struct {
 	sessionID                string
 	createErr                error
 	returnSessionOnCreateErr bool
+	createStarted            chan struct{}
+	createReleased           chan struct{}
+	createCanceled           chan struct{}
 	promptErr                error
 	stopErr                  error
 	events                   []acp.AgentEvent
@@ -642,14 +717,32 @@ func (m *loopActionBinderSessionManager) Status(context.Context, string) (*sessi
 }
 
 func (m *loopActionBinderSessionManager) Create(
-	_ context.Context,
+	ctx context.Context,
 	opts session.CreateOpts,
 ) (*session.Session, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.createCalls = append(m.createCalls, opts)
-	if m.createErr != nil && !m.returnSessionOnCreateErr {
-		return nil, m.createErr
+	createErr := m.createErr
+	returnSessionOnCreateErr := m.returnSessionOnCreateErr
+	started := m.createStarted
+	released := m.createReleased
+	canceled := m.createCanceled
+	m.mu.Unlock()
+	if started != nil {
+		close(started)
+	}
+	if released != nil {
+		select {
+		case <-released:
+		case <-ctx.Done():
+			if canceled != nil {
+				close(canceled)
+			}
+			return nil, ctx.Err()
+		}
+	}
+	if createErr != nil && !returnSessionOnCreateErr {
+		return nil, createErr
 	}
 	sessionID := strings.TrimSpace(m.sessionID)
 	if sessionID == "" {
@@ -667,7 +760,7 @@ func (m *loopActionBinderSessionManager) Create(
 		State:                session.StateActive,
 		CreatedAt:            time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC),
 	}
-	return created, m.createErr
+	return created, createErr
 }
 
 func (m *loopActionBinderSessionManager) Prompt(

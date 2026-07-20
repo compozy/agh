@@ -496,7 +496,7 @@ func buildToolResult(toolName string, failed bool, contentText string, rawOutput
 			mapped = rawToolResultObject(raw)
 		}
 		if mapped != nil {
-			result.Stdout = firstNonEmpty(result.Stdout, nestedString(mapped, "stdout"))
+			result.Stdout = firstNonEmpty(result.Stdout, nestedString(mapped, transcriptStdoutFieldKey))
 			result.Stderr = firstNonEmpty(result.Stderr, nestedString(mapped, "stderr"))
 			result.FilePath = firstNonEmpty(
 				result.FilePath,

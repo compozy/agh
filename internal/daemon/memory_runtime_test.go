@@ -6,17 +6,43 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	extensionpkg "github.com/compozy/agh/internal/extension"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
+	extractorpkg "github.com/compozy/agh/internal/memory/extractor"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/testutil"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
+
+func TestDaemonMemoryExtractorSkipsSubagentWorkspaceRootCache(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoots := &sync.Map{}
+	extractor := &daemonMemoryExtractor{
+		runtime:        &extractorpkg.Runtime{},
+		workspaceRoots: workspaceRoots,
+	}
+	payload := hookspkg.SessionMessagePersistedPayload{
+		SessionContext: hookspkg.SessionContext{
+			SessionID: "sess-auto-title", Workspace: t.TempDir(), WorkspaceID: "ws-1",
+		},
+		ParentSessionID: "sess-parent",
+		ActorKind:       "agent_subagent",
+	}
+	if err := extractor.HandleSessionMessagePersisted(testutil.Context(t), payload); err != nil {
+		t.Fatalf("HandleSessionMessagePersisted() error = %v", err)
+	}
+	if _, loaded := workspaceRoots.Load(payload.SessionID); loaded {
+		t.Fatalf("workspaceRoots[%q] retained a subagent entry", payload.SessionID)
+	}
+}
 
 func TestDaemonMemoryProposalSinkTargetStore(t *testing.T) {
 	t.Parallel()

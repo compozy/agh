@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compozy/agh/internal/admission"
 	looppkg "github.com/compozy/agh/internal/loop"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -15,11 +16,8 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		return nil
 	}
 
-	store, ok := state.registry.(taskStore)
+	store, ok := taskStoreForBoot(state)
 	if !ok {
-		state.logger.Warn(
-			"daemon: task runtime skipped because registry does not implement task store",
-		)
 		return nil
 	}
 
@@ -58,9 +56,13 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		eventObserver,
 		reviewRequests,
 		coordinatorRunner,
+		&d.admission,
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create task manager: %w", err)
+	}
+	if err := bootSubprocessHealthEscalator(state, store, manager); err != nil {
+		return err
 	}
 	coordinatorBackstop := newLoopCoordinatorBootGate(schedulerTaskSource{manager: manager, store: store})
 	if err := installLoopTaskObservers(ctx, state, manager, store, coordinatorBackstop, d.now); err != nil {
@@ -89,8 +91,17 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		coordinatorBackstop,
 		loopJudges,
 	)
-
 	return recoverInstalledTaskRuntime(ctx, state, manager, store, reentry)
+}
+
+func taskStoreForBoot(state *bootState) (taskStore, bool) {
+	store, ok := state.registry.(taskStore)
+	if !ok {
+		state.logger.Warn(
+			"daemon: task runtime skipped because registry does not implement task store",
+		)
+	}
+	return store, ok
 }
 
 func recoverInstalledTaskRuntime(
@@ -130,7 +141,15 @@ func installLoopActionRuntime(
 	if coordinatorRunner == nil {
 		return nil, nil
 	}
-	loopActions, err := newLoopActionRuntime(manager, store, coordinatorRunner, state.logger, now)
+	loopActions, err := newLoopActionRuntime(
+		manager,
+		store,
+		coordinatorRunner,
+		state.sessions,
+		state.logger,
+		now,
+		state.cfg.Task.Orchestration.ActionRunTimeout,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create loop action runtime: %w", err)
 	}
@@ -250,6 +269,7 @@ func newTaskRuntimeManager(
 	eventObserver taskpkg.EventObserver,
 	reviewRequests taskpkg.RunReviewRequestedObserver,
 	coordinatorRunner taskpkg.CoordinatorRunner,
+	workAdmission admission.Checker,
 ) (*taskpkg.Service, error) {
 	resolver, err := ensureDaemonParticipationResolver(state, store)
 	if err != nil {
@@ -267,8 +287,13 @@ func newTaskRuntimeManager(
 		state.cfg.Task.Recovery,
 		state.cfg.Autonomy.Scheduler,
 		state.cfg.Autonomy.BlockRecurrenceLimit,
+		state.cfg.Task.Orchestration.MaxActiveRunsPerWorkspace,
 	)
-	options = append(options, taskpkg.WithParticipationResolver(resolver))
+	options = append(
+		options,
+		taskpkg.WithParticipationResolver(resolver),
+		taskpkg.WithWorkAdmissionChecker(workAdmission),
+	)
 	return taskpkg.NewManager(options...)
 }
 

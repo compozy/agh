@@ -122,11 +122,12 @@ func parseSkillDocument(filePath string, dir string, content []byte, source Skil
 	}
 
 	skill := &Skill{
-		Meta:     meta,
-		Source:   source,
-		Dir:      dir,
-		FilePath: filePath,
-		Enabled:  true,
+		Meta:       meta,
+		Source:     source,
+		Dir:        dir,
+		FilePath:   filePath,
+		Enabled:    true,
+		Activation: SkillActivation{Active: true},
 	}
 	if err := parseAGHMetadata(skill); err != nil {
 		return nil, "", fmt.Errorf("skills: parse %q metadata.agh: %w", filePath, err)
@@ -267,36 +268,6 @@ func parseSkillContent(content []byte) (SkillMeta, string, error) {
 	}
 
 	return meta, parts.Body, nil
-}
-
-func parseAGHMetadata(skill *Skill) error {
-	if skill == nil || skill.Meta.Metadata == nil {
-		return nil
-	}
-
-	rawAGH, ok := skill.Meta.Metadata["agh"]
-	if !ok || rawAGH == nil {
-		return nil
-	}
-
-	agh, ok := rawAGH.(map[string]any)
-	if !ok {
-		warnAGHMetadata(skill, "skills: malformed metadata.agh block", "type", fmt.Sprintf("%T", rawAGH))
-		return nil
-	}
-
-	if rawMCPServers, ok := agh["mcp_servers"]; ok {
-		skill.MCPServers = parseMCPServerDecls(skill, rawMCPServers)
-	}
-	if rawHooks, ok := agh["hooks"]; ok {
-		hooks, err := parseHookDecls(skill, rawHooks)
-		if err != nil {
-			return err
-		}
-		skill.Hooks = hooks
-	}
-
-	return nil
 }
 
 func parseMCPServerDecls(skill *Skill, raw any) []MCPServerDecl {

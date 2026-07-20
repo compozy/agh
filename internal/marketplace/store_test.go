@@ -450,7 +450,11 @@ func TestSQLiteStoreRejectsInvalidInputsBeforeMutation(t *testing.T) {
 func openMarketplaceTestStore(t *testing.T) *SQLiteStore {
 	t.Helper()
 	ctx := testutil.Context(t)
-	db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "marketplace-test.db"))
+	databasePath := filepath.Join(t.TempDir(), "marketplace-test.db")
+	if err := marketplaceTestStoreSeed.Clone(databasePath); err != nil {
+		t.Fatalf("marketplace store seed Clone() error = %v", err)
+	}
+	db, err := globaldb.OpenGlobalDB(ctx, databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

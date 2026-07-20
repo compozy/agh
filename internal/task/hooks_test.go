@@ -409,10 +409,12 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		actor := validActorContext()
 		agent := agentActorContextForTest("sess-hooks", "ws-hooks")
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		maxAttempts := 4
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Hooked lease task",
+			Scope:       ScopeGlobal,
+			Title:       "Hooked lease task",
+			MaxAttempts: &maxAttempts,
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -517,6 +519,82 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 			if events[idx] != want[idx] {
 				t.Fatalf("events[%d] = %q, want %q (events=%#v)", idx, events[idx], want[idx], events)
 			}
+		}
+	})
+
+	t.Run("Should skip the recovered hook when the shared attempt budget is exhausted", func(t *testing.T) {
+		t.Parallel()
+
+		var expiredCount int
+		var recoveredCount int
+		var needsAttention hookspkg.TaskNeedsAttentionPayload
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			leaseExpired: func(
+				_ context.Context,
+				payload hookspkg.TaskRunLeaseExpiredPayload,
+			) (hookspkg.TaskRunLeaseExpiredPayload, error) {
+				expiredCount++
+				return payload, nil
+			},
+			recovered: func(
+				_ context.Context,
+				payload hookspkg.TaskRunLeaseRecoveredPayload,
+			) (hookspkg.TaskRunLeaseRecoveredPayload, error) {
+				recoveredCount++
+				return payload, nil
+			},
+			needsAttention: func(
+				_ context.Context,
+				payload hookspkg.TaskNeedsAttentionPayload,
+			) (hookspkg.TaskNeedsAttentionPayload, error) {
+				needsAttention = payload
+				return payload, nil
+			},
+		}))
+		actor := validActorContext()
+		agent := agentActorContextForTest("sess-exhausted", "ws-exhausted")
+		now := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
+		maxAttempts := 1
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:       ScopeGlobal,
+			Title:       "Exhausted lease task",
+			MaxAttempts: &maxAttempts,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "sess-exhausted",
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+
+		results, err := manager.RecoverExpiredRunLeases(context.Background(), ExpiredLeaseRecovery{
+			Now:    claim.LeaseUntil.Add(time.Second),
+			Reason: "orphaned_on_boot",
+		}, actor)
+		if err != nil {
+			t.Fatalf("RecoverExpiredRunLeases() error = %v", err)
+		}
+		if len(results) != 1 || !results[0].Exhausted ||
+			results[0].Run.Status != TaskRunStatusNeedsAttention {
+			t.Fatalf("recovery results = %#v, want one exhausted run", results)
+		}
+		if expiredCount != 1 || recoveredCount != 0 {
+			t.Fatalf("lease hooks = expired:%d recovered:%d, want 1:0", expiredCount, recoveredCount)
+		}
+		if needsAttention.Reason != LeaseRecoveryExhaustedReason {
+			t.Fatalf("needs-attention reason = %q, want %q", needsAttention.Reason, LeaseRecoveryExhaustedReason)
 		}
 	})
 }

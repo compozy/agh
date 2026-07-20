@@ -51,8 +51,12 @@ func (h *BaseHandlers) daemonStatusPayload(
 	if httpPort <= 0 {
 		httpPort = h.Config.HTTP.Port
 	}
+	daemonStatus := statusStateRunning
+	if h.DrainController != nil && h.DrainController.DrainState() == contract.DrainStateDraining {
+		daemonStatus = string(contract.DrainStateDraining)
+	}
 	return contract.DaemonStatusPayload{
-		Status:         statusStateRunning,
+		Status:         daemonStatus,
 		PID:            h.PID(),
 		StartedAt:      h.StartedAt,
 		Socket:         h.Config.Daemon.Socket,

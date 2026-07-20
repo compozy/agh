@@ -39,9 +39,19 @@ type agentPromptSectionProvider interface {
 	) (string, error)
 }
 
+type agentSessionPromptSectionProvider interface {
+	PromptAgentSessionSection(
+		ctx context.Context,
+		sessionID string,
+		agent aghconfig.AgentDef,
+		workspace *workspacepkg.ResolvedWorkspace,
+	) (string, error)
+}
+
 var (
 	_ session.PromptAssembler        = (*ComposedAssembler)(nil)
 	_ session.StartupPromptAssembler = (*ComposedAssembler)(nil)
+	_ session.ResumeContextProvider  = (*ComposedAssembler)(nil)
 )
 
 // NewComposedAssembler constructs a ComposedAssembler from startup section
@@ -171,6 +181,36 @@ func (a *ComposedAssembler) AssembleStartup(
 	return strings.Join(sections, "\n\n"), nil
 }
 
+// ResumeContextSection gathers resume-only sections from the same selected
+// startup providers used by normal prompt assembly.
+func (a *ComposedAssembler) ResumeContextSection(
+	ctx context.Context,
+	startup session.StartupPromptContext,
+) (string, error) {
+	if a == nil {
+		return "", nil
+	}
+	selected, err := a.selectDescriptors(startup)
+	if err != nil {
+		return "", err
+	}
+	sections := make([]string, 0, len(selected))
+	for _, descriptor := range selected {
+		provider, ok := descriptor.Provider.(session.ResumeContextProvider)
+		if !ok || provider == nil {
+			continue
+		}
+		section, err := provider.ResumeContextSection(ctx, startup)
+		if err != nil {
+			return "", fmt.Errorf("daemon: resume prompt section %q: %w", descriptor.Name, err)
+		}
+		if trimmed := strings.TrimSpace(section); trimmed != "" {
+			sections = append(sections, trimmed)
+		}
+	}
+	return strings.Join(sections, "\n\n"), nil
+}
+
 func (a *ComposedAssembler) selectDescriptors(
 	startup session.StartupPromptContext,
 ) ([]PromptSectionDescriptor, error) {
@@ -258,6 +298,9 @@ func promptSection(
 	agent aghconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
+	if sessionProvider, ok := provider.(agentSessionPromptSectionProvider); ok {
+		return sessionProvider.PromptAgentSessionSection(ctx, startup.SessionID, agent, workspace)
+	}
 	if startupProvider, ok := provider.(startupPromptSectionProvider); ok {
 		return startupProvider.PromptStartupSection(ctx, startup, agent, workspace)
 	}

@@ -68,33 +68,7 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 		}
 		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, normalized, ToolCallFailed)
 	}
-	limited, err := r.resultLimiter().Apply(ctx, target.descriptor, providerResult)
-	if err != nil {
-		normalized := normalizeToolError(target.descriptor.ID, err)
-		if hookErr := r.runPostErrorHook(ctx, &target, patchedReq, normalized); hookErr != nil {
-			normalized = hookErr
-		}
-		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, normalized, ToolCallFailed)
-	}
-	limited, err = r.runPostCallHook(ctx, &target, patchedReq, limited)
-	if err != nil {
-		return ToolResult{}, r.failDispatch(ctx, &target, patchedReq, started, err, ToolCallDenied)
-	}
-	if err := r.emit(ctx, &target, patchedReq, ToolCallCompleted, ToolEventData{
-		StartedAt: started,
-		Result:    limited,
-	}); err != nil {
-		return ToolResult{}, err
-	}
-	if limited.Truncated {
-		if err := r.emit(ctx, &target, patchedReq, ToolResultTruncated, ToolEventData{
-			StartedAt: started,
-			Result:    limited,
-		}); err != nil {
-			return ToolResult{}, err
-		}
-	}
-	return limited, nil
+	return r.completeDispatch(ctx, scope, &target, patchedReq, started, providerResult)
 }
 
 func normalizeCallRequest(scope Scope, req CallRequest) (CallRequest, error) {
@@ -429,66 +403,6 @@ func mergeHookCallRequest(original CallRequest, patched CallRequest) CallRequest
 		patched.ApprovalToken = original.ApprovalToken
 	}
 	return patched
-}
-
-func (r *RuntimeRegistry) runPostCallHook(
-	ctx context.Context,
-	target *dispatchTarget,
-	req CallRequest,
-	result ToolResult,
-) (ToolResult, error) {
-	if r.hooks == nil {
-		return result, nil
-	}
-	patched, err := r.hooks.PostCall(ctx, req, result)
-	if err != nil {
-		return result, normalizeHookError(target.descriptor.ID, err)
-	}
-	limited, err := r.resultLimiter().Apply(ctx, target.descriptor, patched)
-	if err != nil {
-		return result, err
-	}
-	return limited, nil
-}
-
-func (r *RuntimeRegistry) runPostErrorHook(
-	ctx context.Context,
-	target *dispatchTarget,
-	req CallRequest,
-	callErr error,
-) error {
-	if r.hooks == nil {
-		return nil
-	}
-	if err := r.hooks.PostError(ctx, req, callErr); err != nil {
-		return normalizeHookError(target.descriptor.ID, err)
-	}
-	return nil
-}
-
-func (r *RuntimeRegistry) failDispatch(
-	ctx context.Context,
-	target *dispatchTarget,
-	req CallRequest,
-	started time.Time,
-	err error,
-	kind ToolCallEventKind,
-) error {
-	normalized := normalizeToolError(target.descriptor.ID, err)
-	if emitErr := r.emit(ctx, target, req, kind, ToolEventData{
-		StartedAt: started,
-		Err:       normalized,
-	}); emitErr != nil {
-		return emitErr
-	}
-	return normalized
-}
-
-func (r *RuntimeRegistry) resultLimiter() ResultLimiter {
-	if r.limiter != nil {
-		return r.limiter
-	}
-	return NewResultLimiter(r.defaultMaxResultBytes, r.sensitiveFields...)
 }
 
 func contextErr(ctx context.Context, id ToolID) error {

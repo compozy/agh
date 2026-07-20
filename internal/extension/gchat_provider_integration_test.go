@@ -251,8 +251,8 @@ func TestGChatProviderIngressAndDeliveryConformance(t *testing.T) {
 	if !gchatProviderCallsContain(calls, http.MethodPost, "/v1/spaces/AAA/messages") {
 		t.Fatalf("mock api calls = %#v, want delivery POST", calls)
 	}
-	if !gchatProviderCallsContain(calls, http.MethodPut, "/v1/spaces/AAA/messages/msg-1") {
-		t.Fatalf("mock api calls = %#v, want delivery PUT", calls)
+	if !gchatProviderCallsContain(calls, http.MethodPatch, "/v1/spaces/AAA/messages/msg-1") {
+		t.Fatalf("mock api calls = %#v, want delivery PATCH", calls)
 	}
 
 	row := waitForBridgeHealth(t, 10*time.Second, harness, func(health observepkg.BridgeInstanceHealth) bool {
@@ -548,7 +548,7 @@ func newGChatProviderAPIServer(t *testing.T) *gchatProviderAPIServer {
 				},
 			})
 			return
-		case r.Method == http.MethodPut:
+		case r.Method == http.MethodPatch:
 			name := strings.TrimPrefix(r.URL.Path, "/v1/")
 			_ = json.NewEncoder(w).Encode(map[string]any{"name": name})
 			return

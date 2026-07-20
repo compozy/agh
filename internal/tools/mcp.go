@@ -38,10 +38,11 @@ func (f MCPSourceListerFunc) ListMCPSources(ctx context.Context) ([]SourceRef, e
 
 // MCPProvider adapts daemon-owned MCP discovery and calls into registry descriptors.
 type MCPProvider struct {
-	source  SourceRef
-	sources MCPSourceLister
-	exec    MCPCallExecutor
-	auth    MCPAuthStatusProvider
+	source      SourceRef
+	sources     MCPSourceLister
+	exec        MCPCallExecutor
+	auth        MCPAuthStatusProvider
+	reliability *mcpReliability
 }
 
 var _ Provider = (*MCPProvider)(nil)
@@ -51,6 +52,7 @@ func NewMCPProvider(
 	sources MCPSourceLister,
 	exec MCPCallExecutor,
 	auth MCPAuthStatusProvider,
+	opts ...MCPProviderOption,
 ) (*MCPProvider, error) {
 	if isNilInterface(exec) {
 		return nil, NewValidationError(
@@ -74,6 +76,11 @@ func NewMCPProvider(
 		sources: sources,
 		exec:    exec,
 		auth:    auth,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(provider)
+		}
 	}
 	if err := provider.source.Validate("source"); err != nil {
 		return nil, err
@@ -106,22 +113,16 @@ func (p *MCPProvider) List(ctx context.Context, scope Scope) ([]Descriptor, erro
 		return nil, fmt.Errorf("tools: list mcp sources: %w", err)
 	}
 	sources = mcpSourcesForScope(sources, scope)
+	if p.reliability != nil {
+		p.reliability.retainActiveSources(scope, sources)
+	}
 	descriptors := make([]Descriptor, 0)
 	for _, source := range sources {
-		tools, err := p.exec.ListTools(ctx, source)
+		sourceDescriptors, err := p.listSourceDescriptors(ctx, source)
 		if err != nil {
-			if contextError := contextErrFromError("", err); contextError != nil {
-				return nil, contextError
-			}
-			continue
+			return nil, err
 		}
-		for i := range tools {
-			descriptor, err := mcpRegistryDescriptor(source, tools[i])
-			if err != nil {
-				return nil, wrapField(err, fmt.Sprintf("mcp_tools[%d]", i))
-			}
-			descriptors = append(descriptors, descriptor)
-		}
+		descriptors = append(descriptors, sourceDescriptors...)
 	}
 	slices.SortFunc(descriptors, func(left, right Descriptor) int {
 		return strings.Compare(left.ID.String(), right.ID.String())
@@ -177,20 +178,22 @@ func (p *MCPProvider) Resolve(ctx context.Context, scope Scope, id ToolID) (Hand
 			continue
 		}
 		return &mcpHandle{
-			descriptor: cloneDescriptor(descriptors[i]),
-			exec:       p.exec,
-			auth:       p.auth,
-			scope:      scope,
+			descriptor:  cloneDescriptor(descriptors[i]),
+			exec:        p.exec,
+			auth:        p.auth,
+			scope:       scope,
+			reliability: p.reliability,
 		}, true, nil
 	}
 	return nil, false, nil
 }
 
 type mcpHandle struct {
-	descriptor Descriptor
-	exec       MCPCallExecutor
-	auth       MCPAuthStatusProvider
-	scope      Scope
+	descriptor  Descriptor
+	exec        MCPCallExecutor
+	auth        MCPAuthStatusProvider
+	scope       Scope
+	reliability *mcpReliability
 }
 
 var _ Handle = (*mcpHandle)(nil)
@@ -205,6 +208,9 @@ func (h *mcpHandle) Descriptor() Descriptor {
 func (h *mcpHandle) Availability(ctx context.Context, _ Scope) Availability {
 	if h == nil || isNilInterface(h.exec) {
 		return Unavailable(ReasonBackendNotExecutable)
+	}
+	if h.reliability != nil && h.reliability.dead(ctx, h.descriptor.Source) {
+		return Unavailable(ReasonBackendDead)
 	}
 	if isNilInterface(h.auth) {
 		return Available()

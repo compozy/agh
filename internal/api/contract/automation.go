@@ -68,6 +68,18 @@ type JobPayload struct {
 	Scheduler   *AutomationSchedulerStatePayload `json:"scheduler,omitempty"`
 }
 
+// AutomationSuggestionPayload is a workspace-scoped, consent-first Job proposal.
+type AutomationSuggestionPayload struct {
+	ID          string                         `json:"id"`
+	WorkspaceID string                         `json:"workspace_id"`
+	Source      automationpkg.SuggestionSource `json:"source"`
+	DedupKey    string                         `json:"dedup_key"`
+	Status      automationpkg.SuggestionStatus `json:"status"`
+	Payload     JobPayload                     `json:"payload"`
+	CreatedAt   time.Time                      `json:"created_at"`
+	ResolvedAt  *time.Time                     `json:"resolved_at,omitempty"`
+}
+
 // TriggerPayload is the shared automation trigger response payload.
 type TriggerPayload struct {
 	ID                   string                        `json:"id"`

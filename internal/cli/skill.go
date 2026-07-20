@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/skills"
 )
 
@@ -28,10 +29,11 @@ type skillCommandContext struct {
 }
 
 type skillListItem struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Source      string `json:"source"`
-	Enabled     bool   `json:"enabled"`
+	Name        string                          `json:"name"`
+	Description string                          `json:"description"`
+	Source      string                          `json:"source"`
+	Enabled     bool                            `json:"enabled"`
+	Activation  contract.SkillActivationPayload `json:"activation"`
 }
 
 type skillViewItem struct {
@@ -44,15 +46,16 @@ type skillViewItem struct {
 }
 
 type skillInfoItem struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Version     string                 `json:"version,omitempty"`
-	Source      string                 `json:"source"`
-	Path        string                 `json:"path"`
-	Enabled     bool                   `json:"enabled"`
-	Metadata    map[string]any         `json:"metadata,omitempty"`
-	Resources   []string               `json:"resources,omitempty"`
-	Provenance  *SkillProvenanceRecord `json:"provenance,omitempty"`
+	Name        string                          `json:"name"`
+	Description string                          `json:"description"`
+	Version     string                          `json:"version,omitempty"`
+	Source      string                          `json:"source"`
+	Path        string                          `json:"path"`
+	Enabled     bool                            `json:"enabled"`
+	Activation  contract.SkillActivationPayload `json:"activation"`
+	Metadata    map[string]any                  `json:"metadata,omitempty"`
+	Resources   []string                        `json:"resources,omitempty"`
+	Provenance  *SkillProvenanceRecord          `json:"provenance,omitempty"`
 }
 
 type skillCreateItem struct {

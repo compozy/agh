@@ -15,15 +15,9 @@ var (
 	authorizationHeaderPattern = regexp.MustCompile(
 		`(?i)\b((?:proxy[-_])?authorization)\b(\s*[=:]\s*)([^\r\n,;]+)`,
 	)
-	bearerTokenPattern    = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
-	claimTokenPattern     = regexp.MustCompile(`(?i)\bagh_claim_[A-Za-z0-9_-]+\b`)
-	urlUserinfoPattern    = regexp.MustCompile(`(?i)(://)[^/@\s:]+:[^/@\s]+@`)
-	providerTokenPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{8,}\b`),
-		regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9_]{8,}\b`),
-		regexp.MustCompile(`\bxox[baprs]-[A-Za-z0-9-]{8,}\b`),
-		regexp.MustCompile(`\bxapp-[A-Za-z0-9-]{8,}\b`),
-	}
+	bearerTokenPattern      = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
+	claimTokenPattern       = regexp.MustCompile(`(?i)\bagh_claim_[A-Za-z0-9_-]+\b`)
+	urlUserinfoPattern      = regexp.MustCompile(`(?i)(://)[^/@\s:]+:[^/@\s]+@`)
 	quotedAssignmentPattern = regexp.MustCompile(
 		`(?i)(["'])(` + sensitiveAssignmentKeyPattern + `)(["'])(\s*:\s*)(["'])(?:\\.|[^\\])*?(["'])`,
 	)
@@ -38,6 +32,51 @@ var (
 	)
 )
 
+var heuristicProviderTokenPatterns = compileProviderTokenPatterns([]string{
+	`sk-[A-Za-z0-9_-]{10,}`,
+	`github_pat_[A-Za-z0-9_]{10,}`,
+	`gh[pousr]_[A-Za-z0-9]{10,}`,
+	`xox[baprs]-[A-Za-z0-9-]{10,}`,
+	`xapp-[A-Za-z0-9-]{10,}`,
+	`AIza[A-Za-z0-9_-]{30,}`,
+	`pplx-[A-Za-z0-9]{10,}`,
+	`fal_[A-Za-z0-9_-]{10,}`,
+	`fc-[A-Za-z0-9]{10,}`,
+	`bb_live_[A-Za-z0-9_-]{10,}`,
+	`gAAAA[A-Za-z0-9_=-]{20,}`,
+	`AKIA[A-Z0-9]{16}`,
+	`(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}`,
+	`SG\.[A-Za-z0-9_-]{10,}`,
+	`hf_[A-Za-z0-9]{10,}`,
+	`r8_[A-Za-z0-9]{10,}`,
+	`npm_[A-Za-z0-9]{10,}`,
+	`pypi-[A-Za-z0-9_-]{10,}`,
+	`do[po]_v1_[A-Za-z0-9]{10,}`,
+	`am_[A-Za-z0-9_-]{10,}`,
+	`sk_[A-Za-z0-9_]{10,}`,
+	`tvly-[A-Za-z0-9]{10,}`,
+	`exa_[A-Za-z0-9]{10,}`,
+	`gsk_[A-Za-z0-9]{10,}`,
+	`syt_[A-Za-z0-9]{10,}`,
+	`retaindb_[A-Za-z0-9]{10,}`,
+	`hsk-[A-Za-z0-9]{10,}`,
+	`mem0_[A-Za-z0-9]{10,}`,
+	`brv_[A-Za-z0-9]{10,}`,
+	`xai-[A-Za-z0-9]{30,}`,
+	`ntn_[A-Za-z0-9]{10,}`,
+	`fw-[A-Za-z0-9]{30,}`,
+	`fw_[A-Za-z0-9]{30,}`,
+	`fpk_[A-Za-z0-9]{30,}`,
+})
+
+func compileProviderTokenPatterns(patterns []string) []*regexp.Regexp {
+	compiled := make([]*regexp.Regexp, 0, len(patterns))
+	for _, pattern := range patterns {
+		compiled = append(compiled, regexp.MustCompile(`\b(?:`+pattern+`)`))
+	}
+	return compiled
+}
+
 // IsSensitiveKey reports whether a field name belongs to the shared secret taxonomy.
 func IsSensitiveKey(key string) bool {
 	normalized := strings.ToLower(strings.Trim(strings.TrimSpace(key), `"'`))
@@ -48,6 +87,10 @@ func IsSensitiveKey(key string) bool {
 	compact := compactSensitiveKey(normalized)
 	switch compact {
 	case "tokenpresent", "maxinputtokens", "maxoutputtokens":
+		return false
+	}
+	if strings.HasSuffix(compact, "hash") || strings.HasSuffix(compact, "digest") ||
+		strings.HasSuffix(compact, "fingerprint") {
 		return false
 	}
 

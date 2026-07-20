@@ -151,6 +151,7 @@ type CommittedNetworkNotification struct {
 	RecipientSessionID string
 	TaskRunID          string
 	AcceptanceSeq      int64
+	ReadyAt            time.Time
 }
 
 // AcceptNetworkMessageResult reports the exact durable acceptance outcome.

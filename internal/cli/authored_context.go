@@ -29,7 +29,7 @@ const (
 const (
 	authoredContextDigestKey    = "digest"
 	authoredContextNewDigestKey = "new_digest"
-	networkStateKey             = "state"
+	stateKey                    = "state"
 )
 
 const (
@@ -1211,7 +1211,7 @@ func sessionHealthBundle(record SessionHealthRecord) outputBundle {
 				sessionSessionKey,
 				workspaceSkillSource,
 				agentAgentKey,
-				networkStateKey,
+				stateKey,
 				authoredContextHealthKey,
 				"eligible_for_wake",
 				memoryReasonKey,
@@ -1254,7 +1254,7 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				sessionSessionKey,
 				workspaceSkillSource,
 				agentAgentKey,
-				networkStateKey,
+				stateKey,
 				authoredContextHealthKey,
 				"eligible_for_wake",
 				memoryReasonKey,

@@ -3,17 +3,22 @@ import { useRef } from "react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { PermissionDataPart } from "@/systems/session/components/permission-prompt";
-import { RuntimeActivityNotice } from "@/systems/session/components/runtime-activity-notice";
-import { ThinkingBlock } from "@/systems/session/components/thinking-block";
-import { SessionToolCallRow } from "@/systems/session/components/tool-call-card";
-import { useSessionRuntimeRenderContext } from "@/systems/session/hooks/use-session-runtime-render-context";
-import { isAgentEventPayload, resolveToolResult } from "@/systems/session/lib/message-parts";
-import type { AghPermissionData } from "@/systems/session/types";
-import type { UIMessage } from "@/systems/session/types";
+import {
+  ClarificationDataPart,
+  isAgentEventPayload,
+  isClarifyEventData,
+  PermissionDataPart,
+  resolveToolResult,
+  RuntimeActivityNotice,
+  SessionToolCallRow,
+  ThinkingBlock,
+  useSessionRuntimeRenderContext,
+  type AghPermissionData,
+  type GoalPromptMeta,
+  type UIMessage,
+} from "@/systems/session";
 import { Button, Eyebrow } from "@agh/ui";
 import { Link } from "@tanstack/react-router";
-import type { GoalPromptMeta } from "@/systems/session/types";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
 import {
   TimelineRowContext,
@@ -57,6 +62,15 @@ function SessionReasoningRowView({ row }: { row: SessionReasoningRow }) {
 
 function SessionDataRowView({ row }: { row: SessionDataRow }) {
   const renderContext = useSessionRuntimeRenderContext();
+  if (row.part.name === "data-agh-event" && renderContext && isClarifyEventData(row.part.data)) {
+    return (
+      <ClarificationDataPart
+        data={row.part.data}
+        sessionId={renderContext.sessionId}
+        workspaceId={renderContext.workspaceId}
+      />
+    );
+  }
   if (row.part.name === "data-agh-event" && isAgentEventPayload(row.part.data)) {
     return <RuntimeActivityNotice event={row.part.data} />;
   }

@@ -1,9 +1,62 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
 import type { UIMessage } from "../../types";
 import { SessionToolCallRow } from "../tool-call-card";
+
+const ARTIFACT_ID_A = `art_${"a".repeat(64)}`;
+const ARTIFACT_ID_B = `art_${"b".repeat(64)}`;
+const ARTIFACT_URI_A = `agh://tool-artifacts/${ARTIFACT_ID_A}`;
+const ARTIFACT_URI_B = `agh://tool-artifacts/${ARTIFACT_ID_B}`;
+
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+}
+
+function encodedBytes(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return globalThis.btoa(binary);
+}
+
+function requestURL(input: RequestInfo | URL): URL {
+  if (input instanceof Request) return new URL(input.url);
+  return new URL(String(input), "http://localhost");
+}
+
+function truncatedMessage(uri = ARTIFACT_URI_A, preview = "bounded preview"): UIMessage {
+  return makeToolMessage({
+    toolName: "agh__memory_recall",
+    toolResult: {
+      preview,
+      truncated: true,
+      artifacts: [
+        {
+          uri,
+          name: "tool-result.json",
+          mime_type: "application/vnd.agh.tool-result+json",
+          bytes: 256,
+          sha256: uri.slice(-64),
+        },
+      ],
+    },
+  });
+}
+
+function artifactRow(workspaceId: string, message: UIMessage, queryClient = createQueryClient()) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SessionRuntimeRenderProvider sessionId="session-artifact-test" workspaceId={workspaceId}>
+        <SessionToolCallRow message={message} defaultExpanded />
+      </SessionRuntimeRenderProvider>
+    </QueryClientProvider>
+  );
+}
 
 function makeToolMessage(overrides: Partial<UIMessage> = {}): UIMessage {
   return {
@@ -295,5 +348,114 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
     expect(payload.tool).toBe("Read");
     expect(payload.input.file_path).toBe("/src/main.ts");
     expect(payload.output.content).toBe("abc");
+  });
+
+  it("Should append each artifact byte page once and decode UTF-8 only after concatenation", async () => {
+    const user = userEvent.setup();
+    const fullResult = JSON.stringify({ content: [{ type: "text", text: "ação D6 complete" }] });
+    const resultBytes = new TextEncoder().encode(fullResult);
+    const multibyteStart = resultBytes.findIndex(byte => byte === 0xc3);
+    expect(multibyteStart).toBeGreaterThan(0);
+    const splitOffset = multibyteStart + 1;
+    const chunks = [resultBytes.slice(0, splitOffset), resultBytes.slice(splitOffset)];
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = requestURL(input);
+      const offset = Number(url.searchParams.get("offset") ?? "0");
+      const chunk = offset === 0 ? chunks[0] : chunks[1];
+      if (!chunk) throw new Error(`Unexpected artifact offset ${offset}`);
+      const nextOffset = offset + chunk.byteLength;
+      return new Response(
+        JSON.stringify({
+          artifact: { uri: ARTIFACT_URI_A, bytes: resultBytes.byteLength },
+          offset,
+          bytes: chunk.byteLength,
+          total_bytes: resultBytes.byteLength,
+          data_base64: encodedBytes(chunk),
+          next_offset: nextOffset,
+          eof: nextOffset === resultBytes.byteLength,
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+    });
+
+    render(artifactRow("ws-artifact-a", truncatedMessage()));
+    await user.click(screen.getByRole("button", { name: "Open full result" }));
+    const loadMore = await screen.findByRole("button", { name: "Load more" });
+    await user.click(loadMore);
+
+    await waitFor(() => {
+      const code = screen
+        .getByTestId("full-tool-result")
+        .querySelector<HTMLElement>('[data-slot="code-block-code"]');
+      expect(code?.textContent).toBe(fullResult);
+    });
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(requestURL(fetchMock.mock.calls[0]![0]).pathname).toBe(
+      `/api/workspaces/ws-artifact-a/tool-artifacts/${ARTIFACT_ID_A}`
+    );
+    expect(requestURL(fetchMock.mock.calls[0]![0]).searchParams.get("offset")).toBe("0");
+    expect(requestURL(fetchMock.mock.calls[1]![0]).searchParams.get("offset")).toBe(
+      String(splitOffset)
+    );
+  });
+
+  it("Should isolate retained-result pages by workspace and artifact identity", async () => {
+    const user = userEvent.setup();
+    const queryClient = createQueryClient();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = requestURL(input);
+      const workspace = url.pathname.includes("ws-artifact-b") ? "ws-artifact-b" : "ws-artifact-a";
+      const uri = workspace === "ws-artifact-b" ? ARTIFACT_URI_B : ARTIFACT_URI_A;
+      const bytes = new TextEncoder().encode(JSON.stringify({ workspace }));
+      return new Response(
+        JSON.stringify({
+          artifact: { uri, bytes: bytes.byteLength },
+          offset: 0,
+          bytes: bytes.byteLength,
+          total_bytes: bytes.byteLength,
+          data_base64: encodedBytes(bytes),
+          next_offset: bytes.byteLength,
+          eof: true,
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+    });
+    const { rerender } = render(
+      artifactRow("ws-artifact-a", truncatedMessage(ARTIFACT_URI_A), queryClient)
+    );
+    await user.click(screen.getByRole("button", { name: "Open full result" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("full-tool-result")).toHaveTextContent("ws-artifact-a")
+    );
+
+    rerender(artifactRow("ws-artifact-b", truncatedMessage(ARTIFACT_URI_B), queryClient));
+    await waitFor(() =>
+      expect(screen.getByTestId("full-tool-result")).toHaveTextContent("ws-artifact-b")
+    );
+    expect(screen.getByTestId("full-tool-result")).not.toHaveTextContent("ws-artifact-a");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(requestURL(fetchMock.mock.calls[1]![0]).pathname).toBe(
+      `/api/workspaces/ws-artifact-b/tool-artifacts/${ARTIFACT_ID_B}`
+    );
+  });
+
+  it("Should keep the bounded preview visible when the retained result is unavailable", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: "tool_not_found", message: "not found" } }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    render(artifactRow("ws-artifact-a", truncatedMessage()));
+    expect(screen.getByText("bounded preview")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open full result" }));
+
+    expect(await screen.findByText("Full result unavailable")).toBeInTheDocument();
+    expect(screen.getByText("This retained result is no longer available")).toBeInTheDocument();
+    expect(screen.getByText("bounded preview")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry full result" })).not.toBeInTheDocument();
   });
 });

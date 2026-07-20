@@ -56,6 +56,9 @@ func (m *Service) executeTaskBoundary(
 	action ExecutionAction,
 	actor ActorContext,
 ) (*Execution, error) {
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return nil, err
+	}
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}

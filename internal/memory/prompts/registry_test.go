@@ -85,6 +85,21 @@ func TestRegistry(t *testing.T) {
 			fragments []string
 		}{
 			{
+				name: NameCheckpointSummary,
+				data: map[string]any{
+					"WorkspaceID":     "workspace-1",
+					"SessionID":       "session-2",
+					"EndedAt":         "2026-07-15T12:00:00Z",
+					"PreviousSummary": "Prior checkpoint fact.",
+					"Transcript":      "New checkpoint fact.",
+				},
+				fragments: []string{
+					"Prior checkpoint fact.",
+					"New checkpoint fact.",
+					"## Historical Task Snapshot",
+				},
+			},
+			{
 				name: NameDecide,
 				data: map[string]any{
 					"Candidate": map[string]any{

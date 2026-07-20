@@ -23,6 +23,19 @@ type stubSkillsRegistry = testutil.StubSkillsRegistry
 
 var _ core.SkillsRegistry = (*testutil.StubSkillsRegistry)(nil)
 
+func globalSkillProjection(
+	t *testing.T,
+	projected ...*skills.Skill,
+) func(context.Context, *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+	t.Helper()
+	return func(_ context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+		if resolved != nil {
+			t.Fatalf("ForWorkspace() resolved = %#v, want global nil scope", resolved)
+		}
+		return projected, nil
+	}
+}
+
 func newSkillsHandlerFixture(
 	t *testing.T,
 	registry core.SkillsRegistry,
@@ -792,8 +805,11 @@ func TestListSkills(t *testing.T) {
 		t.Parallel()
 
 		registry := &stubSkillsRegistry{
-			ListFn: func() []*skills.Skill {
-				return []*skills.Skill{testSkill()}
+			ForWorkspaceFn: func(_ context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+				if resolved != nil {
+					t.Fatalf("ForWorkspace() resolved = %#v, want nil global scope", resolved)
+				}
+				return []*skills.Skill{testSkill()}, nil
 			},
 		}
 		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
@@ -813,6 +829,51 @@ func TestListSkills(t *testing.T) {
 		}
 		if resp.Skills[0].Name != "test-skill" {
 			t.Errorf("skills[0].Name = %q, want %q", resp.Skills[0].Name, "test-skill")
+		}
+		if !resp.Skills[0].Activation.Active {
+			t.Fatalf("skills[0].Activation = %#v, want active", resp.Skills[0].Activation)
+		}
+	})
+
+	t.Run("Should expose an enabled skill as inactive with its unmet gate reason", func(t *testing.T) {
+		t.Parallel()
+
+		skill := testSkill()
+		skill.Activation = skills.SkillActivation{
+			Evaluated: true,
+			Reasons: []skills.ActivationReason{{
+				Gate:    skills.ActivationGatePlatforms,
+				Code:    skills.ActivationReasonPlatformMismatch,
+				Missing: []string{"linux"},
+				Message: "gate platforms unmet: linux",
+			}},
+		}
+		registry := &stubSkillsRegistry{
+			ForWorkspaceFn: func(_ context.Context, _ *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+				return []*skills.Skill{skill}, nil
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
+		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills", nil)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		var resp contract.SkillsResponse
+		testutil.DecodeJSONResponse(t, rec, &resp)
+		if len(resp.Skills) != 1 {
+			t.Fatalf("len(skills) = %d, want 1", len(resp.Skills))
+		}
+		got := resp.Skills[0]
+		if !got.Enabled || got.Activation.Active {
+			t.Fatalf("skill enabled=%t activation=%#v, want enabled and inactive", got.Enabled, got.Activation)
+		}
+		if len(got.Activation.Reasons) != 1 ||
+			got.Activation.Reasons[0].Code != contract.SkillActivationReasonPlatformMismatch {
+			t.Fatalf("skill activation reasons = %#v, want platform mismatch", got.Activation.Reasons)
+		}
+		if len(got.Diagnostics) == 0 || got.Diagnostics[0].State != contract.SkillDiagnosticStateInactive {
+			t.Fatalf("skill diagnostics = %#v, want inactive state", got.Diagnostics)
 		}
 	})
 
@@ -868,9 +929,7 @@ func TestGetSkill(t *testing.T) {
 		t.Parallel()
 
 		registry := &stubSkillsRegistry{
-			GetFn: func(_ string) (*skills.Skill, bool) {
-				return nil, false
-			},
+			ForWorkspaceFn: globalSkillProjection(t),
 		}
 		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
 		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/nonexistent", nil)
@@ -885,12 +944,7 @@ func TestGetSkill(t *testing.T) {
 
 		skill := testSkillWithProvenance()
 		registry := &stubSkillsRegistry{
-			GetFn: func(name string) (*skills.Skill, bool) {
-				if name == "test-skill" {
-					return skill, true
-				}
-				return nil, false
-			},
+			ForWorkspaceFn: globalSkillProjection(t, skill),
 		}
 		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
 		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/test-skill", nil)
@@ -976,14 +1030,7 @@ func TestGetSkillShadows(t *testing.T) {
 			Path:       "/home/agh/skills/test-skill/SKILL.md",
 			DetectedAt: time.Date(2026, 4, 2, 9, 0, 0, 0, time.UTC),
 		}}
-		registry := &stubSkillsRegistry{
-			GetFn: func(name string) (*skills.Skill, bool) {
-				if name == "test-skill" {
-					return skill, true
-				}
-				return nil, false
-			},
-		}
+		registry := &stubSkillsRegistry{ForWorkspaceFn: globalSkillProjection(t, skill)}
 		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
 		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/test-skill/shadows", nil)
 
@@ -1014,9 +1061,7 @@ func TestGetSkillShadows(t *testing.T) {
 		t.Parallel()
 
 		registry := &stubSkillsRegistry{
-			GetFn: func(_ string) (*skills.Skill, bool) {
-				return nil, false
-			},
+			ForWorkspaceFn: globalSkillProjection(t),
 		}
 		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
 		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/missing/shadows", nil)
@@ -1035,12 +1080,7 @@ func TestGetSkillContent(t *testing.T) {
 
 		skill := testSkill()
 		registry := &stubSkillsRegistry{
-			GetFn: func(name string) (*skills.Skill, bool) {
-				if name == "test-skill" {
-					return skill, true
-				}
-				return nil, false
-			},
+			ForWorkspaceFn: globalSkillProjection(t, skill),
 			LoadContentFn: func(_ context.Context, loaded *skills.Skill) (string, error) {
 				if loaded != skill {
 					t.Fatalf("LoadContent() skill = %#v, want %#v", loaded, skill)

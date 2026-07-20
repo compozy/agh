@@ -13,17 +13,18 @@ import (
 )
 
 const (
-	MarkerPromptCancel      = "transcript_marker.prompt_cancel"
-	MarkerPromptTimeout     = "transcript_marker.prompt_timeout"
-	MarkerPromptInterrupted = "transcript_marker.prompt_interrupted"
-	MarkerPromptSteered     = "transcript_marker.prompt_steered"
-	MarkerPromptQueued      = "transcript_marker.prompt_queued"
-	MarkerPromptAccepted    = "transcript_marker.prompt_accepted"
-	MarkerPromptDropped     = "transcript_marker.prompt_dropped"
-	MarkerSessionUnhealthy  = "transcript_marker.session_unhealthy"
-	MarkerSessionRecovered  = "transcript_marker.session_recovered"
-	MarkerProviderFailure   = "transcript_marker.provider_failure"
-	MarkerMCPAuthRequired   = "transcript_marker.mcp_auth_required"
+	MarkerPromptCancel           = "transcript_marker.prompt_cancel"
+	MarkerPromptTimeout          = "transcript_marker.prompt_timeout"
+	MarkerPromptInterrupted      = "transcript_marker.prompt_interrupted"
+	MarkerPromptSteered          = "transcript_marker.prompt_steered"
+	MarkerPromptQueued           = "transcript_marker.prompt_queued"
+	MarkerPromptAccepted         = "transcript_marker.prompt_accepted"
+	MarkerPromptDropped          = "transcript_marker.prompt_dropped"
+	MarkerSessionUnhealthy       = "transcript_marker.session_unhealthy"
+	MarkerSessionRecovered       = "transcript_marker.session_recovered"
+	MarkerProviderFailure        = "transcript_marker.provider_failure"
+	MarkerMCPAuthRequired        = "transcript_marker.mcp_auth_required"
+	MarkerFileMutationUnverified = "transcript_marker.file_mutation_unverified"
 
 	maxMarkerSummaryBytes = 2048
 )
@@ -151,7 +152,8 @@ func validMarkerKind(kind string) bool {
 		MarkerSessionUnhealthy,
 		MarkerSessionRecovered,
 		MarkerProviderFailure,
-		MarkerMCPAuthRequired:
+		MarkerMCPAuthRequired,
+		MarkerFileMutationUnverified:
 		return true
 	default:
 		return false

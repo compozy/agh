@@ -209,7 +209,6 @@ type Run struct {
 	ActiveHumanCriteria   json.RawMessage
 	BudgetApprovalSeq     int
 	StartMetadata         map[string]any
-	ConsecutiveFailures   int
 	IterationCap          int
 	BudgetTokens          int
 	BudgetWallSec         int

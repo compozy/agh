@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ type hooksNotifier struct {
 	now                       func() time.Time
 	hooks                     hookRuntime
 	agentEventNotify          session.Notifier
+	subprocessHealthRuntime   subprocessHealthRuntimeNotifier
 	eventSummaries            hookEventSummaryWriter
 	taskRunEnqueuedHooks      []taskRunEnqueuedObserver
 	taskRunTerminalHooks      []taskRunTerminalObserver
@@ -32,7 +34,13 @@ type hooksNotifier struct {
 	eventRecordWatchHooks     []eventRecordWatchObserver
 }
 
+type subprocessHealthRuntimeNotifier interface {
+	session.SubprocessHealthNotifier
+	OnSessionStopped(context.Context, *session.Session)
+}
+
 var _ session.Notifier = (*hooksNotifier)(nil)
+var _ session.FinalizationNotifier = (*hooksNotifier)(nil)
 var _ session.LifecycleHooks = (*hooksNotifier)(nil)
 var _ session.SandboxHooks = (*hooksNotifier)(nil)
 var _ session.PromptHooks = (*hooksNotifier)(nil)
@@ -47,6 +55,7 @@ var _ taskpkg.RunHookDispatcher = (*hooksNotifier)(nil)
 var _ network.HookDispatcher = (*hooksNotifier)(nil)
 var _ session.AgentEventNotifier = (*hooksNotifier)(nil)
 var _ session.SandboxLifecycleNotifier = (*hooksNotifier)(nil)
+var _ session.SubprocessHealthNotifier = (*hooksNotifier)(nil)
 
 func newHooksNotifier(logger *slog.Logger, now func() time.Time) *hooksNotifier {
 	if logger == nil {
@@ -71,6 +80,21 @@ func (n *hooksNotifier) setRuntime(
 	if len(eventSummaries) > 0 {
 		n.eventSummaries = eventSummaries[0]
 	}
+}
+
+func (n *hooksNotifier) setSubprocessHealthRuntime(runtime subprocessHealthRuntimeNotifier) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.subprocessHealthRuntime = runtime
+}
+
+func (n *hooksNotifier) subprocessHealthNotifier() subprocessHealthRuntimeNotifier {
+	if n == nil {
+		return nil
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.subprocessHealthRuntime
 }
 
 func (n *hooksNotifier) AddTaskRunEnqueuedObserver(observer taskRunEnqueuedObserver) {

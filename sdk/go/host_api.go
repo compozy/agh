@@ -96,6 +96,8 @@ const (
 	HostAPIMethodResourcesGet HostAPIMethod = "resources/get"
 	// HostAPIMethodResourcesSnapshot snapshots resources.
 	HostAPIMethodResourcesSnapshot HostAPIMethod = "resources/snapshot"
+	// HostAPIMethodClarifyAsk asks the operator one session-scoped question.
+	HostAPIMethodClarifyAsk HostAPIMethod = "clarify/ask"
 )
 
 // HostAPI is a minimal typed client for extension Host API calls.

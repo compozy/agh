@@ -391,7 +391,23 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 13, 22, 0, 0, 0, time.UTC)
-		registerNetworkWakeRunSessionsForClaimTest(t, globalDB, now, "sess-target")
+		registerNetworkWakeRunSessionsForClaimTest(t, globalDB, now, "sess-target", "sess-active")
+		activeTask := workspaceTaskRecordForTest("task-wake-cap-active", "ws-wake")
+		activeTask.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, activeTask); err != nil {
+			t.Fatalf("CreateTask(active) error = %v", err)
+		}
+		activeRun := taskRunForTest("run-wake-cap-active", activeTask.ID)
+		if err := globalDB.CreateTaskRun(ctx, activeRun); err != nil {
+			t.Fatalf("CreateTaskRun(active) error = %v", err)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: activeRun.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-wake",
+			ClaimerSessionID: "sess-active", LeaseDuration: time.Minute, Now: now,
+			WorkspaceActiveRunCap: 1,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(active workspace run) error = %v", err)
+		}
 		anchor := taskRecordForTest("task-wake-anchor")
 		anchor.Status = taskpkg.TaskStatusReady
 		if err := globalDB.CreateTask(ctx, anchor); err != nil {
@@ -418,6 +434,7 @@ func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
 			RunID: wake.ID, RunKind: taskpkg.RunKindNetworkWake,
 			Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-wake",
 			TargetSessionID: "sess-target", ClaimerSessionID: "sess-target", Now: now,
+			WorkspaceActiveRunCap: 1,
 		})
 		if err != nil {
 			t.Fatalf("ClaimNextRun(target wake) error = %v", err)
@@ -2008,6 +2025,98 @@ func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 	if got, want := active.SessionID, "sess-active"; got != want {
 		t.Fatalf("unexpired session id = %q, want %q", got, want)
 	}
+
+	t.Run("Should exhaust the shared attempt budget after bounded same-row recoveries", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
+		taskRecord := taskRecordForTest("task-expired-lease-budget")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		taskRecord.MaxAttempts = 3
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		run := leasedRunForGlobalTest(
+			t,
+			"run-expired-lease-budget",
+			taskRecord.ID,
+			"sess-recovery-0",
+			"recovery-token-0",
+			now.Add(-time.Second),
+		)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		recoverRun := func(at time.Time, wantRecoveryCount int32, wantExhausted bool) taskpkg.Run {
+			t.Helper()
+			recovered, err := globalDB.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
+				Now:    at,
+				Reason: "orphaned_on_boot",
+			})
+			if err != nil {
+				t.Fatalf("RecoverExpiredRunLeases() error = %v", err)
+			}
+			if got, want := len(recovered), 1; got != want {
+				t.Fatalf("len(RecoverExpiredRunLeases()) = %d, want %d", got, want)
+			}
+			if got := recovered[0].Run.RecoveryCount; got != wantRecoveryCount {
+				t.Fatalf("RecoveryCount = %d, want %d", got, wantRecoveryCount)
+			}
+			if got := recovered[0].Exhausted; got != wantExhausted {
+				t.Fatalf("Exhausted = %t, want %t", got, wantExhausted)
+			}
+			return recovered[0].Run
+		}
+
+		claimRun := func(at time.Time, sessionID string) taskpkg.ClaimResult {
+			t.Helper()
+			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID:            run.ID,
+				Scope:            taskpkg.ScopeGlobal,
+				ClaimerSessionID: sessionID,
+				LeaseDuration:    time.Minute,
+				Now:              at,
+			})
+			if err != nil {
+				t.Fatalf("ClaimNextRun() error = %v", err)
+			}
+			return claim
+		}
+
+		firstRecovery := recoverRun(now, 1, false)
+		if firstRecovery.Status != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("first recovery status = %q, want queued", firstRecovery.Status)
+		}
+		firstClaim := claimRun(now.Add(time.Second), "sess-recovery-1")
+		secondRecovery := recoverRun(firstClaim.LeaseUntil.Add(time.Second), 2, false)
+		if secondRecovery.Status != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("second recovery status = %q, want queued", secondRecovery.Status)
+		}
+		secondClaim := claimRun(firstClaim.LeaseUntil.Add(2*time.Second), "sess-recovery-2")
+		exhausted := recoverRun(secondClaim.LeaseUntil.Add(time.Second), 2, true)
+		if got, want := exhausted.Status, taskpkg.TaskRunStatusNeedsAttention; got != want {
+			t.Fatalf("exhausted status = %q, want %q", got, want)
+		}
+		if got, want := exhausted.Error, taskpkg.LeaseRecoveryExhaustedReason; got != want {
+			t.Fatalf("exhausted error = %q, want %q", got, want)
+		}
+		if exhausted.SessionID != "" || exhausted.ClaimTokenHash != "" || !exhausted.LeaseUntil.IsZero() {
+			t.Fatalf("exhausted ownership = %#v, want cleared", exhausted)
+		}
+
+		escalated, err := globalDB.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		if escalated.NeedsAttention == nil ||
+			escalated.NeedsAttention.Reason != taskpkg.LeaseRecoveryExhaustedReason {
+			t.Fatalf("NeedsAttention = %#v, want lease recovery exhaustion", escalated.NeedsAttention)
+		}
+	})
 }
 
 func TestGlobalDBTaskCurrentRunProjection(t *testing.T) {
@@ -4366,22 +4475,20 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name              string
-		complete          bool
-		result            json.RawMessage
-		failureMetadata   json.RawMessage
-		tokensUsed        int64
-		wantOutputStatus  string
-		wantOutputRef     string
-		wantFailureCode   string
-		wantFailureCause  string
-		wantRecovery      string
-		wantEvents        []string
-		initialFailures   int
-		wantFailureStreak int
+		name             string
+		complete         bool
+		result           json.RawMessage
+		failureMetadata  json.RawMessage
+		tokensUsed       int64
+		wantOutputStatus string
+		wantOutputRef    string
+		wantFailureCode  string
+		wantFailureCause string
+		wantRecovery     string
+		wantEvents       []string
 	}{
 		{
-			name:             "success resets breaker",
+			name:             "success records terminal output",
 			complete:         true,
 			result:           json.RawMessage(`{"message":"approved agh_claim_SECRET123"}`),
 			tokensUsed:       3,
@@ -4394,11 +4501,9 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				loopRunEventChannelMsg,
 				loopRunEventTokenTick,
 			},
-			initialFailures:   1,
-			wantFailureStreak: 0,
 		},
 		{
-			name:             "failure increments breaker",
+			name:             "failure records terminal output",
 			complete:         false,
 			tokensUsed:       5,
 			wantOutputStatus: "failed",
@@ -4409,8 +4514,6 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				loopRunEventNodeFailed,
 				loopRunEventTokenTick,
 			},
-			initialFailures:   1,
-			wantFailureStreak: 2,
 		},
 		{
 			name:     "action failure preserves operator detail",
@@ -4429,8 +4532,6 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				loopRunEventNodeFailed,
 				loopRunEventTokenTick,
 			},
-			initialFailures:   1,
-			wantFailureStreak: 2,
 		},
 	}
 	for _, tc := range cases {
@@ -4446,7 +4547,6 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				now,
 				looppkg.StatusRunning,
 			)
-			seed.ConsecutiveFailures = tc.initialFailures
 			loopRun, err := globalDB.CreateLoopRunForStart(ctx, seed, dsl.ConcurrencyAllow)
 			if err != nil {
 				t.Fatalf("CreateLoopRunForStart() error = %v", err)
@@ -4569,13 +4669,6 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			}
 			if !storedLoop.LastProgressAt.Equal(terminalAt) {
 				t.Fatalf("last_progress_at = %s, want %s", storedLoop.LastProgressAt, terminalAt)
-			}
-			if storedLoop.ConsecutiveFailures != tc.wantFailureStreak {
-				t.Fatalf(
-					"consecutive_failures = %d, want %d",
-					storedLoop.ConsecutiveFailures,
-					tc.wantFailureStreak,
-				)
 			}
 			if storedLoop.TokensUsed != tc.tokensUsed {
 				t.Fatalf("loop tokens_used = %d, want %d", storedLoop.TokensUsed, tc.tokensUsed)

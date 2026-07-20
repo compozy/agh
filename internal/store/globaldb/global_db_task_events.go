@@ -68,6 +68,38 @@ func (g *TaskRepo) ListTaskEvents(ctx context.Context, query taskpkg.EventQuery)
 	return events, nil
 }
 
+// TaskWakeEventExists reports whether the task ledger already contains a delivered or suppressed wake identity.
+func (g *TaskRepo) TaskWakeEventExists(
+	ctx context.Context,
+	taskID string,
+	wakeEventID string,
+) (bool, error) {
+	if err := g.checkReady(ctx, "lookup task wake event"); err != nil {
+		return false, err
+	}
+	trimmedTaskID, err := requireTaskValue(taskID, "task wake event task id")
+	if err != nil {
+		return false, err
+	}
+	trimmedWakeEventID, err := requireTaskValue(wakeEventID, "task wake event id")
+	if err != nil {
+		return false, err
+	}
+	recorded, err := g.queries.TaskWakeEventExists(ctx, sqlcgen.TaskWakeEventExistsParams{
+		TaskID:      trimmedTaskID,
+		WakeEventID: sql.NullString{String: trimmedWakeEventID, Valid: true},
+	})
+	if err != nil {
+		return false, fmt.Errorf(
+			"store: lookup task %q wake event %q: %w",
+			trimmedTaskID,
+			trimmedWakeEventID,
+			err,
+		)
+	}
+	return recorded, nil
+}
+
 // GetTaskEventRecord returns one persisted task event plus its stable row sequence.
 func (g *TaskRepo) GetTaskEventRecord(ctx context.Context, eventID string) (taskpkg.EventRecord, error) {
 	if err := g.checkReady(ctx, "get task event record"); err != nil {

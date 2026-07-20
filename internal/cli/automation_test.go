@@ -38,6 +38,8 @@ func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {
 		"--scope", "workspace",
 		"--workspace", "alpha",
 		"--schedule", "every:30m",
+		"--catch-up-policy", "run_once_on_catchup",
+		"--misfire-grace-seconds", "90",
 		"--agent", "coder",
 		"--prompt", "review repo",
 		"--retry", "backoff:3:2s",
@@ -53,6 +55,10 @@ func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {
 	if request.Schedule.Mode != automationpkg.ScheduleModeEvery || request.Schedule.Interval != "30m" {
 		t.Fatalf("request schedule = %#v, want every 30m", request.Schedule)
 	}
+	if request.Schedule.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicyRunOnce ||
+		request.Schedule.MisfireGraceSeconds != 90 {
+		t.Fatalf("request schedule reliability = %#v, want run once with 90 second grace", request.Schedule)
+	}
 	if request.Retry == nil || request.Retry.Strategy != automationpkg.RetryStrategyBackoff ||
 		request.Retry.MaxRetries != 3 ||
 		request.Retry.BaseDelay != "2s" {
@@ -66,6 +72,242 @@ func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {
 	if created.ID != "job-1" {
 		t.Fatalf("created.ID = %q, want %q", created.ID, "job-1")
 	}
+}
+
+func TestAutomationSuggestionsResolveWorkspaceAndPreserveStructuredOutput(t *testing.T) {
+	t.Parallel()
+
+	pending := sampleAutomationSuggestionRecord()
+	resolvedAt := fixedTestNow
+	accepted := pending
+	accepted.Status = automationpkg.SuggestionStatusAccepted
+	accepted.ResolvedAt = &resolvedAt
+	dismissed := pending
+	dismissed.Status = automationpkg.SuggestionStatusDismissed
+	dismissed.ResolvedAt = &resolvedAt
+	workspaceLookups := 0
+	deps := newTestDeps(t, &stubClient{
+		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+			workspaceLookups++
+			if ref != "alpha" {
+				t.Fatalf("GetWorkspace ref = %q, want alpha", ref)
+			}
+			return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+		},
+		listAutomationSuggestionsFn: func(
+			_ context.Context,
+			workspaceID string,
+			status automationpkg.SuggestionStatus,
+		) (AutomationSuggestionListRecord, error) {
+			if workspaceID != "ws-alpha" || status != automationpkg.SuggestionStatusPending {
+				t.Fatalf("ListAutomationSuggestions(%q, %q), want ws-alpha/pending", workspaceID, status)
+			}
+			return AutomationSuggestionListRecord{Suggestions: []SuggestionRecord{pending}}, nil
+		},
+		acceptAutomationSuggestionFn: func(
+			_ context.Context,
+			workspaceID string,
+			suggestionID string,
+		) (AutomationSuggestionAcceptanceRecord, error) {
+			if workspaceID != "ws-alpha" || suggestionID != pending.ID {
+				t.Fatalf("AcceptAutomationSuggestion(%q, %q), want ws-alpha/%s", workspaceID, suggestionID, pending.ID)
+			}
+			return AutomationSuggestionAcceptanceRecord{Suggestion: accepted, Job: accepted.Payload}, nil
+		},
+		dismissAutomationSuggestionFn: func(
+			_ context.Context,
+			workspaceID string,
+			suggestionID string,
+		) (AutomationSuggestionRecord, error) {
+			if workspaceID != "ws-alpha" || suggestionID != pending.ID {
+				t.Fatalf("DismissAutomationSuggestion(%q, %q), want ws-alpha/%s", workspaceID, suggestionID, pending.ID)
+			}
+			return AutomationSuggestionRecord{Suggestion: dismissed}, nil
+		},
+	})
+
+	listOutput, _, err := executeRootCommand(
+		t,
+		deps,
+		"automation", "suggestions", "--workspace", "alpha", "-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("executeRootCommand(automation suggestions) error = %v", err)
+	}
+	var listRecord AutomationSuggestionListRecord
+	if err := json.Unmarshal([]byte(listOutput), &listRecord); err != nil {
+		t.Fatalf("json.Unmarshal(automation suggestions) error = %v", err)
+	}
+	if len(listRecord.Suggestions) != 1 || listRecord.Suggestions[0].ID != pending.ID {
+		t.Fatalf("suggestion list = %#v, want %s", listRecord, pending.ID)
+	}
+
+	acceptOutput, _, err := executeRootCommand(
+		t,
+		deps,
+		"automation", "suggestions", "--workspace", "alpha", "accept", pending.ID, "-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("executeRootCommand(automation suggestions accept) error = %v", err)
+	}
+	var acceptance AutomationSuggestionAcceptanceRecord
+	if err := json.Unmarshal([]byte(acceptOutput), &acceptance); err != nil {
+		t.Fatalf("json.Unmarshal(automation suggestions accept) error = %v", err)
+	}
+	if acceptance.Suggestion.Status != automationpkg.SuggestionStatusAccepted ||
+		acceptance.Job.ID != pending.Payload.ID {
+		t.Fatalf("suggestion acceptance = %#v, want accepted with created Job", acceptance)
+	}
+
+	dismissOutput, _, err := executeRootCommand(
+		t,
+		deps,
+		"automation", "suggestions", "--workspace", "alpha", "dismiss", pending.ID, "-o", "toon",
+	)
+	if err != nil {
+		t.Fatalf("executeRootCommand(automation suggestions dismiss) error = %v", err)
+	}
+	if !strings.Contains(dismissOutput, "automation_suggestion") ||
+		!strings.Contains(dismissOutput, string(automationpkg.SuggestionStatusDismissed)) {
+		t.Fatalf("dismiss TOON output = %q, want dismissed automation suggestion", dismissOutput)
+	}
+	if workspaceLookups != 3 {
+		t.Fatalf("workspace lookups = %d, want 3 exact command resolutions", workspaceLookups)
+	}
+}
+
+func TestAutomationJobsUpdateScheduleReliability(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve existing reliability when only the schedule changes", func(t *testing.T) {
+		t.Parallel()
+
+		var request AutomationJobUpdateRequest
+		deps := newTestDeps(t, &stubClient{
+			getAutomationJobFn: func(context.Context, string) (JobRecord, error) {
+				job := sampleAutomationJobRecord()
+				job.Schedule.CatchUpPolicy = automationpkg.SchedulerCatchUpPolicyReplay
+				job.Schedule.MisfireGraceSeconds = 30
+				return job, nil
+			},
+			updateAutomationJobFn: func(
+				_ context.Context,
+				_ string,
+				got AutomationJobUpdateRequest,
+			) (JobRecord, error) {
+				request = got
+				return sampleAutomationJobRecord(), nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation", "jobs", "update", "job-1",
+			"--schedule", "every:1h",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(automation jobs update schedule) error = %v", err)
+		}
+		if request.Schedule == nil || request.Schedule.Mode != automationpkg.ScheduleModeEvery ||
+			request.Schedule.Interval != "1h" {
+			t.Fatalf("request.Schedule = %#v, want every 1h", request.Schedule)
+		}
+		if request.Schedule.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicyReplay ||
+			request.Schedule.MisfireGraceSeconds != 30 {
+			t.Fatalf("request.Schedule = %#v, want preserved replay policy with 30 second grace", request.Schedule)
+		}
+	})
+
+	t.Run("Should preserve the existing recurring schedule when only reliability changes", func(t *testing.T) {
+		t.Parallel()
+
+		var request AutomationJobUpdateRequest
+		deps := newTestDeps(t, &stubClient{
+			getAutomationJobFn: func(_ context.Context, id string) (JobRecord, error) {
+				if id != "job-1" {
+					t.Fatalf("GetAutomationJob id = %q, want job-1", id)
+				}
+				job := sampleAutomationJobRecord()
+				job.Schedule.CatchUpPolicy = automationpkg.SchedulerCatchUpPolicyReplay
+				job.Schedule.MisfireGraceSeconds = 30
+				return job, nil
+			},
+			updateAutomationJobFn: func(
+				_ context.Context,
+				id string,
+				got AutomationJobUpdateRequest,
+			) (JobRecord, error) {
+				if id != "job-1" {
+					t.Fatalf("UpdateAutomationJob id = %q, want job-1", id)
+				}
+				request = got
+				return sampleAutomationJobRecord(), nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation", "jobs", "update", "job-1",
+			"--catch-up-policy", "run_once_on_catchup",
+			"--misfire-grace-seconds", "120",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(automation jobs update reliability) error = %v", err)
+		}
+		if request.Schedule == nil {
+			t.Fatal("request.Schedule = nil, want recurring schedule patch")
+		}
+		if request.Schedule.Mode != automationpkg.ScheduleModeEvery || request.Schedule.Interval != "30m" {
+			t.Fatalf("request.Schedule = %#v, want preserved every 30m schedule", request.Schedule)
+		}
+		if request.Schedule.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicyRunOnce ||
+			request.Schedule.MisfireGraceSeconds != 120 {
+			t.Fatalf("request.Schedule = %#v, want run once with 120 second grace", request.Schedule)
+		}
+	})
+
+	t.Run("Should reset an explicit catch up policy to the target default", func(t *testing.T) {
+		t.Parallel()
+
+		var request AutomationJobUpdateRequest
+		deps := newTestDeps(t, &stubClient{
+			getAutomationJobFn: func(context.Context, string) (JobRecord, error) {
+				job := sampleAutomationJobRecord()
+				job.Schedule.CatchUpPolicy = automationpkg.SchedulerCatchUpPolicyReplay
+				job.Schedule.MisfireGraceSeconds = 30
+				return job, nil
+			},
+			updateAutomationJobFn: func(
+				_ context.Context,
+				_ string,
+				got AutomationJobUpdateRequest,
+			) (JobRecord, error) {
+				request = got
+				return sampleAutomationJobRecord(), nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation", "jobs", "update", "job-1",
+			"--catch-up-policy", "default",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(automation jobs reset catch up policy) error = %v", err)
+		}
+		if request.Schedule == nil {
+			t.Fatal("request.Schedule = nil, want recurring schedule patch")
+		}
+		if request.Schedule.CatchUpPolicy != "" || request.Schedule.MisfireGraceSeconds != 30 {
+			t.Fatalf("request.Schedule = %#v, want default policy with preserved grace", request.Schedule)
+		}
+	})
 }
 
 func TestAutomationJobsCreateRejectsMissingWorkspaceForWorkspaceScope(t *testing.T) {
@@ -777,6 +1019,18 @@ func sampleAutomationJobRecord() JobRecord {
 		CreatedAt: fixedTestNow,
 		UpdatedAt: fixedTestNow,
 		NextRun:   &nextRun,
+	}
+}
+
+func sampleAutomationSuggestionRecord() SuggestionRecord {
+	return SuggestionRecord{
+		ID:          "suggestion-1",
+		WorkspaceID: "ws-alpha",
+		Source:      automationpkg.SuggestionSourceCatalog,
+		DedupKey:    "catalog:v1:daily-workspace-briefing",
+		Status:      automationpkg.SuggestionStatusPending,
+		Payload:     sampleAutomationJobRecord(),
+		CreatedAt:   fixedTestNow,
 	}
 }
 

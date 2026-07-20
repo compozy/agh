@@ -35,6 +35,18 @@ func TestToolsConfigDefaults(t *testing.T) {
 		if got, want := cfg.Tools.HostedMCP.BindNonceTTL(), 30*time.Second; got != want {
 			t.Fatalf("DefaultWithHome() Tools.HostedMCP.BindNonceTTL() = %s, want %s", got, want)
 		}
+		if got, want := cfg.Tools.Clarify.Timeout, DefaultToolsClarifyTimeout; got != want {
+			t.Fatalf("DefaultWithHome() Tools.Clarify.Timeout = %s, want %s", got, want)
+		}
+		if got, want := cfg.Tools.Artifacts.MaxCount, DefaultToolsArtifactMaxCount; got != want {
+			t.Fatalf("DefaultWithHome() Tools.Artifacts.MaxCount = %d, want %d", got, want)
+		}
+		if got, want := cfg.Tools.Artifacts.MaxBytes, DefaultToolsArtifactMaxBytes; got != want {
+			t.Fatalf("DefaultWithHome() Tools.Artifacts.MaxBytes = %d, want %d", got, want)
+		}
+		if got, want := cfg.Tools.Artifacts.MaxAge, DefaultToolsArtifactMaxAge; got != want {
+			t.Fatalf("DefaultWithHome() Tools.Artifacts.MaxAge = %s, want %s", got, want)
+		}
 		if got, want := cfg.Tools.Policy.ExternalDefault, ToolsExternalDefaultDisabled; got != want {
 			t.Fatalf("DefaultWithHome() Tools.Policy.ExternalDefault = %q, want %q", got, want)
 		}
@@ -126,6 +138,41 @@ func TestToolsConfigValidation(t *testing.T) {
 			wantErr: "tools.hosted_mcp.bind_nonce_ttl_seconds",
 		},
 		{
+			name: "ShouldRejectTooShortClarifyTimeout",
+			mutate: func(cfg *Config) {
+				cfg.Tools.Clarify.Timeout = MinToolsClarifyTimeout - time.Nanosecond
+			},
+			wantErr: "tools.clarify.timeout",
+		},
+		{
+			name: "ShouldRejectTooLongClarifyTimeout",
+			mutate: func(cfg *Config) {
+				cfg.Tools.Clarify.Timeout = MaxToolsClarifyTimeout + time.Nanosecond
+			},
+			wantErr: "tools.clarify.timeout",
+		},
+		{
+			name: "ShouldRejectZeroArtifactMaxCount",
+			mutate: func(cfg *Config) {
+				cfg.Tools.Artifacts.MaxCount = 0
+			},
+			wantErr: "tools.artifacts.max_count",
+		},
+		{
+			name: "ShouldRejectZeroArtifactMaxBytes",
+			mutate: func(cfg *Config) {
+				cfg.Tools.Artifacts.MaxBytes = 0
+			},
+			wantErr: "tools.artifacts.max_bytes",
+		},
+		{
+			name: "ShouldRejectZeroArtifactMaxAge",
+			mutate: func(cfg *Config) {
+				cfg.Tools.Artifacts.MaxAge = 0
+			},
+			wantErr: "tools.artifacts.max_age",
+		},
+		{
 			name: "ShouldRejectBlankTrustedSource",
 			mutate: func(cfg *Config) {
 				cfg.Tools.Policy.TrustedSources = []string{""}
@@ -207,6 +254,14 @@ default_max_result_bytes = 131072
 [tools.hosted_mcp]
 bind_nonce_ttl_seconds = 45
 
+[tools.clarify]
+timeout = "2m"
+
+[tools.artifacts]
+max_count = 42
+max_bytes = 8388608
+max_age = "24h"
+
 [tools.policy]
 external_default = "ask"
 approval_timeout_seconds = 90
@@ -224,6 +279,18 @@ trusted_sources = ["mcp:github", "extension:linear"]
 		}
 		if got, want := cfg.Tools.HostedMCP.BindNonceTTLSeconds, 45; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() BindNonceTTLSeconds = %d, want %d", got, want)
+		}
+		if got, want := cfg.Tools.Clarify.Timeout, 2*time.Minute; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Clarify.Timeout = %s, want %s", got, want)
+		}
+		if got, want := cfg.Tools.Artifacts.MaxCount, 42; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Artifacts.MaxCount = %d, want %d", got, want)
+		}
+		if got, want := cfg.Tools.Artifacts.MaxBytes, int64(8388608); got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Artifacts.MaxBytes = %d, want %d", got, want)
+		}
+		if got, want := cfg.Tools.Artifacts.MaxAge, 24*time.Hour; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Artifacts.MaxAge = %s, want %s", got, want)
 		}
 		if got, want := cfg.Tools.Policy.ExternalDefault, ToolsExternalDefaultAsk; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() ExternalDefault = %q, want %q", got, want)
@@ -262,6 +329,14 @@ default_max_result_bytes = 131072
 [tools.hosted_mcp]
 bind_nonce_ttl_seconds = 45
 
+[tools.clarify]
+timeout = "4m"
+
+[tools.artifacts]
+max_count = 40
+max_bytes = 4194304
+max_age = "48h"
+
 [tools.policy]
 external_default = "ask"
 approval_timeout_seconds = 90
@@ -277,6 +352,13 @@ default_max_result_bytes = 524288
 
 [tools.hosted_mcp]
 bind_nonce_ttl_seconds = 15
+
+[tools.clarify]
+timeout = "90s"
+
+[tools.artifacts]
+max_count = 20
+max_age = "12h"
 
 [tools.policy]
 external_default = "enabled"
@@ -299,6 +381,18 @@ trusted_sources = ["mcp:workspace", "extension:linear"]
 		}
 		if got, want := cfg.Tools.HostedMCP.BindNonceTTLSeconds, 15; got != want {
 			t.Fatalf("LoadForHome() BindNonceTTLSeconds = %d, want %d", got, want)
+		}
+		if got, want := cfg.Tools.Clarify.Timeout, 90*time.Second; got != want {
+			t.Fatalf("LoadForHome() Clarify.Timeout = %s, want %s", got, want)
+		}
+		if got, want := cfg.Tools.Artifacts.MaxCount, 20; got != want {
+			t.Fatalf("LoadForHome() Artifacts.MaxCount = %d, want %d", got, want)
+		}
+		if got, want := cfg.Tools.Artifacts.MaxBytes, int64(4194304); got != want {
+			t.Fatalf("LoadForHome() Artifacts.MaxBytes = %d, want inherited %d", got, want)
+		}
+		if got, want := cfg.Tools.Artifacts.MaxAge, 12*time.Hour; got != want {
+			t.Fatalf("LoadForHome() Artifacts.MaxAge = %s, want %s", got, want)
 		}
 		if got, want := cfg.Tools.Policy.ExternalDefault, ToolsExternalDefaultEnabled; got != want {
 			t.Fatalf("LoadForHome() ExternalDefault = %q, want %q", got, want)

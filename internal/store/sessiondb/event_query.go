@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	sessionEventColumns         = "id, sequence, turn_id, type, agent_name, content, timestamp"
+	sessionEventColumns         = "id, sequence, turn_id, type, agent_name, content, archived, timestamp"
 	sessionEventMetadataColumns = "id, sequence, turn_id, type, agent_name, timestamp"
 )
 
@@ -31,6 +31,14 @@ func buildEventQuerySQL(columns string, query store.EventQuery) (string, []any, 
 		store.Int64Clause("sequence", ">", query.AfterSequence),
 		store.Int64Clause("sequence", "<", query.BeforeSequence),
 	)
+	switch query.Archive {
+	case store.EventArchiveUnarchived:
+		where = append(where, "archived = ?")
+		args = append(args, 0)
+	case store.EventArchiveArchived:
+		where = append(where, "archived = ?")
+		args = append(args, 1)
+	}
 	baseQuery = store.AppendWhere(baseQuery, where)
 	if query.Limit <= 0 {
 		return baseQuery + sessionEventsOrderASCClause, args, nil

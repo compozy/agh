@@ -48,6 +48,8 @@ const (
 	automationPathKey        = "path"
 	automationPromptKey      = "prompt"
 	automationRetryKey       = "retry"
+	automationScheduleKey    = "schedule"
+	automationScheduleValue  = "Schedule"
 	automationScopeKey       = "scope"
 	automationSourceKey      = "source"
 	automationStartedAtKey   = "started_at"
@@ -74,104 +76,47 @@ type automationTriggerCommandInput struct {
 }
 
 type automationJobUpdateInput struct {
-	Name        string
-	Prompt      string
-	ScheduleRaw string
-	RetryRaw    string
-	Enabled     bool
-}
-
-func newAutomationCommand(deps commandDeps) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "automation",
-		Short: "Manage automation jobs, triggers, and runs",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
-	}
-
-	cmd.AddCommand(newAutomationJobsCommand(deps))
-	cmd.AddCommand(newAutomationTriggersCommand(deps))
-	cmd.AddCommand(newAutomationRunsCommand(deps))
-	return cmd
+	JobID               string
+	Name                string
+	Prompt              string
+	ScheduleRaw         string
+	CatchUpPolicyRaw    string
+	MisfireGraceSeconds int
+	RetryRaw            string
+	Enabled             bool
 }
 
 func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
-	var (
-		name         string
-		scopeRaw     string
-		scheduleRaw  string
-		agentName    string
-		workspaceRef string
-		prompt       string
-		retryRaw     string
-		enabled      bool
-	)
+	input := automationJobCreateInput{}
 
 	cmd := &cobra.Command{
 		Use:   automationCreateKey,
 		Short: "Create an automation job",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			scope, workspaceID, err := resolveAutomationScopeWorkspace(
-				cmd.Context(),
-				client,
-				scopeRaw,
-				workspaceRef,
-			)
-			if err != nil {
-				return err
-			}
-			schedule, err := parseAutomationScheduleFlag(scheduleRaw)
-			if err != nil {
-				return err
-			}
-			retry, err := parseAutomationRetryFlag(retryRaw)
-			if err != nil {
-				return err
-			}
-
-			request := AutomationJobCreateRequest{
-				Scope:       scope,
-				Name:        strings.TrimSpace(name),
-				AgentName:   strings.TrimSpace(agentName),
-				WorkspaceID: workspaceID,
-				Prompt:      strings.TrimSpace(prompt),
-				Schedule:    schedule,
-			}
-			if cmd.Flags().Changed(automationEnabledKey) {
-				request.Enabled = new(enabled)
-			}
-			if retry != nil {
-				request.Retry = retry
-			}
-
-			created, err := client.CreateAutomationJob(cmd.Context(), request)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, automationJobBundle(created))
+			return runAutomationJobsCreate(cmd, deps, input)
 		},
 	}
-	cmd.Flags().StringVar(&name, automationNameKey, "", "Job name")
-	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Job scope: global or workspace")
+	cmd.Flags().StringVar(&input.Name, automationNameKey, "", "Job name")
+	cmd.Flags().StringVar(&input.ScopeRaw, automationScopeKey, "", "Job scope: global or workspace")
 	cmd.Flags().
-		StringVar(&scheduleRaw, "schedule", "", "Schedule spec: <cron-expr>, every:<duration>, or at:<timestamp>")
-	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name")
+		StringVar(
+			&input.ScheduleRaw,
+			automationScheduleKey,
+			"",
+			"Schedule spec: <cron-expr>, every:<duration>, or at:<timestamp>",
+		)
+	bindAutomationScheduleReliabilityFlags(cmd, &input.CatchUpPolicyRaw, &input.MisfireGraceSeconds)
+	cmd.Flags().StringVar(&input.AgentName, "agent", "", "Agent definition name")
 	cmd.Flags().
-		StringVar(&workspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
-	cmd.Flags().StringVar(&prompt, automationPromptKey, "", "Prompt body to dispatch")
+		StringVar(&input.WorkspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
+	cmd.Flags().StringVar(&input.Prompt, automationPromptKey, "", "Prompt body to dispatch")
 	cmd.Flags().
-		StringVar(&retryRaw, automationRetryKey, "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
-	cmd.Flags().BoolVar(&enabled, automationEnabledKey, false, "Create the job enabled or disabled")
+		StringVar(&input.RetryRaw, automationRetryKey, "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
+	cmd.Flags().BoolVar(&input.Enabled, automationEnabledKey, false, "Create the job enabled or disabled")
 	mustMarkFlagRequired(cmd, automationNameKey)
 	mustMarkFlagRequired(cmd, automationScopeKey)
-	mustMarkFlagRequired(cmd, "schedule")
+	mustMarkFlagRequired(cmd, automationScheduleKey)
 	mustMarkFlagRequired(cmd, "agent")
 	mustMarkFlagRequired(cmd, automationPromptKey)
 	return cmd
@@ -199,11 +144,13 @@ func newAutomationJobsGetCommand(deps commandDeps) *cobra.Command {
 
 func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 	var (
-		name        string
-		prompt      string
-		scheduleRaw string
-		retryRaw    string
-		enabled     bool
+		name                string
+		prompt              string
+		scheduleRaw         string
+		catchUpPolicyRaw    string
+		misfireGraceSeconds int
+		retryRaw            string
+		enabled             bool
 	)
 
 	cmd := &cobra.Command{
@@ -217,11 +164,14 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 			}
 
 			request, err := buildAutomationJobUpdateRequest(cmd, client, automationJobUpdateInput{
-				Name:        name,
-				Prompt:      prompt,
-				ScheduleRaw: scheduleRaw,
-				RetryRaw:    retryRaw,
-				Enabled:     enabled,
+				JobID:               args[0],
+				Name:                name,
+				Prompt:              prompt,
+				ScheduleRaw:         scheduleRaw,
+				CatchUpPolicyRaw:    catchUpPolicyRaw,
+				MisfireGraceSeconds: misfireGraceSeconds,
+				RetryRaw:            retryRaw,
+				Enabled:             enabled,
 			})
 			if err != nil {
 				return err
@@ -239,7 +189,13 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&name, automationNameKey, "", "Update the job name")
 	cmd.Flags().StringVar(&prompt, automationPromptKey, "", "Update the prompt body")
-	cmd.Flags().StringVar(&scheduleRaw, "schedule", "", "Update the schedule spec")
+	cmd.Flags().StringVar(
+		&scheduleRaw,
+		automationScheduleKey,
+		"",
+		"Update the schedule spec; recurring reliability is preserved unless its flags are set",
+	)
+	bindAutomationScheduleReliabilityFlags(cmd, &catchUpPolicyRaw, &misfireGraceSeconds)
 	cmd.Flags().
 		StringVar(&retryRaw, automationRetryKey, "", `Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
 	cmd.Flags().BoolVar(&enabled, automationEnabledKey, false, "Update the enabled state")
@@ -248,22 +204,58 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 
 func buildAutomationJobUpdateRequest(
 	cmd *cobra.Command,
-	_ DaemonClient,
+	client DaemonClient,
 	input automationJobUpdateInput,
 ) (AutomationJobUpdateRequest, error) {
 	request := AutomationJobUpdateRequest{}
+	scheduleChanged := cmd.Flags().Changed(automationScheduleKey)
+	reliabilityChanged := automationScheduleReliabilityChanged(cmd)
 	if cmd.Flags().Changed(automationNameKey) {
 		request.Name = new(strings.TrimSpace(input.Name))
 	}
 	if cmd.Flags().Changed(automationPromptKey) {
 		request.Prompt = new(strings.TrimSpace(input.Prompt))
 	}
-	if cmd.Flags().Changed("schedule") {
+	if scheduleChanged {
 		schedule, err := parseAutomationScheduleFlag(input.ScheduleRaw)
 		if err != nil {
 			return AutomationJobUpdateRequest{}, err
 		}
 		request.Schedule = &schedule
+	}
+
+	var currentSchedule *automationpkg.ScheduleSpec
+	if reliabilityChanged || scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt {
+		current, err := client.GetAutomationJob(cmd.Context(), input.JobID)
+		if err != nil {
+			return AutomationJobUpdateRequest{}, err
+		}
+		currentSchedule = current.Schedule
+	}
+	if scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt && currentSchedule != nil {
+		request.Schedule.CatchUpPolicy = currentSchedule.CatchUpPolicy
+		request.Schedule.MisfireGraceSeconds = currentSchedule.MisfireGraceSeconds
+	}
+	if reliabilityChanged {
+		if request.Schedule == nil {
+			if currentSchedule == nil {
+				return AutomationJobUpdateRequest{}, errors.New(
+					"cli: automation job has no schedule to update reliability",
+				)
+			}
+			schedule := *currentSchedule
+			request.Schedule = &schedule
+		}
+		if err := applyAutomationScheduleReliability(
+			cmd,
+			request.Schedule,
+			automationScheduleReliabilityInput{
+				CatchUpPolicyRaw:    input.CatchUpPolicyRaw,
+				MisfireGraceSeconds: input.MisfireGraceSeconds,
+			},
+		); err != nil {
+			return AutomationJobUpdateRequest{}, err
+		}
 	}
 	if cmd.Flags().Changed(automationRetryKey) {
 		retry, err := parseAutomationRetryFlag(input.RetryRaw)
@@ -815,60 +807,6 @@ func parseOptionalAutomationRunStatus(raw string) (automationpkg.RunStatus, erro
 	return status, nil
 }
 
-func parseAutomationScheduleFlag(raw string) (automationpkg.ScheduleSpec, error) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return automationpkg.ScheduleSpec{}, errors.New("cli: --schedule is required")
-	}
-
-	lower := strings.ToLower(value)
-	spec := automationpkg.ScheduleSpec{}
-	switch {
-	case strings.HasPrefix(lower, "every:"):
-		spec.Mode = automationpkg.ScheduleModeEvery
-		spec.Interval = strings.TrimSpace(value[len("every:"):])
-	case strings.HasPrefix(lower, "at:"):
-		timestamp, err := normalizeAutomationAtTime(strings.TrimSpace(value[len("at:"):]))
-		if err != nil {
-			return automationpkg.ScheduleSpec{}, err
-		}
-		spec.Mode = automationpkg.ScheduleModeAt
-		spec.Time = timestamp
-	default:
-		spec.Mode = automationpkg.ScheduleModeCron
-		spec.Expr = value
-	}
-
-	if err := spec.Validate("schedule"); err != nil {
-		return automationpkg.ScheduleSpec{}, fmt.Errorf("cli: %w", err)
-	}
-	return spec, nil
-}
-
-func normalizeAutomationAtTime(raw string) (string, error) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return "", errors.New("cli: at-schedule timestamp is required")
-	}
-
-	for _, layout := range []string{
-		time.RFC3339Nano,
-		time.RFC3339,
-		"2006-01-02T15:04:05",
-		"2006-01-02T15:04",
-	} {
-		parsed, err := time.Parse(layout, value)
-		if err == nil {
-			return parsed.UTC().Format(time.RFC3339), nil
-		}
-	}
-
-	return "", fmt.Errorf(
-		"cli: invalid at-schedule timestamp %q: use RFC3339 or YYYY-MM-DDTHH:MM",
-		value,
-	)
-}
-
 func parseAutomationRetryFlag(raw string) (*automationpkg.RetryConfig, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -1000,7 +938,7 @@ func automationJobBundle(item JobRecord) outputBundle {
 					{Label: automationEnabledValue, Value: strconv.FormatBool(item.Enabled)},
 					{Label: automationSourceValue, Value: stringOrDash(string(item.Source))},
 					{
-						Label: "Schedule",
+						Label: automationScheduleValue,
 						Value: stringOrDash(formatAutomationSchedule(item.Schedule)),
 					},
 					{Label: "Retry", Value: stringOrDash(formatAutomationRetry(item.Retry))},
@@ -1034,7 +972,7 @@ func automationJobBundle(item JobRecord) outputBundle {
 				automationAgentNameKey,
 				automationEnabledKey,
 				automationSourceKey,
-				"schedule",
+				automationScheduleKey,
 				automationRetryKey,
 				"fire_limit",
 				"next_run",
@@ -1080,7 +1018,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 			automationNameValue,
 			automationScopeValue,
 			automationWorkspaceValue,
-			"Schedule",
+			automationScheduleValue,
 			automationAgentValue,
 			automationEnabledValue,
 			automationSourceValue,
@@ -1092,7 +1030,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 			automationNameKey,
 			automationScopeKey,
 			automationWorkspaceIDKey,
-			"schedule",
+			automationScheduleKey,
 			automationAgentNameKey,
 			automationEnabledKey,
 			automationSourceKey,

@@ -14,12 +14,29 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDToolList.String(),
 			toolspkg.ToolIDToolSearch.String(),
 			toolspkg.ToolIDToolInfo.String(),
+			toolspkg.ToolIDToolArtifactRead.String(),
 		},
+	},
+	{
+		ID:    toolspkg.ToolsetIDToolArtifacts,
+		Tools: []string{toolspkg.ToolIDToolArtifactRead.String()},
 	},
 	{
 		ID:       toolspkg.ToolsetIDCatalog,
 		Tools:    []string{"agh__skill_*"},
 		Toolsets: []toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap},
+	},
+	{
+		ID: toolspkg.ToolsetIDToolApprovals,
+		Tools: []string{
+			toolspkg.ToolIDToolApprovalsSet.String(),
+			toolspkg.ToolIDToolApprovalsList.String(),
+			toolspkg.ToolIDToolApprovalsRevoke.String(),
+		},
+	},
+	{
+		ID:    toolspkg.ToolsetIDClarify,
+		Tools: []string{toolspkg.ToolIDClarify.String()},
 	},
 	{
 		ID: toolspkg.ToolsetIDCoordination,

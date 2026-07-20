@@ -35,7 +35,7 @@ type runtimeMigrationExpectation struct {
 
 func runtimeMigrationExpectations() []runtimeMigrationExpectation {
 	return []runtimeMigrationExpectation{
-		{stream: "global", version: 5, appliedCount: 5},
+		{stream: "global", version: 25, appliedCount: 25},
 		{stream: "memory", version: 1, appliedCount: 1},
 	}
 }
@@ -60,7 +60,7 @@ func TestE2EACPHelperProcess(t *testing.T) {
 func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	t.Parallel()
 
-	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{})
+	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -198,7 +198,7 @@ func TestStartRuntimeHarnessRefusesLegacyDatabaseBeforeReadiness(t *testing.T) {
 	t.Run("Should exit non-zero before readiness and leave the legacy database untouched", func(t *testing.T) {
 		t.Parallel()
 
-		layout := prepareRuntimeLayout(t, RuntimeHarnessOptions{})
+		layout := prepareRuntimeLayout(t, &RuntimeHarnessOptions{})
 		seedLegacyRuntimeDatabase(t, layout.HomePaths.DatabaseFile)
 		before, err := os.ReadFile(layout.HomePaths.DatabaseFile)
 		if err != nil {
@@ -295,11 +295,12 @@ func TestStartRuntimeHarnessRetriesHTTPPortConflicts(t *testing.T) {
 	}()
 
 	conflictPort := blocker.Addr().(*net.TCPAddr).Port
-	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{
+	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{
 		ConfigSeed: ConfigSeedOptions{
 			HTTPPort: conflictPort,
 		},
 	})
+
 	if got := harness.Config.HTTP.Port; got == conflictPort {
 		t.Fatalf("harness.Config.HTTP.Port = %d, want retry onto a new port", got)
 	}
@@ -319,13 +320,14 @@ func TestStartRuntimeHarnessRetriesHTTPPortConflicts(t *testing.T) {
 func TestStartRuntimeHarnessResolvesSeededWorkspaceThroughPublicSurface(t *testing.T) {
 	t.Parallel()
 
-	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{
+	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{
 		Workspace: WorkspaceSeedOptions{
 			Files: map[string]string{
 				"README.md": "shared harness workspace",
 			},
 		},
 	})
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -349,7 +351,7 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 	t.Parallel()
 
 	helperCommand := e2eACPHelperCommand(t)
-	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{
+	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{
 		Env: map[string]string{
 			e2eACPHelperEnvKey: "1",
 		},
@@ -366,6 +368,7 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 			}},
 		},
 	})
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -429,7 +432,7 @@ func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 
 func TestStartRuntimeHarnessRepeatedCyclesLeaveNoStaleDaemonArtifacts(t *testing.T) {
 	for cycle := 0; cycle < 3; cycle++ {
-		harness := StartRuntimeHarness(t, RuntimeHarnessOptions{})
+		harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
 		var httpStatus aghcontract.StatusPayload
@@ -454,7 +457,7 @@ func TestStartRuntimeHarnessRepeatedCyclesLeaveNoStaleDaemonArtifacts(t *testing
 }
 
 func TestStartRuntimeHarnessCLIStatusCanBeCapturedInRuntimeManifest(t *testing.T) {
-	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{})
+	harness := StartRuntimeHarness(t, &RuntimeHarnessOptions{})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

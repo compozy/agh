@@ -10,6 +10,8 @@ import (
 
 var _ workspacepkg.CoordinationCommandStore = (*WorkspaceRepo)(nil)
 
+const networkCoordinationDismissedState = "dismissed"
+
 // GetCoordination returns one explicit coordination view from persisted daemon truth.
 func (g *WorkspaceRepo) GetCoordination(
 	ctx context.Context,
@@ -120,7 +122,7 @@ func (g *WorkspaceRepo) SetCoordinationInvitation(
 		state := "reset"
 		if cmd.Dismissed {
 			eventType = eventspkg.NetworkCoordinationInvitationDismissed
-			state = "dismissed"
+			state = networkCoordinationDismissedState
 		}
 		if err := appendCoordinationEventSummary(ctx, exec, eventType, cmd.Ref, setting, actor, state); err != nil {
 			return err

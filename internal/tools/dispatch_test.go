@@ -1,9 +1,11 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -251,6 +253,7 @@ func TestPolicyDenyAll(t *testing.T) {
 			t.Parallel()
 
 			called := false
+			bridge := &recordingApprovalBridge{}
 			events := &recordingToolEventSink{}
 			provider := dispatchProviderWithSourceAndHandle(tc.descriptor.Source, tc.descriptor, &registryTestHandle{
 				descriptor:   tc.descriptor,
@@ -264,6 +267,7 @@ func TestPolicyDenyAll(t *testing.T) {
 				t,
 				provider,
 				WithToolEventSink(events),
+				WithApprovalBridge(bridge),
 				WithPolicyInputs(PolicyInputs{
 					SystemPermissionMode: PermissionModeDenyAll,
 					ExternalDefault:      ExternalDefaultEnabled,
@@ -280,6 +284,9 @@ func TestPolicyDenyAll(t *testing.T) {
 			}
 			if called {
 				t.Fatal("provider handle was called for deny-all policy")
+			}
+			if len(bridge.calls) != 0 {
+				t.Fatalf("approval bridge calls = %d, want 0 so grants cannot override deny-all", len(bridge.calls))
 			}
 			eventSnapshot := events.snapshot()
 			if got, want := events.kinds(), []ToolCallEventKind{ToolCallDenied}; !slices.Equal(got, want) {
@@ -809,24 +816,81 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		}
 	})
 
-	t.Run("Should truncate oversized results with deterministic metadata", func(t *testing.T) {
+	t.Run("Should return a result exactly at the cap without writing an artifact", func(t *testing.T) {
+		t.Parallel()
+
+		resultAtCap := ToolResult{Content: []ToolContent{{Type: "text", Text: "exact-cap"}}}
+		if err := refreshResultEnvelopeBytes(&resultAtCap); err != nil {
+			t.Fatalf("refreshResultEnvelopeBytes() error = %v", err)
+		}
+		descriptor := validDispatchDescriptor()
+		descriptor.MaxResultBytes = resultAtCap.Bytes
+		artifactStore := &recordingToolArtifactStore{}
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			result:       resultAtCap,
+		})
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithResultProcessor(NewResultProcessor(0, artifactStore)),
+		)
+
+		result, err := registry.Call(
+			t.Context(),
+			Scope{WorkspaceID: "workspace-a"},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+		)
+		if err != nil {
+			t.Fatalf("RuntimeRegistry.Call() error = %v, want nil", err)
+		}
+		if result.Truncated || len(result.Artifacts) != 0 || result.Bytes != descriptor.MaxResultBytes {
+			t.Fatalf("result = %#v, want unchanged exact-cap envelope", result)
+		}
+		if got := artifactStore.putCount(); got != 0 {
+			t.Fatalf("artifact Put calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should offload one post-hook redacted result and page back byte-identical content", func(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDispatchDescriptor()
-		descriptor.MaxResultBytes = 320
+		descriptor.MaxResultBytes = 768
 		events := &recordingToolEventSink{}
+		filesystemStore := openTestToolArtifactStore(
+			t,
+			filepath.Join(t.TempDir(), "tool-artifacts"),
+			testToolArtifactRetention(),
+		)
+		artifactStore := &recordingToolArtifactStore{delegate: filesystemStore}
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
 			availability: availableDispatchHandle(),
 			result: ToolResult{
-				Content: []ToolContent{{Type: "text", Text: strings.Repeat("x", 1024)}},
+				Content: []ToolContent{{Type: "text", Text: strings.Repeat("x", 4096) + " token=secret"}},
 			},
 		})
-		registry := mustDispatchRegistry(t, provider, WithToolEventSink(events))
+		hooks := &recordingHookRunner{post: func(
+			_ context.Context,
+			_ CallRequest,
+			result ToolResult,
+		) (ToolResult, error) {
+			result.Content[0].Text += "::post-hook-tail"
+			return result, nil
+		}}
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithHookRunner(hooks),
+			WithToolEventSink(events),
+			WithResultProcessor(NewResultProcessor(0, artifactStore)),
+		)
 
 		result, err := registry.Call(
 			t.Context(),
-			Scope{},
+			Scope{WorkspaceID: "workspace-a"},
 			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
 		)
 		if err != nil {
@@ -837,6 +901,40 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		}
 		if _, ok := result.Metadata["truncated_from_bytes"]; !ok {
 			t.Fatalf("result.Metadata = %#v, want truncated_from_bytes", result.Metadata)
+		}
+		if len(result.Artifacts) != 1 {
+			t.Fatalf("result.Artifacts = %#v, want one page-back reference", result.Artifacts)
+		}
+		if got := artifactStore.putCount(); got != 1 {
+			t.Fatalf("artifact Put calls = %d, want 1", got)
+		}
+		stored := artifactStore.lastContent()
+		var canonical ToolResult
+		if err := json.Unmarshal(stored, &canonical); err != nil {
+			t.Fatalf("json.Unmarshal(stored result) error = %v", err)
+		}
+		if got := canonical.Content[0].Text; !strings.HasSuffix(got, "::post-hook-tail") {
+			t.Fatalf("stored content tail = %q, want post-hook result", got)
+		}
+		if strings.Contains(string(stored), "token=secret") {
+			t.Fatalf("stored artifact leaked display secret: %s", stored)
+		}
+		page, err := filesystemStore.ReadPage(
+			t.Context(),
+			"workspace-a",
+			result.Artifacts[0].URI,
+			0,
+			MaxToolArtifactPageBytes,
+		)
+		if err != nil {
+			t.Fatalf("ReadPage() error = %v", err)
+		}
+		decoded, err := decodeToolArtifactPage(page)
+		if err != nil {
+			t.Fatalf("decodeToolArtifactPage() error = %v", err)
+		}
+		if !bytes.Equal(decoded, stored) {
+			t.Fatalf("page-back bytes differ from stored canonical result")
 		}
 		if !slices.ContainsFunc(result.Redactions, func(redaction Redaction) bool {
 			return redaction.Reason == ReasonResultBudgetExceeded
@@ -851,6 +949,77 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)
 		}
 	})
+
+	t.Run(
+		"Should return a redacted preview and typed partial result when artifact persistence fails",
+		func(t *testing.T) {
+			t.Parallel()
+
+			descriptor := validDispatchDescriptor()
+			descriptor.MaxResultBytes = 768
+			events := &recordingToolEventSink{}
+			artifactStore := &recordingToolArtifactStore{putErr: errors.New("injected disk full")}
+			provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+				descriptor:   descriptor,
+				availability: availableDispatchHandle(),
+				result: ToolResult{
+					Content: []ToolContent{{Type: "text", Text: strings.Repeat("x", 4096) + " token=secret"}},
+				},
+			})
+			postErrorCalled := false
+			hooks := &recordingHookRunner{postError: func(_ context.Context, _ CallRequest, err error) error {
+				postErrorCalled = true
+				var toolErr *ToolError
+				if !errors.As(err, &toolErr) || toolErr.PartialResult == nil {
+					t.Fatalf("PostError error = %T %[1]v, want typed partial result", err)
+				}
+				if strings.Contains(toolErr.PartialResult.Preview, "secret") {
+					t.Fatalf("PostError partial preview leaked secret: %q", toolErr.PartialResult.Preview)
+				}
+				return nil
+			}}
+			registry := mustDispatchRegistry(
+				t,
+				provider,
+				WithHookRunner(hooks),
+				WithToolEventSink(events),
+				WithResultProcessor(NewResultProcessor(0, artifactStore)),
+			)
+
+			result, err := registry.Call(
+				t.Context(),
+				Scope{WorkspaceID: "workspace-a"},
+				CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+			)
+			if !errors.Is(err, ErrToolResultPersistence) {
+				t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolResultPersistence", err)
+			}
+			if !postErrorCalled {
+				t.Fatal("post-error hook was not called")
+			}
+			if !result.Truncated || result.Preview == "" || len(result.Artifacts) != 0 {
+				t.Fatalf("partial result = %#v, want preview without artifact reference", result)
+			}
+			var toolErr *ToolError
+			if !errors.As(err, &toolErr) || toolErr.Code != ErrorCodeResultPersistenceFailed ||
+				toolErr.PartialResult == nil {
+				t.Fatalf("RuntimeRegistry.Call() error = %#v, want persistence code and partial result", toolErr)
+			}
+			if got := artifactStore.putCount(); got != 1 {
+				t.Fatalf("artifact Put calls = %d, want 1", got)
+			}
+			if got, want := events.kinds(), []ToolCallEventKind{
+				ToolCallStarted,
+				ToolCallFailed,
+			}; !slices.Equal(got, want) {
+				t.Fatalf("event kinds = %#v, want %#v", got, want)
+			}
+			snapshot := events.snapshot()
+			if snapshot[1].ErrorCode != ErrorCodeResultPersistenceFailed || !snapshot[1].Truncated {
+				t.Fatalf("failed event = %#v, want partial persistence evidence", snapshot[1])
+			}
+		},
+	)
 
 	t.Run("Should reject invalid JSON metadata before returning results", func(t *testing.T) {
 		t.Parallel()
@@ -928,6 +1097,69 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			})
 		}
 	})
+}
+
+type recordingToolArtifactStore struct {
+	delegate ToolArtifactStore
+	putErr   error
+	mu       sync.Mutex
+	contents [][]byte
+}
+
+var _ ToolArtifactStore = (*recordingToolArtifactStore)(nil)
+
+func (s *recordingToolArtifactStore) Put(
+	ctx context.Context,
+	workspaceID string,
+	content []byte,
+) (ArtifactRef, error) {
+	s.mu.Lock()
+	s.contents = append(s.contents, append([]byte(nil), content...))
+	putErr := s.putErr
+	delegate := s.delegate
+	s.mu.Unlock()
+	if putErr != nil {
+		return ArtifactRef{}, putErr
+	}
+	if delegate == nil {
+		return toolArtifactRef(artifactID(content), int64(len(content))), nil
+	}
+	return delegate.Put(ctx, workspaceID, content)
+}
+
+func (s *recordingToolArtifactStore) ReadPage(
+	ctx context.Context,
+	workspaceID string,
+	uri string,
+	offset int64,
+	limit int64,
+) (ToolArtifactPage, error) {
+	if s.delegate == nil {
+		return ToolArtifactPage{}, ErrToolArtifactNotFound
+	}
+	return s.delegate.ReadPage(ctx, workspaceID, uri, offset, limit)
+}
+
+func (s *recordingToolArtifactStore) Sweep(ctx context.Context) error {
+	if s.delegate == nil {
+		return nil
+	}
+	return s.delegate.Sweep(ctx)
+}
+
+func (s *recordingToolArtifactStore) putCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.contents)
+}
+
+func (s *recordingToolArtifactStore) lastContent() []byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.contents) == 0 {
+		return nil
+	}
+	return append([]byte(nil), s.contents[len(s.contents)-1]...)
 }
 
 func validDispatchDescriptor() Descriptor {

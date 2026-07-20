@@ -119,7 +119,6 @@ function buildRun(
     generation: 3,
     iteration_cap: 50,
     tokens_used: 128_400,
-    consecutive_failures: 0,
     pause_requested: false,
     budget_tokens: 500_000,
     budget_wall_sec: 3_600,

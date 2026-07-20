@@ -14,18 +14,15 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/deadentity"
 	"github.com/compozy/agh/internal/diagnostics"
-	mcppkg "github.com/compozy/agh/internal/mcp"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/network"
 	settingspkg "github.com/compozy/agh/internal/settings"
-	toolspkg "github.com/compozy/agh/internal/tools"
 	aghupdate "github.com/compozy/agh/internal/update"
 	"github.com/compozy/agh/internal/version"
 )
-
-const defaultSettingsMCPProbeTimeout = 5 * time.Second
 
 type settingsRuntimeSurface struct {
 	config            aghconfig.Config
@@ -47,9 +44,10 @@ type settingsRuntimeSurface struct {
 	extensions   interface {
 		List(context.Context) ([]contract.ExtensionPayload, error)
 	}
-	now  func() time.Time
-	pid  func() int
-	info func() Info
+	deadEntities *deadentity.Service
+	now          func() time.Time
+	pid          func() int
+	info         func() Info
 }
 
 var _ settingspkg.GeneralRuntimeProvider = (*settingsRuntimeSurface)(nil)
@@ -128,6 +126,7 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		secretRefs:        secretRefs,
 		lookupSecret:      lookupSecret,
 		extensions:        state.deps.Extensions,
+		deadEntities:      state.deadEntities,
 		now:               now,
 		pid:               pid,
 		info:              info,
@@ -344,149 +343,6 @@ func (s *settingsRuntimeSurface) TransportParityStatus(
 		ExtensionsHTTP: httpMutationsAllowed,
 		ExtensionsUDS:  true,
 	}, nil
-}
-
-func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
-	ctx context.Context,
-	target mcpauth.Target,
-	server aghconfig.MCPServer,
-) (settingspkg.MCPServerRuntimeStatus, error) {
-	status := settingspkg.MCPServerRuntimeStatus{
-		Configured: true,
-	}
-	if err := server.Validate("mcp_server"); err != nil {
-		status.State = settingspkg.MCPServerRuntimeStateConfigError
-		status.Probe = settingspkg.MCPServerProbeSkipped
-		status.Reason = "config_error"
-		status.Diagnostic = diagnostics.Redact(err.Error())
-		return status, nil
-	}
-	if server.Auth.Enabled() {
-		authStatus, err := s.MCPAuthStatus(ctx, target, server)
-		if err != nil {
-			status.State = settingspkg.MCPServerRuntimeStateAuthRequired
-			status.Probe = settingspkg.MCPServerProbeSkipped
-			status.Reason = string(toolspkg.ReasonMCPAuthRequired)
-			status.Diagnostic = diagnostics.Redact(err.Error())
-			return status, nil
-		}
-		if mapped, ok := runtimeStateFromMCPAuthStatus(authStatus); ok {
-			status.State = mapped
-			status.Probe = settingspkg.MCPServerProbeSkipped
-			status.Reason = runtimeReasonFromMCPAuthState(mapped)
-			status.Diagnostic = diagnostics.Redact(authStatus.Diagnostic)
-			return status, nil
-		}
-	}
-
-	executor, err := mcppkg.NewMCPCallExecutor(
-		mcppkg.ServerResolverFunc(func(
-			context.Context,
-			toolspkg.SourceRef,
-		) (mcppkg.ResolvedServer, error) {
-			return mcppkg.ResolvedServer{Server: server, Target: target}, nil
-		}),
-		mcppkg.WithTokenStore(s.mcpAuthStore),
-		mcppkg.WithAuthMutationGeneration(s.mcpAuthGeneration),
-		mcppkg.WithSecretLookup(s.lookupSecret),
-		mcppkg.WithSecretResolver(s.secretRefs),
-		mcppkg.WithTimeout(s.mcpProbeTimeout()),
-	)
-	if err != nil {
-		return settingspkg.MCPServerRuntimeStatus{}, fmt.Errorf("daemon: create MCP runtime probe: %w", err)
-	}
-
-	tools, err := executor.ListTools(ctx, toolspkg.SourceRef{
-		Kind:          toolspkg.SourceMCP,
-		Owner:         strings.TrimSpace(server.Name),
-		RawServerName: strings.TrimSpace(server.Name),
-		RawToolName:   "*",
-	})
-	if err != nil {
-		return runtimeStatusFromMCPProbeError(err), nil
-	}
-	return settingspkg.MCPServerRuntimeStatus{
-		Configured:  true,
-		Initialized: true,
-		State:       settingspkg.MCPServerRuntimeStateReady,
-		Probe:       settingspkg.MCPServerProbeSucceeded,
-		ToolCount:   len(tools),
-	}, nil
-}
-
-func runtimeStateFromMCPAuthStatus(
-	status mcpauth.Status,
-) (settingspkg.MCPServerRuntimeState, bool) {
-	switch status.Status {
-	case mcpauth.StatusNeedsLogin:
-		return settingspkg.MCPServerRuntimeStateAuthRequired, true
-	case mcpauth.StatusExpired:
-		return settingspkg.MCPServerRuntimeStateAuthExpired, true
-	case mcpauth.StatusInvalid:
-		return settingspkg.MCPServerRuntimeStateAuthInvalid, true
-	case mcpauth.StatusAuthenticated:
-		return "", false
-	default:
-		if strings.TrimSpace(string(status.Status)) == "refresh_failed" {
-			return settingspkg.MCPServerRuntimeStateAuthRefreshFailed, true
-		}
-		return settingspkg.MCPServerRuntimeStateAuthRequired, true
-	}
-}
-
-func runtimeReasonFromMCPAuthState(state settingspkg.MCPServerRuntimeState) string {
-	switch state {
-	case settingspkg.MCPServerRuntimeStateAuthExpired:
-		return string(toolspkg.ReasonMCPAuthExpired)
-	case settingspkg.MCPServerRuntimeStateAuthInvalid:
-		return string(toolspkg.ReasonMCPAuthInvalid)
-	case settingspkg.MCPServerRuntimeStateAuthRefreshFailed:
-		return string(toolspkg.ReasonMCPAuthRefreshFailed)
-	default:
-		return string(toolspkg.ReasonMCPAuthRequired)
-	}
-}
-
-func runtimeStatusFromMCPProbeError(err error) settingspkg.MCPServerRuntimeStatus {
-	status := settingspkg.MCPServerRuntimeStatus{
-		Configured: true,
-		State:      settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
-		Probe:      settingspkg.MCPServerProbeFailed,
-		Reason:     string(toolspkg.ReasonMCPUnreachable),
-		Diagnostic: diagnostics.Redact(err.Error()),
-	}
-	if errors.Is(err, os.ErrPermission) || strings.Contains(strings.ToLower(err.Error()), "permission denied") {
-		status.State = settingspkg.MCPServerRuntimeStatePermissionDenied
-		status.Reason = "permission_denied"
-		return status
-	}
-	reason, ok := toolspkg.ReasonOf(err)
-	if !ok {
-		return status
-	}
-	status.Reason = string(reason)
-	switch reason {
-	case toolspkg.ReasonMCPAuthRequired, toolspkg.ReasonMCPAuthUnconfigured:
-		status.State = settingspkg.MCPServerRuntimeStateAuthRequired
-		status.Probe = settingspkg.MCPServerProbeSkipped
-	case toolspkg.ReasonMCPAuthExpired:
-		status.State = settingspkg.MCPServerRuntimeStateAuthExpired
-		status.Probe = settingspkg.MCPServerProbeSkipped
-	case toolspkg.ReasonMCPAuthInvalid:
-		status.State = settingspkg.MCPServerRuntimeStateAuthInvalid
-		status.Probe = settingspkg.MCPServerProbeSkipped
-	case toolspkg.ReasonMCPAuthRefreshFailed:
-		status.State = settingspkg.MCPServerRuntimeStateAuthRefreshFailed
-		status.Probe = settingspkg.MCPServerProbeSkipped
-	case toolspkg.ReasonPolicyDenied:
-		status.State = settingspkg.MCPServerRuntimeStatePermissionDenied
-	case toolspkg.ReasonSchemaInvalid:
-		status.State = settingspkg.MCPServerRuntimeStateConfigError
-		status.Probe = settingspkg.MCPServerProbeSkipped
-	default:
-		status.State = settingspkg.MCPServerRuntimeStateRuntimeUnavailable
-	}
-	return status
 }
 
 func settingsHTTPMutationsAllowed(host string) bool {

@@ -19,6 +19,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/admission"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -35,6 +36,7 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/testutil/acpmock"
+	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	"github.com/compozy/agh/internal/vault"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/kballard/go-shellquote"
@@ -49,7 +51,7 @@ type daemonMigrationExpectation struct {
 
 func daemonMigrationExpectations() []daemonMigrationExpectation {
 	return []daemonMigrationExpectation{
-		{stream: globaldb.MigrationStream(), version: 5},
+		{stream: globaldb.MigrationStream(), version: 25},
 		{stream: memory.MigrationStream(), version: 1},
 	}
 }
@@ -1638,6 +1640,112 @@ func TestShutdownCancelsActiveAutomationPrompt(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Shutdown() did not finish after automation prompt cancellation")
+	}
+}
+
+func TestDrainAllowsActiveAutomationPromptToFinishBeforeJoinedShutdown(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	cfg.Automation.Enabled = true
+	cfg.Automation.MaxConcurrentJobs = 1
+	cfg.Automation.Jobs = []aghconfig.AutomationJob{
+		{
+			Scope:     automationpkg.AutomationScopeGlobal,
+			Name:      "drain-job",
+			AgentName: "researcher",
+			Prompt:    "Finish admitted work.",
+			Schedule: automationpkg.ScheduleSpec{
+				Mode:     automationpkg.ScheduleModeEvery,
+				Interval: "10ms",
+			},
+			Enabled:   true,
+			Retry:     automationpkg.DefaultRetryConfig(),
+			FireLimit: automationpkg.FireLimitConfig{Max: 1, Window: "1h"},
+			Source:    automationpkg.JobSourceConfig,
+		},
+	}
+
+	promptStarted := make(chan struct{})
+	releasePrompt := make(chan struct{})
+	promptFinished := make(chan struct{})
+	var d *Daemon
+	sessions := &fakeSessionManager{}
+	sessions.promptHook = func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+		if d.IsDraining() {
+			return nil, admission.ErrDraining
+		}
+		close(promptStarted)
+		events := make(chan acp.AgentEvent, 1)
+		go func() {
+			defer close(promptFinished)
+			defer close(events)
+			<-releasePrompt
+			events <- acp.AgentEvent{
+				Type:             acp.EventTypeDone,
+				Timestamp:        time.Now().UTC(),
+				StopReason:       string(acp.PromptStopReasonEndTurn),
+				PromptStopReason: acp.PromptStopReasonEndTurn,
+			}
+		}()
+		return events, nil
+	}
+
+	var err error
+	d, err = New(
+		WithHomePaths(homePaths),
+		WithConfig(&cfg),
+		WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return sessions, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+		return &fakeObserver{}, nil
+	}
+	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		return &fakeServer{name: "uds"}, nil
+	}
+
+	if err := d.boot(testutil.Context(t)); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	select {
+	case <-promptStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("automation scheduler did not admit prompt in time")
+	}
+	if err := d.Drain(testutil.Context(t)); err != nil {
+		t.Fatalf("Drain() error = %v", err)
+	}
+	if !d.IsDraining() {
+		t.Fatal("IsDraining() = false after Drain")
+	}
+	select {
+	case <-promptFinished:
+		t.Fatal("admitted prompt finished before release")
+	default:
+	}
+
+	close(releasePrompt)
+	select {
+	case <-promptFinished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("admitted prompt did not finish after release")
+	}
+	if err := d.Shutdown(testutil.Context(t)); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if got := sessions.shutdownCalls; got != 1 {
+		t.Fatalf("session manager Shutdown() calls = %d, want 1", got)
+	}
+	if !d.IsDraining() {
+		t.Fatal("IsDraining() = false after joined shutdown")
 	}
 }
 func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
@@ -3350,6 +3458,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 }
 
 func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
+	aghExecutable := e2etest.BuildAGHBinary(t)
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
@@ -3378,6 +3487,9 @@ func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
+	}
+	d.executable = func() (string, error) {
+		return aghExecutable, nil
 	}
 	if err := d.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)

@@ -2732,8 +2732,32 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		}
 		if !strings.Contains(detailHuman, "Task Run") ||
 			!strings.Contains(detailHuman, "Operational Summary") ||
-			!strings.Contains(detailHuman, "Tool Calls") {
+			!strings.Contains(detailHuman, "Tool Calls") ||
+			!strings.Contains(detailHuman, "USD 0.42 (estimated)") ||
+			!strings.Contains(detailHuman, "catalog_config") {
 			t.Fatalf("task run detail human output = %q, want run/task/summary sections", detailHuman)
+		}
+	})
+
+	t.Run("Should suppress contradictory included task cost in human and TOON output", func(t *testing.T) {
+		t.Parallel()
+
+		detail := sampleTaskRunDetailRecord(taskpkg.TaskRunStatusRunning)
+		detail.Summary.CostStatus = "included"
+		detail.Summary.CostSource = "none"
+		detailHuman, err := taskRunDetailBundle(&detail).human()
+		if err != nil {
+			t.Fatalf("taskRunDetailBundle().human() error = %v", err)
+		}
+		if !strings.Contains(detailHuman, "Included") || strings.Contains(detailHuman, "USD 0.42") {
+			t.Fatalf("task run detail included output = %q, want Included without monetary amount", detailHuman)
+		}
+		detailToon, err := taskRunDetailBundle(&detail).toon()
+		if err != nil {
+			t.Fatalf("taskRunDetailBundle().toon() error = %v", err)
+		}
+		if !strings.Contains(detailToon, "Included") || strings.Contains(detailToon, "0.42") {
+			t.Fatalf("task run detail included TOON = %q, want Included without monetary amount", detailToon)
 		}
 	})
 
@@ -2747,8 +2771,8 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		if !strings.Contains(
 			runToon,
 			"task_runs[1]{id,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
-		) || !strings.Contains(runToon, "builders") {
-			t.Fatalf("task run toon output = %q, want task run TOON array with builders", runToon)
+		) || !strings.Contains(runToon, "completed") || !strings.Contains(runToon, "builders") {
+			t.Fatalf("task run toon output = %q, want completed task run TOON array with builders", runToon)
 		}
 	})
 
@@ -3054,6 +3078,8 @@ func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 func sampleTaskRunDetailRecord(status taskpkg.RunStatus) TaskRunDetailRecord {
 	toolCallCount := int64(3)
 	turnCount := int64(2)
+	totalCost := 0.42
+	currency := "USD"
 	return TaskRunDetailRecord{
 		Run: sampleTaskRunRecord(status),
 		Task: &contract.TaskReferencePayload{
@@ -3081,6 +3107,10 @@ func sampleTaskRunDetailRecord(status taskpkg.RunStatus) TaskRunDetailRecord {
 			LastEventType:  "agent_message",
 			ToolCallCount:  &toolCallCount,
 			TurnCount:      &turnCount,
+			TotalCost:      &totalCost,
+			CostCurrency:   &currency,
+			CostStatus:     "estimated",
+			CostSource:     "catalog_config",
 		},
 	}
 }

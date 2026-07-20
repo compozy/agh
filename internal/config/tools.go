@@ -28,6 +28,20 @@ const (
 	MinHostedMCPBindNonceTTLSeconds = 1
 	// MaxHostedMCPBindNonceTTLSeconds is the largest supported hosted MCP bind window.
 	MaxHostedMCPBindNonceTTLSeconds = 300
+
+	// DefaultToolsClarifyTimeout is the boot-snapshotted clarification wait.
+	DefaultToolsClarifyTimeout = 5 * time.Minute
+	// MinToolsClarifyTimeout is the smallest supported clarification wait.
+	MinToolsClarifyTimeout = time.Second
+	// MaxToolsClarifyTimeout is the largest supported clarification wait.
+	MaxToolsClarifyTimeout = 24 * time.Hour
+
+	// DefaultToolsArtifactMaxCount is the retained artifact count ceiling.
+	DefaultToolsArtifactMaxCount = 200
+	// DefaultToolsArtifactMaxBytes is the retained artifact byte ceiling.
+	DefaultToolsArtifactMaxBytes int64 = 1 << 30
+	// DefaultToolsArtifactMaxAge is the retained artifact age ceiling.
+	DefaultToolsArtifactMaxAge = 720 * time.Hour
 )
 
 // ToolsExternalDefault controls default policy for external executable sources.
@@ -48,12 +62,26 @@ type ToolsConfig struct {
 	HostedMCPEnabled      bool                 `toml:"hosted_mcp_enabled"`
 	DefaultMaxResultBytes int64                `toml:"default_max_result_bytes"`
 	HostedMCP             ToolsHostedMCPConfig `toml:"hosted_mcp"`
+	Clarify               ToolsClarifyConfig   `toml:"clarify"`
+	Artifacts             ToolsArtifactsConfig `toml:"artifacts"`
 	Policy                ToolsPolicyConfig    `toml:"policy"`
 }
 
 // ToolsHostedMCPConfig controls AGH-hosted MCP launch binding values.
 type ToolsHostedMCPConfig struct {
 	BindNonceTTLSeconds int `toml:"bind_nonce_ttl_seconds"`
+}
+
+// ToolsClarifyConfig controls the boot-scoped human clarification broker.
+type ToolsClarifyConfig struct {
+	Timeout time.Duration `toml:"timeout"`
+}
+
+// ToolsArtifactsConfig controls retained oversized tool result storage.
+type ToolsArtifactsConfig struct {
+	MaxCount int           `toml:"max_count"`
+	MaxBytes int64         `toml:"max_bytes"`
+	MaxAge   time.Duration `toml:"max_age"`
 }
 
 // ToolsPolicyConfig controls default registry policy values consumed by later policy evaluation.
@@ -71,6 +99,12 @@ func DefaultToolsConfig() ToolsConfig {
 		DefaultMaxResultBytes: DefaultToolsMaxResultBytes,
 		HostedMCP: ToolsHostedMCPConfig{
 			BindNonceTTLSeconds: DefaultHostedMCPBindNonceTTLSeconds,
+		},
+		Clarify: ToolsClarifyConfig{Timeout: DefaultToolsClarifyTimeout},
+		Artifacts: ToolsArtifactsConfig{
+			MaxCount: DefaultToolsArtifactMaxCount,
+			MaxBytes: DefaultToolsArtifactMaxBytes,
+			MaxAge:   DefaultToolsArtifactMaxAge,
 		},
 		Policy: ToolsPolicyConfig{
 			ExternalDefault:        ToolsExternalDefaultDisabled,
@@ -92,6 +126,12 @@ func (c ToolsConfig) Validate(mcpServers []MCPServer, providers map[string]Provi
 	if err := c.HostedMCP.Validate(); err != nil {
 		return err
 	}
+	if err := c.Clarify.Validate(); err != nil {
+		return err
+	}
+	if err := c.Artifacts.Validate(); err != nil {
+		return err
+	}
 	return c.Policy.Validate(configuredMCPSourceOwners(mcpServers, providers))
 }
 
@@ -110,6 +150,33 @@ func (c ToolsHostedMCPConfig) Validate() error {
 			MaxHostedMCPBindNonceTTLSeconds,
 			c.BindNonceTTLSeconds,
 		)
+	}
+	return nil
+}
+
+// Validate ensures clarification waits are bounded and useful.
+func (c ToolsClarifyConfig) Validate() error {
+	if c.Timeout < MinToolsClarifyTimeout || c.Timeout > MaxToolsClarifyTimeout {
+		return fmt.Errorf(
+			"tools.clarify.timeout must be between %s and %s: %s",
+			MinToolsClarifyTimeout,
+			MaxToolsClarifyTimeout,
+			c.Timeout,
+		)
+	}
+	return nil
+}
+
+// Validate ensures artifact retention values form real positive bounds.
+func (c ToolsArtifactsConfig) Validate() error {
+	if c.MaxCount <= 0 {
+		return fmt.Errorf("tools.artifacts.max_count must be greater than zero: %d", c.MaxCount)
+	}
+	if c.MaxBytes <= 0 {
+		return fmt.Errorf("tools.artifacts.max_bytes must be greater than zero: %d", c.MaxBytes)
+	}
+	if c.MaxAge <= 0 {
+		return fmt.Errorf("tools.artifacts.max_age must be greater than zero: %s", c.MaxAge)
 	}
 	return nil
 }

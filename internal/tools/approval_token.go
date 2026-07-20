@@ -29,8 +29,8 @@ type ApprovalRequest struct {
 	InputDigest string          `json:"input_digest,omitempty"`
 }
 
-// ApprovalGrant is the raw approval token returned only to authenticated local callers.
-type ApprovalGrant struct {
+// ApprovalTokenGrant is the raw single-use approval token returned only to authenticated local callers.
+type ApprovalTokenGrant struct {
 	ApprovalToken string    `json:"approval_token"`
 	ExpiresAt     time.Time `json:"expires_at"`
 	ToolID        ToolID    `json:"tool_id"`
@@ -39,7 +39,7 @@ type ApprovalGrant struct {
 
 // ApprovalTokenIssuer mints local single-use approval references.
 type ApprovalTokenIssuer interface {
-	CreateToolApproval(ctx context.Context, scope Scope, req ApprovalRequest) (ApprovalGrant, error)
+	CreateToolApproval(ctx context.Context, scope Scope, req ApprovalRequest) (ApprovalTokenGrant, error)
 }
 
 // ApprovalTokenConsumer validates and consumes local approval references.
@@ -117,27 +117,27 @@ func (s *ApprovalTokenStore) CreateToolApproval(
 	ctx context.Context,
 	scope Scope,
 	req ApprovalRequest,
-) (ApprovalGrant, error) {
+) (ApprovalTokenGrant, error) {
 	if s == nil {
-		return ApprovalGrant{}, approvalTokenError(
+		return ApprovalTokenGrant{}, approvalTokenError(
 			req.ToolID,
 			"tool approval channel is unavailable",
 			ReasonApprovalUnreachable,
 		)
 	}
 	if err := contextErr(ctx, req.ToolID); err != nil {
-		return ApprovalGrant{}, err
+		return ApprovalTokenGrant{}, err
 	}
 	if err := req.ToolID.Validate(); err != nil {
-		return ApprovalGrant{}, invalidInputError(req.ToolID, "tool id is invalid", err)
+		return ApprovalTokenGrant{}, invalidInputError(req.ToolID, "tool id is invalid", err)
 	}
 	normalizedReq, err := normalizeApprovalRequest(scope, req)
 	if err != nil {
-		return ApprovalGrant{}, invalidInputError(req.ToolID, "approval scope is invalid", err)
+		return ApprovalTokenGrant{}, invalidInputError(req.ToolID, "approval scope is invalid", err)
 	}
 	req = normalizedReq
 	if strings.TrimSpace(req.SessionID) == "" {
-		return ApprovalGrant{}, invalidInputError(
+		return ApprovalTokenGrant{}, invalidInputError(
 			req.ToolID,
 			"session_id is required for tool approval",
 			NewValidationError("session_id", ReasonApprovalRequired, "session_id is required"),
@@ -145,11 +145,11 @@ func (s *ApprovalTokenStore) CreateToolApproval(
 	}
 	inputDigest, err := ApprovalInputDigest(req.Input, req.InputDigest)
 	if err != nil {
-		return ApprovalGrant{}, invalidInputError(req.ToolID, "input digest is invalid", err)
+		return ApprovalTokenGrant{}, invalidInputError(req.ToolID, "input digest is invalid", err)
 	}
 	token, err := randomApprovalToken(s.random)
 	if err != nil {
-		return ApprovalGrant{}, NewToolError(
+		return ApprovalTokenGrant{}, NewToolError(
 			ErrorCodeBackendFailed,
 			req.ToolID,
 			"tool approval token generation failed",
@@ -173,7 +173,7 @@ func (s *ApprovalTokenStore) CreateToolApproval(
 	s.pruneExpiredLocked(now)
 	s.active[hash] = record
 	delete(s.used, hash)
-	return ApprovalGrant{
+	return ApprovalTokenGrant{
 		ApprovalToken: token,
 		ExpiresAt:     record.expiresAt,
 		ToolID:        req.ToolID,

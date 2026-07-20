@@ -252,7 +252,6 @@ type LoopRunPayload struct {
 	ActiveGateID                 string                `json:"active_gate_id,omitempty"`
 	BudgetApprovalSeq            int                   `json:"budget_approval_seq,omitempty"`
 	StartMetadata                map[string]any        `json:"start_metadata,omitempty"`
-	ConsecutiveFailures          int                   `json:"consecutive_failures"`
 	IterationCap                 int                   `json:"iteration_cap"`
 	BudgetTokens                 int                   `json:"budget_tokens"`
 	BudgetWallSec                int                   `json:"budget_wall_sec"`

@@ -553,7 +553,7 @@ func (h *HostAPIHandler) resolveHostAPIAuthoredAgentTarget(
 	if root == "" {
 		return hostAPIAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
-	workspaceID, err := hostAPIResolvedWorkspaceID(&resolved)
+	workspaceID, err := hostAPIResolvedWorkspaceRegistrationID(&resolved)
 	if err != nil {
 		return hostAPIAuthoredAgentTarget{}, err
 	}

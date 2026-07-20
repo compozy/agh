@@ -55,6 +55,7 @@ func (s *SessionDB) scanSessionEvent(scanner rowScanner) (store.SessionEvent, er
 		&event.Type,
 		&event.AgentName,
 		&event.Content,
+		&event.Archived,
 		&timestamp,
 	); err != nil {
 		return store.SessionEvent{}, fmt.Errorf("store: scan session event: %w", err)

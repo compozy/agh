@@ -8,7 +8,7 @@ func TestRuntimeHarnessEnvContract(t *testing.T) {
 	t.Run("Should keep isolated home env when options provide reserved keys", func(t *testing.T) {
 		t.Parallel()
 
-		layout := prepareRuntimeLayout(t, RuntimeHarnessOptions{
+		layout := prepareRuntimeLayout(t, &RuntimeHarnessOptions{
 			Env: map[string]string{
 				"AGH_HOME": "/tmp/outside-agh-home",
 				"HOME":     "/tmp/outside-home",

@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/deadentity"
 	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -92,8 +94,26 @@ func (r *bridgeRuntime) CheckBridge(
 	if err := req.Validate(); err != nil {
 		return bridgepkg.BridgeCheckResponse{}, err
 	}
+	key, tracked, err := r.bridgeDeadEntityKey(ctx, req.BridgeInstanceID)
+	if err != nil {
+		return bridgepkg.BridgeCheckResponse{}, err
+	}
+	if tracked {
+		decision, err := r.deadEntities.BeforeProbe(ctx, key)
+		if err != nil {
+			return bridgepkg.BridgeCheckResponse{}, fmt.Errorf("daemon: admit bridge recovery check: %w", err)
+		}
+		if !decision.Allowed {
+			return bridgepkg.BridgeCheckResponse{}, fmt.Errorf(
+				"%w: bridge %q is marked dead: %s",
+				bridgepkg.ErrBridgeInstanceUnavailable,
+				req.BridgeInstanceID,
+				decision.Reason,
+			)
+		}
+	}
 	var response bridgepkg.BridgeCheckResponse
-	err := r.withBridgeControlTransport(
+	err = r.withBridgeControlTransport(
 		ctx,
 		extensionName,
 		req.BridgeInstanceID,
@@ -107,9 +127,85 @@ func (r *bridgeRuntime) CheckBridge(
 		},
 	)
 	if err != nil {
+		r.recordBridgeCheckFailure(ctx, key, tracked, bridgeCheckErrorClass(err), err.Error())
 		return bridgepkg.BridgeCheckResponse{}, err
 	}
+	if reason, failed := permanentBridgeCheckFailure(response); failed {
+		r.recordBridgeCheckFailure(ctx, key, tracked, deadentity.FailurePermanent, reason)
+	} else if tracked {
+		if err := r.deadEntities.RecordSuccess(ctx, key); err != nil {
+			return bridgepkg.BridgeCheckResponse{}, fmt.Errorf("daemon: record bridge check recovery: %w", err)
+		}
+	}
 	return response, nil
+}
+
+func (r *bridgeRuntime) bridgeDeadEntityKey(
+	ctx context.Context,
+	instanceID string,
+) (store.DeadEntityKey, bool, error) {
+	if r == nil || r.deadEntities == nil {
+		return store.DeadEntityKey{}, false, nil
+	}
+	instance, err := r.GetInstance(ctx, strings.TrimSpace(instanceID))
+	if err != nil {
+		return store.DeadEntityKey{}, false, fmt.Errorf("daemon: load bridge reliability scope: %w", err)
+	}
+	if instance.Scope != bridgepkg.ScopeWorkspace {
+		return store.DeadEntityKey{}, false, nil
+	}
+	key := store.DeadEntityKey{
+		WorkspaceID: instance.WorkspaceID,
+		Kind:        store.DeadEntityKindBridge,
+		EntityID:    instance.ID,
+	}.Normalize()
+	if err := key.Validate(); err != nil {
+		return store.DeadEntityKey{}, false, fmt.Errorf("daemon: bridge reliability key: %w", err)
+	}
+	return key, true, nil
+}
+
+func (r *bridgeRuntime) recordBridgeCheckFailure(
+	ctx context.Context,
+	key store.DeadEntityKey,
+	tracked bool,
+	class deadentity.FailureClass,
+	reason string,
+) {
+	if !tracked || r == nil || r.deadEntities == nil {
+		return
+	}
+	if err := r.deadEntities.RecordFailure(ctx, key, class, reason); err != nil {
+		r.logger.Warn(
+			"daemon: record bridge reliability failure failed open",
+			"workspace_id", key.WorkspaceID,
+			"bridge_instance_id", key.EntityID,
+			"error", err,
+		)
+	}
+}
+
+func permanentBridgeCheckFailure(response bridgepkg.BridgeCheckResponse) (string, bool) {
+	reasons := make([]string, 0)
+	for _, check := range response.Checks {
+		if check.Status != bridgepkg.BridgeCheckStatusFail {
+			continue
+		}
+		reason := strings.TrimSpace(check.Check)
+		if remediation := strings.TrimSpace(check.Remediation); remediation != "" {
+			reason += ": " + remediation
+		}
+		reasons = append(reasons, reason)
+	}
+	return strings.Join(reasons, "; "), len(reasons) > 0
+}
+
+func bridgeCheckErrorClass(err error) deadentity.FailureClass {
+	if errors.Is(err, bridgepkg.ErrBridgeControlTransportUnavailable) ||
+		errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable) {
+		return deadentity.FailurePermanent
+	}
+	return deadentity.FailureTransient
 }
 
 // RegisterBridgeWebhook holds the instance lifecycle lock through provider registration and process reap.

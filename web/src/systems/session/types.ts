@@ -67,6 +67,45 @@ export type SessionApprovalResponse = OperationResponse<"approveSession", 200>;
 export type ApproveSessionParams = OperationRequestBody<"approveSession">;
 export type PermissionDecision = ApproveSessionParams["decision"];
 
+export type ClarificationsResponse = OperationResponse<"listSessionClarifications", 200>;
+/** Live pending clarification projection — the exact authority for pending truth. */
+export type ClarificationPending = ClarificationsResponse["clarifications"][number];
+export type AnswerClarificationBody = OperationRequestBody<"answerSessionClarification">;
+export type AnswerClarificationResult = OperationResponse<"answerSessionClarification", 200>;
+export type ToolArtifactPage = OperationResponse<"readToolArtifact", 200>;
+export type ToolArtifactRef = ToolArtifactPage["artifact"];
+
+export type ClarifyStatus = "pending" | "resolved" | "timed_out" | "canceled";
+
+export interface ClarifyEventAnswer {
+  choice: number | null;
+  text: string;
+  fallback: boolean;
+}
+
+export interface ClarifyEventRequest {
+  request_id: string;
+  workspace_id?: string;
+  session_id?: string;
+  agent_name?: string;
+  question: string;
+  choices?: string[];
+  asked_at?: string;
+  deadline?: string;
+}
+
+/**
+ * Parsed view of a durable `clarify` transcript event. The pending card renders from the live GET,
+ * never from this payload; terminal receipts are truthful historical evidence read from it.
+ */
+export interface ClarifyEventView {
+  status: ClarifyStatus;
+  requestId: string;
+  request: ClarifyEventRequest;
+  answer: ClarifyEventAnswer | null;
+  at?: string;
+}
+
 export interface ToolUseResult {
   stdout?: string;
   stderr?: string;
@@ -74,6 +113,9 @@ export interface ToolUseResult {
   content?: string;
   structuredPatch?: unknown[];
   error?: string;
+  preview?: string;
+  truncated?: boolean;
+  artifacts?: ToolArtifactRef[];
   rawOutput?: unknown;
 }
 

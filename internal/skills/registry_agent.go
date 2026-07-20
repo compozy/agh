@@ -29,6 +29,16 @@ func (r *Registry) ForAgent(
 	resolved *workspacepkg.ResolvedWorkspace,
 	agentName string,
 ) ([]*Skill, error) {
+	return r.ForAgentSession(ctx, resolved, agentName, "")
+}
+
+// ForAgentSession returns the effective offer-time skill projection for one session.
+func (r *Registry) ForAgentSession(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+	sessionID string,
+) ([]*Skill, error) {
 	if err := checkRegistryContext(ctx); err != nil {
 		return nil, err
 	}
@@ -53,7 +63,7 @@ func (r *Registry) ForAgent(
 	skillsByName := cloneSkillMapFromList(baseSkills)
 	if strings.TrimSpace(agent.SourcePath) == "" {
 		applyForcedDisabledSkills(skillsByName, agent.Skills.Disabled)
-		return mergedSkillList(nil, skillsByName), nil
+		return r.projectAgentSkillActivation(ctx, resolved, agent, sessionID, mergedSkillList(nil, skillsByName))
 	}
 
 	agentSkillsDir := filepath.Join(filepath.Dir(agent.SourcePath), aghconfig.SkillsDirName)
@@ -77,7 +87,31 @@ func (r *Registry) ForAgent(
 	}
 	applyForcedDisabledSkills(skillsByName, agent.Skills.Disabled)
 
-	return mergedSkillList(nil, skillsByName), nil
+	return r.projectAgentSkillActivation(ctx, resolved, agent, sessionID, mergedSkillList(nil, skillsByName))
+}
+
+func (r *Registry) projectAgentSkillActivation(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agent aghconfig.AgentDef,
+	sessionID string,
+	skills []*Skill,
+) ([]*Skill, error) {
+	capabilities := make([]string, 0)
+	if agent.Capabilities != nil {
+		capabilities = make([]string, 0, len(agent.Capabilities.Capabilities))
+		for _, capability := range agent.Capabilities.Capabilities {
+			if id := strings.TrimSpace(capability.ID); id != "" {
+				capabilities = append(capabilities, id)
+			}
+		}
+	}
+	return r.projectSkillActivation(ctx, skills, ActivationTarget{
+		WorkspaceID:  resourceWorkspaceKey(resolved),
+		SessionID:    strings.TrimSpace(sessionID),
+		AgentName:    strings.TrimSpace(agent.Name),
+		Capabilities: capabilities,
+	})
 }
 
 // SetEnabledForAgent persists an agent-scoped logical tombstone in the winning AGENT.md.
@@ -124,9 +158,9 @@ func (r *Registry) baseSkillsForAgent(
 	resolved *workspacepkg.ResolvedWorkspace,
 ) ([]*Skill, error) {
 	if resolved == nil {
-		return r.List(), nil
+		return r.rawList(), nil
 	}
-	return r.ForWorkspace(ctx, resolved)
+	return r.workspaceSkills(ctx, resolved)
 }
 
 func (r *Registry) resolveAgentScope(

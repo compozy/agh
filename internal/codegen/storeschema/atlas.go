@@ -327,7 +327,7 @@ func (sequentialGooseFormatter) Format(plan *migrate.Plan) ([]migrate.File, erro
 	}
 	contents := files[0].Bytes()
 	if downIndex := bytes.Index(contents, []byte("\n-- +goose Down")); downIndex >= 0 {
-		contents = append(contents[:downIndex], '\n')
+		contents = append(bytes.TrimRight(contents[:downIndex], "\r\n"), '\n')
 	}
 	name := strings.Trim(strings.ToLower(plan.Name), " _-")
 	name = strings.NewReplacer(" ", "_", "-", "_").Replace(name)

@@ -19,6 +19,7 @@ import {
   settingsGeneralSectionFixture,
   settingsRestartStatusFixture,
 } from "@/systems/settings/mocks";
+import { toolApprovalGrantsResponseFixture } from "@/systems/tool-approvals/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/settings/routes/SettingsGeneral",
@@ -44,6 +45,34 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/settings/general"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Runtime memory reporting disabled -- the daemon interval is 0s, so the general
+ * page renders the disabled sampling value for the field.
+ */
+export const MemoryReportingDisabled: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/general"),
+    ...storybookMswParameters({
+      settings: [
+        aghApiMock.get("/api/settings/general", () =>
+          HttpResponse.json({
+            ...settingsGeneralSectionFixture,
+            config: {
+              ...settingsGeneralSectionFixture.config,
+              daemon: {
+                ...settingsGeneralSectionFixture.config.daemon,
+                memory_report_interval: "0s",
+              },
+            },
+          })
+        ),
+      ],
+    }),
+  },
   render: () => <StorybookWorkspaceSetup />,
 };
 
@@ -227,4 +256,24 @@ export const RestartFailure: Story = {
       />
     </>
   ),
+};
+
+/**
+ * Remembered decisions in context: the Permissions area shows the active workspace's
+ * remembered native-tool approval decisions (allow + reject exact rows) inside the real
+ * general settings page, proving the section's placement.
+ */
+export const RememberedDecisions: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/general"),
+    ...storybookMswParameters({
+      "tool-approvals": [
+        aghApiMock.get("/api/tool-approval-grants", () =>
+          HttpResponse.json(toolApprovalGrantsResponseFixture)
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
 };

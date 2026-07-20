@@ -82,6 +82,15 @@ WHERE (CAST(sqlc.arg(task_id) AS TEXT) = '' OR task_id = CAST(sqlc.arg(task_id) 
 ORDER BY timestamp DESC, id DESC
 LIMIT sqlc.arg(result_limit);
 
+-- name: TaskWakeEventExists :one
+SELECT EXISTS(
+  SELECT 1
+  FROM task_events
+  WHERE task_id = sqlc.arg(task_id)
+    AND event_type IN ('task.wake.delivered', 'task.wake.suppressed')
+    AND json_extract(payload_json, '$.wake_event_id') = sqlc.arg(wake_event_id)
+);
+
 -- name: ListTaskEventRecordsAscending :many
 SELECT event_seq, id, task_id, run_id, event_type, actor_kind, actor_id,
        origin_kind, origin_ref, payload_json, timestamp

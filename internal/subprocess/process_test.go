@@ -271,7 +271,8 @@ func TestHealthCheckHealthyFalseMarksUnhealthyImmediately(t *testing.T) {
 
 	waitForCondition(t, time.Second, func() bool {
 		state := process.HealthState()
-		return !state.Healthy && strings.Contains(state.Message, "unhealthy")
+		return !state.Healthy && strings.Contains(state.Message, "unhealthy") &&
+			state.ConsecutiveFailures >= 3
 	})
 }
 

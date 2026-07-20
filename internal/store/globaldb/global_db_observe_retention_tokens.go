@@ -82,7 +82,8 @@ func (g *ObserveRepo) UpdateTokenStats(ctx context.Context, update store.TokenSt
 		ID: store.NewID("tok"), SessionID: update.SessionID, AgentName: update.AgentName,
 		InputTokens: nullableObserveInt64(update.InputTokens), OutputTokens: nullableObserveInt64(update.OutputTokens),
 		TotalTokens: nullableObserveInt64(update.TotalTokens), TotalCost: nullableObserveFloat64(update.CostAmount),
-		CostCurrency: nullableObserveStringPointer(update.CostCurrency), TurnCount: update.Turns,
+		CostCurrency: nullableObserveStringPointer(update.CostCurrency), CostStatus: update.CostStatus,
+		CostSource: update.CostSource, TurnCount: update.Turns,
 		UpdatedAt: store.FormatTimestamp(update.UpdatedAt),
 	}); err != nil {
 		return fmt.Errorf("store: upsert token stats for session %q: %w", update.SessionID, err)
@@ -104,7 +105,7 @@ func (g *ObserveRepo) ListTokenStats(
 	}
 
 	// dynamic-sql: optional session/agent filters and the caller limit change the statement shape.
-	sqlQuery := `SELECT id, session_id, agent_name, input_tokens, output_tokens, total_tokens, total_cost, cost_currency, turn_count, updated_at FROM token_stats`
+	sqlQuery := `SELECT id, session_id, agent_name, input_tokens, output_tokens, total_tokens, total_cost, cost_currency, cost_status, cost_source, turn_count, updated_at FROM token_stats`
 	where, args := store.BuildClauses(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
@@ -248,6 +249,8 @@ func scanTokenStats(scanner rowScanner) (store.TokenStats, error) {
 		&totalTokens,
 		&totalCost,
 		&costCurrency,
+		&stats.CostStatus,
+		&stats.CostSource,
 		&stats.TurnCount,
 		&updatedAtRaw,
 	); err != nil {

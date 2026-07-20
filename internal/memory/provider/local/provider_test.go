@@ -21,6 +21,8 @@ import (
 )
 
 func TestProviderLifecycle(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should initialize no-op lifecycle hooks and shutdown deterministically", func(t *testing.T) {
 		t.Parallel()
 
@@ -63,6 +65,96 @@ func TestProviderLifecycle(t *testing.T) {
 			t.Fatal("Prefetch(after Shutdown) error = nil, want error")
 		}
 	})
+
+	t.Run("Should delegate session end records to the configured handler", func(t *testing.T) {
+		t.Parallel()
+
+		provider := localprovider.New(memstore.New(memory.NewStore(filepath.Join(t.TempDir(), "memory"))))
+		ctx := testutil.Context(t)
+		if err := provider.Initialize(ctx, memcontract.ProviderInit{WorkspaceID: "ws-alpha"}); err != nil {
+			t.Fatalf("Initialize() error = %v", err)
+		}
+		wantErr := errors.New("checkpoint failed")
+		var captured memcontract.SessionEndRecord
+		provider.SetSessionEndHandler(sessionEndHandlerFunc(func(
+			_ context.Context,
+			record memcontract.SessionEndRecord,
+		) error {
+			captured = record
+			return wantErr
+		}))
+		input := memcontract.SessionEndRecord{
+			WorkspaceID: "ws-alpha",
+			SessionID:   "sess-alpha",
+			AgentName:   "coder",
+		}
+		err := provider.OnSessionEnd(ctx, input)
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("OnSessionEnd() error = %v, want wrapped %v", err, wantErr)
+		}
+		if captured.WorkspaceID != input.WorkspaceID ||
+			captured.SessionID != input.SessionID ||
+			captured.AgentName != input.AgentName {
+			t.Fatalf("OnSessionEnd() record = %#v, want %#v", captured, input)
+		}
+	})
+
+	t.Run("Should delegate pre-compress exactly once with the covered range", func(t *testing.T) {
+		t.Parallel()
+
+		provider := localprovider.New(memstore.New(memory.NewStore(filepath.Join(t.TempDir(), "memory"))))
+		ctx := testutil.Context(t)
+		if err := provider.Initialize(ctx, memcontract.ProviderInit{WorkspaceID: "ws-alpha"}); err != nil {
+			t.Fatalf("Initialize() error = %v", err)
+		}
+		wantHint := memcontract.PreCompressHint{Markdown: "covered"}
+		var calls int
+		var captured memcontract.PreCompressRequest
+		provider.SetPreCompressHandler(preCompressHandlerFunc(func(
+			_ context.Context,
+			request memcontract.PreCompressRequest,
+		) (memcontract.PreCompressHint, error) {
+			calls++
+			captured = request
+			return wantHint, nil
+		}))
+		input := memcontract.PreCompressRequest{
+			WorkspaceID:  "ws-alpha",
+			SessionID:    "sess-alpha",
+			FromSequence: 1,
+			ToSequence:   4,
+		}
+		hint, err := provider.OnPreCompress(ctx, input)
+		if err != nil {
+			t.Fatalf("OnPreCompress() error = %v", err)
+		}
+		if calls != 1 || captured.WorkspaceID != input.WorkspaceID || captured.SessionID != input.SessionID ||
+			captured.FromSequence != input.FromSequence || captured.ToSequence != input.ToSequence ||
+			hint.Markdown != wantHint.Markdown {
+			t.Fatalf("OnPreCompress() calls/input/hint = %d / %#v / %#v", calls, captured, hint)
+		}
+	})
+}
+
+type sessionEndHandlerFunc func(context.Context, memcontract.SessionEndRecord) error
+
+func (f sessionEndHandlerFunc) OnSessionEnd(
+	ctx context.Context,
+	record memcontract.SessionEndRecord,
+) error {
+	return f(ctx, record)
+}
+
+type preCompressHandlerFunc func(
+	context.Context,
+	memcontract.PreCompressRequest,
+) (memcontract.PreCompressHint, error)
+
+func (f preCompressHandlerFunc) OnPreCompress(
+	ctx context.Context,
+	request memcontract.PreCompressRequest,
+) (memcontract.PreCompressHint, error) {
+	return f(ctx, request)
 }
 
 func TestProviderBackendContract(t *testing.T) {

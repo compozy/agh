@@ -340,14 +340,6 @@ func (h *BaseHandlers) resolveSkill(
 		return nil, err
 	}
 
-	if resolved == nil && agentName == "" {
-		skill, ok := h.SkillsRegistry.Get(name)
-		if !ok {
-			return nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
-		}
-		return skill, nil
-	}
-
 	skillList, err := h.resolveScopedSkills(c, resolved, agentName)
 	if err != nil {
 		return nil, err
@@ -376,7 +368,7 @@ func (h *BaseHandlers) resolveScopedSkills(
 	if resolved != nil {
 		return h.SkillsRegistry.ForWorkspace(c.Request.Context(), resolved)
 	}
-	return h.SkillsRegistry.List(), nil
+	return h.SkillsRegistry.ForWorkspace(c.Request.Context(), nil)
 }
 
 func (h *BaseHandlers) resolveSkillScope(

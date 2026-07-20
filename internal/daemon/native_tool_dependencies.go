@@ -1,20 +1,34 @@
 package daemon
 
 import (
+	"context"
+
 	core "github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	memorypkg "github.com/compozy/agh/internal/memory"
+	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
+type daemonNativeSkillsRegistry interface {
+	core.SkillsRegistry
+	ForAgentSession(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+		sessionID string,
+	) ([]*skillspkg.Skill, error)
+}
+
 type daemonNativeToolsDeps struct {
 	Registry                   func() toolspkg.Registry
+	ToolArtifacts              toolspkg.ToolArtifactStore
 	Config                     aghconfig.Config
-	Skills                     core.SkillsRegistry
+	Skills                     daemonNativeSkillsRegistry
 	Sessions                   core.SessionManager
 	Workspaces                 core.WorkspaceService
 	WorkspaceResolver          workspacepkg.RuntimeResolver
@@ -53,6 +67,8 @@ type daemonNativeToolsDeps struct {
 	AgentSkills                agentSkillPublisher
 	ToolMCP                    toolMCPPublisher
 	MCPAuth                    func() toolspkg.MCPAuthStatusProvider
+	ApprovalGrants             toolspkg.ApprovalGrantStore
+	Clarify                    func() toolspkg.ClarifyBroker
 	BundleResources            bundleResourcePublisher
 	LoopResources              loopResourcePublisher
 	BundleService              func() core.BundleService

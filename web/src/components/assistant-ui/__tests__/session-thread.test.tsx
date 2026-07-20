@@ -87,6 +87,18 @@ function fixtureWorkspaceId(): string {
   return workspaceId;
 }
 
+const TOOL_ARTIFACT_URI = `agh://tool-artifacts/art_${"c".repeat(64)}`;
+
+function toolArtifactRef() {
+  return {
+    uri: TOOL_ARTIFACT_URI,
+    name: "tool-result.json",
+    mime_type: "application/vnd.agh.tool-result+json",
+    bytes: 4_096,
+    sha256: "c".repeat(64),
+  };
+}
+
 function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -488,6 +500,122 @@ describe("SessionThread transcript states", () => {
     expect(
       row.querySelector('[data-slot="tool-call-row-status"]')?.getAttribute("aria-label")
     ).toBe("Error");
+  });
+
+  // Suite: oversized tool-result normalization.
+  // Invariant: direct native ToolResult and ACP event wrappers preserve the same bounded preview,
+  // truncated flag, and retained artifact reference before the SessionToolCallRow renders them.
+  it("Should preserve a direct native truncated ToolResult for the artifact viewer", async () => {
+    const user = userEvent.setup();
+    const transcript = [
+      {
+        id: "assistant-native-artifact",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-agh__memory_recall",
+            toolCallId: "tool-native-artifact",
+            state: "output-available",
+            turn_id: "turn-native-artifact",
+            timestamp: "2026-07-19T04:30:00Z",
+            input: { query: "release evidence" },
+            output: {
+              preview: "native bounded preview",
+              truncated: true,
+              artifacts: [toolArtifactRef()],
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+    const row = await screen.findByTestId("tool-call-row");
+    const trigger = row.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
+    expect(trigger).not.toBeNull();
+    await user.click(trigger as HTMLElement);
+
+    expect(screen.getByText("native bounded preview")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open full result" })).toBeInTheDocument();
+  });
+
+  it("Should preserve an ACP-wrapped truncated ToolResult for the artifact viewer", async () => {
+    const user = userEvent.setup();
+    const transcript = [
+      {
+        id: "assistant-acp-artifact",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-agh__memory_recall",
+            toolCallId: "tool-acp-artifact",
+            state: "output-available",
+            turn_id: "turn-acp-artifact",
+            timestamp: "2026-07-19T04:31:00Z",
+            input: { query: "release evidence" },
+            output: {
+              type: "tool_result",
+              title: "Recall memory",
+              raw: {
+                preview: "ACP bounded preview",
+                truncated: true,
+                artifacts: [toolArtifactRef()],
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+    const row = await screen.findByTestId("tool-call-row");
+    const trigger = row.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
+    expect(trigger).not.toBeNull();
+    await user.click(trigger as HTMLElement);
+
+    expect(screen.getByText("ACP bounded preview")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open full result" })).toBeInTheDocument();
+  });
+
+  it("Should preserve a persisted canonical ToolResult for the artifact viewer", async () => {
+    const user = userEvent.setup();
+    const transcript = [
+      {
+        id: "assistant-persisted-artifact",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-agh__memory_recall",
+            toolCallId: "tool-persisted-artifact",
+            state: "output-available",
+            turn_id: "turn-persisted-artifact",
+            timestamp: "2026-07-19T04:32:00Z",
+            input: { query: "release evidence" },
+            output: {
+              type: "tool_result",
+              title: "Recall memory",
+              raw: {
+                content: "persisted bounded preview",
+                raw_output: {
+                  preview: "persisted bounded preview",
+                  truncated: true,
+                  artifacts: [toolArtifactRef()],
+                },
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+    const row = await screen.findByTestId("tool-call-row");
+    const trigger = row.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
+    expect(trigger).not.toBeNull();
+    await user.click(trigger as HTMLElement);
+
+    expect(screen.getByText("persisted bounded preview")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open full result" })).toBeInTheDocument();
   });
 
   it("Should fold settled turn work while keeping the terminal assistant text visible", async () => {

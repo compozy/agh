@@ -14,28 +14,31 @@ import (
 )
 
 type modelCatalogRowScan struct {
-	row                    modelcatalog.ModelRow
-	sourceKind             string
-	available              sql.NullInt64
-	stale                  int
-	refreshedAt            string
-	expiresAt              string
-	contextWindow          sql.NullInt64
-	maxInputTokens         sql.NullInt64
-	maxOutputTokens        sql.NullInt64
-	supportsTools          sql.NullInt64
-	supportsReasoning      sql.NullInt64
-	defaultReasoningEffort sql.NullString
-	costInputPerMillion    sql.NullFloat64
-	costOutputPerMillion   sql.NullFloat64
-	explicitlyCurated      int
-	deprecated             int
-	hidden                 int
-	featured               int
-	deprecatedSet          int
-	hiddenSet              int
-	featuredSet            int
-	releaseDate            sql.NullString
+	row                      modelcatalog.ModelRow
+	sourceKind               string
+	available                sql.NullInt64
+	stale                    int
+	refreshedAt              string
+	expiresAt                string
+	contextWindow            sql.NullInt64
+	maxInputTokens           sql.NullInt64
+	maxOutputTokens          sql.NullInt64
+	supportsTools            sql.NullInt64
+	supportsReasoning        sql.NullInt64
+	defaultReasoningEffort   sql.NullString
+	costInputPerMillion      sql.NullFloat64
+	costOutputPerMillion     sql.NullFloat64
+	costCacheReadPerMillion  sql.NullFloat64
+	costCacheWritePerMillion sql.NullFloat64
+	costReasoningPerMillion  sql.NullFloat64
+	explicitlyCurated        int
+	deprecated               int
+	hidden                   int
+	featured                 int
+	deprecatedSet            int
+	hiddenSet                int
+	featuredSet              int
+	releaseDate              sql.NullString
 }
 
 func (s *modelCatalogRowScan) destinations() []any {
@@ -58,6 +61,9 @@ func (s *modelCatalogRowScan) destinations() []any {
 		&s.defaultReasoningEffort,
 		&s.costInputPerMillion,
 		&s.costOutputPerMillion,
+		&s.costCacheReadPerMillion,
+		&s.costCacheWritePerMillion,
+		&s.costReasoningPerMillion,
 		&s.explicitlyCurated,
 		&s.deprecated,
 		&s.hidden,
@@ -96,6 +102,9 @@ func (s *modelCatalogRowScan) modelRow() (modelcatalog.ModelRow, error) {
 	row.DefaultReasoningEffort = nullReasoningEffort(s.defaultReasoningEffort)
 	row.CostInputPerMillion = store.NullFloat64(s.costInputPerMillion)
 	row.CostOutputPerMillion = store.NullFloat64(s.costOutputPerMillion)
+	row.CostCacheReadPerMillion = store.NullFloat64(s.costCacheReadPerMillion)
+	row.CostCacheWritePerMillion = store.NullFloat64(s.costCacheWritePerMillion)
+	row.CostReasoningPerMillion = store.NullFloat64(s.costReasoningPerMillion)
 	row.ExplicitlyCurated = s.explicitlyCurated != 0
 	if row.Deprecated, err = sqliteBoolWithPresence(s.deprecated, s.deprecatedSet, "deprecated"); err != nil {
 		return modelcatalog.ModelRow{}, err
@@ -305,12 +314,15 @@ func modelCatalogRowParams(row modelcatalog.ModelRow) sqlcgen.InsertModelCatalog
 		MaxOutputTokens: nullableModelCatalogInt64(
 			row.MaxOutputTokens,
 		),
-		SupportsTools:          nullableBoolToSQLiteInt(row.SupportsTools),
-		SupportsReasoning:      nullableBoolToSQLiteInt(row.SupportsReasoning),
-		DefaultReasoningEffort: nullableReasoningEffort(row.DefaultReasoningEffort),
-		CostInputPerMillion:    nullableModelCatalogFloat64(row.CostInputPerMillion),
-		CostOutputPerMillion:   nullableModelCatalogFloat64(row.CostOutputPerMillion),
-		ExplicitlyCurated:      int64(boolToSQLiteInt(row.ExplicitlyCurated)),
+		SupportsTools:            nullableBoolToSQLiteInt(row.SupportsTools),
+		SupportsReasoning:        nullableBoolToSQLiteInt(row.SupportsReasoning),
+		DefaultReasoningEffort:   nullableReasoningEffort(row.DefaultReasoningEffort),
+		CostInputPerMillion:      nullableModelCatalogFloat64(row.CostInputPerMillion),
+		CostOutputPerMillion:     nullableModelCatalogFloat64(row.CostOutputPerMillion),
+		CostCacheReadPerMillion:  nullableModelCatalogFloat64(row.CostCacheReadPerMillion),
+		CostCacheWritePerMillion: nullableModelCatalogFloat64(row.CostCacheWritePerMillion),
+		CostReasoningPerMillion:  nullableModelCatalogFloat64(row.CostReasoningPerMillion),
+		ExplicitlyCurated:        int64(boolToSQLiteInt(row.ExplicitlyCurated)),
 		Deprecated: int64(
 			boolPointerToSQLiteInt(row.Deprecated),
 		),
