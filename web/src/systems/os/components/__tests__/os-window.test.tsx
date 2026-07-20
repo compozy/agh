@@ -144,6 +144,6 @@ describe("OsWindow", () => {
     expect(dragCancel).toContain('[data-slot="topbar-back"]');
     expect(dragCancel).toContain('[data-slot="topbar-crumb"]');
     expect(dragCancel).toContain('[data-slot="topbar-crumb-more"]');
-    expect(dragCancel).toContain('[data-slot="topbar-route-nav"]');
+    expect(dragCancel).toContain('[data-slot="topbar-nav"]');
   });
 });

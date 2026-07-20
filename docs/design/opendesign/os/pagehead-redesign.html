@@ -183,7 +183,7 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
 }
 .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
 .w2-back svg{width:13px;height:13px}
-.w2-flex{flex:1;align-self:stretch}
+.w2-flex{flex:1;align-self:stretch;min-width:8px}
 .w2-status{
   display:inline-flex;align-items:center;gap:6px;flex:none;
   font-size:10.5px;font-weight:600;color:var(--muted);
@@ -194,6 +194,28 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
 .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
 .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
 
+/* route tabs — peer views sit after the title, never the strip */
+.w2-tabs{
+  display:inline-flex;align-items:center;gap:1px;flex:none;
+  margin-left:2px;
+  padding:2px;border-radius:var(--radius-md);background:var(--canvas-tint);
+  max-width:min(420px,46vw);overflow-x:auto;scrollbar-width:none;
+  cursor:default;
+}
+.w2-tabs::-webkit-scrollbar{display:none}
+.w2-tab{
+  display:inline-flex;align-items:center;gap:5px;
+  min-height:24px;padding:0 9px;border-radius:var(--radius-xs);
+  font-size:12px;font-weight:500;color:var(--subtle);white-space:nowrap;
+  transition:color var(--dur),background var(--dur);
+}
+.w2-tab .mono{font-size:10px;color:var(--faint)}
+.w2-tab:hover{color:var(--muted)}
+.w2-tab.is-on{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+.w2-tab.is-on .mono{color:var(--muted)}
+.headv2:has(.w2-tabs){cursor:default}
+.headv2:has(.w2-tabs) .w2-flex{cursor:grab}
+
 /* context strip — optional 38px tool row, part of the chrome */
 .w2-toolbar{
   flex:none;min-height:38px;
@@ -202,6 +224,15 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
   position:relative;z-index:2;
 }
 .w2-toolbar .w2-flex{align-self:auto}
+.w2-toolbar .field-search{width:min(220px,100%)}
+.w2-sort{
+  display:inline-flex;align-items:center;gap:6px;
+  height:26px;padding:0 8px;border-radius:var(--radius-md);
+  border:1px solid var(--line);background:var(--btn-fill);
+  font-size:11.5px;color:var(--muted);white-space:nowrap;
+}
+.w2-sort strong{font-weight:500;color:var(--fg)}
+.w2-sort svg{width:12px;height:12px;color:var(--subtle)}
 .winx-body{flex:1;overflow:auto;background:var(--canvas)}
 
 /* ============ shared route vocabulary (verbatim contracts from os-v2-apps.css) ============ */
@@ -392,7 +423,7 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
   <header class="doc-head" data-od-id="doc-head">
     <p class="eyebrow">AGH OS v2 · chrome spec</p>
     <h1 data-od-id="doc-title">Window head redesign — the PageHead becomes the chrome</h1>
-    <p>The route PageHead was designed for a web page with a sidebar: it had to establish identity because nothing else did. Inside an OS window that job is already done — so the head collapses into a single 44px unified bar, and route tools move to an optional 38px context strip. Identity renders exactly once — and when a route navigates in place, the head grows a window-local breadcrumb instead of spawning another window.</p>
+    <p>The route PageHead was designed for a web page with a sidebar: it had to establish identity because nothing else did. Inside an OS window that job is already done, so the head collapses into a single 44px unified bar. Peer route tabs sit immediately after the title; filters and search move to an optional 38px context strip. Identity renders exactly once, and when a route navigates in place the head grows a window-local breadcrumb instead of spawning another window.</p>
     <div class="doc-meta">
       <span class="meta-chip">head 44px</span>
       <span class="meta-chip">context strip 38px · optional</span>
@@ -448,8 +479,8 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
   <section class="sec" data-od-id="section-anatomy">
     <div class="sec-head">
       <p class="eyebrow">02 · After</p>
-      <h2 data-od-id="anatomy-title">One unified head — identity, state and the primary action in 44px</h2>
-      <p>The window head absorbs the PageHead. Controls lead, a quiet 22px glyph + 13px title carry identity once, the flexible middle stays the drag region, and the trail holds live state plus at most two actions. Routes with tools get a 38px context strip; nothing ever gets a third bar.</p>
+      <h2 data-od-id="anatomy-title">One unified head — identity, peer tabs, state and the primary action in 44px</h2>
+      <p>The window head absorbs the PageHead. Controls lead, a quiet 22px glyph + 13px title carry identity once, <b>peer route tabs sit immediately after the title</b> when the route has sibling views, the flexible gutter after the tabs stays the drag region, and the trail holds live state plus at most two actions. Filters, search and view toggles stay in the optional 38px strip: they never compete with tabs for the same row.</p>
     </div>
     <div class="anatomy" data-od-id="anatomy-diagram">
       <div class="headv2" style="cursor:default">
@@ -457,7 +488,13 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
         <div class="w2-id">
           <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
           <span class="w2-title">Tasks</span>
-          <span class="w2-count mono">6</span>
+          <span class="w2-count mono">20</span>
+        </div>
+        <div class="w2-tabs" role="tablist" aria-label="Task views" data-od-id="anatomy-route-tabs">
+          <button class="w2-tab is-on" role="tab" aria-selected="true">List</button>
+          <button class="w2-tab" role="tab" aria-selected="false">Kanban</button>
+          <button class="w2-tab" role="tab" aria-selected="false">Dashboard</button>
+          <button class="w2-tab" role="tab" aria-selected="false">Inbox <span class="mono">4</span></button>
         </div>
         <span class="w2-flex"></span>
         <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>2 running</span>
@@ -470,7 +507,7 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
       <div class="anat-legend">
         <div class="anat-cell"><h4><span class="pin">A</span>Controls</h4><p>Close · minimize · zoom. Unchanged from the shell.</p></div>
         <div class="anat-cell"><h4><span class="pin">B</span>Identity — once</h4><p>22px quiet glyph + 13px/600 title + optional mono count. No accent tile: the glyph is wayfinding, not decoration.</p></div>
-        <div class="anat-cell"><h4><span class="pin">C</span>Drag region</h4><p>The flexible middle. Empty by design — it's what your cursor grabs.</p></div>
+        <div class="anat-cell"><h4><span class="pin">C</span>Route tabs</h4><p>Peer views of the same route (List · Kanban · Skills · MCPs). Sit left, right after the title. Absent when the route has no siblings — then the gutter is pure drag.</p></div>
         <div class="anat-cell"><h4><span class="pin">D</span>State + actions</h4><p>A live status chip (color = state only), then at most two actions — one primary. Everything else goes to ⌘K or the ··· menu.</p></div>
       </div>
     </div>
@@ -478,9 +515,10 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
       <span class="meta-chip">head 44px</span>
       <span class="meta-chip">glyph 22px · r6</span>
       <span class="meta-chip">title 13px/600</span>
+      <span class="meta-chip">route tabs · after title</span>
       <span class="meta-chip">status 10.5px/600</span>
       <span class="meta-chip">actions ≤ 2 · 26px</span>
-      <span class="meta-chip">strip 38px · only if the route has tools</span>
+      <span class="meta-chip">strip 38px · tools only</span>
     </div>
   </section>
 
@@ -601,21 +639,27 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
       <p class="note"><span class="pin">·</span><span><b>Dashboard needs nothing but identity and state.</b> No toolbar, no actions — the head is 44px and content starts immediately. Scroll the body: the head earns a hairline shadow so the chrome reads as a surface, not a border.</span></p>
     </div>
 
-    <!-- Tasks — toolbar strip + primary action + drill-in -->
+    <!-- Tasks — route tabs in head, tools in strip, drill-in -->
     <div class="mockwrap" style="margin-top:34px" data-od-id="example-tasks">
-      <div class="winx" id="tasksWin" data-state="list" aria-label="Tasks window with context strip and two-level drill-in">
+      <div class="winx" id="tasksWin" data-state="list" aria-label="Tasks window with route tabs, context strip and two-level drill-in">
         <div class="headv2">
           <div class="win-controls" aria-hidden="true"><span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span></div>
           <div class="w2-id" data-tasks-id-list>
             <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
             <span class="w2-title">Tasks</span>
-            <span class="w2-count mono">6</span>
+            <span class="w2-count mono">20</span>
           </div>
           <div class="w2-id" data-tasks-id-drill hidden>
             <button class="w2-back" data-tasks-back aria-label="Back one level"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <nav class="w2-crumbs" data-tasks-crumbs aria-label="Window path"></nav>
           </div>
-          <span class="w2-flex"></span>
+          <div class="w2-tabs" role="tablist" aria-label="Task views" data-tasks-tabs data-od-id="tasks-route-tabs">
+            <button class="w2-tab is-on" role="tab" aria-selected="true">List</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Kanban</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Dashboard</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Inbox <span class="mono">4</span></button>
+          </div>
+          <span class="w2-flex" data-tasks-gutter></span>
           <span class="w2-status" data-tone="run" data-tasks-status><span class="d d--run d--pulse"></span>2 running</span>
           <span class="w2-vsep"></span>
           <div class="w2-actions">
@@ -624,12 +668,16 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
           </div>
         </div>
         <div class="w2-toolbar" data-tasks-toolbar>
-          <div class="pill-group" role="group" aria-label="Task filter">
-            <button class="pill-group__item is-on">All <span class="mono">6</span></button>
-            <button class="pill-group__item">Running <span class="mono">2</span></button>
-            <button class="pill-group__item">Needs you <span class="mono">1</span></button>
+          <div class="field field-search">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <input placeholder="Search tasks…" aria-label="Search tasks">
           </div>
+          <button class="btn" type="button">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11M4.5 8h7M6.5 12.5h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Filter
+          </button>
           <span class="w2-flex"></span>
+          <span class="w2-sort" aria-label="Sorted by Updated">Sorted by <strong>Updated</strong> <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6 3.5 3.5L11.5 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           <div class="pill-group" role="group" aria-label="View mode">
             <button class="pill-group__item is-on" data-tview="rows">Rows</button>
             <button class="pill-group__item" data-tview="cards">Cards</button>
@@ -686,17 +734,18 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
       </div>
     </div>
     <div class="notes">
-      <p class="note"><span class="pin">·</span><span><b>Listing routes get the context strip.</b> Filters and the Rows | Cards toggle live in the 38px strip — chrome, not content. The primary action rides the head. Click a row, then <b>Open run</b>: the window drills two levels and the head becomes the breadcrumb variant — every parent crumb jumps straight back, and the strip, status and actions swap with the level.</span></p>
+      <p class="note"><span class="pin">·</span><span><b>Peer views ride the head; tools ride the strip.</b> List · Kanban · Dashboard · Inbox are the same route seen four ways, so they sit left of the 44px head, right after the title. Search, Filter, Sorted by and Rows | Cards stay in the 38px strip, with room to breathe. Click a row, then <b>Open run</b>: the window drills two levels, route tabs hide, and the head becomes the breadcrumb variant.</span></p>
     </div>
 
-    <!-- Marketplace — catalog tools in the strip -->
+    <!-- Marketplace — kind tabs in head, search in strip -->
     <div class="mockwrap" style="margin-top:34px" data-od-id="example-marketplace">
-      <div class="winx" id="mktWin" aria-label="Marketplace window with in-place entry detail">
+      <div class="winx" id="mktWin" aria-label="Marketplace window with route tabs and in-place entry detail">
         <div class="headv2">
           <div class="win-controls" aria-hidden="true"><span class="wc wc-close"></span><span class="wc wc-min"></span><span class="wc wc-zoom"></span></div>
           <div class="w2-id" data-mkt-id-root>
             <span class="w2-glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 6.2 4.2 2.8h7.6L13 6.2M3 6.2v6.6a.9.9 0 0 0 .9.9h8.2a.9.9 0 0 0 .9-.9V6.2M3 6.2h10M6.3 9h3.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             <span class="w2-title">Marketplace</span>
+            <span class="w2-count mono">4</span>
           </div>
           <div class="w2-id" data-mkt-id-drill hidden>
             <button class="w2-back" data-mkt-back aria-label="Back one level"><svg viewBox="0 0 16 16"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -706,33 +755,34 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
               <span class="w2-title" data-mkt-leaf>impeccable</span>
             </nav>
           </div>
-          <span class="w2-flex"></span>
+          <div class="w2-tabs" role="tablist" aria-label="Catalog kind" data-mkt-tabs data-od-id="mkt-route-tabs">
+            <button class="w2-tab is-on" role="tab" aria-selected="true">Skills</button>
+            <button class="w2-tab" role="tab" aria-selected="false">MCPs</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Extensions</button>
+            <button class="w2-tab" role="tab" aria-selected="false">Bundles</button>
+          </div>
+          <span class="w2-flex" data-mkt-gutter></span>
           <span class="w2-status" data-tone="ok" data-mkt-status hidden><span class="d d--ok"></span>Installed</span>
           <span class="w2-vsep" data-mkt-vsep hidden></span>
           <div class="w2-actions">
             <button class="btn btn--ghost btn--icon" aria-label="More actions"><svg viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="12.5" cy="8" r="1.3" fill="currentColor"/></svg></button>
+            <button class="btn btn--ghost" data-mkt-refresh>Refresh</button>
             <button class="btn btn--primary" data-mkt-primary hidden>Open</button>
           </div>
         </div>
         <div class="w2-toolbar" data-mkt-toolbar>
-          <div class="pill-group" role="group" aria-label="Catalog kind">
-            <button class="pill-group__item is-on">Skills</button>
-            <button class="pill-group__item">MCPs</button>
-            <button class="pill-group__item">Extensions</button>
-            <button class="pill-group__item">Bundles</button>
-          </div>
-          <span class="w2-flex"></span>
           <div class="field field-search">
             <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            <input placeholder="Search catalog…" aria-label="Search catalog">
+            <input placeholder="Search skills…" aria-label="Search catalog">
+          </div>
+          <span class="w2-flex"></span>
+          <div class="pill-group" role="group" aria-label="Catalog scope">
+            <button class="pill-group__item">Installed <span class="mono">5</span></button>
+            <button class="pill-group__item is-on">Marketplace</button>
           </div>
         </div>
         <div class="winx-body">
           <div class="app" data-mkt-list>
-            <div class="tabbar" role="tablist" aria-label="Marketplace scope">
-              <button class="tab is-on" role="tab" aria-selected="true">Marketplace</button>
-              <button class="tab" role="tab" aria-selected="false">Installed <span class="mono">3</span></button>
-            </div>
             <div class="listing-card-grid">
               <div class="mkt-card"><div class="card-top"><span class="card-title">impeccable</span><span class="w2-flex"></span><span class="mkt-kind">Skill</span></div><p class="mkt-desc">Design craft floor for prototypes and production UI reviews.</p><div class="card-foot"><span class="mkt-installed"><svg viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Installed</span><button class="btn">Open</button></div></div>
               <div class="mkt-card"><div class="card-top"><span class="card-title">systematic-debugging</span><span class="w2-flex"></span><span class="mkt-kind">Skill</span></div><p class="mkt-desc">Root-cause discipline before any fix lands.</p><div class="card-foot"><span class="row-meta">v1.4.0</span><button class="btn">Install</button></div></div>
@@ -755,7 +805,7 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
       </div>
     </div>
     <div class="notes">
-      <p class="note"><span class="pin">·</span><span><b>Catalog kinds and search are chrome; scope is content.</b> The kind pills and search sit in the strip, while Marketplace | Installed stays a content tabbar — matching the catalog v3 template without a hero above it. Click a card: the entry opens in place under a <span class="mono">Marketplace / entry</span> breadcrumb, and install state plus the Install | Open action move into the head.</span></p>
+      <p class="note"><span class="pin">·</span><span><b>Kinds ride the head; scope and search ride the strip.</b> Skills · MCPs · Extensions · Bundles are peer views of Marketplace, so they sit left after the title. Search plus Installed | Marketplace stay in the strip with full width. Click a card: the entry opens in place under a <span class="mono">Marketplace / entry</span> breadcrumb, route tabs hide, and install state plus Open move into the head.</span></p>
     </div>
 
     <!-- Session — live document window -->
@@ -812,13 +862,15 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
       <div class="map-row"><span class="map-from"><b>Description line</b></span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to"><span class="gone">Gone from chrome.</span> Nobody re-reads "Daemon health and workspace overview" on the hundredth open; ⌘K and docs carry it.</span></div>
       <div class="map-row"><span class="map-from"><b>Status pill</b> · Connected / Healthy</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Status chip in the head trail — dot + label, color is state-only.</span></div>
       <div class="map-row"><span class="map-from"><b>Page actions</b></span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Head trail — one primary + one ··· overflow, 26px. The rest lives in ⌘K.</span></div>
-      <div class="map-row"><span class="map-from"><b>Filters / search / view toggle</b></span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">38px context strip under the head — only rendered when the route has tools.</span></div>
+      <div class="map-row"><span class="map-from"><b>Route nav tabs</b> · List / Kanban · Skills / MCPs</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Left of the 44px head, immediately after the title, as <span class="mono">.w2-tabs</span>. Never in the strip. Hide on drill-in when the breadcrumb takes the identity slot.</span></div>
+      <div class="map-row"><span class="map-from"><b>Filters / search / view toggle</b></span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">38px context strip under the head — tools only, rendered when the route needs them.</span></div>
       <div class="map-row"><span class="map-from"><b>Section eyebrows</b> · DAEMON, OVERVIEW</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">Stay in content, unchanged.</span></div>
       <div class="map-row"><span class="map-from"><b>Detail-page heads</b> · task / run / agent</span><span class="map-arrow"><svg viewBox="0 0 16 16"><path d="M2.5 8h11M9 3.5 13.5 8 9 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="map-to">The breadcrumb head (§03): back chevron + clickable parent crumbs + leaf title, with per-level status and actions. Depth is window-local navigation — never a global breadcrumb, never a new window.</span></div>
     </div>
     <div class="rules" data-od-id="rules">
       <p class="rule"><b>Identity renders once per window.</b> Glyph + title in the head; never repeated in content.</p>
       <p class="rule"><b>Two bars maximum.</b> 44px head, optional 38px strip. A route that wants a third bar has an information-architecture problem, not a chrome problem.</p>
+      <p class="rule"><b>Route tabs sit after the title.</b> Peer views (List · Kanban, Skills · MCPs) live left in the 44px head, immediately after identity, never sharing the strip with search/filter. The strip is tools only. On drill-in, tabs hide so the breadcrumb owns the identity slot.</p>
       <p class="rule"><b>Depth grows a breadcrumb, not a window.</b> Internal navigation swaps the glyph for back + trail: parents click straight back, the leaf is the title, and more than two parents collapse into a "…" crumb.</p>
       <p class="rule"><b>Accent in chrome means state or the primary action.</b> The identity glyph is neutral; live dots and the single primary button are the only orange in the frame.</p>
       <p class="rule"><b>Scroll reveals the surface.</b> Content slides under the head; the head gains a hairline shadow while scrolled.</p>
@@ -833,7 +885,7 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
 (function () {
   'use strict';
 
-  /* generic pill-group + tabbar toggling */
+  /* generic pill-group + route-tab + content-tab toggling */
   document.querySelectorAll('.pill-group').forEach(function (group) {
     group.addEventListener('click', function (e) {
       var item = e.target.closest('.pill-group__item');
@@ -841,6 +893,17 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
       group.querySelectorAll('.pill-group__item').forEach(function (i) { i.classList.remove('is-on'); });
       item.classList.add('is-on');
       if (item.dataset.tview) setTasksView(item.dataset.tview);
+    });
+  });
+  document.querySelectorAll('.w2-tabs').forEach(function (bar) {
+    bar.addEventListener('click', function (e) {
+      var tab = e.target.closest('.w2-tab');
+      if (!tab || !bar.contains(tab)) return;
+      bar.querySelectorAll('.w2-tab').forEach(function (t) {
+        var on = t === tab;
+        t.classList.toggle('is-on', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
     });
   });
   document.querySelectorAll('.tabbar').forEach(function (bar) {
@@ -879,6 +942,7 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
     var idDrill = tasksWin.querySelector('[data-tasks-id-drill]');
     var crumbs = tasksWin.querySelector('[data-tasks-crumbs]');
     var toolbar = tasksWin.querySelector('[data-tasks-toolbar]');
+    var tabs = tasksWin.querySelector('[data-tasks-tabs]');
     var status = tasksWin.querySelector('[data-tasks-status]');
     var primary = tasksWin.querySelector('[data-tasks-primary]');
     var bodies = [
@@ -890,10 +954,12 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
 
     function renderTasks() {
       var depth = stack.length;
-      tasksWin.dataset.state = depth === 1 ? 'list' : depth === 2 ? 'detail' : 'run';
-      idRoot.hidden = depth > 1;
-      idDrill.hidden = depth === 1;
-      toolbar.hidden = depth > 1;
+      var atRoot = depth === 1;
+      tasksWin.dataset.state = atRoot ? 'list' : depth === 2 ? 'detail' : 'run';
+      idRoot.hidden = !atRoot;
+      idDrill.hidden = atRoot;
+      toolbar.hidden = !atRoot;
+      if (tabs) tabs.hidden = !atRoot;
       bodies.forEach(function (body, i) { body.hidden = i !== depth - 1; });
       if (depth > 1) {
         crumbs.innerHTML = '';
@@ -952,6 +1018,8 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
     var mktDrill = mktWin.querySelector('[data-mkt-id-drill]');
     var mktLeaf = mktWin.querySelector('[data-mkt-leaf]');
     var mktToolbar = mktWin.querySelector('[data-mkt-toolbar]');
+    var mktTabs = mktWin.querySelector('[data-mkt-tabs]');
+    var mktRefresh = mktWin.querySelector('[data-mkt-refresh]');
     var mktList = mktWin.querySelector('[data-mkt-list]');
     var mktDetail = mktWin.querySelector('[data-mkt-detail]');
     var mktStatus = mktWin.querySelector('[data-mkt-status]');
@@ -963,6 +1031,8 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
       mktRoot.hidden = detail;
       mktDrill.hidden = !detail;
       mktToolbar.hidden = detail;
+      if (mktTabs) mktTabs.hidden = detail;
+      if (mktRefresh) mktRefresh.hidden = detail;
       mktList.hidden = detail;
       mktDetail.hidden = !detail;
       mktStatus.hidden = !detail;
@@ -985,7 +1055,7 @@ button.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
     }
     mktWin.addEventListener('click', function (e) {
       if (e.target.closest('[data-mkt-back]')) { setMkt(null); return; }
-      if (e.target.closest('.btn') || e.target.closest('.tab') || e.target.closest('.pill-group__item')) return;
+      if (e.target.closest('.btn') || e.target.closest('.tab') || e.target.closest('.w2-tab') || e.target.closest('.pill-group__item')) return;
       var card = e.target.closest('.mkt-card');
       if (card) setMkt(card);
     });

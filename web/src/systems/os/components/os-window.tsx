@@ -20,7 +20,7 @@ const DRAG_CANCEL_SELECTOR = [
   '[data-slot="topbar-back"]',
   '[data-slot="topbar-crumb"]',
   '[data-slot="topbar-crumb-more"]',
-  '[data-slot="topbar-route-nav"]',
+  '[data-slot="topbar-nav"]',
   '[data-slot="topbar-trailing"]',
 ].join(", ");
 

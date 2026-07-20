@@ -4,7 +4,7 @@ area: ET
 title: Unified window head absorbs PageHead
 persona: Bruno
 journey: J-marketplace-acquisition
-expected: Every open desktop window owns one 44px unified head (traffic lights · quiet glyph + title or window-local drill-in trail · status + ≤2 actions) with an optional 38px context strip for listing tools; route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); document/session windows self-title with a state mark; focusing a window makes its head and URL authoritative without creating a second shell-level title.
+expected: Every open desktop window owns one 44px unified head (traffic lights · quiet glyph + title or window-local drill-in trail · peer RouteNav tabs immediately after identity when the route has siblings · status + ≤2 actions) with an optional 38px context strip for listing tools only (search/filter/sort/scope — never peer route tabs); route identity renders once (no body PageHead / accent tile / workspace-prefixed breadcrumb); document/session windows self-title with a state mark; focusing a window makes its head and URL authoritative without creating a second shell-level title.
 entry_points: web desktop windows; any windowed catalog or detail route
 qa_status: untested
 bug_ids:
@@ -27,3 +27,7 @@ session self-title. Reset to `untested` for the next QA cycle.
 
 QA impact 2026-07-20: OS Shell Task 04 deleted the global `TopbarShell`. Route identity and
 actions now live in each window's `TopbarSlotProvider`.
+
+QA impact 2026-07-20: Peer RouteNav (Tasks modes · Marketplace kinds) moved from the 38px
+tools strip into `TopbarSlotValue.nav` (after identity in the 44px head). Strip is tools-only.
+Reset to `untested` for the next QA cycle.

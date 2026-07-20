@@ -222,6 +222,11 @@ function Topbar({ leading, title, titleRef, glyph, className, ...props }: Topbar
         </div>
       ) : null}
       <TopbarIdentity title={title} titleRef={titleRef} glyph={glyph} slot={slot} />
+      {slot?.nav ? (
+        <div data-slot="topbar-nav" className="no-scrollbar min-w-0 shrink-0 overflow-x-auto">
+          {slot.nav}
+        </div>
+      ) : null}
       <div data-slot="topbar-flex" className="min-h-full min-w-2 flex-1 self-stretch" />
       {hasTrail ? (
         <div

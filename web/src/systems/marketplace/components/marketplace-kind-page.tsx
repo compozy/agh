@@ -99,20 +99,22 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
         Refresh
       </Button>
     ),
+    nav: (
+      <RouteNav aria-label="Marketplace sections" data-testid="marketplace-kind-navigation">
+        {MARKETPLACE_NAV_ITEMS.map(item => (
+          <RouteNav.Link
+            aria-current={item.kind === kind ? "page" : undefined}
+            key={item.routeKind}
+            render={<Link to={item.to} />}
+          >
+            {item.label}
+          </RouteNav.Link>
+        ))}
+      </RouteNav>
+    ),
     toolbar: (
       <ListingToolbar>
         <ListingToolbar.Leading>
-          <RouteNav aria-label="Marketplace sections" data-testid="marketplace-kind-navigation">
-            {MARKETPLACE_NAV_ITEMS.map(item => (
-              <RouteNav.Link
-                aria-current={item.kind === kind ? "page" : undefined}
-                key={item.routeKind}
-                render={<Link to={item.to} />}
-              >
-                {item.label}
-              </RouteNav.Link>
-            ))}
-          </RouteNav>
           <ListingToolbar.Search
             aria-label={`Search ${config.label.toLowerCase()}`}
             containerClassName="w-full max-w-105"

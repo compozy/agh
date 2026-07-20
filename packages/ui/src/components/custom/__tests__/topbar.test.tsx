@@ -22,7 +22,8 @@ function SlotInspector({ probeId }: { probeId: string }) {
       actions:{slot?.actions ? "yes" : "no"} overflow:{slot?.overflow ? "yes" : "no"} crumb:
       {slot?.crumb ? "yes" : "no"} crumb-value:
       {typeof slot?.crumb === "string" ? slot.crumb : "no"} toolbar:
-      {slot?.toolbar ? "yes" : "no"} status:{slot?.status ? "yes" : "no"}
+      {slot?.toolbar ? "yes" : "no"} nav:{slot?.nav ? "yes" : "no"} status:
+      {slot?.status ? "yes" : "no"}
     </span>
   );
 }
@@ -93,6 +94,50 @@ describe("Topbar", () => {
     );
     expect(document.querySelector("[data-slot='topbar-count']")).toHaveTextContent("6");
     expect(screen.getByTestId("status-chip")).toBeInTheDocument();
+  });
+
+  it("Should render peer route nav after identity and before the flex gutter", () => {
+    function Setup() {
+      useTopbarSlot({
+        nav: <nav data-testid="route-tabs">List · Kanban</nav>,
+      });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar title="Tasks" />
+      </TopbarSlotProvider>
+    );
+    const head = document.querySelector("[data-slot='topbar']");
+    const identity = document.querySelector("[data-slot='topbar-identity']");
+    const nav = document.querySelector("[data-slot='topbar-nav']");
+    const flex = document.querySelector("[data-slot='topbar-flex']");
+    expect(head).not.toBeNull();
+    expect(identity).not.toBeNull();
+    expect(nav).not.toBeNull();
+    expect(flex).not.toBeNull();
+    expect(nav).toContainElement(screen.getByTestId("route-tabs"));
+    expect(identity!.compareDocumentPosition(nav!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(nav!.compareDocumentPosition(flex!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("Should omit topbar-nav when the publisher does not supply nav (drill-in)", () => {
+    function Setup() {
+      useTopbarSlot({
+        onBack: () => undefined,
+        crumbs: [{ id: "tasks", label: "Tasks", onSelect: () => undefined }],
+        crumb: "Run #128",
+      });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar title="Tasks" />
+      </TopbarSlotProvider>
+    );
+    expect(document.querySelector("[data-slot='topbar-nav']")).toBeNull();
   });
 
   it("Should render drill-in back + crumbs without a workspace prefix (UT-092)", () => {
@@ -251,6 +296,7 @@ describe("Topbar", () => {
                 crumb: "loop-a",
                 actions: <span data-testid="a" />,
                 overflow: <span data-testid="o" />,
+                nav: <span data-testid="nv" />,
                 toolbar: <span data-testid="tb" />,
               }}
               label="a"
@@ -268,6 +314,7 @@ describe("Topbar", () => {
     expect(screen.getByTestId("inspector")).toHaveTextContent("actions:yes");
     expect(screen.getByTestId("inspector")).toHaveTextContent("overflow:yes");
     expect(screen.getByTestId("inspector")).toHaveTextContent("crumb:yes");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("nav:yes");
     expect(screen.getByTestId("inspector")).toHaveTextContent("toolbar:yes");
 
     act(() => {
@@ -281,6 +328,7 @@ describe("Topbar", () => {
     expect(screen.getByTestId("inspector")).toHaveTextContent("actions:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("overflow:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("crumb:no");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("nav:no");
     expect(screen.getByTestId("inspector")).toHaveTextContent("toolbar:no");
   });
 

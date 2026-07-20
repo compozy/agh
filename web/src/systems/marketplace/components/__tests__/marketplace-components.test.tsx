@@ -274,9 +274,14 @@ describe("MarketplaceKindPage", () => {
     renderKindPage("skill");
     expect(screen.getByRole("heading", { level: 1, name: "Skills" })).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-kind-head-skill")).toBeNull();
+    const head = document.querySelector("[data-slot='topbar']");
     const toolbar = document.querySelector("[data-slot='os-window-toolbar']");
-    expect(toolbar).toContainElement(screen.getByTestId("marketplace-kind-navigation"));
+    expect(document.querySelector("[data-slot='topbar-nav']")).toContainElement(
+      screen.getByTestId("marketplace-kind-navigation")
+    );
+    expect(head).toContainElement(screen.getByTestId("marketplace-kind-navigation"));
     expect(toolbar).toContainElement(screen.getByTestId("marketplace-kind-search-skill"));
+    expect(toolbar).not.toContainElement(screen.getByTestId("marketplace-kind-navigation"));
     expect(document.querySelector("[data-slot='topbar-actions']")).toContainElement(
       screen.getByTestId("marketplace-refresh")
     );

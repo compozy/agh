@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ListChecks, Plus } from "lucide-react";
 
-import { BlockLoading, Button, Empty, ListingToolbar, RouteNav, useTopbarSlot } from "@agh/ui";
+import { BlockLoading, Button, Empty, RouteNav, useTopbarSlot } from "@agh/ui";
 
 import {
   TasksDashboardView,
@@ -77,6 +77,7 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
         New task
       </Button>
     ),
+    nav: modeNav,
     toolbar:
       mode === "list" && page.hasActiveTaskScope ? (
         <TasksListToolbar
@@ -91,13 +92,8 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
           searchQuery={page.searchQuery}
           sortBy={page.sortBy}
           statusFilter={page.statusFilter}
-          viewNav={modeNav}
         />
-      ) : (
-        <ListingToolbar>
-          <ListingToolbar.Trailing>{modeNav}</ListingToolbar.Trailing>
-        </ListingToolbar>
-      ),
+      ) : undefined,
   });
 
   return (

@@ -33,6 +33,11 @@ export interface TopbarSlotValue {
   actions?: React.ReactNode;
   /** Overflow menu rendered last in the trailing zone. */
   overflow?: React.ReactNode;
+  /**
+   * Peer route tabs (`RouteNav`) rendered in the 44px head immediately after
+   * identity. Absent on drill-in and on routes without sibling views.
+   */
+  nav?: React.ReactNode;
   /** Optional 38px context-strip content (filters / search / view toggles). */
   toolbar?: React.ReactNode;
 }
@@ -69,6 +74,7 @@ function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue | null):
     a.onBack === b.onBack &&
     a.actions === b.actions &&
     a.overflow === b.overflow &&
+    a.nav === b.nav &&
     a.toolbar === b.toolbar
   );
 }

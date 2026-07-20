@@ -1,5 +1,4 @@
 import { ListingToolbar } from "@agh/ui";
-import type { ReactNode } from "react";
 
 import type { TaskFilterOwnerOption } from "../lib/tasks-list-filters";
 import type { TaskListSortKey, TaskPriority, TaskStatus } from "../types";
@@ -18,7 +17,6 @@ export interface TasksListToolbarProps {
   onPriorityChange: (next: TaskPriority | null) => void;
   onSortChange: (next: TaskListSortKey) => void;
   onSearchQueryChange: (next: string) => void;
-  viewNav?: ReactNode;
 }
 
 /** Window-local tools for the Tasks list context strip. */
@@ -34,7 +32,6 @@ export function TasksListToolbar({
   onPriorityChange,
   onSortChange,
   onSearchQueryChange,
-  viewNav,
 }: TasksListToolbarProps) {
   return (
     <ListingToolbar className="w-full">
@@ -61,7 +58,6 @@ export function TasksListToolbar({
       </ListingToolbar.Leading>
       <ListingToolbar.Trailing className="gap-2.5">
         <TasksListSort onSortChange={onSortChange} sortBy={sortBy} />
-        {viewNav}
       </ListingToolbar.Trailing>
     </ListingToolbar>
   );

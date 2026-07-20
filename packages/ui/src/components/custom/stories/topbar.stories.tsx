@@ -14,7 +14,7 @@ const meta: Meta<typeof Topbar> = {
     docs: {
       description: {
         component:
-          "Unified window head (44px): traffic lights · quiet glyph + title (or window-local drill-in trail) · status + ≤2 actions. Routes publish identity/tools via `useTopbarSlot`.",
+          "Unified window head (44px): traffic lights · quiet glyph + title (or window-local drill-in trail) · optional peer RouteNav after identity · status + ≤2 actions. Routes publish identity/nav/tools via `useTopbarSlot`.",
       },
     },
   },
@@ -82,21 +82,24 @@ function FullCompositionSetup() {
     glyph: <ListChecks />,
     count: 12,
     actions: <Button size="sm">New task</Button>,
+    nav: (
+      <RouteNav aria-label="Tasks views">
+        <RouteNav.Link aria-current="page" href="#list">
+          List
+        </RouteNav.Link>
+        <RouteNav.Link href="#kanban">Kanban</RouteNav.Link>
+        <RouteNav.Link href="#inbox">
+          Inbox <RouteNav.Count>2</RouteNav.Count>
+        </RouteNav.Link>
+      </RouteNav>
+    ),
     toolbar: (
       <ListingToolbar className="w-full">
         <ListingToolbar.Leading>
           <span className="text-xs text-subtle">filters</span>
         </ListingToolbar.Leading>
         <ListingToolbar.Trailing>
-          <RouteNav aria-label="Tasks views">
-            <RouteNav.Link aria-current="page" href="#list">
-              List
-            </RouteNav.Link>
-            <RouteNav.Link href="#kanban">Kanban</RouteNav.Link>
-            <RouteNav.Link href="#inbox">
-              Inbox <RouteNav.Count>2</RouteNav.Count>
-            </RouteNav.Link>
-          </RouteNav>
+          <span className="text-xs text-subtle">Rows | Cards</span>
         </ListingToolbar.Trailing>
       </ListingToolbar>
     ),
@@ -105,7 +108,7 @@ function FullCompositionSetup() {
 }
 
 /**
- * T3 · Catalog root with optional tools (toolbar publishes to the frame strip).
+ * T3 · Catalog root — peer RouteNav after identity; tools in the frame strip.
  */
 export const CatalogWithTools: Story = {
   args: {},

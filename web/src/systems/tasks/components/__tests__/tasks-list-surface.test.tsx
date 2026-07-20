@@ -140,7 +140,6 @@ describe("TasksListSurface", () => {
           searchQuery="api"
           sortBy="recent"
           statusFilter={null}
-          viewNav={<span data-testid="tasks-view-nav">views</span>}
         />
       </UIProvider>
     );
@@ -149,9 +148,7 @@ describe("TasksListSurface", () => {
     expect(search).toHaveValue("api");
     fireEvent.change(search, { target: { value: "deploy" } });
     expect(handleSearchQueryChange).toHaveBeenCalledWith("deploy");
-    expect(document.querySelector('[data-slot="listing-toolbar-trailing"]')).toContainElement(
-      screen.getByTestId("tasks-view-nav")
-    );
+    expect(screen.queryByTestId("tasks-view-nav")).toBeNull();
   });
 
   it("Should render the empty state when the list is empty", () => {
