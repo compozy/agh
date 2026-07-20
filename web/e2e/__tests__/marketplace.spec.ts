@@ -245,13 +245,16 @@ test.describe("Marketplace acquisition", () => {
     await bundleCard.getByRole("button", { name: `Activate ${bundleName}` }).click();
     await expect(marketplace.bundleActivationDialog).toBeVisible();
     await marketplace.bundleActivationDialog.getByRole("radio", { name: /Lean/ }).click();
-    await marketplace.bundleActivationDialog
-      .getByRole("switch", { name: "Confirm Live network participation" })
-      .click();
+    await expect(
+      marketplace.bundleActivationDialog.getByRole("switch", {
+        name: "Confirm Live network participation",
+      })
+    ).toHaveCount(0);
     await expect(marketplace.bundleActivateConfirm).toBeEnabled({ timeout: 20_000 });
     await marketplace.bundleActivateConfirm.click();
     await expect(marketplace.bundleActivationDialog).toBeHidden();
-    await expect(bundleCard).toContainText("installed", { timeout: 20_000 });
+    await expect(bundleCard).toContainText("active", { timeout: 20_000 });
+    await expect(bundleCard.getByRole("link", { name: `Manage ${bundleName}` })).toBeVisible();
 
     await writeMarketplaceBundle(
       path.join(

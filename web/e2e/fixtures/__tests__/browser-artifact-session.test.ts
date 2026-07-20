@@ -132,17 +132,13 @@ describe("captureRouteState", () => {
     expect(routeState.network_selected_thread).toBeUndefined();
   });
 
-  it("captures automation route context, selected item, and session-link state", async () => {
-    window.history.replaceState({}, "", "/jobs");
+  it("captures automation detail route context, topbar title, and session-link state", async () => {
+    window.history.replaceState({}, "", "/jobs/job_daily_review");
     document.title = "AGH";
     document.body.innerHTML = `
-      <div data-testid="jobs-shell"></div>
-      <div data-testid="jobs-list-rows">
-        <div data-testid="automation-item-job_daily_review"><a href="/jobs/job_daily_review"></a></div>
-        <div data-testid="automation-item-job_weekly_triage"><a href="/jobs/job_weekly_triage"></a></div>
-      </div>
+      <header><h1 data-testid="topbar-title-text">deploy-review</h1></header>
       <section data-testid="automation-detail-panel">
-        <h1>deploy-review</h1>
+        <div data-slot="page-head-title">deploy-review</div>
         <button data-testid="automation-detail-overflow"></button>
         <button data-testid="toggle-automation-btn"></button>
         <button data-testid="trigger-job-btn"></button>
@@ -161,7 +157,7 @@ describe("captureRouteState", () => {
     });
 
     expect(routeState).toMatchObject({
-      pathname: "/jobs",
+      pathname: "/jobs/job_daily_review",
       title: "AGH",
       automation_view_visible: true,
       automation_active_tab: "jobs",
@@ -170,28 +166,23 @@ describe("captureRouteState", () => {
       automation_enabled_toggle_visible: true,
       automation_editor_kind: "job",
       automation_editor_open: false,
-      automation_item_count: 2,
+      automation_item_count: 0,
       automation_run_count: 2,
       automation_run_history_visible: true,
       automation_scheduler_visible: true,
-      automation_scope_filter: "all",
       automation_selected_item: "deploy-review",
       automation_session_link_count: 1,
       automation_trigger_visible: true,
     });
   });
 
-  it("captures bridge route context, selected bridge, and dialog state", async () => {
-    window.history.replaceState({}, "", "/bridges?scope=global");
+  it("captures bridge detail route context, topbar title, and dialog state", async () => {
+    window.history.replaceState({}, "", "/bridges/brg_ops");
     document.title = "AGH";
     document.body.innerHTML = `
-      <button data-testid="bridge-list-filters-add"></button>
-      <aside data-testid="bridge-list-panel">
-        <button data-testid="bridge-item-brg_ops"></button>
-        <button data-testid="bridge-item-brg_support"></button>
-      </aside>
+      <header><h1 data-testid="topbar-title-text">Telegram Bridge Ops</h1></header>
       <section data-testid="bridge-detail-panel">
-        <h1>Telegram Bridge Ops</h1>
+        <div data-slot="page-head-title">Telegram Bridge Ops</div>
       </section>
       <article data-testid="bridge-secret-binding-bot_token"></article>
       <article data-testid="bridge-route-sess_bridge_01"></article>
@@ -204,11 +195,10 @@ describe("captureRouteState", () => {
     });
 
     expect(routeState).toMatchObject({
-      pathname: "/bridges",
+      pathname: "/bridges/brg_ops",
       title: "AGH",
       bridge_view_visible: true,
-      bridge_scope_filter: "global",
-      bridge_item_count: 2,
+      bridge_item_count: 0,
       bridge_selected_item: "Telegram Bridge Ops",
       bridge_secret_binding_count: 1,
       bridge_route_count: 1,
@@ -373,12 +363,12 @@ describe("captureRouteState", () => {
         <p data-testid="sandbox-page-workspaces">1 workspace reference</p>
         <table data-testid="sandbox-page-list">
           <tbody>
-            <tr data-testid="sandbox-page-card-browser-local-sandbox">
+            <tr data-name="browser-local-sandbox" data-testid="sandbox-page-card-browser-local-sandbox">
               <td data-testid="sandbox-page-card-browser-local-sandbox-profile">local / reuse</td>
               <td data-testid="sandbox-page-card-browser-local-sandbox-source">CONFIG</td>
               <td data-testid="sandbox-page-card-browser-local-sandbox-usage">1 workspace</td>
             </tr>
-            <tr data-testid="sandbox-page-card-browser-blocked-sandbox"></tr>
+            <tr data-name="browser-blocked-sandbox" data-testid="sandbox-page-card-browser-blocked-sandbox"></tr>
           </tbody>
         </table>
         <form data-testid="settings-sandbox-editor"></form>

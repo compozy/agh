@@ -181,6 +181,12 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   await expect(appPage).toHaveURL(new RegExp(`/jobs/${workspaceJob.id}$`));
   await expect(ui.detailPanel).toContainText("Scope: WORKSPACE");
 
+  await appPage
+    .getByRole("navigation", { name: "Breadcrumb" })
+    .getByRole("link", { exact: true, name: "Jobs" })
+    .click();
+  await expect(appPage).toHaveURL(/\/jobs$/);
+  await expect(ui.jobsShell).toBeVisible();
   await ui.createJobButton.click();
   await expect(ui.editorDialog).toBeVisible();
   await expect(ui.submitJobForm).toBeDisabled();
@@ -227,6 +233,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   await expect(ui.editorDialog).toBeHidden();
   await expect(ui.detailPanel).toContainText(editedName);
 
+  await ui.detailOverflow.click();
   await ui.toggleAutomationButton.click();
   await expect.poll(async () => (await getJob(runtime, created.id)).job.enabled).toBe(false);
   await expect(ui.detailPanel).toContainText("DISABLED");
@@ -237,6 +244,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
     )
   ).toBe(false);
 
+  await ui.detailOverflow.click();
   await ui.toggleAutomationButton.click();
   await expect.poll(async () => (await getJob(runtime, created.id)).job.enabled).toBe(true);
   await expect(ui.detailPanel).toContainText("ENABLED");
@@ -409,8 +417,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
   expect(await trigger.text()).not.toMatch(sensitivePattern);
   const failedRun = await waitForLatestRun(runtime, job.id, "failed");
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
-  await ui.itemLink(job.id).click();
+  await expect(ui.detailPanel).toContainText(job.name, { timeout: 20_000 });
   await expect(ui.run(failedRun.id)).toBeVisible();
   await expect(ui.run(failedRun.id)).toContainText("FAILED");
   await expect(ui.run(failedRun.id)).toContainText(/disconnect|prompt|session|failed/i);

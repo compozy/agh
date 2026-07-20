@@ -248,11 +248,17 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         ?.getAttribute("aria-label")
         ?.match(/^Direct room (\S+)/)?.[1] ??
       readPathContainerId(/\/network\/[^/]+\/directs\/([^/?#]+)/);
-    const automationActiveTab = document.querySelector('[data-testid="jobs-shell"]')
-      ? "jobs"
-      : document.querySelector('[data-testid="triggers-shell"]')
-        ? "triggers"
-        : undefined;
+    const automationPathTab = window.location.pathname.match(/^\/(jobs|triggers)(?:\/|$)/)?.[1] as
+      | "jobs"
+      | "triggers"
+      | undefined;
+    const automationActiveTab =
+      automationPathTab ??
+      (document.querySelector('[data-testid="jobs-shell"]')
+        ? "jobs"
+        : document.querySelector('[data-testid="triggers-shell"]')
+          ? "triggers"
+          : undefined);
     // Catalog scope now lives in the list route URL (`?scope=`); absent means "all".
     const automationScopeParam = new URLSearchParams(window.location.search).get("scope");
     const automationScopeFilter = /^\/(jobs|triggers)$/.test(window.location.pathname)
@@ -260,10 +266,10 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         ? automationScopeParam
         : ("all" as const)
       : undefined;
-    const automationSelectedItem =
-      document
-        .querySelector<HTMLElement>('[data-testid="automation-detail-panel"] h1')
-        ?.textContent?.trim() || undefined;
+    const topbarTitle = readText("topbar-title-text");
+    const automationSelectedItem = document.querySelector('[data-testid="automation-detail-panel"]')
+      ? topbarTitle
+      : undefined;
     const automationEditorKind = document.querySelector('[data-testid="automation-job-form"]')
       ? "job"
       : document.querySelector('[data-testid="automation-trigger-form"]')
@@ -275,10 +281,9 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         ? bridgeScopeSearch
         : "all"
       : undefined;
-    const bridgeSelectedItem =
-      document
-        .querySelector<HTMLElement>('[data-testid="bridge-detail-panel"] h1')
-        ?.textContent?.trim() || undefined;
+    const bridgeSelectedItem = document.querySelector('[data-testid="bridge-detail-panel"]')
+      ? topbarTitle
+      : undefined;
     const tasksActiveMode = (["dashboard", "inbox", "kanban", "list"] as const).find(
       mode =>
         document.querySelector(`[data-testid="tasks-mode-${mode}"][aria-current="page"]`) !== null
@@ -316,11 +321,11 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       : skillsEnabledText?.includes("enabled")
         ? "enabled"
         : undefined;
-    const sandboxRows = [
-      ...document.querySelectorAll<HTMLElement>('tr[data-testid^="sandbox-page-card-"]'),
+    const sandboxProfiles = [
+      ...document.querySelectorAll<HTMLElement>('[data-testid^="sandbox-page-card-"][data-name]'),
     ];
-    const sandboxProfileNames = sandboxRows
-      .map(element => element.dataset.testid?.replace(/^sandbox-page-card-/, ""))
+    const sandboxProfileNames = sandboxProfiles
+      .map(element => element.dataset.name)
       .filter((value): value is string => Boolean(value));
     const settingsActiveSection = readPathContainerId(/\/settings\/([^/?#]+)/);
 
@@ -353,7 +358,8 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         document.querySelector('[data-testid="trigger-job-btn"]') !== null,
       automation_view_visible:
         document.querySelector('[data-testid="jobs-shell"]') !== null ||
-        document.querySelector('[data-testid="triggers-shell"]') !== null,
+        document.querySelector('[data-testid="triggers-shell"]') !== null ||
+        document.querySelector('[data-testid="automation-detail-panel"]') !== null,
       bridge_create_dialog_open:
         document.querySelector('[data-testid="bridge-create-dialog"]') !== null,
       bridge_detail_visible: document.querySelector('[data-testid="bridge-detail-panel"]') !== null,
@@ -431,7 +437,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       sandbox_editor_open:
         document.querySelector('[data-testid="settings-sandbox-editor"]') !== null,
       sandbox_empty_visible: document.querySelector('[data-testid="sandbox-page-empty"]') !== null,
-      sandbox_profile_count: sandboxRows.length,
+      sandbox_profile_count: sandboxProfiles.length,
       sandbox_profile_names: sandboxProfileNames,
       sandbox_restart_banner_visible:
         document.querySelector('[data-testid="settings-page-sandbox-restart-banner"]') !== null,

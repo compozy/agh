@@ -747,7 +747,6 @@ export const tasksOperatorTestIds = {
   detailActiveRunChannel: "tasks-detail-active-run-channel",
   detailActiveRunEmpty: "tasks-detail-active-run-empty",
   detailActiveRunEmptyHint: "tasks-detail-active-run-empty-hint",
-  detailBreadcrumbTasks: "tasks-detail-breadcrumb-tasks",
   detailContent: "tasks-detail-content",
   detailCoordination: "tasks-detail-coordination",
   detailCancel: "tasks-detail-cancel",
@@ -796,6 +795,7 @@ export const tasksOperatorTestIds = {
   openCreate: "tasks-open-create",
   runDetailContent: "tasks-run-detail-content",
   runDetailCancel: "task-run-detail-cancel",
+  runDetailOverflow: "task-run-detail-overflow",
   runSessionDrilldown: "task-run-detail-open-session",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
@@ -892,6 +892,7 @@ export interface TasksOperatorSelectors {
   openCreate: Locator;
   runDetailContent: Locator;
   runDetailCancel: Locator;
+  runDetailOverflow: Locator;
   runReviewRow(reviewId: string): Locator;
   runSessionDrilldown: Locator;
   taskCard(taskId: string): Locator;
@@ -1273,10 +1274,12 @@ export function automationOperatorSelectors(
 export function bridgeOperatorSelectors(
   page: Pick<Page, "getByRole" | "getByTestId">
 ): BridgeOperatorSelectors {
+  const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+
   return {
     activeRoutesMetric: page.getByTestId(bridgeOperatorTestIds.bridgeMetricActiveRoutes),
     appSidebar: page.getByTestId(bridgeOperatorTestIds.appSidebar),
-    backToList: page.getByRole("button", { name: "Back to bridges" }),
+    backToList: breadcrumb.getByRole("link", { exact: true, name: "Bridges" }),
     createBridgeButton: page.getByTestId(bridgeOperatorTestIds.createBridgeButton),
     createDialog: page.getByTestId(bridgeOperatorTestIds.bridgeCreateDialog),
     createDeliveryModeSelect: page.getByTestId(
@@ -1461,7 +1464,11 @@ export function settingsOperatorSelectors(
   };
 }
 
-export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOperatorSelectors {
+export function tasksOperatorSelectors(
+  page: Pick<Page, "getByRole" | "getByTestId">
+): TasksOperatorSelectors {
+  const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+
   return {
     appSidebar: page.getByTestId(tasksOperatorTestIds.appSidebar),
     createDescription: page.getByTestId(tasksOperatorTestIds.createDescription),
@@ -1485,7 +1492,7 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     detailActiveRunChannel: page.getByTestId(tasksOperatorTestIds.detailActiveRunChannel),
     detailActiveRunEmpty: page.getByTestId(tasksOperatorTestIds.detailActiveRunEmpty),
     detailActiveRunEmptyHint: page.getByTestId(tasksOperatorTestIds.detailActiveRunEmptyHint),
-    detailBreadcrumbTasks: page.getByTestId(tasksOperatorTestIds.detailBreadcrumbTasks),
+    detailBreadcrumbTasks: breadcrumb.getByRole("link", { exact: true, name: "Tasks" }),
     detailContent: page.getByTestId(tasksOperatorTestIds.detailContent),
     detailCoordination: page.getByTestId(tasksOperatorTestIds.detailCoordination),
     detailCancel: page.getByTestId(tasksOperatorTestIds.detailCancel),
@@ -1558,6 +1565,7 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     openCreate: page.getByTestId(tasksOperatorTestIds.openCreate),
     runDetailContent: page.getByTestId(tasksOperatorTestIds.runDetailContent),
     runDetailCancel: page.getByTestId(tasksOperatorTestIds.runDetailCancel),
+    runDetailOverflow: page.getByTestId(tasksOperatorTestIds.runDetailOverflow),
     runReviewRow: (reviewId: string) => page.getByTestId(`tasks-run-reviews-row-${reviewId}`),
     runSessionDrilldown: page.getByTestId(tasksOperatorTestIds.runSessionDrilldown),
     taskCard: (taskId: string) => page.getByTestId(`task-card-${taskId}`),

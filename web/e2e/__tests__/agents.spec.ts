@@ -96,9 +96,7 @@ test.describe("seeded agent detail", () => {
 
     await expect(appPage.getByTestId("agent-detail-page")).toBeVisible();
     await expect(
-      appPage
-        .getByTestId("agent-detail-header")
-        .getByRole("heading", { name: "agent-detail-primary" })
+      appPage.getByRole("heading", { level: 1, name: "agent-detail-primary" })
     ).toBeVisible();
     await expect(appPage.getByTestId("agent-detail-tabs")).toBeVisible();
     await expect(appPage.getByTestId("agent-overview-tab")).toBeVisible();

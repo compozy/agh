@@ -44,21 +44,28 @@ function MarketplaceDetailMCPManage({
   const { activeWorkspaceId } = useActiveWorkspace();
   const resolvedWorkspaceId = workspaceId ?? activeWorkspaceId ?? undefined;
   const resolvedScope = scope ?? (resolvedWorkspaceId ? "workspace" : "global");
-  const pollInterval = SETTINGS_QUERY_INTERVALS.collectionRefetchInterval;
-  const query = useSettingsMCPServers(
+  const queryFilter =
     resolvedScope === "workspace"
-      ? { scope: "workspace", workspace_id: resolvedWorkspaceId }
-      : { scope: "global" },
-    {
-      enabled: resolvedScope === "global" || Boolean(resolvedWorkspaceId),
-      refetchInterval: pollInterval,
-    }
-  );
-  const server = findInstalledMCPServer(entry, query.data?.mcp_servers ?? []);
+      ? { scope: "workspace" as const, workspace_id: resolvedWorkspaceId }
+      : { scope: "global" as const };
+  const queryEnabled = resolvedScope === "global" || Boolean(resolvedWorkspaceId);
+  const query = useSettingsMCPServers(queryFilter, {
+    enabled: queryEnabled,
+    refetchInterval: SETTINGS_QUERY_INTERVALS.collectionRefetchInterval,
+  });
+  const baseServer = findInstalledMCPServer(entry, query.data?.mcp_servers ?? []);
 
-  const authFilter = server ? deriveMCPAuthFilter(server) : null;
+  const authFilter = baseServer ? deriveMCPAuthFilter(baseServer) : null;
   const authorize = useMCPAuthorize(authFilter);
   const { acknowledgeStatus, isAwaiting } = authorize;
+  const authPollQuery = useSettingsMCPServers(queryFilter, {
+    enabled: queryEnabled && isAwaiting,
+    refetchInterval: SETTINGS_QUERY_INTERVALS.mcpAuthStatusPollInterval,
+  });
+  const server = findInstalledMCPServer(
+    entry,
+    authPollQuery.data?.mcp_servers ?? query.data?.mcp_servers ?? []
+  );
 
   useEffect(() => {
     const status = server?.auth_status;

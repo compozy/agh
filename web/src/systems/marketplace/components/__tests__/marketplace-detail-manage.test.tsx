@@ -9,7 +9,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MarketplaceDetailExtensionManage } from "../marketplace-detail-extension-manage";
 import { MarketplaceDetailMCPManage } from "../marketplace-detail-mcp-manage";
 import { MarketplaceDetailSkillManage } from "../marketplace-detail-skill-manage";
-import type { SettingsMCPServerCollection, SettingsMCPServerEntry } from "@/systems/settings";
+import {
+  SETTINGS_QUERY_INTERVALS,
+  type SettingsMCPServerCollection,
+  type SettingsMCPServerEntry,
+} from "@/systems/settings";
 
 const mocks = vi.hoisted(() => ({
   acknowledgeStatus: vi.fn(),
@@ -23,6 +27,10 @@ const mocks = vi.hoisted(() => ({
   extensionError: null as Error | null,
   extensionLoading: false,
   isAwaiting: false,
+  mcpQueryCalls: [] as Array<{
+    filter: { scope?: string; workspace_id?: string };
+    options?: { enabled?: boolean; refetchInterval?: number };
+  }>,
   globalMCP: {
     data: undefined as SettingsMCPServerCollection | undefined,
     error: null as Error | null,
@@ -52,8 +60,13 @@ vi.mock("@/systems/settings", async importOriginal => {
     MCPAuthorizeDialog: ({ scope }: { scope: string }) => (
       <output aria-label="Detail authorization scope">{scope}</output>
     ),
-    useSettingsMCPServers: (filter: { scope?: string }) =>
-      filter.scope === "global" ? mocks.globalMCP : mocks.workspaceMCP,
+    useSettingsMCPServers: (
+      filter: { scope?: string; workspace_id?: string },
+      options?: { enabled?: boolean; refetchInterval?: number }
+    ) => {
+      mocks.mcpQueryCalls.push({ filter, options });
+      return filter.scope === "global" ? mocks.globalMCP : mocks.workspaceMCP;
+    },
   };
 });
 
@@ -236,6 +249,7 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionError = null;
     mocks.extensionLoading = false;
     mocks.isAwaiting = false;
+    mocks.mcpQueryCalls.length = 0;
     mocks.globalMCP = { data: undefined, error: null, isLoading: false, refetch: vi.fn() };
     mocks.workspaceMCP = { data: undefined, error: null, isLoading: false, refetch: vi.fn() };
   });
@@ -538,6 +552,24 @@ describe("Marketplace installed-detail management", () => {
     } as const;
 
     const view = render(<MarketplaceDetailMCPManage entry={entry} />);
+    expect(mocks.mcpQueryCalls).toEqual(
+      expect.arrayContaining([
+        {
+          filter: { scope: "workspace", workspace_id: "workspace-a" },
+          options: {
+            enabled: true,
+            refetchInterval: SETTINGS_QUERY_INTERVALS.collectionRefetchInterval,
+          },
+        },
+        {
+          filter: { scope: "workspace", workspace_id: "workspace-a" },
+          options: {
+            enabled: false,
+            refetchInterval: SETTINGS_QUERY_INTERVALS.mcpAuthStatusPollInterval,
+          },
+        },
+      ])
+    );
     await user.click(screen.getByTestId("mcp-authorize-btn"));
 
     expect(screen.getByRole("status", { name: "Detail authorization scope" })).toHaveTextContent(
@@ -558,6 +590,13 @@ describe("Marketplace installed-detail management", () => {
     };
     view.rerender(<MarketplaceDetailMCPManage entry={entry} />);
 
+    expect(mocks.mcpQueryCalls).toContainEqual({
+      filter: { scope: "workspace", workspace_id: "workspace-a" },
+      options: {
+        enabled: true,
+        refetchInterval: SETTINGS_QUERY_INTERVALS.mcpAuthStatusPollInterval,
+      },
+    });
     expect(mocks.acknowledgeStatus).toHaveBeenCalledWith("authenticated", true);
   });
 });

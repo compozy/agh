@@ -164,7 +164,8 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     await expect(sessionUI.stopButton).toBeVisible();
     await sessionUI.stopButton.click();
     expect((await stopResponse).ok()).toBe(true);
-    await expect(appPage.getByTestId("composer-clear-button")).toBeEnabled({ timeout: 60_000 });
+    await sessionUI.topbarOverflow.click();
+    await expect(sessionUI.composerClearButton).toBeEnabled({ timeout: 60_000 });
 
     // Daemon truth: exactly one remembered decision, exact agent + exact sha256 input.
     const seeded = await runtime.requestJSON<ToolApprovalGrantList>(grantsPath(workspace.id));

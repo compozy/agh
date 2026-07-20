@@ -177,9 +177,14 @@ describe("automation operator selectors", () => {
 describe("bridge operator selectors", () => {
   it("maps the bridge list, edit, secret-binding, and test-delivery surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
-    const getByRole = vi.fn(
+    const getByRoleWithinBreadcrumb = vi.fn(
       (role: string, options?: { name: string }) =>
-        `role:${role}:${options?.name}` as unknown as Locator
+        `breadcrumb-role:${role}:${options?.name}` as unknown as Locator
+    );
+    const getByRole = vi.fn((role: string, options?: { name: string }) =>
+      role === "navigation" && options?.name === "Breadcrumb"
+        ? ({ getByRole: getByRoleWithinBreadcrumb } as unknown as Locator)
+        : (`role:${role}:${options?.name}` as unknown as Locator)
     );
     const selectors = bridgeOperatorSelectors({
       getByRole,
@@ -189,6 +194,7 @@ describe("bridge operator selectors", () => {
     expect(selectors.navBridges).toBe(`locator:${bridgeOperatorTestIds.navBridges}`);
     expect(selectors.listPanel).toBe(`locator:${bridgeOperatorTestIds.bridgeListPanel}`);
     expect(selectors.detailPanel).toBe(`locator:${bridgeOperatorTestIds.bridgeDetailPanel}`);
+    expect(selectors.backToList).toBe("breadcrumb-role:link:Bridges");
     expect(selectors.createDialog).toBe(`locator:${bridgeOperatorTestIds.bridgeCreateDialog}`);
     expect(selectors.createDisplayNameInput).toBe(
       `locator:${bridgeOperatorTestIds.createBridgeDisplayNameInput}`
@@ -238,7 +244,6 @@ describe("bridge operator selectors", () => {
     expect(selectors.activeRoutesMetric).toBe(
       `locator:${bridgeOperatorTestIds.bridgeMetricActiveRoutes}`
     );
-    expect(selectors.backToList).toBe("role:button:Back to bridges");
     expect(selectors.openTestDeliveryButton).toBe(
       `locator:${bridgeOperatorTestIds.openTestDeliveryButton}`
     );
@@ -447,7 +452,17 @@ describe("settings operator selectors", () => {
 describe("tasks operator selectors", () => {
   it("maps the tasks shell, editor, detail, aggregate, and inbox surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const getByRoleWithinBreadcrumb = vi.fn(
+      (role: string, options?: { name: string }) =>
+        `breadcrumb-role:${role}:${options?.name}` as unknown as Locator
+    );
+    const getByRole = vi.fn((role: string, options?: { name: string }) =>
+      role === "navigation" && options?.name === "Breadcrumb"
+        ? ({ getByRole: getByRoleWithinBreadcrumb } as unknown as Locator)
+        : (`role:${role}:${options?.name}` as unknown as Locator)
+    );
     const selectors = tasksOperatorSelectors({
+      getByRole,
       getByTestId,
     });
 
@@ -489,9 +504,7 @@ describe("tasks operator selectors", () => {
     );
     expect(selectors.detailPublish).toBe(`locator:${tasksOperatorTestIds.detailPublish}`);
     expect(selectors.detailContent).toBe(`locator:${tasksOperatorTestIds.detailContent}`);
-    expect(selectors.detailBreadcrumbTasks).toBe(
-      `locator:${tasksOperatorTestIds.detailBreadcrumbTasks}`
-    );
+    expect(selectors.detailBreadcrumbTasks).toBe("breadcrumb-role:link:Tasks");
     expect(selectors.detailTabRuns).toBe(`locator:${tasksOperatorTestIds.detailTabRuns}`);
     expect(selectors.detailTabAgents).toBe(`locator:${tasksOperatorTestIds.detailTabAgents}`);
     expect(selectors.detailTab("timeline")).toBe("locator:tasks-detail-tab-timeline");
@@ -505,6 +518,7 @@ describe("tasks operator selectors", () => {
     expect(selectors.dashboardActiveRunLink("run_browser_01")).toBe(
       "locator:tasks-dashboard-active-run-link-run_browser_01"
     );
+    expect(selectors.runDetailOverflow).toBe(`locator:${tasksOperatorTestIds.runDetailOverflow}`);
     expect(selectors.inboxView).toBe(`locator:${tasksOperatorTestIds.inboxView}`);
     expect(selectors.inboxLane("approvals")).toBe("locator:tasks-inbox-group-needs_review");
     expect(selectors.inboxItem("task_browser_approval")).toBe(
