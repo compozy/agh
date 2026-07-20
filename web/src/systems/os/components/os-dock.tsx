@@ -1,10 +1,15 @@
+import { useRef } from "react";
 import { Plus } from "lucide-react";
 
-import { Icon } from "@agh/ui";
+import { Icon, Tooltip, TooltipContent, TooltipTrigger } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
+import { useDockMagnify } from "../hooks/use-dock-magnify";
 import { isOsDockSeparator, type OsDockEntry, type OsDockItemData } from "./os-dock-types";
+
+/** OpenDesign tip clearance above the icon (`bottom: calc(100% + 12px)`). */
+const DOCK_TIP_SIDE_OFFSET = 12;
 
 export type { OsDockEntry, OsDockItemData, OsDockSeparator } from "./os-dock-types";
 
@@ -18,6 +23,11 @@ export interface OsDockProps extends Omit<React.ComponentProps<"nav">, "onSelect
   items: OsDockEntry[];
   /** Item activation. Omit to render items as presentation. */
   onSelect?: (id: string) => void;
+  /**
+   * OpenDesign proximity magnification. Default on; DesktopDock turns this
+   * off in compact presentation. Reduced-motion also disables the effect.
+   */
+  magnify?: boolean;
 }
 
 export interface OsDockNewSessionProps extends Omit<
@@ -31,6 +41,22 @@ export interface OsDockNewSessionProps extends Omit<
 /** Counts cap at "9+" without collapsing the zero/non-zero distinction. */
 function formatBadge(count: number): string {
   return count > 9 ? "9+" : String(count);
+}
+
+function DockTip({ label }: { label: string }) {
+  return (
+    <TooltipContent
+      side="top"
+      sideOffset={DOCK_TIP_SIDE_OFFSET}
+      className={cn(
+        "border border-line-strong bg-shell-glass-pop px-2.5 py-1 text-micro font-medium shadow-none",
+        // OpenDesign dock tip has no caret; hide the shared Tooltip arrow.
+        "[&>*:last-child]:hidden"
+      )}
+    >
+      {label}
+    </TooltipContent>
+  );
 }
 
 function DockItem({ item, onSelect }: { item: OsDockItemData; onSelect?: (id: string) => void }) {
@@ -68,45 +94,67 @@ function DockItem({ item, onSelect }: { item: OsDockItemData; onSelect?: (id: st
   );
 
   const base =
-    "relative grid size-dock-item place-items-center rounded-dock-item transition-[transform,background-color,color] duration-shell-fast ease-spring";
+    "relative grid size-dock-item origin-bottom place-items-center rounded-dock-item transition-[transform,background-color,color] duration-shell-fast ease-spring";
   const interactive =
     "hover:bg-btn-default-fill focus-visible:shadow-focus-ring focus-visible:outline-none";
   const classes = cn(base, onSelect && interactive);
 
   if (!onSelect) {
     return (
-      <span
-        data-slot="os-dock-item"
-        data-app={item.id}
-        data-state={state}
-        className={classes}
-        title={item.name}
-      >
-        {body}
-      </span>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              data-slot="os-dock-item"
+              data-app={item.id}
+              data-state={state}
+              className={classes}
+            />
+          }
+        >
+          {body}
+        </TooltipTrigger>
+        <DockTip label={item.name} />
+      </Tooltip>
     );
   }
   return (
-    <button
-      type="button"
-      data-slot="os-dock-item"
-      data-app={item.id}
-      data-state={state}
-      aria-label={item.name}
-      className={classes}
-      onClick={() => onSelect(item.id)}
-    >
-      {body}
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            data-slot="os-dock-item"
+            data-app={item.id}
+            data-state={state}
+            aria-label={item.name}
+            className={classes}
+            onClick={() => onSelect(item.id)}
+          />
+        }
+      >
+        {body}
+      </TooltipTrigger>
+      <DockTip label={item.name} />
+    </Tooltip>
   );
 }
 
 const DOCK_SEG =
   "flex items-end gap-dock-gap rounded-dock border border-line bg-shell-glass p-dock-pad shadow-dock backdrop-blur-shell";
 
-export function OsDock({ items, onSelect, className, ...props }: OsDockProps) {
+export function OsDock({ items, onSelect, magnify = true, className, ...props }: OsDockProps) {
+  const rootRef = useRef<HTMLElement>(null);
+  useDockMagnify(rootRef, magnify);
+
   return (
-    <nav data-slot="os-dock" aria-label="Dock" className={cn(DOCK_SEG, className)} {...props}>
+    <nav
+      ref={rootRef}
+      data-slot="os-dock"
+      aria-label="Dock"
+      className={cn(DOCK_SEG, className)}
+      {...props}
+    >
       {items.map(entry =>
         isOsDockSeparator(entry) ? (
           <span
@@ -128,45 +176,56 @@ export function OsDock({ items, onSelect, className, ...props }: OsDockProps) {
  * (OpenDesign `dock-actions` / `dock-new`).
  */
 export function OsDockNewSession({ onNewSession, className, ...props }: OsDockNewSessionProps) {
-  const inner = (
-    <span
-      className={cn(
-        "grid size-dock-item place-items-center rounded-dock-item bg-accent text-accent-ink shadow-highlight",
-        onNewSession &&
-          "transition-transform duration-shell-fast ease-spring hover:-translate-y-0.5 hover:bg-accent-hover"
-      )}
-    >
-      <Icon as={Plus} className="size-dock-new-icon" />
-    </span>
+  const innerClass = cn(
+    "grid size-dock-item place-items-center rounded-dock-item bg-accent text-accent-ink shadow-highlight",
+    onNewSession &&
+      "transition-transform duration-shell-fast ease-spring hover:-translate-y-0.5 hover:bg-accent-hover"
   );
+  const glyph = <Icon as={Plus} className="size-dock-new-icon" />;
 
   if (!onNewSession) {
     return (
       <div data-slot="os-dock-actions" className={cn(DOCK_SEG, className)}>
-        <span
-          data-slot="os-dock-new"
-          title="New session"
-          {...(props as React.ComponentProps<"span">)}
-        >
-          {inner}
-        </span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                data-slot="os-dock-new"
+                className={innerClass}
+                {...(props as React.ComponentProps<"span">)}
+              />
+            }
+          >
+            {glyph}
+          </TooltipTrigger>
+          <DockTip label="New session" />
+        </Tooltip>
       </div>
     );
   }
 
   return (
     <div data-slot="os-dock-actions" className={cn(DOCK_SEG, className)}>
-      <button
-        type="button"
-        data-slot="os-dock-new"
-        aria-label="New session"
-        title="New session"
-        className="rounded-dock-item focus-visible:shadow-focus-ring focus-visible:outline-none"
-        onClick={onNewSession}
-        {...props}
-      >
-        {inner}
-      </button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              data-slot="os-dock-new"
+              aria-label="New session"
+              className={cn(
+                "rounded-dock-item focus-visible:shadow-focus-ring focus-visible:outline-none",
+                innerClass
+              )}
+              onClick={onNewSession}
+              {...props}
+            />
+          }
+        >
+          {glyph}
+        </TooltipTrigger>
+        <DockTip label="New session" />
+      </Tooltip>
     </div>
   );
 }
@@ -179,12 +238,14 @@ export function OsDockZone({
   items,
   onSelect,
   onNewSession,
+  magnify = true,
   className,
   ...props
 }: {
   items: OsDockEntry[];
   onSelect?: (id: string) => void;
   onNewSession?: () => void;
+  magnify?: boolean;
   className?: string;
 } & Omit<React.ComponentProps<"div">, "children" | "onSelect">) {
   return (
@@ -197,7 +258,7 @@ export function OsDockZone({
       {...props}
     >
       <span className="min-w-0 flex-1" aria-hidden="true" />
-      <OsDock items={items} onSelect={onSelect} className="pointer-events-auto" />
+      <OsDock items={items} onSelect={onSelect} magnify={magnify} className="pointer-events-auto" />
       <OsDockNewSession onNewSession={onNewSession} className="pointer-events-auto" />
       <span className="min-w-0 flex-1" aria-hidden="true" />
     </div>

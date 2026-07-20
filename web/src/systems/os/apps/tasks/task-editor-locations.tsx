@@ -12,7 +12,13 @@ import { useTasksNavigation } from "./hooks/use-tasks-navigation";
 export function TaskCreateLocation({ search }: { search: TaskCreateSearch }) {
   const navigate = useTasksNavigation();
   const page = useTaskCreateState(search, navigate);
-  useTopbarSlot({ crumb: "Tasks / New" });
+  useTopbarSlot({
+    onBack: () => navigate({ pathname: "/tasks", search: {} }),
+    crumbs: [
+      { id: "tasks", label: "Tasks", onSelect: () => navigate({ pathname: "/tasks", search: {} }) },
+    ],
+    crumb: "New",
+  });
 
   return (
     <TaskEditorSurface
@@ -37,7 +43,16 @@ export function TaskCreateLocation({ search }: { search: TaskCreateSearch }) {
 export function TaskEditLocation({ taskId }: { taskId: string }) {
   const navigate = useTasksNavigation();
   const page = useTaskEditState(taskId, navigate);
-  useTopbarSlot({ crumb: "Tasks / Edit" });
+  const backToTask = () =>
+    navigate({ pathname: `/tasks/${encodeURIComponent(taskId)}`, search: {} });
+  useTopbarSlot({
+    onBack: backToTask,
+    crumbs: [
+      { id: "tasks", label: "Tasks", onSelect: () => navigate({ pathname: "/tasks", search: {} }) },
+      { id: "task", label: taskId, onSelect: backToTask },
+    ],
+    crumb: "Edit",
+  });
 
   if (page.isLoading) {
     return (
@@ -61,7 +76,7 @@ export function TaskEditLocation({ taskId }: { taskId: string }) {
       draft={page.draft}
       isSubmitting={page.isSubmitting}
       mode="edit"
-      onCancel={() => navigate({ pathname: `/tasks/${encodeURIComponent(taskId)}`, search: {} })}
+      onCancel={backToTask}
       onDraftChange={page.setDraft}
       onSubmit={page.handleSubmit}
     />

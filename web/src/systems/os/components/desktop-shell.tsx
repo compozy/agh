@@ -112,7 +112,7 @@ function DesktopShellBody({
         {Object.keys(windows).map(windowId => (
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}
-        <OsWinLayer rootCrumb={model.activeWorkspace?.name ?? "agh"} />
+        <OsWinLayer />
         <DesktopSessionsRail
           sessions={attention.sessions}
           disconnected={attention.sessionsDisconnected}

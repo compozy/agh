@@ -13,7 +13,6 @@ import type { AutomationJob, AutomationTrigger } from "../types";
 
 interface AutomationDetailActionsProps {
   item: AutomationJob | AutomationTrigger;
-  onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   onTriggerNow?: () => void;
   state: {
@@ -25,7 +24,6 @@ interface AutomationDetailActionsProps {
 
 function AutomationDetailActions({
   item,
-  onEdit,
   onToggleEnabled,
   onTriggerNow,
   state,
@@ -34,18 +32,6 @@ function AutomationDetailActions({
   const showOverflow = isDynamic || Boolean(onTriggerNow);
   return (
     <div className="flex items-center gap-2" data-testid="automation-detail-actions">
-      {isDynamic ? (
-        <Button
-          data-testid="edit-automation-btn"
-          onClick={onEdit}
-          size="sm"
-          type="button"
-          variant="neutral"
-        >
-          <Pencil className="size-3" />
-          Edit
-        </Button>
-      ) : null}
       {onTriggerNow ? (
         <Button
           data-testid="trigger-job-btn"
@@ -79,6 +65,7 @@ interface AutomationDetailOverflowProps {
   item: AutomationJob | AutomationTrigger;
   kind: "jobs" | "triggers";
   onDelete: () => void;
+  onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
 }
 
@@ -87,6 +74,7 @@ function AutomationDetailOverflow({
   item,
   kind,
   onDelete,
+  onEdit,
   onToggleEnabled,
 }: AutomationDetailOverflowProps) {
   const isDynamic = item.source === "dynamic";
@@ -100,6 +88,12 @@ function AutomationDetailOverflow({
         <TopbarOverflowIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="automation-detail-overflow-menu">
+        {isDynamic ? (
+          <DropdownMenuItem data-testid="edit-automation-btn" onClick={onEdit}>
+            <Pencil className="size-3" />
+            Edit
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           data-testid="toggle-automation-btn"
           disabled={isTogglePending}

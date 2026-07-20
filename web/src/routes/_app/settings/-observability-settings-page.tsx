@@ -7,7 +7,7 @@ import {
   SettingsFieldRow,
   SettingsSaveBar,
   type SettingsObservabilitySection,
-  SettingsPageHead,
+  SettingsTopbarPublisher,
 } from "@/systems/settings";
 import { useSupportBundleDownload } from "@/systems/support";
 import {
@@ -119,7 +119,7 @@ export function ObservabilitySettingsPage() {
     <PageShell
       slug="observability"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="observability" statusLine={statusLine} />}
+      head={<SettingsTopbarPublisher slug="observability" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="observability"

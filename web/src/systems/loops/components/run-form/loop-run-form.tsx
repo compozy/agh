@@ -1,6 +1,6 @@
 import { CheckCircle2, Info, Play } from "lucide-react";
 
-import { Button, Section } from "@agh/ui";
+import { Button, Eyebrow, Section } from "@agh/ui";
 import { NetworkParticipationFields } from "@/systems/network";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
@@ -45,11 +45,9 @@ export function LoopRunForm({
           form.handleRun();
         }}
       >
-        <div>
-          <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
-            Run {loop.name}
-          </h1>
-          <p className="mt-2 max-w-prose text-sm text-muted">{form.contract.goal}</p>
+        <div className="max-w-prose">
+          <Eyebrow className="text-muted">Contract goal</Eyebrow>
+          <p className="mt-1.5 text-sm text-fg">{form.contract.goal}</p>
         </div>
 
         <Section

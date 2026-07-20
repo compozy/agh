@@ -16,9 +16,16 @@ export function LoopConfigureLocation({ name }: { name: string }) {
   const workspaceId = activeWorkspaceId ?? "";
   const loopQuery = useLoop(workspaceId, name, workspaceId !== "");
   const configQuery = useLoopConfig(workspaceId, name, workspaceId !== "");
-  useTopbarSlot({ crumb: `Loops / ${name} / Configure` });
-
+  const openLoops = () => void navigate({ to: "/loops" });
   const close = () => void navigate({ to: "/loops/$name", params: { name } });
+  useTopbarSlot({
+    onBack: close,
+    crumbs: [
+      { id: "loops", label: "Loops", onSelect: openLoops },
+      { id: "loop", label: name, onSelect: close },
+    ],
+    crumb: "Configure",
+  });
 
   if (workspaceId === "") {
     return (

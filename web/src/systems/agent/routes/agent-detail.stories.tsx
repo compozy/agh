@@ -134,7 +134,7 @@ export const Default: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.findByTestId("agent-detail-page")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-overview-tab")).resolves.toBeDefined();
-    await expect(canvas.findByTestId("agent-page-header-status")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-page-status")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-page-toolbar")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-overview-glance")).resolves.toBeDefined();
     expect(canvas.queryByTestId("agent-info-inspector")).toBeNull();

@@ -20,6 +20,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 const { TasksListSurface } = await import("../tasks-list-surface");
+const { TasksListToolbar } = await import("../tasks-list-toolbar");
 type TaskListItem = import("../../types").TaskListItem;
 const { countTasksByStatus } = await import("../../lib/task-formatters");
 
@@ -40,12 +41,9 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 
 interface RenderOptions {
   tasks?: TaskListItem[];
-  totalCount?: number;
   isLoading?: boolean;
   errorMessage?: string | null;
   statusFilter?: TaskListItem["status"] | null;
-  workspaceName?: string | null;
-  listUpdatedAt?: number;
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -62,25 +60,13 @@ function renderSurface(options: RenderOptions = {}) {
         errorMessage={options.errorMessage ?? null}
         isLoading={options.isLoading}
         isLoadingMore={options.isLoadingMore}
-        listUpdatedAt={options.listUpdatedAt}
-        onOwnerChange={() => {}}
         onLoadMore={options.onLoadMore}
         onRetryLoad={options.onRetryLoad}
-        onPriorityChange={() => {}}
-        onSearchQueryChange={() => {}}
-        onSortChange={() => {}}
-        onStatusChange={() => {}}
-        ownerFilter={null}
-        ownerOptions={[]}
-        priorityFilter={null}
         searchQuery={options.searchQuery ?? ""}
-        sortBy="recent"
-        statusFilter={options.statusFilter ?? null}
+        filterState={options.statusFilter ? "active" : "inactive"}
         statusCounts={options.statusCounts ?? countTasksByStatus(tasks)}
         tasks={tasks}
-        totalCount={options.totalCount ?? 0}
         hasMore={options.hasMore}
-        workspaceName={options.workspaceName ?? "agh-runtime"}
       />
     </UIProvider>
   );
@@ -97,7 +83,7 @@ describe("TasksListSurface", () => {
       buildTask({ id: "e", title: "Failed task", status: "failed" }),
     ];
 
-    const { container } = renderSurface({ tasks, totalCount: tasks.length });
+    const { container } = renderSurface({ tasks });
 
     expect(screen.getByTestId("task-group-active-label")).toHaveTextContent(/active/i);
     expect(screen.getByTestId("task-group-active-count")).toHaveTextContent("1");
@@ -129,7 +115,6 @@ describe("TasksListSurface", () => {
   it("Should link each list row to /tasks/$id", () => {
     renderSurface({
       tasks: [buildTask({ id: "task_777", title: "Linked task" })],
-      totalCount: 1,
     });
 
     const row = screen.getByTestId("task-card-task_777");
@@ -143,7 +128,7 @@ describe("TasksListSurface", () => {
     const handleSearchQueryChange = vi.fn();
     render(
       <UIProvider reducedMotion="always">
-        <TasksListSurface
+        <TasksListToolbar
           onOwnerChange={() => {}}
           onPriorityChange={() => {}}
           onSearchQueryChange={handleSearchQueryChange}
@@ -155,9 +140,7 @@ describe("TasksListSurface", () => {
           searchQuery="api"
           sortBy="recent"
           statusFilter={null}
-          statusCounts={countTasksByStatus([buildTask({ id: "task_search" })])}
-          tasks={[buildTask({ id: "task_search" })]}
-          totalCount={1}
+          viewNav={<span data-testid="tasks-view-nav">views</span>}
         />
       </UIProvider>
     );
@@ -166,50 +149,50 @@ describe("TasksListSurface", () => {
     expect(search).toHaveValue("api");
     fireEvent.change(search, { target: { value: "deploy" } });
     expect(handleSearchQueryChange).toHaveBeenCalledWith("deploy");
+    expect(document.querySelector('[data-slot="listing-toolbar-trailing"]')).toContainElement(
+      screen.getByTestId("tasks-view-nav")
+    );
   });
 
   it("Should render the empty state when the list is empty", () => {
-    renderSurface({ tasks: [], totalCount: 0 });
+    renderSurface({ tasks: [] });
     expect(screen.getByTestId("tasks-list-surface-empty")).toBeInTheDocument();
   });
 
   it("Should describe an empty server search as filtered", () => {
-    renderSurface({ searchQuery: "missing", tasks: [], totalCount: 0 });
+    renderSurface({ searchQuery: "missing", tasks: [] });
     expect(screen.getByTestId("tasks-list-surface-empty")).toHaveTextContent(
       "No tasks match the current filters"
     );
   });
 
   it("Should render the loading skeleton when isLoading and no tasks", () => {
-    renderSurface({ tasks: [], totalCount: 0, isLoading: true });
+    renderSurface({ tasks: [], isLoading: true });
     expect(screen.getByTestId("tasks-list-surface-loading")).toBeInTheDocument();
   });
 
   it("Should render the error state when errorMessage is set and no tasks", () => {
-    renderSurface({ tasks: [], totalCount: 0, errorMessage: "Unable to reach the daemon" });
+    renderSurface({ tasks: [], errorMessage: "Unable to reach the daemon" });
     expect(screen.getByTestId("tasks-list-surface-error")).toBeInTheDocument();
     expect(screen.getByText(/unable to reach the daemon/i)).toBeInTheDocument();
   });
 
-  it("Should render the page header with title, count, and workspace meta", () => {
+  it("Should render ready task cards without body identity or toolbar chrome", () => {
     renderSurface({
       tasks: [buildTask({ id: "a", status: "ready" })],
-      totalCount: 4,
-      workspaceName: "agh-runtime",
-      listUpdatedAt: Date.now() - 90_000,
     });
 
-    expect(screen.getByTestId("tasks-list-page-title")).toHaveTextContent("Tasks");
-    expect(screen.getByTestId("tasks-list-page-count")).toHaveTextContent("1 of 4");
-    expect(screen.getByTestId("tasks-list-page-workspace")).toHaveTextContent("agh-runtime");
-    expect(screen.getByTestId("tasks-list-page-synced")).toHaveTextContent(/synced/i);
+    expect(screen.queryByTestId("tasks-list-page-title")).toBeNull();
+    expect(document.querySelector('[data-slot="page-head"]')).toBeNull();
+    expect(document.querySelector('[data-slot="listing-toolbar"]')).toBeNull();
+    expect(screen.getByTestId("tasks-list-surface")).toBeInTheDocument();
+    expect(screen.getByText("Generate API client")).toBeInTheDocument();
   });
 
   it("Should expose an accessible continuation without hiding loaded rows", () => {
     const onLoadMore = vi.fn();
     renderSurface({
       tasks: [buildTask()],
-      totalCount: 4,
       hasMore: true,
       onLoadMore,
     });
@@ -222,7 +205,6 @@ describe("TasksListSurface", () => {
   it("Should disable the continuation while the next page is loading", () => {
     renderSurface({
       tasks: [buildTask()],
-      totalCount: 4,
       hasMore: true,
       isLoadingMore: true,
       onLoadMore: vi.fn(),
@@ -237,7 +219,6 @@ describe("TasksListSurface", () => {
     renderSurface({
       errorMessage: "Next page unavailable",
       tasks: [buildTask()],
-      totalCount: 4,
       hasMore: true,
       onLoadMore,
       onRetryLoad: onRetry,
@@ -253,7 +234,7 @@ describe("TasksListSurface", () => {
     const task = buildTask({ status: "ready" });
     const statusCounts = countTasksByStatus([]);
     statusCounts.ready = 10;
-    renderSurface({ statusCounts, tasks: [task], totalCount: 10 });
+    renderSurface({ statusCounts, tasks: [task] });
 
     expect(screen.getByTestId("task-group-queued-count")).toHaveTextContent("1 of 10");
   });

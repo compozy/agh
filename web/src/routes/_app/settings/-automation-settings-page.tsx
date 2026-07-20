@@ -9,7 +9,7 @@ import {
   SettingsNumberInput,
   SettingsSaveBar,
   type SettingsAutomationSection,
-  SettingsPageHead,
+  SettingsTopbarPublisher,
 } from "@/systems/settings";
 import {
   Button,
@@ -98,7 +98,7 @@ export function AutomationSettingsPage() {
     <PageShell
       slug="automation"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="automation" statusLine={statusLine} />}
+      head={<SettingsTopbarPublisher slug="automation" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="automation"

@@ -13,7 +13,7 @@ import {
   SettingsFieldRow,
   type SettingsScope,
   type SettingsSkillsSection,
-  SettingsPageHead,
+  SettingsTopbarPublisher,
 } from "@/systems/settings";
 import type { WorkspacePayload } from "@/systems/workspace";
 import {
@@ -118,7 +118,7 @@ export function SkillsSettingsPage() {
     <PageShell
       slug="skills"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="skills" statusLine={statusLine} />}
+      head={<SettingsTopbarPublisher slug="skills" statusLine={statusLine} />}
     >
       <ScopeSelector
         selection={page.selection}

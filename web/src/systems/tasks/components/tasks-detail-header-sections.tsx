@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
   BellOff,
@@ -48,7 +48,7 @@ import {
   taskPriorityTone,
   taskShortId,
   taskStatusLabel,
-  taskStatusTone,
+  taskStatusSignal,
   taskWakeIndicatorApplies,
 } from "../lib/task-formatters";
 import { taskRunCanRecover } from "../lib/task-run-recovery";
@@ -72,9 +72,6 @@ export function TasksDetailHeaderPills({ detail }: { detail: TaskDetailView }) {
   return (
     <>
       <MonoId data-testid="tasks-detail-id" value={taskShortId(record)} />
-      <Pill data-testid="tasks-detail-status" tone={taskStatusTone(record.status)}>
-        {taskStatusLabel(record.status)}
-      </Pill>
       <Pill
         data-testid="tasks-detail-lifecycle"
         title={taskLifecyclePhaseDescription(lifecyclePhase)}
@@ -219,9 +216,14 @@ export function TasksDetailHeaderActions({
   onResume,
   onRecover,
 }: TasksDetailHeaderActionsProps) {
+  const navigate = useNavigate();
   const pauseDialog = useTaskPauseDialog(onPause);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const record = detail.task;
+  const signal = taskStatusSignal(record.status);
+  const backToTasks = () => {
+    void navigate({ to: "/tasks" });
+  };
   const isDraft = taskIsDraft(record);
   const isDirectlyPaused = Boolean(record.paused);
   const isEffectivelyPaused = Boolean(detail.summary?.effective_paused ?? record.paused);
@@ -247,80 +249,72 @@ export function TasksDetailHeaderActions({
   const isPausePending = pending?.pause ?? false;
   const showResume = isDirectlyPaused && Boolean(onResume);
   const showPause = !isDirectlyPaused && Boolean(onPause);
-  const showOverflow =
-    Boolean(onDelete) || (canCancel && Boolean(onCancel)) || showResume || showPause;
+  const primaryAction =
+    canRecover && onRecover ? (
+      <Button
+        data-testid="tasks-detail-recover"
+        disabled={pending?.recover}
+        onClick={() => void onRecover()}
+        size="sm"
+        title={
+          canRecoverRun
+            ? "Mark this needs-attention run as failed and queue one continuation."
+            : "Clear the needs_attention escalation and return the task to the claimable set."
+        }
+        type="button"
+      >
+        <LifeBuoy className="size-3" aria-hidden="true" />
+        Recover
+      </Button>
+    ) : isDraft && onPublish ? (
+      <Button
+        data-testid="tasks-detail-publish"
+        disabled={pending?.publish}
+        onClick={onPublish}
+        size="sm"
+        title={publishCopy.tooltip}
+        type="button"
+      >
+        {publishCopy.label}
+      </Button>
+    ) : canEnqueueRun && onEnqueueRun ? (
+      <Button
+        data-testid="tasks-detail-enqueue"
+        disabled={pending?.enqueue || isEffectivelyPaused}
+        onClick={onEnqueueRun}
+        size="sm"
+        title={startTitle}
+        type="button"
+      >
+        {startCopy.label}
+      </Button>
+    ) : null;
 
-  // Route chrome §07: Edit + one accent primary; Cancel/Pause/Delete → overflow.
   useTopbarSlot({
-    crumb: (
-      <span className="inline-flex min-w-0 items-center gap-1.5">
-        <Link
-          className="shrink-0 text-muted transition-colors hover:text-fg-strong"
-          data-testid="tasks-detail-breadcrumb-tasks"
-          to="/tasks"
-        >
-          Tasks
-        </Link>
-        <span aria-hidden="true" className="shrink-0 text-faint">
-          /
-        </span>
-        <span className="truncate">{record.identifier ?? record.id}</span>
-      </span>
+    onBack: backToTasks,
+    crumbs: [
+      {
+        id: "tasks",
+        label: <span data-testid="tasks-detail-breadcrumb-tasks">Tasks</span>,
+        onSelect: backToTasks,
+      },
+    ],
+    crumb: <span data-testid="tasks-detail-title">{record.title}</span>,
+    status: (
+      <Pill data-testid="tasks-detail-status" tone={signal.tone}>
+        <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
+        {taskStatusLabel(record.status)}
+      </Pill>
     ),
-    actions: (
+    actions: primaryAction ? (
       <div
         data-testid="tasks-detail-actions"
         className="flex shrink-0 flex-wrap items-center gap-2"
       >
-        <Link params={{ id: record.id }} to="/tasks/$id/edit">
-          <Button data-testid="tasks-detail-edit" size="sm" type="button" variant="neutral">
-            Edit
-          </Button>
-        </Link>
-        {canRecover && onRecover ? (
-          <Button
-            data-testid="tasks-detail-recover"
-            disabled={pending?.recover}
-            onClick={() => void onRecover()}
-            size="sm"
-            title={
-              canRecoverRun
-                ? "Mark this needs-attention run as failed and queue one continuation."
-                : "Clear the needs_attention escalation and return the task to the claimable set."
-            }
-            type="button"
-          >
-            <LifeBuoy className="size-3" aria-hidden="true" />
-            Recover
-          </Button>
-        ) : null}
-        {isDraft && onPublish ? (
-          <Button
-            data-testid="tasks-detail-publish"
-            disabled={pending?.publish}
-            onClick={onPublish}
-            size="sm"
-            title={publishCopy.tooltip}
-            type="button"
-          >
-            {publishCopy.label}
-          </Button>
-        ) : null}
-        {canEnqueueRun && onEnqueueRun ? (
-          <Button
-            data-testid="tasks-detail-enqueue"
-            disabled={pending?.enqueue || isEffectivelyPaused}
-            onClick={onEnqueueRun}
-            size="sm"
-            title={startTitle}
-            type="button"
-          >
-            {startCopy.label}
-          </Button>
-        ) : null}
+        {primaryAction}
       </div>
-    ),
-    overflow: showOverflow ? (
+    ) : undefined,
+    overflow: (
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label="More actions"
@@ -330,6 +324,12 @@ export function TasksDetailHeaderActions({
           <TopbarOverflowIcon aria-hidden="true" className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" data-testid="tasks-detail-overflow-menu">
+          <DropdownMenuItem
+            data-testid="tasks-detail-edit"
+            render={<Link params={{ id: record.id }} to="/tasks/$id/edit" />}
+          >
+            Edit
+          </DropdownMenuItem>
           {canCancel && onCancel ? (
             <DropdownMenuItem
               data-testid="tasks-detail-cancel"
@@ -371,7 +371,7 @@ export function TasksDetailHeaderActions({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-    ) : undefined,
+    ),
   });
 
   return (

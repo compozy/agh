@@ -46,7 +46,7 @@ describe("react-rnd StrictMode spike (ADR-003)", () => {
       <StrictMode>
         <OsShellContext.Provider value={shell}>
           <div style={{ position: "relative", width: 1440, height: 900 }}>
-            <OsWindow windowId="app:vault" rootCrumb="agh" />
+            <OsWindow windowId="app:vault" />
           </div>
         </OsShellContext.Provider>
       </StrictMode>

@@ -10,7 +10,7 @@ import {
   SettingsSaveBar,
   type SettingsGeneralSection,
   type SettingsUpdateStatus,
-  SettingsPageHead,
+  SettingsTopbarPublisher,
 } from "@/systems/settings";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
 import {
@@ -131,7 +131,7 @@ export function GeneralSettingsPage() {
     <PageShell
       slug="general"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="general" statusLine={statusLine} />}
+      head={<SettingsTopbarPublisher slug="general" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="general"

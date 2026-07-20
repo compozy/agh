@@ -30,13 +30,20 @@ const STATE_BADGE_FALLBACK: Record<SessionState, SessionBadge> = {
 
 export interface SessionStatusLineProps extends Omit<React.ComponentProps<"span">, "children"> {
   session: SessionPayload;
+  /** The document-head variant renders state as the leading mark instead. */
+  showState?: boolean;
 }
 
 /**
- * Daemon badge + agent/provider identity line for the session head band.
- * Status summaries are body chrome — never topbar content (route chrome §04).
+ * Daemon badge plus agent/provider identity for session chrome. Document
+ * windows can move the state signal to the leading mark while retaining meta.
  */
-export function SessionStatusLine({ className, session, ...props }: SessionStatusLineProps) {
+export function SessionStatusLine({
+  className,
+  session,
+  showState = true,
+  ...props
+}: SessionStatusLineProps) {
   const badge = session.badge ?? STATE_BADGE_FALLBACK[session.state] ?? "unknown";
   const signal = BADGE_SIGNAL[badge] ?? BADGE_SIGNAL.unknown;
   const agentLabel = session.agent_name.trim();
@@ -48,21 +55,29 @@ export function SessionStatusLine({ className, session, ...props }: SessionStatu
       className={cn("flex min-w-0 items-center gap-2", className)}
       {...props}
     >
-      <Pill.Dot
-        size="md"
-        tone={signal.tone}
-        pulse={signal.pulse}
-        data-testid="agent-status-dot"
-        aria-label={`Session badge: ${signal.label}`}
-      />
-      <span data-testid="session-status-badge" className="font-mono text-eyebrow text-faint">
-        {signal.label}
-      </span>
+      {showState ? (
+        <>
+          <Pill.Dot
+            size="md"
+            tone={signal.tone}
+            pulse={signal.pulse}
+            data-testid="agent-status-dot"
+            aria-label={`Session badge: ${signal.label}`}
+          />
+          <span data-testid="session-status-badge" className="font-mono text-eyebrow text-faint">
+            {signal.label}
+          </span>
+        </>
+      ) : (
+        <span className="sr-only">Session badge: {signal.label}</span>
+      )}
       {agentLabel ? (
         <>
-          <span aria-hidden="true" className="text-subtle">
-            ·
-          </span>
+          {showState ? (
+            <span aria-hidden="true" className="text-subtle">
+              ·
+            </span>
+          ) : null}
           <span data-testid="session-status-agent" className="truncate text-eyebrow text-muted">
             {agentLabel}
           </span>
@@ -70,9 +85,11 @@ export function SessionStatusLine({ className, session, ...props }: SessionStatu
       ) : null}
       {providerLabel ? (
         <>
-          <span aria-hidden="true" className="text-subtle">
-            ·
-          </span>
+          {showState || agentLabel ? (
+            <span aria-hidden="true" className="text-subtle">
+              ·
+            </span>
+          ) : null}
           <span data-testid="session-status-provider" className="font-mono text-eyebrow text-faint">
             {providerLabel}
           </span>

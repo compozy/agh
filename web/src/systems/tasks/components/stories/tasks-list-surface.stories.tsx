@@ -1,12 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { ListChecks } from "lucide-react";
 import { useState } from "react";
 
-import { UIProvider } from "@agh/ui";
+import { UIProvider, useTopbarSlot } from "@agh/ui";
+import { OsWindowFrame } from "@/systems/os/components";
 
 import { TasksListSurface } from "../tasks-list-surface";
 import type { TasksListSurfaceProps } from "../tasks-list-surface";
+import { TasksListToolbar } from "../tasks-list-toolbar";
 import type { TaskFilterOwnerOption } from "../../lib/tasks-list-filters";
 import { countTasksByStatus } from "../../lib/task-formatters";
+import type { TaskListSortKey, TaskPriority, TaskStatus } from "../../types";
 import { buildTaskFixture } from "./fixtures";
 
 const FIXTURE_TASKS = [
@@ -53,40 +57,95 @@ const OWNER_OPTIONS: TaskFilterOwnerOption[] = [
   { ref: "pedro@", kind: "human" },
 ];
 
-const LIST_UPDATED_AT = Date.UTC(2026, 3, 18, 1, 0, 0);
-
 function Stateful(props: Partial<TasksListSurfaceProps>) {
-  const [statusFilter, setStatusFilter] = useState<TasksListSurfaceProps["statusFilter"]>(null);
-  const [ownerFilter, setOwnerFilter] = useState<TasksListSurfaceProps["ownerFilter"]>(null);
-  const [priorityFilter, setPriorityFilter] =
-    useState<TasksListSurfaceProps["priorityFilter"]>(null);
-  const [sortBy, setSortBy] = useState<TasksListSurfaceProps["sortBy"]>("recent");
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
+  const [ownerFilter, setOwnerFilter] = useState<TaskFilterOwnerOption | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
+  const [sortBy, setSortBy] = useState<TaskListSortKey>("recent");
   const [searchQuery, setSearchQuery] = useState("");
+  const tasks = props.tasks ?? FIXTURE_TASKS;
 
   return (
     <UIProvider reducedMotion="always">
-      <div className="flex h-screen flex-col bg-canvas">
-        <TasksListSurface
-          listUpdatedAt={LIST_UPDATED_AT}
-          onOwnerChange={setOwnerFilter}
-          onPriorityChange={setPriorityFilter}
-          onSearchQueryChange={setSearchQuery}
-          onSortChange={setSortBy}
-          onStatusChange={setStatusFilter}
-          ownerFilter={ownerFilter}
-          ownerOptions={OWNER_OPTIONS}
-          priorityFilter={priorityFilter}
-          searchQuery={searchQuery}
-          sortBy={sortBy}
-          statusFilter={statusFilter}
-          statusCounts={props.statusCounts ?? countTasksByStatus(props.tasks ?? FIXTURE_TASKS)}
-          tasks={FIXTURE_TASKS}
-          totalCount={FIXTURE_TASKS.length}
-          workspaceName="agh-runtime"
-          {...props}
-        />
+      <div className="flex h-screen items-center justify-center bg-rail p-10">
+        <OsWindowFrame className="h-full max-h-[720px] w-full max-w-[1080px]" title="Tasks">
+          <TasksListStoryRoute
+            ownerFilter={ownerFilter}
+            priorityFilter={priorityFilter}
+            props={props}
+            searchQuery={searchQuery}
+            setOwnerFilter={setOwnerFilter}
+            setPriorityFilter={setPriorityFilter}
+            setSearchQuery={setSearchQuery}
+            setSortBy={setSortBy}
+            setStatusFilter={setStatusFilter}
+            sortBy={sortBy}
+            statusFilter={statusFilter}
+            tasks={tasks}
+          />
+        </OsWindowFrame>
       </div>
     </UIProvider>
+  );
+}
+
+function TasksListStoryRoute({
+  ownerFilter,
+  priorityFilter,
+  props,
+  searchQuery,
+  setOwnerFilter,
+  setPriorityFilter,
+  setSearchQuery,
+  setSortBy,
+  setStatusFilter,
+  sortBy,
+  statusFilter,
+  tasks,
+}: {
+  ownerFilter: TaskFilterOwnerOption | null;
+  priorityFilter: TaskPriority | null;
+  props: Partial<TasksListSurfaceProps>;
+  searchQuery: string;
+  setOwnerFilter: (value: TaskFilterOwnerOption | null) => void;
+  setPriorityFilter: (value: TaskPriority | null) => void;
+  setSearchQuery: (value: string) => void;
+  setSortBy: (value: TaskListSortKey) => void;
+  setStatusFilter: (value: TaskStatus | null) => void;
+  sortBy: TaskListSortKey;
+  statusFilter: TaskStatus | null;
+  tasks: TasksListSurfaceProps["tasks"];
+}) {
+  useTopbarSlot({
+    glyph: <ListChecks />,
+    count: tasks.length,
+    toolbar: (
+      <TasksListToolbar
+        onOwnerChange={setOwnerFilter}
+        onPriorityChange={setPriorityFilter}
+        onSearchQueryChange={setSearchQuery}
+        onSortChange={setSortBy}
+        onStatusChange={setStatusFilter}
+        ownerFilter={ownerFilter}
+        ownerOptions={OWNER_OPTIONS}
+        priorityFilter={priorityFilter}
+        searchQuery={searchQuery}
+        sortBy={sortBy}
+        statusFilter={statusFilter}
+      />
+    ),
+  });
+
+  return (
+    <TasksListSurface
+      filterState={
+        statusFilter || ownerFilter || priorityFilter || searchQuery ? "active" : "inactive"
+      }
+      searchQuery={searchQuery}
+      statusCounts={props.statusCounts ?? countTasksByStatus(tasks)}
+      tasks={tasks}
+      {...props}
+    />
   );
 }
 
@@ -113,27 +172,20 @@ export const Default: Story = {
 
 export const Loading: Story = {
   args: {},
-  render: () => <Stateful isLoading tasks={[]} totalCount={0} />,
+  render: () => <Stateful isLoading tasks={[]} />,
 };
 
 export const Empty: Story = {
   args: {},
-  render: () => <Stateful tasks={[]} totalCount={0} />,
+  render: () => <Stateful tasks={[]} />,
 };
 
 export const ErrorState: Story = {
   args: {},
-  render: () => (
-    <Stateful tasks={[]} totalCount={0} errorMessage="Daemon unreachable on /api/tasks." />
-  ),
+  render: () => <Stateful tasks={[]} errorMessage="Daemon unreachable on /api/tasks." />,
 };
 
 export const SingleGroup: Story = {
   args: {},
-  render: () => (
-    <Stateful
-      tasks={FIXTURE_TASKS.filter(task => task.status === "in_progress")}
-      totalCount={FIXTURE_TASKS.length}
-    />
-  ),
+  render: () => <Stateful tasks={FIXTURE_TASKS.filter(task => task.status === "in_progress")} />,
 };

@@ -20,6 +20,7 @@ import {
   AgentOverviewTab,
   AgentPageActions,
   AgentPageOverflow,
+  AgentPageStatusPill,
   AgentRuntimeControl,
   AgentSessionsTab,
   useAgentInstructionsTab,
@@ -89,21 +90,30 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
     },
   ];
 
-  // Topbar carries route actions only; the provider·model·reasoning selector
-  // lives on the PageHead's trailing edge (OpenDesign agent-detail dh__actions).
   useTopbarSlot(
     page.agent
       ? {
-          crumb: `Agents / ${name}`,
+          onBack: () => page.onBackToAgents(),
+          crumbs: [{ id: "agents", label: "Agents", onSelect: () => page.onBackToAgents() }],
+          crumb: <span data-testid="agent-detail-header-name">{name}</span>,
+          status: metricsReady ? (
+            <AgentPageStatusPill activeCount={page.activeSessionsTotal} />
+          ) : undefined,
           actions: (
             <AgentPageActions
-              onEditSettings={() => page.onEditSettings()}
               onNewSession={page.onNewSession}
               isCreatingSession={page.isCreatingForAgent}
               newSessionDisabled={page.newSessionDisabled}
             />
           ),
-          overflow: <AgentPageOverflow onDelete={page.onDelete} onDuplicate={page.onDuplicate} />,
+          overflow: (
+            <AgentPageOverflow
+              onDelete={page.onDelete}
+              onDuplicate={page.onDuplicate}
+              onEditSettings={() => page.onEditSettings()}
+            />
+          ),
+          toolbar: <AgentRuntimeControl agent={page.agent} workspaceId={activeWorkspaceId} />,
         }
       : null
   );
@@ -164,12 +174,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
             <AgentDiagnosticsBanner diagnostics={page.agent.diagnostics} />
           </div>
         ) : null}
-        <AgentDetailHeader
-          agent={page.agent}
-          activeCount={page.activeSessionsTotal}
-          metricsUnavailable={page.metricsUnavailable || page.metricsLoading}
-          actions={<AgentRuntimeControl agent={page.agent} workspaceId={activeWorkspaceId} />}
-        />
+        <AgentDetailHeader agent={page.agent} />
         <LaneTabs
           ariaLabel="Agent detail panels"
           className="min-h-0 flex-1 gap-0"

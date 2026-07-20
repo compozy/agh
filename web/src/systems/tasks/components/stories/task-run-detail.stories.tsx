@@ -11,7 +11,7 @@ const meta: Meta<typeof TaskRunDetailHeader> = {
   component: TaskRunDetailHeader,
   decorators: [
     Story => (
-      <StoryTopbarHost breadcrumb={<span>Tasks › TASK-42</span>} title="Task run">
+      <StoryTopbarHost title="Task run">
         <Story />
       </StoryTopbarHost>
     ),

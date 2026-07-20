@@ -167,3 +167,24 @@ export const PresentationOnly: Story = {
     </DesktopShell>
   ),
 };
+
+/**
+ * Hover magnify — OpenDesign proximity field (neighbors lift + scale). Move
+ * the pointer across the dock strip to verify the falloff bulge.
+ */
+export const HoverMagnify: Story = {
+  args: { items: DESK_ITEMS, onSelect: fn(), magnify: true },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Pointer proximity magnification matching OpenDesign `MAG_RADIUS=96` / `MAG_SCALE=0.34`. Compact presentation and prefers-reduced-motion disable the effect.",
+      },
+    },
+  },
+  render: () => (
+    <DesktopShell dock={false}>
+      <OsDockZone items={DESK_ITEMS} onSelect={fn()} onNewSession={fn()} magnify />
+    </DesktopShell>
+  ),
+};

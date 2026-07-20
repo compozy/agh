@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
-import { UIProvider } from "@agh/ui";
+import { Topbar, TopbarSlotProvider, UIProvider } from "@agh/ui";
 
 import { countTasksByStatus, TasksDetailHeader, TasksListSurface } from "@/systems/tasks";
 import type { TaskDetailView, TaskListItem } from "@/systems/tasks";
@@ -205,7 +205,10 @@ function buildSelectionRouter(initialUrl: string) {
   const rootRoute = createRootRoute({
     component: () => (
       <UIProvider reducedMotion="always">
-        <Outlet />
+        <TopbarSlotProvider>
+          <Topbar title="Tasks" />
+          <Outlet />
+        </TopbarSlotProvider>
       </UIProvider>
     ),
   });
@@ -235,20 +238,9 @@ function buildSelectionRouter(initialUrl: string) {
     return (
       <div data-testid="tasks-shell">
         <TasksListSurface
-          onOwnerChange={() => {}}
-          onPriorityChange={() => {}}
-          onSearchQueryChange={() => {}}
-          onSortChange={() => {}}
-          onStatusChange={() => {}}
-          ownerFilter={null}
-          ownerOptions={[]}
-          priorityFilter={null}
           searchQuery=""
-          sortBy="recent"
-          statusFilter={null}
           statusCounts={countTasksByStatus(FIXTURE_TASKS)}
           tasks={FIXTURE_TASKS}
-          totalCount={FIXTURE_TASKS.length}
         />
         <Outlet />
       </div>

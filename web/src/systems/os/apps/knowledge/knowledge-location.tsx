@@ -9,11 +9,9 @@ import {
 } from "@/systems/knowledge";
 import {
   Button,
-  cn,
   Empty,
   Input,
-  PAGE_CONTENT_GUTTER,
-  PageHead,
+  ListingToolbar,
   PillGroup,
   Spinner,
   SplitPane,
@@ -69,41 +67,42 @@ export function KnowledgeLocation() {
       onClick={() => page.setCreateOpen(true)}
       size="sm"
       type="button"
-      variant="outline"
     >
       <Plus className="size-3" />
       Create
     </Button>
   );
 
-  useTopbarSlot({
-    actions: createBtn,
-  });
+  const selected = page.selectedMemory;
+  const clearSelection = () => {
+    page.setSelectedMemoryKey(null);
+  };
 
-  const headBand = (
-    <div className="border-b border-line-soft">
-      <div
-        className={cn(PAGE_CONTENT_GUTTER, "flex flex-wrap items-start justify-between gap-3 py-4")}
-      >
-        <PageHead
-          count={page.guardMessage || page.isLoading || page.error ? undefined : page.memoryCount}
-          data-testid="knowledge-page-head"
-          icon={BookOpen}
-          title="Knowledge"
-          variant="compact"
-        />
-        <div className="flex flex-wrap items-center gap-2">
+  useTopbarSlot({
+    glyph: selected ? undefined : <BookOpen />,
+    crumb: selected ? (
+      <span data-testid="knowledge-detail-title">{selected.name}</span>
+    ) : (
+      "Knowledge"
+    ),
+    onBack: selected ? () => clearSelection() : undefined,
+    crumbs: selected
+      ? [{ id: "knowledge", label: "Knowledge", onSelect: () => clearSelection() }]
+      : undefined,
+    actions: createBtn,
+    toolbar: (
+      <ListingToolbar>
+        <ListingToolbar.Leading>
           {scopePills}
           {agentControls}
-        </div>
-      </div>
-    </div>
-  );
+        </ListingToolbar.Leading>
+      </ListingToolbar>
+    ),
+  });
 
   if (page.guardMessage) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        {headBand}
         <div
           className="flex min-h-0 flex-1 items-center justify-center py-10"
           data-testid="knowledge-guard"
@@ -122,7 +121,6 @@ export function KnowledgeLocation() {
   if (page.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        {headBand}
         <div
           className="flex min-h-0 flex-1 items-center justify-center"
           data-testid="knowledge-loading"
@@ -136,7 +134,6 @@ export function KnowledgeLocation() {
   if (page.error) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-        {headBand}
         <div
           className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-10"
           data-testid="knowledge-error"
@@ -157,7 +154,6 @@ export function KnowledgeLocation() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
-      {headBand}
       <SplitPane
         data-testid="knowledge-split-pane"
         detail={

@@ -1,6 +1,3 @@
-import { PageHead, Pill } from "@agh/ui";
-
-import { taskStatusSignal } from "../lib/task-formatters";
 import type { TaskDetailView } from "../types";
 import {
   TasksDetailHeaderActions,
@@ -28,7 +25,10 @@ export interface TasksDetailHeaderProps {
   onRecover?: () => void | Promise<void>;
 }
 
-/** `/tasks/$id` hero rendering identity via PageHead; actions publish to the topbar. */
+/**
+ * Task detail body under the unified window head — pills + meta only.
+ * Identity and trail actions publish through `TasksDetailHeaderActions` → `useTopbarSlot`.
+ */
 export function TasksDetailHeader({
   detail,
   pending,
@@ -40,11 +40,8 @@ export function TasksDetailHeader({
   onResume,
   onRecover,
 }: TasksDetailHeaderProps) {
-  const record = detail.task;
-  const signal = taskStatusSignal(record.status);
-
   return (
-    <div className="pt-5">
+    <div className="flex flex-col gap-2 pt-4" data-testid="tasks-detail-header">
       <TasksDetailHeaderActions
         detail={detail}
         pending={pending}
@@ -56,19 +53,10 @@ export function TasksDetailHeader({
         onRecover={onRecover}
         onResume={onResume}
       />
-      <PageHead
-        data-testid="tasks-detail-header"
-        pretitle="Task"
-        title={
-          <span data-testid="tasks-detail-title" className="inline-flex min-w-0 items-center gap-2">
-            <Pill.Dot tone={signal.tone} pulse={signal.pulse} />
-            <span className="truncate">{record.title}</span>
-          </span>
-        }
-        variant="detail"
-        pills={<TasksDetailHeaderPills detail={detail} />}
-        meta={<TasksDetailHeaderMeta detail={detail} />}
-      />
+      <div className="flex flex-wrap items-center gap-1.5">
+        <TasksDetailHeaderPills detail={detail} />
+      </div>
+      <TasksDetailHeaderMeta detail={detail} />
     </div>
   );
 }

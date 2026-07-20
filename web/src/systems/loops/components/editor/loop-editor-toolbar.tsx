@@ -5,6 +5,7 @@ import {
   LayoutGrid,
   Maximize,
   Minus,
+  Save,
   Share2,
   X,
   ZoomIn,
@@ -13,7 +14,7 @@ import {
 import { useReactFlow, useViewport } from "@xyflow/react";
 import type { ReactNode } from "react";
 
-import { cn } from "@agh/ui";
+import { Button, cn } from "@agh/ui";
 
 import { LOOP_INVARIANTS, type LoopLintState } from "../../lib/loop-editor-lint";
 import type { LoopEditorView } from "../../hooks/use-loop-editor";
@@ -24,7 +25,10 @@ interface LoopEditorToolbarProps {
   view: LoopEditorView;
   onViewChange: (view: LoopEditorView) => void;
   lint: LoopLintState;
+  busy: boolean;
+  positionsDirty: boolean;
   onAutoLayout: () => void;
+  onSaveLayout: () => void;
 }
 
 /**
@@ -37,7 +41,10 @@ export function LoopEditorToolbar({
   view,
   onViewChange,
   lint,
+  busy,
+  positionsDirty,
   onAutoLayout,
+  onSaveLayout,
 }: LoopEditorToolbarProps) {
   const flow = useReactFlow();
   const { zoom } = useViewport();
@@ -62,6 +69,19 @@ export function LoopEditorToolbar({
           <Maximize aria-hidden="true" className="size-3.5" />
         </ToolIcon>
       </div>
+
+      <Button
+        data-testid="loop-editor-save"
+        disabled={busy || !positionsDirty}
+        onClick={onSaveLayout}
+        size="sm"
+        title="Persist node positions to the annotations sidecar. Structural edits publish through Publish."
+        type="button"
+        variant="ghost"
+      >
+        <Save aria-hidden="true" className="size-3.5" />
+        Save layout
+      </Button>
 
       <div
         className="flex items-center gap-0.5 rounded-md border border-line-soft bg-input-fill p-0.5"

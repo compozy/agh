@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowUpRight, LifeBuoy, RotateCcw, Unlock, XCircle } from "lucide-react";
 
 import {
@@ -14,7 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   MonoId,
-  PageHead,
   Pill,
   Textarea,
   Time,
@@ -26,7 +25,7 @@ import {
 import { describeCost } from "@/lib/cost-provenance";
 
 import { useForceFailDialog } from "../hooks/use-force-fail-dialog";
-import { taskRunStatusLabel, taskRunStatusTone, taskStatusSignal } from "../lib/task-formatters";
+import { taskRunStatusLabel, taskStatusSignal } from "../lib/task-formatters";
 import { taskRunCanRecover } from "../lib/task-run-recovery";
 import type { TaskRunDetailView } from "../types";
 
@@ -98,6 +97,7 @@ export function TaskRunDetailHeader({
   onRetryRun,
   pendingActions,
 }: TaskRunDetailHeaderProps) {
+  const navigate = useNavigate();
   const forceFailDialog = useForceFailDialog(onForceFailRun);
 
   const record = run.run;
@@ -119,27 +119,30 @@ export function TaskRunDetailHeader({
   const linkedSessionAgent = normalizeText(session?.agent_name);
   const claimedRef = normalizeText(record.claimed_by?.ref);
 
-  const openSessionButton =
+  const openSessionMenuItem =
     linkedSessionID && linkedSessionAgent ? (
-      <Link
-        params={{ name: linkedSessionAgent, id: linkedSessionID }}
-        to="/agents/$name/sessions/$id"
+      <DropdownMenuItem
+        data-testid="task-run-detail-open-session"
+        render={
+          <Link
+            params={{ name: linkedSessionAgent, id: linkedSessionID }}
+            to="/agents/$name/sessions/$id"
+          />
+        }
       >
-        <Button data-testid="task-run-detail-open-session" size="sm" variant="neutral">
-          Open session
-          <ArrowUpRight className="size-3" strokeWidth={1.75} />
-        </Button>
-      </Link>
+        Open session
+        <ArrowUpRight className="size-3" strokeWidth={1.75} />
+      </DropdownMenuItem>
     ) : linkedSessionID ? (
-      <Link params={{ id: linkedSessionID }} to="/session/$id">
-        <Button data-testid="task-run-detail-open-session" size="sm" variant="neutral">
-          Open session
-          <ArrowUpRight className="size-3" strokeWidth={1.75} />
-        </Button>
-      </Link>
+      <DropdownMenuItem
+        data-testid="task-run-detail-open-session"
+        render={<Link params={{ id: linkedSessionID }} to="/session/$id" />}
+      >
+        Open session
+        <ArrowUpRight className="size-3" strokeWidth={1.75} />
+      </DropdownMenuItem>
     ) : null;
 
-  // Accent: Recover or Retry when available; Open session stays secondary.
   const accentPrimary =
     canRecover && onRecoverRun ? (
       <Button
@@ -166,22 +169,65 @@ export function TaskRunDetailHeader({
       </Button>
     ) : null;
 
+  const visibleAction =
+    accentPrimary ??
+    (canCancel && onCancelRun ? (
+      <Button
+        data-testid="task-run-detail-cancel"
+        disabled={pendingActions?.has("cancel")}
+        onClick={onCancelRun}
+        size="sm"
+        type="button"
+        variant="neutral"
+      >
+        Cancel run
+      </Button>
+    ) : null);
+
   const hasOverflowItems =
+    Boolean(openSessionMenuItem) ||
     (canForceRelease && Boolean(onForceReleaseRun)) ||
-    (canForceFail && Boolean(onForceFailRun)) ||
-    (canCancel && Boolean(onCancelRun));
+    (canForceFail && Boolean(onForceFailRun));
+
+  const parentTaskId = taskID || record.task_id;
+  const backToTasks = () => {
+    void navigate({ to: "/tasks" });
+  };
+  const backToTask = () => {
+    if (!parentTaskId) {
+      backToTasks();
+      return;
+    }
+    void navigate({ to: "/tasks/$id", params: { id: parentTaskId } });
+  };
 
   useTopbarSlot({
-    crumb: `Tasks / ${taskID || record.task_id} / Run ${record.id}`,
-    actions: (
+    onBack: parentTaskId ? backToTask : backToTasks,
+    crumbs: parentTaskId
+      ? [
+          { id: "tasks", label: "Tasks", onSelect: backToTasks },
+          {
+            id: "task",
+            label: <span data-testid="task-run-detail-context">{task?.title ?? parentTaskId}</span>,
+            onSelect: backToTask,
+          },
+        ]
+      : [{ id: "tasks", label: "Tasks", onSelect: backToTasks }],
+    crumb: <span data-testid="task-run-detail-title">Run {record.id}</span>,
+    status: (
+      <Pill data-testid="task-run-detail-status" tone={signal.tone}>
+        <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
+        {taskRunStatusLabel(record.status)}
+      </Pill>
+    ),
+    actions: visibleAction ? (
       <div
         data-testid="task-run-detail-actions"
         className="flex shrink-0 flex-wrap items-center gap-2"
       >
-        {openSessionButton}
-        {accentPrimary}
+        {visibleAction}
       </div>
-    ),
+    ) : undefined,
     overflow: hasOverflowItems ? (
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -192,6 +238,7 @@ export function TaskRunDetailHeader({
           <TopbarOverflowIcon aria-hidden="true" className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" data-testid="task-run-detail-overflow-menu">
+          {openSessionMenuItem}
           {canForceRelease && onForceReleaseRun ? (
             <DropdownMenuItem
               data-testid="task-run-detail-force-release"
@@ -213,16 +260,6 @@ export function TaskRunDetailHeader({
               Fail run
             </DropdownMenuItem>
           ) : null}
-          {canCancel && onCancelRun ? (
-            <DropdownMenuItem
-              data-testid="task-run-detail-cancel"
-              disabled={pendingActions?.has("cancel")}
-              onClick={onCancelRun}
-              variant="destructive"
-            >
-              Cancel run
-            </DropdownMenuItem>
-          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     ) : undefined,
@@ -230,77 +267,52 @@ export function TaskRunDetailHeader({
 
   return (
     <>
-      <div className="pt-5">
-        <PageHead
-          data-testid="task-run-detail-header"
-          pretitle={
-            <span data-testid="task-run-detail-context">
-              {taskID ? "Task run" : "Network wake"}
-            </span>
-          }
-          title={
-            <span
-              data-testid="task-run-detail-title"
-              className="inline-flex min-w-0 items-center gap-2"
-            >
-              <Pill.Dot pulse={signal.pulse} tone={signal.tone} />
-              <span className="truncate">Run</span>
-            </span>
-          }
-          variant="detail"
-          pills={
+      <div className="flex flex-col gap-2 pt-4" data-testid="task-run-detail-header">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <MonoId data-testid="task-run-detail-run-id" value={record.id} />
+          {elapsedLabel ? (
+            <Pill data-testid="task-run-detail-duration" tone="neutral">
+              {elapsedLabel}
+            </Pill>
+          ) : null}
+        </div>
+        <div
+          data-testid="task-run-detail-meta"
+          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-small-body text-subtle"
+        >
+          <span>Attempt {record.attempt}</span>
+          {linkedSessionID ? (
             <>
-              <MonoId data-testid="task-run-detail-run-id" value={record.id} />
-              <Pill data-testid="task-run-detail-status" tone={taskRunStatusTone(record.status)}>
-                {taskRunStatusLabel(record.status)}
-              </Pill>
-              {elapsedLabel ? (
-                <Pill data-testid="task-run-detail-duration" tone="neutral">
-                  {elapsedLabel}
-                </Pill>
-              ) : null}
+              <span aria-hidden="true" className="text-faint">
+                ·
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                Session <MonoId size="sm" value={linkedSessionID} />
+              </span>
             </>
-          }
-          meta={
-            <div
-              data-testid="task-run-detail-meta"
-              className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"
-            >
-              <span>Attempt {record.attempt}</span>
-              {linkedSessionID ? (
-                <>
-                  <span aria-hidden="true" className="text-faint">
-                    ·
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    Session <MonoId size="sm" value={linkedSessionID} />
-                  </span>
-                </>
-              ) : null}
-              {claimedRef ? (
-                <>
-                  <span aria-hidden="true" className="text-faint">
-                    ·
-                  </span>
-                  <span>
-                    Claimed by <span className="text-fg">{claimedRef}</span>
-                  </span>
-                </>
-              ) : null}
-              {record.started_at ? (
-                <>
-                  <span aria-hidden="true" className="text-faint">
-                    ·
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    Started <Time iso={record.started_at} mode="relative" />
-                  </span>
-                </>
-              ) : null}
-              <TaskRunCostMeta summary={run.summary} />
-            </div>
-          }
-        />
+          ) : null}
+          {claimedRef ? (
+            <>
+              <span aria-hidden="true" className="text-faint">
+                ·
+              </span>
+              <span>
+                Claimed by <span className="text-fg">{claimedRef}</span>
+              </span>
+            </>
+          ) : null}
+          {record.started_at ? (
+            <>
+              <span aria-hidden="true" className="text-faint">
+                ·
+              </span>
+              <span className="inline-flex items-center gap-1">
+                Started <Time iso={record.started_at} mode="relative" />
+              </span>
+            </>
+          ) : null}
+          <TaskRunCostMeta summary={run.summary} />
+        </div>
       </div>
       <Dialog open={forceFailDialog.isOpen} onOpenChange={forceFailDialog.handleOpenChange}>
         <DialogContent

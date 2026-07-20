@@ -1,3 +1,5 @@
+import { Network as NetworkIcon } from "lucide-react";
+
 import { Spinner, useTopbarSlot } from "@agh/ui";
 
 import { DaemonDown } from "../components/empty-states/daemon-down";
@@ -52,6 +54,7 @@ export function NetworkWindowController({
   };
 
   useTopbarSlot({
+    glyph: <NetworkIcon />,
     crumb: networkWindowCrumb(view.location),
     actions: page.status ? view.networkCreate.action : undefined,
   });

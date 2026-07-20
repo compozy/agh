@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, Plus } from "lucide-react";
+import { AlertCircle, ListChecks, Plus } from "lucide-react";
 
-import { BlockLoading, Button, Empty, RouteNav, useTopbarSlot } from "@agh/ui";
+import { BlockLoading, Button, Empty, ListingToolbar, RouteNav, useTopbarSlot } from "@agh/ui";
 
 import {
   TasksDashboardView,
@@ -9,6 +9,7 @@ import {
   TasksInboxView,
   TasksKanbanBoard,
   TasksListSurface,
+  TasksListToolbar,
   useTasksPage,
   type TaskViewMode,
 } from "@/systems/tasks";
@@ -32,36 +33,38 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
   const navigate = (pathname: string, search: Record<string, unknown> = {}) =>
     coordinator.userOpen({ app: "tasks", location: { pathname, search } });
   const openCreate = () => navigate("/tasks/new");
+  const modeNav = (
+    <RouteNav aria-label="Tasks views" data-testid="tasks-mode-nav">
+      {TASK_MODE_ITEMS.map(item => (
+        <RouteNav.Link
+          aria-current={item.value === mode ? "page" : undefined}
+          data-testid={item.testId}
+          key={item.value}
+          render={
+            <Link
+              activeOptions={{ exact: true, includeSearch: true }}
+              onClick={() => {
+                if (item.value !== mode) page.setSearchQuery("");
+              }}
+              search={item.value === "list" ? {} : { mode: item.value }}
+              to="/tasks"
+            />
+          }
+        >
+          {item.label}
+          {item.value === "inbox" && page.inboxUnreadCount ? (
+            <RouteNav.Count data-testid="tasks-mode-inbox-count">
+              {page.inboxUnreadCount}
+            </RouteNav.Count>
+          ) : null}
+        </RouteNav.Link>
+      ))}
+    </RouteNav>
+  );
 
   useTopbarSlot({
-    routeNav: (
-      <RouteNav aria-label="Tasks views" data-testid="tasks-mode-nav">
-        {TASK_MODE_ITEMS.map(item => (
-          <RouteNav.Link
-            aria-current={item.value === mode ? "page" : undefined}
-            data-testid={item.testId}
-            key={item.value}
-            render={
-              <Link
-                activeOptions={{ exact: true, includeSearch: true }}
-                onClick={() => {
-                  if (item.value !== mode) page.setSearchQuery("");
-                }}
-                search={item.value === "list" ? {} : { mode: item.value }}
-                to="/tasks"
-              />
-            }
-          >
-            {item.label}
-            {item.value === "inbox" && page.inboxUnreadCount ? (
-              <RouteNav.Count data-testid="tasks-mode-inbox-count">
-                {page.inboxUnreadCount}
-              </RouteNav.Count>
-            ) : null}
-          </RouteNav.Link>
-        ))}
-      </RouteNav>
-    ),
+    glyph: <ListChecks />,
+    count: mode === "list" && !page.listLoading ? page.tasksCount : undefined,
     actions: (
       <Button
         data-testid="tasks-open-create"
@@ -69,12 +72,32 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
         onClick={openCreate}
         size="sm"
         type="button"
-        variant="outline"
       >
         <Plus className="size-3" />
-        Task
+        New task
       </Button>
     ),
+    toolbar:
+      mode === "list" && page.hasActiveTaskScope ? (
+        <TasksListToolbar
+          onOwnerChange={page.handleOwnerChange}
+          onPriorityChange={page.handlePriorityChange}
+          onSearchQueryChange={page.setSearchQuery}
+          onSortChange={page.handleSortChange}
+          onStatusChange={page.handleStatusChange}
+          ownerFilter={page.ownerFilter}
+          ownerOptions={page.ownerOptions}
+          priorityFilter={page.priorityFilter}
+          searchQuery={page.searchQuery}
+          sortBy={page.sortBy}
+          statusFilter={page.statusFilter}
+          viewNav={modeNav}
+        />
+      ) : (
+        <ListingToolbar>
+          <ListingToolbar.Trailing>{modeNav}</ListingToolbar.Trailing>
+        </ListingToolbar>
+      ),
   });
 
   return (
@@ -125,7 +148,6 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
         <TasksInboxView
           errorMessage={page.inboxError?.message ?? null}
           inbox={page.inbox}
-          inboxUpdatedAt={page.inboxUpdatedAt}
           hasMore={page.hasMoreInbox}
           isLoading={page.inboxLoading}
           isLoadingMore={page.isLoadingMoreInbox}
@@ -147,7 +169,6 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
           searchQuery={page.inboxSearchQuery}
           statusFilter={page.inboxStatusFilter}
           unreadOnly={page.inboxUnreadOnly}
-          workspaceName={page.activeWorkspaceName}
           pendingApproveIds={page.pendingApproveIds}
           pendingArchiveIds={page.pendingArchiveIds}
           pendingDismissIds={page.pendingDismissIds}
@@ -180,27 +201,22 @@ export function TasksCatalogLocation({ mode }: { mode: TaskViewMode }) {
       ) : (
         <TasksListSurface
           errorMessage={page.listError?.message ?? null}
+          filterState={
+            Boolean(page.statusFilter) ||
+            Boolean(page.ownerFilter) ||
+            Boolean(page.priorityFilter) ||
+            page.searchQuery.trim() !== ""
+              ? "active"
+              : "inactive"
+          }
           isLoading={page.listLoading}
           hasMore={page.hasMoreTasks}
           isLoadingMore={page.isLoadingMoreTasks}
-          listUpdatedAt={page.listUpdatedAt}
-          onOwnerChange={page.handleOwnerChange}
           onLoadMore={page.loadMoreTasks}
           onRetryLoad={page.retryTasks}
-          onPriorityChange={page.handlePriorityChange}
-          onSortChange={page.handleSortChange}
-          onStatusChange={page.handleStatusChange}
-          onSearchQueryChange={page.setSearchQuery}
-          ownerFilter={page.ownerFilter}
-          ownerOptions={page.ownerOptions}
-          priorityFilter={page.priorityFilter}
           searchQuery={page.searchQuery}
-          sortBy={page.sortBy}
-          statusFilter={page.statusFilter}
           statusCounts={page.statusCounts}
           tasks={page.visibleTasks}
-          totalCount={page.tasksCount}
-          workspaceName={page.activeWorkspaceName}
         />
       )}
     </div>

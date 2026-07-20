@@ -1,7 +1,16 @@
 import type { RefObject } from "react";
-import { Plus } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Plus, RefreshCw } from "lucide-react";
 
-import { Button, ListingPage, ListingToolbar, PageHead, PillGroup } from "@agh/ui";
+import {
+  Button,
+  ListingPage,
+  ListingToolbar,
+  PillGroup,
+  RouteNav,
+  Spinner,
+  useTopbarSlot,
+} from "@agh/ui";
 
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { MCPServerEditor } from "@/systems/settings";
@@ -10,9 +19,18 @@ import { MarketplaceKindResults } from "./marketplace-kind-results";
 import { useMarketplaceActionController } from "./use-marketplace-action-controller";
 import { MARKETPLACE_SCOPE_ICONS, marketplaceKindConfig } from "../lib/marketplace-kind-config";
 import { useMarketplaceKindPage } from "../hooks/use-marketplace-kind-page";
+import { useRefreshMarketplaceCatalog } from "../hooks/use-marketplace-actions";
 import { useMarketplaceMCPEditor } from "../hooks/use-marketplace-mcp-editor";
-import type { MarketplaceKind } from "../types";
+import { marketplaceRouteKindFor, type MarketplaceKind } from "../types";
 import type { MarketplaceKindSearch } from "../lib/marketplace-kind-search";
+import { MARKETPLACE_KIND_LABEL, MARKETPLACE_KIND_ORDER } from "./marketplace-ui";
+
+const MARKETPLACE_NAV_ITEMS = MARKETPLACE_KIND_ORDER.map(kind => ({
+  kind,
+  routeKind: marketplaceRouteKindFor(kind),
+  label: MARKETPLACE_KIND_LABEL[kind],
+  to: `/marketplace/${marketplaceRouteKindFor(kind)}` as const,
+}));
 
 interface MarketplaceKindPageProps {
   kind: MarketplaceKind;
@@ -39,6 +57,7 @@ interface MarketplaceKindPageBodyProps {
 }
 
 function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKindPageBodyProps) {
+  const refresh = useRefreshMarketplaceCatalog();
   const mcpEditor = useMarketplaceMCPEditor({
     enabled: kind === "mcp",
     scope: page.mcpConfigScope,
@@ -53,51 +72,47 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
   const ScopeInstalledIcon = MARKETPLACE_SCOPE_ICONS.installed;
   const ScopeMarketIcon = MARKETPLACE_SCOPE_ICONS.market;
   const headCount = page.scope === "market" ? page.marketplaceTotal : page.installedCount;
+  const Icon = config.icon;
   const updatesLabel =
     page.updatesAvailable === 1
       ? "1 update available"
       : `${page.updatesAvailable} updates available`;
 
-  return (
-    <ListingPage data-testid={`marketplace-kind-${kind}`}>
-      <PageHead
-        count={page.isLoading && !page.marketplaceTotal ? "–" : headCount}
-        countTestId={`marketplace-kind-count-${kind}`}
-        data-testid={`marketplace-kind-head-${kind}`}
-        icon={config.icon}
-        meta={
-          <>
-            <span>
-              <span className="font-mono text-[11px] tabular-nums text-muted">
-                {page.marketplaceTotal}
-              </span>{" "}
-              {page.marketplaceTotalExact ? "in the marketplace" : "loaded from the marketplace"}
-            </span>
-            <PageHead.MetaDot />
-            <span>
-              <span className="font-mono text-[11px] tabular-nums text-muted">
-                {page.installedCount}
-              </span>{" "}
-              {config.installedNoun}
-            </span>
-            {!page.isLoading && page.updatesAvailable > 0 ? (
-              <>
-                <PageHead.MetaDot />
-                <span>
-                  <span className="font-mono text-[11px] tabular-nums text-muted">
-                    {page.updatesAvailable}
-                  </span>{" "}
-                  {updatesLabel.replace(/^\d+\s/, "")}
-                </span>
-              </>
-            ) : null}
-          </>
-        }
-        title={config.label}
-      />
-
+  useTopbarSlot({
+    glyph: <Icon />,
+    crumb: config.label,
+    count: page.isLoading && !page.marketplaceTotal ? "–" : headCount,
+    actions: (
+      <Button
+        data-testid="marketplace-refresh"
+        disabled={refresh.isPending}
+        onClick={() => refresh.mutate(kind === "bundle" ? undefined : kind)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        {refresh.isPending ? (
+          <Spinner aria-hidden="true" className="size-3" />
+        ) : (
+          <RefreshCw aria-hidden="true" className="size-3" />
+        )}
+        Refresh
+      </Button>
+    ),
+    toolbar: (
       <ListingToolbar>
         <ListingToolbar.Leading>
+          <RouteNav aria-label="Marketplace sections" data-testid="marketplace-kind-navigation">
+            {MARKETPLACE_NAV_ITEMS.map(item => (
+              <RouteNav.Link
+                aria-current={item.kind === kind ? "page" : undefined}
+                key={item.routeKind}
+                render={<Link to={item.to} />}
+              >
+                {item.label}
+              </RouteNav.Link>
+            ))}
+          </RouteNav>
           <ListingToolbar.Search
             aria-label={`Search ${config.label.toLowerCase()}`}
             containerClassName="w-full max-w-105"
@@ -176,6 +191,33 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
           </div>
         </ListingToolbar.Trailing>
       </ListingToolbar>
+    ),
+  });
+
+  return (
+    <ListingPage data-testid={`marketplace-kind-${kind}`}>
+      <p className="mb-3 text-xs text-subtle" data-testid={`marketplace-kind-meta-${kind}`}>
+        <span className="font-mono text-[11px] tabular-nums text-muted">
+          {page.marketplaceTotal}
+        </span>{" "}
+        {page.marketplaceTotalExact ? "in the marketplace" : "loaded from the marketplace"}
+        <span aria-hidden="true" className="mx-1.5 text-faint">
+          ·
+        </span>
+        <span className="font-mono text-[11px] tabular-nums text-muted">{page.installedCount}</span>{" "}
+        {config.installedNoun}
+        {!page.isLoading && page.updatesAvailable > 0 ? (
+          <>
+            <span aria-hidden="true" className="mx-1.5 text-faint">
+              ·
+            </span>
+            <span className="font-mono text-[11px] tabular-nums text-muted">
+              {page.updatesAvailable}
+            </span>{" "}
+            {updatesLabel.replace(/^\d+\s/, "")}
+          </>
+        ) : null}
+      </p>
 
       {page.error &&
       !page.marketplaceContinuationError &&

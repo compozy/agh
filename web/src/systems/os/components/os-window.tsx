@@ -15,12 +15,17 @@ const MIN_WINDOW_WIDTH = 280;
 const MIN_WINDOW_HEIGHT = 180;
 const DRAG_HANDLE_CLASS = "os-window-drag-handle";
 /** Head controls that must never start a drag. */
-const DRAG_CANCEL_SELECTOR = '[data-slot="os-traffic-lights"], [data-slot="topbar-trailing"]';
+const DRAG_CANCEL_SELECTOR = [
+  '[data-slot="os-traffic-lights"]',
+  '[data-slot="topbar-back"]',
+  '[data-slot="topbar-crumb"]',
+  '[data-slot="topbar-crumb-more"]',
+  '[data-slot="topbar-route-nav"]',
+  '[data-slot="topbar-trailing"]',
+].join(", ");
 
 export interface OsWindowProps {
   windowId: string;
-  /** Workspace crumb rendered before the window title (`<ws> / <title>`). */
-  rootCrumb: string;
 }
 
 /**
@@ -30,7 +35,7 @@ export interface OsWindowProps {
  * Overlay Policy), and the minimize=unmount posture with the open-dialog
  * exemption (Safety Invariant 18). Behavior lives in `useOsWindow`.
  */
-export function OsWindow({ windowId, rootCrumb }: OsWindowProps) {
+export function OsWindow({ windowId }: OsWindowProps) {
   const {
     win,
     focused,
@@ -53,7 +58,6 @@ export function OsWindow({ windowId, rootCrumb }: OsWindowProps) {
       onPointerDownCapture={handlePointerDownCapture}
       onTrafficLight={handleTrafficLight}
       overlayHost={overlayHost}
-      rootCrumb={rootCrumb}
       win={win}
       windowId={windowId}
     />
@@ -105,7 +109,6 @@ function WindowFrame({
   overlayHost,
   win,
   windowId,
-  rootCrumb,
 }: {
   focused: ReturnType<typeof useOsWindow>["focused"];
   onFocusCapture: ReturnType<typeof useOsWindow>["handleFocusCapture"];
@@ -115,7 +118,6 @@ function WindowFrame({
   overlayHost: ReturnType<typeof useOsWindow>["overlayHost"];
   win: OsWindowState;
   windowId: string;
-  rootCrumb: string;
 }) {
   const app = getOsApp(win.app);
   const Controller = app.Controller;
@@ -123,7 +125,6 @@ function WindowFrame({
   return (
     <OsWindowFrame
       title={app.title}
-      rootCrumb={rootCrumb}
       focused={focused}
       onTrafficLight={onTrafficLight}
       headClassName={cn(

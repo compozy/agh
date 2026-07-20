@@ -100,15 +100,11 @@ export function useTasksInboxView({
   const groupTotals = countByDisplayGroup(inbox?.groups);
 
   return {
-    archivedTotal: inbox?.archived_total ?? 0,
     filterChips,
     filterFields,
     groups,
     groupTotals,
     handleFiltersChange,
     hasItems: allItems.length > 0,
-    totalCount: inbox?.page.total ?? 0,
-    unreadTotal: inbox?.unread_total ?? 0,
-    visibleCount: allItems.length,
   };
 }

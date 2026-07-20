@@ -247,11 +247,9 @@ export { AgentIcon } from "./components/agent-icon";
 export { providerIconMap } from "./components/provider-icon-map";
 export {
   AgentPageActions,
-  AgentPageMeta,
   AgentPageOverflow,
   AgentPageStatusPill,
   type AgentPageActionsProps,
-  type AgentPageMetaProps,
   type AgentPageOverflowProps,
   type AgentPageStatusPillProps,
 } from "./components/agent-page-header";

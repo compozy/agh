@@ -9,7 +9,7 @@ const meta: Meta<typeof TasksDetailHeader> = {
   component: TasksDetailHeader,
   decorators: [
     Story => (
-      <StoryTopbarHost breadcrumb={<span>Tasks › TASK-42</span>} title="Task detail">
+      <StoryTopbarHost title="Task detail">
         <Story />
       </StoryTopbarHost>
     ),

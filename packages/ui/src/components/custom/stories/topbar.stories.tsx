@@ -1,13 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { LayoutDashboard, ListChecks } from "lucide-react";
 
 import { Button } from "../../button";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbSeparator,
-} from "../../breadcrumb";
+import { ListingToolbar } from "../listing-toolbar";
 import { RouteNav } from "../route-nav";
 import { Topbar, TopbarOverflowIcon, TopbarSlotProvider, useTopbarSlot } from "../topbar";
 
@@ -19,7 +14,7 @@ const meta: Meta<typeof Topbar> = {
     docs: {
       description: {
         component:
-          "Route chrome shell (§04): one 48px three-zone grid — leading ancestry plus the route H1, centered sister-route navigation, and trailing actions. Routes push title overrides, routeNav, actions, and overflow via `useTopbarSlot`.",
+          "Unified window head (44px): traffic lights · quiet glyph + title (or window-local drill-in trail) · status + ≤2 actions. Routes publish identity/tools via `useTopbarSlot`.",
       },
     },
   },
@@ -35,46 +30,23 @@ const meta: Meta<typeof Topbar> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function IndexBreadcrumb() {
-  return (
-    <Breadcrumb aria-label="Breadcrumb">
-      <BreadcrumbList className="flex-nowrap whitespace-nowrap">
-        <BreadcrumbItem>
-          <BreadcrumbLink href="#home">Home</BreadcrumbLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator />
-      </BreadcrumbList>
-    </Breadcrumb>
-  );
-}
-
-function DetailBreadcrumb() {
-  return (
-    <Breadcrumb aria-label="Breadcrumb">
-      <BreadcrumbList className="flex-nowrap whitespace-nowrap">
-        <BreadcrumbItem>
-          <BreadcrumbLink href="#loops">Loops</BreadcrumbLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator />
-      </BreadcrumbList>
-    </Breadcrumb>
-  );
-}
-
 /**
- * T1 · Breadcrumb only — the minimum viable topbar.
+ * T1 · Root identity — quiet glyph + title.
  */
-export const BreadcrumbOnly: Story = {
+export const RootIdentity: Story = {
   args: {},
   render: () => (
     <TopbarSlotProvider>
-      <Topbar breadcrumb={<IndexBreadcrumb />} title="Runs" />
+      <Topbar glyph={<LayoutDashboard />} title="Dashboard" />
     </TopbarSlotProvider>
   ),
 };
 
 function DetailActionsSetup() {
   useTopbarSlot({
+    onBack: () => undefined,
+    crumbs: [{ id: "loops", label: "Loops", onSelect: () => undefined }],
+    crumb: "software-delivery",
     actions: (
       <div className="flex items-center gap-2">
         <Button size="sm" variant="ghost">
@@ -93,56 +65,144 @@ function DetailActionsSetup() {
 }
 
 /**
- * T2 · Detail — parent › entity breadcrumb plus trailing actions.
+ * T2 · Drill-in — back + parent crumbs + leaf + trailing actions.
  */
-export const DetailActions: Story = {
+export const DrillInActions: Story = {
   args: {},
   render: () => (
     <TopbarSlotProvider>
       <DetailActionsSetup />
-      <Topbar breadcrumb={<DetailBreadcrumb />} title="software-delivery" />
+      <Topbar title="Loops" />
     </TopbarSlotProvider>
   ),
 };
 
 function FullCompositionSetup() {
   useTopbarSlot({
-    routeNav: (
-      <RouteNav aria-label="Tasks views">
-        <RouteNav.Link aria-current="page" href="#list">
-          List
-        </RouteNav.Link>
-        <RouteNav.Link href="#kanban">Kanban</RouteNav.Link>
-        <RouteNav.Link href="#inbox">
-          Inbox <RouteNav.Count>2</RouteNav.Count>
-        </RouteNav.Link>
-      </RouteNav>
-    ),
+    glyph: <ListChecks />,
+    count: 12,
     actions: <Button size="sm">New task</Button>,
+    toolbar: (
+      <ListingToolbar className="w-full">
+        <ListingToolbar.Leading>
+          <span className="text-xs text-subtle">filters</span>
+        </ListingToolbar.Leading>
+        <ListingToolbar.Trailing>
+          <RouteNav aria-label="Tasks views">
+            <RouteNav.Link aria-current="page" href="#list">
+              List
+            </RouteNav.Link>
+            <RouteNav.Link href="#kanban">Kanban</RouteNav.Link>
+            <RouteNav.Link href="#inbox">
+              Inbox <RouteNav.Count>2</RouteNav.Count>
+            </RouteNav.Link>
+          </RouteNav>
+        </ListingToolbar.Trailing>
+      </ListingToolbar>
+    ),
   });
   return null;
 }
 
 /**
- * T4 · Breadcrumb + centered route navigation + actions.
+ * T3 · Catalog root with optional tools (toolbar publishes to the frame strip).
  */
-export const FullComposition: Story = {
+export const CatalogWithTools: Story = {
   args: {},
   render: () => (
     <TopbarSlotProvider>
       <FullCompositionSetup />
+      <Topbar title="Tasks" />
+      <div
+        data-slot="os-window-toolbar"
+        className="flex min-h-[38px] items-center border-b border-line px-3 text-xs text-subtle"
+      >
+        filters · Rows | Cards
+      </div>
+    </TopbarSlotProvider>
+  ),
+};
+
+function TasksDrillInSetup() {
+  useTopbarSlot({
+    onBack: () => undefined,
+    crumbs: [
+      { id: "tasks", label: "Tasks", onSelect: () => undefined },
+      { id: "task", label: "Refresh marketplace index", onSelect: () => undefined },
+    ],
+    crumb: "Run #128",
+    status: <span className="text-xs text-subtle">running</span>,
+    actions: (
+      <Button size="sm" variant="ghost">
+        Cancel
+      </Button>
+    ),
+  });
+  return null;
+}
+
+/**
+ * T4 · Tasks two-level drill-in (list → detail → run).
+ */
+export const TasksDrillIn: Story = {
+  args: {},
+  render: () => (
+    <TopbarSlotProvider>
+      <TasksDrillInSetup />
+      <Topbar title="Tasks" />
+    </TopbarSlotProvider>
+  ),
+};
+
+function MarketplaceDrillInSetup() {
+  useTopbarSlot({
+    onBack: () => undefined,
+    crumbs: [{ id: "marketplace", label: "Marketplace", onSelect: () => undefined }],
+    crumb: "Claude Code",
+    status: <span className="text-xs text-subtle">Not installed</span>,
+    actions: <Button size="sm">Install</Button>,
+  });
+  return null;
+}
+
+/**
+ * T5 · Marketplace in-place entry under Marketplace / entry.
+ */
+export const MarketplaceDrillIn: Story = {
+  args: {},
+  render: () => (
+    <TopbarSlotProvider>
+      <MarketplaceDrillInSetup />
+      <Topbar title="Marketplace" />
+    </TopbarSlotProvider>
+  ),
+};
+
+function SessionDocumentSetup() {
+  useTopbarSlot({
+    status: <span className="text-xs text-subtle">2m 14s</span>,
+    actions: <span className="text-xs text-subtle">claude-opus · Claude Code</span>,
+  });
+  return null;
+}
+
+/**
+ * T6 · Document/session self-title — state mark replaces glyph; no crumbs.
+ */
+export const SessionDocument: Story = {
+  args: {},
+  render: () => (
+    <TopbarSlotProvider>
+      <SessionDocumentSetup />
       <Topbar
-        breadcrumb={
-          <Breadcrumb aria-label="Breadcrumb">
-            <BreadcrumbList className="flex-nowrap whitespace-nowrap">
-              <BreadcrumbItem>
-                <BreadcrumbLink href="#operate">Operate</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-            </BreadcrumbList>
-          </Breadcrumb>
+        leading={
+          <span
+            aria-hidden
+            className="size-2 shrink-0 rounded-full bg-success"
+            data-slot="topbar-state-dot"
+          />
         }
-        title="Tasks"
+        title="Prune stale sessions"
       />
     </TopbarSlotProvider>
   ),

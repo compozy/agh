@@ -359,6 +359,8 @@ export { TasksListRow } from "./components/tasks-list-row";
 export type { TasksListRowProps } from "./components/tasks-list-row";
 export { TasksListSurface } from "./components/tasks-list-surface";
 export type { TasksListSurfaceProps } from "./components/tasks-list-surface";
+export { TasksListToolbar } from "./components/tasks-list-toolbar";
+export type { TasksListToolbarProps } from "./components/tasks-list-toolbar";
 export { TasksListFilters } from "./components/tasks-list-filters";
 export type { TasksListFiltersProps } from "./components/tasks-list-filters";
 export { TasksListSort } from "./components/tasks-list-sort";
@@ -458,7 +460,5 @@ export type { TasksDashboardViewProps } from "./components/tasks-dashboard-view"
 
 export { TasksInboxItem } from "./components/tasks-inbox-item";
 export type { TasksInboxItemProps } from "./components/tasks-inbox-item";
-export { TasksInboxPageHead } from "./components/tasks-inbox-page-head";
-export type { TasksInboxPageHeadProps } from "./components/tasks-inbox-page-head";
 export { TasksInboxView } from "./components/tasks-inbox-view";
 export type { TasksInboxViewProps } from "./components/tasks-inbox-view";

@@ -11,6 +11,7 @@ vi.mock("@tanstack/react-router", () => ({
       </a>
     );
   },
+  useNavigate: () => vi.fn(),
   useRouter: () => ({ history: { back: () => undefined } }),
 }));
 
@@ -62,7 +63,10 @@ function runWithCost(cost: {
 describe("TaskRunDetailHeader", () => {
   it("renders title and run meta", () => {
     renderWithTopbar(<TaskRunDetailHeader run={buildRun()} />);
-    expect(screen.getByTestId("task-run-detail-title")).toHaveTextContent("Run");
+    expect(screen.getByTestId("task-run-detail-title")).toHaveTextContent("Run run_7k2m9x");
+    expect(screen.getByTestId("task-run-detail-context")).toHaveTextContent(
+      "Summarize review feedback"
+    );
     expect(screen.getByTestId("task-run-detail-run-id")).toHaveTextContent("run_7k2m9x");
     expect(screen.getByTestId("task-run-detail-meta")).toHaveTextContent("Attempt 2");
     expect(screen.getByTestId("task-run-detail-meta")).toHaveTextContent("Session sess_jf8d21");
@@ -81,19 +85,20 @@ describe("TaskRunDetailHeader", () => {
       />
     );
 
-    expect(screen.getByTestId("task-run-detail-context")).toHaveTextContent("Task run");
+    expect(screen.getByTestId("task-run-detail-context")).toHaveTextContent("task_001");
     expect(screen.queryByTestId("task-run-detail-retry")).not.toBeInTheDocument();
   });
 
-  it("links to the session permalink when the run lacks hydrated agent metadata", () => {
+  it("links to the session permalink from overflow when agent metadata is absent", () => {
     renderWithTopbar(<TaskRunDetailHeader run={buildRun()} />);
+    fireEvent.click(screen.getByTestId("task-run-detail-overflow"));
     const link = screen.getByTestId("task-run-detail-open-session").closest("a");
     expect(link).not.toBeNull();
     expect(link).toHaveAttribute("data-to", "/session/$id");
     expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "sess_jf8d21" }));
   });
 
-  it("links to the canonical agent session route when hydrated metadata is available", () => {
+  it("links to the canonical agent session route from overflow when metadata is available", () => {
     renderWithTopbar(
       <TaskRunDetailHeader
         run={
@@ -107,6 +112,7 @@ describe("TaskRunDetailHeader", () => {
         }
       />
     );
+    fireEvent.click(screen.getByTestId("task-run-detail-overflow"));
     const link = screen.getByTestId("task-run-detail-open-session").closest("a");
     expect(link).not.toBeNull();
     expect(link).toHaveAttribute("data-to", "/agents/$name/sessions/$id");
@@ -119,7 +125,6 @@ describe("TaskRunDetailHeader", () => {
   it("fires cancel callback when the Cancel run button is clicked", () => {
     const onCancelRun = vi.fn();
     renderWithTopbar(<TaskRunDetailHeader onCancelRun={onCancelRun} run={buildRun()} />);
-    fireEvent.click(screen.getByTestId("task-run-detail-overflow"));
     const button = screen.getByTestId("task-run-detail-cancel");
     expect(button).toHaveTextContent("Cancel run");
     fireEvent.click(button);
@@ -133,7 +138,6 @@ describe("TaskRunDetailHeader", () => {
         run={buildRun({ status: "completed", ended_at: "2026-04-11T14:45:00Z" })}
       />
     );
-    expect(screen.queryByTestId("task-run-detail-overflow")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-run-detail-cancel")).not.toBeInTheDocument();
   });
 

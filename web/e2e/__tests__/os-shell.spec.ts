@@ -126,7 +126,9 @@ test("E2E-005: a direct task detail deep link returns to the catalog with Back",
   await expect(tasksUI.detailContent).toBeVisible();
   await expect(tasksUI.detailBreadcrumbTasks).toBeVisible();
   await expect(tasksWindow.getByTestId("tasks-detail-title")).toContainText(task.title);
-  await expect(tasksWindow.locator('[data-slot="topbar-title"]')).toContainText(task.id);
+  await expect(tasksWindow.locator('[data-slot="topbar-title"]')).toContainText(task.title);
+  await expect(tasksWindow.locator('[data-slot="topbar-crumbs"]')).toBeVisible();
+  await expect(tasksWindow.locator('[data-slot="topbar-crumbs"]')).not.toContainText(/^agh\b/);
 
   await appPage.goBack({ waitUntil: "domcontentloaded" });
   await expect(appPage).toHaveURL(/\/tasks$/);

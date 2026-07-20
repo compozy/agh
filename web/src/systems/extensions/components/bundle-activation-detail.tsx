@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
-import { Bot, Box, Clock3, Link2, MoreHorizontal, Radio, Zap } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Bot, Box, Clock3, Link2, Radio, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
 import {
@@ -13,12 +13,12 @@ import {
   ListingRow,
   MonoId,
   PAGE_CONTENT_GUTTER,
-  PageHead,
   Pill,
   Section,
   Skeleton,
   Switch,
   Time,
+  TopbarOverflowIcon,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -42,55 +42,60 @@ export function BundleActivationDetail({ id }: { id: string }) {
   const networkConfirmationRequired = Boolean(
     activation?.network_requirement_digest && !activation.network_requirement_confirmed_by
   );
+  const navigate = useNavigate();
   const updateActionRequired = Boolean(activation?.spec_drift) || networkConfirmationRequired;
+  const backToMarketplace = () => {
+    void navigate({ to: "/marketplace/bundles" });
+  };
 
-  useTopbarSlot(
-    activation
-      ? {
-          crumb: activation.bundle_name,
-          actions: (
-            <>
-              {updateActionRequired ? (
-                <Button
-                  disabled={update.isPending}
-                  onClick={applyUpdate}
-                  size="sm"
-                  variant="outline"
-                >
-                  Update
-                </Button>
-              ) : null}
-              <Button
-                render={<Link search={{ q: activation.bundle_name }} to="/marketplace/bundles" />}
-                nativeButton={false}
-                size="sm"
-                variant="ghost"
-              >
-                View in marketplace →
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      aria-label={`Actions for ${activation.bundle_name}`}
-                      size="icon-sm"
-                      variant="ghost"
-                    />
-                  }
-                >
-                  <MoreHorizontal className="size-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem className="text-danger" onClick={() => setDialogOpen(true)}>
-                    Deactivate…
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          ),
-        }
-      : null
-  );
+  useTopbarSlot({
+    onBack: backToMarketplace,
+    crumbs: [{ id: "marketplace", label: "Marketplace", onSelect: backToMarketplace }],
+    crumb: activation?.bundle_name ?? id,
+    status: activation ? (
+      <Pill tone={updateActionRequired ? "warning" : "success"}>
+        <Pill.Dot tone={updateActionRequired ? "warning" : "success"} />
+        {updateActionRequired ? "Update available" : "Active"}
+      </Pill>
+    ) : undefined,
+    actions: activation ? (
+      updateActionRequired ? (
+        <Button disabled={update.isPending} onClick={applyUpdate} size="sm">
+          Update
+        </Button>
+      ) : (
+        <Button
+          render={<Link search={{ q: activation.bundle_name }} to="/marketplace/bundles" />}
+          nativeButton={false}
+          size="sm"
+        >
+          View in marketplace
+        </Button>
+      )
+    ) : undefined,
+    overflow: activation ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={`Actions for ${activation.bundle_name}`}
+          render={<Button size="icon-sm" type="button" variant="ghost" />}
+        >
+          <TopbarOverflowIcon aria-hidden="true" className="size-3" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {updateActionRequired ? (
+            <DropdownMenuItem
+              render={<Link search={{ q: activation.bundle_name }} to="/marketplace/bundles" />}
+            >
+              View in marketplace
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem variant="destructive" onClick={() => setDialogOpen(true)}>
+            Deactivate…
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : undefined,
+  });
 
   if (query.isLoading) return <BundleActivationDetailSkeleton />;
   if (query.error)
@@ -107,38 +112,22 @@ export function BundleActivationDetail({ id }: { id: string }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto" data-testid="bundle-activation-detail">
       <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col")}>
-        <div className="pt-5">
-          <PageHead
-            data-testid="bundle-activation-detail-header"
-            leading={
-              <span className="grid size-(--size-provider-logo-well) place-items-center rounded-lg bg-elevated text-muted">
-                <Box aria-hidden="true" className="size-5" />
-              </span>
-            }
-            title={activation.bundle_name}
-            variant="detail"
-            meta={
-              <>
-                <span>{capabilityCount} capabilities</span>
-                <span>·</span>
-                <span>
-                  activated <Time iso={activation.created_at} />
-                </span>
-              </>
-            }
-            pills={
-              <>
-                <Pill mono size="xs">
-                  {activation.profile_name}
-                </Pill>
-                <Pill mono size="xs">
-                  {activation.scope}
-                </Pill>
-                <Pill tone="success">active</Pill>
-                {activation.spec_drift ? <Pill tone="warning">update available</Pill> : null}
-              </>
-            }
-          />
+        <div className="flex flex-col gap-2 pt-4" data-testid="bundle-activation-detail-header">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Pill mono size="xs">
+              {activation.profile_name}
+            </Pill>
+            <Pill mono size="xs">
+              {activation.scope}
+            </Pill>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-small-body text-subtle">
+            <span>{capabilityCount} capabilities</span>
+            <span aria-hidden="true">·</span>
+            <span>
+              activated <Time iso={activation.created_at} />
+            </span>
+          </div>
         </div>
         <div className="grid gap-8 py-7 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <main className="space-y-7">

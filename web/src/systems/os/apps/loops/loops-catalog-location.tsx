@@ -6,7 +6,6 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
-  PageHead,
   Spinner,
   buttonVariants,
   useTopbarSlot,
@@ -18,9 +17,40 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   const page = useLoopsCatalog(search);
   const loops = page.loopsQuery.loops;
   const loopCount = page.loopsQuery.total;
-  const workspaceLabel = page.activeWorkspace?.name ?? page.activeWorkspace?.id ?? "workspace";
+
+  const toolbar =
+    page.workspaceId === "" || page.loopsQuery.isLoading ? undefined : (
+      <ListingToolbar>
+        <ListingToolbar.Leading>
+          <ListingToolbar.Search
+            aria-label="Search loops"
+            data-testid="loop-search-input"
+            onChange={page.setSearchQuery}
+            placeholder="Search loops"
+            value={page.searchQuery}
+          />
+          <ListingToolbar.Filters>
+            <LoopCatalogFilters
+              categories={Object.keys(page.loopsQuery.facets?.categories ?? {})}
+              categoryFilter={page.filter.category}
+              kindFilter={page.filter.kind}
+              onCategoryFilterChange={page.setCategoryFilter}
+              onKindFilterChange={page.setKindFilter}
+              onStatusFilterChange={page.setStatusFilter}
+              statusFilter={page.filter.status}
+              statuses={Object.keys(page.loopsQuery.facets?.statuses ?? {}) as LoopStatusFilter[]}
+            />
+          </ListingToolbar.Filters>
+        </ListingToolbar.Leading>
+        <ListingToolbar.Trailing>
+          <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
+        </ListingToolbar.Trailing>
+      </ListingToolbar>
+    );
 
   useTopbarSlot({
+    glyph: <Repeat2 />,
+    count: page.workspaceId === "" || page.loopsQuery.isLoading ? undefined : loopCount,
     actions:
       page.workspaceId === "" ? undefined : (
         <div className="flex items-center gap-2" data-testid="loops-topbar-actions">
@@ -44,7 +74,9 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
           </Button>
         </div>
       ),
+    toolbar,
   });
+
   if (page.workspaceId === "") {
     return (
       <CatalogState
@@ -84,48 +116,6 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
 
   return (
     <ListingPage data-testid="loops-catalog">
-      <PageHead
-        count={loopCount}
-        countTestId="loops-page-count"
-        data-testid="loops-page-head"
-        icon={Repeat2}
-        meta={
-          <>
-            <span>Reusable, guardrailed cycles that pursue a goal until it is verified.</span>
-            <PageHead.MetaDot />
-            <span>{workspaceLabel}</span>
-          </>
-        }
-        title="Loops"
-      />
-
-      <ListingToolbar>
-        <ListingToolbar.Leading>
-          <ListingToolbar.Search
-            aria-label="Search loops"
-            data-testid="loop-search-input"
-            onChange={page.setSearchQuery}
-            placeholder="Search loops"
-            value={page.searchQuery}
-          />
-          <ListingToolbar.Filters>
-            <LoopCatalogFilters
-              categories={Object.keys(page.loopsQuery.facets?.categories ?? {})}
-              categoryFilter={page.filter.category}
-              kindFilter={page.filter.kind}
-              onCategoryFilterChange={page.setCategoryFilter}
-              onKindFilterChange={page.setKindFilter}
-              onStatusFilterChange={page.setStatusFilter}
-              statusFilter={page.filter.status}
-              statuses={Object.keys(page.loopsQuery.facets?.statuses ?? {}) as LoopStatusFilter[]}
-            />
-          </ListingToolbar.Filters>
-        </ListingToolbar.Leading>
-        <ListingToolbar.Trailing>
-          <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
-        </ListingToolbar.Trailing>
-      </ListingToolbar>
-
       <LoopCatalog
         entries={loops}
         errorMessage={page.loopsQuery.error?.message}

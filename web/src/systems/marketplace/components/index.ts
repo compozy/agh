@@ -5,12 +5,15 @@ export { ExtensionTrustDialog } from "./extension-trust-dialog";
 export type { ExtensionTrustDialogProps } from "./extension-trust-dialog";
 export { MarketplaceCard } from "./marketplace-card";
 export type { MarketplaceCardProps } from "./marketplace-card";
+export { MarketplaceEntryAction, MarketplaceEntryStatus } from "./marketplace-entry-actions";
 export {
   MarketplaceDetail,
   MarketplaceDetailNotFound,
   MarketplaceDetailSkeleton,
 } from "./marketplace-detail";
 export type { MarketplaceDetailProps } from "./marketplace-detail";
+export { MarketplaceDetailMeta } from "./marketplace-detail-meta";
+export type { MarketplaceDetailMetaProps } from "./marketplace-detail-meta";
 export { MarketplaceGrid, MarketplaceGridSkeleton } from "./marketplace-grid";
 export type { MarketplaceGridProps } from "./marketplace-grid";
 export { MarketplaceInstalledCard } from "./marketplace-installed-card";

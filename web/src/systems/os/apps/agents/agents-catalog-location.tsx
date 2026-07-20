@@ -1,6 +1,6 @@
 import { AlertCircle, Plus, RefreshCw, Users2 } from "lucide-react";
 
-import { Button, Empty, ListingPage, PageHead, useTopbarSlot } from "@agh/ui";
+import { Button, Empty, ListingPage, useTopbarSlot } from "@agh/ui";
 
 import { AgentFleetList, AgentFleetToolbar, type AgentsFleetSearch } from "@/systems/agent";
 import { useAgentsFleetPage } from "./use-agents-catalog";
@@ -8,20 +8,44 @@ import { useAgentsFleetPage } from "./use-agents-catalog";
 export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch }) {
   const page = useAgentsFleetPage(search);
 
+  const agentsErrorEmpty = Boolean(page.agentsError) && page.agents.length === 0 && !page.isLoading;
+  const headCount =
+    page.isLoading || agentsErrorEmpty || page.isFirstRunEmpty || page.workspaceId === ""
+      ? undefined
+      : page.fleetTotal;
+
   useTopbarSlot({
-    actions: page.isFirstRunEmpty ? undefined : (
-      <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
-        <Button
-          data-testid="agents-topbar-create"
-          onClick={page.openCreate}
-          size="sm"
-          type="button"
-        >
-          <Plus aria-hidden="true" className="size-3" />
-          New agent
-        </Button>
-      </div>
-    ),
+    glyph: <Users2 />,
+    count: headCount,
+    actions:
+      page.isFirstRunEmpty || page.workspaceId === "" ? undefined : (
+        <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
+          <Button
+            data-testid="agents-topbar-create"
+            onClick={page.openCreate}
+            size="sm"
+            type="button"
+          >
+            <Plus aria-hidden="true" className="size-3" />
+            New agent
+          </Button>
+        </div>
+      ),
+    toolbar:
+      page.workspaceId === "" ? undefined : (
+        <AgentFleetToolbar
+          categoryOptions={page.categoryOptions}
+          draftQuery={page.draftQuery}
+          onDraftQueryChange={page.setDraftQuery}
+          onFiltersChange={page.setFilters}
+          onViewChange={page.setView}
+          search={page.search}
+          searchInputRef={page.searchInputRef}
+          showFacets={page.showFacets}
+          showViewToggle={page.showViewToggle}
+          view={page.view}
+        />
+      ),
   });
 
   if (page.workspaceId === "") {
@@ -39,40 +63,8 @@ export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch })
     );
   }
 
-  const agentsErrorEmpty = Boolean(page.agentsError) && page.agents.length === 0 && !page.isLoading;
-  const headCount =
-    page.isLoading || agentsErrorEmpty || page.isFirstRunEmpty ? 0 : page.fleetTotal;
-
   return (
     <ListingPage data-testid="agent-fleet-page">
-      <PageHead
-        count={headCount}
-        countTestId="agents-page-count"
-        data-testid="agents-page-head"
-        icon={Users2}
-        meta={
-          <>
-            <span>Provider, model, and instructions a session runs with.</span>
-            <PageHead.MetaDot />
-            <span>Operate</span>
-          </>
-        }
-        title="Agents"
-      />
-
-      <AgentFleetToolbar
-        categoryOptions={page.categoryOptions}
-        draftQuery={page.draftQuery}
-        onDraftQueryChange={page.setDraftQuery}
-        onFiltersChange={page.setFilters}
-        onViewChange={page.setView}
-        search={page.search}
-        searchInputRef={page.searchInputRef}
-        showFacets={page.showFacets}
-        showViewToggle={page.showViewToggle}
-        view={page.view}
-      />
-
       {agentsErrorEmpty ? (
         <div
           className="flex min-h-0 flex-1 items-center justify-center py-10"

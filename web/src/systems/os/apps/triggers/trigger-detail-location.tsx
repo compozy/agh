@@ -1,10 +1,8 @@
-import { useTopbarSlot } from "@agh/ui";
 import { AutomationDetailPanel, AutomationEditorDialog } from "@/systems/automation";
 import { useAutomationTriggerDetailPage } from "../automation/use-automation-page";
 
 export function TriggerDetailLocation({ triggerId }: { triggerId: string }) {
   const page = useAutomationTriggerDetailPage(triggerId);
-  useTopbarSlot({ crumb: `Triggers / ${triggerId}` });
 
   return (
     <>

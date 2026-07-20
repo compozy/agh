@@ -2,7 +2,7 @@ import { AlertCircle } from "lucide-react";
 
 import { useSettingsHooksPage } from "@/hooks/routes/use-settings-hooks-page";
 import { NotificationPresetsPanel } from "@/systems/notifications";
-import { restartBannerPropsFor, SettingsPageHead } from "@/systems/settings";
+import { restartBannerPropsFor, SettingsTopbarPublisher } from "@/systems/settings";
 import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
 
 import { HooksSection } from "./-hooks-section";
@@ -52,7 +52,7 @@ export function HooksSettingsPage() {
   return (
     <PageShell
       banner={banner ? <RestartBanner {...banner} /> : null}
-      head={<SettingsPageHead slug="hooks" statusLine={statusLine} />}
+      head={<SettingsTopbarPublisher slug="hooks" statusLine={statusLine} />}
       slug="hooks"
     >
       <HooksSection

@@ -11,7 +11,6 @@ import {
   Input,
   ListingPage,
   ListingToolbar,
-  PageHead,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -32,6 +31,9 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
   const page = useVaultPage(search);
 
   useTopbarSlot({
+    glyph: <KeyRound />,
+    count: page.isLoading ? undefined : page.counts.total,
+    crumb: "Vault",
     actions: (
       <div className="flex items-center gap-2" data-testid="vault-topbar-actions">
         <Button
@@ -51,40 +53,7 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
         </Button>
       </div>
     ),
-  });
-
-  if (page.isLoading) {
-    return <BlockLoading className="flex-1" data-testid="vault-page-loading" />;
-  }
-
-  return (
-    <ListingPage
-      banner={
-        page.lastAction ? (
-          <div className="px-9 pt-4">
-            <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
-          </div>
-        ) : null
-      }
-      data-testid="vault-shell"
-    >
-      <PageHead
-        count={page.counts.total}
-        countTestId="vault-page-count"
-        data-testid="vault-page-head"
-        icon={KeyRound}
-        meta={
-          <>
-            <span>Write-only secrets; the daemon returns redacted metadata only.</span>
-            <PageHead.MetaDot />
-            <span data-testid="vault-page-sessions">{page.counts.sessions} session-scoped</span>
-            <PageHead.MetaDot />
-            <span data-testid="vault-page-providers">{page.counts.providers} provider-scoped</span>
-          </>
-        }
-        title="Vault"
-      />
-
+    toolbar: page.isLoading ? undefined : (
       <ListingToolbar>
         <ListingToolbar.Leading>
           <ListingToolbar.Search
@@ -102,9 +71,26 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
           <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
         </ListingToolbar.Trailing>
       </ListingToolbar>
+    ),
+  });
 
+  if (page.isLoading) {
+    return <BlockLoading className="flex-1" data-testid="vault-page-loading" />;
+  }
+
+  return (
+    <ListingPage
+      banner={
+        page.lastAction ? (
+          <div className="px-9 pt-4">
+            <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
+          </div>
+        ) : null
+      }
+      data-testid="vault-shell"
+    >
       <p
-        className="mb-3 flex items-center gap-2 text-xs text-subtle"
+        className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-subtle"
         data-testid="vault-page-sec-note"
       >
         <Lock aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
@@ -112,6 +98,18 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
           {page.counts.total} redacted metadata {page.counts.total === 1 ? "entry" : "entries"} —
           values are write-only and never leave the daemon.
         </span>
+        <span aria-hidden="true" className="text-faint">
+          ·
+        </span>
+        <span data-testid="vault-page-count">{page.counts.total}</span>
+        <span aria-hidden="true" className="text-faint">
+          ·
+        </span>
+        <span data-testid="vault-page-sessions">{page.counts.sessions} session-scoped</span>
+        <span aria-hidden="true" className="text-faint">
+          ·
+        </span>
+        <span data-testid="vault-page-providers">{page.counts.providers} provider-scoped</span>
       </p>
 
       {page.queryError && page.secrets.length === 0 ? (

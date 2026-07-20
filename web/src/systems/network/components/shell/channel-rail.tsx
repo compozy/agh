@@ -1,8 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { Network as NetworkIcon } from "lucide-react";
 
 import {
-  PageHead,
   SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
   SIDEBAR_PANEL_WIDTH_DEFAULT,
   SIDEBAR_PANEL_WIDTH_MD,
@@ -158,14 +156,6 @@ export function ChannelRail({
       data-viewport={viewport}
       style={{ width: panelWidth }}
     >
-      <PageHead
-        className="border-b border-line-soft px-4 py-3"
-        count={hasAnyChannel ? pinnedChannels.length + unpinnedChannels.length : undefined}
-        data-testid="network-page-head"
-        icon={NetworkIcon}
-        title="Network"
-        variant="compact"
-      />
       <div className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
         <section aria-label="Channels" className="space-y-1">
           <SidebarSectionLabel>{CHANNELS_HEADING}</SidebarSectionLabel>

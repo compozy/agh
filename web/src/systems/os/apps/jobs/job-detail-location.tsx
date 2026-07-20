@@ -1,10 +1,8 @@
-import { useTopbarSlot } from "@agh/ui";
 import { AutomationDetailPanel, AutomationEditorDialog } from "@/systems/automation";
 import { useAutomationJobDetailPage } from "../automation/use-automation-page";
 
 export function JobDetailLocation({ jobId }: { jobId: string }) {
   const page = useAutomationJobDetailPage(jobId);
-  useTopbarSlot({ crumb: `Jobs / ${jobId}` });
 
   return (
     <>

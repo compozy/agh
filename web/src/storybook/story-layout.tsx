@@ -10,15 +10,14 @@ interface StoryFrameProps {
 }
 
 interface StoryTopbarHostProps extends StoryFrameProps {
-  breadcrumb?: ReactNode;
   title: ReactNode;
 }
 
 /** Story-only shell for components that publish route actions through useTopbarSlot. */
-export function StoryTopbarHost({ children, breadcrumb, title }: StoryTopbarHostProps) {
+export function StoryTopbarHost({ children, title }: StoryTopbarHostProps) {
   return (
     <TopbarSlotProvider>
-      <Topbar breadcrumb={breadcrumb} title={title} />
+      <Topbar title={title} />
       {children}
     </TopbarSlotProvider>
   );

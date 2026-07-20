@@ -1,6 +1,8 @@
 import { Activity, AlertCircle } from "lucide-react";
 
-import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
+import { useNavigate } from "@tanstack/react-router";
+
+import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@agh/ui";
 import { useLoopRunPage } from "./use-loop-run-page";
 import {
   LoopApprovalGate,
@@ -11,15 +13,33 @@ import {
   LoopRunEventsRail,
   LoopRunFacts,
   LoopRunMeters,
+  LoopStatusPill,
   LoopStatusLegend,
   LoopWatchEventsPanel,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export function LoopRunDetailLocation({ runId }: { runId: string }) {
+  const navigate = useNavigate();
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
-  useTopbarSlot({ crumb: `Loops / Runs / ${runId}` });
+  const backToRuns = () => {
+    void navigate({ to: "/loop-runs" });
+  };
+  const topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack"> = {
+    onBack: backToRuns,
+    crumbs: [
+      {
+        id: "loops",
+        label: "Loops",
+        onSelect: () => {
+          void navigate({ to: "/loops" });
+        },
+      },
+      { id: "runs", label: "Runs", onSelect: backToRuns },
+    ],
+    crumb: runId,
+  };
 
   if (workspaceId === "") {
     return (
@@ -38,16 +58,43 @@ export function LoopRunDetailLocation({ runId }: { runId: string }) {
   }
 
   // Key by runId so the SSE reducer state resets cleanly on a run switch.
-  return <LoopRunDetail key={runId} workspaceId={workspaceId} runId={runId} />;
+  return (
+    <LoopRunDetail
+      key={runId}
+      workspaceId={workspaceId}
+      runId={runId}
+      topbarIdentity={topbarIdentity}
+    />
+  );
 }
 
 interface LoopRunDetailProps {
   workspaceId: string;
   runId: string;
+  topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">;
 }
 
-function LoopRunDetail({ workspaceId, runId }: LoopRunDetailProps) {
+function LoopRunDetail({ workspaceId, runId, topbarIdentity }: LoopRunDetailProps) {
   const page = useLoopRunPage(workspaceId, runId);
+
+  useTopbarSlot({
+    ...topbarIdentity,
+    status: page.run ? (
+      <LoopStatusPill status={page.run.status} data-testid="loop-run-status-pill" />
+    ) : undefined,
+    actions: page.run ? (
+      <LoopRunControls
+        status={page.run.status}
+        pauseRequested={page.run.pause_requested}
+        isPausePending={page.isPausePending}
+        isResumePending={page.isResumePending}
+        isStopPending={page.isStopPending}
+        onPause={page.handlePause}
+        onResume={page.handleResume}
+        onStop={page.handleStop}
+      />
+    ) : undefined,
+  });
 
   if (page.runQuery.isLoading) {
     return (
@@ -81,18 +128,6 @@ function LoopRunDetail({ workspaceId, runId }: LoopRunDetailProps) {
         <LoopRunContractHeader
           run={run}
           contract={page.contract}
-          controls={
-            <LoopRunControls
-              status={run.status}
-              pauseRequested={run.pause_requested}
-              isPausePending={page.isPausePending}
-              isResumePending={page.isResumePending}
-              isStopPending={page.isStopPending}
-              onPause={page.handlePause}
-              onResume={page.handleResume}
-              onStop={page.handleStop}
-            />
-          }
           meters={<LoopRunMeters meters={page.meters} />}
         />
         <div className="flex flex-col gap-4 px-6 py-5">

@@ -4,12 +4,12 @@ import {
   ConnectionIndicator,
   Empty,
   Metric,
-  PageHead,
   PageShell,
   Pill,
   Section,
   Skeleton,
   StatusCard,
+  useTopbarSlot,
 } from "@agh/ui";
 
 import {
@@ -32,21 +32,16 @@ const METRIC_ORDER: DashboardMetricEntry["key"][] = [
 export function DashboardWindow(_props: { windowId: string }) {
   const page = useDashboardPage();
 
-  const head = (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <PageHead
-        data-testid="home-page-head"
-        icon={LayoutDashboard}
-        meta="Daemon health and workspace overview."
-        title="Dashboard"
-      />
+  useTopbarSlot({
+    glyph: <LayoutDashboard />,
+    status: (
       <ConnectionIndicator data-testid="home-connection-indicator" status={page.connectionStatus} />
-    </div>
-  );
+    ),
+  });
 
   if (page.isLoading) {
     return (
-      <PageShell data-testid="home-shell" density="route" head={head}>
+      <PageShell data-testid="home-shell" density="route">
         <div className="flex flex-col gap-6" data-testid="home-loading">
           <DaemonStatusSkeleton />
           <MetricsSkeleton />
@@ -57,7 +52,7 @@ export function DashboardWindow(_props: { windowId: string }) {
 
   if (page.hasFatalError) {
     return (
-      <PageShell data-testid="home-shell" density="route" head={head}>
+      <PageShell data-testid="home-shell" density="route">
         <div data-testid="home-error">
           <Empty
             className="max-w-xl"
@@ -71,7 +66,7 @@ export function DashboardWindow(_props: { windowId: string }) {
   }
 
   return (
-    <PageShell data-testid="home-shell" density="route" head={head}>
+    <PageShell data-testid="home-shell" density="route">
       <div className="flex flex-col gap-6" data-testid="home-body">
         <DaemonStatusSection page={page} />
         <OverviewSection page={page} />

@@ -28,15 +28,12 @@ function makeBaseProps() {
 }
 
 describe("TasksInboxView", () => {
-  it("Should render the page head with title, count, and totals", () => {
+  it("Should keep inbox identity out of the window body", () => {
     render(<TasksInboxView {...makeBaseProps()} inbox={buildInboxFixture()} />);
 
-    expect(screen.getByTestId("tasks-inbox-page-head")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-page-title")).toHaveTextContent(/Inbox/);
-    expect(screen.getByRole("heading", { level: 2, name: "Inbox" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 1, name: "Inbox" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-page-count")).toBeInTheDocument();
-    expect(screen.getByTestId("tasks-inbox-page-totals")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-inbox-page-head")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Inbox" })).toBeNull();
+    expect(screen.getByTestId("tasks-inbox-body")).toBeInTheDocument();
   });
 
   it("Should render the toolbar with a filter trigger, search input, and unread switch", () => {
@@ -166,8 +163,6 @@ describe("TasksInboxView", () => {
   it("Should render loading, error, and empty states", () => {
     const { rerender } = render(<TasksInboxView {...makeBaseProps()} inbox={null} isLoading />);
     expect(screen.getByTestId("tasks-inbox-loading")).toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-inbox-page-count")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("tasks-inbox-page-totals")).not.toBeInTheDocument();
 
     rerender(<TasksInboxView {...makeBaseProps()} errorMessage="oops" inbox={null} />);
     expect(screen.getByTestId("tasks-inbox-error")).toHaveTextContent("oops");

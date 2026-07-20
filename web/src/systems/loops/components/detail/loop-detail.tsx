@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, GitFork, PencilLine, Play, SlidersHorizontal } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 
 import {
   Button,
@@ -9,7 +9,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  PageHead,
   PAGE_CONTENT_GUTTER,
   Pill,
   Section,
@@ -89,25 +88,17 @@ export function LoopDetailView({
   const sourceLabel = loop.source === "workspace" ? "Workspace" : "Read-only";
   const writable = loop.source === "workspace";
   const declaredKinds = (definition.start ?? []).map(binding => binding.kind);
+  const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
-  // Route chrome §07: secondary → primary → overflow (Configure/Delete).
+  const backToLoops = () => {
+    void navigate({ to: "/loops" });
+  };
   useTopbarSlot({
+    onBack: backToLoops,
+    crumbs: [{ id: "loops", label: "Loops", onSelect: backToLoops }],
+    crumb: loop.name,
     actions: (
-      <div className="flex items-center gap-2" data-testid="loop-detail-actions">
-        <Button
-          type="button"
-          variant="neutral"
-          size="sm"
-          onClick={onOpenEditor}
-          data-testid="loop-edit-action"
-        >
-          {writable ? (
-            <PencilLine aria-hidden="true" className="size-3.5" />
-          ) : (
-            <GitFork aria-hidden="true" className="size-3.5" />
-          )}
-          {writable ? "Edit" : "Fork & edit"}
-        </Button>
+      <div className="flex items-center" data-testid="loop-detail-actions">
         <Button type="button" size="sm" onClick={onRun} data-testid="loop-run-action">
           <Play aria-hidden="true" className="size-3.5" />
           Run loop
@@ -124,6 +115,14 @@ export function LoopDetailView({
           <TopbarOverflowIcon aria-hidden="true" className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" data-testid="loop-detail-overflow-menu">
+          <DropdownMenuItem data-testid="loop-edit-action" onClick={onOpenEditor}>
+            {writable ? (
+              <PencilLine aria-hidden="true" className="size-3.5" />
+            ) : (
+              <GitFork aria-hidden="true" className="size-3.5" />
+            )}
+            {writable ? "Edit" : "Fork & edit"}
+          </DropdownMenuItem>
           <DropdownMenuItem data-testid="loop-configure-action" onClick={onConfigure}>
             <SlidersHorizontal aria-hidden="true" className="size-3.5" />
             Configure
@@ -156,30 +155,21 @@ export function LoopDetailView({
         />
       ) : null}
       <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col")}>
-        <div className="pt-5">
-          <PageHead
-            data-testid="loop-detail-header"
-            title={loop.name}
-            variant="detail"
-            pills={
-              <>
-                <Pill size="xs" tone="neutral">
-                  {sourceLabel}
-                </Pill>
-                <Pill size="xs" tone="neutral">
-                  v{loop.version}
-                </Pill>
-              </>
-            }
-            meta={
-              <>
-                <span className="font-mono">{definition.apiVersion}</span>
-                {category ? <span>{category}</span> : null}
-                <span>{graph.nodes.length} nodes</span>
-                {loop.description ? <span className="truncate">{loop.description}</span> : null}
-              </>
-            }
-          />
+        <div className="flex flex-col gap-2 pt-4" data-testid="loop-detail-header">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Pill size="xs" tone="neutral">
+              {sourceLabel}
+            </Pill>
+            <Pill size="xs" tone="neutral">
+              v{loop.version}
+            </Pill>
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-small-body text-subtle">
+            <span className="font-mono">{definition.apiVersion}</span>
+            {category ? <span>{category}</span> : null}
+            <span>{graph.nodes.length} nodes</span>
+            {loop.description ? <span className="truncate">{loop.description}</span> : null}
+          </div>
         </div>
         <div className="py-6">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">

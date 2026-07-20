@@ -10,7 +10,6 @@ import {
   ListingToolbar,
   NativeSelect,
   NativeSelectOption,
-  PageHead,
   RestartBanner,
   useTopbarSlot,
 } from "@agh/ui";
@@ -34,6 +33,9 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
   const page = useSandboxPage(search);
 
   useTopbarSlot({
+    glyph: <Boxes />,
+    count: page.isLoading ? undefined : page.counts.total,
+    crumb: "Sandbox",
     actions: (
       <div className="flex items-center gap-2" data-testid="sandbox-topbar-actions">
         <Button
@@ -53,47 +55,7 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
         </Button>
       </div>
     ),
-  });
-
-  if (page.isLoading) {
-    return <BlockLoading className="flex-1" data-testid="sandbox-page-loading" />;
-  }
-
-  const bannerProps = restartBannerPropsFor("sandbox", page.restart);
-  const banner = (
-    <>
-      {bannerProps ? <RestartBanner {...bannerProps} className="px-9" /> : null}
-      {page.lastAction ? (
-        <div className="px-9 pt-4">
-          <SandboxLastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
-        </div>
-      ) : null}
-    </>
-  );
-
-  return (
-    <ListingPage banner={banner} data-testid="sandbox-shell">
-      <PageHead
-        count={page.counts.total}
-        countTestId="sandbox-page-count"
-        data-testid="sandbox-page-head"
-        icon={Boxes}
-        meta={
-          <>
-            <span>Execution boundary profiles that workspaces and sessions select by name.</span>
-            <PageHead.MetaDot />
-            <span data-testid="sandbox-page-total">
-              {page.counts.total} {page.counts.total === 1 ? "profile" : "profiles"}
-            </span>
-            <PageHead.MetaDot />
-            <span data-testid="sandbox-page-workspaces">
-              {page.counts.totalWorkspaces} workspace references
-            </span>
-          </>
-        }
-        title="Sandbox"
-      />
-
+    toolbar: page.isLoading ? undefined : (
       <ListingToolbar>
         <ListingToolbar.Leading>
           <ListingToolbar.Search
@@ -116,15 +78,47 @@ export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
           <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
         </ListingToolbar.Trailing>
       </ListingToolbar>
+    ),
+  });
 
+  if (page.isLoading) {
+    return <BlockLoading className="flex-1" data-testid="sandbox-page-loading" />;
+  }
+
+  const bannerProps = restartBannerPropsFor("sandbox", page.restart);
+  const banner = (
+    <>
+      {bannerProps ? <RestartBanner {...bannerProps} className="px-9" /> : null}
+      {page.lastAction ? (
+        <div className="px-9 pt-4">
+          <SandboxLastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
+        </div>
+      ) : null}
+    </>
+  );
+
+  return (
+    <ListingPage banner={banner} data-testid="sandbox-shell">
       <p
-        className="mb-3 flex items-center gap-2 text-xs text-subtle"
+        className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-subtle"
         data-testid="sandbox-page-sec-note"
       >
         <Info aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
         <span>
           Profiles are global. When <span className="font-mono text-[11px]">defaults.sandbox</span>{" "}
           is unset, sessions fall back to a synthetic local profile.
+        </span>
+        <span aria-hidden="true" className="text-faint">
+          ·
+        </span>
+        <span data-testid="sandbox-page-total">
+          {page.counts.total} {page.counts.total === 1 ? "profile" : "profiles"}
+        </span>
+        <span aria-hidden="true" className="text-faint">
+          ·
+        </span>
+        <span data-testid="sandbox-page-workspaces">
+          {page.counts.totalWorkspaces} workspace references
         </span>
       </p>
 

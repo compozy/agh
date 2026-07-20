@@ -2,14 +2,12 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { ListingPage } from "../listing-page";
-import { PageHead } from "../page-head";
 
 describe("ListingPage", () => {
-  it("Should compose the listing shell, banner, page head, and body content", () => {
+  it("Should compose the listing shell, banner, and body content", () => {
     render(
       <ListingPage data-testid="listing" banner={<p>Cached results</p>}>
-        <PageHead count={3} countTestId="listing-count" title="Loops" />
-        <p>Listing body</p>
+        <p data-testid="listing-body">Listing body</p>
       </ListingPage>
     );
 
@@ -19,10 +17,7 @@ describe("ListingPage", () => {
     expect(content?.className).toContain("px-9");
     expect(content?.className).toContain("max-w-content-max");
     expect(content?.className).toContain("min-h-full");
-    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
-    expect(screen.getByText("Loops")).toHaveAttribute("data-slot", "page-head-title");
-    expect(screen.getByTestId("listing-count")).toHaveTextContent("3");
     expect(screen.getByText("Cached results")).toBeInTheDocument();
-    expect(screen.getByText("Listing body")).toBeInTheDocument();
+    expect(screen.getByTestId("listing-body")).toHaveTextContent("Listing body");
   });
 });

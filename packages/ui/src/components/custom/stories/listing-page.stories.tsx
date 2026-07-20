@@ -6,7 +6,6 @@ import { Button } from "../../button";
 import { ListingPage } from "../listing-page";
 import { ListingRow } from "../listing-row";
 import { ListingToolbar, type ListingViewMode } from "../listing-toolbar";
-import { PageHead } from "../page-head";
 import { Pill } from "../pill";
 
 const ROWS = [
@@ -28,18 +27,9 @@ function ListingPageDemo() {
 
   return (
     <ListingPage>
-      <PageHead
-        count={ROWS.length}
-        icon={Repeat2}
-        meta={
-          <>
-            <span>Reusable, guardrailed cycles that pursue a goal until it is verified.</span>
-            <PageHead.MetaDot />
-            <span>launch-hq</span>
-          </>
-        }
-        title="Loops"
-      />
+      <p className="mb-3 text-xs text-subtle">
+        Reusable, guardrailed cycles that pursue a goal until it is verified · launch-hq
+      </p>
       <ListingToolbar>
         <ListingToolbar.Leading>
           <ListingToolbar.Search onChange={setSearch} placeholder="Search loops" value={search} />
@@ -87,7 +77,7 @@ const meta: Meta<typeof ListingPageDemo> = {
     docs: {
       description: {
         component:
-          "Canonical inventory listing shell: scroll area + width-capped, centered content container. Pairs with `PageHead` (icon well · H1 · mono count · dot-meta) for route identity. Every listing route shares this one container contract.",
+          "Canonical inventory listing shell: scroll area + width-capped, centered content container. Route identity (glyph · title · count) lives in the OS window head; this shell owns the body list + optional toolbar.",
       },
     },
   },

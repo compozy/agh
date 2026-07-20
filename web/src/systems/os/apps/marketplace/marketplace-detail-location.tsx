@@ -4,6 +4,8 @@ import { Button, RouteState, useTopbarSlot } from "@agh/ui";
 import {
   MarketplaceApiError,
   MarketplaceDetail,
+  MarketplaceEntryAction,
+  MarketplaceEntryStatus,
   MarketplaceDetailNotFound,
   MarketplaceDetailSkeleton,
   marketplaceRouteKindFor,
@@ -45,19 +47,31 @@ function MarketplaceDetailRouteBody({
       : { entryId, installedName: search.installed_name, kind, workspaceId }
   );
   const actions = useMarketplaceActionController(workspaceId);
-  const entryName = query.data?.entry.name ?? entryId;
+  const entry = query.data?.entry;
+  const entryName = entry?.name ?? entryId;
+  const catalogPath = `/marketplace/${marketplaceRouteKindFor(kind)}` as const;
+  const backToCatalog = () => {
+    void navigate({ to: catalogPath });
+  };
 
   useTopbarSlot({
+    onBack: backToCatalog,
+    crumbs: [{ id: "marketplace", label: "Marketplace", onSelect: backToCatalog }],
     crumb: entryName,
+    status: entry ? <MarketplaceEntryStatus entry={entry} /> : undefined,
+    actions: entry ? (
+      <MarketplaceEntryAction
+        emphasis="primary"
+        entry={entry}
+        onAction={actions.handleAction}
+        pending={actions.isEntryPending(entry)}
+      />
+    ) : undefined,
   });
 
   if (query.isLoading) return <MarketplaceDetailSkeleton />;
   if (query.error instanceof MarketplaceApiError && query.error.status === 404) {
-    return (
-      <MarketplaceDetailNotFound
-        onBack={() => void navigate({ to: `/marketplace/${marketplaceRouteKindFor(kind)}` })}
-      />
-    );
+    return <MarketplaceDetailNotFound onBack={backToCatalog} />;
   }
   if (query.error || !query.data) {
     return (
@@ -78,8 +92,6 @@ function MarketplaceDetailRouteBody({
         data={query.data}
         managementScope={managementScope}
         managementWorkspaceId={workspaceId ?? undefined}
-        onAction={actions.handleAction}
-        pending={actions.isEntryPending(query.data.entry)}
       />
       {actions.dialogs}
     </>

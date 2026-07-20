@@ -25,7 +25,7 @@ import {
   ProvidersListFilters,
   restartBannerPropsFor,
   type SettingsProviderEntry,
-  SettingsPageHead,
+  SettingsTopbarPublisher,
 } from "@/systems/settings";
 export function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
@@ -116,7 +116,7 @@ export function ProvidersSettingsPage() {
     <PageShell
       slug="providers"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="providers" statusLine={statusLine} />}
+      head={<SettingsTopbarPublisher slug="providers" statusLine={statusLine} />}
     >
       {page.lastAction ? (
         <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />

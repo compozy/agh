@@ -24,6 +24,7 @@ export interface DesktopDockProps {
 export function DesktopDock({ onNewSession, badges }: DesktopDockProps) {
   const { coordinator, store } = useOsShell();
   const railOpen = useDesktop(state => state.railOpen);
+  const presentation = useDesktop(state => state.presentation);
   const windowStates = useDesktop(
     useShallow(state => {
       const byApp: Record<string, "open" | "focused" | "minimized"> = {};
@@ -79,5 +80,12 @@ export function DesktopDock({ onNewSession, badges }: DesktopDockProps) {
     coordinator.userOpen({ app: appId });
   };
 
-  return <OsDockZone items={entries} onSelect={handleSelect} onNewSession={onNewSession} />;
+  return (
+    <OsDockZone
+      items={entries}
+      onSelect={handleSelect}
+      onNewSession={onNewSession}
+      magnify={presentation === "floating"}
+    />
+  );
 }

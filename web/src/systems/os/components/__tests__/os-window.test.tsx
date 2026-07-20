@@ -1,5 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("react-rnd", () => ({
+  Rnd: ({ children, cancel }: { children: ReactNode; cancel?: string }) => (
+    <div data-testid="rnd-window" data-drag-cancel={cancel}>
+      {children}
+    </div>
+  ),
+}));
 
 vi.mock("../../lib/app-registry", async importOriginal => {
   const actual = await importOriginal<typeof import("../../lib/app-registry")>();
@@ -35,7 +44,7 @@ function renderWindows(shell: OsShellHandle, ids: string[]) {
   return render(
     <OsShellContext.Provider value={shell}>
       {ids.map(id => (
-        <OsWindow key={id} windowId={id} rootCrumb="agh" />
+        <OsWindow key={id} windowId={id} />
       ))}
     </OsShellContext.Provider>
   );
@@ -122,5 +131,19 @@ describe("OsWindow", () => {
 
     // The WM entry survives with its rect (only the body unmounted).
     expect(store.getState().windows["app:vault"].minimized).toBe(true);
+  });
+
+  it("Should exclude every interactive head navigation zone from the drag handle", async () => {
+    const { coordinator, shell } = createHarness();
+    coordinator.userOpen({ app: "tasks" });
+
+    renderWindows(shell, ["app:tasks"]);
+    await screen.findByTestId("os-pending-app");
+
+    const dragCancel = screen.getByTestId("rnd-window").getAttribute("data-drag-cancel") ?? "";
+    expect(dragCancel).toContain('[data-slot="topbar-back"]');
+    expect(dragCancel).toContain('[data-slot="topbar-crumb"]');
+    expect(dragCancel).toContain('[data-slot="topbar-crumb-more"]');
+    expect(dragCancel).toContain('[data-slot="topbar-route-nav"]');
   });
 });

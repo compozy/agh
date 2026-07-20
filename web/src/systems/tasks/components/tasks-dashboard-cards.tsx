@@ -10,7 +10,7 @@ export interface TasksDashboardCardsProps {
 /**
  * Dashboard KPI strip — four flat `<KpiCard>` neutrals. KpiCard owns its own
  * label / value typography contract; the value stays `--fg-strong`, never tone
- * recolored. The freshness pill lives in the page-head, not here.
+ * recolored. The freshness pill lives in the window topbar, not here.
  */
 export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
   const { active_runs, totals, cards, queue } = dashboard;

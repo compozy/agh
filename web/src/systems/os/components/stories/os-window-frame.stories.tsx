@@ -14,7 +14,7 @@ const meta: Meta<typeof OsWindowFrame> = {
     docs: {
       description: {
         component:
-          "Floating window frame — the shell chrome around one app's route subtree. Head carries traffic lights, a centered breadcrumb, and a trailing slot. Frame depth (border + cast shadow) is the sanctioned shell-carve-out; window-body content stays flat.",
+          "Floating window frame — the shell chrome around one app's route subtree. Head carries traffic lights, left-aligned identity (glyph + title), and a trailing status/actions slot; optional context strip below. Frame depth (border + cast shadow) is the sanctioned shell-carve-out; window-body content stays flat.",
       },
     },
   },

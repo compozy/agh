@@ -4,21 +4,16 @@ import { useOsWinLayer } from "../hooks/use-os-win-layer";
 import { OsCompactStack } from "./os-compact-stack";
 import { OsWindow } from "./os-window";
 
-export interface OsWinLayerProps {
-  /** Workspace crumb passed through to every window head. */
-  rootCrumb: string;
-}
-
 /**
  * The desktop's window layer: floating windows over the wallpaper (or the
  * compact stack under 960px) and the empty-desk hint. Behavior (ids,
  * presentation, viewport re-clamp) lives in `useOsWinLayer`.
  */
-export function OsWinLayer({ rootCrumb }: OsWinLayerProps) {
+export function OsWinLayer() {
   const { layerRef, windowIds, presentation, anyVisible } = useOsWinLayer();
 
   if (presentation === "compact") {
-    return <OsCompactStack rootCrumb={rootCrumb} />;
+    return <OsCompactStack />;
   }
 
   return (
@@ -32,7 +27,7 @@ export function OsWinLayer({ rootCrumb }: OsWinLayerProps) {
         </p>
       ) : null}
       {windowIds.map(id => (
-        <OsWindow key={id} windowId={id} rootCrumb={rootCrumb} />
+        <OsWindow key={id} windowId={id} />
       ))}
     </div>
   );

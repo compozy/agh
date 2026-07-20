@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { Pencil, Power, RotateCw } from "lucide-react";
 
 import {
@@ -6,7 +7,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  PageHead,
   Pill,
   TopbarOverflowIcon,
   type PillTone,
@@ -42,19 +42,20 @@ function BridgeDetailActions({
   onOpenEdit?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2" data-testid="bridge-detail-actions">
-      <Button
-        data-testid="edit-bridge-btn"
-        disabled={isLifecyclePending}
-        onClick={onOpenEdit}
-        size="sm"
-        type="button"
-        variant="neutral"
-      >
-        <Pencil className="size-3" />
-        Edit
-      </Button>
-      {!enabled ? (
+    <div className="flex items-center" data-testid="bridge-detail-actions">
+      {enabled ? (
+        <Button
+          data-testid="edit-bridge-btn"
+          disabled={isLifecyclePending}
+          onClick={onOpenEdit}
+          size="sm"
+          type="button"
+          variant="neutral"
+        >
+          <Pencil className="size-3" />
+          Edit
+        </Button>
+      ) : (
         <Button
           data-testid="enable-bridge-btn"
           disabled={isLifecyclePending}
@@ -65,7 +66,7 @@ function BridgeDetailActions({
           <Power className="size-3" />
           Enable
         </Button>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -74,11 +75,13 @@ function BridgeDetailOverflow({
   enabled,
   isLifecyclePending,
   onDisableBridge,
+  onOpenEdit,
   onRestartBridge,
 }: {
   enabled: boolean;
   isLifecyclePending: boolean;
   onDisableBridge?: () => void;
+  onOpenEdit?: () => void;
   onRestartBridge?: () => void;
 }) {
   return (
@@ -91,6 +94,16 @@ function BridgeDetailOverflow({
         <TopbarOverflowIcon aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-testid="bridge-detail-overflow-menu">
+        {!enabled ? (
+          <DropdownMenuItem
+            data-testid="edit-bridge-btn"
+            disabled={isLifecyclePending}
+            onClick={onOpenEdit}
+          >
+            <Pencil className="size-3" />
+            Edit
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           data-testid="restart-bridge-btn"
           disabled={isLifecyclePending}
@@ -126,21 +139,27 @@ export function BridgeDetailHeader({
   const statusTone = statusToPillTone(effectiveStatus);
   const pills = (
     <>
-      <span className="flex items-center gap-2">
-        <Pill.Dot pulse={effectiveStatus === "starting"} tone={statusTone} />
-        <Pill mono tone={statusTone}>
-          {bridgeStatusLabel(effectiveStatus)}
-        </Pill>
-      </span>
       <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
         {bridge.scope}
       </Pill>
     </>
   );
 
-  // Route chrome §07: Edit + Enable (accent when disabled) → Restart/Disable in overflow.
-  // Named zone components keep DropdownMenu state across Topbar slot republish.
+  const navigate = useNavigate();
+  const backToBridges = () => {
+    void navigate({ to: "/bridges" });
+  };
+
   useTopbarSlot({
+    onBack: backToBridges,
+    crumbs: [{ id: "bridges", label: "Bridges", onSelect: backToBridges }],
+    crumb: bridge.display_name,
+    status: (
+      <Pill mono tone={statusTone}>
+        <Pill.Dot pulse={effectiveStatus === "starting"} tone={statusTone} />
+        {bridgeStatusLabel(effectiveStatus)}
+      </Pill>
+    ),
     actions: (
       <BridgeDetailActions
         enabled={bridge.enabled}
@@ -149,30 +168,23 @@ export function BridgeDetailHeader({
         onOpenEdit={onOpenEdit}
       />
     ),
-    crumb: bridge.display_name,
     overflow: (
       <BridgeDetailOverflow
         enabled={bridge.enabled}
         isLifecyclePending={isLifecyclePending}
         onDisableBridge={onDisableBridge}
+        onOpenEdit={onOpenEdit}
         onRestartBridge={onRestartBridge}
       />
     ),
   });
 
   return (
-    <div className="pt-5">
-      <PageHead
-        data-testid="bridge-detail-header"
-        title={bridge.display_name}
-        variant="detail"
-        meta={
-          <span data-testid="bridge-detail-meta-platform">
-            {bridge.platform} / {bridge.extension_name}
-          </span>
-        }
-        pills={pills}
-      />
+    <div className="flex flex-col gap-2 pt-4" data-testid="bridge-detail-header">
+      <div className="flex flex-wrap items-center gap-1.5">{pills}</div>
+      <span className="text-small-body text-subtle" data-testid="bridge-detail-meta-platform">
+        {bridge.platform} / {bridge.extension_name}
+      </span>
     </div>
   );
 }

@@ -175,6 +175,7 @@ tokens:
       inset-strong: "inset 0 0 0 1px var(--color-line-strong)"
       window: "0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)"
       window-unfocused: "0 18px 50px -22px rgba(0, 0, 0, 0.55)"
+      window-head-scrolled: "0 10px 18px -14px rgba(0, 0, 0, 0.55)"
       dock: "0 18px 50px -18px rgba(0, 0, 0, 0.6)"
     sizes:
       height-button-xs: "22px"
@@ -666,18 +667,14 @@ thrash with a stable ring.
 
 <!-- BEGIN:tokens:shadows -->
 
-| Token                       | Value                                                                         |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| `--shadow-overlay`          | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` |
-| `--shadow-highlight`        | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                    |
-| `--shadow-focus-ring`       | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          |
-| `--shadow-focus-inset`      | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                    |
-| `--shadow-hairline`         | `0 0 0 1px var(--color-line-soft)`                                            |
-| `--shadow-hairline-inset`   | `inset 0 0 0 1px var(--color-line-soft)`                                      |
-| `--shadow-inset-strong`     | `inset 0 0 0 1px var(--color-line-strong)`                                    |
-| `--shadow-window`           | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)` |
-| `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                       |
-| `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                        |
+| Token                       | Value                                                                         | Token                           | Value                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
+| `--shadow-overlay`          | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` | `--shadow-highlight`            | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                    |
+| `--shadow-focus-ring`       | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          | `--shadow-focus-inset`          | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                    |
+| `--shadow-hairline`         | `0 0 0 1px var(--color-line-soft)`                                            | `--shadow-hairline-inset`       | `inset 0 0 0 1px var(--color-line-soft)`                                      |
+| `--shadow-inset-strong`     | `inset 0 0 0 1px var(--color-line-strong)`                                    | `--shadow-window`               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)` |
+| `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                       | `--shadow-window-head-scrolled` | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                       |
+| `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                        |                                 |                                                                               |
 
 <!-- END:tokens:shadows -->
 

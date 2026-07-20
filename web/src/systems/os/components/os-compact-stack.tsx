@@ -7,10 +7,6 @@ import { useDesktop } from "../hooks/use-desktop";
 import { getOsApp } from "../lib/app-registry";
 import { OsWindowErrorBoundary } from "./os-window-error-boundary";
 
-export interface OsCompactStackProps {
-  rootCrumb: string;
-}
-
 /**
  * Compact (<960px) presentation: the focused window fills the viewport as a
  * full-bleed surface; geometry is untouched so returning to floating restores
@@ -18,7 +14,7 @@ export interface OsCompactStackProps {
  * insets) lands with the compact-mode task; this keeps the same logical
  * windows usable below the breakpoint.
  */
-export function OsCompactStack({ rootCrumb }: OsCompactStackProps) {
+export function OsCompactStack() {
   const focused = useDesktop(
     useShallow(state => {
       const win = state.focusedId !== null ? state.windows[state.focusedId] : null;
@@ -48,7 +44,7 @@ export function OsCompactStack({ rootCrumb }: OsCompactStackProps) {
       data-testid={`os-window-${focused.id}`}
       data-app={focused.app}
       className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-canvas"
-      aria-label={`${app.title} — ${rootCrumb}`}
+      aria-label={app.title}
     >
       <OsWindowErrorBoundary title={app.title}>
         <Suspense

@@ -2,7 +2,11 @@ import { AlertCircle } from "lucide-react";
 import { useState } from "react";
 
 import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
-import { restartBannerPropsFor, SettingsPageHead, SettingsSaveBar } from "@/systems/settings";
+import {
+  restartBannerPropsFor,
+  SettingsSaveBar,
+  SettingsTopbarPublisher,
+} from "@/systems/settings";
 import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
 import { ControllerLLMSection, ControllerSection } from "./-memory-controller-sections";
 import { DreamSection } from "./-memory-dream-section";
@@ -98,7 +102,7 @@ export function MemorySettingsPage() {
     <PageShell
       slug="memory"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="memory" statusLine={statusLine} />}
+      head={<SettingsTopbarPublisher slug="memory" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="memory"

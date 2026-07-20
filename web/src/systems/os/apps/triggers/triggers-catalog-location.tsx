@@ -8,7 +8,6 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
-  PageHead,
   Spinner,
   useTopbarSlot,
 } from "@agh/ui";
@@ -21,22 +20,52 @@ import {
   useAutomationTriggersPage,
   type AutomationRouteSearch,
 } from "../automation/use-automation-page";
-import { useActiveWorkspace } from "@/systems/workspace";
 
 export function TriggersCatalogLocation({ search }: { search: AutomationRouteSearch }) {
   const page = useAutomationTriggersPage(
     search.create === "loop" && search.loop ? { loop: search.loop } : {},
     search
   );
-  const { activeWorkspace } = useActiveWorkspace();
 
   useTopbarSlot({
+    glyph: <Zap />,
+    count: page.total,
     actions: (
       <Button data-testid="create-trigger-btn" onClick={page.handleCreate} size="sm" type="button">
         <Plus aria-hidden="true" className="size-3" />
         Trigger
       </Button>
     ),
+    toolbar:
+      page.isLoading || page.error ? undefined : (
+        <ListingToolbar>
+          <ListingToolbar.Leading>
+            <ListingToolbar.Search
+              aria-label="Search triggers"
+              data-testid="automation-search-input"
+              onChange={page.setSearchQuery}
+              placeholder="Search triggers"
+              value={page.searchQuery}
+            />
+            <ListingToolbar.Filters>
+              <AutomationListFilters
+                enabledFilter={page.enabledFilter}
+                eventFilter={page.eventFilter}
+                kind="triggers"
+                onEnabledFilterChange={page.setEnabledFilter}
+                onEventFilterChange={page.setEventFilter}
+                onScopeFilterChange={page.setScopeFilter}
+                onSourceFilterChange={page.setSourceFilter}
+                scopeFilter={page.scopeFilter}
+                sourceFilter={page.sourceFilter}
+              />
+            </ListingToolbar.Filters>
+          </ListingToolbar.Leading>
+          <ListingToolbar.Trailing>
+            <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
+          </ListingToolbar.Trailing>
+        </ListingToolbar>
+      ),
   });
 
   if (page.isLoading) {
@@ -66,8 +95,6 @@ export function TriggersCatalogLocation({ search }: { search: AutomationRouteSea
     );
   }
 
-  const workspaceLabel = activeWorkspace?.name ?? activeWorkspace?.id ?? "workspace";
-
   return (
     <>
       <ListingPage
@@ -84,49 +111,6 @@ export function TriggersCatalogLocation({ search }: { search: AutomationRouteSea
         }
         data-testid="triggers-shell"
       >
-        <PageHead
-          count={page.total}
-          countTestId="triggers-count"
-          data-testid="triggers-page-head"
-          icon={Zap}
-          meta={
-            <>
-              <span>Runtime events that run agents, tasks, or Loops when they match.</span>
-              <PageHead.MetaDot />
-              <span>{workspaceLabel}</span>
-            </>
-          }
-          title="Triggers"
-        />
-
-        <ListingToolbar>
-          <ListingToolbar.Leading>
-            <ListingToolbar.Search
-              aria-label="Search triggers"
-              data-testid="automation-search-input"
-              onChange={page.setSearchQuery}
-              placeholder="Search triggers"
-              value={page.searchQuery}
-            />
-            <ListingToolbar.Filters>
-              <AutomationListFilters
-                enabledFilter={page.enabledFilter}
-                eventFilter={page.eventFilter}
-                kind="triggers"
-                onEnabledFilterChange={page.setEnabledFilter}
-                onEventFilterChange={page.setEventFilter}
-                onScopeFilterChange={page.setScopeFilter}
-                onSourceFilterChange={page.setSourceFilter}
-                scopeFilter={page.scopeFilter}
-                sourceFilter={page.sourceFilter}
-              />
-            </ListingToolbar.Filters>
-          </ListingToolbar.Leading>
-          <ListingToolbar.Trailing>
-            <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
-          </ListingToolbar.Trailing>
-        </ListingToolbar>
-
         <AutomationTriggersCatalog
           errorMessage={page.errorMessage}
           hasActiveFilters={page.hasActiveFilters}

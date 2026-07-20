@@ -5,7 +5,7 @@ import { useSettingsNetworkPage } from "@/hooks/routes/use-settings-network-page
 import {
   NetworkSettingsSections,
   restartBannerPropsFor,
-  SettingsPageHead,
+  SettingsTopbarPublisher,
   SettingsSaveBar,
 } from "@/systems/settings";
 import { Button, PageShell, RestartBanner, Spinner, StatusLine } from "@agh/ui";
@@ -81,7 +81,7 @@ export function NetworkSettingsPage() {
     <PageShell
       slug="network"
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
-      head={<SettingsPageHead slug="network" statusLine={statusLine} />}
+      head={<SettingsTopbarPublisher slug="network" statusLine={statusLine} />}
       footer={
         <SettingsSaveBar
           slug="network"

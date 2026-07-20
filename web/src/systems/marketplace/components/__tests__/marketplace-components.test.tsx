@@ -4,10 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SkillPayload } from "@/systems/skill";
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import type { MarketplaceListing, MCPInstallResponse } from "../../types";
 import { marketplaceDetails, marketplaceKindFixture, marketplaceListings } from "../../mocks";
 import { MarketplaceCard } from "../marketplace-card";
-import { MarketplaceDetailHero } from "../marketplace-detail-hero";
+import { MarketplaceDetailMeta } from "../marketplace-detail-meta";
 import { MarketplaceEntryAction, MarketplaceEntryStatus } from "../marketplace-entry-actions";
 import { MarketplaceGrid, MarketplaceGridSkeleton } from "../marketplace-grid";
 import { MarketplaceKindPage } from "../marketplace-kind-page";
@@ -243,7 +244,7 @@ function renderKindPage(
       <MarketplaceKindPage kind={kind} search={search} />
     </QueryClientProvider>
   );
-  const view = render(page());
+  const view = renderWithTopbar(page());
   return { ...view, rerenderKindPage: () => view.rerender(page()) };
 }
 
@@ -269,9 +270,16 @@ describe("MarketplaceKindPage", () => {
     mocks.isInstalledItemPending.mockReturnValue(false);
   });
 
-  it("Should render PageHead identity, scope PillGroup, and marketplace cards", () => {
+  it("Should render kind identity in the topbar, scope PillGroup, and marketplace cards", () => {
     renderKindPage("skill");
-    expect(screen.getByTestId("marketplace-kind-head-skill")).toHaveTextContent("Skills");
+    expect(screen.getByRole("heading", { level: 1, name: "Skills" })).toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-kind-head-skill")).toBeNull();
+    const toolbar = document.querySelector("[data-slot='os-window-toolbar']");
+    expect(toolbar).toContainElement(screen.getByTestId("marketplace-kind-navigation"));
+    expect(toolbar).toContainElement(screen.getByTestId("marketplace-kind-search-skill"));
+    expect(document.querySelector("[data-slot='topbar-actions']")).toContainElement(
+      screen.getByTestId("marketplace-refresh")
+    );
     expect(screen.getByTestId("marketplace-scope-skill")).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-grid")).toHaveAttribute("data-view", "cards");
     expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
@@ -329,7 +337,7 @@ describe("MarketplaceKindPage", () => {
 
     expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-card-spec-preflight")).toBeInTheDocument();
-    expect(screen.getByTestId("marketplace-kind-count-skill")).toHaveTextContent("4");
+    expect(document.querySelector('[data-slot="topbar-count"]')).toHaveTextContent("4");
   });
 
   it("Should preserve loaded cards and retry only the failed continuation", async () => {
@@ -1275,7 +1283,7 @@ describe("Marketplace cards and actions", () => {
     );
   });
 
-  it("Should preserve an activation-specific manage path in cards and detail", () => {
+  it("Should preserve an activation-specific manage path without repeating detail identity", () => {
     const entry = {
       ...marketplaceListings.bundle[0]!,
       installed: true,
@@ -1288,12 +1296,10 @@ describe("Marketplace cards and actions", () => {
       entry.manage_path
     );
 
-    view.rerender(<MarketplaceDetailHero entry={entry} onAction={vi.fn()} pending={false} />);
-    expect(screen.getByRole("link", { name: `Manage ${entry.name}` })).toHaveAttribute(
-      "href",
-      entry.manage_path
-    );
-    expect(screen.getByRole("heading", { level: 2, name: entry.name })).toBeInTheDocument();
+    view.rerender(<MarketplaceDetailMeta entry={entry} />);
+    expect(screen.getByTestId("marketplace-detail-meta")).toHaveTextContent("bundle");
+    expect(screen.queryByRole("heading", { name: entry.name })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: `Manage ${entry.name}` })).not.toBeInTheDocument();
   });
 
   it("Should label installed bundles as active", () => {

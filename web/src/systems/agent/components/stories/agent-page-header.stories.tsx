@@ -2,14 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
 import { CenteredSurface } from "@/storybook/story-layout";
-import { primaryAgentFixture } from "@/systems/agent/mocks";
 
-import {
-  AgentPageActions,
-  AgentPageMeta,
-  AgentPageOverflow,
-  AgentPageStatusPill,
-} from "../agent-page-header";
+import { AgentPageActions, AgentPageOverflow, AgentPageStatusPill } from "../agent-page-header";
 
 const meta: Meta<typeof AgentPageActions> = {
   title: "systems/agent/components/AgentPageHeader",
@@ -19,7 +13,7 @@ const meta: Meta<typeof AgentPageActions> = {
     docs: {
       description: {
         component:
-          "Topbar-slot building blocks for the agent detail route. Status pill, category/origin meta, New session, Edit settings, and overflow Duplicate/Delete.",
+          "Topbar-slot building blocks for the agent detail route: status, one primary New session action, and overflow Edit/Duplicate/Delete.",
       },
     },
   },
@@ -30,7 +24,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Actions: Story = {
   args: {
-    onEditSettings: fn(),
     onNewSession: fn(),
     isCreatingSession: false,
     newSessionDisabled: false,
@@ -39,7 +32,7 @@ export const Actions: Story = {
     <CenteredSurface>
       <div className="flex w-full max-w-3xl items-center justify-end gap-2">
         <AgentPageActions {...args} />
-        <AgentPageOverflow onDelete={fn()} onDuplicate={fn()} />
+        <AgentPageOverflow onDelete={fn()} onDuplicate={fn()} onEditSettings={fn()} />
       </div>
     </CenteredSurface>
   ),
@@ -47,7 +40,6 @@ export const Actions: Story = {
 
 export const CreatingSession: Story = {
   args: {
-    onEditSettings: fn(),
     onNewSession: fn(),
     isCreatingSession: true,
     newSessionDisabled: true,
@@ -56,7 +48,7 @@ export const CreatingSession: Story = {
     <CenteredSurface>
       <div className="flex w-full max-w-3xl items-center justify-end gap-2">
         <AgentPageActions {...args} />
-        <AgentPageOverflow onDelete={fn()} onDuplicate={fn()} />
+        <AgentPageOverflow onDelete={fn()} onDuplicate={fn()} onEditSettings={fn()} />
       </div>
     </CenteredSurface>
   ),
@@ -76,15 +68,6 @@ export const StatusActive: StoryObj<typeof AgentPageStatusPill> = {
   render: () => (
     <CenteredSurface>
       <AgentPageStatusPill activeCount={3} />
-    </CenteredSurface>
-  ),
-};
-
-export const PageMeta: StoryObj<typeof AgentPageMeta> = {
-  args: {},
-  render: () => (
-    <CenteredSurface>
-      <AgentPageMeta agent={primaryAgentFixture} />
     </CenteredSurface>
   ),
 };

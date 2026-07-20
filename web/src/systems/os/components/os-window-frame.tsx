@@ -1,4 +1,5 @@
-import { Topbar, TopbarSlotProvider } from "@agh/ui";
+import { Topbar, TopbarSlotProvider, useTopbarSlotValue } from "@agh/ui";
+import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -6,22 +7,20 @@ import { OsTrafficLights, type OsTrafficLightAction } from "./os-traffic-lights"
 
 /**
  * Floating window frame: the shell chrome around one app's route subtree.
- * The window head IS the route's `<Topbar>` at its 48px three-zone anatomy —
- * traffic lights injected leading, route identity centered, published route
- * actions trailing — wrapped in a per-window `<TopbarSlotProvider>` so the
- * app's routes publish actions into this window's head via `useTopbarSlot`.
- * Frame depth (border + cast shadow) is the sanctioned shell carve-out;
- * window-body content stays on the flat ramp/hairline model.
+ * The window head owns route identity — 44px unified bar (traffic
+ * lights · glyph/title or drill-in trail · status + actions) with an optional
+ * 38px context strip for listing tools. Per-window `TopbarSlotProvider` lets
+ * locations publish identity/tools via `useTopbarSlot`. Frame depth (border +
+ * cast shadow) is the sanctioned shell carve-out; window-body content stays flat.
  *
  * Presentational only — drag, z-order, and focus come from the window
- * manager in Task 04. `focused` selects the focused/unfocused depth and
- * head-dim states; it is not interactive by itself.
+ * manager. `focused` selects the focused/unfocused depth and head-dim states.
  */
 export interface OsWindowFrameProps extends Omit<React.ComponentProps<"section">, "title"> {
-  /** Current page identity in the breadcrumb (`agh / <title>`). */
+  /** Default window title when the location has not published a crumb override. */
   title: React.ReactNode;
-  /** Workspace/root crumb shown before the page title. Defaults to `agh`. */
-  rootCrumb?: React.ReactNode;
+  /** Quiet root glyph when the location has not published `slot.glyph`. */
+  glyph?: React.ReactNode;
   /** Focused (sharp border, cast shadow) vs unfocused (dimmed head, lighter shadow). */
   focused?: boolean;
   /** Traffic-light activation. Omit to render the controls as presentation. */
@@ -30,9 +29,46 @@ export interface OsWindowFrameProps extends Omit<React.ComponentProps<"section">
   headClassName?: string;
 }
 
+function OsWindowToolbar() {
+  const slot = useTopbarSlotValue();
+  if (!slot?.toolbar) return null;
+  return (
+    <div
+      data-slot="os-window-toolbar"
+      className="no-scrollbar flex h-[38px] shrink-0 items-center gap-2.5 overflow-x-auto border-b border-line bg-canvas px-3 py-0.5 [&_[data-slot=listing-toolbar]]:w-full [&_[data-slot=listing-toolbar]]:flex-nowrap"
+    >
+      {slot.toolbar}
+    </div>
+  );
+}
+
+function OsWindowBody({
+  children,
+  onScrolled,
+}: {
+  children: React.ReactNode;
+  onScrolled: (scrolled: boolean) => void;
+}) {
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const scrollTarget = event.target;
+    if (!(scrollTarget instanceof HTMLElement)) return;
+    onScrolled(scrollTarget.scrollTop > 2);
+  };
+
+  return (
+    <div
+      data-slot="os-window-body"
+      className="flex min-h-0 flex-1 flex-col overflow-auto bg-canvas"
+      onScrollCapture={handleScroll}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function OsWindowFrame({
   title,
-  rootCrumb = "agh",
+  glyph,
   focused = true,
   onTrafficLight,
   headClassName,
@@ -40,6 +76,8 @@ export function OsWindowFrame({
   children,
   ...props
 }: OsWindowFrameProps) {
+  const [scrolled, setScrolled] = React.useState(false);
+
   return (
     <section
       data-slot="os-window-frame"
@@ -54,32 +92,19 @@ export function OsWindowFrame({
       <TopbarSlotProvider>
         <Topbar
           data-slot="os-window-head"
+          data-scrolled={scrolled ? "" : undefined}
           leading={<OsTrafficLights onSelect={onTrafficLight} />}
-          breadcrumb={
-            <span className="flex items-center gap-1.5">
-              <span className="font-mono text-eyebrow text-subtle">{rootCrumb}</span>
-              <span aria-hidden="true" className="text-eyebrow text-faint">
-                /
-              </span>
-            </span>
-          }
           title={title}
+          glyph={glyph}
           className={cn(
-            // Unfocused dims head foreground only (prototype `.win:not(.is-focused)
-            // .win-head{color:subtle}`) — background and hairline border stay. Title
-            // is targeted directly; zones use local opacity (explicit-color
-            // descendants would ignore a wrapper's inherited color).
+            scrolled && "border-line-strong shadow-window-head-scrolled",
             !focused &&
-              "[&_[data-slot=topbar-title]]:text-subtle [&_[data-slot=topbar-breadcrumb]]:opacity-60 [&_[data-slot=topbar-trailing]]:opacity-60",
+              "[&_[data-slot=topbar-title]]:text-subtle [&_[data-slot=topbar-identity]]:opacity-60 [&_[data-slot=topbar-trailing]]:opacity-60",
             headClassName
           )}
         />
-        <div
-          data-slot="os-window-body"
-          className="flex min-h-0 flex-1 flex-col overflow-auto bg-canvas"
-        >
-          {children}
-        </div>
+        <OsWindowToolbar />
+        <OsWindowBody onScrolled={setScrolled}>{children}</OsWindowBody>
       </TopbarSlotProvider>
     </section>
   );

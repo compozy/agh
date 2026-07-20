@@ -7,6 +7,7 @@ vi.mock("@tanstack/react-router", () => ({
     const { params: _params, to: _to, ...domRest } = rest as Record<string, unknown>;
     return <a {...domRest}>{children}</a>;
   },
+  useNavigate: () => vi.fn(),
   useRouter: () => ({ history: { back: () => undefined } }),
 }));
 
@@ -55,13 +56,14 @@ function buildDetail(
 }
 
 describe("TasksDetailHeader", () => {
-  it("Should render the body header with title, MonoBadge id, status pill, and action slot in DOM order", () => {
+  it("Should render identity and status in the head with body-owned task metadata", () => {
     const { container } = renderWithTopbar(<TasksDetailHeader detail={buildDetail()} />);
 
     expect(screen.getByTestId("tasks-detail-title")).toHaveTextContent("Summarize review feedback");
     expect(screen.getByTestId("tasks-detail-id")).toHaveTextContent("task-42");
     expect(screen.getByTestId("tasks-detail-status")).toHaveTextContent("Ready");
-    expect(screen.getByTestId("tasks-detail-actions")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-actions")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-detail-overflow")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-detail-breadcrumb-tasks")).toHaveTextContent("Tasks");
 
     // Priority is a pill, while the meta row keeps provenance and timestamps.

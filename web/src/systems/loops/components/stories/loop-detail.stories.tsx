@@ -17,7 +17,7 @@ const meta: Meta<typeof LoopDetailView> = {
   component: LoopDetailView,
   decorators: [
     Story => (
-      <StoryTopbarHost breadcrumb={<span>Loops</span>} title="software-delivery">
+      <StoryTopbarHost title="software-delivery">
         <Story />
       </StoryTopbarHost>
     ),

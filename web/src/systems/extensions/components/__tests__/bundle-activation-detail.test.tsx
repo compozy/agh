@@ -105,7 +105,7 @@ describe("BundleActivationDetail", () => {
     expect(screen.getByText("session-failure-alert")).toBeInTheDocument();
     expect(screen.getAllByText("ops-slack").length).toBeGreaterThan(0);
     expect(screen.getByText("incidents")).toBeInTheDocument();
-    expect(screen.getByText("update available")).toBeInTheDocument();
+    expect(screen.getByText("Update available")).toBeInTheDocument();
     expect(screen.getByText("Live confirmed")).toBeInTheDocument();
     expect(screen.queryByText("Bind primary channel as default")).not.toBeInTheDocument();
     expect(getSlot()?.crumb).toBe("ops-starter");

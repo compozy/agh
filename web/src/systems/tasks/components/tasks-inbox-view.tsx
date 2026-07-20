@@ -21,7 +21,6 @@ import {
 import { useTasksInboxView } from "../hooks/use-tasks-inbox-view";
 import type { TaskInboxItem, TaskInboxView, TaskPriority, TaskStatus } from "../types";
 import { TasksInboxItem, type TasksInboxItemProps } from "./tasks-inbox-item";
-import { TasksInboxPageHead } from "./tasks-inbox-page-head";
 
 export interface TasksInboxViewProps {
   inbox: TaskInboxView | null;
@@ -35,9 +34,6 @@ export interface TasksInboxViewProps {
   onToggleUnread: (next: boolean) => void;
   searchQuery: string;
   onSearchChange: (value: string) => void;
-  workspaceName?: string | null;
-  /** Epoch ms of the last successful inbox fetch (TanStack `dataUpdatedAt`). */
-  inboxUpdatedAt?: number;
   isLoading?: boolean;
   errorMessage?: string | null;
   onApprove?: TasksInboxItemProps["onApprove"];
@@ -71,8 +67,6 @@ export function TasksInboxView({
   onToggleUnread,
   searchQuery,
   onSearchChange,
-  workspaceName,
-  inboxUpdatedAt,
   isLoading = false,
   errorMessage = null,
   onApprove,
@@ -93,26 +87,16 @@ export function TasksInboxView({
   onLoadMore,
   onRetryQuery,
 }: TasksInboxViewProps) {
-  const {
-    archivedTotal,
-    filterChips,
-    filterFields,
-    groups,
-    groupTotals,
-    handleFiltersChange,
-    hasItems,
-    totalCount,
-    unreadTotal,
-    visibleCount,
-  } = useTasksInboxView({
-    inbox,
-    laneFilter,
-    onLaneChange,
-    statusFilter,
-    onStatusChange,
-    priorityFilter,
-    onPriorityChange,
-  });
+  const { filterChips, filterFields, groups, groupTotals, handleFiltersChange, hasItems } =
+    useTasksInboxView({
+      inbox,
+      laneFilter,
+      onLaneChange,
+      statusFilter,
+      onStatusChange,
+      priorityFilter,
+      onPriorityChange,
+    });
 
   const itemActionProps: Omit<TasksInboxItemProps, "item" | "group"> = {
     onApprove,
@@ -132,15 +116,6 @@ export function TasksInboxView({
 
   return (
     <ListingPage className="bg-canvas" data-testid="tasks-inbox-view">
-      <TasksInboxPageHead
-        archivedCount={inbox ? archivedTotal : undefined}
-        inboxUpdatedAt={inboxUpdatedAt}
-        totalCount={inbox ? totalCount : undefined}
-        unreadCount={inbox ? unreadTotal : undefined}
-        visibleCount={inbox ? visibleCount : undefined}
-        workspaceName={workspaceName}
-      />
-
       <div
         className="flex flex-wrap items-center gap-2 border-b border-line-soft pb-3"
         data-testid="tasks-inbox-toolbar"

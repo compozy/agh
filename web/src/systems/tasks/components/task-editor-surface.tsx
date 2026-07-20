@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, ClipboardCheck } from "lucide-react";
+import { Check } from "lucide-react";
 import { useState } from "react";
 
-import { Button, Eyebrow, Spinner } from "@agh/ui";
+import { Button, Spinner } from "@agh/ui";
 
 import {
   NetworkParticipationFields,
@@ -104,21 +104,6 @@ export function TaskEditorSurface({
       data-mode={mode}
       data-testid="task-editor-surface"
     >
-      <header className="border-b border-line px-6 py-5">
-        <div className="flex items-start gap-4">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-tint text-accent-strong ring-1 ring-accent-dim ring-inset">
-            <ClipboardCheck aria-hidden="true" className="size-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <Eyebrow className="text-accent-strong">Autonomy · Task</Eyebrow>
-            <h1 className="mt-1 text-lg font-semibold" data-testid="task-editor-modal-title">
-              {isNewMode ? "Create task" : "Edit task"}
-            </h1>
-            <p className="mt-1 text-sm text-muted">{TASK_DESCRIPTION}</p>
-          </div>
-        </div>
-      </header>
-
       <form
         className="flex min-h-0 flex-1 flex-col"
         data-testid="task-editor-modal-form"
@@ -146,6 +131,7 @@ export function TaskEditorSurface({
           className="min-h-0 flex-1 overflow-y-auto px-6 py-5"
           data-testid="task-editor-modal-body"
         >
+          <p className="mb-5 max-w-prose text-small-body text-muted">{TASK_DESCRIPTION}</p>
           <NumberedSection first index="01" subtitle="What should get done?" title="The contract">
             <ContractSection
               description={draft.description}

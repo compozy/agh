@@ -29,7 +29,7 @@ export interface TasksDashboardViewProps {
 /**
  * Tasks dashboard composition: KPI strip → queue health + status breakdown
  * → active runs → trailing totals eyebrow. Section gap is 16 px to match the
- * runtime section rhythm; the live/stale freshness pill lives in the page-head,
+ * runtime section rhythm; the live/stale freshness pill lives in the window topbar,
  * never inside this view.
  */
 export function TasksDashboardView({

@@ -11,9 +11,9 @@ import {
 } from "@agh/ui";
 import type { ReactNode } from "react";
 
-import type { MarketplaceEntryResponse, MarketplaceListing } from "../types";
+import type { MarketplaceEntryResponse } from "../types";
 import { MarketplaceDetailExtensionManage } from "./marketplace-detail-extension-manage";
-import { MarketplaceDetailHero } from "./marketplace-detail-hero";
+import { MarketplaceDetailMeta } from "./marketplace-detail-meta";
 import { MarketplaceDetailMCPManage } from "./marketplace-detail-mcp-manage";
 import { MarketplaceDetailSkillManage } from "./marketplace-detail-skill-manage";
 import { formatMarketplaceCount } from "./marketplace-ui";
@@ -22,23 +22,19 @@ interface MarketplaceDetailProps {
   data: MarketplaceEntryResponse;
   managementScope?: "global" | "workspace";
   managementWorkspaceId?: string;
-  pending?: boolean;
-  onAction: (entry: MarketplaceListing) => void;
 }
 
 function MarketplaceDetail({
   data,
   managementScope,
   managementWorkspaceId,
-  pending = false,
-  onAction,
 }: MarketplaceDetailProps) {
   const entry = data.entry;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="marketplace-detail">
       <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pb-20")}>
-        <MarketplaceDetailHero entry={entry} onAction={onAction} pending={pending} />
+        <MarketplaceDetailMeta entry={entry} />
 
         <div className="grid grid-cols-1 gap-8 pt-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <main className="flex min-w-0 flex-col gap-7">

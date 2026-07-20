@@ -8,7 +8,6 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
-  PageHead,
   Spinner,
   useTopbarSlot,
 } from "@agh/ui";
@@ -18,26 +17,56 @@ import {
   AutomationListFilters,
   AutomationSuggestionsPanel,
 } from "@/systems/automation";
+import { useActiveWorkspace } from "@/systems/workspace";
 import {
   useAutomationJobsPage,
   type AutomationRouteSearch,
 } from "../automation/use-automation-page";
-import { useActiveWorkspace } from "@/systems/workspace";
 
 export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch }) {
   const page = useAutomationJobsPage(
     search.create === "loop" && search.loop ? { loop: search.loop } : {},
     search
   );
-  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspaceId } = useActiveWorkspace();
 
   useTopbarSlot({
+    glyph: <Clock3 />,
+    count: page.total,
     actions: (
       <Button data-testid="create-job-btn" onClick={page.handleCreate} size="sm" type="button">
         <Plus aria-hidden="true" className="size-3" />
         Job
       </Button>
     ),
+    toolbar:
+      page.isLoading || page.error ? undefined : (
+        <ListingToolbar>
+          <ListingToolbar.Leading>
+            <ListingToolbar.Search
+              aria-label="Search jobs"
+              data-testid="automation-search-input"
+              onChange={page.setSearchQuery}
+              placeholder="Search jobs"
+              value={page.searchQuery}
+            />
+            <ListingToolbar.Filters>
+              <AutomationListFilters
+                enabledFilter={page.enabledFilter}
+                kind="jobs"
+                onEnabledFilterChange={page.setEnabledFilter}
+                onScopeFilterChange={page.setScopeFilter}
+                onSourceFilterChange={page.setSourceFilter}
+                scopeFilter={page.scopeFilter}
+                sourceFilter={page.sourceFilter}
+              />
+            </ListingToolbar.Filters>
+          </ListingToolbar.Leading>
+          <ListingToolbar.Trailing>
+            <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
+          </ListingToolbar.Trailing>
+        </ListingToolbar>
+      ),
   });
 
   if (page.isLoading) {
@@ -64,8 +93,6 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
     );
   }
 
-  const workspaceLabel = activeWorkspace?.name ?? activeWorkspace?.id ?? "workspace";
-
   return (
     <>
       <ListingPage
@@ -82,51 +109,9 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
         }
         data-testid="jobs-shell"
       >
-        <PageHead
-          count={page.total}
-          countTestId="jobs-count"
-          data-testid="jobs-page-head"
-          icon={Clock3}
-          meta={
-            <>
-              <span>Scheduled targets that run agents, tasks, or Loops.</span>
-              <PageHead.MetaDot />
-              <span>{workspaceLabel}</span>
-            </>
-          }
-          title="Jobs"
-        />
-
         {activeWorkspaceId && search.scope !== "global" ? (
           <AutomationSuggestionsPanel key={activeWorkspaceId} workspaceID={activeWorkspaceId} />
         ) : null}
-
-        <ListingToolbar>
-          <ListingToolbar.Leading>
-            <ListingToolbar.Search
-              aria-label="Search jobs"
-              data-testid="automation-search-input"
-              onChange={page.setSearchQuery}
-              placeholder="Search jobs"
-              value={page.searchQuery}
-            />
-            <ListingToolbar.Filters>
-              <AutomationListFilters
-                enabledFilter={page.enabledFilter}
-                kind="jobs"
-                onEnabledFilterChange={page.setEnabledFilter}
-                onScopeFilterChange={page.setScopeFilter}
-                onSourceFilterChange={page.setSourceFilter}
-                scopeFilter={page.scopeFilter}
-                sourceFilter={page.sourceFilter}
-              />
-            </ListingToolbar.Filters>
-          </ListingToolbar.Leading>
-          <ListingToolbar.Trailing>
-            <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
-          </ListingToolbar.Trailing>
-        </ListingToolbar>
-
         <AutomationJobsCatalog
           errorMessage={page.errorMessage}
           hasActiveFilters={page.hasActiveFilters}

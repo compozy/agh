@@ -235,6 +235,7 @@ export {
   TopbarSlotProvider,
   useTopbarSlot,
   useTopbarSlotValue,
+  type TopbarCrumb,
   type TopbarProps,
   type TopbarSlotProviderProps,
   type TopbarSlotValue,
@@ -482,7 +483,6 @@ export {
   type ListingViewMode,
 } from "./components/custom/listing-toolbar";
 export { ListingPage, type ListingPageProps } from "./components/custom/listing-page";
-export { PageHead, type PageHeadProps, type PageHeadVariant } from "./components/custom/page-head";
 export {
   ListGroup,
   ListGroupHeader,

@@ -8,7 +8,6 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
-  PageHead,
   Spinner,
   useTopbarSlot,
 } from "@agh/ui";
@@ -19,13 +18,13 @@ import {
   BridgeListFilters,
   BridgeListPanel,
 } from "@/systems/bridges";
-import { useActiveWorkspace } from "@/systems/workspace";
 
 export function BridgesCatalogLocation({ search }: { search: BridgesRouteSearch }) {
   const page = useBridgesPage(search);
-  const { activeWorkspace } = useActiveWorkspace();
 
   useTopbarSlot({
+    glyph: <Waypoints />,
+    count: page.totalBridgeCount,
     actions: (
       <div className="flex items-center gap-2" data-testid="bridges-topbar-actions">
         <Button
@@ -50,6 +49,35 @@ export function BridgesCatalogLocation({ search }: { search: BridgesRouteSearch 
         </Button>
       </div>
     ),
+    toolbar:
+      page.isInitialLoading || page.fatalError ? undefined : (
+        <ListingToolbar>
+          <ListingToolbar.Leading>
+            <ListingToolbar.Search
+              aria-label="Search bridges"
+              data-testid="bridge-search-input"
+              onChange={page.setSearchQuery}
+              placeholder="Search bridges"
+              value={page.searchQuery}
+            />
+            <ListingToolbar.Filters>
+              <BridgeListFilters
+                onPlatformFilterChange={page.setPlatformFilter}
+                onScopeFilterChange={page.setScopeFilter}
+                onStatusFilterChange={page.setStatusFilter}
+                platformFilter={page.platformFilter}
+                platforms={page.platforms}
+                scopeFilter={page.scopeFilter}
+                statusFilter={page.statusFilter}
+                statuses={page.statuses}
+              />
+            </ListingToolbar.Filters>
+          </ListingToolbar.Leading>
+          <ListingToolbar.Trailing>
+            <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
+          </ListingToolbar.Trailing>
+        </ListingToolbar>
+      ),
   });
 
   if (page.isInitialLoading) {
@@ -90,8 +118,6 @@ export function BridgesCatalogLocation({ search }: { search: BridgesRouteSearch 
     );
   }
 
-  const workspaceLabel = activeWorkspace?.name ?? activeWorkspace?.id ?? "workspace";
-
   return (
     <>
       <ListingPage
@@ -111,48 +137,6 @@ export function BridgesCatalogLocation({ search }: { search: BridgesRouteSearch 
         }
         data-testid="bridges-shell"
       >
-        <PageHead
-          count={page.totalBridgeCount}
-          countTestId="bridges-page-count"
-          data-testid="bridges-page-head"
-          icon={Waypoints}
-          meta={
-            <>
-              <span>Messaging bridges that connect AGH to external platforms.</span>
-              <PageHead.MetaDot />
-              <span>{workspaceLabel}</span>
-            </>
-          }
-          title="Bridges"
-        />
-
-        <ListingToolbar>
-          <ListingToolbar.Leading>
-            <ListingToolbar.Search
-              aria-label="Search bridges"
-              data-testid="bridge-search-input"
-              onChange={page.setSearchQuery}
-              placeholder="Search bridges"
-              value={page.searchQuery}
-            />
-            <ListingToolbar.Filters>
-              <BridgeListFilters
-                onPlatformFilterChange={page.setPlatformFilter}
-                onScopeFilterChange={page.setScopeFilter}
-                onStatusFilterChange={page.setStatusFilter}
-                platformFilter={page.platformFilter}
-                platforms={page.platforms}
-                scopeFilter={page.scopeFilter}
-                statusFilter={page.statusFilter}
-                statuses={page.statuses}
-              />
-            </ListingToolbar.Filters>
-          </ListingToolbar.Leading>
-          <ListingToolbar.Trailing>
-            <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
-          </ListingToolbar.Trailing>
-        </ListingToolbar>
-
         <div data-testid="bridge-list-panel">
           <BridgeListPanel
             bridgeHealth={page.bridgeHealth}

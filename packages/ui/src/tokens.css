@@ -211,7 +211,7 @@
   --text-mono-id: 0.65625rem;
   --text-pill-group-badge: 0.5625rem;
   /* 14 px tier for prose-adjacent / card-title surfaces (chat bubble body,
-     code-block content, tool-call title, topbar title). One step above
+     code-block content, tool-call title). One step above
      `--text-small-body` (12.5 px), one step below `--text-item-title` (15 px). */
   --text-card-title: 0.875rem;
   --text-card-title--line-height: 1.4;
@@ -357,6 +357,7 @@
   --radius-menubar-control: 7px;
   --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
   --shadow-window-unfocused: 0 18px 50px -22px rgba(0, 0, 0, 0.55);
+  --shadow-window-head-scrolled: 0 10px 18px -14px rgba(0, 0, 0, 0.55);
   --shadow-dock: 0 18px 50px -18px rgba(0, 0, 0, 0.6);
 
   /* Shell motion tier — chrome-scale spatial transitions (window entry,

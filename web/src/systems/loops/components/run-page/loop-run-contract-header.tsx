@@ -4,15 +4,12 @@ import { Eyebrow, type PillTone } from "@agh/ui";
 
 import { loopStatusLabel, loopStatusTone } from "../../lib/loop-formatters";
 import type { LoopContract, LoopContractVerification, LoopRunRecord } from "../../types";
-import { LoopStatusPill } from "../loop-status-pill";
 import { MonoTag } from "../mono-tag";
 
 interface LoopRunContractHeaderProps {
   run: LoopRunRecord;
   /** The loop's declared contract (from `useLoop`); undefined while it loads. */
   contract?: LoopContract;
-  /** Operator controls (Pause/Resume/Stop), wired by the route. */
-  controls?: ReactNode;
   /** The 5-meter strip, wired by the route. */
   meters?: ReactNode;
 }
@@ -43,30 +40,22 @@ function reattemptLabel(strategy: string): string {
 }
 
 /**
- * The sticky live contract header (§4.4): the live run-status pill (pulse gated by
- * reduced-motion inside `Pill`), the generation/re-attempt/start meta, the goal +
- * definition-of-done, the typed verification rows, the terminal-outcome chips, the
- * operator controls, and the 5-meter strip. It renders daemon truth: the pill is the
- * run's real status, never coerced.
+ * The run contract summary: generation metadata, goal, definition of done,
+ * verification rows, terminal outcomes, and resource meters. Window identity,
+ * live status, and operator actions belong to the OS topbar publisher.
  */
-export function LoopRunContractHeader({
-  run,
-  contract,
-  controls,
-  meters,
-}: LoopRunContractHeaderProps) {
+export function LoopRunContractHeader({ run, contract, meters }: LoopRunContractHeaderProps) {
   const verification = contract?.verification ?? [];
   const terminalStates = contract?.terminal_states ?? [];
   const startOrigin = run.started_origin_kind ? `start ${run.started_origin_kind}` : null;
   return (
-    <header
-      className="sticky top-0 z-20 flex flex-col gap-4 border-b border-line bg-canvas-soft px-6 py-4"
+    <section
+      className="flex flex-col gap-4 border-b border-line bg-canvas-soft px-6 py-4"
       data-testid="loop-run-contract-header"
     >
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5 text-[12.5px] text-subtle">
-            <LoopStatusPill status={run.status} data-testid="loop-run-status-pill" />
             <span>
               Generation <b className="font-medium text-fg-strong">{run.generation}</b>
               {run.iteration_cap > 0 ? ` of ${run.iteration_cap}` : " · unbounded"} ·{" "}
@@ -76,14 +65,13 @@ export function LoopRunContractHeader({
               <span className="font-mono text-[11.5px] text-muted">{startOrigin}</span>
             ) : null}
           </div>
-          <h1
+          <h2
             className="mt-2.5 max-w-[78ch] text-[16px] leading-snug font-medium tracking-[-0.016em] text-fg-strong"
             data-testid="loop-run-goal"
           >
             {contract?.goal ?? `Run ${run.loop_name}`}
-          </h1>
+          </h2>
         </div>
-        {controls ? <div className="shrink-0">{controls}</div> : null}
       </div>
 
       {contract ? (
@@ -142,6 +130,6 @@ export function LoopRunContractHeader({
       ) : null}
 
       {meters}
-    </header>
+    </section>
   );
 }

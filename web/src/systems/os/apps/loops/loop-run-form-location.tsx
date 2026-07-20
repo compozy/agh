@@ -16,7 +16,16 @@ export function LoopRunFormLocation({ name }: { name: string }) {
   const workspaceId = activeWorkspaceId ?? "";
   const loopQuery = useLoop(workspaceId, name, workspaceId !== "");
   const configQuery = useLoopConfig(workspaceId, name, workspaceId !== "");
-  useTopbarSlot({ crumb: `Loops / ${name} / Run` });
+  const openLoops = () => void navigate({ to: "/loops" });
+  const openLoop = () => void navigate({ to: "/loops/$name", params: { name } });
+  useTopbarSlot({
+    onBack: openLoop,
+    crumbs: [
+      { id: "loops", label: "Loops", onSelect: openLoops },
+      { id: "loop", label: name, onSelect: openLoop },
+    ],
+    crumb: "Run",
+  });
 
   if (workspaceId === "") {
     return (
@@ -67,7 +76,7 @@ export function LoopRunFormLocation({ name }: { name: string }) {
       workspaceId={workspaceId}
       loop={loopQuery.data}
       effectiveConfig={configQuery.effectiveConfig}
-      onCancel={() => navigate({ to: "/loops/$name", params: { name } })}
+      onCancel={openLoop}
       onRunStarted={runId => navigate({ to: "/loop-runs/$runId", params: { runId } })}
     />
   );

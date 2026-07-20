@@ -1,6 +1,6 @@
 import { AlertCircle, Repeat2 } from "lucide-react";
 
-import { Empty, Spinner, useTopbarSlot } from "@agh/ui";
+import { Empty, Spinner } from "@agh/ui";
 import { LoopDetailView } from "@/systems/loops";
 import { useLoopDetail } from "./use-loop-detail";
 
@@ -16,7 +16,6 @@ export function LoopDetailLocation({ name }: { name: string }) {
     readGraph,
     handlers,
   } = useLoopDetail(name);
-  useTopbarSlot({ crumb: `Loops / ${name}` });
   if (workspaceId === "") {
     return (
       <DetailState
