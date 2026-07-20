@@ -28,6 +28,13 @@ function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
 
 export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {
   /**
+   * Optional leading zone content anchored at the start edge (e.g. OS window
+   * controls). When present the no-routeNav grid becomes `1fr auto 1fr` so the
+   * context zone centers; routeNav + leading use a four-column grid. Omit to
+   * preserve the default DOM and classes exactly.
+   */
+  leading?: React.ReactNode;
+  /**
    * Leading route ancestry built by the shell. The current route title is
    * rendered separately as this Topbar's single H1.
    */
@@ -38,9 +45,10 @@ export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title
   titleRef?: React.Ref<HTMLHeadingElement>;
 }
 
-function Topbar({ breadcrumb, title, titleRef, className, ...props }: TopbarProps) {
+function Topbar({ leading, breadcrumb, title, titleRef, className, ...props }: TopbarProps) {
   const slot = useTopbarSlotValue();
   const hasRouteNav = Boolean(slot?.routeNav);
+  const hasLeading = leading != null;
 
   return (
     <header
@@ -48,13 +56,28 @@ function Topbar({ breadcrumb, title, titleRef, className, ...props }: TopbarProp
       className={cn(
         "grid h-12 min-w-0 shrink-0 items-center gap-3 overflow-hidden border-b border-line bg-canvas px-4",
         hasRouteNav
-          ? "grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)]"
-          : "grid-cols-[minmax(0,1fr)_auto]",
+          ? hasLeading
+            ? "grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)_auto]"
+            : "grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)]"
+          : hasLeading
+            ? "grid-cols-[1fr_auto_1fr]"
+            : "grid-cols-[minmax(0,1fr)_auto]",
         className
       )}
       {...props}
     >
-      <div data-slot="topbar-context" className="flex min-w-0 items-center gap-2 overflow-hidden">
+      {hasLeading ? (
+        <div data-slot="topbar-leading" className="flex min-w-0 items-center justify-self-start">
+          {leading}
+        </div>
+      ) : null}
+      <div
+        data-slot="topbar-context"
+        className={cn(
+          "flex min-w-0 items-center gap-2 overflow-hidden",
+          hasLeading && !hasRouteNav && "justify-self-center"
+        )}
+      >
         {breadcrumb ? (
           <div data-slot="topbar-breadcrumb" className="hidden min-w-0 sm:block">
             {breadcrumb}

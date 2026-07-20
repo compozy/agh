@@ -276,6 +276,42 @@ Daemon-managed child-session creation. Defaults: `max_depth = 1`, `max_children 
 
 ---
 
+## OS Shell
+
+The web operator surface presents as a desktop: a menubar, a wallpapered desktop, free-floating windows, and a dock (ADR-001/002/006). These terms name that presentation model. The runtime object remains the `workspace`; the shell only rearranges how its surfaces are shown.
+
+### Workspace
+
+The runtime object: project root and scoped runtime context (sessions, memory, tasks, vault, config). Unchanged by the shell — a workspace is not a visual container, and shell terms never replace it as the unit of runtime scope.
+
+### Space
+
+The per-workspace desktop arrangement. Each workspace has one space: the set of open windows, their geometry, focus, and wallpaper for that workspace. Switching workspaces switches spaces. A space is presentation state, not a new runtime scope — it carries no sessions, memory, or tasks of its own.
+
+### Desktop
+
+The wallpapered canvas behind the windows in the current space. Not a runtime object.
+
+### Window
+
+A floating frame hosting one app's route subtree. The window head is the route's `<Topbar>` with OS controls injected. Windows are presentation containers; the views inside them are the same `systems/*` views the routes render.
+
+### Dock
+
+The bottom strip of app launchers. It mirrors the app inventory and carries running/minimized indicators and badges bound to runtime projections (waiting sessions, awaiting-approval tasks).
+
+### Menubar
+
+The top bar across the desktop: workspace trigger, app menus, the approvals bell, the ⌘K palette, and Settings.
+
+### Desktop state
+
+The persisted presentation state of a space: which windows are open, their rects/z/focus/minimized, the wallpaper, and rail/palette prefs. Stored daemon-side per workspace (ADR-008) and synced to clients.
+
+**Desktop state vs memory:** desktop state is *presentation* state — where windows sit and how the shell looks. It is opaque to the daemon and never interpreted. `memory` is *agent* state — the consolidated knowledge an agent carries (see Memory above). The two never mix: desktop state holds no agent knowledge, and memory holds no window geometry.
+
+---
+
 ## Verification & Testing
 
 ### `make verify`

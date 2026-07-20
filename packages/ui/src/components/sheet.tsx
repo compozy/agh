@@ -13,6 +13,7 @@ import {
   useSheetMotion,
 } from "./hooks/use-sheet-motion";
 import { useInitialState } from "./use-initial-state";
+import { useOverlayContainer } from "./hooks/use-overlay-container";
 
 type SheetSide = "top" | "right" | "bottom" | "left";
 
@@ -61,8 +62,15 @@ function SheetClose({ ...props }: SheetPrimitive.Close.Props) {
   return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
 }
 
-function SheetPortal({ ...props }: SheetPrimitive.Portal.Props) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
+function SheetPortal({ container, ...props }: SheetPrimitive.Portal.Props) {
+  const overlayContainer = useOverlayContainer();
+  return (
+    <SheetPrimitive.Portal
+      data-slot="sheet-portal"
+      container={container !== undefined ? container : (overlayContainer ?? undefined)}
+      {...props}
+    />
+  );
 }
 
 function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {

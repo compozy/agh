@@ -52,6 +52,69 @@ describe("Topbar", () => {
     expect(container.querySelector("[data-slot='topbar-actions']")).toBeNull();
   });
 
+  it("Should render the leading zone left with context centered in the 1fr auto 1fr grid", () => {
+    render(
+      <TopbarSlotProvider>
+        <Topbar
+          leading={<span data-testid="window-controls">lights</span>}
+          breadcrumb={<span data-testid="crumb-trail">agh</span>}
+          title="Agents"
+        />
+      </TopbarSlotProvider>
+    );
+    const header = document.querySelector("[data-slot='topbar']");
+    expect(header).toHaveClass("grid-cols-[1fr_auto_1fr]");
+    const leading = document.querySelector("[data-slot='topbar-leading']");
+    expect(leading).toContainElement(screen.getByTestId("window-controls"));
+    expect(leading).toHaveClass("justify-self-start");
+    expect(document.querySelector("[data-slot='topbar-context']")).toHaveClass(
+      "justify-self-center"
+    );
+  });
+
+  it("Should let leading coexist with published routeNav/actions/overflow slots", () => {
+    function Setup() {
+      useTopbarSlot({
+        routeNav: <span data-testid="route-nav-links">views</span>,
+        actions: <span data-testid="action-btn">action</span>,
+      });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar leading={<span data-testid="window-controls">lights</span>} title="Tasks" />
+      </TopbarSlotProvider>
+    );
+    expect(document.querySelector("[data-slot='topbar-leading']")).toContainElement(
+      screen.getByTestId("window-controls")
+    );
+    expect(document.querySelector("[data-slot='topbar-route-nav']")).toContainElement(
+      screen.getByTestId("route-nav-links")
+    );
+    expect(document.querySelector("[data-slot='topbar-actions']")).toContainElement(
+      screen.getByTestId("action-btn")
+    );
+    expect(document.querySelector("[data-slot='topbar']")).toHaveClass(
+      "grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)_auto]"
+    );
+  });
+
+  it("Should preserve the default DOM and classes when leading is omitted", () => {
+    render(
+      <TopbarSlotProvider>
+        <Topbar title="Home" />
+      </TopbarSlotProvider>
+    );
+    expect(document.querySelector("[data-slot='topbar-leading']")).toBeNull();
+    expect(document.querySelector("[data-slot='topbar']")).toHaveClass(
+      "grid-cols-[minmax(0,1fr)_auto]"
+    );
+    expect(document.querySelector("[data-slot='topbar-context']")).not.toHaveClass(
+      "justify-self-center"
+    );
+  });
+
   it("Should expose routeNav/actions/overflow slots in their zones", () => {
     function Setup() {
       useTopbarSlot({

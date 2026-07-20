@@ -2,7 +2,7 @@ import type { SVGProps } from "react";
 
 import { cn } from "../../lib/utils";
 
-export type LogoVariant = "logo" | "symbol" | "lettering" | "glyph";
+export type LogoVariant = "logo" | "symbol" | "lettering" | "glyph" | "menubar";
 
 export interface LogoProps extends Omit<SVGProps<SVGSVGElement>, "children"> {
   variant?: LogoVariant;
@@ -15,6 +15,7 @@ const LOGO_VIEWBOX: Record<LogoVariant, string> = {
   symbol: "0 0 355 355",
   lettering: "0 0 543 362",
   glyph: "0 0 32 32",
+  menubar: "0 0 16 16",
 };
 
 const LOGO_SIZE_CLASS: Record<LogoVariant, string> = {
@@ -22,6 +23,7 @@ const LOGO_SIZE_CLASS: Record<LogoVariant, string> = {
   symbol: "size-8",
   lettering: "h-8 w-auto",
   glyph: "size-8",
+  menubar: "size-menubar-logo",
 };
 
 const SYMBOL_PATHS = [
@@ -78,6 +80,16 @@ function GlyphArtwork() {
   );
 }
 
+/** OpenDesign `mb-logo`: accent tile via `currentColor` + accent-ink center dot. */
+function MenubarArtwork() {
+  return (
+    <>
+      <rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor" />
+      <circle cx="8" cy="8" r="2.6" fill="var(--color-accent-ink)" />
+    </>
+  );
+}
+
 function Logo({
   variant = "logo",
   label = "AGH",
@@ -115,6 +127,7 @@ function Logo({
       {variant === "symbol" && <SymbolArtwork />}
       {variant === "lettering" && <LetteringArtwork />}
       {variant === "glyph" && <GlyphArtwork />}
+      {variant === "menubar" && <MenubarArtwork />}
     </svg>
   );
 }

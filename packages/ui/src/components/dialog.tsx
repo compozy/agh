@@ -14,6 +14,7 @@ import {
 } from "./hooks/use-dialog-motion";
 import { useDialogMotionTransition } from "./hooks/use-dialog-motion-transition";
 import { useInitialState } from "./use-initial-state";
+import { useOverlayContainer } from "./hooks/use-overlay-container";
 
 type DialogRootProps = DialogPrimitive.Root.Props;
 
@@ -56,8 +57,15 @@ function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
 
-function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+function DialogPortal({ container, ...props }: DialogPrimitive.Portal.Props) {
+  const overlayContainer = useOverlayContainer();
+  return (
+    <DialogPrimitive.Portal
+      data-slot="dialog-portal"
+      container={container !== undefined ? container : (overlayContainer ?? undefined)}
+      {...props}
+    />
+  );
 }
 
 function DialogClose({ ...props }: DialogPrimitive.Close.Props) {

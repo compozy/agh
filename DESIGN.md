@@ -20,6 +20,7 @@ tokens:
       line: "rgba(255, 255, 255, 0.055)"
       line-soft: "rgba(255, 255, 255, 0.03)"
       line-strong: "rgba(255, 255, 255, 0.09)"
+      line-focus: "rgba(255, 255, 255, 0.14)"
       fg: "#ececef"
       fg-strong: "#f6f6f8"
       muted: "#9a9a9f"
@@ -106,6 +107,8 @@ tokens:
       sidebar-accent-foreground: "var(--color-fg)"
       sidebar-border: "var(--color-line)"
       sidebar-ring: "var(--color-line-strong)"
+      shell-glass: "var(--shell-glass)"
+      shell-glass-pop: "var(--shell-glass-pop)"
     typography:
       item-title: { size: "0.9375rem", line: "1.375rem" }
       small-body: { size: "0.8125rem", line: "1.125rem" }
@@ -146,14 +149,22 @@ tokens:
       chip: "5px"
       mono-badge: "4px"
       icon-well: "10px"
+      window: "12px"
+      dock: "22px"
+      dock-item: "13px"
+      menubar-control: "7px"
     motion:
       duration:
         fast: "100ms"
         base: "140ms"
         slow: "200ms"
+        shell-fast: "120ms"
+        shell-base: "240ms"
+        shell-slow: "320ms"
       ease:
         out: "cubic-bezier(0.2, 0, 0, 1)"
         in-out: "cubic-bezier(0.4, 0, 0.2, 1)"
+        spring: "cubic-bezier(0.32, 0.72, 0.28, 1)"
     shadow:
       overlay: "0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)"
       highlight: "inset 0 1px 0 rgba(255, 255, 255, 0.035)"
@@ -162,6 +173,9 @@ tokens:
       hairline: "0 0 0 1px var(--color-line-soft)"
       hairline-inset: "inset 0 0 0 1px var(--color-line-soft)"
       inset-strong: "inset 0 0 0 1px var(--color-line-strong)"
+      window: "0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)"
+      window-unfocused: "0 18px 50px -22px rgba(0, 0, 0, 0.55)"
+      dock: "0 18px 50px -18px rgba(0, 0, 0, 0.6)"
     sizes:
       height-button-xs: "22px"
       height-button-sm: "22px"
@@ -203,6 +217,21 @@ tokens:
       height-modal-tall: "900px"
       height-modal-wizard: "960px"
       height-modal-xl: "840px"
+      height-menubar: "44px"
+      height-menubar-chip: "26px"
+      size-dock-item: "46px"
+      size-dock-icon: "21px"
+      size-dock-badge: "15px"
+      size-dock-indicator: "4px"
+      size-dock-indicator-min: "5px"
+      size-traffic-light: "12px"
+      size-menubar-logo: "17px"
+      size-workspace-avatar: "18px"
+      size-dock-new-icon: "18px"
+      spacing-dock-gap: "4px"
+      spacing-dock-pad: "7px"
+      spacing-menubar-workspace-gap: "7px"
+      spacing-traffic-light-gap: "7px"
       overlay-blur: "3px"
       width-modal-sm: "560px"
       width-modal-md: "720px"
@@ -281,6 +310,9 @@ and it is not a generic SaaS blue-gray dashboard.
 The runtime is dark-only. `color-scheme: dark` is part of the product
 contract, not a theme preference. Surfaces must never depend on white
 backgrounds, pastel cards, decorative blur, or ambient shadows for legibility.
+The single sanctioned exception is OS-shell chrome: the menubar, dock,
+sessions rail, shell popovers, and window frames use the tokenized shell
+glass and blur from §5. Content inside window bodies never does.
 
 The core atmosphere is:
 
@@ -338,6 +370,7 @@ token or component at the source; do not locally override one callsite.
 | `--color-line`        | `rgba(255, 255, 255, 0.055)` |
 | `--color-line-soft`   | `rgba(255, 255, 255, 0.03)`  |
 | `--color-line-strong` | `rgba(255, 255, 255, 0.09)`  |
+| `--color-line-focus`  | `rgba(255, 255, 255, 0.14)`  |
 
 <!-- END:tokens:hairlines -->
 
@@ -407,6 +440,23 @@ runtime variables that intentionally stay outside `@theme`.
 | `--color-badge-fill`        | `rgba(255, 255, 255, 0.05)`  |
 
 <!-- END:tokens:glaze-ladder -->
+
+### Shell glass
+
+OS-shell chrome (menubar, dock, sessions rail, shell popovers, window frames)
+reads its translucent glass surfaces from these tokens — the only sanctioned
+glass in the system. Window-body content never uses them (§5).
+
+<!-- BEGIN:tokens:shell-glass -->
+
+| Token                     | Value                    |
+| ------------------------- | ------------------------ |
+| `--shell-glass`           | `rgba(12, 11, 11, 0.72)` |
+| `--color-shell-glass`     | `var(--shell-glass)`     |
+| `--shell-glass-pop`       | `rgba(19, 18, 17, 0.94)` |
+| `--color-shell-glass-pop` | `var(--shell-glass-pop)` |
+
+<!-- END:tokens:shell-glass -->
 
 ### Owner avatar palette
 
@@ -524,10 +574,12 @@ because they are small.
 
 ## 4. Layout grammar
 
-The runtime shell is a fixed operator frame: a 56px workspace rail, a sidebar
-panel, and a content region. Page identity belongs in `<Topbar>`. Detail
-surfaces may add `<DetailHeader>` inside the content region, but list and route
-pages should not invent body-side page H1s.
+The runtime shell is a desktop: a menubar across the top, a dock along the
+bottom, and free-floating windows over a wallpapered desktop. Each window
+hosts one app's route subtree. Page identity belongs in the window head, which
+is the route's `<Topbar>` with OS window controls injected into its leading
+zone. Detail surfaces may add `<DetailHeader>` inside the window body, but
+list and route pages should not invent body-side page H1s.
 
 The page envelope is dense by default. Route content gets constrained width,
 predictable gutters, and scrollable interior panels. Repeated list rows should
@@ -545,14 +597,16 @@ widths come from `--site-*` tokens.
 
 <!-- BEGIN:tokens:radii -->
 
-| Token                | Value  | Token                 | Value    |
-| -------------------- | ------ | --------------------- | -------- |
-| `--radius`           | `6px`  | `--radius-xxs`        | `3px`    |
-| `--radius-xs`        | `4px`  | `--radius-sm`         | `5px`    |
-| `--radius-md`        | `8px`  | `--radius-lg`         | `10px`   |
-| `--radius-xl`        | `14px` | `--radius-pill`       | `9999px` |
-| `--radius-chip`      | `5px`  | `--radius-mono-badge` | `4px`    |
-| `--radius-icon-well` | `10px` |                       |          |
+| Token                      | Value  | Token                 | Value    |
+| -------------------------- | ------ | --------------------- | -------- |
+| `--radius`                 | `6px`  | `--radius-xxs`        | `3px`    |
+| `--radius-xs`              | `4px`  | `--radius-sm`         | `5px`    |
+| `--radius-md`              | `8px`  | `--radius-lg`         | `10px`   |
+| `--radius-xl`              | `14px` | `--radius-pill`       | `9999px` |
+| `--radius-chip`            | `5px`  | `--radius-mono-badge` | `4px`    |
+| `--radius-icon-well`       | `10px` | `--radius-window`     | `12px`   |
+| `--radius-dock`            | `22px` | `--radius-dock-item`  | `13px`   |
+| `--radius-menubar-control` | `7px`  |                       |          |
 
 <!-- END:tokens:radii -->
 
@@ -575,7 +629,12 @@ widths come from `--site-*` tokens.
 | `--width-message-bubble-max`      | `640px` | `--width-wire-card-max`            | `520px`  | `--width-search-input-min`        | `220px`  |
 | `--width-filters-menu-default`    | `200px` | `--width-filters-menu-stack`       | `220px`  | `--width-settings-nav`            | `224px`  |
 | `--height-modal-md`               | `760px` | `--height-modal-tall`              | `900px`  | `--height-modal-wizard`           | `960px`  |
-| `--height-modal-xl`               | `840px` | `--overlay-blur`                   | `3px`    | `--width-modal-sm`                | `560px`  |
+| `--height-modal-xl`               | `840px` | `--height-menubar`                 | `44px`   | `--height-menubar-chip`           | `26px`   |
+| `--size-dock-item`                | `46px`  | `--size-dock-icon`                 | `21px`   | `--size-dock-badge`               | `15px`   |
+| `--size-dock-indicator`           | `4px`   | `--size-dock-indicator-min`        | `5px`    | `--size-traffic-light`            | `12px`   |
+| `--size-menubar-logo`             | `17px`  | `--size-workspace-avatar`          | `18px`   | `--size-dock-new-icon`            | `18px`   |
+| `--spacing-dock-gap`              | `4px`   | `--spacing-dock-pad`               | `7px`    | `--spacing-menubar-workspace-gap` | `7px`    |
+| `--spacing-traffic-light-gap`     | `7px`   | `--overlay-blur`                   | `3px`    | `--width-modal-sm`                | `560px`  |
 | `--width-modal-md`                | `720px` | `--width-modal-lg`                 | `880px`  | `--width-modal-xl`                | `1180px` |
 | `--width-thread-column`           | `46rem` | `--size-catalog-logo`              | `1.5rem` | `--size-provider-logo-well`       | `2.5rem` |
 | `--size-pill-group-badge`         | `14px`  | `--height-pill-group-segment-md`   | `24px`   | `--height-pill-group-segment-sm`  | `20px`   |
@@ -587,9 +646,15 @@ widths come from `--site-*` tokens.
 ## 5. Depth and elevation
 
 The model is flat by default. The surface ramp creates depth; hairlines and
-inset rings clarify boundaries. Only overlays and active rims use the shadow
-vocabulary. Adding new shadow tokens is a design-system change, not a local
-styling decision.
+inset rings clarify boundaries. Adding new shadow tokens is a design-system
+change, not a local styling decision.
+
+Depth has two layers. OS-shell chrome — the menubar, dock, sessions rail,
+shell popovers, and window frames — is the one place glass, backdrop blur,
+and cast window shadows are allowed, drawn from the shell tokens below. This
+carve-out separates floating chrome from the wallpaper behind it. Content
+inside window bodies stays on the flat ramp/hairline model: no glass, no
+blur, no cast shadows.
 
 `--shadow-overlay` is for modal/sheet separation. `--shadow-highlight` is the
 small active rim used by selected controls that need a top-edge lift. Focus
@@ -598,17 +663,38 @@ thrash with a stable ring.
 
 <!-- BEGIN:tokens:shadows -->
 
-| Token                     | Value                                                                         |
-| ------------------------- | ----------------------------------------------------------------------------- |
-| `--shadow-overlay`        | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` |
-| `--shadow-highlight`      | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                    |
-| `--shadow-focus-ring`     | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          |
-| `--shadow-focus-inset`    | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                    |
-| `--shadow-hairline`       | `0 0 0 1px var(--color-line-soft)`                                            |
-| `--shadow-hairline-inset` | `inset 0 0 0 1px var(--color-line-soft)`                                      |
-| `--shadow-inset-strong`   | `inset 0 0 0 1px var(--color-line-strong)`                                    |
+| Token                       | Value                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `--shadow-overlay`          | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` |
+| `--shadow-highlight`        | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                    |
+| `--shadow-focus-ring`       | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          |
+| `--shadow-focus-inset`      | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                    |
+| `--shadow-hairline`         | `0 0 0 1px var(--color-line-soft)`                                            |
+| `--shadow-hairline-inset`   | `inset 0 0 0 1px var(--color-line-soft)`                                      |
+| `--shadow-inset-strong`     | `inset 0 0 0 1px var(--color-line-strong)`                                    |
+| `--shadow-window`           | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)` |
+| `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                       |
+| `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                        |
 
 <!-- END:tokens:shadows -->
+
+### Shell backdrop and wallpaper
+
+<!-- BEGIN:tokens:shell-backdrop -->
+
+| Token                   | Value                                                                                                                                                                                                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--blur-shell`          | `28px`                                                                                                                                                                                                                                                                                             |
+| `--blur-shell-pop`      | `32px`                                                                                                                                                                                                                                                                                             |
+| `--blur-shell-scrim`    | `8px`                                                                                                                                                                                                                                                                                              |
+| `--wallpaper-teal`      | `#225555`                                                                                                                                                                                                                                                                                          |
+| `--wallpaper-grid`      | `radial-gradient( 1.5px 1.5px at 50% 50%, rgba(255, 255, 255, 0.035) 40%, transparent 41% )`                                                                                                                                                                                                       |
+| `--wallpaper-grid-size` | `26px`                                                                                                                                                                                                                                                                                             |
+| `--wallpaper-ember`     | `radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%), radial-gradient( 1000px 640px at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 38%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)` |
+| `--wallpaper-mesh`      | `radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%), radial-gradient( 1200px 700px at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 40%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)`               |
+| `--wallpaper-carbon`    | `radial-gradient(1000px 620px at 50% -14%, rgba(255, 255, 255, 0.04), transparent 58%), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%)`                                                                                                                                       |
+
+<!-- END:tokens:shell-backdrop -->
 
 ## 6. Motion
 
@@ -619,15 +705,23 @@ Use the named duration and easing tokens. Reduced motion is global and
 implemented in `tokens.css` with a near-zero duration so animation lifecycle
 callbacks still fire.
 
+Shell chrome adds one tier above the base ladder for spatial transitions —
+window entry, dock magnification, and minimize travel — at chrome scale with
+a single spring ease. Window-body content keeps the base ladder.
+
 <!-- BEGIN:tokens:motion -->
 
-| Token             | Value                          |
-| ----------------- | ------------------------------ |
-| `--duration-fast` | `100ms`                        |
-| `--duration-base` | `140ms`                        |
-| `--duration-slow` | `200ms`                        |
-| `--ease-out`      | `cubic-bezier(0.2, 0, 0, 1)`   |
-| `--ease-in-out`   | `cubic-bezier(0.4, 0, 0.2, 1)` |
+| Token                   | Value                               |
+| ----------------------- | ----------------------------------- |
+| `--duration-fast`       | `100ms`                             |
+| `--duration-base`       | `140ms`                             |
+| `--duration-slow`       | `200ms`                             |
+| `--ease-out`            | `cubic-bezier(0.2, 0, 0, 1)`        |
+| `--ease-in-out`         | `cubic-bezier(0.4, 0, 0.2, 1)`      |
+| `--duration-shell-fast` | `120ms`                             |
+| `--duration-shell-base` | `240ms`                             |
+| `--duration-shell-slow` | `320ms`                             |
+| `--ease-spring`         | `cubic-bezier(0.32, 0.72, 0.28, 1)` |
 
 <!-- END:tokens:motion -->
 
@@ -729,7 +823,9 @@ is listed.
   foreground, neutral, or signal tokens for the rest.
 - Decorative depth. Pattern: generic Tailwind shadow utilities on cards,
   popovers, headers, or rows. Use the flat ring/ramp model and the shadow
-  whitelist above.
+  whitelist above. The only cast-shadow and glass exception is OS-shell chrome
+  (menubar, dock, sessions rail, shell popovers, window frames) per §5; window
+  content stays flat.
 - Fake affordances. Pattern: UI controls, metrics, or statuses that are not
   backed by runtime APIs, CLI/UDS/HTTP surfaces, or real state.
 

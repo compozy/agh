@@ -45,6 +45,7 @@
   --color-line: rgba(255, 255, 255, 0.055);
   --color-line-soft: rgba(255, 255, 255, 0.03);
   --color-line-strong: rgba(255, 255, 255, 0.09);
+  --color-line-focus: rgba(255, 255, 255, 0.14);
 
   /* Text. */
   --color-fg: #ececef;
@@ -339,10 +340,62 @@
   --height-modal-tall: 900px;
   --height-modal-wizard: 960px;
   --height-modal-xl: 840px;
+
+  /* OS shell chrome — the sanctioned depth carve-out (DESIGN.md §5).
+     Glass, backdrop blur, and window shadows apply to shell chrome only:
+     menubar, dock, sessions rail, shell popovers, and window frames.
+     Content inside window bodies stays on the flat ramp/hairline model.
+     The canonical `--shell-glass` literals live in `:root`; these `--color-*`
+     adapters reference them so production keeps resolving through `--color-*`. */
+  --color-shell-glass: var(--shell-glass);
+  --color-shell-glass-pop: var(--shell-glass-pop);
+  --radius-window: 12px;
+  --radius-dock: 22px;
+  --radius-dock-item: 13px;
+  --radius-menubar-control: 7px;
+  --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
+  --shadow-window-unfocused: 0 18px 50px -22px rgba(0, 0, 0, 0.55);
+  --shadow-dock: 0 18px 50px -18px rgba(0, 0, 0, 0.6);
+
+  /* Shell motion tier — chrome-scale spatial transitions (window entry,
+     dock magnification, minimize travel) above the base ladder; one spring. */
+  --duration-shell-fast: 120ms;
+  --duration-shell-base: 240ms;
+  --duration-shell-slow: 320ms;
+  --ease-spring: cubic-bezier(0.32, 0.72, 0.28, 1);
+
+  /* Shell chrome geometry. */
+  --height-menubar: 44px;
+  --height-menubar-chip: 26px;
+  --size-dock-item: 46px;
+  --size-dock-icon: 21px;
+  --size-dock-badge: 15px;
+  --size-dock-indicator: 4px;
+  --size-dock-indicator-min: 5px;
+  --size-traffic-light: 12px;
+  --size-menubar-logo: 17px;
+  --size-workspace-avatar: 18px;
+  --size-dock-new-icon: 18px;
+  /* `--spacing-*` (not `--space-*`) so Tailwind v4 emits gap/p utilities. */
+  --spacing-dock-gap: 4px;
+  --spacing-dock-pad: 7px;
+  --spacing-menubar-workspace-gap: 7px;
+  --spacing-traffic-light-gap: 7px;
+
+  /* Shell backdrop blur tiers — consumed as backdrop-blur-shell etc. */
+  --blur-shell: 28px;
+  --blur-shell-pop: 32px;
+  --blur-shell-scrim: 8px;
 }
 
 :root {
   color-scheme: dark;
+
+  /* Canonical OS-shell glass literals — the exact `--shell-glass` names from the
+     OpenDesign contract (os-v2.css). Referenced by the `@theme` `--color-shell-glass`
+     adapters above; components never consume these directly. */
+  --shell-glass: rgba(12, 11, 11, 0.72);
+  --shell-glass-pop: rgba(19, 18, 17, 0.94);
 
   /* Non-utility runtime var: consumed inside `backdrop-filter: blur(...)` on
      dialog/sheet scrims; no Tailwind namespace matches `backdrop-filter`
@@ -376,6 +429,37 @@
      Kept out of @theme because Tailwind has no `--space-*` namespace that
      would generate a useful utility for this calc context. */
   --space-switch-thumb-inset: 2px;
+
+  /* Wallpaper stacks — OsWallpaper composes these via the background
+     shorthand. Gradient geometry is not a utility scale, so the family
+     stays out of @theme. --wallpaper-teal is a registered brand tone for
+     wallpaper depth only — never a component color. */
+  --wallpaper-teal: #225555;
+  --wallpaper-grid: radial-gradient(
+    1.5px 1.5px at 50% 50%,
+    rgba(255, 255, 255, 0.035) 40%,
+    transparent 41%
+  );
+  --wallpaper-grid-size: 26px;
+  --wallpaper-ember:
+    radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%),
+    radial-gradient(
+      1000px 640px at 92% -12%,
+      color-mix(in oklab, var(--wallpaper-teal) 38%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%);
+  --wallpaper-mesh:
+    radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%),
+    radial-gradient(
+      1200px 700px at 8% -8%,
+      color-mix(in oklab, var(--wallpaper-teal) 40%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%);
+  --wallpaper-carbon:
+    radial-gradient(1000px 620px at 50% -14%, rgba(255, 255, 255, 0.04), transparent 58%),
+    linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%);
 }
 
 .dark {

@@ -95,6 +95,11 @@ export {
   SheetTitle,
   SheetTrigger,
 } from "./components/sheet";
+export {
+  OverlayContainerContext,
+  useOverlayContainer,
+  type OverlayContainer,
+} from "./components/hooks/use-overlay-container";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/tooltip";
 export { Tabs, TabsContent, TabsList, TabsTrigger, type TabsTriggerProps } from "./components/tabs";
 export { ScrollArea, ScrollBar } from "./components/scroll-area";
