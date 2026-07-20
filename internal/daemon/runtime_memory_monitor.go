@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	runtimeMemoryPhaseBaseline = "baseline"
-	runtimeMemoryPhasePeriodic = "periodic"
-	runtimeMemoryPhaseShutdown = "shutdown"
-	runtimeMemoryPhaseDisabled = "disabled"
+	runtimeMemoryPhaseBaseline       = "baseline"
+	runtimeMemoryPhasePeriodic       = "periodic"
+	runtimeMemoryPhaseShutdown       = "shutdown"
+	runtimeMemoryPhaseDisabled       = "disabled"
+	runtimeMemoryResidentKindCurrent = "current"
 )
 
 type residentMemoryCollector func() (bytes uint64, kind string, err error)

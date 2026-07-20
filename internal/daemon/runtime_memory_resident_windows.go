@@ -28,7 +28,7 @@ type processMemoryCounters struct {
 func collectResidentMemory() (uint64, string, error) {
 	process, err := windows.GetCurrentProcess()
 	if err != nil {
-		return 0, "current", fmt.Errorf("get current process: %w", err)
+		return 0, runtimeMemoryResidentKindCurrent, fmt.Errorf("get current process: %w", err)
 	}
 	counters := processMemoryCounters{Size: uint32(unsafe.Sizeof(processMemoryCounters{}))}
 	result, _, callErr := getProcessMemoryInfo.Call(
@@ -37,7 +37,7 @@ func collectResidentMemory() (uint64, string, error) {
 		uintptr(counters.Size),
 	)
 	if result == 0 {
-		return 0, "current", fmt.Errorf("get process memory info: %w", callErr)
+		return 0, runtimeMemoryResidentKindCurrent, fmt.Errorf("get process memory info: %w", callErr)
 	}
-	return uint64(counters.WorkingSetSize), "current", nil
+	return uint64(counters.WorkingSetSize), runtimeMemoryResidentKindCurrent, nil
 }
