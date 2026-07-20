@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
 import { PanelSurface } from "@/storybook/story-layout";
-import type { TaskDetailPanel } from "@/hooks/routes/use-task-detail-page";
+import type { TaskDetailPanel } from "../../hooks/use-task-detail-page";
 import { TasksDetailTabs } from "../tasks-detail-tabs";
 
 const meta: Meta<typeof TasksDetailTabs> = {

@@ -1,12 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { TasksRouteSearch } from "./tasks";
+import type { TasksRouteSearch } from "@/systems/tasks";
 
 import { statusOptions } from "@/systems/status";
 import { schedulerBacklogOptions, schedulerStatusOptions } from "@/systems/scheduler";
-import { taskDashboardOptions, taskInboxOptions, tasksListOptions } from "@/systems/tasks";
+import { taskDashboardOptions, taskInboxBadgeOptions, tasksListOptions } from "@/systems/tasks";
 import { workspacesListOptions } from "@/systems/workspace";
-import { defaultTaskCatalogFilter } from "@/hooks/routes/task-catalog-route-filter";
-import { taskScopeForActiveWorkspace } from "@/hooks/routes/workspace-scope-filter";
+import { defaultTaskCatalogFilter, taskScopeForActiveWorkspace } from "@/systems/tasks";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
@@ -27,7 +26,7 @@ export async function preloadTasksRoute(
 
   const queries: Promise<unknown>[] = [
     queryClient.ensureInfiniteQueryData(
-      taskInboxOptions({ scope: scope.scope, workspace: scope.workspace, limit: 1 })
+      taskInboxBadgeOptions({ scope: scope.scope, workspace: scope.workspace, limit: 1 })
     ),
   ];
   if (mode === "dashboard") {

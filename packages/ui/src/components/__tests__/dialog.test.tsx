@@ -1,5 +1,5 @@
 import * as React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -254,6 +254,48 @@ describe("Dialog", () => {
     const windowEl = screen.getByTestId("os-window");
     const dialog = screen.getByRole("dialog");
     expect(windowEl.contains(dialog)).toBe(true);
+  });
+
+  it("Should keep a window-scoped dialog open while a peer surface remains interactive", async () => {
+    const user = userEvent.setup();
+
+    function WindowHost() {
+      const ref = React.useRef<HTMLDivElement | null>(null);
+      const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
+      const [peerValue, setPeerValue] = React.useState("");
+      React.useEffect(() => setContainer(ref.current), []);
+      return (
+        <>
+          <div ref={ref} data-testid="os-window">
+            {container ? (
+              <OverlayContainerContext.Provider value={container}>
+                <Dialog defaultOpen>
+                  <DialogContent showCloseButton={false}>
+                    <DialogTitle>Window confirm</DialogTitle>
+                  </DialogContent>
+                </Dialog>
+              </OverlayContainerContext.Provider>
+            ) : null}
+          </div>
+          <input
+            aria-label="Peer composer"
+            value={peerValue}
+            onChange={event => setPeerValue(event.target.value)}
+          />
+        </>
+      );
+    }
+
+    render(<WindowHost />);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    const peerComposer = screen.getByRole("textbox", { name: "Peer composer" });
+    await user.click(peerComposer);
+    expect(peerComposer).toHaveFocus();
+    fireEvent.change(peerComposer, { target: { value: "still active" } });
+
+    expect(peerComposer).toHaveValue("still active");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("Should fall back to document.body when no OverlayContainerContext is provided", async () => {

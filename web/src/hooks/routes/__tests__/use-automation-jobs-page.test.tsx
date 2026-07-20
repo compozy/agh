@@ -34,8 +34,9 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }));
 
-vi.mock("../use-automation-page-base", async importOriginal => {
-  const actual = await importOriginal<typeof import("../use-automation-page-base")>();
+vi.mock("@/systems/os/apps/automation/use-automation-page-base", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("@/systems/os/apps/automation/use-automation-page-base")>();
   return {
     ...actual,
     useAutomationPageBase: () => pageState.current,
@@ -64,7 +65,8 @@ vi.mock("@/systems/automation", async importOriginal => {
   };
 });
 
-const { useAutomationJobsPage } = await import("../use-automation-jobs-page");
+const { useAutomationJobsPage } =
+  await import("@/systems/os/apps/automation/use-automation-jobs-page");
 
 function createWrapper() {
   const queryClient = new QueryClient({

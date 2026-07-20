@@ -35,7 +35,7 @@ import {
   automationListLoopFilter,
   useAutomationCreateSeed,
   useAutomationPageBase,
-} from "../use-automation-page-base";
+} from "@/systems/os/apps/automation/use-automation-page-base";
 
 describe("useAutomationPageBase route state", () => {
   beforeEach(() => vi.clearAllMocks());

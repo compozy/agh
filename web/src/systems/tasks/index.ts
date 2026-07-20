@@ -168,6 +168,7 @@ export {
   taskDashboardOptions,
   taskDetailOptions,
   taskExecutionProfileOptions,
+  taskInboxBadgeOptions,
   taskInboxOptions,
   taskReviewsOptions,
   taskRunDetailOptions,
@@ -214,6 +215,14 @@ export {
   toRunCardStatus,
 } from "./lib/task-formatters";
 export { taskRunCanRecover } from "./lib/task-run-recovery";
+export {
+  parseTasksSurfaceMode,
+  validateTaskCreateSearch,
+  validateTasksSearch,
+} from "./lib/task-location-search";
+export type { TaskCreateSearch, TasksRouteSearch } from "./lib/task-location-search";
+export { DEFAULT_TASK_LIST_LIMIT, defaultTaskCatalogFilter } from "./lib/task-catalog-filter";
+export { taskScopeForActiveWorkspace } from "./lib/workspace-scope";
 
 // Templates and grouping
 export {
@@ -273,7 +282,7 @@ export {
   useTaskTree,
 } from "./hooks/use-task-live";
 export { useTaskDashboard } from "./hooks/use-task-dashboard";
-export { useTaskInbox } from "./hooks/use-task-inbox";
+export { useTaskInbox, useTaskInboxBadge } from "./hooks/use-task-inbox";
 export { useTaskExecutionProfile } from "./hooks/use-task-profile";
 export { useTaskReviews, useTaskRunReview, useTaskRunReviews } from "./hooks/use-task-reviews";
 export { useAgentContext, useTaskContextBundle } from "./hooks/use-task-context-bundle";
@@ -287,6 +296,21 @@ export type {
   TaskStreamEventSourceFactory,
   UseTaskStreamOptions,
 } from "./hooks/use-task-stream";
+export { useTasksPage } from "./hooks/use-tasks-page";
+export type { InboxLaneFilter, UseTasksPageOptions } from "./hooks/use-tasks-page";
+export { useTaskCreateState } from "./hooks/use-task-create-state";
+export { useTaskEditState } from "./hooks/use-task-edit-state";
+export { useTaskDetailPage } from "./hooks/use-task-detail-page";
+export type {
+  MultiAgentAgent,
+  MultiAgentLiveState,
+  MultiAgentView,
+  TaskDetailPanel,
+  UseTaskDetailPageOptions,
+} from "./hooks/use-task-detail-page";
+export { useTaskDetailOrchestrationTab } from "./hooks/use-task-detail-orchestration-tab";
+export { useTaskRunPage } from "./hooks/use-task-run-page";
+export type { UseTaskRunPageOptions } from "./hooks/use-task-run-page";
 
 // Mutation hooks
 export {
@@ -370,6 +394,11 @@ export { TasksEmptyState } from "./components/tasks-empty-state";
 export type { TasksEmptyStateProps } from "./components/tasks-empty-state";
 export { TaskEditorModal } from "./components/task-editor-modal";
 export type { TaskEditorModalMode, TaskEditorModalProps } from "./components/task-editor-modal";
+export { TaskEditorSurface } from "./components/task-editor-surface";
+export type {
+  TaskEditorSurfaceMode,
+  TaskEditorSurfaceProps,
+} from "./components/task-editor-surface";
 
 // Task detail + run detail components
 export { TasksDetailBlockedReasons } from "./components/tasks-detail-blocked-reasons";

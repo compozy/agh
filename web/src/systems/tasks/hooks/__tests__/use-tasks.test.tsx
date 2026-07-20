@@ -42,11 +42,9 @@ import {
 } from "@/systems/tasks/adapters/tasks-api";
 import { buildInboxItemFixture, buildTaskFixture } from "@/systems/tasks/mocks/fixtures";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-
+function createWrapper(
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) {
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
 }
@@ -211,6 +209,44 @@ describe("tasks read hooks", () => {
 
     expect(getTaskDashboard).toHaveBeenCalledWith({ scope: "workspace" }, expect.any(AbortSignal));
     expect(getTaskInbox).toHaveBeenCalledWith({ lane: "approvals" }, expect.any(AbortSignal));
+  });
+
+  it("refetches the canonical inbox when an existing query becomes active again", async () => {
+    const refreshedItem = buildInboxItemFixture({
+      task: { id: "task_002", title: "Created outside the mounted inbox" },
+    });
+    vi.mocked(getTaskInbox)
+      .mockResolvedValueOnce(inboxFixture)
+      .mockResolvedValueOnce({
+        ...inboxFixture,
+        groups: [
+          {
+            count: 1,
+            items: [refreshedItem],
+            lane: "approvals",
+            unread_count: 1,
+          },
+        ],
+        page: { has_more: false, limit: 1, total: 1 },
+        unread_total: 1,
+      });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = createWrapper(queryClient);
+
+    const initial = renderHook(({ enabled }) => useTaskInbox({ lane: "approvals" }, { enabled }), {
+      initialProps: { enabled: true },
+      wrapper,
+    });
+    await waitFor(() => expect(initial.result.current.data?.page.total).toBe(0));
+    initial.rerender({ enabled: false });
+    initial.rerender({ enabled: true });
+
+    await waitFor(() => expect(initial.result.current.data?.page.total).toBe(1));
+
+    const refreshedData = initial.result.current.data;
+    expect(refreshedData).toBeDefined();
+    expect(refreshedData?.groups.at(0)?.items?.at(0)?.task?.id).toBe("task_002");
+    expect(getTaskInbox).toHaveBeenCalledTimes(2);
   });
 
   it("merges inbox pages by lane without summing exact group or page totals", async () => {

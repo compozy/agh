@@ -13,7 +13,7 @@ import {
   beginSettingsMCPAuth,
   exchangeSettingsMCPAuth,
 } from "@/systems/settings/adapters/settings-mcp-auth-api";
-import { useMCPAuthorize } from "../use-mcp-authorize";
+import { useMCPAuthorize } from "@/systems/settings/hooks/use-mcp-authorize";
 
 const filter = { scope: "workspace" as const, workspace_id: "ws-alpha" };
 const prior = { status: "needs_login", tokenPresent: false };

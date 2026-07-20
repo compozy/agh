@@ -1,6 +1,6 @@
 import type { Filter, FilterFieldsConfig } from "@agh/ui";
 
-import type { VaultNamespaceFilter } from "@/hooks/routes/use-vault-page";
+import type { VaultNamespaceFilter } from "../hooks/use-vault-page";
 import { VAULT_NAMESPACES } from "../types";
 
 export interface VaultFilterState {

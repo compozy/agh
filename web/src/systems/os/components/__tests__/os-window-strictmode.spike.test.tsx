@@ -2,6 +2,17 @@ import { StrictMode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../../lib/app-registry", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../lib/app-registry")>();
+  return {
+    ...actual,
+    getOsApp: (id: Parameters<typeof actual.getOsApp>[0]) => ({
+      ...actual.getOsApp(id),
+      Controller: () => <div data-testid="os-pending-app" />,
+    }),
+  };
+});
+
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
 import { createDesktopStore } from "../../stores/desktop-store";
@@ -27,7 +38,7 @@ describe("react-rnd StrictMode spike (ADR-003)", () => {
     const coordinator = new RoutingCoordinator(store, port);
     store.getState().hydrate([]);
     coordinator.completeHydration();
-    coordinator.userOpen({ app: "tasks" });
+    coordinator.userOpen({ app: "vault" });
     const flushPersistence = vi.fn();
     const shell: OsShellHandle = { store, coordinator, flushPersistence };
 
@@ -35,14 +46,14 @@ describe("react-rnd StrictMode spike (ADR-003)", () => {
       <StrictMode>
         <OsShellContext.Provider value={shell}>
           <div style={{ position: "relative", width: 1440, height: 900 }}>
-            <OsWindow windowId="app:tasks" rootCrumb="agh" />
+            <OsWindow windowId="app:vault" rootCrumb="agh" />
           </div>
         </OsShellContext.Provider>
       </StrictMode>
     );
     await screen.findByTestId("os-pending-app");
 
-    const rectBefore = store.getState().windows["app:tasks"].rect;
+    const rectBefore = store.getState().windows["app:vault"].rect;
     const handle = document.querySelector(".os-window-drag-handle") as HTMLElement;
     expect(handle).not.toBeNull();
 
@@ -56,7 +67,7 @@ describe("react-rnd StrictMode spike (ADR-003)", () => {
     fireEvent.mouseUp(handle, { clientX: 360, clientY: 140 });
 
     await waitFor(() => {
-      const rect = store.getState().windows["app:tasks"].rect;
+      const rect = store.getState().windows["app:vault"].rect;
       expect({ x: rect.x, y: rect.y }).not.toEqual({ x: rectBefore.x, y: rectBefore.y });
     });
     expect(flushPersistence).toHaveBeenCalledTimes(1);

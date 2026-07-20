@@ -29,8 +29,8 @@ func (m *Service) resolveQueuedRunParticipationWithStore(
 	if err != nil {
 		return participation.Spec{}, err
 	}
-	if strings.TrimSpace(taskRecord.WorkspaceID) == "" {
-		localSpec, resolved, resolveErr := resolveGlobalLocalParticipation(
+	if taskRecord.Scope.Normalize() == ScopeGlobal {
+		spec, resolved, resolveErr := resolveGlobalLocalParticipation(
 			request,
 			requestSource,
 			definition,
@@ -39,7 +39,7 @@ func (m *Service) resolveQueuedRunParticipationWithStore(
 			return participation.Spec{}, resolveErr
 		}
 		if resolved {
-			return localSpec, nil
+			return spec, nil
 		}
 	}
 	if m.participationResolver == nil {
@@ -82,33 +82,30 @@ func resolveGlobalLocalParticipation(
 	definition *participation.Request,
 ) (participation.Spec, bool, error) {
 	selected := request
-	source := requestSource
-	if !participationRequestHasIntent(selected) {
+	var source participation.Source
+	switch {
+	case hasParticipationIntent(request):
+		var err error
+		source, err = normalizeTaskParticipationRequestSource(requestSource)
+		if err != nil {
+			return participation.Spec{}, false, err
+		}
+	case hasParticipationIntent(definition):
 		selected = definition
 		source = participation.SourceTaskProfile
-	}
-	if !participationRequestHasIntent(selected) {
+	default:
 		return participation.LocalSpec(), true, nil
 	}
 
 	normalized, err := participation.NormalizeIntent(*selected)
 	if err != nil {
-		return participation.Spec{}, false, fmt.Errorf("task: validate global participation intent: %w", err)
+		return participation.Spec{}, false, fmt.Errorf(
+			"task: normalize global participation intent: %w",
+			err,
+		)
 	}
 	if normalized.Mode != nil && *normalized.Mode == participation.ModeLive {
 		return participation.Spec{}, false, nil
-	}
-	if selected == request {
-		switch source {
-		case "", participation.SourceExplicitRequest:
-			source = participation.SourceExplicitRequest
-		case participation.SourceAutomationJob:
-		default:
-			return participation.Spec{}, false, fmt.Errorf(
-				"task: network participation request source %q is not allowed",
-				source,
-			)
-		}
 	}
 	return participation.Spec{
 		Version: participation.SpecVersion,
@@ -117,9 +114,24 @@ func resolveGlobalLocalParticipation(
 	}, true, nil
 }
 
-func participationRequestHasIntent(request *participation.Request) bool {
+func hasParticipationIntent(request *participation.Request) bool {
 	return request != nil && (request.Mode != nil || request.ChannelStrategy != nil ||
 		request.ChannelID != nil || request.Bounds != nil)
+}
+
+func normalizeTaskParticipationRequestSource(source participation.Source) (participation.Source, error) {
+	switch normalized := participation.Source(strings.TrimSpace(string(source))); normalized {
+	case "", participation.SourceExplicitRequest:
+		return participation.SourceExplicitRequest, nil
+	case participation.SourceAutomationJob:
+		return participation.SourceAutomationJob, nil
+	default:
+		return "", fmt.Errorf(
+			"%w: network participation request source %q is not allowed",
+			ErrValidation,
+			normalized,
+		)
+	}
 }
 
 func (m *Service) observeCommittedRunParticipation(

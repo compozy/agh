@@ -1,41 +1,40 @@
 {
   "kind": "critique-panel",
-  "artifact": "os-v2/agh-os-v2.html",
+  "artifact": "os/pagehead-redesign.html",
+  "iteration": "breadcrumb head variant for in-place navigation",
   "score": 4,
   "axes": {
     "clarity": {
       "score": 5,
-      "notes": "Sessions now uses the same WindowFrame as every other dock app \u2014 no special rail metaphor to learn. Dock stays centered; open/minimize/close match Dashboard."
+      "notes": "New §03 specifies the drill-in contract explicitly: back chevron + clickable parent crumbs + leaf title, window-local, never a new window. Anatomy legend A–D mirrors §02."
     },
     "hierarchy": {
       "score": 4,
-      "notes": "Opaque production-canvas windows read as the app; glass stays on shell furniture. Sessions list anatomy (recent \u2192 Show all \u2192 agent groups) unchanged inside the frame."
+      "notes": "Identity still renders once — at depth the back chevron replaces the glyph and the trail reads as a path. Toolbar, status and actions swap per level so chrome stays two bars max."
     },
     "typography": {
       "score": 4,
-      "notes": "Verbatim production stack: Inter with cv01/ss03, 13.5px base; JetBrains Mono with tabular-nums for session times and counts."
+      "notes": "Crumbs 13px/500 quiet, leaf 13px/600, 150px crumb truncation, '/' separators; run log in 11px JetBrains Mono."
     },
     "motion": {
       "score": 4,
-      "notes": "Removed the dock flex-grow slide (the failed flourish). Remaining motion is dock magnification + window open/genie minimize; reduce-motion honored."
+      "notes": "Push/pop is instant state swap in the mock (production gets the window-content transition); pulse dots and caret carry liveness. Reduce-motion honored."
     },
     "brand": {
       "score": 4,
-      "notes": "Token block unchanged; Sessions body uses canvas + production list density, not a parallel glass rail surface."
+      "notes": "Accent only in state dots, primary actions and the caret. Stop run at run level is deliberately neutral; the '…' collapse crumb stays faint."
     }
   },
   "checks": {
-    "sessions_as_window": "pass \u2014 Sessions opens via openWindow like every other APPS entry; #tpl-app-sessions hosts sidebar-sessions-02 anatomy; dock icon toggles focus/minimize; no sessionsRail aside, no body[data-sessions], no dock-flex-r collapse",
-    "dock_static": "pass \u2014 .dock-flex spacers only center the dock; body[data-sessions=open] .dock-flex-r rule deleted",
-    "token_provenance": "pass \u2014 all hex/rgba literals confined to the verbatim :root blocks in os-v2.css",
-    "tag_balance": "pass \u2014 template/section/div/button open=close",
-    "js_syntax": "pass \u2014 node --check",
-    "view_mode_contract": "pass \u2014 Tasks and Sandbox Rows|Cards; Marketplace cards-only",
-    "sidebar_parity": "pass \u2014 dock mirrors app-sidebar.tsx with group separators; Settings in menu-bar cog",
-    "minimize_model": "pass \u2014 no tray; minimize folds into dock icon",
-    "scope_trim": "pass \u2014 widgets/cost/mesh/clock out of menu bar",
-    "hidden_attr_guard": "pass \u2014 global [hidden]{display:none!important}",
-    "mobile_mode": "pass \u2014 Sessions is a normal fullscreen window on mobile (special sheet removed)",
-    "visual_capture": "skipped \u2014 render helper blocked; user preview is the visual gate"
+    "breadcrumb_contract": "pass — §03 anatomy + collapsed-path variant (Knowledge / … / streaming.md); >2 parents fold into a … crumb",
+    "tasks_two_level_drill": "pass — nav-stack JS: list → task → run; parent crumbs jump directly; back pops one level; strip/status/primary swap per level",
+    "marketplace_in_place_detail": "pass — card click opens entry under Marketplace / entry; install state and Install|Open move into the head",
+    "window_local_trail": "pass — no workspace prefix anywhere; menu bar owns workspace, dock owns routes",
+    "document_windows_exempt": "pass — session example unchanged; §03 note forbids breadcrumbs on self-titling document windows",
+    "identity_once": "pass — glyph hidden at depth; no route name repeated in content bodies",
+    "view_mode_contract": "pass — Tasks strip keeps Rows|Cards pill-group at root level",
+    "structural_balance": "pass — div 155/155, nav 5/5, button 33/33, script/style closed; zero leftover data-tasks-id-detail hooks",
+    "token_provenance": "pass — no new palette literals; crumb/runlog styles use existing tokens",
+    "visual_capture": "skipped — render helper blocked in this environment; user preview is the visual gate"
   }
 }

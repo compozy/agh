@@ -29,11 +29,11 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   onCommandClick?: () => void;
   onSettingsClick?: () => void;
   /** Wraps the workspace trigger in a real popover/menu owner (shell wiring). */
-  renderWorkspaceTrigger?: (trigger: React.ReactElement) => React.ReactNode;
+  wrapWorkspaceTrigger?: (trigger: React.ReactElement) => React.ReactNode;
   /** Wraps one app-menu button in its dropdown owner (shell wiring). */
-  renderMenuTrigger?: (menu: string, trigger: React.ReactElement) => React.ReactNode;
+  wrapMenuTrigger?: (menu: string, trigger: React.ReactElement) => React.ReactNode;
   /** Wraps the bell in its popover owner (shell wiring). */
-  renderBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
+  wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
 }
 
 const INTERACTIVE =
@@ -91,9 +91,9 @@ export function OsMenuBar({
   onNotificationsClick,
   onCommandClick,
   onSettingsClick,
-  renderWorkspaceTrigger,
-  renderMenuTrigger,
-  renderBellTrigger,
+  wrapWorkspaceTrigger,
+  wrapMenuTrigger,
+  wrapBellTrigger,
   className,
   ...props
 }: OsMenuBarProps) {
@@ -118,10 +118,10 @@ export function OsMenuBar({
         </Control>
         <Control
           data-slot="os-menubar-workspace"
-          aria-haspopup={onWorkspaceClick || renderWorkspaceTrigger ? "true" : undefined}
+          aria-haspopup={onWorkspaceClick || wrapWorkspaceTrigger ? "true" : undefined}
           className="flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2"
           onClick={onWorkspaceClick}
-          wrap={renderWorkspaceTrigger}
+          wrap={wrapWorkspaceTrigger}
         >
           <span className="grid size-workspace-avatar place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
             {workspace.monogram}
@@ -136,7 +136,7 @@ export function OsMenuBar({
               data-menu={menu.toLowerCase()}
               className="flex h-7 items-center rounded-md px-2.5 text-small-body text-muted"
               onClick={onMenuClick ? () => onMenuClick(menu) : undefined}
-              wrap={renderMenuTrigger ? trigger => renderMenuTrigger(menu, trigger) : undefined}
+              wrap={wrapMenuTrigger ? trigger => wrapMenuTrigger(menu, trigger) : undefined}
             >
               {menu}
             </Control>
@@ -149,10 +149,10 @@ export function OsMenuBar({
         <Control
           data-slot="os-menubar-bell"
           aria-label="Approvals"
-          aria-haspopup={onNotificationsClick || renderBellTrigger ? "true" : undefined}
+          aria-haspopup={onNotificationsClick || wrapBellTrigger ? "true" : undefined}
           className="relative grid size-7 place-items-center rounded-md text-muted"
           onClick={onNotificationsClick}
-          wrap={renderBellTrigger}
+          wrap={wrapBellTrigger}
         >
           <Icon as={Bell} size="lg" />
           {notifications ? <NotificationBadge count={notifications} /> : null}

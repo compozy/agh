@@ -107,24 +107,31 @@
 </div>
 
 <!-- ============ WINDOW CHROME ============
-     The window head IS the existing route topbar (48px, 3-zone,
-     breadcrumb leading) with OS controls injected before the crumb.
-     Everything below it is the route's own .page content, unchanged. -->
+     Unified 44px head (pagehead-redesign): controls, quiet glyph +
+     title, drag flex, status + at most 2 actions. Optional 38px
+     context strip for filters / search / Rows|Cards. Identity once. -->
 <template id="tpl-window">
   <section class="win" role="dialog" tabindex="-1">
-    <header class="win-head">
+    <header class="win-head" data-win-head>
       <div class="win-controls">
         <button class="wc wc-close" aria-label="Close window"></button>
         <button class="wc wc-min" aria-label="Minimize window"></button>
         <button class="wc wc-zoom" aria-label="Zoom window"></button>
       </div>
-      <nav class="breadcrumb" aria-label="Breadcrumb">
-        <span class="crumb-root mono">agh</span>
-        <span class="crumb-sep">/</span>
-        <span class="crumb-page"></span>
-      </nav>
-      <div class="win-trail"></div>
+      <div class="w2-id" data-win-id>
+        <span class="w2-glyph" data-win-glyph aria-hidden="true"></span>
+        <button class="w2-back" data-win-back aria-label="Back" hidden>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="w2-crumb" data-win-crumb hidden></button>
+        <span class="w2-sep" data-win-sep hidden>/</span>
+        <span class="w2-title" data-win-title></span>
+        <span class="w2-count mono" data-win-count hidden></span>
+      </div>
+      <span class="w2-flex" data-win-drag aria-hidden="true"></span>
+      <div class="win-trail" data-win-trail></div>
     </header>
+    <div class="win-toolbar" data-win-toolbar hidden></div>
     <div class="win-body"></div>
   </section>
 </template>
@@ -152,14 +159,8 @@
 <!-- ============ APP: SESSIONS — sidebar-sessions-02 as a normal window ============ -->
 <template id="tpl-app-sessions">
   <div class="app app-sessions" data-od-id="app-sessions">
-    <header class="sr-head">
-      <button class="sr-back" data-sr-back aria-label="Back to recent sessions" hidden>
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.5 3.5-4.2 4.5 4.2 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <p class="sr-eyebrow">Sessions <span class="mono" data-sr-count>7</span></p>
-    </header>
-    <div class="session-search">
-      <label class="session-search__field">
+    <div class="app-toolbar" data-hoist-toolbar>
+      <label class="field field-search session-search__field">
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         <input placeholder="Filter sessions…" aria-label="Filter sessions" data-sr-filter autocomplete="off">
       </label>
@@ -171,18 +172,9 @@
   </div>
 </template>
 
-<!-- ============ APP: SESSION (LIVE) — reuses session route ============ -->
+<!-- ============ APP: SESSION (LIVE) — document window; status lives in head ============ -->
 <template id="tpl-app-session">
   <div class="app app-session">
-    <div class="session-status">
-      <span class="d d--run d--pulse"></span>
-      <span class="ss-state">working</span>
-      <span class="ss-elapsed mono" data-elapsed="134">2m 14s</span>
-      <span class="ss-sep"></span>
-      <span class="agent-chip mono">WG</span>
-      <span class="ss-agent">webgen</span>
-      <span class="ss-model mono">claude-fable-5</span>
-    </div>
     <div class="transcript" data-transcript>
       <div class="msg msg-user">
         <p class="msg-role">Pedro</p>
@@ -217,15 +209,16 @@
   </div>
 </template>
 
-<!-- ============ APP: TASKS — reuses tasks listing route ============ -->
+<!-- ============ APP: TASKS — listing tools hoist into the 38px context strip ============ -->
 <template id="tpl-app-tasks">
   <div class="app" data-view="rows">
-    <div class="app-toolbar">
+    <div class="app-toolbar" data-hoist-toolbar>
       <div class="pill-group" role="group" aria-label="Task filter">
         <button class="pill-group__item is-on" data-tfilter="all">All <span class="mono">6</span></button>
         <button class="pill-group__item" data-tfilter="running">Running <span class="mono">2</span></button>
         <button class="pill-group__item" data-tfilter="needs">Needs you <span class="mono">1</span></button>
       </div>
+      <span class="w2-flex" aria-hidden="true"></span>
       <div class="pill-group" role="group" aria-label="View mode">
         <button class="pill-group__item is-on" data-tview="rows">Rows</button>
         <button class="pill-group__item" data-tview="cards">Cards</button>
@@ -243,16 +236,17 @@
   </div>
 </template>
 
-<!-- ============ APP: MARKETPLACE — reuses marketplace route ============ -->
+<!-- ============ APP: MARKETPLACE — kind + search in context strip; scope tabs stay content ============ -->
 <template id="tpl-app-marketplace">
   <div class="app">
-    <div class="app-toolbar">
+    <div class="app-toolbar" data-hoist-toolbar>
       <div class="pill-group" role="group" aria-label="Catalog kind">
         <button class="pill-group__item is-on" data-kind="skill">Skills</button>
         <button class="pill-group__item" data-kind="mcp">MCPs</button>
         <button class="pill-group__item" data-kind="extension">Extensions</button>
         <button class="pill-group__item" data-kind="bundle">Bundles</button>
       </div>
+      <span class="w2-flex" aria-hidden="true"></span>
       <div class="field field-search">
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         <input placeholder="Search catalog…" aria-label="Search catalog" data-mkt-filter>
@@ -302,11 +296,12 @@
   </div>
 </template>
 
-<!-- ============ APP: SANDBOX — reuses sandbox route ============ -->
+<!-- ============ APP: SANDBOX — Rows|Cards in context strip ============ -->
 <template id="tpl-app-sandbox">
   <div class="app" data-view="rows">
-    <div class="app-toolbar">
+    <div class="app-toolbar" data-hoist-toolbar>
       <span class="toolbar-meta mono" data-sb-count>3 profiles</span>
+      <span class="w2-flex" aria-hidden="true"></span>
       <div class="pill-group" role="group" aria-label="View mode">
         <button class="pill-group__item is-on" data-sbview="rows">Rows</button>
         <button class="pill-group__item" data-sbview="cards">Cards</button>
@@ -317,7 +312,7 @@
   </div>
 </template>
 
-<!-- ============ APP: NETWORK — reuses network route ============ -->
+<!-- ============ APP: NETWORK — Healthy chip lives in the window head trail ============ -->
 <template id="tpl-app-network">
   <div class="app">
     <div class="net-head">
@@ -325,7 +320,6 @@
         <h3>agh-mesh</h3>
         <p class="prov">4 peers · gossip healthy · last sync 12s ago</p>
       </div>
-      <span class="status-pill status-ok"><span class="d d--ok"></span>Healthy</span>
     </div>
     <ul class="list" data-peer-rows></ul>
     <section class="panel">

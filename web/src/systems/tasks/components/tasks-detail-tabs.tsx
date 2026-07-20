@@ -1,6 +1,6 @@
 import { LaneTabs, type LaneTabsItem } from "@agh/ui";
 
-import type { TaskDetailPanel } from "@/hooks/routes/use-task-detail-page";
+import type { TaskDetailPanel } from "../hooks/use-task-detail-page";
 
 export interface TasksDetailTabItem {
   id: TaskDetailPanel;

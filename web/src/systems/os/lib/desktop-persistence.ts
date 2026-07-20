@@ -118,6 +118,7 @@ export function createDesktopPersistence(store: DesktopStoreApi): {
     const desktopChanged =
       state.focusedId !== prev.focusedId ||
       state.railOpen !== prev.railOpen ||
+      state.railCollapsedAgentIds !== prev.railCollapsedAgentIds ||
       state.wallpaper !== prev.wallpaper;
     if (desktopChanged) {
       batch.push({ kind: "put", key: OS_DESKTOP_KEY, value: encodeDesktopPayload(state) });

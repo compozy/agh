@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { UseMCPAuthorizeReturn } from "@/hooks/routes/use-mcp-authorize";
+import type { UseMCPAuthorizeReturn } from "../../hooks/use-mcp-authorize";
 
 import { MCPAuthorizeDialog } from "../mcp-authorize-dialog";
 

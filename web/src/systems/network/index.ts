@@ -198,7 +198,10 @@ export type { UseThreadOverlayArgs, UseThreadOverlayResult } from "./hooks/use-t
 export { useNetworkRecents } from "./hooks/use-recents";
 export type { UseNetworkRecentsResult } from "./hooks/use-recents";
 export { useNetworkRouteShell } from "./hooks/use-network-route-shell";
-export type { NetworkRouteShellResult } from "./hooks/use-network-route-shell";
+export type {
+  NetworkRouteShellResult,
+  UseNetworkRouteShellArgs,
+} from "./hooks/use-network-route-shell";
 export { useNetworkRouteView } from "./hooks/use-network-route-view";
 export { useNetworkThreads, useNetworkThreadDetail } from "./hooks/use-threads";
 export type {
@@ -405,6 +408,21 @@ export {
   ThreadEmpty,
   ThreadsEmpty,
 } from "./components/empty-states";
+
+// Window controller seam — Network deliberately owns its nested location
+// parser because this is the domain whose composition was router-coupled.
+export { NetworkWindowController } from "./routes/network-window-controller";
+export type { NetworkWindowControllerProps } from "./routes/network-window-controller";
+export type { NetworkWindowNavigation } from "./hooks/use-network-route-shell";
+export {
+  networkThreadsLocation,
+  networkWindowCrumb,
+  parseNetworkWindowLocation,
+} from "./lib/network-window-location";
+export type {
+  NetworkWindowLocation,
+  ParsedNetworkWindowLocation,
+} from "./lib/network-window-location";
 export type {
   DaemonDownProps,
   DirectEmptyProps,

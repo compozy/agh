@@ -178,19 +178,28 @@ func (m *Service) finishEnqueuedRunWithStore(
 	if err := store.CreateTaskEvent(ctx, event); err != nil {
 		return enqueueRunCommandResult{}, err
 	}
-	return enqueueRunCommandResult{
-		task:  reconciledTask,
-		run:   run,
-		event: event,
-		participationObservation: &participation.ResolvedObservation{
-			WorkspaceID: strings.TrimSpace(run.WorkspaceID),
+	var participationObservation *participation.ResolvedObservation
+	networkSpec := run.NetworkSpecSnapshot()
+	workspaceID := strings.TrimSpace(networkSpec.WorkspaceID)
+	if workspaceID == "" {
+		workspaceID = strings.TrimSpace(run.WorkspaceID)
+	}
+	if workspaceID != "" {
+		participationObservation = &participation.ResolvedObservation{
+			WorkspaceID: workspaceID,
 			Owner: participation.OwnerRef{
-				WorkspaceID: strings.TrimSpace(run.WorkspaceID),
+				WorkspaceID: workspaceID,
 				Kind:        participation.OwnerKindTaskRun,
 				ID:          strings.TrimSpace(run.ID),
 			},
-			Spec: run.NetworkSpecSnapshot(),
-		},
+			Spec: networkSpec,
+		}
+	}
+	return enqueueRunCommandResult{
+		task:                     reconciledTask,
+		run:                      run,
+		event:                    event,
+		participationObservation: participationObservation,
 	}, nil
 }
 

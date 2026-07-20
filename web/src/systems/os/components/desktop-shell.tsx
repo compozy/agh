@@ -11,6 +11,7 @@ import { useDesktopOverlays } from "../hooks/use-desktop-overlays";
 import { useDesktopShellModel } from "../hooks/use-desktop-shell-model";
 import { useDesktop } from "../hooks/use-desktop";
 import { useOsShortcuts } from "../hooks/use-os-shortcuts";
+import { useOsAttention } from "../hooks/use-os-attention";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopMenubar } from "./desktop-menubar";
 import { DesktopDock } from "./desktop-dock";
@@ -19,6 +20,7 @@ import { OsCommandPalette } from "./os-command-palette";
 import { OsSpacesOverview } from "./os-spaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { OsWinLayer } from "./os-win-layer";
+import { DesktopSessionsRail } from "./sessions-rail";
 
 /**
  * The desktop shell replaces the AppShell chrome (ADR-001): onboarding gate,
@@ -73,6 +75,7 @@ function DesktopShellBody({
   const desktopRef = useRef<HTMLDivElement>(null);
   const windows = useDesktop(state => state.windows);
   const overlays = useDesktopOverlays();
+  const attention = useOsAttention(model.activeWorkspace, model.sessionCatalogStreamStatus);
 
   useOsShortcuts({
     onPalette: () => overlays.toggleOverlay("palette"),
@@ -102,6 +105,7 @@ function DesktopShellBody({
         onOpenSpaces={() => overlays.setOverlayOpen("spaces", true)}
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
+        attention={attention}
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
         <OsWallpaper wallpaper={wallpaper} />
@@ -109,7 +113,14 @@ function DesktopShellBody({
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}
         <OsWinLayer rootCrumb={model.activeWorkspace?.name ?? "agh"} />
-        <DesktopDock onNewSession={() => model.sessionCreate.openForAgent("")} />
+        <DesktopSessionsRail
+          sessions={attention.sessions}
+          disconnected={attention.sessionsDisconnected}
+        />
+        <DesktopDock
+          onNewSession={() => model.sessionCreate.openForAgent("")}
+          badges={attention.badges}
+        />
       </div>
       {/* Route matches mount here as sync-controllers; they render null. */}
       <Outlet />

@@ -60,7 +60,7 @@ vi.mock("@/systems/loops", () => {
   };
 });
 
-const { useLoopDetail } = await import("../use-loop-detail");
+const { useLoopDetail } = await import("@/systems/os/apps/loops/use-loop-detail");
 const { LoopsApiError } = await import("@/systems/loops");
 
 describe("useLoopDetail", () => {

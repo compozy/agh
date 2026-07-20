@@ -22,10 +22,14 @@ type SheetRootProps = SheetPrimitive.Root.Props;
 function Sheet({
   open: controlledOpen,
   defaultOpen = false,
+  modal,
+  disablePointerDismissal,
   onOpenChange,
   children,
   ...props
 }: SheetRootProps) {
+  const overlayContainer = useOverlayContainer();
+  const windowScoped = overlayContainer !== null;
   const actionsRef = React.useRef<SheetPrimitive.Root.Actions | null>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
@@ -44,6 +48,8 @@ function Sheet({
       actionsRef={actionsRef}
       open={open}
       defaultOpen={defaultOpen}
+      modal={modal ?? (windowScoped ? false : true)}
+      disablePointerDismissal={disablePointerDismissal ?? windowScoped}
       onOpenChange={handleOpenChange}
       {...props}
     >

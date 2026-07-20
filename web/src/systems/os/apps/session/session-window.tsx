@@ -1,30 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle } from "lucide-react";
-import { Suspense, lazy } from "react";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 import { Spinner } from "@agh/ui";
 
 import { sessionByIdOptions } from "@/systems/session";
 
 import { useDesktop } from "../../hooks/use-desktop";
+import { useOsShell } from "../../hooks/use-os-shell";
 import { matchSessionInstance } from "../../lib/app-registry";
-
-/**
- * The session view rehosted in a window (glue stays route-colocated until the
- * multi-instance session task rewrites it; the view itself is prop-driven).
- */
-const SessionPage = lazy(() =>
-  import("@/routes/_app/-session-page").then(m => ({ default: m.SessionPage }))
-);
+import { SessionWindowNotice, SessionWindowView } from "./session-window-view";
 
 const SESSION_AGENT_PATTERN = /^\/agents\/([^/]+)\/sessions\//;
 
 /**
- * Interim session window controller: parses `agent + session` identity from
+ * Session window controller: parses `agent + session` identity from
  * the window's WM location and resolves the owning workspace the same way the
  * route loader does (session-by-id), then rehosts the existing session view.
  */
 export function SessionWindow({ windowId }: { windowId: string }) {
+  const { coordinator } = useOsShell();
   const pathname = useDesktop(state => state.windows[windowId]?.location.pathname ?? "");
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
@@ -34,6 +29,19 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     ...sessionByIdOptions(sessionId ?? ""),
     enabled: sessionId !== null,
   });
+
+  useEffect(() => {
+    if (!sessionQuery.error?.message.includes("not found") || agentName === null) return;
+    toast.error("Session not found");
+    coordinator.userClose(windowId);
+    coordinator.userOpen({
+      app: "agents",
+      location: {
+        pathname: `/agents/${encodeURIComponent(agentName)}`,
+        search: {},
+      },
+    });
+  }, [agentName, coordinator, sessionQuery.error, windowId]);
 
   if (sessionId === null || agentName === null) {
     return <SessionWindowNotice message="This window does not point at a session." />;
@@ -50,29 +58,31 @@ export function SessionWindow({ windowId }: { windowId: string }) {
   }
 
   const workspaceId = sessionQuery.data?.workspace_id?.trim() || null;
+  if (workspaceId === null) {
+    return (
+      <SessionWindowNotice
+        message={sessionQuery.error?.message ?? "Session workspace unavailable"}
+      />
+    );
+  }
 
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-full items-center justify-center">
-          <Spinner className="size-5 text-subtle" />
-        </div>
-      }
-    >
-      <div className="flex min-h-full min-w-0 flex-col">
-        <SessionPage name={agentName} id={sessionId} workspaceId={workspaceId} />
-      </div>
-    </Suspense>
-  );
-}
-
-function SessionWindowNotice({ message }: { message: string }) {
-  return (
-    <div className="flex min-h-full items-center justify-center">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <AlertCircle className="size-6 text-danger" />
-        <p className="text-sm text-subtle">{message}</p>
-      </div>
+    <div className="flex min-h-full min-w-0 flex-col">
+      <SessionWindowView
+        name={agentName}
+        id={sessionId}
+        workspaceId={workspaceId}
+        onDeleteSuccess={() => {
+          coordinator.userClose(windowId);
+          coordinator.userOpen({
+            app: "agents",
+            location: {
+              pathname: `/agents/${encodeURIComponent(agentName)}`,
+              search: {},
+            },
+          });
+        }}
+      />
     </div>
   );
 }

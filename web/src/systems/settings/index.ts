@@ -74,6 +74,14 @@ export type {
   SettingsWriteTarget,
 } from "./types";
 
+export {
+  useMCPAuthorize,
+  type MCPAuthorizePhase,
+  type MCPAuthorizePriorStatus,
+  type MCPAuthorizeState,
+  type UseMCPAuthorizeReturn,
+} from "./hooks/use-mcp-authorize";
+
 // Section metadata
 export {
   findSettingsSection,

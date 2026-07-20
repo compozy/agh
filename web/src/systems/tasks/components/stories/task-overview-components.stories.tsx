@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import type { MultiAgentAgent } from "@/hooks/routes/use-task-detail-page";
+import type { MultiAgentAgent } from "../../hooks/use-task-detail-page";
 import { PanelSurface } from "@/storybook/story-layout";
 import {
   buildDashboardFixture,

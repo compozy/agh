@@ -2,7 +2,7 @@ import { Activity, AlertCircle } from "lucide-react";
 
 import { Alert, AlertDescription, Metric, Pill, PillDot, Section, type PillTone } from "@agh/ui";
 
-import type { StreamConnectionState } from "@/hooks/routes/use-task-detail-orchestration-tab";
+import type { StreamConnectionState } from "../hooks/use-task-detail-orchestration-tab";
 
 export interface TasksStreamResumeCardProps {
   latestEventSeq: number | null;

@@ -252,6 +252,21 @@ export function TasksDetailHeaderActions({
 
   // Route chrome §07: Edit + one accent primary; Cancel/Pause/Delete → overflow.
   useTopbarSlot({
+    crumb: (
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        <Link
+          className="shrink-0 text-muted transition-colors hover:text-fg-strong"
+          data-testid="tasks-detail-breadcrumb-tasks"
+          to="/tasks"
+        >
+          Tasks
+        </Link>
+        <span aria-hidden="true" className="shrink-0 text-faint">
+          /
+        </span>
+        <span className="truncate">{record.identifier ?? record.id}</span>
+      </span>
+    ),
     actions: (
       <div
         data-testid="tasks-detail-actions"

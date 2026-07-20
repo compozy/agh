@@ -32,7 +32,7 @@ const PALETTE_APPS = Object.values(OS_APPS).filter(app => app.id !== "session");
  * portals to the document body, never into a window.
  */
 export function OsCommandPalette({ open, onOpenChange }: OsCommandPaletteProps) {
-  const { coordinator } = useOsShell();
+  const { coordinator, store } = useOsShell();
   const sessionCreate = useSessionCreate();
   const { workspaces, activeWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
   const sessions = useSessions(activeWorkspaceId, {
@@ -104,6 +104,14 @@ export function OsCommandPalette({ open, onOpenChange }: OsCommandPaletteProps) 
             </CommandGroup>
           ) : null}
           <CommandGroup heading="Actions">
+            <CommandItem
+              value="toggle sessions rail"
+              data-testid="os-palette-toggle-sessions"
+              onSelect={() => run(() => store.getState().toggleRail())}
+            >
+              <OS_APPS.session.icon className="size-3.5 text-muted" />
+              Toggle sessions
+            </CommandItem>
             <CommandItem
               value="new session"
               data-testid="os-palette-new-session"

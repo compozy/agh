@@ -73,9 +73,15 @@ vi.mock("@/systems/extensions", async () => {
   };
 });
 
-vi.mock("@/hooks/routes/use-mcp-authorize", async () => {
+vi.mock("@/systems/settings", async () => {
+  const actual = await vi.importActual<typeof import("@/systems/settings")>("@/systems/settings");
   const { useState } = await vi.importActual<typeof import("react")>("react");
   return {
+    ...actual,
+    MCPAuthorizeDialog: ({ scope }: { scope: string }) => (
+      <output aria-label="Authorization scope">{scope}</output>
+    ),
+    useDeleteSettingsMCPServer: () => ({ mutateAsync: mocks.deleteMCP }),
     useMCPAuthorize: () => {
       const [phase, setPhase] = useState("idle");
       return {
@@ -100,17 +106,6 @@ vi.mock("@/hooks/routes/use-mcp-authorize", async () => {
         cancel: vi.fn(),
       };
     },
-  };
-});
-
-vi.mock("@/systems/settings", async () => {
-  const actual = await vi.importActual<typeof import("@/systems/settings")>("@/systems/settings");
-  return {
-    ...actual,
-    MCPAuthorizeDialog: ({ scope }: { scope: string }) => (
-      <output aria-label="Authorization scope">{scope}</output>
-    ),
-    useDeleteSettingsMCPServer: () => ({ mutateAsync: mocks.deleteMCP }),
   };
 });
 

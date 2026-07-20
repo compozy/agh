@@ -18,7 +18,7 @@ import { Check, CircleAlert, CircleCheck, Copy, ExternalLink, Plug } from "lucid
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
-import type { UseMCPAuthorizeReturn } from "@/hooks/routes/use-mcp-authorize";
+import type { UseMCPAuthorizeReturn } from "../hooks/use-mcp-authorize";
 
 import { authTone, formatStatusLabel } from "../lib/mcp-status-view-model";
 import type { SettingsMCPServerEntry } from "../types";

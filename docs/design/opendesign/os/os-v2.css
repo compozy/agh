@@ -262,29 +262,14 @@ body[data-wallpaper="carbon"] .desktop{
 .dock-new:hover{background:var(--accent-hover);transform:translateY(-2px)}
 .dock-new svg{width:18px;height:18px}
 
-/* ============ SESSIONS WINDOW (sidebar-sessions-02 anatomy) ============ */
+/* ============ SESSIONS WINDOW (sidebar-sessions-02 anatomy) ============
+   Identity + filter live in the unified window head / context strip. */
 .app.app-sessions{
   padding:0;gap:0;height:100%;min-height:0;
   display:flex;flex-direction:column;
   background:var(--canvas);
 }
-.sr-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 14px 6px}
-.sr-back{width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:var(--radius-md);color:var(--muted)}
-.sr-back:hover{background:var(--row-hover);color:var(--fg)}
-.sr-back svg{width:14px;height:14px}
-.sr-eyebrow{flex:1;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
-.sr-eyebrow .mono{margin-left:5px;color:var(--faint);letter-spacing:0}
-
-.session-search{flex:none;padding:4px 14px 6px}
-.session-search__field{
-  display:flex;min-height:30px;align-items:center;gap:7px;padding:0 8px;
-  border:1px solid var(--line);border-radius:var(--radius);
-  background:var(--input-fill);color:var(--subtle);
-}
-.session-search__field:focus-within{border-color:var(--line-strong)}
-.session-search__field svg{width:13px;height:13px;flex:0 0 13px}
-.session-search__field input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--fg);font-size:12px}
-.session-search__field input::placeholder{color:var(--subtle)}
+.win-toolbar .session-search__field{width:100%;max-width:none;flex:1}
 
 .sr-track{display:flex;width:200%;min-height:0;flex:1;transform:translate3d(0,0,0);transition:transform .32s var(--ease-spring);will-change:transform}
 .sr-track[data-view="all"]{transform:translate3d(-50%,0,0)}
@@ -397,17 +382,19 @@ body[data-wallpaper="carbon"] .desktop{
 .win.is-max{resize:none}
 .win.is-minimizing{transition:transform .3s var(--ease-spring),opacity .28s ease;pointer-events:none}
 
-/* window head = existing route topbar (48px, 3-zone, breadcrumb) + OS controls */
+/* window head = pagehead-redesign unified chrome (44px) */
 .win-head{
   flex:none;min-height:44px;
-  display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:10px;
+  display:flex;align-items:center;gap:10px;
   padding:0 12px;
   background:var(--canvas);
   border-bottom:1px solid var(--line);
-  cursor:grab;user-select:none;
+  cursor:grab;user-select:none;position:relative;z-index:3;
+  transition:box-shadow var(--dur) var(--ease),border-color var(--dur) var(--ease);
 }
 .win-head:active{cursor:grabbing}
-.win-controls{display:flex;gap:7px}
+.win-head.is-scrolled{border-bottom-color:var(--line-strong);box-shadow:0 10px 18px -14px rgba(0,0,0,.55)}
+.win-controls{display:flex;gap:7px;margin-right:2px;flex:none}
 .wc{
   width:12px;height:12px;border-radius:var(--radius-xs);
   border:1px solid var(--line-strong);background:var(--btn-fill);
@@ -417,15 +404,57 @@ body[data-wallpaper="carbon"] .desktop{
 .win:hover .wc-min,.wc-min:focus-visible{background:var(--muted);border-color:var(--muted)}
 .win:hover .wc-zoom,.wc-zoom:focus-visible{background:var(--success);border-color:var(--success)}
 
-.breadcrumb{display:flex;align-items:center;gap:6px;min-width:0;justify-self:center}
-.crumb-root{font-size:11px;color:var(--subtle)}
-.crumb-sep{font-size:11px;color:var(--faint)}
-.crumb-page{
-  font-size:13px;line-height:18px;font-weight:600;color:var(--fg-strong);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+.w2-id{display:flex;align-items:center;gap:8px;min-width:0;flex:none;max-width:55%}
+.w2-glyph{
+  width:22px;height:22px;flex:none;border-radius:var(--radius);
+  display:grid;place-items:center;
+  background:var(--badge-fill);border:1px solid var(--line);color:var(--muted);
 }
-.win-trail{display:flex;align-items:center;gap:8px;justify-self:end;min-width:64px;justify-content:flex-end}
+.w2-glyph svg{width:13px;height:13px}
+.win[data-doc="true"] .w2-glyph{display:none}
+.w2-title{
+  font-size:13px;line-height:18px;font-weight:600;color:var(--fg-strong);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
+}
+.w2-count{font-size:10px;color:var(--faint);flex:none}
+.w2-crumb{
+  font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;
+  border-radius:var(--radius-sm);padding:1px 4px;margin:0 -4px;cursor:pointer;
+}
+.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2-sep{font-size:12px;color:var(--faint);flex:none}
+.w2-back{
+  width:24px;height:24px;flex:none;display:grid;place-items:center;
+  border-radius:var(--radius);color:var(--muted);cursor:pointer;
+}
+.w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2-back svg{width:13px;height:13px}
+.w2-flex{flex:1;align-self:stretch;min-width:12px}
+.w2-status{
+  display:inline-flex;align-items:center;gap:6px;flex:none;
+  font-size:10.5px;font-weight:600;color:var(--muted);
+}
+.w2-status[data-tone="ok"]{color:var(--success)}
+.w2-status[data-tone="run"]{color:var(--accent-strong)}
+.w2-status[data-tone="needs"]{color:var(--warning)}
+.w2-meta{font-size:10.5px;color:var(--subtle);flex:none}
+.w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
+.w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+.win-trail{display:flex;align-items:center;gap:8px;flex:none;min-width:0;justify-content:flex-end}
 .livebadge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--accent)}
+
+/* optional 38px context strip — filters / search / Rows|Cards */
+.win-toolbar{
+  flex:none;min-height:38px;
+  display:flex;align-items:center;gap:10px;padding:2px 12px;
+  background:var(--canvas);border-bottom:1px solid var(--line);
+  position:relative;z-index:2;
+}
+.win-toolbar .w2-flex{align-self:auto}
+.win-toolbar .app-toolbar{
+  display:flex;align-items:center;gap:10px;flex:1;min-width:0;
+  justify-content:flex-start;flex-wrap:nowrap;
+}
 
 .win-body{flex:1;overflow:auto;background:var(--canvas)}
 
@@ -538,13 +567,15 @@ body[data-wallpaper="carbon"] .desktop{
     border:0;border-radius:0;
     box-shadow:none;resize:none;
   }
-  .win-head{grid-template-columns:56px minmax(0,1fr) auto;cursor:default}
+  .win-head{cursor:default}
   .win-head:active{cursor:default}
   .win-controls{gap:12px}
   .wc{width:15px;height:15px;position:relative}
   .wc::after{content:"";position:absolute;inset:-9px}
   .wc-zoom{display:none}
-  .win-trail{min-width:56px}
+  .w2-id{max-width:48%}
+  .win-trail{min-width:0}
+  .win-toolbar{flex-wrap:wrap;min-height:0;padding:6px 12px;gap:8px}
 
   /* dock → tab bar */
   .dock-zone{

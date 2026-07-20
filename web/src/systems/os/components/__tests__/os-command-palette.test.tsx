@@ -112,4 +112,22 @@ describe("OsCommandPalette", () => {
     expect(store.getState().windows["app:tasks"]).toBeDefined();
     expect(pushes).toEqual(["/tasks"]);
   });
+
+  it("Should route the sessions action through the persisted rail toggle (UT-084)", async () => {
+    const user = userEvent.setup();
+    const { store, shell } = createHarness();
+
+    render(
+      <OsShellContext.Provider value={shell}>
+        <OsCommandPalette open onOpenChange={() => {}} />
+      </OsShellContext.Provider>
+    );
+
+    await user.type(
+      screen.getByPlaceholderText("Search apps, sessions, actions…"),
+      "toggle sessions"
+    );
+    await user.keyboard("{Enter}");
+    expect(store.getState().railOpen).toBe(true);
+  });
 });

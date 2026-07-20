@@ -52,6 +52,21 @@ describe("Topbar", () => {
     expect(container.querySelector("[data-slot='topbar-actions']")).toBeNull();
   });
 
+  it("Should render the published per-window crumb as the route identity", () => {
+    function Setup() {
+      useTopbarSlot({ crumb: "Tasks / TASK-42" });
+      return null;
+    }
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar title="Tasks" />
+      </TopbarSlotProvider>
+    );
+
+    expect(screen.getByRole("heading", { level: 1, name: "Tasks / TASK-42" })).toBeInTheDocument();
+  });
+
   it("Should render the leading zone left with context centered in the 1fr auto 1fr grid", () => {
     render(
       <TopbarSlotProvider>

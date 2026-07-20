@@ -2,7 +2,7 @@ import { AlertCircle, Users } from "lucide-react";
 
 import { BlockLoading, Empty, Eyebrow } from "@agh/ui";
 
-import type { MultiAgentAgent, MultiAgentLiveState } from "@/hooks/routes/use-task-detail-page";
+import type { MultiAgentAgent, MultiAgentLiveState } from "../hooks/use-task-detail-page";
 
 import type { TaskTimelineItem } from "../types";
 import { AgentCard } from "./agent-card";

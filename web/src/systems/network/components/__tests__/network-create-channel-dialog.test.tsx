@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@agh/ui";
+import { OverlayContainerContext, UIProvider } from "@agh/ui";
 import { agentFixtures } from "@/systems/agent/mocks";
 
 import { createNetworkChannelDraft } from "../../lib/network-formatters";
@@ -195,5 +195,37 @@ describe("NetworkCreateChannelDialog", () => {
 
     fireEvent.click(screen.getByText("Cancel"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("Should portal into the owning window overlay container", () => {
+    const overlayContainer = document.createElement("div");
+    overlayContainer.dataset.testid = "network-window-overlay-host";
+    document.body.append(overlayContainer);
+
+    try {
+      renderDialog(
+        <OverlayContainerContext.Provider value={overlayContainer}>
+          <NetworkCreateChannelDialog
+            agents={agentFixtures}
+            canSubmit
+            draft={createNetworkChannelDraft()}
+            isSubmitting={false}
+            onChannelNameChange={() => undefined}
+            onOpenChange={() => undefined}
+            onPurposeChange={() => undefined}
+            onAgentSelectionChange={() => undefined}
+            onSubmit={() => undefined}
+            open
+            workspaceName="polybot"
+          />
+        </OverlayContainerContext.Provider>
+      );
+
+      expect(overlayContainer).toContainElement(
+        screen.getByTestId("network-create-channel-dialog")
+      );
+    } finally {
+      overlayContainer.remove();
+    }
   });
 });

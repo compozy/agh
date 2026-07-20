@@ -1,25 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  parseLoopCategoryFilter,
-  parseLoopKindFilter,
-  parseLoopStatusFilter,
-  type LoopsRouteSearch,
-} from "@/hooks/routes/use-loops-catalog";
-import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
+import { validateLoopsSearch } from "@/systems/os/apps/loops/use-loops-catalog";
 import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { preloadLoopsRoute } from "./-loops-preload";
-
-function validateLoopsSearch(search: Record<string, unknown>): LoopsRouteSearch {
-  return {
-    category: parseLoopCategoryFilter(search.category),
-    kind: parseLoopKindFilter(search.kind),
-    q: normalizeListingSearchValue(search.q),
-    status: parseLoopStatusFilter(search.status),
-    view: parseListingView(search.view),
-  };
-}
 
 export const Route = createFileRoute("/_app/loops")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({

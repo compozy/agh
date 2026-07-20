@@ -3,7 +3,7 @@ import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SettingsSandboxEntry } from "@/systems/settings";
-import { SandboxPage } from "../-sandbox-page";
+import { SandboxPage } from "@/systems/sandbox";
 
 type RestartBanner = {
   isVisible: boolean;
@@ -118,8 +118,8 @@ const restartBanner: RestartBanner = {
 
 let pageState: PageState;
 
-vi.mock("@/hooks/routes/use-sandbox-page", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/hooks/routes/use-sandbox-page")>();
+vi.mock("@/systems/sandbox/hooks/use-sandbox-page", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/sandbox/hooks/use-sandbox-page")>();
   return {
     ...actual,
     useSandboxPage: () => pageState,

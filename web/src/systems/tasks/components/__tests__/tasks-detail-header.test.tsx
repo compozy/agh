@@ -62,6 +62,7 @@ describe("TasksDetailHeader", () => {
     expect(screen.getByTestId("tasks-detail-id")).toHaveTextContent("task-42");
     expect(screen.getByTestId("tasks-detail-status")).toHaveTextContent("Ready");
     expect(screen.getByTestId("tasks-detail-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-detail-breadcrumb-tasks")).toHaveTextContent("Tasks");
 
     // Priority is a pill, while the meta row keeps provenance and timestamps.
     expect(screen.getByTestId("tasks-detail-priority")).toHaveTextContent("High");

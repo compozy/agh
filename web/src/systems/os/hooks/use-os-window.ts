@@ -1,4 +1,4 @@
-import { useEffect, useState, type FocusEvent, type PointerEvent } from "react";
+import { useState, useSyncExternalStore, type FocusEvent, type PointerEvent } from "react";
 import type { RndDragCallback, RndResizeCallback } from "react-rnd";
 
 import type { OsTrafficLightAction } from "../components/os-traffic-lights";
@@ -20,6 +20,17 @@ export interface OsWindowModel {
   handleResizeStop: RndResizeCallback;
 }
 
+function useOverlayPresence(overlayHost: HTMLDivElement | null): boolean {
+  const subscribe = (onStoreChange: () => void) => {
+    if (!overlayHost) return () => undefined;
+    const observer = new MutationObserver(onStoreChange);
+    observer.observe(overlayHost, { childList: true });
+    return () => observer.disconnect();
+  };
+  const getSnapshot = () => (overlayHost?.childElementCount ?? 0) > 0;
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
+}
+
 /**
  * Window behavior: focus activation (pointer AND keyboard — Routing Model
  * rule 5), traffic-light actions, gesture-end rect commits with immediate
@@ -31,18 +42,7 @@ export function useOsWindow(windowId: string): OsWindowModel {
   const win = useDesktop(state => state.windows[windowId]);
   const focused = useDesktop(state => state.focusedId === windowId);
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
-  const [hasOpenOverlay, setHasOpenOverlay] = useState(false);
-
-  // The dedicated overlay host is the only portal target; watching its
-  // children is what makes the minimize exemption observable (invariant 18).
-  useEffect(() => {
-    if (!overlayHost) return;
-    const update = () => setHasOpenOverlay(overlayHost.childElementCount > 0);
-    update();
-    const observer = new MutationObserver(update);
-    observer.observe(overlayHost, { childList: true });
-    return () => observer.disconnect();
-  }, [overlayHost]);
+  const hasOpenOverlay = useOverlayPresence(overlayHost);
 
   const handleTrafficLight = (action: OsTrafficLightAction) => {
     if (action === "close") coordinator.userClose(windowId);

@@ -2,7 +2,7 @@
 // Invariant: Persisted automation reads render the stored execution target without agent-only loss.
 // Boundary IN: Job/Trigger API read models and the detail/run-history presentation.
 // Boundary OUT: persistence and dispatch, owned by daemon/store suites.
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -161,7 +161,9 @@ describe("AutomationDetailPanel", () => {
     const { onDelete, onEdit, onToggleEnabled, onTriggerNow } = renderPanel();
 
     expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
-    expect(screen.getByText("daily-review")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("automation-detail-header")).getByText("daily-review")
+    ).toBeInTheDocument();
     expect(screen.getByText("Review recent changes.")).toBeInTheDocument();
     expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent("Skip missed");
     expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent(

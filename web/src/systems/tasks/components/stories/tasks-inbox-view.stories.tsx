@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
 import { PanelSurface } from "@/storybook/story-layout";
-import type { InboxLaneFilter } from "@/hooks/routes/use-tasks-page";
+import type { InboxLaneFilter } from "../../hooks/use-tasks-page";
 import type { TaskInboxView, TaskPriority, TaskStatus } from "../../types";
 import { TasksInboxView } from "../tasks-inbox-view";
 import { buildInboxFixture, buildInboxItemFixture } from "../test-fixtures";

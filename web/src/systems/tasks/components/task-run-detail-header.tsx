@@ -172,6 +172,7 @@ export function TaskRunDetailHeader({
     (canCancel && Boolean(onCancelRun));
 
   useTopbarSlot({
+    crumb: `Tasks / ${taskID || record.task_id} / Run ${record.id}`,
     actions: (
       <div
         data-testid="task-run-detail-actions"

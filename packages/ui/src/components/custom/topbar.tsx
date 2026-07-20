@@ -90,7 +90,7 @@ function Topbar({ leading, breadcrumb, title, titleRef, className, ...props }: T
           data-testid="topbar-title-text"
           className="min-w-0 truncate text-card-title font-medium tracking-tight text-fg-strong outline-none focus-visible:shadow-focus-ring"
         >
-          {title}
+          {slot?.crumb ?? title}
         </h1>
       </div>
       {hasRouteNav ? (

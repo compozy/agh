@@ -28,15 +28,20 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
 }));
 
-vi.mock("@/systems/vault", () => ({
-  VAULT_NAMESPACES: ["sessions", "providers", "mcp"],
+vi.mock("@/systems/vault/adapters/vault-api", () => ({
   VaultApiError: class VaultApiError extends Error {},
+}));
+
+vi.mock("@/systems/vault/hooks/use-vault-actions", () => ({
   useDeleteVaultSecret: () => ({
     ...mocks.deleteState,
     mutate: mocks.deleteMutate,
     reset: mocks.deleteReset,
   }),
   usePutVaultSecret: () => ({ ...mocks.putState, mutate: mocks.putMutate, reset: mocks.putReset }),
+}));
+
+vi.mock("@/systems/vault/hooks/use-vault", () => ({
   useVaultSecrets: (filter: unknown) => {
     mocks.vaultFilter(filter);
     return {
@@ -50,7 +55,10 @@ vi.mock("@/systems/vault", () => ({
 }));
 
 import type { VaultSecret } from "@/systems/vault";
-import { normalizeVaultPrefixForNamespace, useVaultPage } from "../use-vault-page";
+import {
+  normalizeVaultPrefixForNamespace,
+  useVaultPage,
+} from "@/systems/vault/hooks/use-vault-page";
 
 const providerSecret = {
   created_at: "2026-07-18T12:00:00Z",

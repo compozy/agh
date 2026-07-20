@@ -4,12 +4,13 @@
 
 ## The one structural trick
 
-The window header **is** the route's existing topbar. Production routes already render a 48px 3-zone topbar (breadcrumb leading · center · trailing actions). v2 injects the three OS window controls into the leading zone, before the breadcrumb. No second header, no double chrome, no route rewrite:
+The window head absorbs the route PageHead (see `pagehead-redesign.html`). One 44px unified bar: controls · quiet 22px glyph + 13px title · drag flex · status chip + ≤2 actions. Listing tools (filters, search, Rows|Cards) hoist into an optional 38px context strip. Document windows (live sessions) self-title with a pulsing state dot. Identity renders once — no breadcrumb + accent tile + H1 stack.
 
 ```
-┌─[● ● ●]  agh / Tasks                    [New task]─┐   ← existing topbar + controls
-│  (route outlet renders here, unchanged)            │
-└────────────────────────────────────────────────────┘
+┌─[● ● ●]  ▢ Tasks  6          2 running │ ···  New task─┐   ← unified head
+│  All · Running · Needs you              Rows │ Cards   │   ← optional strip
+│  (route content)                               │
+└────────────────────────────────────────────────┘
 ```
 
 ## Window → existing code map

@@ -14,6 +14,8 @@ export interface ThreadOverlayHeaderProps {
   detail: NetworkThreadDetail | null;
   rootMessageId?: string | null;
   selfSessionId?: string | null;
+  onClose: () => void;
+  onOpenMain: () => void;
 }
 
 function buildParticipantLabel(detail: NetworkThreadDetail | null): string {
@@ -34,6 +36,8 @@ export function ThreadOverlayHeader({
   detail,
   rootMessageId,
   selfSessionId,
+  onClose,
+  onOpenMain,
 }: ThreadOverlayHeaderProps) {
   const navigate = useNavigate();
   const promote = usePromoteNetworkThreadTask();
@@ -88,14 +92,7 @@ export function ThreadOverlayHeader({
           <Button
             aria-label="Close thread overlay"
             data-testid="network-thread-overlay-close"
-            onClick={() => {
-              if (workspaceId) {
-                void navigate({
-                  params: { workspaceId, channel },
-                  to: "/network/$workspaceId/$channel/threads",
-                });
-              }
-            }}
+            onClick={onClose}
             size="icon-sm"
             type="button"
             variant="ghost"
@@ -113,15 +110,7 @@ export function ThreadOverlayHeader({
             aria-label="Open thread in main pane"
             className="text-muted"
             data-testid="network-thread-overlay-open-main"
-            onClick={() => {
-              if (workspaceId) {
-                void navigate({
-                  params: { workspaceId, channel, threadId },
-                  search: { view: "full" },
-                  to: "/network/$workspaceId/$channel/threads/$threadId",
-                });
-              }
-            }}
+            onClick={onOpenMain}
             size="sm"
             type="button"
             variant="ghost"

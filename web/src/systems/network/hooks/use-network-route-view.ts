@@ -6,11 +6,13 @@ import { useOpenWork } from "./use-work";
 import { useThreadViewMode } from "./use-thread-view-mode";
 import { useNetworkThreadDetail } from "./use-threads";
 import { useNetworkDirectDetail } from "./use-directs";
+import type { UseNetworkRouteShellArgs } from "./use-network-route-shell";
 
-export function useNetworkRouteView() {
-  const route = useNetworkRouteShell();
+export function useNetworkRouteView(args: UseNetworkRouteShellArgs) {
+  const route = useNetworkRouteShell(args);
   const viewMode = useThreadViewMode();
-  const showOverlayInRightRail = route.activeThreadId != null && viewMode === "overlay";
+  const threadIsFullPage = route.location.view === "full" || viewMode === "fullpage";
+  const showOverlayInRightRail = route.activeThreadId != null && !threadIsFullPage;
   const containerSurface = route.activeThreadId
     ? ("thread" as const)
     : route.activeDirectId
@@ -57,5 +59,6 @@ export function useNetworkRouteView() {
     openWork,
     railView,
     showOverlayInRightRail,
+    threadIsFullPage,
   };
 }

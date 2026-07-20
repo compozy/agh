@@ -62,6 +62,7 @@ export function createDesktopStore(): DesktopStoreApi {
     windows: {},
     focusedId: null,
     railOpen: false,
+    railCollapsedAgentIds: [],
     wallpaper: "ember",
     presentation: "floating",
     hydration: "pending",
@@ -166,6 +167,24 @@ export function createDesktopStore(): DesktopStoreApi {
       set(state => ({ railOpen: !state.railOpen }));
     },
 
+    openRail: () => {
+      if (!get().railOpen) set({ railOpen: true });
+    },
+
+    closeRail: () => {
+      if (get().railOpen) set({ railOpen: false });
+    },
+
+    toggleRailGroup: agentId => {
+      const normalized = agentId.trim();
+      if (normalized === "") return;
+      set(state => ({
+        railCollapsedAgentIds: state.railCollapsedAgentIds.includes(normalized)
+          ? state.railCollapsedAgentIds.filter(id => id !== normalized)
+          : [...state.railCollapsedAgentIds, normalized],
+      }));
+    },
+
     commitRect: (id, rect) => {
       const state = get();
       const win = state.windows[id];
@@ -208,6 +227,7 @@ export function createDesktopStore(): DesktopStoreApi {
           settledSeqs,
           focusedId,
           railOpen: desktop.railOpen,
+          railCollapsedAgentIds: desktop.railCollapsedAgentIds,
           wallpaper: desktop.wallpaper,
         });
         return;
@@ -273,6 +293,7 @@ export function createDesktopStore(): DesktopStoreApi {
         windows,
         focusedId,
         railOpen: desktop?.railOpen ?? state.railOpen,
+        railCollapsedAgentIds: desktop?.railCollapsedAgentIds ?? state.railCollapsedAgentIds,
         wallpaper: desktop?.wallpaper ?? state.wallpaper,
         zCounter: decoded.length,
         settledSeqs,
@@ -323,6 +344,7 @@ export function createDesktopStore(): DesktopStoreApi {
         windows: {},
         focusedId: null,
         railOpen: false,
+        railCollapsedAgentIds: [],
         wallpaper: "ember",
         hydration: "pending",
         softCapNotice: false,

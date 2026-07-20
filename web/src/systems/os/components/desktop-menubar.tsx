@@ -15,11 +15,14 @@ import {
 
 import type { WorkspacePayload } from "@/systems/workspace";
 
+import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
+import type { OsAttentionRow } from "../lib/attention-model";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useDesktop } from "../hooks/use-desktop";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
+import { AttentionBell } from "./attention-bell";
 
 export interface DesktopMenubarProps {
   workspaces: WorkspacePayload[];
@@ -31,6 +34,7 @@ export interface DesktopMenubarProps {
   onOpenSpaces: () => void;
   activeOverlay: DesktopOverlay | null;
   onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void;
+  attention: OsAttentionModel;
 }
 
 function workspaceMonogram(name: string): string {
@@ -69,6 +73,7 @@ export function DesktopMenubar({
   onOpenSpaces,
   activeOverlay,
   onOverlayOpenChange,
+  attention,
 }: DesktopMenubarProps) {
   const { store, coordinator } = useOsShell();
   const focusedId = useDesktop(state => state.focusedId);
@@ -76,15 +81,34 @@ export function DesktopMenubar({
   const hasFocusedWindow = focusedId !== null;
 
   const workspaceName = activeWorkspace?.name ?? "—";
+  const focusAttentionRow = (row: OsAttentionRow) => {
+    onOverlayOpenChange("bell", false);
+    if (row.kind === "session") {
+      coordinator.userOpen({
+        app: "session",
+        instanceKey: row.id,
+        location: {
+          pathname: `/agents/${encodeURIComponent(row.agentName)}/sessions/${encodeURIComponent(row.id)}`,
+          search: {},
+        },
+      });
+      return;
+    }
+    coordinator.userOpen({
+      app: "tasks",
+      location: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },
+    });
+  };
 
   return (
     <OsMenuBar
       workspace={{ name: workspaceName, monogram: workspaceMonogram(workspaceName) }}
       status={<OsHydrationStatus hydration={hydration} />}
+      notifications={attention.notificationCount}
       onLogoClick={() => coordinator.userOpen({ app: "dashboard" })}
       onCommandClick={onOpenPalette}
       onSettingsClick={() => coordinator.userOpen({ app: "settings" })}
-      renderWorkspaceTrigger={trigger => (
+      wrapWorkspaceTrigger={trigger => (
         <DropdownMenu
           open={activeOverlay === "workspace-menu"}
           onOpenChange={open => onOverlayOpenChange("workspace-menu", open)}
@@ -113,7 +137,7 @@ export function DesktopMenubar({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      renderMenuTrigger={(menu, trigger) => {
+      wrapMenuTrigger={(menu, trigger) => {
         const overlay = menuOverlay(menu);
         if (overlay === null) return trigger;
         return (
@@ -176,17 +200,20 @@ export function DesktopMenubar({
           </DropdownMenu>
         );
       }}
-      renderBellTrigger={trigger => (
+      wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}
           onOpenChange={open => onOverlayOpenChange("bell", open)}
         >
           <PopoverTrigger render={trigger} />
-          <PopoverContent align="end" className="w-72" data-testid="os-bell-popover">
-            <p className="text-small-body font-medium text-fg-strong">Nothing waiting</p>
-            <p className="mt-1 text-small-body text-muted">
-              Sessions waiting on you and tasks awaiting approval will appear here.
-            </p>
+          <PopoverContent align="end" className="w-80 p-2" data-testid="os-bell-popover">
+            <AttentionBell
+              rows={attention.rows}
+              sessionsDisconnected={attention.sessionsDisconnected}
+              tasksDisconnected={attention.tasksDisconnected}
+              loading={attention.loading}
+              onSelect={focusAttentionRow}
+            />
           </PopoverContent>
         </Popover>
       )}

@@ -62,7 +62,7 @@ vi.mock("@/systems/workspace", () => ({
   }),
 }));
 
-import { useAgentDetailPage } from "../use-agent-detail-page";
+import { useAgentDetailPage } from "@/systems/os/apps/agents/use-agent-detail";
 
 const emptySearch = {};
 

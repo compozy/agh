@@ -3,7 +3,7 @@ import { ListFilter } from "lucide-react";
 import { Button } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui";
 
-import type { VaultNamespaceFilter } from "@/hooks/routes/use-vault-page";
+import type { VaultNamespaceFilter } from "../hooks/use-vault-page";
 import {
   applyVaultFilterChips,
   buildVaultFilterFields,

@@ -9,7 +9,7 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 
-import type { MultiAgentAgent } from "@/hooks/routes/use-task-detail-page";
+import type { MultiAgentAgent } from "../../hooks/use-task-detail-page";
 
 import { TasksMultiAgentPanel } from "../tasks-multi-agent-panel";
 import type { TaskTimelineItem, TaskTreeNode } from "../../types";

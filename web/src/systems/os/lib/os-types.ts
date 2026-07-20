@@ -70,6 +70,7 @@ export interface OsDesktopStore {
   windows: Record<string, OsWindow>;
   focusedId: string | null;
   railOpen: boolean;
+  railCollapsedAgentIds: string[];
   wallpaper: OsWallpaper;
   presentation: OsPresentation;
   hydration: OsHydration;
@@ -80,6 +81,9 @@ export interface OsDesktopStore {
   restoreWindow(id: string): void;
   toggleZoom(id: string): void;
   toggleRail(): void;
+  openRail(): void;
+  closeRail(): void;
+  toggleRailGroup(agentId: string): void;
   commitRect(id: string, rect: OsRect): void;
   setLocation(id: string, loc: OsWindowLocation): void;
   applyRemote(event: OsStateEvent): void;

@@ -12,6 +12,7 @@ export interface UseThreadOverlayViewArgs {
   channel: string;
   threadId: string;
   fullPage: boolean;
+  onClose: () => void;
 }
 
 export interface UseThreadOverlayViewResult {
@@ -28,8 +29,9 @@ export function useThreadOverlayView({
   channel,
   threadId,
   fullPage,
+  onClose,
 }: UseThreadOverlayViewArgs): UseThreadOverlayViewResult {
-  const overlay = useThreadOverlay({ workspaceId, channel, fullPage, threadId });
+  const overlay = useThreadOverlay({ workspaceId, channel, fullPage, threadId, onClose });
   const session = useActiveNetworkSession(channel, { workspaceId });
   const openWork = useOpenWork({
     workspaceId,

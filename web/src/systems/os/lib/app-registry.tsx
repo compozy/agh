@@ -28,8 +28,8 @@ export interface OsAppDefinition {
   paths: string[];
   /** Hand-tuned cascade from the prototype (os-v2.js APPS). */
   defaultRect: OsRect;
-  /** Dock strip group; null = settings (menubar cog) & session (rail-opened). */
-  dock: { group: 1 | 2 | 3 | 4 } | null;
+  /** Dock strip group, rail toggle, or null for menubar-only settings. */
+  dock: { group: 1 | 2 | 3 | 4 } | "rail-toggle" | null;
   badge?: "sessions" | "tasks";
   /** Extracts the multi-instance key from a pathname (session windows). */
   matchInstance?: (pathname: string) => string | null;
@@ -47,10 +47,39 @@ const SettingsWindow = lazy(() =>
 const SessionWindow = lazy(() =>
   import("../apps/session/session-window").then(m => ({ default: m.SessionWindow }))
 );
-const PendingAppWindow = lazy(() =>
-  import("../apps/pending-app-window").then(m => ({ default: m.PendingAppWindow }))
+const TasksWindow = lazy(() =>
+  import("../apps/tasks/tasks-window").then(m => ({ default: m.TasksWindow }))
 );
-
+const AgentsWindow = lazy(() =>
+  import("../apps/agents/agents-window").then(m => ({ default: m.AgentsWindow }))
+);
+const NetworkWindow = lazy(() =>
+  import("../apps/network/network-window").then(m => ({ default: m.NetworkWindow }))
+);
+const SandboxWindow = lazy(() =>
+  import("../apps/sandbox/sandbox-window").then(m => ({ default: m.SandboxWindow }))
+);
+const VaultWindow = lazy(() =>
+  import("../apps/vault/vault-window").then(m => ({ default: m.VaultWindow }))
+);
+const KnowledgeWindow = lazy(() =>
+  import("../apps/knowledge/knowledge-window").then(m => ({ default: m.KnowledgeWindow }))
+);
+const BridgesWindow = lazy(() =>
+  import("../apps/bridges/bridges-window").then(m => ({ default: m.BridgesWindow }))
+);
+const LoopsWindow = lazy(() =>
+  import("../apps/loops/loops-window").then(m => ({ default: m.LoopsWindow }))
+);
+const JobsWindow = lazy(() =>
+  import("../apps/jobs/jobs-window").then(m => ({ default: m.JobsWindow }))
+);
+const TriggersWindow = lazy(() =>
+  import("../apps/triggers/triggers-window").then(m => ({ default: m.TriggersWindow }))
+);
+const MarketplaceWindow = lazy(() =>
+  import("../apps/marketplace/marketplace-window").then(m => ({ default: m.MarketplaceWindow }))
+);
 const SESSION_PATH_PATTERN = /^\/agents\/[^/]+\/sessions\/([^/]+)/;
 
 export function matchSessionInstance(pathname: string): string | null {
@@ -66,6 +95,56 @@ async function preloadDashboard(qc: QueryClient, ctx: { workspaceId: string }): 
 async function preloadSettings(qc: QueryClient): Promise<void> {
   const { preloadSettingsGeneralRoute } = await import("@/routes/_app/-settings-preload");
   await preloadSettingsGeneralRoute(qc);
+}
+
+async function preloadTasks(qc: QueryClient): Promise<void> {
+  const { preloadTasksRoute } = await import("@/routes/_app/-tasks-preload");
+  await preloadTasksRoute(qc, undefined);
+}
+
+async function preloadAgents(qc: QueryClient): Promise<void> {
+  const { preloadAgentsRoute } = await import("@/routes/_app/-agents-preload");
+  await preloadAgentsRoute(qc, { limit: 50 });
+}
+
+async function preloadNetwork(qc: QueryClient, ctx: { workspaceId: string }): Promise<void> {
+  const { preloadNetworkWindowRoute } = await import("@/routes/_app/-network-preload");
+  await preloadNetworkWindowRoute(qc, ctx.workspaceId);
+}
+
+async function preloadSandbox(qc: QueryClient): Promise<void> {
+  const { preloadSandboxRoute } = await import("@/routes/_app/-settings-preload");
+  await preloadSandboxRoute(qc);
+}
+
+async function preloadVault(qc: QueryClient): Promise<void> {
+  const { preloadVaultRoute } = await import("@/routes/_app/-vault-preload");
+  await preloadVaultRoute(qc);
+}
+
+async function preloadKnowledge(qc: QueryClient): Promise<void> {
+  const { preloadKnowledgeRoute } = await import("@/routes/_app/-knowledge-preload");
+  await preloadKnowledgeRoute(qc);
+}
+
+async function preloadBridges(qc: QueryClient): Promise<void> {
+  const { preloadBridgesRoute } = await import("@/routes/_app/-bridges-preload");
+  await preloadBridgesRoute(qc, { scope: "all" });
+}
+
+async function preloadLoops(qc: QueryClient): Promise<void> {
+  const { preloadLoopsRoute } = await import("@/routes/_app/-loops-preload");
+  await preloadLoopsRoute(qc, { limit: 50, sort: "name" });
+}
+
+async function preloadJobs(qc: QueryClient): Promise<void> {
+  const { preloadAutomationJobsRoute } = await import("@/routes/_app/-automation-preload");
+  await preloadAutomationJobsRoute(qc, {});
+}
+
+async function preloadTriggers(qc: QueryClient): Promise<void> {
+  const { preloadAutomationTriggersRoute } = await import("@/routes/_app/-automation-preload");
+  await preloadAutomationTriggersRoute(qc, {});
 }
 
 export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
@@ -85,7 +164,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     icon: SquareTerminal,
     paths: [],
     defaultRect: { x: 470, y: 26, w: 630, h: 570 },
-    dock: null,
+    dock: "rail-toggle",
+    badge: "sessions",
     matchInstance: matchSessionInstance,
     Controller: SessionWindow,
   },
@@ -96,7 +176,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/agents"],
     defaultRect: { x: 260, y: 118, w: 540, h: 390 },
     dock: { group: 2 },
-    Controller: PendingAppWindow,
+    preload: preloadAgents,
+    Controller: AgentsWindow,
   },
   network: {
     id: "network",
@@ -105,7 +186,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/network"],
     defaultRect: { x: 300, y: 98, w: 540, h: 480 },
     dock: { group: 2 },
-    Controller: PendingAppWindow,
+    preload: preloadNetwork,
+    Controller: NetworkWindow,
   },
   tasks: {
     id: "tasks",
@@ -115,7 +197,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     defaultRect: { x: 200, y: 88, w: 660, h: 480 },
     dock: { group: 2 },
     badge: "tasks",
-    Controller: PendingAppWindow,
+    preload: preloadTasks,
+    Controller: TasksWindow,
   },
   loops: {
     id: "loops",
@@ -124,7 +207,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/loops", "/loop-runs"],
     defaultRect: { x: 240, y: 100, w: 560, h: 400 },
     dock: { group: 2 },
-    Controller: PendingAppWindow,
+    preload: preloadLoops,
+    Controller: LoopsWindow,
   },
   jobs: {
     id: "jobs",
@@ -133,7 +217,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/jobs"],
     defaultRect: { x: 280, y: 118, w: 600, h: 400 },
     dock: { group: 2 },
-    Controller: PendingAppWindow,
+    preload: preloadJobs,
+    Controller: JobsWindow,
   },
   triggers: {
     id: "triggers",
@@ -142,7 +227,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/triggers"],
     defaultRect: { x: 310, y: 136, w: 620, h: 400 },
     dock: { group: 2 },
-    Controller: PendingAppWindow,
+    preload: preloadTriggers,
+    Controller: TriggersWindow,
   },
   marketplace: {
     id: "marketplace",
@@ -151,7 +237,7 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/marketplace"],
     defaultRect: { x: 168, y: 52, w: 720, h: 550 },
     dock: { group: 3 },
-    Controller: PendingAppWindow,
+    Controller: MarketplaceWindow,
   },
   bridges: {
     id: "bridges",
@@ -160,7 +246,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/bridges"],
     defaultRect: { x: 340, y: 150, w: 560, h: 400 },
     dock: { group: 3 },
-    Controller: PendingAppWindow,
+    preload: preloadBridges,
+    Controller: BridgesWindow,
   },
   knowledge: {
     id: "knowledge",
@@ -169,7 +256,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/knowledge"],
     defaultRect: { x: 360, y: 164, w: 580, h: 390 },
     dock: { group: 3 },
-    Controller: PendingAppWindow,
+    preload: preloadKnowledge,
+    Controller: KnowledgeWindow,
   },
   sandbox: {
     id: "sandbox",
@@ -178,7 +266,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/sandbox"],
     defaultRect: { x: 300, y: 126, w: 640, h: 450 },
     dock: { group: 4 },
-    Controller: PendingAppWindow,
+    preload: preloadSandbox,
+    Controller: SandboxWindow,
   },
   vault: {
     id: "vault",
@@ -187,7 +276,8 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     paths: ["/vault"],
     defaultRect: { x: 330, y: 128, w: 580, h: 390 },
     dock: { group: 4 },
-    Controller: PendingAppWindow,
+    preload: preloadVault,
+    Controller: VaultWindow,
   },
   settings: {
     id: "settings",
@@ -209,7 +299,7 @@ export function getOsApp(id: OsAppId): OsAppDefinition {
 export function dockApps(): OsAppDefinition[][] {
   const groups: OsAppDefinition[][] = [[], [], [], []];
   for (const app of Object.values(OS_APPS)) {
-    if (app.dock) groups[app.dock.group - 1].push(app);
+    if (app.dock && app.dock !== "rail-toggle") groups[app.dock.group - 1].push(app);
   }
   return groups.filter(group => group.length > 0);
 }

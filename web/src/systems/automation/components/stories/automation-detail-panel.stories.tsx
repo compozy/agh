@@ -3,9 +3,9 @@ import { HttpResponse } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import { useAutomationJobDetailPage } from "@/hooks/routes/use-automation-page";
 import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
+import { useAutomationJob, useAutomationJobRuns } from "@/systems/automation";
 import {
   automationRunFixtures,
   primaryAutomationJobFixture,
@@ -26,26 +26,28 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function AutomationDetailPanelFromPage() {
-  const page = useAutomationJobDetailPage(primaryAutomationJobFixture.id);
+  const jobId = primaryAutomationJobFixture.id;
+  const job = useAutomationJob(jobId);
+  const runs = useAutomationJobRuns(jobId, { limit: 10 }, { enabled: Boolean(job.data) });
 
   return (
     <PanelSurface>
       <AutomationDetailPanel
-        error={page.error}
-        item={page.job}
+        error={job.error}
+        item={job.data}
         kind="jobs"
-        onDelete={page.handleDelete}
-        onEdit={page.handleEdit}
-        onToggleEnabled={page.handleToggleEnabled}
-        onTriggerNow={page.handleTriggerNow}
-        runs={page.runs}
-        runsError={page.runsError}
-        runsLoading={page.runsLoading}
+        onDelete={fn()}
+        onEdit={fn()}
+        onToggleEnabled={fn()}
+        onTriggerNow={fn()}
+        runs={runs.data ?? []}
+        runsError={runs.error}
+        runsLoading={runs.isLoading}
         state={{
-          isDeleting: page.isDeleting,
-          isLoading: page.isLoading,
-          isTogglePending: page.isTogglePending,
-          isTriggerPending: page.isTriggerPending,
+          isDeleting: false,
+          isLoading: job.isLoading,
+          isTogglePending: false,
+          isTriggerPending: false,
         }}
       />
     </PanelSurface>

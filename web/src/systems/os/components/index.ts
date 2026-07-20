@@ -33,3 +33,5 @@ export { createOsRouteSync } from "./os-route-sync";
 export { OsWinLayer, type OsWinLayerProps } from "./os-win-layer";
 export { OsWindow, type OsWindowProps } from "./os-window";
 export { OsWindowErrorBoundary } from "./os-window-error-boundary";
+export { AttentionBell, type AttentionBellProps } from "./attention-bell";
+export { DesktopSessionsRail } from "./sessions-rail";

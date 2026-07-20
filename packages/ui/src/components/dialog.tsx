@@ -21,10 +21,14 @@ type DialogRootProps = DialogPrimitive.Root.Props;
 function Dialog({
   open: controlledOpen,
   defaultOpen = false,
+  modal,
+  disablePointerDismissal,
   onOpenChange,
   children,
   ...props
 }: DialogRootProps) {
+  const overlayContainer = useOverlayContainer();
+  const windowScoped = overlayContainer !== null;
   const actionsRef = React.useRef<DialogPrimitive.Root.Actions | null>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
@@ -43,6 +47,8 @@ function Dialog({
       actionsRef={actionsRef}
       open={open}
       defaultOpen={defaultOpen}
+      modal={modal ?? (windowScoped ? false : true)}
+      disablePointerDismissal={disablePointerDismissal ?? windowScoped}
       onOpenChange={handleOpenChange}
       {...props}
     >
@@ -118,9 +124,12 @@ function DialogContent({
   children,
   showCloseButton = true,
   unframed = false,
+  style,
   ...props
 }: DialogContentProps) {
   const { actionsRef, open } = useDialogMotion();
+  const overlayContainer = useOverlayContainer();
+  const windowScoped = overlayContainer !== null;
   const transition = useDialogMotionTransition();
   const popupRender = (
     <m.div
@@ -150,6 +159,15 @@ function DialogContent({
               unframed && "overflow-hidden",
               className
             )}
+            style={{
+              ...(windowScoped
+                ? {
+                    maxHeight: "calc(100% - 2rem)",
+                    maxWidth: "calc(100% - 2rem)",
+                  }
+                : undefined),
+              ...style,
+            }}
             {...props}
           >
             {children}

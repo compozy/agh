@@ -30,7 +30,9 @@ export function useDesktopShellModel() {
   });
   const workspaceAgents = activeWorkspaceId === null ? undefined : agents;
   const [isWorkspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
-  useSessionCatalogStreams(workspaces, { enabled: hasWorkspaces });
+  const sessionCatalogStreamStatus = useSessionCatalogStreams(workspaces, {
+    enabled: hasWorkspaces,
+  });
   const sessionCreate = useSessionCreateDialog({
     agents: workspaceAgents,
     activeWorkspace,
@@ -52,6 +54,7 @@ export function useDesktopShellModel() {
     setActiveWorkspaceId,
     areWorkspacesLoading,
     workspacesError,
+    sessionCatalogStreamStatus,
     isWorkspaceSetupOpen,
     setWorkspaceSetupOpen,
     openWorkspaceSetup: () => setWorkspaceSetupOpen(true),

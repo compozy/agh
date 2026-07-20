@@ -2,29 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import {
   automationListLoopFilter,
-  type AutomationRouteSearch,
-} from "@/hooks/routes/use-automation-page";
-import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
-import {
-  parseAutomationEnabled,
-  parseAutomationScope,
-  parseAutomationSource,
-} from "@/systems/automation";
+  validateJobsSearch,
+} from "@/systems/os/apps/automation/use-automation-page";
 import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { preloadAutomationJobsRoute } from "./-automation-preload";
-
-function validateJobsSearch(search: Record<string, unknown>): AutomationRouteSearch {
-  return {
-    create: search.create === "loop" ? "loop" : undefined,
-    enabled: parseAutomationEnabled(search.enabled),
-    loop: normalizeListingSearchValue(search.loop),
-    q: normalizeListingSearchValue(search.q),
-    scope: parseAutomationScope(search.scope),
-    source: parseAutomationSource(search.source),
-    view: parseListingView(search.view),
-  };
-}
 
 export const Route = createFileRoute("/_app/jobs")({
   validateSearch: validateJobsSearch,

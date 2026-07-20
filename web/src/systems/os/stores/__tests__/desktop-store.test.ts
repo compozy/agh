@@ -71,6 +71,24 @@ describe("desktop store", () => {
     expect(Object.keys(store.getState().windows).sort()).toEqual(["session:s1", "session:s2"]);
   });
 
+  it("Should keep one idempotent window per session instance key (UT-042)", () => {
+    const store = createDesktopStore();
+    const first = store.getState().openOrFocus({
+      app: "session",
+      instanceKey: "s1",
+      location: { pathname: "/agents/a/sessions/s1", search: {} },
+    });
+    const again = store.getState().openOrFocus({
+      app: "session",
+      instanceKey: "s1",
+      location: { pathname: "/agents/a/sessions/s1", search: {} },
+    });
+
+    expect(first).toBe("session:s1");
+    expect(again).toBe(first);
+    expect(Object.keys(store.getState().windows)).toEqual(["session:s1"]);
+  });
+
   it("Should raise a background window to max z on focus (UT-043)", () => {
     const store = createDesktopStore();
     const tasks = store.getState().openOrFocus({ app: "tasks" });
@@ -198,6 +216,45 @@ describe("desktop store", () => {
     store.getState().setPresentation("floating");
     win = store.getState().windows[id];
     expect(win.rect).toEqual(rectBefore);
+  });
+
+  it("Should toggle the rail and retain collapsed groups in the desktop document (UT-068, UT-084)", () => {
+    const store = createDesktopStore();
+
+    store.getState().toggleRail();
+    store.getState().toggleRailGroup("codex");
+    expect(store.getState()).toMatchObject({
+      railOpen: true,
+      railCollapsedAgentIds: ["codex"],
+    });
+
+    const restored = createDesktopStore();
+    restored.getState().hydrate([
+      {
+        key: OS_DESKTOP_KEY,
+        value: encodeDesktopPayload({
+          focusedId: null,
+          railOpen: store.getState().railOpen,
+          railCollapsedAgentIds: store.getState().railCollapsedAgentIds,
+          wallpaper: "ember",
+        }),
+        rev: 1,
+        seq: 1,
+        deleted: false,
+        updated_at: "2026-07-20T00:00:00Z",
+      },
+    ]);
+
+    expect(restored.getState()).toMatchObject({
+      railOpen: true,
+      railCollapsedAgentIds: ["codex"],
+    });
+    restored.getState().toggleRail();
+    restored.getState().toggleRailGroup("codex");
+    expect(restored.getState()).toMatchObject({
+      railOpen: false,
+      railCollapsedAgentIds: [],
+    });
   });
 
   it("Should drop invalid hydration entries individually and restore the valid windows (UT-063)", () => {
@@ -330,6 +387,7 @@ describe("desktop store", () => {
       windows: {},
       focusedId: null,
       railOpen: false,
+      railCollapsedAgentIds: [],
       wallpaper: "ember",
       hydration: "pending",
       softCapNotice: false,

@@ -34,7 +34,7 @@ import {
 import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
 import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsSandboxCollection } from "@/systems/settings";
-import { useSandboxPage } from "../use-sandbox-page";
+import { useSandboxPage } from "@/systems/sandbox/hooks/use-sandbox-page";
 
 const localEnv: SettingsSandboxCollection["sandboxes"][number] = {
   name: "local",

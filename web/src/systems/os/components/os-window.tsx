@@ -5,7 +5,7 @@ import { OverlayContainerContext, Spinner } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
-import { useOsWindow, type OsWindowModel } from "../hooks/use-os-window";
+import { useOsWindow } from "../hooks/use-os-window";
 import { getOsApp } from "../lib/app-registry";
 import type { OsWindow as OsWindowState } from "../lib/os-types";
 import { OsWindowErrorBoundary } from "./os-window-error-boundary";
@@ -31,11 +31,33 @@ export interface OsWindowProps {
  * exemption (Safety Invariant 18). Behavior lives in `useOsWindow`.
  */
 export function OsWindow({ windowId, rootCrumb }: OsWindowProps) {
-  const model = useOsWindow(windowId);
-  const { win, keepMounted } = model;
+  const {
+    win,
+    focused,
+    keepMounted,
+    overlayHost,
+    setOverlayHost,
+    handleTrafficLight,
+    handlePointerDownCapture,
+    handleFocusCapture,
+    handleDragStop,
+    handleResizeStop,
+  } = useOsWindow(windowId);
   if (!win || !keepMounted) return null;
 
-  const frame = <WindowFrame model={model} win={win} windowId={windowId} rootCrumb={rootCrumb} />;
+  const frame = (
+    <WindowFrame
+      focused={focused}
+      onFocusCapture={handleFocusCapture}
+      onOverlayHost={setOverlayHost}
+      onPointerDownCapture={handlePointerDownCapture}
+      onTrafficLight={handleTrafficLight}
+      overlayHost={overlayHost}
+      rootCrumb={rootCrumb}
+      win={win}
+      windowId={windowId}
+    />
+  );
 
   if (win.maximized) {
     return (
@@ -62,10 +84,11 @@ export function OsWindow({ windowId, rootCrumb }: OsWindowProps) {
       minWidth={MIN_WINDOW_WIDTH}
       minHeight={MIN_WINDOW_HEIGHT}
       bounds="parent"
+      resizeHandleClasses={{ bottomRight: "os-window-resize-handle" }}
       dragHandleClassName={DRAG_HANDLE_CLASS}
       cancel={DRAG_CANCEL_SELECTOR}
-      onDragStop={model.handleDragStop}
-      onResizeStop={model.handleResizeStop}
+      onDragStop={handleDragStop}
+      onResizeStop={handleResizeStop}
       style={{ zIndex: win.z, display: win.minimized ? "none" : undefined }}
     >
       {frame}
@@ -74,12 +97,22 @@ export function OsWindow({ windowId, rootCrumb }: OsWindowProps) {
 }
 
 function WindowFrame({
-  model,
+  focused,
+  onFocusCapture,
+  onOverlayHost,
+  onPointerDownCapture,
+  onTrafficLight,
+  overlayHost,
   win,
   windowId,
   rootCrumb,
 }: {
-  model: OsWindowModel;
+  focused: ReturnType<typeof useOsWindow>["focused"];
+  onFocusCapture: ReturnType<typeof useOsWindow>["handleFocusCapture"];
+  onOverlayHost: ReturnType<typeof useOsWindow>["setOverlayHost"];
+  onPointerDownCapture: ReturnType<typeof useOsWindow>["handlePointerDownCapture"];
+  onTrafficLight: ReturnType<typeof useOsWindow>["handleTrafficLight"];
+  overlayHost: ReturnType<typeof useOsWindow>["overlayHost"];
   win: OsWindowState;
   windowId: string;
   rootCrumb: string;
@@ -91,8 +124,8 @@ function WindowFrame({
     <OsWindowFrame
       title={app.title}
       rootCrumb={rootCrumb}
-      focused={model.focused}
-      onTrafficLight={model.handleTrafficLight}
+      focused={focused}
+      onTrafficLight={onTrafficLight}
       headClassName={cn(
         !win.maximized && `${DRAG_HANDLE_CLASS} cursor-grab active:cursor-grabbing`
       )}
@@ -100,24 +133,30 @@ function WindowFrame({
       data-testid={`os-window-${windowId}`}
       data-app={win.app}
       data-minimized={win.minimized ? "" : undefined}
-      onPointerDownCapture={model.handlePointerDownCapture}
-      onFocusCapture={model.handleFocusCapture}
+      onPointerDownCapture={onPointerDownCapture}
+      onFocusCapture={onFocusCapture}
     >
-      <OverlayContainerContext.Provider value={model.overlayHost}>
-        <OsWindowErrorBoundary title={app.title}>
-          <Suspense
-            fallback={
-              <div className="flex min-h-32 flex-1 items-center justify-center">
-                <Spinner className="size-4 text-subtle" />
-              </div>
-            }
-          >
-            <Controller windowId={windowId} />
-          </Suspense>
-        </OsWindowErrorBoundary>
+      <OverlayContainerContext.Provider value={overlayHost}>
+        {overlayHost ? (
+          <OsWindowErrorBoundary title={app.title}>
+            <Suspense
+              fallback={
+                <div className="flex min-h-32 flex-1 items-center justify-center">
+                  <Spinner className="size-4 text-subtle" />
+                </div>
+              }
+            >
+              <Controller windowId={windowId} />
+            </Suspense>
+          </OsWindowErrorBoundary>
+        ) : (
+          <div className="flex min-h-32 flex-1 items-center justify-center">
+            <Spinner className="size-4 text-subtle" />
+          </div>
+        )}
       </OverlayContainerContext.Provider>
       <div
-        ref={model.setOverlayHost}
+        ref={onOverlayHost}
         data-slot="os-window-overlays"
         // contain-paint makes portaled fixed-position scrims resolve against
         // this box, so a dialog dims and travels with its window only.

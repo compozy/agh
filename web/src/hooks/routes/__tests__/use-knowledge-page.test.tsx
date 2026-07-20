@@ -77,7 +77,7 @@ vi.mock("@/systems/knowledge", async () => {
   };
 });
 
-import { useKnowledgePage } from "../use-knowledge-page";
+import { useKnowledgePage } from "@/systems/os/apps/knowledge/use-knowledge-page";
 
 const GLOBAL_MEMORY: MemoryHeader = {
   filename: "operator-playbook-0425.md",

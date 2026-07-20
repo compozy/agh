@@ -161,11 +161,13 @@ export {
   useSessionCatalogStreams,
   type SessionCatalogEventSource,
   type SessionCatalogEventSourceFactory,
+  type SessionCatalogStreamStatus,
 } from "./hooks/use-session-catalog-streams";
 export {
   useSessionTranscriptThreadMessages,
   useSessionTranscriptThreadState,
 } from "./hooks/use-session-transcript-thread-messages";
+export { useSessionTopbarSlot } from "./hooks/use-session-topbar-slot";
 export type {
   SessionTranscriptThreadState,
   SessionTranscriptThreadStatus,

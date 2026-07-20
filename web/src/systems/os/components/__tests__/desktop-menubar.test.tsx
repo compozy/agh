@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogTitle } from "@agh/ui";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import { useDesktopOverlays } from "../../hooks/use-desktop-overlays";
 import { useOsShortcuts } from "../../hooks/use-os-shortcuts";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
@@ -47,7 +48,17 @@ function createShell(): OsShellHandle {
   };
 }
 
-function MenubarOverlayHarness() {
+const EMPTY_ATTENTION: OsAttentionModel = {
+  badges: {},
+  notificationCount: 0,
+  rows: [],
+  sessions: [],
+  sessionsDisconnected: false,
+  tasksDisconnected: false,
+  loading: false,
+};
+
+function MenubarOverlayHarness({ attention = EMPTY_ATTENTION }: { attention?: OsAttentionModel }) {
   const overlays = useDesktopOverlays();
 
   useOsShortcuts({
@@ -73,6 +84,7 @@ function MenubarOverlayHarness() {
         onOpenSpaces={() => overlays.setOverlayOpen("spaces", true)}
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
+        attention={attention}
       />
 
       <Dialog
@@ -95,12 +107,14 @@ function MenubarOverlayHarness() {
   );
 }
 
-function renderHarness() {
+function renderHarness(attention: OsAttentionModel = EMPTY_ATTENTION) {
+  const shell = createShell();
   render(
-    <OsShellContext.Provider value={createShell()}>
-      <MenubarOverlayHarness />
+    <OsShellContext.Provider value={shell}>
+      <MenubarOverlayHarness attention={attention} />
     </OsShellContext.Provider>
   );
+  return shell;
 }
 
 describe("DesktopMenubar overlay coordination", () => {
@@ -141,5 +155,69 @@ describe("DesktopMenubar overlay coordination", () => {
     const shortcuts = await screen.findByTestId("os-help-shortcuts");
     expect(shortcuts).toHaveTextContent("Spaces overview");
     expect(shortcuts).toHaveTextContent("⇧⌘S");
+  });
+
+  it("Should focus the owning session or task window without deciding inline (UT-083)", async () => {
+    const user = userEvent.setup();
+    const shell = renderHarness({
+      ...EMPTY_ATTENTION,
+      notificationCount: 2,
+      rows: [
+        {
+          kind: "session",
+          id: "session-1",
+          title: "Permission request",
+          agentName: "codex",
+        },
+        {
+          kind: "task",
+          id: "task-1",
+          title: "Approve release",
+          identifier: "AGH-42",
+        },
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Approvals" }));
+    await user.click(screen.getByTestId("os-attention-session-session-1"));
+    expect(shell.store.getState().focusedId).toBe("session:session-1");
+    expect(shell.store.getState().windows["session:session-1"].location.pathname).toBe(
+      "/agents/codex/sessions/session-1"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Approvals" }));
+    await user.click(screen.getByTestId("os-attention-task-task-1"));
+    expect(shell.store.getState().focusedId).toBe("app:tasks");
+    expect(shell.store.getState().windows["app:tasks"].location.pathname).toBe("/tasks/task-1");
+    expect(screen.queryByRole("button", { name: /approve|deny/i })).toBeNull();
+  });
+
+  it("Should show truthful empty and disconnected bell states (UT-069, UT-083)", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <OsShellContext.Provider value={createShell()}>
+        <MenubarOverlayHarness attention={EMPTY_ATTENTION} />
+      </OsShellContext.Provider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Approvals" }));
+    expect(screen.getByTestId("os-bell-empty")).toHaveTextContent("Nothing waiting");
+    unmount();
+
+    render(
+      <OsShellContext.Provider value={createShell()}>
+        <MenubarOverlayHarness
+          attention={{
+            ...EMPTY_ATTENTION,
+            sessionsDisconnected: true,
+            tasksDisconnected: true,
+          }}
+        />
+      </OsShellContext.Provider>
+    );
+    await user.click(screen.getByRole("button", { name: "Approvals" }));
+    expect(screen.getByTestId("os-bell-disconnected")).toHaveTextContent(
+      "Session and task attention are unavailable."
+    );
   });
 });

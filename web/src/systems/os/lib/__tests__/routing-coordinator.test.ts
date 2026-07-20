@@ -159,11 +159,16 @@ describe("routing coordinator", () => {
     coordinator.userOpen({ app: "tasks" });
     expect(port.pushes).toHaveLength(1);
     expect(port.pushes[0].pathname).toBe("/tasks");
+    const stateBeforeRouteMatch = store.getState();
+    const zBeforeRouteMatch = stateBeforeRouteMatch.windows["app:tasks"].z;
 
-    // The resulting route match reconciles without a second write (rule 3).
+    // The resulting route match performs no store transition and therefore
+    // cannot interrupt an in-flight window gesture (rule 3).
     coordinator.reportRouteMatch({ pathname: "/tasks", search: {} });
     expect(port.pushes).toHaveLength(1);
     expect(Object.keys(store.getState().windows)).toEqual(["app:tasks"]);
+    expect(store.getState()).toBe(stateBeforeRouteMatch);
+    expect(store.getState().windows["app:tasks"].z).toBe(zBeforeRouteMatch);
   });
 
   it("Should follow close/minimize with one navigation to the successor or the desktop", () => {

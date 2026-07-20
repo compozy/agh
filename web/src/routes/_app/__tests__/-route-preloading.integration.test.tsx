@@ -34,7 +34,7 @@ import { useNotificationPresets } from "@/systems/notifications";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
-import { useTaskDashboard, useTaskInbox, useTasks } from "@/systems/tasks";
+import { useTaskDashboard, useTaskInboxBadge, useTasks } from "@/systems/tasks";
 import {
   useSettingsApplyRecords,
   useSettingsGeneral,
@@ -360,7 +360,7 @@ const cases: PreloadCase[] = [
           limit: 50,
           sort: "recent",
         });
-        useTaskInbox({ scope: "workspace", workspace: workspace.id, limit: 1 });
+        useTaskInboxBadge({ scope: "workspace", workspace: workspace.id, limit: 1 });
       }),
     requests: [
       adapterMocks.fetchWorkspaces,
@@ -981,7 +981,7 @@ describe("route query preloading", () => {
 
     const unmount = mountQueries(queryClient, () => {
       useTaskDashboard(scope);
-      useTaskInbox({ ...scope, limit: 1 });
+      useTaskInboxBadge({ ...scope, limit: 1 });
       useSchedulerStatus();
       useSchedulerBacklog({ ...scope, include_paused: true, limit: 5 });
     });

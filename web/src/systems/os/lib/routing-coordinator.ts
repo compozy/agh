@@ -160,6 +160,13 @@ export class RoutingCoordinator {
       state.setLocation(existing.id, location);
       return;
     }
+    const existingId = osWindowId(app.id, instanceKey);
+    const existing = state.windows[existingId];
+    if (existing) {
+      state.focusWindow(existingId);
+      state.setLocation(existingId, location);
+      return;
+    }
     const id = state.openOrFocus({
       app: app.id,
       instanceKey: instanceKey ?? undefined,
