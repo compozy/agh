@@ -119,6 +119,7 @@ func (r *loopJudgeExecutionRegistry) bind(correlationID string, sessionID string
 	}
 	execution.sessionID = strings.TrimSpace(sessionID)
 	if execution.revoked {
+		execution.cancel()
 		return context.Canceled
 	}
 	return nil
@@ -152,7 +153,11 @@ func (r *loopGateJudgeRunner) revokeExecution(ctx context.Context, correlationID
 	}
 	if execution != nil {
 		execution.revoked = true
-		execution.cancel()
+		// Creation may already be externally visible before Judge receives the
+		// session ID. Let bind finish so its deferred stop preserves the audit row.
+		if strings.TrimSpace(execution.sessionID) != "" {
+			execution.cancel()
+		}
 	}
 	sessionID := ""
 	if execution != nil {
@@ -172,6 +177,7 @@ func (r *loopGateJudgeRunner) revokeExecution(ctx context.Context, correlationID
 	case <-execution.done:
 		return errors.Join(cancelErr, execution.cleanupErr)
 	case <-ctx.Done():
+		execution.cancel()
 		return errors.Join(cancelErr, ctx.Err())
 	}
 }
