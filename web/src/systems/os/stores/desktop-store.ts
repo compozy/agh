@@ -1,6 +1,7 @@
 import { createStore, type StoreApi } from "zustand";
 
 import { getOsApp } from "../lib/app-registry";
+import { deriveSnapRect } from "../lib/os-snap-geometry";
 import { decodeDesktopEntry, decodeWindowEntry } from "../lib/os-state-payloads";
 import {
   OS_DESKTOP_GUTTERS,
@@ -64,9 +65,13 @@ export function createDesktopStore(): DesktopStoreApi {
     railOpen: false,
     railCollapsedAgentIds: [],
     wallpaper: "ember",
+    reduceMotion: false,
+    dockMagnify: true,
     presentation: "floating",
     hydration: "pending",
     softCapNotice: false,
+    desktopBounds: null,
+    snapHint: null,
     zCounter: 0,
     settledSeqs: {},
     softCapEmitted: false,
@@ -103,6 +108,7 @@ export function createDesktopStore(): DesktopStoreApi {
         z,
         minimized: false,
         maximized: false,
+        snap: null,
       };
       const windows = { ...state.windows, [id]: win };
       const openCount = Object.keys(windows).length;
@@ -157,10 +163,50 @@ export function createDesktopStore(): DesktopStoreApi {
       const state = get();
       const win = state.windows[id];
       if (!win || state.presentation === "compact") return;
+      // Exclusivity (invariant 19): zooming a snapped window clears `snap` and
+      // keeps its original pre-derived `prevRect` so restore stays exact.
       const next: OsWindow = win.maximized
         ? { ...win, maximized: false, rect: win.prevRect ?? win.rect, prevRect: null }
-        : { ...win, maximized: true, prevRect: { ...win.rect } };
+        : {
+            ...win,
+            maximized: true,
+            snap: null,
+            prevRect: win.snap !== null ? win.prevRect : { ...win.rect },
+          };
       set({ windows: { ...state.windows, [id]: next } });
+    },
+
+    snapWindow: (id, zone) => {
+      const state = get();
+      const win = state.windows[id];
+      if (!win || state.presentation === "compact") return;
+      if (zone === null) {
+        if (win.snap === null) return;
+        set({
+          windows: {
+            ...state.windows,
+            [id]: {
+              ...win,
+              snap: null,
+              rect: win.prevRect ? { ...win.prevRect } : win.rect,
+              prevRect: null,
+            },
+          },
+        });
+        return;
+      }
+      // Re-snapping (or snapping a maximized window) keeps the original
+      // pre-derived rect so restore returns it exactly (invariant 19).
+      const prevRect = win.snap !== null || win.maximized ? win.prevRect : { ...win.rect };
+      // `rect` records this client's derivation at commit time (ADR-009) for
+      // thumbnails and non-rendering readers; later resizes never rewrite it.
+      const rect = state.desktopBounds ? deriveSnapRect(zone, state.desktopBounds) : win.rect;
+      set({
+        windows: {
+          ...state.windows,
+          [id]: { ...win, snap: { ...zone }, maximized: false, prevRect, rect },
+        },
+      });
     },
 
     toggleRail: () => {
@@ -189,6 +235,17 @@ export function createDesktopStore(): DesktopStoreApi {
       const state = get();
       const win = state.windows[id];
       if (!win || state.presentation === "compact") return;
+      // Any rect commit on a snapped window detaches it in the same mutation
+      // (invariant 19): floating geometry lands, `snap`/`prevRect` clear.
+      if (win.snap !== null) {
+        set({
+          windows: {
+            ...state.windows,
+            [id]: { ...win, rect: { ...rect }, snap: null, prevRect: null },
+          },
+        });
+        return;
+      }
       if (sameRect(win.rect, rect)) return;
       set({ windows: { ...state.windows, [id]: { ...win, rect: { ...rect } } } });
     },
@@ -229,6 +286,8 @@ export function createDesktopStore(): DesktopStoreApi {
           railOpen: desktop.railOpen,
           railCollapsedAgentIds: desktop.railCollapsedAgentIds,
           wallpaper: desktop.wallpaper,
+          reduceMotion: desktop.reduceMotion,
+          dockMagnify: desktop.dockMagnify,
         });
         return;
       }
@@ -295,6 +354,8 @@ export function createDesktopStore(): DesktopStoreApi {
         railOpen: desktop?.railOpen ?? state.railOpen,
         railCollapsedAgentIds: desktop?.railCollapsedAgentIds ?? state.railCollapsedAgentIds,
         wallpaper: desktop?.wallpaper ?? state.wallpaper,
+        reduceMotion: desktop?.reduceMotion ?? state.reduceMotion,
+        dockMagnify: desktop?.dockMagnify ?? state.dockMagnify,
         zCounter: decoded.length,
         settledSeqs,
         hydration: "live",
@@ -320,9 +381,18 @@ export function createDesktopStore(): DesktopStoreApi {
     clampToViewport: bounds => {
       const state = get();
       if (state.presentation === "compact" || bounds.width <= 0 || bounds.height <= 0) return;
+      const sameBounds =
+        state.desktopBounds?.width === bounds.width &&
+        state.desktopBounds?.height === bounds.height;
       let changed = false;
       const windows: Record<string, OsWindow> = {};
       for (const [id, win] of Object.entries(state.windows)) {
+        // Derived-geometry windows re-derive from the viewport instead of
+        // committing on resize (invariant 19) — their stored rect stays put.
+        if (win.snap !== null || win.maximized) {
+          windows[id] = win;
+          continue;
+        }
         const clamped = clampRect(win.rect, bounds);
         if (sameRect(clamped, win.rect)) {
           windows[id] = win;
@@ -331,12 +401,30 @@ export function createDesktopStore(): DesktopStoreApi {
           changed = true;
         }
       }
-      if (changed) set({ windows });
+      if (!changed && sameBounds) return;
+      set({
+        ...(changed ? { windows } : {}),
+        desktopBounds: sameBounds ? state.desktopBounds : { ...bounds },
+      });
     },
 
     clearSoftCapNotice: () => {
       if (!get().softCapNotice) return;
       set({ softCapNotice: false });
+    },
+
+    setSnapHint: hint => {
+      const current = get().snapHint;
+      if (current === hint) return;
+      if (
+        current !== null &&
+        hint !== null &&
+        current.windowId === hint.windowId &&
+        current.zoneId === hint.zoneId
+      ) {
+        return;
+      }
+      set({ snapHint: hint });
     },
 
     resetForWorkspace: () => {
@@ -346,8 +434,11 @@ export function createDesktopStore(): DesktopStoreApi {
         railOpen: false,
         railCollapsedAgentIds: [],
         wallpaper: "ember",
+        reduceMotion: false,
+        dockMagnify: true,
         hydration: "pending",
         softCapNotice: false,
+        snapHint: null,
         zCounter: 0,
         settledSeqs: {},
       });

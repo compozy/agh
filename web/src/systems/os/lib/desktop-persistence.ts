@@ -119,7 +119,9 @@ export function createDesktopPersistence(store: DesktopStoreApi): {
       state.focusedId !== prev.focusedId ||
       state.railOpen !== prev.railOpen ||
       state.railCollapsedAgentIds !== prev.railCollapsedAgentIds ||
-      state.wallpaper !== prev.wallpaper;
+      state.wallpaper !== prev.wallpaper ||
+      state.reduceMotion !== prev.reduceMotion ||
+      state.dockMagnify !== prev.dockMagnify;
     if (desktopChanged) {
       batch.push({ kind: "put", key: OS_DESKTOP_KEY, value: encodeDesktopPayload(state) });
       rectOnly = false;
@@ -142,6 +144,7 @@ function isRectOnlyChange(
     win.minimized === prev.minimized &&
     win.maximized === prev.maximized &&
     win.location === prev.location &&
-    win.prevRect === prev.prevRect
+    win.prevRect === prev.prevRect &&
+    win.snap === prev.snap
   );
 }

@@ -31,8 +31,24 @@ Send `sub`, `apply`, or `ping` WebSocket frames. The server returns one `snapsho
 Use these `os_shell` key conventions:
 
 - `desktop` for desktop-wide preferences such as focus, rail, wallpaper, dock magnification, and reduced motion.
-- `win:<windowId>` for one window's app identity, location, geometry, z-order, and minimized/maximized state.
+- `win:<windowId>` for one window's app identity, location, geometry, z-order, minimized/maximized state, and `snap`.
 - Include `v` in every value object for client-owned schema evolution.
 - Use one atomic `apply` batch when an action changes multiple keys.
+
+### Window snap fractions
+
+`win:*` docs carry `snap: {fx, fy, fw, fh} | null` — normalized fractions (0..1) of the desktop work area. Agents arrange windows by writing fractions; each client renders `work area × fractions` locally and re-derives on viewport resize without writing, so a half stays a half on every screen. Any fraction rect is valid, not just halves/quarters: `{fx:0,fy:0,fw:0.5,fh:1}` is the left half, `{fx:0.5,fy:0,fw:0.5,fh:1}` the right half, `{fx:0.5,fy:0.5,fw:0.5,fh:0.5}` the bottom-right quarter.
+
+Rules:
+
+- Ranges: each origin in 0..1, each span ≥ 0.1 per axis, `fx+fw ≤ 1`, `fy+fh ≤ 1`. Invalid `snap` (out-of-range, sub-minimum, overflow) is salvaged to `null` by clients — the window survives, unsnapped.
+- `snap` and `maximized` are mutually exclusive; a doc claiming both keeps `maximized`.
+- `snap` travels only inside the whole doc: writing a doc without it (or with `null`) unsnaps the window. `rect` holds the writing client's derived px at commit time (thumbnails/readers); `prevRect` holds the pre-snap rect for restore.
+- Clients clamp derived rects to the 280×180 window minimum, so tiny fractions on small viewports render larger than the literal fraction.
+
+```bash
+agh desktop-state set --workspace <id> --key 'win:app:tasks' \
+  --value '{"v":1,"app":"tasks","instanceKey":null,"location":{"pathname":"/tasks","search":{}},"rect":{"x":10,"y":8,"w":640,"h":480},"prevRect":null,"z":1,"minimized":false,"maximized":false,"snap":{"fx":0,"fy":0,"fw":0.5,"fh":1}}' -o json
+```
 
 Deterministic failure codes are `desktop_state_not_found`, `workspace_not_found`, `desktop_state_rev_conflict`, `desktop_state_value_too_large`, `desktop_state_key_quota_exceeded`, `desktop_state_invalid_key`, `desktop_state_invalid_value`, and `desktop_state_slow_consumer`. On slow-consumer eviction, reconnect and replace the local mirror from a fresh snapshot before resuming writes.

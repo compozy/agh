@@ -41,6 +41,7 @@ function createWindow(id: string, minimized: boolean): OsWindow {
     z: minimized ? 1 : 2,
     minimized,
     maximized: false,
+    snap: null,
   };
 }
 

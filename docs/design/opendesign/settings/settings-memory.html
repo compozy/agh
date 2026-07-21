@@ -101,6 +101,13 @@
   .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--subtle)}
   .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
 
+  /* ============ section index — internal wayfinding (sticky, in-column; not a second rail) ============ */
+  .secnav{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:4px;margin:-2px 0 22px;padding:9px 0 10px;background:var(--canvas);border-bottom:1px solid var(--line-soft);overflow-x:auto}
+  .secnav a{display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:var(--radius-md);font-size:12.5px;font-weight:500;color:var(--muted);white-space:nowrap;transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .secnav a:hover{background:var(--row-hover);color:var(--fg)}
+  .secnav a[aria-current="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+  .secnav a:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
   .notice{display:none;align-items:flex-start;gap:10px;margin-bottom:20px;padding:12px 14px;border-radius:var(--radius-md);background:var(--warning-tint);font-size:12.5px;line-height:1.5;color:var(--muted)}
   .notice.is-open{display:flex}
   .notice>svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--warning)}
@@ -241,8 +248,16 @@
           <div class="notice__actions"><button class="btn btn--ghost" id="restart-later">Not now</button><button class="btn" id="restart-now">Restart daemon</button></div>
         </div>
 
+        <!-- ===== section index (wayfinding) ===== -->
+        <nav class="secnav" aria-label="Memory sections" data-od-id="memory-secnav">
+          <a href="#sec-memory" data-sec="sec-memory" aria-current="true">Memory</a>
+          <a href="#sec-recall" data-sec="sec-recall">Recall</a>
+          <a href="#sec-dream" data-sec="sec-dream">Dreaming</a>
+          <a href="#sec-files" data-sec="sec-files">Files</a>
+        </nav>
+
         <!-- ===== Memory ===== -->
-        <section class="sgroup" data-od-id="group-memory">
+        <section class="sgroup" id="sec-memory" data-od-id="group-memory">
           <div class="sgroup__head"><div class="sgroup__headmain">
             <h2 class="sgroup__title">Memory</h2>
             <p class="sgroup__desc">The master switch and where memory files are kept.</p>
@@ -265,7 +280,7 @@
         </section>
 
         <!-- ===== Recall ===== -->
-        <section class="sgroup" data-od-id="group-recall">
+        <section class="sgroup" id="sec-recall" data-od-id="group-recall">
           <div class="sgroup__head"><div class="sgroup__headmain">
             <h2 class="sgroup__title">Recall</h2>
             <p class="sgroup__desc">How memories are surfaced into a session as it works.</p>
@@ -299,7 +314,7 @@
         </section>
 
         <!-- ===== Dreaming ===== -->
-        <section class="sgroup" data-od-id="group-dream">
+        <section class="sgroup" id="sec-dream" data-od-id="group-dream">
           <div class="sgroup__head"><div class="sgroup__headmain">
             <h2 class="sgroup__title">Dreaming</h2>
             <p class="sgroup__desc">When idle, a curator agent reviews recent activity and consolidates it into durable memories.</p>
@@ -329,7 +344,7 @@
         </section>
 
         <!-- ===== Files ===== -->
-        <section class="sgroup" data-od-id="group-files">
+        <section class="sgroup" id="sec-files" data-od-id="group-files">
           <div class="sgroup__head"><div class="sgroup__headmain">
             <h2 class="sgroup__title">Files &amp; retention</h2>
             <p class="sgroup__desc">How long session history and daily logs are kept before they&rsquo;re archived and deleted. Set a delete window to 0 to keep forever.</p>
@@ -502,6 +517,26 @@
 
   /* run dream now (immediate action, independent of the draft) */
   document.getElementById("run-dream").addEventListener("click", function(){ var b=this; b.textContent="Running…"; b.disabled=true; setTimeout(function(){ b.textContent="Done"; setTimeout(function(){ b.textContent="Run now"; b.disabled=false; },1200); },900); });
+
+  /* ---- section wayfinding: sticky index + scrollspy (no scrollIntoView) ---- */
+  var scroller=document.querySelector(".scroll");
+  var secLinks=[].slice.call(document.querySelectorAll(".secnav a"));
+  var secs=secLinks.map(function(a){ return document.getElementById(a.getAttribute("data-sec")); });
+  function scrollToSec(t){
+    if(!t) return;
+    var top=t.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 64;
+    scroller.scrollTo({top:Math.max(0,top), behavior:"smooth"});
+  }
+  secLinks.forEach(function(a){ a.addEventListener("click", function(e){ e.preventDefault(); scrollToSec(document.getElementById(a.getAttribute("data-sec"))); }); });
+  var spyTick=false;
+  function spy(){
+    var base=scroller.getBoundingClientRect().top, idx=0;
+    secs.forEach(function(s,i){ if(s && (s.getBoundingClientRect().top - base) <= 110) idx=i; });
+    secLinks.forEach(function(a,i){ a.setAttribute("aria-current", i===idx?"true":"false"); });
+    spyTick=false;
+  }
+  scroller.addEventListener("scroll", function(){ if(!spyTick){ spyTick=true; requestAnimationFrame(spy); } });
+  spy();
 })();
 </script>
 </body>

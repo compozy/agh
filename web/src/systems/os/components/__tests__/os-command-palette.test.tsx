@@ -130,4 +130,57 @@ describe("OsCommandPalette", () => {
     await user.keyboard("{Enter}");
     expect(store.getState().railOpen).toBe(true);
   });
+
+  it("Should list snap commands for the focused window and dispatch snapWindow (UT-101)", async () => {
+    const user = userEvent.setup();
+    const { store, shell } = createHarness();
+    store.getState().openOrFocus({ app: "tasks" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+
+    render(
+      <OsShellContext.Provider value={shell}>
+        <OsCommandPalette open onOpenChange={() => {}} />
+      </OsShellContext.Provider>
+    );
+
+    // Every zone is listed; restore is absent while the window floats.
+    expect(await screen.findByTestId("os-palette-snap-left")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-snap-top-right")).toBeInTheDocument();
+    expect(screen.queryByTestId("os-palette-snap-restore")).toBeNull();
+
+    await user.type(screen.getByPlaceholderText("Search apps, sessions, actions…"), "snap left");
+    await user.keyboard("{Enter}");
+    expect(store.getState().windows["app:tasks"].snap).toEqual({ fx: 0, fy: 0, fw: 0.5, fh: 1 });
+  });
+
+  it("Should offer restore for a snapped window and hide snap commands in compact (UT-101)", async () => {
+    const user = userEvent.setup();
+    const { store, shell } = createHarness();
+    store.getState().openOrFocus({ app: "tasks" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+    store.getState().commitRect("app:tasks", { x: 60, y: 50, w: 520, h: 400 });
+    store.getState().snapWindow("app:tasks", { fx: 0, fy: 0, fw: 0.5, fh: 1 });
+
+    const { rerender } = render(
+      <OsShellContext.Provider value={shell}>
+        <OsCommandPalette open onOpenChange={() => {}} />
+      </OsShellContext.Provider>
+    );
+
+    await user.type(screen.getByPlaceholderText("Search apps, sessions, actions…"), "restore");
+    await user.keyboard("{Enter}");
+    expect(store.getState().windows["app:tasks"].snap).toBeNull();
+    expect(store.getState().windows["app:tasks"].rect).toEqual({ x: 60, y: 50, w: 520, h: 400 });
+
+    // Compact presentation: the commands are absent entirely (UT-061 gating).
+    store.getState().setPresentation("compact");
+    rerender(
+      <OsShellContext.Provider value={shell}>
+        <OsCommandPalette open onOpenChange={() => {}} />
+      </OsShellContext.Provider>
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId("os-palette-snap-left")).toBeNull();
+    });
+  });
 });

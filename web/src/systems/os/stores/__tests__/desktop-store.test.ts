@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { createDesktopPersistence } from "../../lib/desktop-persistence";
+import { deriveSnapRect } from "../../lib/os-snap-geometry";
+import { OS_SNAP_ZONES } from "../../lib/os-snap-zones";
+import type { OsStateClient } from "../../lib/os-state-client";
 import { encodeDesktopPayload, encodeWindowPayload } from "../../lib/os-state-payloads";
 import { OS_DESKTOP_KEY, osWindowKey, type OsStateEntry, type OsWindow } from "../../lib/os-types";
 import { createDesktopStore } from "../desktop-store";
@@ -24,6 +28,7 @@ function makeWindow(overrides: Partial<OsWindow> & Pick<OsWindow, "id" | "app">)
     z: 1,
     minimized: false,
     maximized: false,
+    snap: null,
     ...overrides,
   };
 }
@@ -392,5 +397,105 @@ describe("desktop store", () => {
       hydration: "pending",
       softCapNotice: false,
     });
+  });
+
+  it("Should snap storing prevRect and commit this client's derivation as rect (UT-095, invariant 19)", () => {
+    const store = createDesktopStore();
+    const id = store.getState().openOrFocus({ app: "tasks" });
+    store.getState().commitRect(id, { x: 40, y: 30, w: 500, h: 380 });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+
+    store.getState().snapWindow(id, { fx: 0, fy: 0, fw: 0.5, fh: 1 });
+
+    const win = store.getState().windows[id];
+    expect(win.snap).toEqual({ fx: 0, fy: 0, fw: 0.5, fh: 1 });
+    expect(win.prevRect).toEqual({ x: 40, y: 30, w: 500, h: 380 });
+    expect(win.maximized).toBe(false);
+    // Derived-geometry selector: work area (insets 10/8/10/78) × fractions.
+    const derived = deriveSnapRect({ fx: 0, fy: 0, fw: 0.5, fh: 1 }, { width: 1440, height: 900 });
+    expect(derived).toEqual({ x: 10, y: 8, w: 710, h: 814 });
+    expect(win.rect).toEqual(derived);
+  });
+
+  it("Should keep snap and maximized exclusive and restore prevRect exactly on every path (UT-096, invariant 19)", () => {
+    const store = createDesktopStore();
+    const id = store.getState().openOrFocus({ app: "tasks" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+    store.getState().commitRect(id, { x: 33, y: 44, w: 555, h: 444 });
+
+    store.getState().snapWindow(id, OS_SNAP_ZONES.left);
+    store.getState().toggleZoom(id);
+    let win = store.getState().windows[id];
+    expect(win.maximized).toBe(true);
+    expect(win.snap).toBeNull();
+    expect(win.prevRect).toEqual({ x: 33, y: 44, w: 555, h: 444 });
+
+    store.getState().snapWindow(id, OS_SNAP_ZONES.right);
+    win = store.getState().windows[id];
+    expect(win.maximized).toBe(false);
+    expect(win.snap).toEqual(OS_SNAP_ZONES.right);
+    expect(win.prevRect).toEqual({ x: 33, y: 44, w: 555, h: 444 });
+
+    store.getState().snapWindow(id, null);
+    win = store.getState().windows[id];
+    expect(win.snap).toBeNull();
+    expect(win.rect).toEqual({ x: 33, y: 44, w: 555, h: 444 });
+    expect(win.prevRect).toBeNull();
+
+    store.getState().snapWindow(id, OS_SNAP_ZONES.left);
+    store.getState().toggleZoom(id);
+    store.getState().toggleZoom(id);
+    win = store.getState().windows[id];
+    expect(win.maximized).toBe(false);
+    expect(win.rect).toEqual({ x: 33, y: 44, w: 555, h: 444 });
+  });
+
+  it("Should clear snap on any commitRect and land drag-away geometry in the same mutation (UT-097, invariant 19)", () => {
+    const store = createDesktopStore();
+    const id = store.getState().openOrFocus({ app: "tasks" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+    store.getState().commitRect(id, { x: 100, y: 90, w: 600, h: 400 });
+    store.getState().snapWindow(id, OS_SNAP_ZONES.left);
+
+    // Drag-away: the gesture restores prevRect dimensions under the pointer
+    // and commits them; snap and prevRect clear atomically.
+    store.getState().commitRect(id, { x: 250, y: 40, w: 600, h: 400 });
+
+    const win = store.getState().windows[id];
+    expect(win.snap).toBeNull();
+    expect(win.prevRect).toBeNull();
+    expect(win.rect).toEqual({ x: 250, y: 40, w: 600, h: 400 });
+  });
+
+  it("Should re-derive snapped geometry on viewport resize with zero snapped-window writes (UT-098, invariant 19)", () => {
+    const store = createDesktopStore();
+    const persistence = createDesktopPersistence(store);
+    const snappedId = store.getState().openOrFocus({ app: "tasks" });
+    const floatingId = store.getState().openOrFocus({ app: "settings" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+    store.getState().snapWindow(snappedId, OS_SNAP_ZONES.right);
+    store.getState().commitRect(floatingId, { x: 900, y: 500, w: 400, h: 300 });
+    const snappedRectAtCommit = store.getState().windows[snappedId].rect;
+
+    const schedulePut = vi.fn();
+    const applyNow = vi.fn();
+    const unbind = persistence.bind({ schedulePut, applyNow } as unknown as OsStateClient);
+    store.getState().clampToViewport({ width: 1000, height: 700 });
+    unbind();
+
+    // The snapped window's stored rect never rewrites on resize; its rendered
+    // rect derives from the new work area locally.
+    expect(store.getState().windows[snappedId].rect).toEqual(snappedRectAtCommit);
+    expect(applyNow).not.toHaveBeenCalled();
+    expect(schedulePut).not.toHaveBeenCalledWith(osWindowKey(snappedId));
+    // The floating window only re-clamps (UT-065) — a rect-only debounce.
+    expect(schedulePut).toHaveBeenCalledWith(osWindowKey(floatingId));
+    const derived = deriveSnapRect(OS_SNAP_ZONES.right, { width: 1000, height: 700 });
+    expect(derived).toEqual({ x: 500, y: 8, w: 490, h: 614 });
+
+    // A quarter deriving below the window minimum clamps to 280×180.
+    const clamped = deriveSnapRect(OS_SNAP_ZONES["bottom-right"], { width: 500, height: 400 });
+    expect(clamped.w).toBe(280);
+    expect(clamped.h).toBe(180);
   });
 });

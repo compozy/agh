@@ -37,6 +37,7 @@ const ACTIVE_WINDOWS: OsWindow[] = [
     z: 2,
     minimized: false,
     maximized: false,
+    snap: null,
   },
   {
     id: "app:tasks",
@@ -48,6 +49,7 @@ const ACTIVE_WINDOWS: OsWindow[] = [
     z: 1,
     minimized: true,
     maximized: false,
+    snap: null,
   },
 ];
 

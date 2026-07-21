@@ -639,6 +639,132 @@ test("E2E-022: menubar operates workspaces, sessions, Spaces, help, logo, and se
   await expect(appPage.getByTestId("os-window-app:settings")).toBeVisible();
 });
 
+test("E2E-025: drag-snap previews the zone, persists through reload, and reflows on resize", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  const overlay = appPage.getByTestId("os-snap-overlay");
+
+  const grip = await windowGrip(tasks);
+  const layerBox = await appPage.locator('[data-slot="os-win-layer"]').boundingBox();
+  if (!layerBox) throw new Error("win-layer must be visible");
+  await appPage.mouse.move(grip.x, grip.y);
+  await appPage.mouse.down();
+  // Mid-desk: dragging, but no zone captured — the overlay must not render yet.
+  await appPage.mouse.move(grip.x + 40, grip.y + 30, { steps: 4 });
+  await expect(overlay).toHaveCount(0);
+  // Inside the 20px sensitivity band of the right edge: the preview appears.
+  await appPage.mouse.move(layerBox.x + layerBox.width - 12, grip.y + 30, { steps: 8 });
+  await expect(overlay).toBeVisible();
+  await appPage.mouse.up();
+
+  await expect.poll(() => snappedToHalf(appPage, tasks, "right")).toBe(true);
+  const committed = await desktopWindowPosition(runtime, workspace.id, "tasks");
+
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  const restored = appPage.getByTestId("os-window-app:tasks");
+  await expect(restored).toBeVisible();
+  await expect.poll(() => snappedToHalf(appPage, restored, "right")).toBe(true);
+
+  // Derived reflow: the window keeps filling the right half at the new
+  // viewport while the persisted rect stays the commit-time derivation.
+  await appPage.setViewportSize({ width: 1040, height: 720 });
+  await expect.poll(() => snappedToHalf(appPage, restored, "right")).toBe(true);
+  expect(await desktopWindowPosition(runtime, workspace.id, "tasks")).toEqual(committed);
+});
+
+test("E2E-026: snap fractions converge across viewports and an agent snap arranges live", async ({
+  appPage,
+  browser,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1440, height: 900 });
+  const workspace = await prepareShell(appPage, runtime);
+  const second = await openPeerPage(browser, runtime);
+  try {
+    const firstWindow = await openDockApp(appPage, "Tasks", "tasks");
+    const secondWindow = second.getByTestId("os-window-app:tasks");
+    await expect(secondWindow).toBeVisible();
+
+    await appPage.keyboard.press("Control+Alt+ArrowLeft");
+    // Fractions converge: each client renders the LEFT HALF of its own
+    // viewport; px intentionally differ between the two viewports.
+    await expect.poll(() => snappedToHalf(appPage, firstWindow, "left")).toBe(true);
+    await expect.poll(() => snappedToHalf(second, secondWindow, "left")).toBe(true);
+    const firstRect = await windowRect(appPage, firstWindow);
+    const secondRect = await windowRect(second, secondWindow);
+    expect(firstRect.w).not.toBe(secondRect.w);
+
+    // Agent-arranged snap (SD-011): a CLI write of snap fractions moves the
+    // window to the right half in both clients, live.
+    await setSnappedWindowFromCLI(runtime, workspace.id, "tasks", {
+      fx: 0.5,
+      fy: 0,
+      fw: 0.5,
+      fh: 1,
+    });
+    await expect.poll(() => snappedToHalf(appPage, firstWindow, "right")).toBe(true);
+    await expect.poll(() => snappedToHalf(second, secondWindow, "right")).toBe(true);
+  } finally {
+    await second.context().close();
+  }
+});
+
+test("E2E-027: palette snap, drag-away restore, and reduced-motion overlay", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  const preSnap = await windowRect(appPage, tasks);
+
+  await appPage.keyboard.press("ControlOrMeta+K");
+  const palette = appPage.getByTestId("os-command-palette");
+  await expect(palette).toBeVisible();
+  const search = palette.getByPlaceholder("Search apps, sessions, actions…");
+  await search.fill("Snap left half");
+  await search.press("Enter");
+  await expect.poll(() => snappedToHalf(appPage, tasks, "left")).toBe(true);
+  // The palette scrim blocks pointers while its exit animation runs; wait for
+  // it to unmount before starting the head drag.
+  await expect(appPage.locator('[data-slot="dialog-overlay"]')).toHaveCount(0);
+
+  // Drag away from the zone: the window detaches and its pre-snap size
+  // restores under the cursor.
+  const layerBox = await appPage.locator('[data-slot="os-win-layer"]').boundingBox();
+  if (!layerBox) throw new Error("win-layer must be visible");
+  const grip = await windowGrip(tasks);
+  await appPage.mouse.move(grip.x, grip.y);
+  await appPage.mouse.down();
+  await appPage.mouse.move(layerBox.x + layerBox.width / 2, layerBox.y + 260, { steps: 10 });
+  await appPage.mouse.up();
+  await expect
+    .poll(async () => {
+      try {
+        const rect = await windowRect(appPage, tasks);
+        return rect.w === preSnap.w && rect.h === preSnap.h;
+      } catch {
+        return false; // frame mid-remount; poll again
+      }
+    })
+    .toBe(true);
+
+  // Reduced motion: the overlay renders without fade/morph (attribute-gated
+  // collapse) while snapping still works.
+  await appPage.emulateMedia({ reducedMotion: "reduce" });
+  const gripAgain = await windowGrip(tasks);
+  await appPage.mouse.move(gripAgain.x, gripAgain.y);
+  await appPage.mouse.down();
+  await appPage.mouse.move(layerBox.x + 12, layerBox.y + layerBox.height / 2, { steps: 8 });
+  const overlay = appPage.getByTestId("os-snap-overlay");
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toHaveAttribute("data-reduced-motion", "");
+  await appPage.mouse.up();
+  await expect.poll(() => snappedToHalf(appPage, tasks, "left")).toBe(true);
+});
+
 async function prepareShell(page: Page, runtime: BrowserRuntime): Promise<WorkspacePayload> {
   await useGlobalWorkspaceIfPrompted(page);
   await expect(page.getByTestId("os-desktop")).toBeVisible();
@@ -727,6 +853,101 @@ function positionsMatch(
   second: { x: number; y: number }
 ): boolean {
   return Math.abs(first.x - second.x) <= 1 && Math.abs(first.y - second.y) <= 1;
+}
+
+/**
+ * Poll body: is the window rendering as the derived half? Branch swaps
+ * (Rnd ↔ absolute path) briefly detach the frame while snap toggles, so
+ * measurement failures report false for the next poll instead of aborting.
+ */
+async function snappedToHalf(
+  page: Page,
+  win: ReturnType<Page["locator"]>,
+  side: "left" | "right"
+): Promise<boolean> {
+  try {
+    return rectsClose(await windowRect(page, win), await snapHalfRect(page, side));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A guaranteed drag surface on the window head: the identity (glyph + title)
+ * area is never inside the drag-cancel selectors, unlike the head center,
+ * which can land on the mode tabs (`topbar-nav`) once an app publishes them.
+ */
+async function windowGrip(win: ReturnType<Page["locator"]>): Promise<{ x: number; y: number }> {
+  const title = win.locator('[data-slot="topbar-title"]');
+  const box = await title.boundingBox();
+  if (!box) throw new Error("window title must be visible to start a head drag");
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/**
+ * Expected derived rect for a half zone at the CURRENT layer size — the same
+ * work-area math clients run (insets 10/8/10/78, edge-rounded fractions).
+ */
+async function snapHalfRect(page: Page, side: "left" | "right") {
+  const layerBox = await page.locator('[data-slot="os-win-layer"]').boundingBox();
+  if (!layerBox) throw new Error("win-layer must be visible to derive snap rects");
+  const area = {
+    x: 10,
+    y: 8,
+    w: Math.max(1, layerBox.width - 20),
+    h: Math.max(1, layerBox.height - 86),
+  };
+  const mid = area.x + Math.round(area.w * 0.5);
+  const right = area.x + Math.round(area.w);
+  const h = Math.round(area.h);
+  return side === "left"
+    ? { x: area.x, y: area.y, w: mid - area.x, h }
+    : { x: mid, y: area.y, w: right - mid, h };
+}
+
+function rectsClose(
+  first: { x: number; y: number; w: number; h: number },
+  second: { x: number; y: number; w: number; h: number },
+  tolerance = 2
+): boolean {
+  return (
+    Math.abs(first.x - second.x) <= tolerance &&
+    Math.abs(first.y - second.y) <= tolerance &&
+    Math.abs(first.w - second.w) <= tolerance &&
+    Math.abs(first.h - second.h) <= tolerance
+  );
+}
+
+async function setSnappedWindowFromCLI(
+  runtime: BrowserRuntime,
+  workspaceId: string,
+  app: string,
+  snap: { fx: number; fy: number; fw: number; fh: number }
+): Promise<void> {
+  if (!runtime.paths) throw new Error("E2E-026 requires launch-mode runtime paths");
+  const value = JSON.stringify({
+    ...windowPayload(app, { x: 10, y: 8, w: 640, h: 480 }),
+    snap,
+  });
+  await execFileAsync(
+    runtime.paths.cliShim,
+    [
+      "desktop-state",
+      "set",
+      "--workspace",
+      workspaceId,
+      "--key",
+      `win:app:${app}`,
+      "--value",
+      value,
+      "-o",
+      "json",
+    ],
+    {
+      env: { ...process.env, AGH_HOME: runtime.paths.homeDir, HOME: runtime.paths.homeDir },
+      maxBuffer: 10 * 1024 * 1024,
+    }
+  );
 }
 
 async function createNamedSession(runtime: BrowserRuntime, workspaceId: string, name: string) {

@@ -18,6 +18,7 @@ import type { WorkspacePayload } from "@/systems/workspace";
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import type { OsAttentionRow } from "../lib/attention-model";
+import { OS_SNAP_COMMANDS } from "../lib/os-snap-commands";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useDesktop } from "../hooks/use-desktop";
 import { OsHydrationStatus } from "./os-hydration-status";
@@ -48,6 +49,8 @@ const SHORTCUT_ROWS: Array<{ keys: string; label: string }> = [
   { keys: "⌘W", label: "Close window" },
   { keys: "⌘M", label: "Minimize window" },
   { keys: "Esc", label: "Close overlay" },
+  // Snap chords (ADR-009); the palette carries the same actions everywhere.
+  ...OS_SNAP_COMMANDS.map(command => ({ keys: command.keys, label: command.label })),
 ];
 
 function menuOverlay(menu: string): DesktopOverlay | null {

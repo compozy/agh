@@ -5,24 +5,20 @@ import { OverlayContainerContext, Spinner } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
-import { useOsWindow } from "../hooks/use-os-window";
+import {
+  OS_WINDOW_DRAG_CANCEL_SELECTOR,
+  OS_WINDOW_DRAG_HANDLE_CLASS,
+  useOsWindow,
+} from "../hooks/use-os-window";
 import { getOsApp } from "../lib/app-registry";
-import type { OsWindow as OsWindowState } from "../lib/os-types";
+import {
+  OS_WINDOW_MIN_HEIGHT,
+  OS_WINDOW_MIN_WIDTH,
+  OS_WORK_AREA_INSETS,
+  type OsWindow as OsWindowState,
+} from "../lib/os-types";
 import { OsWindowErrorBoundary } from "./os-window-error-boundary";
 import { OsWindowFrame } from "./os-window-frame";
-
-const MIN_WINDOW_WIDTH = 280;
-const MIN_WINDOW_HEIGHT = 180;
-const DRAG_HANDLE_CLASS = "os-window-drag-handle";
-/** Head controls that must never start a drag. */
-const DRAG_CANCEL_SELECTOR = [
-  '[data-slot="os-traffic-lights"]',
-  '[data-slot="topbar-back"]',
-  '[data-slot="topbar-crumb"]',
-  '[data-slot="topbar-crumb-more"]',
-  '[data-slot="topbar-nav"]',
-  '[data-slot="topbar-trailing"]',
-].join(", ");
 
 export interface OsWindowProps {
   windowId: string;
@@ -33,18 +29,24 @@ export interface OsWindowProps {
  * (ADR-003 — transient gesture positions stay inside the drag mechanism; the
  * store commits at gesture end), the per-window overlay container (Modal &
  * Overlay Policy), and the minimize=unmount posture with the open-dialog
- * exemption (Safety Invariant 18). Behavior lives in `useOsWindow`.
+ * exemption (Safety Invariant 18). Maximized and snapped windows bypass Rnd
+ * on the same absolute path — snapped geometry derives from the viewport
+ * (ADR-009, invariant 19). Behavior lives in `useOsWindow`.
  */
 export function OsWindow({ windowId }: OsWindowProps) {
   const {
     win,
     focused,
     keepMounted,
+    snapRect,
+    rndRef,
     overlayHost,
     setOverlayHost,
     handleTrafficLight,
     handlePointerDownCapture,
     handleFocusCapture,
+    handleDragStart,
+    handleDrag,
     handleDragStop,
     handleResizeStop,
   } = useOsWindow(windowId);
@@ -64,14 +66,33 @@ export function OsWindow({ windowId }: OsWindowProps) {
   );
 
   if (win.maximized) {
+    const { top, right, bottom, left } = OS_WORK_AREA_INSETS;
     return (
       <div
         className="absolute"
         style={{
-          left: 10,
-          top: 8,
-          right: 10,
-          bottom: 78,
+          left,
+          top,
+          right,
+          bottom,
+          zIndex: win.z,
+          display: win.minimized ? "none" : undefined,
+        }}
+      >
+        {frame}
+      </div>
+    );
+  }
+
+  if (win.snap !== null && snapRect !== null) {
+    return (
+      <div
+        className="absolute"
+        style={{
+          left: snapRect.x,
+          top: snapRect.y,
+          width: snapRect.w,
+          height: snapRect.h,
           zIndex: win.z,
           display: win.minimized ? "none" : undefined,
         }}
@@ -83,14 +104,17 @@ export function OsWindow({ windowId }: OsWindowProps) {
 
   return (
     <Rnd
+      ref={rndRef}
       position={{ x: win.rect.x, y: win.rect.y }}
       size={{ width: win.rect.w, height: win.rect.h }}
-      minWidth={MIN_WINDOW_WIDTH}
-      minHeight={MIN_WINDOW_HEIGHT}
+      minWidth={OS_WINDOW_MIN_WIDTH}
+      minHeight={OS_WINDOW_MIN_HEIGHT}
       bounds="parent"
       resizeHandleClasses={{ bottomRight: "os-window-resize-handle" }}
-      dragHandleClassName={DRAG_HANDLE_CLASS}
-      cancel={DRAG_CANCEL_SELECTOR}
+      dragHandleClassName={OS_WINDOW_DRAG_HANDLE_CLASS}
+      cancel={OS_WINDOW_DRAG_CANCEL_SELECTOR}
+      onDragStart={handleDragStart}
+      onDrag={handleDrag}
       onDragStop={handleDragStop}
       onResizeStop={handleResizeStop}
       style={{ zIndex: win.z, display: win.minimized ? "none" : undefined }}
@@ -128,12 +152,13 @@ function WindowFrame({
       focused={focused}
       onTrafficLight={onTrafficLight}
       headClassName={cn(
-        !win.maximized && `${DRAG_HANDLE_CLASS} cursor-grab active:cursor-grabbing`
+        !win.maximized && `${OS_WINDOW_DRAG_HANDLE_CLASS} cursor-grab active:cursor-grabbing`
       )}
       className="relative h-full w-full"
       data-testid={`os-window-${windowId}`}
       data-app={win.app}
       data-minimized={win.minimized ? "" : undefined}
+      data-snapped={win.snap !== null ? "" : undefined}
       onPointerDownCapture={onPointerDownCapture}
       onFocusCapture={onFocusCapture}
     >

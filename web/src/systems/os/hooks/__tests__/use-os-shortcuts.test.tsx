@@ -92,4 +92,80 @@ describe("useOsShortcuts", () => {
     fireEvent.keyDown(document.body, { key: "w", metaKey: true });
     expect(store.getState().windows["app:tasks"]).toBeUndefined();
   });
+
+  it("Should dispatch ⌃⌥ snap chords to the focused window and no-op in compact (UT-101)", () => {
+    const { store, coordinator, shell } = createHarness();
+    coordinator.userOpen({ app: "tasks" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+    const handlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onSpaces: vi.fn(),
+      onEscape: vi.fn(),
+    };
+    render(
+      <OsShellContext.Provider value={shell}>
+        <Harness handlers={handlers} />
+      </OsShellContext.Provider>
+    );
+    const preSnapRect = store.getState().windows["app:tasks"].rect;
+
+    fireEvent.keyDown(document.body, {
+      code: "ArrowLeft",
+      key: "ArrowLeft",
+      ctrlKey: true,
+      altKey: true,
+    });
+    expect(store.getState().windows["app:tasks"].snap).toEqual({ fx: 0, fy: 0, fw: 0.5, fh: 1 });
+
+    fireEvent.keyDown(document.body, { code: "KeyK", key: "k", ctrlKey: true, altKey: true });
+    expect(store.getState().windows["app:tasks"].snap).toEqual({
+      fx: 0.5,
+      fy: 0.5,
+      fw: 0.5,
+      fh: 0.5,
+    });
+
+    fireEvent.keyDown(document.body, {
+      code: "ArrowDown",
+      key: "ArrowDown",
+      ctrlKey: true,
+      altKey: true,
+    });
+    expect(store.getState().windows["app:tasks"].snap).toBeNull();
+    expect(store.getState().windows["app:tasks"].rect).toEqual(preSnapRect);
+
+    // Compact presentation: every snap action is a no-op (UT-061 gating).
+    store.getState().setPresentation("compact");
+    fireEvent.keyDown(document.body, {
+      code: "ArrowRight",
+      key: "ArrowRight",
+      ctrlKey: true,
+      altKey: true,
+    });
+    expect(store.getState().windows["app:tasks"].snap).toBeNull();
+  });
+
+  it("Should never steal ⌃⌥ chords from editable targets (AltGr safety)", () => {
+    const { store, coordinator, shell } = createHarness();
+    coordinator.userOpen({ app: "tasks" });
+    store.getState().clampToViewport({ width: 1440, height: 900 });
+    const { getByTestId } = render(
+      <OsShellContext.Provider value={shell}>
+        <Harness
+          handlers={{
+            onPalette: vi.fn(),
+            onNewSession: vi.fn(),
+            onSpaces: vi.fn(),
+            onEscape: vi.fn(),
+          }}
+        />
+      </OsShellContext.Provider>
+    );
+
+    const input = getByTestId("anywhere-input");
+    input.focus();
+    fireEvent.keyDown(input, { code: "KeyU", key: "ú", ctrlKey: true, altKey: true });
+    expect(store.getState().windows["app:tasks"].snap).toBeNull();
+  });
 });

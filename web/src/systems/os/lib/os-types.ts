@@ -24,6 +24,32 @@ export interface OsRect {
   h: number;
 }
 
+/**
+ * Persisted snap zone: normalized fractions (0..1) of the desktop work area
+ * (ADR-009). Clients derive px locally; fractions are the cross-client truth.
+ */
+export interface OsSnapZone {
+  fx: number;
+  fy: number;
+  fw: number;
+  fh: number;
+}
+
+/** The six v1 pointer zones (ADR-009): halves + corner quarters. Top edge stays unbound — zoom owns full. */
+export type OsSnapZoneId =
+  | "left"
+  | "right"
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right";
+
+/** Ephemeral drag hint: the zone a release would snap `windowId` into. */
+export interface OsSnapHint {
+  windowId: string;
+  zoneId: OsSnapZoneId;
+}
+
 export interface OsWindowLocation {
   pathname: string;
   search: Record<string, unknown>;
@@ -39,6 +65,8 @@ export interface OsWindow {
   z: number;
   minimized: boolean;
   maximized: boolean;
+  /** Derived-geometry authority while set; exclusive with `maximized` (invariant 19). */
+  snap: OsSnapZone | null;
 }
 
 export type OsWallpaper = "ember" | "mesh" | "carbon";
@@ -72,6 +100,9 @@ export interface OsDesktopStore {
   railOpen: boolean;
   railCollapsedAgentIds: string[];
   wallpaper: OsWallpaper;
+  /** Desktop-doc motion preference (in-product toggle; system pref composes at read sites). */
+  reduceMotion: boolean;
+  dockMagnify: boolean;
   presentation: OsPresentation;
   hydration: OsHydration;
   openOrFocus(target: OsOpenTarget): string;
@@ -80,6 +111,12 @@ export interface OsDesktopStore {
   minimizeWindow(id: string): void;
   restoreWindow(id: string): void;
   toggleZoom(id: string): void;
+  /**
+   * Snaps a window to a fractional zone (invariant 19): stores the pre-snap
+   * rect in `prevRect` and clears `maximized`. `zone: null` restores the
+   * stored `prevRect` exactly. No-op in compact presentation.
+   */
+  snapWindow(id: string, zone: OsSnapZone | null): void;
   toggleRail(): void;
   openRail(): void;
   closeRail(): void;
@@ -93,6 +130,11 @@ export interface OsDesktopStore {
 export interface OsDesktopRuntimeStore extends OsDesktopStore {
   /** One-shot soft-cap guidance flag; set once when the 13th window opens. */
   softCapNotice: boolean;
+  /** Last measured win-layer box; snapped/maximized geometry derives from it. */
+  desktopBounds: OsDesktopBounds | null;
+  /** Live snap-drag hint (one per desktop); never persisted. */
+  snapHint: OsSnapHint | null;
+  setSnapHint(hint: OsSnapHint | null): void;
   /** Snapshot adoption: replaces the mirror, drops invalid entries, compacts z. */
   hydrate(entries: OsStateEntry[]): void;
   setPresentation(presentation: OsPresentation): void;
@@ -115,6 +157,19 @@ export const OS_WINDOW_SOFT_CAP = 12;
 
 /** Desktop gutters (px) the clamp respects: menubar above, dock strip below. */
 export const OS_DESKTOP_GUTTERS = { top: 4, right: 8, bottom: 120, left: 8 } as const;
+
+/** Window minimum size (px); Rnd resize and derived snap rects clamp to it. */
+export const OS_WINDOW_MIN_WIDTH = 280;
+export const OS_WINDOW_MIN_HEIGHT = 180;
+
+/**
+ * Work-area insets (px) inside the win-layer — the "fill the desktop" box both
+ * maximized windows and snap fractions derive from (one authority, ADR-009).
+ */
+export const OS_WORK_AREA_INSETS = { top: 8, right: 10, bottom: 78, left: 10 } as const;
+
+/** Codec floor for snap fractions: a zone spans ≥10% of the work area per axis. */
+export const OS_SNAP_MIN_FRACTION = 0.1;
 
 export function osWindowId(app: OsAppId, instanceKey?: string | null): string {
   return app === "session" && instanceKey ? `session:${instanceKey}` : `app:${app}`;

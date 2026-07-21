@@ -44,6 +44,7 @@ function makeWindow(overrides: Partial<OsWindow> & Pick<OsWindow, "id" | "app">)
     z: 1,
     minimized: false,
     maximized: false,
+    snap: null,
     ...overrides,
   };
 }

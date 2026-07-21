@@ -1,29 +1,9 @@
 import { useEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 
 import { DOCK_MAG_RADIUS, dockMagnifyFactor, dockMagnifyTransform } from "../lib/dock-magnify";
+import { getSystemReducedMotion, subscribeSystemReducedMotion } from "../lib/reduced-motion";
 
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const DOCK_ITEM_SELECTOR = '[data-slot="os-dock-item"]';
-
-function subscribeReducedMotion(callback: () => void): () => void {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return () => undefined;
-  }
-  const mql = window.matchMedia(REDUCED_MOTION_QUERY);
-  if (typeof mql.addEventListener === "function") {
-    mql.addEventListener("change", callback);
-    return () => mql.removeEventListener("change", callback);
-  }
-  mql.addListener(callback);
-  return () => mql.removeListener(callback);
-}
-
-function getReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return false;
-  }
-  return window.matchMedia(REDUCED_MOTION_QUERY).matches;
-}
 
 function clearTransforms(root: HTMLElement): void {
   for (const item of root.querySelectorAll<HTMLElement>(DOCK_ITEM_SELECTOR)) {
@@ -46,7 +26,11 @@ function applyMagnify(root: HTMLElement, clientX: number): void {
  * false (compact presentation) or the user prefers reduced motion.
  */
 export function useDockMagnify(rootRef: RefObject<HTMLElement | null>, enabled = true): void {
-  const reduceMotion = useSyncExternalStore(subscribeReducedMotion, getReducedMotion, () => false);
+  const reduceMotion = useSyncExternalStore(
+    subscribeSystemReducedMotion,
+    getSystemReducedMotion,
+    () => false
+  );
   const active = enabled && !reduceMotion;
   const pendingX = useRef<number | null>(null);
   const rafId = useRef(0);

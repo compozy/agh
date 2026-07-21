@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   OS_DESKTOP_KEY,
+  OS_SNAP_MIN_FRACTION,
   osWindowKey,
   windowIdFromKey,
   type OsStateEntry,
@@ -24,6 +25,21 @@ const osLocationSchema = z.object({
   pathname: z.string().min(1),
   search: z.record(z.string(), z.unknown()).catch({}),
 });
+
+/**
+ * Snap fractions (ADR-009): each axis inside the unit work area with a
+ * minimum span (`OS_SNAP_MIN_FRACTION`). Any failure — out-of-range,
+ * negative/sub-minimum sizes, overflow past 1 — salvages the field to `null`
+ * without dropping the window (invariant 19; US-001.EC-2 posture).
+ */
+const osSnapZoneSchema = z
+  .object({
+    fx: z.number().min(0).max(1),
+    fy: z.number().min(0).max(1),
+    fw: z.number().min(OS_SNAP_MIN_FRACTION).max(1),
+    fh: z.number().min(OS_SNAP_MIN_FRACTION).max(1),
+  })
+  .refine(zone => zone.fx + zone.fw <= 1 + 1e-6 && zone.fy + zone.fh <= 1 + 1e-6);
 
 const osAppIdSchema = z.enum([
   "dashboard",
@@ -52,6 +68,7 @@ export const osWindowPayloadSchema = z.object({
   z: z.number().int().nonnegative(),
   minimized: z.boolean(),
   maximized: z.boolean(),
+  snap: osSnapZoneSchema.nullable().catch(null),
 });
 
 export const osDesktopPayloadSchema = z.object({
@@ -78,6 +95,7 @@ export function encodeWindowPayload(win: OsWindow): OsWindowPayload {
     z: win.z,
     minimized: win.minimized,
     maximized: win.maximized,
+    snap: win.snap,
   };
 }
 
@@ -86,6 +104,8 @@ export interface OsDesktopDoc {
   railOpen: boolean;
   railCollapsedAgentIds?: readonly string[];
   wallpaper: "ember" | "mesh" | "carbon";
+  dockMagnify?: boolean;
+  reduceMotion?: boolean;
 }
 
 export function encodeDesktopPayload(doc: OsDesktopDoc): OsDesktopPayload {
@@ -95,8 +115,8 @@ export function encodeDesktopPayload(doc: OsDesktopDoc): OsDesktopPayload {
     railOpen: doc.railOpen,
     railCollapsedAgentIds: [...(doc.railCollapsedAgentIds ?? [])],
     wallpaper: doc.wallpaper,
-    dockMagnify: true,
-    reduceMotion: false,
+    dockMagnify: doc.dockMagnify ?? true,
+    reduceMotion: doc.reduceMotion ?? false,
   };
 }
 
@@ -125,6 +145,9 @@ export function decodeWindowEntry(entry: OsStateEntry): OsWindow | null {
     z: payload.z,
     minimized: payload.minimized,
     maximized: payload.maximized,
+    // Exclusivity salvage (invariant 19): a doc claiming both derived states
+    // keeps `maximized` and drops `snap` — deterministic, window preserved.
+    snap: payload.maximized ? null : payload.snap,
   };
 }
 

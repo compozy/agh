@@ -30,3 +30,13 @@
 .marketplace-card-flash {
   animation: marketplace-card-flash var(--duration-slow) var(--ease-out);
 }
+
+/* Snap drop-overlay entry (ADR-009 motion contract: 80ms linear, Hermes ramp). */
+@keyframes os-snap-fade {
+  from {
+    opacity: 0.001;
+  }
+  to {
+    opacity: 1;
+  }
+}
